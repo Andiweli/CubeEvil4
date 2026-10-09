@@ -1,9 +1,10 @@
 # RE4 native foundation
 
 Strategy A: compile original RE4 code with a separate native compatibility layer.
-This directory contains the verified build foundation, stackful scheduler and
-Phase-2b background/file/Yz2 runtime. It is not a playable game. It loads
-no GameCube assets and implements no room, actor, event, renderer or SDK stubs.
+This directory contains the verified build foundation, stackful scheduler,
+background/file/Yz2 runtime and Phase-3b original-data MRAM loader. It is not a
+playable game. Native tests load privately supplied GameCube data; the APK
+bundles no assets. No rooms, actors, events or renderer are manually recreated.
 The original `src/`, `include/`, configurations and master history are unchanged.
 
 ## Layout
@@ -202,3 +203,12 @@ See [runtime boundaries](docs/runtime-boundaries.md),
 [recorded Phase-1 results](docs/phase1-status.md) and
 [Phase-2 report](docs/phase2-status.md) and
 [Phase-2b report](docs/phase2b-status.md).
+## Phase 3b: native original-data loading
+
+The original DVD queue control, `ReadAreaData`, MRAM data units and block-file
+registration now connect to the existing stackful scheduler, private import
+catalog, actual file worker and Yz2 decoder. See
+[the complete Phase 3b report](docs/phase3b-status.md) for reproducible real-room
+tests, the Android Choreographer bridge, and the explicit ARAM/audio/module
+boundaries. `re4_loader_tool` distinguishes isolated synthetic adapter checks
+from actual engine loads of private original assets. No assets are bundled.

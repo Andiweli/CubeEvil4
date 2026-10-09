@@ -44,6 +44,14 @@ function(re4_verify_original_sources root)
         0ef5bbee701eebc44a329c65014902ed8bdee425d4164feb514ac3ab15063772)
     re4_check_original("${root}" src/game/main.cpp
         945a8df0f4997f7a920eff67296b0cb586758dc61a83854c49f44fba893fd9e6)
+    re4_check_original("${root}" src/game/datactrl.cpp
+        eb5d21c148e72349ae4e2fa444f8e63fe06dcd070c69f15c60cebe2a76357143)
+    re4_check_original("${root}" include/datactrl.h
+        d0b057694c7ad9113a3b9b2c6c9fcfca8c5a7696740cc1ecca754cc89f0a1290)
+    re4_check_original("${root}" src/game/block.cpp
+        379e15c3739e1757bca1c9e2b4ce078a693ec588be1f1d35e7fce435ddf0f9bb)
+    re4_check_original("${root}" include/block.h
+        0d92a0d85bc67c470102960832c25b0ddbf9f20e498b60dcd4268b3e884b1999)
 endfunction()
 
 # This deliberately narrow extractor accepts only the reviewed fingerprinted
@@ -124,4 +132,6 @@ function(re4_prepare_original_sources root destination)
     file(CONFIGURE OUTPUT "${destination}/include/scheduler_methods.inc" CONTENT "${methods}" @ONLY)
     include("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/Yz2Sources.cmake")
     re4_prepare_yz2("${root}" "${destination}")
+    include("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/LoaderSources.cmake")
+    re4_prepare_loader("${root}" "${destination}")
 endfunction()
