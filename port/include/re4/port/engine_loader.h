@@ -109,13 +109,14 @@ class EngineLoader final {
 class FrameViAdapter final {
   public:
     explicit FrameViAdapter(EngineLoader &loader, std::uint8_t systemVcnt = 2);
+    explicit FrameViAdapter(std::function<void()> gameplayTick, std::uint8_t systemVcnt = 2);
     std::uint32_t onDisplayFrame(std::int64_t monotonicNanoseconds);
     void reset(); // Lifecycle pause discards wall time; no catch-up after resume.
     std::uint64_t gameplayFrames() const { return frames_; }
     std::uint64_t retraces() const { return ticks_; }
 
   private:
-    EngineLoader &loader_;
+    std::function<void()> tick_;
     std::uint8_t vcnt_;
     std::int64_t previous_ = -1;
     std::uint64_t fraction_ = 0, ticks_ = 0, frames_ = 0, pending_ = 0;

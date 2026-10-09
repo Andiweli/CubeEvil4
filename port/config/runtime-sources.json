@@ -1,0 +1,18 @@
+{
+  "src/game/pad.cpp": "5b9b37897f4d29dba379160bf39b28be5f45be3bdf64bfaa561fa9c686c663e9",
+  "src/lib/Padclamp.c": "fa848000dbd3329478b38b42547f1b3fe5f53f44f4c46def3ce7cb9d84f45158",
+  "src/game/main.cpp": "945a8df0f4997f7a920eff67296b0cb586758dc61a83854c49f44fba893fd9e6",
+  "src/game/main_sub.cpp": "b0e8a8483b33b99d827e92777937dce4c3fc9393e33f32c39391d37b695370e0",
+  "src/game/game.cpp": "56f815caa65d867e95a0d2e21763b592a99b53a52d940b6801853412aee02b9a",
+  "src/game/stage.cpp": "746366c30543d2af28582f8a3018b6b0180dabadea35703b614edcaedbdf28d9",
+  "src/game/sce_sys.cpp": "42959ebb61ff26b16a46a432120ce1b1fd36572576269dadfe9623052f9c6c61",
+  "src/game/sce_com.cpp": "782e8e62aac5087eb299a2e1535b6ca2174d1e5f639376c6e14be9f9f2d4dad8",
+  "include/joy.h": "23ad1a18619d4eb214809f8232f3c9b4f03d15dae0c1b8956f54a61f27fa69fb",
+  "include/main.h": "fda92a31c8720757e82ca8cec7da9a064f6c9c5b589cb7fdcbb0d91446ff3276",
+  "include/dolphin/pad.h": "de439591b1beda595f25ccafb734557dda5b44aba05630a8cf112f8c96f58a6e",
+  "include/global.h": "12cf7d5dd385273f44bd5234fe49de62278a1642746d99b59a442c48d132773a",
+  "include/sce_sys.h": "855b6abebafe0c1b077a3a6b266e3b5042e3625b6f2e162b05ea066d6da8d5f0",
+  "include/math_sub_decl.h": "f31dd5683a52e11bfde1fc1556270201486850d4a9c9fc01dd91a250d5d9cec1",
+  "include/pl_sub.h": "f2c385d1723edd502d0dfab527987dca6ba971f17b319e322617841ea1b099c6",
+  "include/vec.h": "35ae34a55ec0453546ce9d4f21b7415bdf5b56e3e6866da3844c502e30506a79"
+}

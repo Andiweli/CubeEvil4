@@ -23,6 +23,18 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${module_config_i
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_modules.py"
     --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original"
     COMMAND_ERROR_IS_FATAL ANY)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/runtime-sources.json" runtime_sources_manifest)
+string(JSON runtime_source_count LENGTH "${runtime_sources_manifest}")
+math(EXPR runtime_source_last "${runtime_source_count} - 1")
+foreach(index RANGE 0 ${runtime_source_last})
+    string(JSON runtime_source MEMBER "${runtime_sources_manifest}" ${index})
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RE4_ROOT}/${runtime_source}")
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/runtime-sources.json" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_runtime.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_runtime.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original"
+    COMMAND_ERROR_IS_FATAL ANY)
 
 # Only approved headers enter this target. The legacy include/ directory also
 # contains an old libc, which must never shadow the host or NDK standard library.
@@ -85,6 +97,22 @@ add_library(re4_modules STATIC src/modules.cpp src/module_rel_index.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/original/module_catalog.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/module_stages.cpp")
 target_link_libraries(re4_modules PUBLIC re4_loader)
+add_library(re4_game_runtime STATIC src/game_runtime.cpp src/gameplay_heaps.cpp src/controller_input.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
+    "${CMAKE_CURRENT_BINARY_DIR}/original/pad_clamp.cpp")
+target_include_directories(re4_game_runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(re4_game_runtime PUBLIC re4_modules)
+set_target_properties(re4_game_runtime PROPERTIES POSITION_INDEPENDENT_CODE ON)
+add_library(re4_game_verification STATIC tests/game_runtime_verification.cpp)
+target_link_libraries(re4_game_verification PUBLIC re4_game_runtime)
+set_target_properties(re4_game_verification PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(MSVC)
+    target_compile_options(re4_game_runtime PRIVATE /W4 /WX /fp:strict)
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
+        "${CMAKE_CURRENT_BINARY_DIR}/original/pad_clamp.cpp" PROPERTIES COMPILE_OPTIONS "/WX-")
+else()
+    target_compile_options(re4_game_runtime PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-fast-math -ffp-contract=off)
+endif()
 target_include_directories(re4_modules PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set_target_properties(re4_modules PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
@@ -141,6 +169,8 @@ if(RE4_ENABLE_SANITIZERS)
 endif()
 
 if(RE4_BUILD_TESTS)
+    add_executable(re4_game_tool tests/game_runtime_tool.cpp)
+    target_link_libraries(re4_game_tool PRIVATE re4_game_verification)
     add_executable(re4_module_tool tests/module_tool.cpp)
     target_link_libraries(re4_module_tool PRIVATE re4_module_verification)
     add_executable(re4_resource_tool tests/resource_tool.cpp)
@@ -153,6 +183,8 @@ if(RE4_BUILD_TESTS)
     target_link_libraries(re4_core_tests PRIVATE re4_verification)
     if(NOT ANDROID)
         enable_testing()
+        add_test(NAME game_runtime COMMAND re4_game_tool self-test "${CMAKE_CURRENT_BINARY_DIR}/game-tests")
+        set_tests_properties(game_runtime PROPERTIES TIMEOUT 90)
         add_test(NAME native_modules COMMAND re4_module_tool self-test "${CMAKE_CURRENT_BINARY_DIR}/module-tests")
         set_tests_properties(native_modules PROPERTIES TIMEOUT 90)
         add_test(NAME resource_runtime COMMAND re4_resource_tool self-test "${CMAKE_CURRENT_BINARY_DIR}/resource-tests")
@@ -174,6 +206,7 @@ if(RE4_BUILD_TESTS)
         # Independent oracle tests reuse the configure-time Python interpreter.
         find_package(Python3 QUIET COMPONENTS Interpreter)
         if(Python3_Interpreter_FOUND)
+            add_test(NAME runtime_generation COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_runtime_sources.py")
             add_test(NAME module_generation COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_modules.py")
             set_tests_properties(module_generation PROPERTIES TIMEOUT 90)
             add_test(NAME import_validation
@@ -190,7 +223,7 @@ if(ANDROID)
     if(NOT ANDROID_ABI MATCHES "^(armeabi-v7a|arm64-v8a)$")
         message(FATAL_ERROR "Supported Android targets: armeabi-v7a and arm64-v8a")
     endif()
-    add_library(re4_port_jni SHARED platform/android/jni.cpp platform/android/loader_jni.cpp platform/android/module_jni.cpp)
-    target_link_libraries(re4_port_jni PRIVATE re4_verification re4_module_verification re4_loader log)
+    add_library(re4_port_jni SHARED platform/android/jni.cpp platform/android/loader_jni.cpp platform/android/module_jni.cpp platform/android/game_jni.cpp)
+    target_link_libraries(re4_port_jni PRIVATE re4_verification re4_module_verification re4_game_verification re4_loader log)
     target_link_options(re4_port_jni PRIVATE -Wl,--no-undefined)
 endif()

@@ -68,7 +68,13 @@ struct NativeModuleInfo {
 
 class ModuleRuntime final : public NativeModuleRegistry {
   public:
-    explicit ModuleRuntime(EngineLoader &);
+    class Memory {
+      public:
+        virtual ~Memory() = default;
+        virtual MemoryReservation reserve(std::uint32_t bytes) = 0;
+        virtual void release(MemoryReservation &) = 0;
+    };
+    explicit ModuleRuntime(EngineLoader &, std::shared_ptr<Memory> = {});
     ~ModuleRuntime();
     ModuleRuntime(const ModuleRuntime &) = delete;
     ModuleRuntime &operator=(const ModuleRuntime &) = delete;
@@ -96,8 +102,8 @@ class ModuleRuntime final : public NativeModuleRegistry {
     std::unique_ptr<Impl> impl_;
 };
 
-// Scoped original entry adapter. Original work is owned by the existing MRAM
-// allocator; temporary stop retains owners and restore explicitly rebinds work.
+// Scoped original entry adapter. Work uses the supplied gameplay heap provider
+// or the standalone MRAM allocator; stop retains owners and restore rebinds work.
 class ModuleContext {
   public:
     using Work = std::map<std::uint16_t, MemoryReservation>;

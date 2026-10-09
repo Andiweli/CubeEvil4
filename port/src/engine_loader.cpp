@@ -1028,9 +1028,11 @@ void EngineLoader::setAramCompaction(bool on) {
     Binding bind(impl_->c);
     impl_->c.dc.setAramSort(on ? 1 : 0);
 }
-FrameViAdapter::FrameViAdapter(EngineLoader &l, u8 v) : loader_(l), vcnt_(v) {
+FrameViAdapter::FrameViAdapter(EngineLoader &l, u8 v) : FrameViAdapter([&l] { l.frame(); }, v) {}
+FrameViAdapter::FrameViAdapter(std::function<void()> tick, u8 v) : tick_(std::move(tick)), vcnt_(v) {
     if (v == 0)
         throw std::invalid_argument("zero original Vcnt");
+    if (!tick_) throw std::invalid_argument("missing gameplay tick");
 }
 void FrameViAdapter::reset() {
     previous_ = -1;
@@ -1059,7 +1061,7 @@ std::uint32_t FrameViAdapter::onDisplayFrame(std::int64_t now) {
     auto frames = pending_ / vcnt_;
     pending_ %= vcnt_;
     for (std::uint64_t i = 0; i < frames; ++i) {
-        loader_.frame();
+        tick_();
         ++frames_;
     }
     return static_cast<std::uint32_t>(frames);

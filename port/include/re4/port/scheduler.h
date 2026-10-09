@@ -93,6 +93,8 @@ public:
     [[noreturn]] void exit();
     [[noreturn]] void chain(TaskEntry entry, ModuleToken module = {});
     bool kill(TaskHandle task);
+    void killScenarios(); // ScenarioTaskAllOff: slots 5..17, generation-safe.
+    void clearTasks(); // Owner frame boundary: release all stackful tasks on reset.
     bool detachScenario(TaskHandle task); // SceTaskDelete adapter: unlink, keep stack.
     bool suspend(TaskHandle task);
     bool signal(TaskHandle task);

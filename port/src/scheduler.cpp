@@ -468,6 +468,18 @@ bool NativeScheduler::kill(TaskHandle task) {
     impl_->release(*slot);
     return true;
 }
+void NativeScheduler::killScenarios() {
+    impl_->checkThread();
+    for (int i = 5; i <= 17; ++i) {
+        auto &slot = impl_->slots[i];
+        if (slot.entry) kill(impl_->handle(slot));
+    }
+}
+void NativeScheduler::clearTasks() {
+    impl_->checkThread();
+    if (current() || moduleCallContext()) throw std::logic_error("Task reset requires owner boundary");
+    for (auto &slot : impl_->slots) if (slot.entry) kill(impl_->handle(slot));
+}
 bool NativeScheduler::detachScenario(TaskHandle task) {
     impl_->checkThread();
     auto* slot = impl_->resolve(task);

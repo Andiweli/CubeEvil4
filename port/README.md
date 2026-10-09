@@ -184,7 +184,7 @@ one ABI, select it explicitly and record the missing ABI separately. It records
 device/version, binary hash, actual pointer width and compares seven scheduler,
 background and decoder traces across repetitions and ABIs.
 The app script installs the default dual-ABI APK with `adb install --abi`, checks
-`primaryCpuAbi` and passes an expected pointer width to the twelve JUnit tests.
+`primaryCpuAbi` and passes an expected pointer width to the nineteen JUnit tests.
 It fails on missing/unsupported ABI or a failed instrumentation result even
 when adb returns zero. It leaves the last requested ABI installed (default ARM64).
 
@@ -235,3 +235,21 @@ catalog, actual file worker and Yz2 decoder. See
 tests, the Android Choreographer bridge, and the explicit ARAM/audio/module
 boundaries. `re4_loader_tool` distinguishes isolated synthetic adapter checks
 from actual engine loads of private original assets. No assets are bundled.
+
+## Phase 4b: shared runtime and controllers
+
+`re4_game_runtime` joins the existing loader, stackful tasks, native modules and
+owned gameplay heaps. Reviewed original scalar initialization, `StageSet`,
+scenario orchestration and `PadRead` bodies execute on both host and Android ABIs.
+Android InputManager/Activity events pass through one native pad domain per
+controller loop; a configured game domain uses the same original input path.
+Physical Retroid input is recorded separately from synthetic JNI adapter tests.
+
+`re4_game_tool self-test <fixture-directory>` runs the native runtime checks.
+`port/tools/test_game_runtime.py` checks private real archive/block/ESL loads,
+and `summarize_game_runtime.py` compares four-ABI and physical-capture evidence.
+The original `GameTask` and complete r120 event remain explicitly blocked by
+shared camera/model/message/event consumers. Initialized-room stage changes
+also require the original room teardown before a heap can be reused safely.
+See [the complete Phase 4b report](docs/phase4b-status.md) for exact coverage,
+reproduction commands, measured device inputs and remaining dependencies.

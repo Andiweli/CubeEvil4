@@ -38,4 +38,8 @@ public final class NativeChecks {
         return nativeModules(Objects.requireNonNull(directory));
     }
     private static native String nativeModules(String directory);
+    public static String runGameRuntime(String directory) {
+        return nativeGameRuntime(Objects.requireNonNull(directory));
+    }
+    private static native String nativeGameRuntime(String directory);
 }

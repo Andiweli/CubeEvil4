@@ -13,6 +13,7 @@ thread_local ModuleContext *hookContext = nullptr;
 } // namespace
 struct ModuleContext::Access {
     EngineLoader *loader = nullptr;
+    std::shared_ptr<ModuleRuntime::Memory> memory;
     NativeModuleState *state = nullptr;
     std::uint32_t id = 0;
     Work work;
@@ -66,7 +67,7 @@ void ModuleContext::registerRoom(std::uint16_t room, RoomFunction init, RoomFunc
 void *ModuleContext::calloc(std::uint32_t bytes, int flag, int heap, const char *, int) {
     if (flag != 1 || heap != 13 || roomId_ == 0xffff)
         throw std::logic_error("Unbound original heap mode or non-room allocation");
-    auto memory = access_.loader->reserveMemory(bytes);
+    auto memory = access_.memory ? access_.memory->reserve(bytes) : access_.loader->reserveMemory(bytes);
     access_.allocations.push_back(memory);
     access_.work[roomId_] = memory;
     observe("mem_calloc:" + std::to_string(bytes));
@@ -74,6 +75,7 @@ void *ModuleContext::calloc(std::uint32_t bytes, int flag, int heap, const char 
 }
 
 struct ModuleRuntime::Impl {
+    std::shared_ptr<ModuleRuntime::Memory> memoryProvider;
     struct Control {
         ModuleRuntime *owner;
     };
@@ -135,7 +137,8 @@ struct ModuleRuntime::Impl {
         e.snapshot.reset();
         e.access.work.clear();
         for (auto &memory : e.access.allocations)
-            loader.releaseMemory(memory);
+            if (e.access.memory) e.access.memory->release(memory);
+            else loader.releaseMemory(memory);
         e.access.allocations.clear();
         e.calls.clear();
         e.callContexts.clear();
@@ -155,7 +158,8 @@ struct ModuleRuntime::Impl {
                 throw std::logic_error("Module still required by active/stopped dependent");
     }
 };
-ModuleRuntime::ModuleRuntime(EngineLoader &loader) : impl_(std::make_unique<Impl>(loader, this)) {
+ModuleRuntime::ModuleRuntime(EngineLoader &loader, std::shared_ptr<Memory> memory) : impl_(std::make_unique<Impl>(loader, this)) {
+    impl_->memoryProvider = std::move(memory);
     for (auto definition : originalModuleDefinitions())
         registerModule(std::move(definition));
 }
@@ -231,6 +235,7 @@ void ModuleRuntime::activateId(std::uint32_t id) {
                 throw std::logic_error("Null native module state");
             started.push_back(n);
             e.access.loader = &impl_->loader;
+            e.access.memory = impl_->memoryProvider;
             e.access.id = n;
             e.access.trace = &impl_->trace;
             e.access.state = e.state.get();
@@ -447,7 +452,8 @@ void ModuleRuntime::resetRoom(std::uint16_t id) {
             e.access.work.erase(p);
             for (auto it = e.access.allocations.begin(); it != e.access.allocations.end();) {
                 if (it->data == address) {
-                    impl_->loader.releaseMemory(*it);
+                    if (e.access.memory) e.access.memory->release(*it);
+                    else impl_->loader.releaseMemory(*it);
                     it = e.access.allocations.erase(it);
                 } else
                     ++it;
