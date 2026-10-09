@@ -1,8 +1,8 @@
 # RE4 native foundation
 
 Strategy A: compile original RE4 code with a separate native compatibility layer.
-This directory contains the verified build foundation and Phase-2 stackful
-scheduler. It is not a playable game. It loads
+This directory contains the verified build foundation, stackful scheduler and
+Phase-2b background/file/Yz2 runtime. It is not a playable game. It loads
 no GameCube assets and implements no room, actor, event, renderer or SDK stubs.
 The original `src/`, `include/`, configurations and master history are unchanged.
 
@@ -14,6 +14,9 @@ The original `src/`, `include/`, configurations and master history are unchanged
 - `include/re4/port/`: byte-order helpers, verification API and future boundaries.
 - `src/verification.cpp`, `tests/`: the shared checks and source-identity tests.
 - `src/scheduler.cpp`, `src/stack_context.cpp`: native task policy and real stacks.
+- `src/async_file.cpp`: single owned-buffer I/O worker and native read pump.
+- `src/yz2.cpp`, `src/yz2_kernel.cpp`: owned Yz2 jobs and PPC decoder translation.
+- `cmake/Yz2Sources.cmake`: explicit adaptations of original C setup.
 - `third_party/boost_context/`: pinned, licensed ARM context assembly.
 - `platform/android/`: JNI diagnostics bridge.
 - `android/`: pinned Gradle project, verification Activity and device tests.
@@ -40,6 +43,14 @@ TASK kind accessors verbatim. These use native control metadata and actual stack
 transfers, not pretend Dolphin threads. `TaskSchedulerMain`'s policy and scenario
 OT ordering are adapted in `NativeScheduler`; their entire engine units are not
 claimed compiled. See [Phase-2 evidence and limits](docs/phase2-status.md).
+
+Phase 2b compiles original Yz2DecodeSet/Yz2DecodeExec setup with explicit ABI,
+per-instance state, bounds and checkpoint adaptations. The PPC kernel is
+translated separately and checked against the existing Python reference using
+synthetic fixtures. iTask adapters drive slot 4 at the frame tail; filesystem
+I/O uses one private-buffer worker. DvdReadProc is compiled verbatim as an
+explicitly isolated adapter test. Full cDvd/decodeData/room loading remains open.
+See [Phase-2b report](docs/phase2b-status.md).
 
 Only selected original headers are exposed. The legacy include tree must not
 shadow Bionic, the host CRT or the modern C++ standard library. Original RNG
@@ -96,8 +107,10 @@ avoids MSBuild's observed path-lowercasing problems. From the repository root:
 
 Do not force a 64-bit pointer layout: 32-bit hosts are also permitted when their
 compiler/toolchain is installed. The shared types always keep `u32` at 4 bytes.
-On compatible GCC/Clang hosts, configure a separate build with
-`-DRE4_ENABLE_SANITIZERS=ON` to enable address/undefined-behavior sanitizers.
+The current host context backend supports Windows x86/x64. ASan/UBSan are
+unavailable until verified fiber hooks exist; the sanitizer option fails
+explicitly. When Python 3 is found, CTest also checks the independent Yz2
+fixtures; alternatively run `python port/tools/generate_yz2_fixtures.py --check`.
 
 ## Android build
 
@@ -137,16 +150,17 @@ Cross-compilation is not device execution. The same suite can run as a standalon
 NDK executable, as the Activity's JNI diagnostics, or as instrumented tests.
 
 ```powershell
-.\port\scripts\test-device.ps1 -Adb 'C:\path\to\adb.exe' -Serial 'device-serial'
+.\port\scripts\test-device.ps1 -Adb 'C:\path\to\adb.exe' -Serial 'device-serial' -Repeat 3
 .\port\scripts\test-app-device.ps1 -Adb 'C:\path\to\adb.exe' -Serial 'device-serial'
 ```
 
 The standalone script requires a device that supports both requested ABIs;
 unsupported ABIs fail explicitly, never count as passes. For a device with only
 one ABI, select it explicitly and record the missing ABI separately. It records
-device/version, binary hash, actual pointer width and compares scheduler traces.
+device/version, binary hash, actual pointer width and compares seven scheduler,
+background and decoder traces across repetitions and ABIs.
 The app script installs the default dual-ABI APK with `adb install --abi`, checks
-`primaryCpuAbi` and passes an expected pointer width to the nine JUnit tests.
+`primaryCpuAbi` and passes an expected pointer width to the twelve JUnit tests.
 It fails on missing/unsupported ABI or a failed instrumentation result even
 when adb returns zero. It leaves the last requested ABI installed (default ARM64).
 
@@ -174,8 +188,9 @@ ordering, counted suspend/signal, chain/exit, cancellation, generation handles,
 module quiescence and FP state. Android additionally pins d8-d15 in two tasks
 over 64 yields each. Main callback return without TaskExit/TaskChain fails
 explicitly; scenario callback return removes its OT entry, as in the original.
-There is no cooperative replacement for interrupt-preempted slot 4: requesting
-it fails explicitly. ASan/UBSan require context-switch hooks and are unavailable.
+Slot 4 uses its explicit bounded background API and retained stacks. New
+callbacks must provide checkpoints; arbitrary uninstrumented busy loops cannot
+be safely preempted. ASan/UBSan require context-switch hooks and are unavailable.
 Supported host context backends are Windows x86/x64; no unverified Unix host
 fallback is claimed. RNG vectors are derived from the source recurrence;
 they are not independently captured GameCube traces. Existing GameCube data and
@@ -185,4 +200,5 @@ See [runtime boundaries](docs/runtime-boundaries.md),
 [ABI assessment](docs/abi-strategy.md),
 [graphics requirements](docs/graphics-settings.md) and
 [recorded Phase-1 results](docs/phase1-status.md) and
-[Phase-2 report](docs/phase2-status.md).
+[Phase-2 report](docs/phase2-status.md) and
+[Phase-2b report](docs/phase2b-status.md).

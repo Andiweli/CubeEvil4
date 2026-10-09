@@ -1,5 +1,6 @@
 #pragma once
 #include "types.h"
+#include "re4/port/scheduler.h"
 
 // Native control metadata, NOT a binary-compatible Dolphin TASK or SCE_TASK.
 // Only the fields used by the verbatim functions below are provided. There are
@@ -38,4 +39,12 @@ void SceExit();
 void TaskSleep(int ctr);
 [[noreturn]] void TaskExit();
 void SceTaskDelete(TASK* task);
+// Typed native adapters of the original ISR-task API. No pointer-to-int cast.
+std::optional<TaskHandle> iTaskExec(TaskEntry entry, ModuleToken module = {},
+    BackgroundCompletion completion = {});
+void iTaskScheduler(BackgroundBudget budget = {});
+void iTaskSuspend();
+void iTaskKill();
+[[noreturn]] void iTaskExit();
+int iTaskStatus();
 } // namespace re4::port::original

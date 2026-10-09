@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory = $true)][string]$Adb,
     [Parameter(Mandatory = $true)][string]$Serial,
     [ValidateSet('armeabi-v7a', 'arm64-v8a')]
-    [string[]]$Abis = @('armeabi-v7a', 'arm64-v8a')
+    [string[]]$Abis = @('armeabi-v7a', 'arm64-v8a'),
+    [ValidateRange(1, 100)][int]$Repeat = 1
 )
 $ErrorActionPreference = 'Stop'
 $taskPortRoot = Split-Path -Parent $PSScriptRoot
@@ -28,26 +29,29 @@ foreach ($taskAbi in $Abis) {
     if ($LASTEXITCODE -ne 0) { throw "Cannot deploy $taskAbi executable." }
     & $Adb -s $Serial shell chmod 755 "$taskRemote/re4_core_tests"
     if ($LASTEXITCODE -ne 0) { throw 'Cannot set test executable permissions.' }
-    $taskOutput = & $Adb -s $Serial shell "$taskRemote/re4_core_tests" 2>&1
-    $taskResult = $LASTEXITCODE
-    $taskLog = Join-Path $taskPortRoot "build\device-$taskAbi.txt"
-    @("Device=$taskModel; Serial=$Serial; Android=$taskVersion; API=$taskApi; ABI=$taskAbi",
-        "ExecutableSHA256=$((Get-FileHash -LiteralPath $taskExecutable -Algorithm SHA256).Hash)") + $taskOutput |
-        Set-Content -LiteralPath $taskLog -Encoding UTF8
-    $taskOutput | Write-Output
-    if ($taskResult -ne 0 -or ($taskOutput -join "`n") -notmatch 'TOTAL: \d+ checks, 0 failures') {
-        throw "Actual device verification failed for $taskAbi; see $taskLog"
+    for ($taskRound = 1; $taskRound -le $Repeat; ++$taskRound) {
+        $taskOutput = & $Adb -s $Serial shell "$taskRemote/re4_core_tests" 2>&1
+        $taskResult = $LASTEXITCODE
+        $taskLogName = if ($Repeat -eq 1) { "device-$taskAbi.txt" } else { "device-$taskAbi-round$taskRound.txt" }
+        $taskLog = Join-Path $taskPortRoot "build\$taskLogName"
+        @("Device=$taskModel; Serial=$Serial; Android=$taskVersion; API=$taskApi; ABI=$taskAbi",
+            "ExecutableSHA256=$((Get-FileHash -LiteralPath $taskExecutable -Algorithm SHA256).Hash)") + $taskOutput |
+            Set-Content -LiteralPath $taskLog -Encoding UTF8
+        $taskOutput | Write-Output
+        if ($taskResult -ne 0 -or ($taskOutput -join "`n") -notmatch 'TOTAL: \d+ checks, 0 failures') {
+            throw "Actual device verification failed for $taskAbi; see $taskLog"
+        }
+        $taskBits = if ($taskAbi -eq 'armeabi-v7a') { 32 } else { 64 }
+        if (($taskOutput -join "`n") -notmatch "pointer=$taskBits bits;") {
+            throw "Wrong actual process pointer width for $taskAbi"
+        }
+        $taskTrace = @($taskOutput | Where-Object { $_ -match '^\s*TRACE (scheduler_|background|yz2)' } | ForEach-Object { $_.Trim() })
+        if ($taskTrace.Count -ne 7) { throw 'Scheduler/background/decoder traces missing from native suite.' }
+        $taskTraceText = $taskTrace -join "`n"
+        if ($null -ne $taskReferenceTrace -and $taskTraceText -cne $taskReferenceTrace) {
+            throw 'Repeated ARM32/ARM64 scheduler/background/decoder semantic traces differ.'
+        }
+        $taskReferenceTrace = $taskTraceText
     }
-    $taskBits = if ($taskAbi -eq 'armeabi-v7a') { 32 } else { 64 }
-    if (($taskOutput -join "`n") -notmatch "pointer=$taskBits bits;") {
-        throw "Wrong actual process pointer width for $taskAbi"
-    }
-    $taskTrace = @($taskOutput | Where-Object { $_ -match '^\s*TRACE scheduler_' } | ForEach-Object { $_.Trim() })
-    if ($taskTrace.Count -ne 4) { throw 'Scheduler traces missing from native suite.' }
-    $taskTraceText = $taskTrace -join "`n"
-    if ($null -ne $taskReferenceTrace -and $taskTraceText -cne $taskReferenceTrace) {
-        throw 'ARM32/ARM64 scheduler semantic traces differ.'
-    }
-    $taskReferenceTrace = $taskTraceText
 }
 if ($Abis.Count -gt 1) { Write-Output 'PASS: scheduler semantic traces are identical across requested ABIs.' }

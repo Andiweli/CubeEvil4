@@ -5,7 +5,7 @@
 int main(int argc, char** argv) {
     try {
         if (argc > 2) {
-            std::cerr << "Usage: re4_core_tests [abi|rng|flags|math|endian|scheduler_stack|scheduler_order|scheduler_lifecycle|scheduler_modules]\n";
+            std::cerr << "Usage: re4_core_tests [abi|rng|flags|math|endian|scheduler_stack|scheduler_order|scheduler_lifecycle|scheduler_modules|background|yz2|background_io]\n";
             return 2;
         }
         const auto report = re4::port::verifyOriginalCode(argc == 2 ? argv[1] : "");

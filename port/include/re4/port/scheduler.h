@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -46,6 +47,17 @@ struct TaskState {
     void* model;
 };
 
+struct BackgroundBudget {
+    std::uint32_t workUnits = 1024 * 1024;
+    // Zero disables the clock limit, useful for deterministic verification.
+    std::chrono::nanoseconds timeLimit = std::chrono::milliseconds(2);
+};
+enum class BackgroundOutcome { Completed, Cancelled, Failed };
+// Runs on the owner stack after task stack/captures have been released. Must
+// not throw or resubmit into the releasing slot. Idle is published AFTER this
+// callback returns; it publishes owned results and never runs on a worker.
+using BackgroundCompletion = std::function<void(BackgroundOutcome)>;
+
 class NativeScheduler final {
 public:
     // A single owner thread, with independent stacks; no worker thread per task.
@@ -60,7 +72,20 @@ public:
     std::optional<TaskHandle> execScenario(int level, TaskEntry entry,
         std::uint8_t kind = 0, int orderingPriority = 2, void* model = nullptr,
         ModuleToken module = {});
-    void runMain(); // Slots 0,1,2,3, once per visit; slot 4 is deliberately rejected.
+    void runMain(); // Slots 0,1,2,3, once per visit.
+    std::optional<TaskHandle> execBackground(TaskEntry entry, ModuleToken module = {},
+        BackgroundCompletion completion = {});
+    // Frame tail, after gameplay and DVD/audio watchers (original main.cpp).
+    void runBackground(BackgroundBudget budget = {});
+    // Required in bounded decoder/poll loops; preserves the entire task stack.
+    void backgroundCheckpoint(std::uint32_t workUnits = 1);
+    [[noreturn]] void exitBackground();
+    bool killBackground();
+    bool backgroundActive() const noexcept;
+    // The following requests/status are the ONLY cross-thread APIs. The runtime
+    // must outlive callers. Generation checks prevent cancelling a replacement.
+    void requestBackgroundSuspend() noexcept;
+    bool requestBackgroundCancel(TaskHandle task) noexcept;
     void runScenarios(); // Reverse OT, LIFO in each bucket, restart at head.
     void visit(TaskHandle task); // Equivalent of TaskSchedulerMain for one task.
     void sleep(int visits);

@@ -1,5 +1,9 @@
 # Phase 2: Original-Scheduler und native Stacklaufzeit
 
+Ergänzung Phase 2b: Slot 4 besitzt jetzt eine getrennte, begrenzte API. Die
+historische Phase-2-Geräteprüfung bleibt erhalten; aktueller Entwurf:
+[background-design.md](background-design.md).
+
 ## Entscheidung und belegte Originalsemantik
 
 Eine gemeinsame C++-Scheduler-Policy steuert echte, getrennte Stacks auf einem
@@ -98,7 +102,9 @@ TaskHandle enthält Runtime-ID, Slot und Generation. Ein freigegebener Handle
 kann keine später neu belegte Instanz suspendieren, fortsetzen oder töten.
 TaskChain bleibt eine Fortsetzung desselben logischen Tasks und behält daher
 den Handle, ersetzt aber den Stack. Ein laufender Caller/Ancestor kann vom Child
-nicht zerstört werden. Alle Runtime-Methoden prüfen den Owner-Thread.
+nicht zerstört werden. Alle kontextführenden Methoden prüfen den Owner-Thread.
+Phase 2b erlaubt zusätzlich ausschließlich atomare Hintergrundstatus-/Pause-/
+Cancel-Requests von fremden Threads; diese führen keinen Stackwechsel aus.
 
 Modultoken sind Laufzeitidentitäten, weder FileTbl- noch REL-IDs. Vor einem
 Modulwechsel prüft invalidateModule alle aktiven Task-/Caller-Stacks und direkte
@@ -117,11 +123,12 @@ Module.
 
 ## Explizite Grenzen und Fehlerbehandlung
 
-- Slot 4 bleibt unimplementiert und wird abgelehnt. `iTaskSuspend` in
+- Allgemeine exec/visit-Aufrufe für Slot 4 werden weiter abgelehnt. `iTaskSuspend` in
   scheduler.cpp:394 unterbricht einen laufenden Thread aus dem VI-Callback;
   `read.cpp:decodeData` läuft durch Yz2DecodeExec bis iTaskExit ohne kooperativen
   Sleep. Ein normaler Fiber würde damit das VSync-Budget nicht erhalten. Die
-  Portierung benötigt einen separat nachgewiesenen Background-/Preemption-Weg.
+  Phase 2b liefert den separat geprüften Weg mit Checkpoints in Setup, Decoder
+  und Lese-Pumpe; der vollständige VI-/Frameadapter bleibt offen.
 - Die vollständige cSceSys-Klasse, ScenarioMove/RoomInit, EventCancel,
   cancel_flag/event_cancel_enable, Lade- und GXDrawDone-Wartepfade sind nicht
   simuliert oder als fertig portiert bezeichnet. Native SceTaskDelete entfernt

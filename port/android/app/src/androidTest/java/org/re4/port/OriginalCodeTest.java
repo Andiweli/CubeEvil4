@@ -28,4 +28,7 @@ public final class OriginalCodeTest {
     @Test public void schedulerOrder() { check("scheduler_order"); }
     @Test public void schedulerLifecycle() { check("scheduler_lifecycle"); }
     @Test public void schedulerModuleLifetimes() { check("scheduler_modules"); }
+    @Test public void backgroundSlot4() { check("background"); }
+    @Test public void originalYz2SetupAndNativeKernel() { check("yz2"); }
+    @Test public void actualFileIoAndIsolatedDvdAdapter() { check("background_io"); }
 }

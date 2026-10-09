@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(re4_native_foundation VERSION 0.2.0 LANGUAGES CXX)
+project(re4_native_foundation VERSION 0.2.1 LANGUAGES CXX)
 
 option(RE4_BUILD_TESTS "Build the original-code verification executable" ON)
 option(RE4_ENABLE_SANITIZERS "Enable ASan/UBSan on a compatible host" OFF)
@@ -12,7 +12,9 @@ re4_prepare_original_sources("${RE4_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/original
 # contains an old libc, which must never shadow the host or NDK standard library.
 add_library(re4_original STATIC
     "${RE4_ROOT}/src/game/rnd.cpp"
-    "${CMAKE_CURRENT_BINARY_DIR}/original/math.cpp")
+    "${CMAKE_CURRENT_BINARY_DIR}/original/math.cpp"
+    "${CMAKE_CURRENT_BINARY_DIR}/original/yz2_setup.cpp")
+target_include_directories(re4_original PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_include_directories(re4_original PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/compat/include"
     "${CMAKE_CURRENT_BINARY_DIR}/original/include"
@@ -49,9 +51,29 @@ else()
         $<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wextra;-Wpedantic;-Werror;-fno-fast-math;-ffp-contract=off>)
 endif()
 
-add_library(re4_verification STATIC src/verification.cpp src/scheduler_verification.cpp)
+add_library(re4_yz2 STATIC src/yz2.cpp src/yz2_kernel.cpp)
+target_link_libraries(re4_yz2 PUBLIC re4_scheduler)
+target_include_directories(re4_yz2 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+set_target_properties(re4_yz2 PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(MSVC)
+    target_compile_options(re4_yz2 PRIVATE /W4 /WX)
+else()
+    target_compile_options(re4_yz2 PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_library(re4_async_file STATIC src/async_file.cpp)
 find_package(Threads REQUIRED)
-target_link_libraries(re4_verification PUBLIC re4_original re4_scheduler Threads::Threads)
+target_link_libraries(re4_async_file PUBLIC re4_scheduler Threads::Threads)
+set_target_properties(re4_async_file PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(MSVC)
+    target_compile_options(re4_async_file PRIVATE /W4 /WX)
+else()
+    target_compile_options(re4_async_file PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_library(re4_verification STATIC src/verification.cpp src/scheduler_verification.cpp
+    src/background_verification.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/dvd_adapter_probe.cpp")
+target_include_directories(re4_verification PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+find_package(Threads REQUIRED)
+target_link_libraries(re4_verification PUBLIC re4_original re4_scheduler re4_yz2 re4_async_file Threads::Threads)
 set_target_properties(re4_verification PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
     target_compile_options(re4_verification PRIVATE /W4 /WX /fp:strict)
@@ -69,7 +91,7 @@ if(RE4_BUILD_TESTS)
     target_link_libraries(re4_core_tests PRIVATE re4_verification)
     if(NOT ANDROID)
         enable_testing()
-        foreach(group abi rng flags math endian scheduler_stack scheduler_order scheduler_lifecycle scheduler_modules)
+        foreach(group abi rng flags math endian scheduler_stack scheduler_order scheduler_lifecycle scheduler_modules background yz2 background_io)
             add_test(NAME original_${group} COMMAND re4_core_tests ${group})
             set_tests_properties(original_${group} PROPERTIES TIMEOUT 30)
         endforeach()
@@ -80,6 +102,13 @@ if(RE4_BUILD_TESTS)
             COMMAND "${CMAKE_COMMAND}" "-DRE4_ROOT=${RE4_ROOT}"
                 "-DRE4_PROBE_DIR=${CMAKE_CURRENT_BINARY_DIR}/source-guard-probe"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/source_guard_negative.cmake")
+        # Optional independent Python oracle; native builds never depend on it.
+        find_package(Python3 QUIET COMPONENTS Interpreter)
+        if(Python3_Interpreter_FOUND)
+            add_test(NAME yz2_fixture_reference
+                COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_yz2_fixtures.py" --check)
+            set_tests_properties(yz2_fixture_reference PROPERTIES TIMEOUT 30)
+        endif()
     endif()
 endif()
 

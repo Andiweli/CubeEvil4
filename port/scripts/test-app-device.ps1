@@ -33,7 +33,7 @@ foreach ($taskAbi in $Abis) {
         Set-Content -LiteralPath (Join-Path $taskPortRoot "build\instrumentation-$taskAbi.txt") -Encoding UTF8
     $taskOutput | Write-Output
     # adb may return zero even when JUnit failed; inspect the instrumentation result.
-    if ($taskExit -ne 0 -or ($taskOutput -join "`n") -notmatch 'OK \(9 tests\)') {
+    if ($taskExit -ne 0 -or ($taskOutput -join "`n") -notmatch 'OK \(12 tests\)') {
         throw "Actual app-process verification failed for $taskAbi"
     }
 }

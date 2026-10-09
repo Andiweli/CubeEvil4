@@ -6,6 +6,7 @@
 #include "re4/port/original_math.h"
 #include "re4/port/verification.h"
 #include "scheduler_verification.h"
+#include "background_verification.h"
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -201,11 +202,12 @@ std::string VerificationReport::text() const {
 VerificationReport verifyOriginalCode(std::string_view requested) {
     std::lock_guard<std::mutex> lock(verificationMutex);
     struct Group { const char* name; void (*run)(CheckGroup&); };
-    const std::array<Group, 9> available{{
+    const std::array<Group, 12> available{{
         {"abi",checkAbi},{"rng",checkRng},{"flags",checkFlags},
         {"math",checkMath},{"endian",checkEndian},
         {"scheduler_stack",checkSchedulerStack},{"scheduler_order",checkSchedulerOrder},
-        {"scheduler_lifecycle",checkSchedulerLifecycle},{"scheduler_modules",checkSchedulerModules}
+        {"scheduler_lifecycle",checkSchedulerLifecycle},{"scheduler_modules",checkSchedulerModules},
+        {"background",checkBackground},{"yz2",checkYz2},{"background_io",checkBackgroundIo}
     }};
     VerificationReport report;
     for (const auto& group : available) {

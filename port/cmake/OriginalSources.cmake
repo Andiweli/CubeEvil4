@@ -32,6 +32,18 @@ function(re4_verify_original_sources root)
         42959ebb61ff26b16a46a432120ce1b1fd36572576269dadfe9623052f9c6c61)
     re4_check_original("${root}" include/scheduler.h
         04d99c7fa72b403e4a75ae5d24693382af9de3beabe61dceda57063006e2cd33)
+    re4_check_original("${root}" src/game/yz2code.cpp
+        943e24fd981660ddaa17b86e9aac5e46578200ebdf6c2cc866d18630fce204fc)
+    re4_check_original("${root}" src/game/yz2asm.cpp
+        0b58a81e5be3b5ecf130662f9962e06edb556db4a832dd78c23c7ecdfabdc89c)
+    re4_check_original("${root}" tools/motion/yz2.py
+        bcb52e0fcf77d96a70e5b4d1fc4cd3ad51e743950f2cb868268a1943b9c0f947)
+    re4_check_original("${root}" src/game/dvd.cpp
+        c7edd921ecbc59d43c4e34a7b5b4d22baa8bbc70aa922f2715089db730a72bb9)
+    re4_check_original("${root}" src/game/read.cpp
+        0ef5bbee701eebc44a329c65014902ed8bdee425d4164feb514ac3ab15063772)
+    re4_check_original("${root}" src/game/main.cpp
+        945a8df0f4997f7a920eff67296b0cb586758dc61a83854c49f44fba893fd9e6)
 endfunction()
 
 # This deliberately narrow extractor accepts only the reviewed fingerprinted
@@ -110,4 +122,6 @@ function(re4_prepare_original_sources root destination)
     math(EXPR count "${end} - ${start}")
     string(SUBSTRING "${header}" ${start} ${count} methods)
     file(CONFIGURE OUTPUT "${destination}/include/scheduler_methods.inc" CONTENT "${methods}" @ONLY)
+    include("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/Yz2Sources.cmake")
+    re4_prepare_yz2("${root}" "${destination}")
 endfunction()

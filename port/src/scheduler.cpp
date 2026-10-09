@@ -25,6 +25,14 @@ void SceTaskDelete(TASK* task) {
         throw std::logic_error("SceTaskDelete adapter requires the current task");
     scheduler.detachScenario(*handle);
 }
+std::optional<TaskHandle> iTaskExec(TaskEntry entry, ModuleToken module, BackgroundCompletion completion) {
+    return NativeScheduler::active().execBackground(std::move(entry), module, std::move(completion));
+}
+void iTaskScheduler(BackgroundBudget budget) { NativeScheduler::active().runBackground(budget); }
+void iTaskSuspend() { NativeScheduler::active().requestBackgroundSuspend(); }
+void iTaskKill() { NativeScheduler::active().killBackground(); }
+[[noreturn]] void iTaskExit() { NativeScheduler::active().exitBackground(); }
+int iTaskStatus() { return NativeScheduler::active().backgroundActive() ? 1 : 0; }
 } // namespace re4::port::original
 
 namespace re4::port {
@@ -46,6 +54,9 @@ struct NativeScheduler::Impl {
         bool linked = false;
         bool scenarioEntry = false;
         bool executedThisPass = false;
+        bool releasing = false;
+        BackgroundCompletion completion;
+        BackgroundOutcome outcome = BackgroundOutcome::Cancelled;
     };
     detail::ContextDomain domain;
     const std::thread::id thread = std::this_thread::get_id();
@@ -60,6 +71,11 @@ struct NativeScheduler::Impl {
     bool gameSuspend = false, diedemo = false;
     bool scenarioHold = false, scenarioStop = false, inScenarioPass = false;
     int current = -1;
+    std::atomic<std::uint64_t> backgroundGeneration{0}, runningBackground{0};
+    std::atomic<std::uint64_t> pauseBackground{0}, cancelBackground{0};
+    BackgroundBudget backgroundBudget;
+    std::uint64_t usedBackgroundUnits = 0;
+    std::chrono::steady_clock::time_point backgroundDeadline;
 
     explicit Impl(std::size_t bytes) : stackBytes(bytes) {
         if (activeScheduler) throw std::logic_error("Only one original task domain per owner thread");
@@ -101,6 +117,13 @@ struct NativeScheduler::Impl {
     void release(Slot& slot) {
         // Always executed by a different, still-live stack after control returns.
         if (slot.executing) throw std::logic_error("Attempted to free an active stack");
+        slot.releasing = true;
+        const auto outcome = slot.outcome;
+        auto completion = std::move(slot.completion);
+        // libc++ may COPY a small callable during std::function's move, leaving
+        // the source populated. Explicitly clear to release captured buffers
+        // exactly once on both Android ABIs, not just MSVC hosts.
+        slot.completion = {};
         unlink(slot);
         slot.context.reset();
         slot.entry = {};
@@ -108,6 +131,15 @@ struct NativeScheduler::Impl {
         slot.failure = {};
         original::Task[slot.index].Status = original::TASK_NONE;
         original::Task[slot.index].suspend_cnt = 0;
+        if (completion) {
+            try { completion(outcome); } catch (...) { std::terminate(); }
+        }
+        completion = {};
+        // Publish idle only AFTER result/cancellation publication and capture
+        // destruction. An acquire observer seeing idle cannot see an unfinished
+        // completion callback. Keep the slot reserved throughout that callback.
+        if (slot.index == 4) backgroundGeneration.store(0, std::memory_order_release);
+        slot.releasing = false;
     }
     static void start(void* argument) {
         auto& slot = *static_cast<Slot*>(argument);
@@ -124,6 +156,7 @@ struct NativeScheduler::Impl {
             // Exceptions unwind only this task's own frames, then are reported
             // on its caller's stack. No exception crosses an assembly switch.
             slot.failure = std::current_exception();
+            slot.outcome = BackgroundOutcome::Failed;
         }
         task.Status = original::TASK_NONE;
         task.suspend_cnt = 0;
@@ -156,7 +189,9 @@ struct NativeScheduler::Impl {
         current = slot.index;
         original::pCTask = &task;
         slot.executing = true;
+        if (slot.index == 4) runningBackground.store(slot.generation, std::memory_order_release);
         slot.context->resume();
+        if (slot.index == 4) runningBackground.store(0, std::memory_order_release);
         slot.executing = false;
         current = parent;
         original::pCTask = parentTask;
@@ -165,6 +200,7 @@ struct NativeScheduler::Impl {
             // on a future visit. Preserve kind, model, priority and OT position.
             slot.context.reset();
             slot.entry = std::move(slot.replacement);
+            slot.replacement = {};
         } else if (task.Status == original::TASK_NONE) {
             const auto failure = slot.failure;
             release(slot);
@@ -189,11 +225,11 @@ NativeScheduler& NativeScheduler::active() {
 std::optional<TaskHandle> NativeScheduler::exec(int index, TaskEntry entry, ModuleToken module) {
     impl_->checkThread();
     if (index < 0 || index >= 18) throw std::out_of_range("Original task slot");
-    if (index == 4) throw std::logic_error("VI-preempted ISR slot is not a cooperative game task");
+    if (index == 4) throw std::logic_error("Slot 4 requires execBackground and bounded checkpoints");
     if (!entry) throw std::invalid_argument("Null task entry");
     if (!impl_->moduleValid(module)) return std::nullopt;
     auto& slot = impl_->slots[index];
-    if (original::TaskStatus(index) != 0 || slot.entry) return std::nullopt;
+    if (original::TaskStatus(index) != 0 || slot.entry || slot.releasing) return std::nullopt;
     if (impl_->nextGeneration == std::numeric_limits<std::uint64_t>::max())
         throw std::overflow_error("Task generation exhausted");
     slot.entry = std::move(entry);
@@ -252,6 +288,103 @@ void NativeScheduler::runMain() {
     if (impl_->current != -1) throw std::logic_error("TaskScheduler requires its main caller");
     for (int i = 0; i < 4; ++i) if (impl_->slots[i].entry) impl_->visit(impl_->slots[i]);
 }
+std::optional<TaskHandle> NativeScheduler::execBackground(TaskEntry entry, ModuleToken module,
+    BackgroundCompletion completion) {
+    impl_->checkThread();
+    if (!entry) throw std::invalid_argument("Null background entry");
+    auto& slot = impl_->slots[4];
+    if (slot.entry || slot.releasing || !impl_->moduleValid(module)) return std::nullopt;
+    if (impl_->nextGeneration == std::numeric_limits<std::uint64_t>::max())
+        throw std::overflow_error("Task generation exhausted");
+    slot.entry = std::move(entry);
+    slot.generation = impl_->nextGeneration++;
+    slot.module = module;
+    slot.scenarioEntry = false;
+    slot.completion = std::move(completion);
+    slot.outcome = BackgroundOutcome::Cancelled;
+    auto& task = original::Task[4];
+    task = original::TASK{};
+    task.Task_no = 4;
+    task.Status = original::TASK_EXEC;
+    task.Priority = 0; // iTaskExec sets Priority to the previous inactive flag.
+    task.setKind(6);
+    impl_->pauseBackground.store(0, std::memory_order_relaxed);
+    impl_->cancelBackground.store(0, std::memory_order_relaxed);
+    impl_->backgroundGeneration.store(slot.generation, std::memory_order_release);
+    return impl_->handle(slot);
+}
+void NativeScheduler::runBackground(BackgroundBudget budget) {
+    impl_->checkThread();
+    if (impl_->current != -1) throw std::logic_error("iTaskScheduler requires the frame tail");
+    if (!budget.workUnits || budget.timeLimit.count() < 0 || budget.timeLimit > std::chrono::seconds(1))
+        throw std::invalid_argument("Invalid background budget (maximum one second)");
+    auto& slot = impl_->slots[4];
+    if (!slot.entry) return;
+    if (impl_->cancelBackground.load(std::memory_order_acquire) == slot.generation) {
+        impl_->release(slot); return;
+    }
+    // Original iTaskScheduler clears the retrace suspension every frame.
+    original::Task[4].Status &= ~original::TASK_SUSPEND;
+    impl_->pauseBackground.store(0, std::memory_order_relaxed);
+    impl_->backgroundBudget = budget;
+    impl_->usedBackgroundUnits = 0;
+    impl_->backgroundDeadline = std::chrono::steady_clock::now() + budget.timeLimit;
+    impl_->visit(slot);
+}
+void NativeScheduler::backgroundCheckpoint(std::uint32_t units) {
+    impl_->checkThread();
+    if (impl_->current != 4) throw std::logic_error("Background checkpoint requires slot 4");
+    auto& slot = impl_->slots[4];
+    if (impl_->cancelBackground.load(std::memory_order_acquire) == slot.generation) {
+        slot.outcome = BackgroundOutcome::Cancelled;
+        exit();
+    }
+    impl_->usedBackgroundUnits += units;
+    const auto budget = impl_->backgroundBudget;
+    if (impl_->usedBackgroundUnits >= budget.workUnits ||
+        impl_->pauseBackground.load(std::memory_order_acquire) == slot.generation ||
+        (budget.timeLimit.count() && std::chrono::steady_clock::now() >= impl_->backgroundDeadline)) {
+        original::Task[4].Status |= original::TASK_SUSPEND;
+        slot.context->yield();
+        // Also observe requests arriving while the stack was suspended.
+        if (impl_->cancelBackground.load(std::memory_order_acquire) == slot.generation) {
+            slot.outcome = BackgroundOutcome::Cancelled;
+            exit();
+        }
+    }
+}
+[[noreturn]] void NativeScheduler::exitBackground() {
+    impl_->checkThread();
+    if (impl_->current != 4) throw std::logic_error("iTaskExit requires slot 4");
+    impl_->slots[4].outcome = BackgroundOutcome::Completed;
+    exit();
+}
+bool NativeScheduler::killBackground() {
+    impl_->checkThread();
+    auto& slot = impl_->slots[4];
+    if (!slot.entry) return false;
+    return kill(impl_->handle(slot));
+}
+bool NativeScheduler::backgroundActive() const noexcept {
+    return impl_->backgroundGeneration.load(std::memory_order_acquire) != 0;
+}
+void NativeScheduler::requestBackgroundSuspend() noexcept {
+    const auto generation = impl_->runningBackground.load(std::memory_order_acquire);
+    if (!generation) return;
+    auto prior = impl_->pauseBackground.load(std::memory_order_acquire);
+    while (prior < generation && !impl_->pauseBackground.compare_exchange_weak(
+        prior, generation, std::memory_order_release, std::memory_order_acquire)) {}
+}
+bool NativeScheduler::requestBackgroundCancel(TaskHandle task) noexcept {
+    if (task.runtime != impl_->identity || task.slot != 4 || !task.generation ||
+        impl_->backgroundGeneration.load(std::memory_order_acquire) != task.generation) return false;
+    // Only publish the observed generation, never target the next occupant.
+    auto prior = impl_->cancelBackground.load(std::memory_order_acquire);
+    // Monotonic generations: a late old request cannot overwrite a newer one.
+    while (prior < task.generation && !impl_->cancelBackground.compare_exchange_weak(
+        prior, task.generation, std::memory_order_release, std::memory_order_acquire)) {}
+    return true;
+}
 void NativeScheduler::runScenarios() {
     impl_->checkThread();
     if (impl_->inScenarioPass) throw std::logic_error("Recursive scenario ordering pass");
@@ -277,6 +410,7 @@ void NativeScheduler::runScenarios() {
 }
 void NativeScheduler::visit(TaskHandle handle) {
     impl_->checkThread();
+    if (handle.slot == 4) throw std::logic_error("Slot 4 requires a frame-tail budget");
     if (auto* slot = impl_->resolve(handle)) impl_->visit(*slot);
 }
 void NativeScheduler::sleep(int visits) {
@@ -303,6 +437,7 @@ void NativeScheduler::sleep(int visits) {
     impl_->checkThread();
     if (impl_->current < 0 || !entry) throw std::logic_error("TaskChain requires a task and non-null entry");
     auto& slot = impl_->slots[impl_->current];
+    if (slot.index == 4) throw std::logic_error("Background work cannot TaskChain");
     if (module == ModuleToken{}) module = slot.module;
     if (!impl_->moduleValid(module)) throw std::logic_error("TaskChain targets an expired module");
     slot.replacement = std::move(entry);
@@ -315,6 +450,7 @@ bool NativeScheduler::kill(TaskHandle task) {
     impl_->checkThread();
     auto* slot = impl_->resolve(task);
     if (!slot) return false;
+    slot->outcome = BackgroundOutcome::Cancelled;
     if (slot->executing) {
         if (slot->index == impl_->current) exit();
         return false; // Never destroy a suspended caller stack of the current task.

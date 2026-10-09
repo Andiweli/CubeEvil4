@@ -60,3 +60,10 @@ Retroid Android 13 execution, including register probes and identical task trace
 Task/module generations are explicit uint64 values with single-thread ownership;
 native stacks use size_t and the device's real page size. TASK's wire offsets
 and the scenario OT's tagged 32-bit addresses are not copied into native state.
+
+Phase 2b keeps one background/decode/I/O policy on both ABIs. Cross-thread
+generations/progress use std::atomic<uint64_t>, including ARM32. Yz2 dictionary
+references are validated 32-bit output offsets rather than native pointers;
+original header alignment uses uintptr_t. Decoder state is per instance; the
+I/O worker accesses private buffers only. The additional ARM64 stack assertion
+tests a pointer above UINT32_MAX; it is not a gameplay/scheduler difference.

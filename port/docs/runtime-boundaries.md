@@ -3,7 +3,8 @@
 The approved architecture is original game code plus a compatible native
 runtime. Phase 1 implements only fixed-width primitive types, scalar endian
 decoding, a small original-code target and its platform verification harness.
-Phase 2 implements `NativeScheduler` in `include/re4/port/scheduler.h`.
+Phase 2 implements `NativeScheduler` in `include/re4/port/scheduler.h`; Phase 2b
+adds explicit slot-4 slices, owned Yz2 decode jobs and a single file-I/O worker.
 `contracts.h` retains proposed abstract module/asset boundaries. Neither those
 systems nor their success-returning substitutes are implemented.
 
@@ -54,10 +55,11 @@ registry. Keep native code resident until that integration is proven.
 
 Native metadata does not emulate OSThread's binary layout. Original pure control
 functions and SceSleep/SceExit are compiled verbatim against narrow adapters.
-There are no pretend OSCreateThread, GX or semaphore functions. The ISR slot 4
-depends on actual VI preemption and is deliberately rejected by this cooperative
-runtime. Loader/render synchronization is not supplied. See `phase2-status.md`
-for evidence, deliberate error handling and remaining integration work.
+There are no pretend OSCreateThread, GX or semaphore functions. ISR slot 4 uses
+execBackground/runBackground/backgroundCheckpoint; ordinary exec/visit still
+reject it. Gameplay order is unchanged. Retrace callbacks request pause
+atomically; the full VI/Surface frame bridge remains open. See
+background-design.md and phase2b-status.md for proof and limits.
 
 Native stacks default to 256 KiB and are configurable, with Android guard pages;
 full-engine budgets still need measurement. Cancellation, chain and explicit exit
@@ -85,7 +87,11 @@ indices. Preserve original bytes and explicitly list unsupported formats.
 Separate wire layouts from native views. `BigEndianView` reads bounded scalars;
 it performs no pointer relocation and does not claim to parse any RE4 format.
 Runtime DVD queues and MRAM/ARAM transitions require separate implementations
-with original completion/error semantics. No asynchronous loader is simulated.
+with original completion/error semantics. AsyncFileReader performs real bounded
+filesystem reads on one worker; startFileReadPump polls it without blocking
+frames. Its job owns buffers through cancellation acknowledgement. Yz2 setup
+is adapted from original C; the PPC kernel is translated and reference-checked.
+Neither component claims full decodeData/cDvd/archive/asset import integration.
 No original binaries or assets belong in tracked files or APK inputs here.
 
 ## Android application boundary
