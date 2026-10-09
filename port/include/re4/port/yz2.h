@@ -15,27 +15,31 @@ enum class DecodeState { Prepared, Processing, Complete, Cancelled, Failed };
 // Per-instance state replaces the original process-global in_ev. Only the
 // engine owner executes decode; observers may read state on any thread.
 class Yz2Decoder final {
-public:
-    explicit Yz2Decoder(const std::uint8_t* input, std::size_t bytes,
-        std::uint32_t maximumOutput = 64 * 1024 * 1024);
+  public:
+    explicit Yz2Decoder(const std::uint8_t *input, std::size_t bytes,
+                        std::uint32_t maximumOutput = 64 * 1024 * 1024);
     ~Yz2Decoder();
-    Yz2Decoder(const Yz2Decoder&) = delete;
-    Yz2Decoder& operator=(const Yz2Decoder&) = delete;
+    Yz2Decoder(const Yz2Decoder &) = delete;
+    Yz2Decoder &operator=(const Yz2Decoder &) = delete;
     void decode(); // Synchronous, bounded data validation; no scheduler needed.
     DecodeState state() const noexcept;
     // Results remain unavailable until Complete (acquire publication).
-    const std::vector<std::uint8_t>& output() const;
-    const Yz2Statistics& statistics() const;
-private:
+    const std::vector<std::uint8_t> &output() const;
+    // Shared immutable result without copying the decoded room body.
+    std::shared_ptr<const std::vector<std::uint8_t>> sharedOutput() const;
+    const Yz2Statistics &statistics() const;
+
+  private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
-    void decodeBackground(NativeScheduler& scheduler);
+    void decodeBackground(NativeScheduler &scheduler);
     void finishBackground(BackgroundOutcome outcome) noexcept;
-    friend std::optional<TaskHandle> startYz2Decode(NativeScheduler&,
-        std::shared_ptr<Yz2Decoder>, ModuleToken);
+    friend std::optional<TaskHandle> startYz2Decode(NativeScheduler &, std::shared_ptr<Yz2Decoder>,
+                                                    ModuleToken);
 };
 // Typed background adapter for the decodeData -> Yz2DecodeExec -> iTaskExit
 // portion. NOT a replacement for decodeData's unported room/heap integration.
-std::optional<TaskHandle> startYz2Decode(NativeScheduler& scheduler,
-    std::shared_ptr<Yz2Decoder> decoder, ModuleToken module = {});
+std::optional<TaskHandle> startYz2Decode(NativeScheduler &scheduler,
+                                         std::shared_ptr<Yz2Decoder> decoder,
+                                         ModuleToken module = {});
 } // namespace re4::port

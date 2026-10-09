@@ -1,5 +1,6 @@
 #pragma once
 #include "re4/port/asset_index.h"
+#include "re4/port/resources.h"
 #include "re4/port/scheduler.h"
 #include <memory>
 #include <string>
@@ -47,7 +48,8 @@ struct RoomArchive {
 class EngineLoader final {
   public:
     explicit EngineLoader(std::shared_ptr<const ImportedFiles> files, std::uint8_t disc = 0,
-                          std::function<void(std::uint64_t)> ioProgressObserver = {});
+                          std::function<void(std::uint64_t)> ioProgressObserver = {},
+                          MemoryLimits limits = {});
     ~EngineLoader();
     EngineLoader(const EngineLoader &) = delete;
     EngineLoader &operator=(const EngineLoader &) = delete;
@@ -76,6 +78,26 @@ class EngineLoader final {
     NativeScheduler &scheduler();
     std::size_t liveAllocations() const;
     std::vector<std::string> observedFunctions() const;
+    // Original DC registration and command/condition machinery, with typed
+    // boundaries instead of casting an ARM64 pointer to a GameCube u32.
+    ResourceHandle registerResource(const std::string &path);
+    ResourceInfo resourceInfo(ResourceHandle resource) const;
+    void loadResource(ResourceHandle resource, Residency destination, bool wait = false,
+                      const MemoryReservation &mram = {}, std::uint32_t aramAddress = 0);
+    void clearResource(ResourceHandle resource);
+    void deleteResource(ResourceHandle resource);
+    MemoryReservation reserveMemory(std::uint32_t bytes);
+    void releaseMemory(MemoryReservation &memory); // Reject while referenced by a live unit.
+    ResourceReference reference(ResourceHandle resource, std::uint32_t offset,
+                                std::uint32_t bytes) const;
+    ResourceLease resolve(ResourceReference reference) const; // MRAM_READY only
+    std::vector<BlockResource> blockResources() const;
+    void setBlockResidency(std::uint8_t block, Residency destination);
+    void clearBlock(std::uint8_t block);
+    void setResourceControl(bool enabled, bool holdCommands = false);
+    void setAramCompaction(bool enabled);
+    ResourceMemoryStats memoryStats() const;
+    void trimCaches(); // Drops cache ownership; live archives/leases remain valid.
 
   private:
     struct Impl;

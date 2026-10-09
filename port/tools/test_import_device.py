@@ -21,6 +21,7 @@ def main():
     parser.add_argument("--adb",required=True)
     parser.add_argument("--serial",required=True)
     parser.add_argument("--data",required=True)
+    parser.add_argument("--output",help="separate private report directory; defaults to --data")
     parser.add_argument("--abi",action="append",choices=["armeabi-v7a","arm64-v8a"])
     parser.add_argument("--repeat",type=int,default=2)
     args=parser.parse_args()
@@ -28,6 +29,8 @@ def main():
         raise ValueError("invalid serial/repeat")
     root=Path(__file__).resolve().parents[2]
     data=external_root(args.data,root,[])
+    output=external_root(args.output,root,[]) if args.output else data
+    output.mkdir(parents=True,exist_ok=True)
     cases=json.loads((data/"native-cases.json").read_text())
     for case in cases:
         if not re.fullmatch(r"[0-9a-f]{64}",case["blob"]):raise ValueError("invalid CAS identifier")
@@ -75,7 +78,7 @@ def main():
                 if (i+1)%100==0:print(f"{abi} round {round_no}: {i+1}/{len(cases)} pass",flush=True)
             results.append(dict(abi=abi,round=round_no,passed=len(cases),failed=0,trace_sha256=digest.hexdigest(),
                                 executable_sha256=sha(executable.read_bytes()),self_test=self_test))
-            write_json(data/"android-import-tests.json",dict(device=info,remote_directory=remote,results=results,
+            write_json(output/"android-import-tests.json",dict(device=info,remote_directory=remote,results=results,
                         case_manifest_sha256=sha((data/"native-cases.json").read_bytes())))
             print(f"PASS {abi} round {round_no}: {len(cases)} cases; trace {digest.hexdigest()}",flush=True)
     if len({r["trace_sha256"] for r in results})!=1:raise ValueError("ABI/repeat trace mismatch")

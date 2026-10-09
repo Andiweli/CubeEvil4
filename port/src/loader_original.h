@@ -46,6 +46,8 @@ struct cDvdQueue {
     u32 sizeTbl[2][32]{};
     std::uint64_t generation = 0;
     bool suspended = false;
+    bool ownsBuffer = false;
+    int transferId = -1;
     DVD_REQ_WORK request;
     std::shared_ptr<FileRead> io;
     std::shared_ptr<LoadedFile> result;
@@ -96,18 +98,49 @@ struct GameLoadState {
 };
 using EmiData = void;
 struct cBlockUnit {
+    int state = 0, command = 0;
     cDataUnit *pData = nullptr;
-    u16 flags = 0;
+    u8 flags = 0, arg = 0;
     u8 no = 0;
+    void setBlockCommand(int cmd, int a);
+    void setBlockLoadToMram();
+    int checkBlockLoadToMramSet();
+    int checkBlockLoadToAramSet();
+    int checkBlockLoadToAram();
+    int checkBlockDelete();
 };
 struct cBlock {
     u8 nBlock = 0;
+    int stopFlagSet = 0, noMemCtrl = 1;
+    void *getBlockMemFree(u32);
     std::vector<cBlockUnit> units;
     cBlockUnit *getUnitPtr(u8 no) { return no < nBlock ? &units[no] : nullptr; }
     int getBlockWork(u8 no);
 };
 struct Log {
     void err(int, int, const char *message, ...);
+};
+struct cAramQueue {
+    u32 be_flag = 0, type = 0, len = 0;
+    std::uintptr_t src = 0, dst = 0;
+    cAramQueue *next = nullptr;
+    std::size_t cursor = 0;
+    void SetFlag(u32 f) { be_flag |= f; }
+    int CkFlag(u32 f) const { return (be_flag & f) ? 1 : 0; }
+    void PushQueue() { be_flag = 0; }
+};
+struct cAram {
+    cAramQueue *pCur_queue = nullptr;
+    cAramQueue *pQueue_list = nullptr;
+    cAramQueue AramQueue[16];
+    int DmaTransReq(int type, std::uintptr_t src, std::uintptr_t dst, u32 len, int mode);
+    cAramQueue *pullAramQueue(int *id);
+    void DmaTrans(cAramQueue *q, int mode);
+    int TransCheck(int id);
+    int DmaCancel(int id);
+    void DmaCancelAll();
+    void watcher();
+    void advance(std::size_t bytes);
 };
 struct Context {
     const std::thread::id owner = std::this_thread::get_id();
@@ -117,6 +150,7 @@ struct Context {
     NativeScheduler scheduler;
     AsyncFileReader reader;
     cDvd dvd;
+    cAram aram;
     cDataCtrl dc{};
     cBlock block;
     DVD_REQ_WORK req;
@@ -124,9 +158,27 @@ struct Context {
     Log log;
     struct Allocation {
         std::size_t bytes;
-        void *base;
+        std::shared_ptr<void> storage;
     };
     std::map<void *, Allocation> allocations;
+    MemoryLimits limits;
+    std::shared_ptr<std::atomic<std::uint64_t>> allocatedBytes =
+        std::make_shared<std::atomic<std::uint64_t>>(0);
+    std::vector<u8> aramStorage;
+    std::array<std::uint64_t, 32> resourceGenerations{};
+    std::array<int, 32> resourceErrors{};
+    std::array<std::shared_ptr<const LoadedFile>, 32> unitFiles{};
+    struct FileCacheEntry {
+        std::shared_ptr<LoadedFile> file;
+        std::uint64_t used;
+    };
+    struct DecodedCacheEntry {
+        std::shared_ptr<const std::vector<u8>> body;
+        std::uint64_t used;
+    };
+    std::map<std::string, FileCacheEntry> fileCache;
+    std::map<std::string, DecodedCacheEntry> decodedCache;
+    std::uint64_t cacheClock = 0, fileCacheHits = 0, decodedCacheHits = 0, fileReads = 0;
     std::uint64_t generation = 0;
     u32 stopwatch = 0;
     std::shared_ptr<const LoadedFile> lastFile;
@@ -140,7 +192,7 @@ struct Context {
     std::optional<TaskHandle> roomTask;
     std::set<std::string> observed;
     explicit Context(std::shared_ptr<const ImportedFiles> catalog, u8 selected,
-                     std::function<void(std::uint64_t)> observer);
+                     std::function<void(std::uint64_t)> observer, MemoryLimits limits);
     ~Context();
 };
 Context &context();
@@ -159,7 +211,25 @@ void *GetDataExt(void *data, const char *tag, int occurrence);
 void *roomReadDestination();
 void *allocate(u32 size);
 void release(void *p);
-int unsupportedAram(); // Always throws; int matches the original DMA assignment.
+constexpr u32 ARAM_FREE_BASE = 0x800000;
+u32 aramOffset(const void *address);
+void *aramPointer(u32 address);
+std::uintptr_t nativeAddress(const void *address);
+u32 alignedSize(u32 bytes);
+void validateAram(std::uintptr_t address, u32 bytes);
+void validateMram(const void *address, u32 bytes);
+void checkedMove(void *destination, const void *source, u32 bytes);
+void resourceRegistered(cDataUnit *unit);
+void unitFileReady(cDataUnit *unit);
+void unitFileCleared(cDataUnit *unit);
+void nativeUnitFault(cDataUnit *unit);
+void waitAram(int id);
+void checkAramRequest(int type, std::uintptr_t src, std::uintptr_t dst, u32 len);
+std::string fileCacheKey(const cDvdQueue &queue);
+void cacheFile(cDvdQueue &queue);
+void cacheDecoded();
+void resourceBlockCommands();
+void resourceBlockConditions();
 void TaskSleep(int n);
 [[noreturn]] void TaskExit();
 [[noreturn]] void iTaskExit();
@@ -183,6 +253,8 @@ inline void OSReport(const char *, ...) {
 } // Original debug output; test observations use typed state APIs.
 } // namespace re4::port::loading
 #define Dvd (re4::port::loading::context().dvd)
+#define Aram (re4::port::loading::context().aram)
+#define ARAM_END (re4::port::loading::context().limits.aramEnd)
 #define DC (re4::port::loading::context().dc)
 #define Block (re4::port::loading::context().block)
 #define DvdReqWork (re4::port::loading::context().req)
@@ -194,3 +266,15 @@ inline void OSReport(const char *, ...) {
 #define Debug_alloc(size, alignment) re4::port::loading::allocate(size)
 #define HALT() throw std::runtime_error("Original loader HALT")
 #define DVD_READ_N(name, dst, a, b, c, mode) DvdReadN(name, dst, a, b, c, mode, __FILE__, __LINE__)
+#define BLOCK_NO_DATA 0
+#define BLOCK_MRAM_LOAD_SET 1
+#define BLOCK_MRAM_LOAD 2
+#define BLOCK_CREATE 3
+#define BLOCK_ARAM_LOAD_SET 4
+#define BLOCK_ARAM_LOAD 5
+#define BLOCK_ARAM_OK 6
+#define BLOCK_DELETE 7
+#define BLOCK_CMD_NONE 0
+#define BLOCK_CMD_MRAM_LOAD 1
+#define BLOCK_CMD_ARAM_LOAD 2
+#define BLOCK_CMD_DELETE 3

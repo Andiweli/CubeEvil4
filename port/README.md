@@ -2,10 +2,16 @@
 
 Strategy A: compile original RE4 code with a separate native compatibility layer.
 This directory contains the verified build foundation, stackful scheduler,
-background/file/Yz2 runtime and Phase-3b original-data MRAM loader. It is not a
+background/file/Yz2 runtime and Phase-3c original MRAM/ARAM resource controller. It is not a
 playable game. Native tests load privately supplied GameCube data; the APK
 bundles no assets. No rooms, actors, events or renderer are manually recreated.
 The original `src/`, `include/`, configurations and master history are unchanged.
+
+Phase 3c adds original data-controller state transitions, bounded asynchronous
+CPU-backed ARAM, native reservations/leases and verified immutable LRU caches.
+Data readiness is distinct from model creation. See
+[Phase-3c evidence and limits](docs/phase3c-status.md) and
+[Phase-4 module/model/input boundaries](docs/phase4-boundaries.md).
 
 ## Layout
 

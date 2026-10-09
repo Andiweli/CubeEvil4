@@ -34,8 +34,10 @@ def main():
         import tempfile
         data=external_root(args.data,root,[])
         report=Path(args.report).resolve()
-        if root == report or root in report.parents or report.parent != data:
-            raise ValueError("verification report must be directly inside private data root")
+        external_root(report.parent,root,[])
+        if report.suffix != '.json':
+            raise ValueError("verification report must be a private JSON file")
+        report.parent.mkdir(parents=True,exist_ok=True)
         cases=json.loads((data/"native-cases.json").read_text())
         passed=0
         for case in cases:
@@ -43,7 +45,7 @@ def main():
             if sha(path.read_bytes())!=case["blob"]:
                 raise ValueError("case input SHA-256 mismatch")
             if case["mode"]=="decode":
-                with tempfile.NamedTemporaryFile(dir=data,delete=False) as stream: destination=Path(stream.name)
+                with tempfile.NamedTemporaryFile(dir=report.parent,delete=False) as stream: destination=Path(stream.name)
                 try:
                     result=native(args.native_tool,"decode",path,destination)
                     result["sha256"]=sha(destination.read_bytes())

@@ -96,9 +96,13 @@ struct Binding {
 };
 } // namespace
 Context::Context(std::shared_ptr<const ImportedFiles> catalog, u8 selected,
-                 std::function<void(std::uint64_t)> observer)
+                 std::function<void(std::uint64_t)> observer, MemoryLimits memoryLimits)
     : runtime(runtimeIds.fetch_add(1)), files(std::move(catalog)), disc(selected),
-      reader(std::move(observer)) {}
+      reader(std::move(observer)), limits(memoryLimits) {
+    if (!limits.transferBytesPerFrame || limits.aramEnd <= ARAM_FREE_BASE ||
+        limits.aramEnd > 0xD00000 || (limits.aramEnd & 31u))
+        throw std::invalid_argument("invalid native memory limits");
+}
 Context &context() {
     if (!bound)
         throw std::logic_error("no bound engine loader");
@@ -107,6 +111,12 @@ Context &context() {
 void Log::err(int, int, const char *message, ...) { throw std::runtime_error(message); }
 void loaderTrace(const char *function) { context().observed.emplace(function); }
 void releaseQueueStorage(cDvdQueue *q) {
+    if (q->transferId >= 0)
+        Aram.DmaCancel(q->transferId);
+    if (q->ownsBuffer)
+        release(q->pBuff);
+    q->transferId = -1;
+    q->ownsBuffer = false;
     q->io.reset();
     q->result.reset();
     q->pBuff = nullptr;
@@ -116,14 +126,13 @@ Context::~Context() {
     if (roomTask)
         scheduler.kill(*roomTask);
     scheduler.killBackground();
+    aram.DmaCancelAll();
     for (auto &q : dvd.DvdQueue) {
         if (q.io)
             q.io->cancel();
         if (q.task && q.task->slot != 4)
             scheduler.kill(*q.task);
     }
-    for (const auto &a : allocations)
-        std::free(a.second.base);
 }
 void resetQueue(cDvdQueue *q) {
     auto generation = ++context().generation;
@@ -144,39 +153,17 @@ u8 nextReadID() {
     }
     throw std::logic_error("DVD request ID exhaustion");
 }
-void *allocate(u32 bytes) {
-    if (bytes > 64 * 1024 * 1024)
-        throw std::runtime_error("native loader allocation limit");
-    auto *base = std::malloc(static_cast<std::size_t>(bytes) + 32);
-    if (!base)
-        return nullptr;
-    auto *p = reinterpret_cast<void *>((reinterpret_cast<std::uintptr_t>(base) + 31) &
-                                       ~std::uintptr_t{31});
-    context().allocations.emplace(p, Context::Allocation{bytes, base});
-    return p;
-}
-void release(void *p) {
-    if (!p)
-        return;
-    auto &allocations = context().allocations;
-    auto it = allocations.find(p);
-    if (it == allocations.end())
-        throw std::logic_error("foreign or double-free loader pointer");
-    auto *base = it->second.base;
-    allocations.erase(it);
-    std::free(base);
-}
-int unsupportedAram() {
-    throw std::logic_error("GameCube ARAM residency/DMA is not ported; native MRAM loader only");
-}
 void TaskSleep(int n) { context().scheduler.sleep(n); }
 [[noreturn]] void TaskExit() { context().scheduler.exit(); }
 [[noreturn]] void iTaskExit() { context().scheduler.exitBackground(); }
 void boundedDvdStep(cDvdQueue *q) {
     if (q->CkFlag(0x100))
         context().scheduler.backgroundCheckpoint(64 * 1024);
-    else if (q->CkFlag(0x40000000))
+    else if (q->CkFlag(0x40000000)) {
+        Aram.watcher();
+        Aram.advance(context().limits.transferBytesPerFrame);
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 }
 u32 OSGetTick() {
     return static_cast<u32>(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -195,8 +182,8 @@ void *roomReadDestination() {
 } // Owning native destination replaces the fixed heap-end staging address.
 void cDvdQueue::Initialize() {
     request = DvdReqWork;
-    if (request.aram_addr || (request.mode & 8))
-        unsupportedAram();
+    if (request.mode & 8)
+        validateAram(request.aram_addr, request.size);
     if (request.file_no != 0xffff) {
         if (request.file_no >= FileTblCount)
             throw std::out_of_range("FileTbl index");
@@ -226,6 +213,10 @@ int cDvdQueue::Read() {
         return 0;
     };
     if (CkFlag(0x100000)) {
+        if (transferId >= 0) {
+            Aram.DmaCancel(transferId);
+            transferId = -1;
+        }
         if (io) {
             io->cancel();
             if (io->state() == ReadState::Reading || io->state() == ReadState::Pending)
@@ -234,70 +225,97 @@ int cDvdQueue::Read() {
         return finish(ST_CANCEL, 4);
     }
     try {
+        auto &c = context();
         if (m_Rno0 == 0) {
             if (!identity)
                 return finish(ST_ERROR, 1);
-            io = context().reader.read(context().files->blobPath(*identity), 64 * 1024 * 1024);
-            if (!io)
-                return 1;
+            auto hit = c.fileCache.find(fileCacheKey(*this));
+            if (hit != c.fileCache.end() && hit->second.file->identity.sha256 == identity->sha256) {
+                result = hit->second.file;
+                hit->second.used = ++c.cacheClock;
+                ++c.fileCacheHits;
+            } else {
+                io = c.reader.read(c.files->blobPath(*identity), 64 * 1024 * 1024);
+                if (!io)
+                    return 1;
+                ++c.fileReads;
+            }
             SetQueueStatus(ST_READ);
             m_Rno0 = 1;
             return 1;
         }
-        if (!io)
-            throw std::logic_error("DVD read without I/O owner");
-        if (io->state() == ReadState::Failed)
-            return finish(ST_ERROR, 1);
-        if (io->state() == ReadState::Cancelled)
-            return finish(ST_CANCEL, 4);
-        if (io->state() != ReadState::Complete)
-            return 1;
-        const auto &input = io->output();
-        if (input.size() != identity->size)
-            return finish(ST_ERROR, 6);
+        if (m_Rno0 == 2) {
+            if (Aram.TransCheck(transferId) != 1)
+                return 1;
+            transferId = -1;
+            addrTbl[1][0] = request.aram_addr;
+            sizeTbl[1][0] = result->bodySize;
+            aramSize = result->bodySize;
+            return finish(ST_COMPLETE, 0);
+        }
         if (!result) {
+            if (!io)
+                throw std::logic_error("DVD read without I/O owner");
+            if (io->state() == ReadState::Failed)
+                return finish(ST_ERROR, 1);
+            if (io->state() == ReadState::Cancelled)
+                return finish(ST_CANCEL, 4);
+            if (io->state() != ReadState::Complete)
+                return 1;
+            const auto &input = io->output();
+            if (input.size() != identity->size)
+                return finish(ST_ERROR, 6);
+            auto n = std::min<std::size_t>(64 * 1024, input.size() - cursor);
+            if (n)
+                hash.update(input.data() + cursor, n);
+            cursor += n;
+            if (cursor < input.size())
+                return 1;
+            if (hash.finish() != identity->sha256)
+                return finish(ST_ERROR, 6);
             result = std::make_shared<LoadedFile>();
             result->identity = *identity;
-            result->bytes.reserve(input.size());
-        }
-        auto n = std::min<std::size_t>(64 * 1024, input.size() - cursor);
-        if (n)
-            hash.update(input.data() + cursor, n);
-        result->bytes.insert(result->bytes.end(),
-                             input.begin() + static_cast<std::ptrdiff_t>(cursor),
-                             input.begin() + static_cast<std::ptrdiff_t>(cursor + n));
-        cursor += n;
-        if (cursor < input.size())
-            return 1;
-        if (hash.finish() != identity->sha256)
-            return finish(ST_ERROR, 6);
-        u32 offset = request.offset,
-            size = request.size ? request.size : static_cast<u32>(input.size());
-        if (offset > input.size() || size > input.size() - offset)
-            return finish(ST_ERROR, 6);
-        if (CkFlag(0x80000000)) {
-            auto parts = indexAssetContainer(input.data() + offset, size);
-            result->bodyOffset = offset + parts.bodyOffset;
-            result->bodySize = parts.bodySize;
-            result->soundOffset = offset + parts.soundOffset;
-            result->soundSize = parts.soundSize;
-        } else {
-            result->bodyOffset = offset;
-            result->bodySize = size;
+            result->bytes = io->takeOutput();
+            u32 offset = request.offset, size = request.size ? request.size : identity->size;
+            if (offset > result->bytes.size() || size > result->bytes.size() - offset)
+                return finish(ST_ERROR, 6);
+            if (CkFlag(0x80000000)) {
+                auto parts = indexAssetContainer(result->bytes.data() + offset, size);
+                result->bodyOffset = offset + parts.bodyOffset;
+                result->bodySize = parts.bodySize;
+                result->soundOffset = offset + parts.soundOffset;
+                result->soundSize = parts.soundSize;
+            } else {
+                result->bodyOffset = offset;
+                result->bodySize = size;
+            }
+            cacheFile(*this);
         }
         auto *src = result->bytes.empty() ? nullptr : result->bytes.data() + result->bodyOffset;
+        if (request.mode & 8) {
+            validateAram(request.aram_addr, result->bodySize);
+            if (!ownsBuffer) {
+                pBuff = allocate(result->bodySize);
+                if (!pBuff)
+                    return finish(ST_ERROR, 3);
+                ownsBuffer = true;
+                if (result->bodySize)
+                    std::memcpy(pBuff, src, result->bodySize);
+            }
+            transferId =
+                Aram.DmaTransReq(0, nativeAddress(pBuff), request.aram_addr, result->bodySize, 0);
+            if (transferId < 0)
+                return 1; // Original ARQ slots are bounded; retry, never fake completion.
+            m_Rno0 = 2;
+            return 1;
+        }
         if (pBuff) {
-            auto allocation = context().allocations.find(pBuff);
-            if (allocation == context().allocations.end() ||
-                allocation->second.bytes < result->bodySize)
-                throw std::invalid_argument("destination is not a bounded native allocation");
-            // Plain DC data units use a single owning allocation. Headered native
-            // archive requests expose their owned span instead of old end pointers.
+            validateMram(pBuff, result->bodySize);
             if (result->bodySize)
                 std::memcpy(pBuff, src, result->bodySize);
         } else
             pBuff = src;
-        addrTbl[0][0] = reinterpret_cast<std::uintptr_t>(pBuff);
+        addrTbl[0][0] = nativeAddress(pBuff);
         sizeTbl[0][0] = result->bodySize;
         mramSize = result->bodySize;
         return finish(ST_COMPLETE, 0);
@@ -342,6 +360,7 @@ int cDvd::FileExistCheck(const char *name, u32 *length) {
     return static_cast<int>(f->fstIndex);
 }
 void cDvd::Watcher() {
+    Aram.watcher();
     if (!pCur_queue && pQueue_list) {
         auto *q = pQueue_list;
         if (q->suspended)
@@ -368,6 +387,10 @@ int cDvd::ReadCancel(int id, int mode) {
     q->suspended = false;
     if (q->io)
         q->io->cancel();
+    if (q->transferId >= 0) {
+        Aram.DmaCancel(q->transferId);
+        q->transferId = -1;
+    }
     if (q != pCur_queue) {
         auto **link = &pQueue_list;
         while (*link && *link != q)
@@ -433,17 +456,6 @@ void cDataUnit::setName(char *name) {
         throw std::invalid_argument("DC filename overrun");
     std::strcpy(m_name, name);
 }
-void cDataUnit::setLoadToAram() { unsupportedAram(); }
-void cDataUnit::checkAramToMram() { unsupportedAram(); }
-void cDataUnit::checkCondition() {
-    if (getCondition() == COND_MRAM_LOAD)
-        checkLoadToMram();
-    else if (getCondition() != COND_NO_DATA && getCondition() != COND_MRAM_OK)
-        unsupportedAram();
-}
-void cDataCtrl::setDummyId(int) {
-    throw std::logic_error("developer-console dummy reads are not enabled");
-}
 int roomReadCheck(int id, void **address) {
     int ret = Dvd.ReadCheck(id, nullptr, nullptr, address);
     if (ret < 0)
@@ -464,6 +476,20 @@ void decodeData() {
     if (!c.lastFile)
         throw std::logic_error("decodeData without completed DVD read");
     const auto &f = *c.lastFile;
+    auto hit = c.decodedCache.find(f.identity.sha256);
+    if (hit != c.decodedCache.end()) {
+        c.decoded = hit->second.body;
+        hit->second.used = ++c.cacheClock;
+        ++c.decodedCacheHits;
+        // Cached data is still published through the stackful background boundary.
+        if (!c.scheduler.execBackground([&c] {
+                c.scheduler.backgroundCheckpoint(std::numeric_limits<u32>::max());
+                c.scheduler.exitBackground();
+            }))
+            throw std::logic_error("cached decoder slot lost");
+        c.stage = RoomLoadStage::Decoding;
+        return;
+    }
     c.decoder = std::make_shared<Yz2Decoder>(f.bytes.data() + f.bodyOffset, f.bodySize);
     if (!startYz2Decode(c.scheduler, c.decoder))
         throw std::logic_error("decoder slot lost during submission");
@@ -473,10 +499,12 @@ int iTaskStatus() {
     auto &c = context();
     if (c.scheduler.backgroundActive())
         return 1;
-    if (!c.decoder || c.decoder->state() != DecodeState::Complete)
+    if (!c.decoded && (!c.decoder || c.decoder->state() != DecodeState::Complete))
         throw std::runtime_error("ReadAreaData decode failed or cancelled");
     if (!c.decoded)
-        c.decoded = std::make_shared<const std::vector<u8>>(c.decoder->output());
+        c.decoded = c.decoder->sharedOutput();
+    cacheDecoded();
+    c.decoder.reset(); // Release compressed staging/work; body has separate ownership.
     c.game.pRoom = const_cast<u8 *>(c.decoded->data());
     return 0;
 }
@@ -497,17 +525,17 @@ using loading::Binding;
 struct EngineLoader::Impl {
     loading::Context c;
     explicit Impl(std::shared_ptr<const ImportedFiles> f, u8 disc,
-                  std::function<void(std::uint64_t)> o)
-        : c(std::move(f), disc, std::move(o)) {
+                  std::function<void(std::uint64_t)> o, MemoryLimits limits)
+        : c(std::move(f), disc, std::move(o), limits) {
         if (!c.files || disc > 1)
             throw std::invalid_argument("invalid loader catalog/disc");
         Binding binding(c);
-        c.dc.setDataCtrl(1);
+        c.dc.initDataUnit();
     }
 };
 EngineLoader::EngineLoader(std::shared_ptr<const ImportedFiles> f, u8 disc,
-                           std::function<void(std::uint64_t)> observer)
-    : impl_(std::make_unique<Impl>(std::move(f), disc, std::move(observer))) {}
+                           std::function<void(std::uint64_t)> observer, MemoryLimits limits)
+    : impl_(std::make_unique<Impl>(std::move(f), disc, std::move(observer), limits)) {}
 EngineLoader::~EngineLoader() = default;
 LoadRequest EngineLoader::request(const std::string &path, u16 mode, u16 priority, u32 offset,
                                   u32 length) {
@@ -624,10 +652,11 @@ void EngineLoader::frame(BackgroundBudget budget) {
     c.scheduler.runMain();
     c.dvd.Watcher();
     c.scheduler.runBackground(budget);
+    c.aram.advance(c.limits.transferBytesPerFrame);
     try {
-        for (auto &unit : c.block.units)
-            if (unit.pData && unit.pData->isBeAlive())
-                unit.pData->checkCondition();
+        loading::resourceBlockCommands();
+        c.dc.check();
+        loading::resourceBlockConditions();
     } catch (const std::exception &e) {
         const std::string message = e.what();
         cancelRoom();
@@ -682,9 +711,14 @@ bool EngineLoader::loadRoom(u16 id, bool blocks) {
                         if (data[links + static_cast<std::size_t>(i) * 12] & 1) {
                             if (!c.block.getBlockWork(i))
                                 throw std::runtime_error("original block file missing");
-                            c.block.units[i].pData->setCommand(CMND_MRAM_LOAD, nullptr, 0);
+                            c.block.units[i].setBlockCommand(BLOCK_CMD_MRAM_LOAD, 0);
                             c.stage = RoomLoadStage::Blocks;
                         }
+                    // Block commands are applied after background work/DC in the
+                    // frame pipeline. Let that first visit issue the data requests
+                    // before isUseOk diagnoses an idle unit as error 5.
+                    if (c.block.nBlock)
+                        loading::TaskSleep(1);
                     for (auto &unit : c.block.units)
                         if (unit.pData) {
                             while (!unit.pData->isUseOk()) {
@@ -695,11 +729,10 @@ bool EngineLoader::loadRoom(u16 id, bool blocks) {
                             auto file = c.files->find(c.disc, unit.pData->getName());
                             if (!file)
                                 throw std::logic_error("lost block identity");
-                            auto owned = std::make_shared<LoadedFile>();
-                            owned->identity = *file;
-                            auto *p = static_cast<const u8 *>(unit.pData->getAddr());
-                            owned->bytes.assign(p, p + unit.pData->getSize());
-                            owned->bodySize = static_cast<u32>(owned->bytes.size());
+                            auto slot = static_cast<std::size_t>(unit.pData - c.dc.nativeUnit(0));
+                            auto owned = c.unitFiles[slot];
+                            if (!owned || owned->identity.sha256 != file->sha256)
+                                throw std::logic_error("lost verified block owner");
                             room->blockIndices.push_back(
                                 indexAssetBody(owned->bytes.data(), owned->bytes.size()));
                             room->blocks.push_back(std::move(owned));
@@ -773,6 +806,227 @@ std::vector<std::string> EngineLoader::observedFunctions() const {
     Binding binding(impl_->c);
     auto &seen = impl_->c.observed;
     return {seen.begin(), seen.end()};
+}
+namespace {
+loading::cDataUnit *unitFor(loading::Context &c, ResourceHandle h) {
+    if (h.runtime != c.runtime || h.slot >= 32 || c.resourceGenerations[h.slot] != h.generation ||
+        !c.dc.nativeUnit(h.slot)->isBeAlive())
+        throw std::invalid_argument("stale/foreign resource handle");
+    return c.dc.nativeUnit(h.slot);
+}
+ResourceHandle handleFor(loading::Context &c, loading::cDataUnit *u) {
+    auto i = static_cast<std::size_t>(u - c.dc.nativeUnit(0));
+    return {c.runtime, c.resourceGenerations[i], static_cast<u8>(i)};
+}
+} // namespace
+ResourceHandle EngineLoader::registerResource(const std::string &path) {
+    Binding bind(impl_->c);
+    key(path);
+    if (path.size() >= 32)
+        throw std::invalid_argument("original resource name capacity");
+    auto *u = impl_->c.dc.setData(const_cast<char *>(path.c_str()));
+    if (!u)
+        throw std::runtime_error("data unit registration failed");
+    return handleFor(impl_->c, u);
+}
+ResourceInfo EngineLoader::resourceInfo(ResourceHandle h) const {
+    Binding bind(impl_->c);
+    auto *u = unitFor(impl_->c, h);
+    auto state = u->getCondition();
+    u32 aram = 0;
+    if (state == COND_ARAM_OK || state == COND_ARAM_TO_MRAM || state == COND_ARAM_TO_ARAM)
+        aram = loading::aramOffset(u->getAddr());
+    else if (state == COND_ARAM_LOAD || state == COND_MRAM_TO_ARAM)
+        aram = loading::aramOffset(u->getDestAddr());
+    return {static_cast<ResourceState>(state),
+            u->getCommand(),
+            impl_->c.resourceErrors[h.slot] ? impl_->c.resourceErrors[h.slot] : u->getErr(),
+            u->getSize(),
+            aram,
+            u->getName()};
+}
+void EngineLoader::loadResource(ResourceHandle h, Residency dest, bool wait,
+                                const MemoryReservation &memory, u32 address) {
+    Binding bind(impl_->c);
+    auto &c = impl_->c;
+    auto *u = unitFor(c, h);
+    void *arg = nullptr;
+    if (dest == Residency::Mram) {
+        if (address)
+            throw std::invalid_argument("ARAM address in MRAM request");
+        if (memory.data) {
+            if (memory.runtime != c.runtime || memory.size < u->getSize() || !memory.owner)
+                throw std::invalid_argument("foreign/undersized MRAM reservation");
+            loading::validateMram(memory.data, u->getSize());
+            arg = memory.data;
+        }
+    } else {
+        if (memory.data)
+            throw std::invalid_argument("MRAM pointer in ARAM request");
+        if (address) {
+            loading::validateAram(address, u->getSize());
+            auto end = address + loading::alignedSize(u->getSize());
+            for (std::size_t i = 0; i < 32; ++i) {
+                auto *other = c.dc.nativeUnit(i);
+                if (other == u || !other->isBeAlive())
+                    continue;
+                auto st = other->getCondition();
+                auto overlap = [&](const void *p) {
+                    auto start = loading::aramOffset(p);
+                    if (start && address < start + loading::alignedSize(other->getSize()) &&
+                        start < end)
+                        throw std::invalid_argument("overlapping ARAM destination");
+                };
+                if (st == COND_ARAM_OK || st == COND_ARAM_TO_MRAM || st == COND_ARAM_TO_ARAM)
+                    overlap(other->getAddr());
+                if (st == COND_ARAM_LOAD || st == COND_MRAM_TO_ARAM)
+                    overlap(other->getDestAddr());
+                if (st == COND_ARAM_TO_ARAM)
+                    overlap(other->getArgAddr());
+            }
+            arg = loading::aramPointer(address);
+        }
+    }
+    c.resourceErrors[h.slot] = 0;
+    u->setErr(0);
+    try {
+        u->setCommand(dest == Residency::Mram ? CMND_MRAM_LOAD : CMND_ARAM_LOAD, arg, wait ? 1 : 0);
+        if (wait) {
+            int ok = dest == Residency::Mram ? u->waitUseOk() : u->waitLoadOk();
+            if (!ok)
+                throw std::runtime_error("original resource wait failed");
+        }
+    } catch (...) {
+        loading::nativeUnitFault(u);
+        throw;
+    }
+}
+void EngineLoader::clearResource(ResourceHandle h) {
+    Binding bind(impl_->c);
+    auto *u = unitFor(impl_->c, h);
+    u->setClear();
+    u->setErr(0);
+    impl_->c.resourceErrors[h.slot] = 0;
+    impl_->c.unitFiles[h.slot].reset();
+}
+void EngineLoader::deleteResource(ResourceHandle h) {
+    Binding bind(impl_->c);
+    auto *u = unitFor(impl_->c, h);
+    u->setDelete();
+    impl_->c.unitFiles[h.slot].reset();
+}
+MemoryReservation EngineLoader::reserveMemory(u32 bytes) {
+    Binding bind(impl_->c);
+    auto &c = impl_->c;
+    auto *p = loading::allocate(bytes);
+    if (!p)
+        throw std::bad_alloc();
+    return {c.allocations.at(p).storage, static_cast<u8 *>(p), bytes, c.runtime};
+}
+void EngineLoader::releaseMemory(MemoryReservation &m) {
+    Binding bind(impl_->c);
+    auto &c = impl_->c;
+    if (m.runtime != c.runtime || !m.data)
+        throw std::invalid_argument("foreign memory reservation");
+    for (std::size_t i = 0; i < 32; ++i) {
+        auto *u = c.dc.nativeUnit(i);
+        if (u->isBeAlive() && (u->getAddr() == m.data || u->getDestAddr() == m.data))
+            throw std::logic_error("reservation still referenced by a data unit");
+    }
+    loading::release(m.data);
+    m = {};
+}
+ResourceReference EngineLoader::reference(ResourceHandle h, u32 offset, u32 bytes) const {
+    Binding bind(impl_->c);
+    auto *u = unitFor(impl_->c, h);
+    if (offset > u->getSize() || bytes > u->getSize() - offset)
+        throw std::out_of_range("resource reference bounds");
+    return {h, offset, bytes};
+}
+ResourceLease EngineLoader::resolve(ResourceReference ref) const {
+    Binding bind(impl_->c);
+    auto *u = unitFor(impl_->c, ref.resource);
+    if (u->getCondition() != COND_MRAM_OK)
+        throw std::logic_error("resource is not MRAM ready");
+    reference(ref.resource, ref.offset, ref.size);
+    auto *p = static_cast<const u8 *>(u->getAddr());
+    loading::validateMram(p, u->getSize());
+    for (const auto &a : impl_->c.allocations) {
+        auto base = loading::nativeAddress(a.first), address = loading::nativeAddress(p);
+        if (address >= base && address - base <= a.second.bytes &&
+            u->getSize() <= a.second.bytes - (address - base))
+            return {a.second.storage, p + ref.offset, ref.size};
+    }
+    throw std::logic_error("lost MRAM owner");
+}
+std::vector<BlockResource> EngineLoader::blockResources() const {
+    Binding bind(impl_->c);
+    std::vector<BlockResource> out;
+    for (const auto &u : impl_->c.block.units)
+        if (u.pData)
+            out.push_back({u.no, handleFor(impl_->c, u.pData), u.state});
+    return out;
+}
+void EngineLoader::setBlockResidency(u8 no, Residency dest) {
+    Binding bind(impl_->c);
+    auto *u = impl_->c.block.getUnitPtr(no);
+    if (!u || !u->pData)
+        throw std::out_of_range("unregistered block");
+    u->setBlockCommand(dest == Residency::Mram ? BLOCK_CMD_MRAM_LOAD : BLOCK_CMD_ARAM_LOAD, 0);
+}
+void EngineLoader::clearBlock(u8 no) {
+    Binding bind(impl_->c);
+    auto *u = impl_->c.block.getUnitPtr(no);
+    if (!u || !u->pData)
+        throw std::out_of_range("unregistered block");
+    // Explicit resource abort is immediate; normal deferred block deletion uses
+    // the original checkBlockDelete once data/transfer is resident.
+    clearResource(handleFor(impl_->c, u->pData));
+    u->state = BLOCK_NO_DATA;
+    u->command = BLOCK_CMD_NONE;
+}
+void EngineLoader::setResourceControl(bool enabled, bool hold) {
+    Binding bind(impl_->c);
+    impl_->c.dc.setDataCtrl(enabled ? 1 : 0);
+    impl_->c.dc.setNBlkStop(hold ? 1 : 0);
+}
+ResourceMemoryStats EngineLoader::memoryStats() const {
+    Binding bind(impl_->c);
+    auto &c = impl_->c;
+    ResourceMemoryStats s;
+    s.mramBytes = c.allocatedBytes->load();
+    s.fileCacheHits = c.fileCacheHits;
+    s.decodedCacheHits = c.decodedCacheHits;
+    s.fileReads = c.fileReads;
+    s.aramBackingBytes = static_cast<u32>(c.aramStorage.size());
+    for (const auto &e : c.fileCache)
+        s.fileCacheBytes += e.second.file->bytes.size();
+    for (const auto &e : c.decodedCache)
+        s.decodedCacheBytes += e.second.body->size();
+    for (const auto &q : c.aram.AramQueue)
+        if (q.be_flag && !q.CkFlag(0x04000000))
+            ++s.transfers;
+    for (std::size_t i = 0; i < 32; ++i) {
+        auto *u = c.dc.nativeUnit(i);
+        if (!u->isBeAlive())
+            continue;
+        auto st = u->getCondition();
+        if (st == COND_ARAM_LOAD || st == COND_ARAM_OK || st == COND_MRAM_TO_ARAM ||
+            st == COND_ARAM_TO_MRAM)
+            s.aramReservedBytes += loading::alignedSize(u->getSize());
+        else if (st == COND_ARAM_TO_ARAM)
+            s.aramReservedBytes += 2 * loading::alignedSize(u->getSize());
+    }
+    return s;
+}
+void EngineLoader::trimCaches() {
+    Binding bind(impl_->c);
+    impl_->c.fileCache.clear();
+    impl_->c.decodedCache.clear();
+}
+void EngineLoader::setAramCompaction(bool on) {
+    Binding bind(impl_->c);
+    impl_->c.dc.setAramSort(on ? 1 : 0);
 }
 FrameViAdapter::FrameViAdapter(EngineLoader &l, u8 v) : loader_(l), vcnt_(v) {
     if (v == 0)

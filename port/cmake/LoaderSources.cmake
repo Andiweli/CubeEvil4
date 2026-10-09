@@ -43,19 +43,77 @@ function(re4_prepare_loader root destination)
         "void cDataUnit::fixMramAddr(void* a)" "int cDataUnit::isUseOk()" "int cDataUnit::isLoadOk()"
         "void cDataUnit::setLoadToMram()" "int cDataUnit::setClear()" "int cDataUnit::setDelete()"
         "void cDataUnit::checkLoadToMram()" "void cDataUnit::checkCommand()"
-        "cDataUnit* cDataCtrl::setData(char* name)" "cDataUnit* cDataCtrl::getNewUnit()")
+        "void cDataUnit::setLoadToAram()" "void cDataUnit::checkLoadToAram()"
+        "void cDataUnit::checkAramToMram()" "void cDataUnit::checkMramToAram()"
+        "void cDataUnit::checkAramToAram()" "void cDataUnit::checkMramToMram()"
+        "void cDataUnit::checkCondition()" "int cDataUnit::waitUseOk()" "int cDataUnit::waitLoadOk()"
+        "cDataUnit* cDataCtrl::setData(char* name)" "cDataUnit* cDataCtrl::getNewUnit()"
+        "u32 cDataCtrl::getAramFree(u32 size)" "void cDataCtrl::initDataUnit()"
+        "void cDataCtrl::deleteAll()" "void cDataCtrl::setAramSort(int flag)"
+        "int cDataCtrl::checkAramSort()" "void cDataCtrl::initDummyId()"
+        "void cDataCtrl::setDummyId(int dummy_id)" "void cDataCtrl::checkDummyId()"
+        "void cDataCtrl::check()")
         re4_extract_function("${root}/src/game/datactrl.cpp" "${signature}" definition)
-        # Native buffers are not GameCube ARAM addresses. Reject the still-unported
-        # DMA branch explicitly; never truncate a pointer or report a fake transfer.
-        string(REPLACE "Aram.DmaTransReq(1, (u32) m_addr, (u32) m_dest_addr, m_size, m_mode)" "unsupportedAram()" definition "${definition}")
-        string(REPLACE "Aram.DmaCancel(m_id)" "unsupportedAram()" definition "${definition}")
+        # Logical ARAM offsets and full-width MRAM pointers are distinct domains.
+        # Only the old ABI casts change; commands and completion states are original.
+        string(REPLACE "(u32) m_addr" "nativeAddress(m_addr)" definition "${definition}")
+        string(REPLACE "(u32) m_dest_addr" "nativeAddress(m_dest_addr)" definition "${definition}")
+        string(REPLACE "(u32) m_arg_addr" "nativeAddress(m_arg_addr)" definition "${definition}")
+        string(REPLACE "(int) m_dest_addr" "static_cast<int>(aramOffset(m_dest_addr))" definition "${definition}")
+        string(REPLACE "(void*) DC.getAramFree(m_size)" "aramPointer(DC.getAramFree(m_size))" definition "${definition}")
+        foreach(address "u->getArgAddr()" "u->getAddr()" "u->getDestAddr()" "tbl[i]->getAddr()" "tbl[j]->getAddr()")
+            string(REPLACE "(u32) ${address}" "aramOffset(${address})" definition "${definition}")
+        endforeach()
+        string(REPLACE "(void*) base" "aramPointer(base)" definition "${definition}")
+        string(REPLACE "AramArea tbl[32];" "AramArea tbl[64];\n    size = alignedSize(size);\n    if (size > ARAM_END - ARAM_FREE_BASE) return 0;" definition "${definition}")
+        string(REPLACE "= u->getSize();" "= alignedSize(u->getSize());" definition "${definition}")
+        string(REPLACE "base += tbl[i]->getSize();" "base += alignedSize(tbl[i]->getSize());" definition "${definition}")
+        # getDestAddr is MRAM in condition 5/7: never treat it as an ARAM offset.
+        string(REPLACE "base == aramOffset(u->getDestAddr())" "base == nativeAddress(u->getDestAddr())" definition "${definition}")
+        string(REPLACE "while (Aram.TransCheck(m_id) != 1) {\n        }" "waitAram(m_id);" definition "${definition}")
+        string(REPLACE "checkMallocRelease();\n        pLog->err" "checkMallocRelease();\n        m_condition = COND_NO_DATA; m_addr = nullptr; m_dest_addr = nullptr;\n        pLog->err" definition "${definition}")
+        if(signature STREQUAL "void cDataUnit::setLoadToAram()")
+            string(REPLACE "setErr(3);\n            checkMallocRelease();" "setErr(3);\n            if (m_condition != COND_MRAM_OK) checkMallocRelease();" definition "${definition}")
+            string(REPLACE "case COND_ARAM_OK:\n        if" "case COND_ARAM_OK:\n        if (m_arg_addr == nullptr || m_arg_addr == m_addr) { m_command = CMND_NONE; break; }\n        if" definition "${definition}")
+        endif()
+        if(signature STREQUAL "void cDataUnit::checkLoadToMram()" OR signature STREQUAL "void cDataUnit::checkLoadToAram()")
+            string(REPLACE "m_addr = m_dest_addr;" "m_addr = m_dest_addr;\n        unitFileReady(this);" definition "${definition}")
+        endif()
         # The decompilation frees before copying in the MRAM move branch. Retain the
         # intended bytes and move the release after the copy (tested on owned data).
         string(REPLACE "checkMallocRelease();\n                memcpy(m_arg_addr, m_addr, m_size);"
-            "memmove(m_arg_addr, m_addr, m_size);\n                checkMallocRelease();" definition "${definition}")
+            "checkedMove(m_arg_addr, m_addr, m_size);\n                checkMallocRelease();" definition "${definition}")
         string(REPLACE "checkMallocRelease();\n            memcpy(m_fix_addr, m_addr, m_size);"
-            "memmove(m_fix_addr, m_addr, m_size);\n            checkMallocRelease();" definition "${definition}")
+            "checkedMove(m_fix_addr, m_addr, m_size);\n            checkMallocRelease();" definition "${definition}")
+        # Stale fixed addresses cannot survive a reused unit; old stack/heap resets
+        # zeroed them globally, whereas the native domain is longer lived.
+        string(REPLACE "u->setBeAlive(1);" "*u = cDataUnit{};\n            u->setBeAlive(1);\n            resourceRegistered(u);" definition "${definition}")
+        # A native per-unit failure must not strand other units/frames in a HALT.
+        string(REPLACE "u->checkCommand();\n                u->checkCondition();"
+            "try { u->checkCommand(); u->checkCondition(); } catch (...) { nativeUnitFault(u); }" definition "${definition}")
         string(REPLACE "memclr_asm(u, sizeof(cDataUnit));" "*u = cDataUnit{};" definition "${definition}")
+        if(signature STREQUAL "int cDataUnit::setClear()")
+            string(REPLACE "m_condition = COND_NO_DATA;" "m_condition = COND_NO_DATA;\n    unitFileCleared(this);" definition "${definition}")
+        endif()
+        string(REPLACE "\n{" "\n{\n    loaderTrace(\"${signature}\");" definition "${definition}")
+        string(APPEND definitions "${definition}\n")
+    endforeach()
+    foreach(signature "int cAram::DmaTransReq(int type, u32 src, u32 dst, u32 len, int mode)"
+        "cAramQueue* cAram::pullAramQueue(int* id)" "int cAram::TransCheck(int id)")
+        re4_extract_function("${root}/src/game/dvd.cpp" "${signature}" definition)
+        string(REPLACE "int type, u32 src, u32 dst" "int type, std::uintptr_t src, std::uintptr_t dst" definition "${definition}")
+        string(REPLACE "r = pullAramQueue(&no);" "checkAramRequest(type, src, dst, len);\n    r = pullAramQueue(&no);" definition "${definition}")
+        string(REPLACE "memclr_asm(r, sizeof(cAramQueue));" "*r = cAramQueue{};" definition "${definition}")
+        string(REPLACE "cAramQueue* r = &AramQueue[id];" "if (id < 0 || id >= 16) return -1;\n    cAramQueue* r = &AramQueue[id];" definition "${definition}")
+        string(REPLACE "pCur_queue = r;" "while (pCur_queue) advance(context().limits.transferBytesPerFrame);\n        pCur_queue = r;" definition "${definition}")
+        string(REPLACE "\n{" "\n{\n    loaderTrace(\"${signature}\");" definition "${definition}")
+        string(APPEND definitions "${definition}\n")
+    endforeach()
+    foreach(signature "void cBlockUnit::setBlockCommand(int cmd, int a)" "void cBlockUnit::setBlockLoadToMram()"
+        "int cBlockUnit::checkBlockLoadToMramSet()" "int cBlockUnit::checkBlockLoadToAramSet()"
+        "int cBlockUnit::checkBlockLoadToAram()" "int cBlockUnit::checkBlockDelete()")
+        re4_extract_function("${root}/src/game/block.cpp" "${signature}" definition)
+        string(REPLACE "arg = a;" "if (a < 0 || a > 255) throw std::invalid_argument(\"block command argument\");\n    arg = static_cast<u8>(a);" definition "${definition}")
         string(REPLACE "\n{" "\n{\n    loaderTrace(\"${signature}\");" definition "${definition}")
         string(APPEND definitions "${definition}\n")
     endforeach()
@@ -74,8 +132,9 @@ function(re4_prepare_loader root destination)
     string(REPLACE "extern cDataCtrl DC;" "" header "${header}")
     string(REPLACE "class cDataUnit {" "namespace re4::port::loading {\nclass cDataUnit {" header "${header}")
     string(REPLACE "cDataUnit() {}" "cDataUnit() = default;" header "${header}")
+    string(REPLACE "void setNBlkStop(int flag)" "cDataUnit* nativeUnit(std::size_t slot) { return slot < 32 ? &m_DataUnit[slot] : nullptr; }\n    void setNBlkStop(int flag)" header "${header}")
     string(REPLACE "#endif" "}\n#endif" header "${header}")
     file(CONFIGURE OUTPUT "${destination}/include/datactrl_native.h" CONTENT "${header}" @ONLY)
     file(CONFIGURE OUTPUT "${destination}/loader_control.cpp" CONTENT
-        "// Generated from fingerprinted original definitions; adaptations in LoaderSources.cmake.\n#include \"loader_original.h\"\nnamespace re4::port::loading {\nint roomReadCheck(int,void**);\n${definitions}\n}\n" @ONLY)
+        "// Generated from fingerprinted original definitions; adaptations in LoaderSources.cmake.\n#include \"loader_original.h\"\nnamespace re4::port::loading {\nstruct AramArea { u32 addr; u32 size; };\nint roomReadCheck(int,void**);\n${definitions}\n}\n" @ONLY)
 endfunction()

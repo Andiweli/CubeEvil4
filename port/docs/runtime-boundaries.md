@@ -1,5 +1,13 @@
 # Native runtime boundaries
 
+The current resource boundary is Phase 3c: original DC commands/conditions run
+against bounded native MRAM and CPU-backed logical ARAM. Resource handles and
+leases preserve ownership across relocation/clear. Block data can be cached and
+restored; `BLOCK_CREATE` and full heap/model/REL/input integration are still
+pending. See [Phase-3c status](phase3c-status.md) and
+[next integration contracts](phase4-boundaries.md). Earlier phase descriptions
+below explain the progression and do not override these current limits.
+
 The approved architecture is original game code plus a compatible native
 runtime. Phase 1 implements only fixed-width primitive types, scalar endian
 decoding, a small original-code target and its platform verification harness.
