@@ -5,6 +5,7 @@
 #include "re4/port/contracts.h"
 #include "re4/port/original_math.h"
 #include "re4/port/verification.h"
+#include "scheduler_verification.h"
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -200,9 +201,11 @@ std::string VerificationReport::text() const {
 VerificationReport verifyOriginalCode(std::string_view requested) {
     std::lock_guard<std::mutex> lock(verificationMutex);
     struct Group { const char* name; void (*run)(CheckGroup&); };
-    const std::array<Group, 5> available{{
+    const std::array<Group, 9> available{{
         {"abi",checkAbi},{"rng",checkRng},{"flags",checkFlags},
-        {"math",checkMath},{"endian",checkEndian}
+        {"math",checkMath},{"endian",checkEndian},
+        {"scheduler_stack",checkSchedulerStack},{"scheduler_order",checkSchedulerOrder},
+        {"scheduler_lifecycle",checkSchedulerLifecycle},{"scheduler_modules",checkSchedulerModules}
     }};
     VerificationReport report;
     for (const auto& group : available) {

@@ -3,6 +3,7 @@
 #include <optional>
 #include <string_view>
 #include <vector>
+#include "re4/port/scheduler.h"
 
 namespace re4::port {
 
@@ -21,23 +22,6 @@ public:
     virtual void activate(std::uint16_t fileTableIndex) = 0;
     virtual void deactivate(std::uint16_t fileTableIndex) = 0;
     virtual std::optional<RoomCallbacks> room(std::uint16_t roomId) const = 0;
-};
-
-// A typed native entry, NOT a drop-in reinterpret_cast of TaskFunc. Integer
-// and other original callback signatures require audited typed trampolines.
-struct TaskEntry {
-    void (*function)(void*);
-    void* argument;
-};
-
-class StackfulScheduler {
-public:
-    virtual ~StackfulScheduler() = default;
-    virtual void exec(int slot, TaskEntry entry) = 0;
-    virtual void sleep(int ticks) = 0;
-    virtual void chain(TaskEntry entry) = 0;
-    virtual void kill(int slot) = 0;
-    virtual void runTick() = 0;
 };
 
 // Import boundary only. Runtime DVD/ARAM asynchronous states are a separate

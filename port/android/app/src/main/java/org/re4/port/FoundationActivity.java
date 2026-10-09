@@ -8,7 +8,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-/** Phase-1 diagnostics only. No simulated game, renderer or engine loop. */
+/** Native original-code and scheduler diagnostics. No assets or gameplay loop. */
 public final class FoundationActivity extends Activity {
     private TextView reportView;
 

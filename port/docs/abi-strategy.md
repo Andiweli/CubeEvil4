@@ -39,7 +39,7 @@ Android ABI rules: https://developer.android.com/ndk/guides/abis.
 ## Decision
 
 Keep one portable engine/data/runtime design and two small platform backends
-where architecture-specific work is unavoidable (future context switching and
+where architecture-specific work is unavoidable (implemented context switching and
 SIMD kernels). Do not use ARM32 as a prerequisite or a shortcut that blocks the
 ARM64 build. Start with scalar reference kernels and typed native data views.
 
@@ -52,3 +52,11 @@ address space, so streaming/memory budgets must be measured separately.
 A passing dual-ABI crossbuild establishes compilation/linking, not execution
 on either CPU. Device tests must record process ABI/pointer width; forcing the
 32-bit test build or running the 32-bit executable is required to test ARM32.
+
+Phase 2 uses one scheduler policy and ABI-specific Boost.Context assembly.
+ARM32 softfp needs d8-d15 saved despite its integer-register FP calling convention;
+the assembly-only macro override enables that. Both ARM backends passed actual
+Retroid Android 13 execution, including register probes and identical task traces.
+Task/module generations are explicit uint64 values with single-thread ownership;
+native stacks use size_t and the device's real page size. TASK's wire offsets
+and the scenario OT's tagged 32-bit addresses are not copied into native state.

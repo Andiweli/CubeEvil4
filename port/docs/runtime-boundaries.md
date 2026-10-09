@@ -1,10 +1,11 @@
-# Native runtime boundaries (planned, not implemented)
+# Native runtime boundaries
 
 The approved architecture is original game code plus a compatible native
 runtime. Phase 1 implements only fixed-width primitive types, scalar endian
 decoding, a small original-code target and its platform verification harness.
-`include/re4/port/contracts.h` declares proposed abstract boundaries; there is
-no implementation, factory, success-returning stub or invocation of them yet.
+Phase 2 implements `NativeScheduler` in `include/re4/port/scheduler.h`.
+`contracts.h` retains proposed abstract module/asset boundaries. Neither those
+systems nor their success-returning substitutes are implemented.
 
 ## Module registry
 
@@ -34,20 +35,36 @@ a room callback is represented by an empty optional, not a dummy function.
 `void (*pFunc)(int)`. `TaskFunc` itself is untyped `void*`; `TaskExec_hook` narrows
 its argument to `int`. Those are original ABI hazards, not native signatures to
 copy with reinterpret_cast. Typed trampolines must be derived from each real
-callback declaration/use. The proposed `TaskEntry(void*, function)` boundary is
-explicitly a native boundary, not a binary TASK replica.
+callback declaration/use. `bindTask` captures the exact callback and argument
+types into a native `TaskEntry`; there is no function-pointer reinterpret_cast.
+For example, `CardMainTask(int)` (`card.cpp:2157`) and
+`gameDiedemo(DIEDEMO_WORK*)` (`game.cpp:1075`) need distinct typed bindings.
+Neither entire game unit is linked by this milestone.
 
-Implement a tested stackful context mechanism for each supported ARM ABI (or a
-deterministic thread handshake first). `TaskSleep/SceSleep` must preserve local
-variables and nested calls. Preserve priorities, cancellation, TaskChain,
-suspend, stop flags and deterministic per-tick ordering. One logical game token
-must prevent simultaneous mutation of original globals. Native stack sizes need
-measurement; the original small stacks must not be copied blindly. Android
-suspend/Surface destruction is not equivalent to killing the game's tasks.
+`NativeScheduler` uses one owner thread and separate retained stacks. Android
+uses pinned Boost.Context assembly, Windows hosts use OS Fibers. Main slots
+0..3, scenario reverse OT/LIFO/head restart, sleep visit counts, counted suspend,
+chain, exit and abrupt cancellation are tested on both ARM ABIs and hosts.
+Main callbacks must explicitly exit/chain or loop; unexpected return is an error.
+Scenario return performs original OT cleanup. Generation handles replace unsafe
+long-lived TASK*/SCE_TASK* identities. A module lifetime cannot be invalidated
+while its code is on an active task/caller chain; idle tasks are cancelled first.
+Full callback ownership and transitive module dependencies still need the real
+registry. Keep native code resident until that integration is proven.
 
-No `TaskExec`, `TaskSleep`, `OSCreateThread` or other substitute currently exists
-in the native library. Implementing a sleeping loop or returning success would
-not satisfy this contract.
+Native metadata does not emulate OSThread's binary layout. Original pure control
+functions and SceSleep/SceExit are compiled verbatim against narrow adapters.
+There are no pretend OSCreateThread, GX or semaphore functions. The ISR slot 4
+depends on actual VI preemption and is deliberately rejected by this cooperative
+runtime. Loader/render synchronization is not supplied. See `phase2-status.md`
+for evidence, deliberate error handling and remaining integration work.
+
+Native stacks default to 256 KiB and are configurable, with Android guard pages;
+full-engine budgets still need measurement. Cancellation, chain and explicit exit
+discard the old stack without invoking automatic C++ destructors, matching the
+original abrupt OS control transfers. Port-owned entry captures are released on
+the caller stack. Do not rely on automatic RAII cleanup across those operations.
+Android suspend/Surface destruction is not equivalent to killing the game's tasks.
 
 The verification mutex protects only concurrent test invocations of the
 original global RNG; it is not a game scheduler implementation.

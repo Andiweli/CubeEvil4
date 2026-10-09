@@ -10,6 +10,11 @@ if (-not (Test-Path -LiteralPath $Adb)) { throw "adb missing: $Adb" }
 $taskSupportedText = & $Adb -s $Serial shell getprop ro.product.cpu.abilist
 if ($LASTEXITCODE -ne 0) { throw 'Cannot query device ABIs; check device authorization.' }
 $taskSupported = ($taskSupportedText -join '').Trim().Split(',')
+$taskModel = (& $Adb -s $Serial shell getprop ro.product.model) -join ''
+$taskVersion = (& $Adb -s $Serial shell getprop ro.build.version.release) -join ''
+$taskApi = (& $Adb -s $Serial shell getprop ro.build.version.sdk) -join ''
+if ($LASTEXITCODE -ne 0) { throw 'Cannot query device version.' }
+$taskReferenceTrace = $null
 foreach ($taskAbi in $Abis) {
     if ($taskAbi -notin $taskSupported) { throw "Device does not support requested ABI $taskAbi" }
     $taskExecutable = Join-Path $taskPortRoot "build\android-$taskAbi\re4_core_tests"
@@ -26,9 +31,23 @@ foreach ($taskAbi in $Abis) {
     $taskOutput = & $Adb -s $Serial shell "$taskRemote/re4_core_tests" 2>&1
     $taskResult = $LASTEXITCODE
     $taskLog = Join-Path $taskPortRoot "build\device-$taskAbi.txt"
-    $taskOutput | Set-Content -LiteralPath $taskLog -Encoding UTF8
+    @("Device=$taskModel; Serial=$Serial; Android=$taskVersion; API=$taskApi; ABI=$taskAbi",
+        "ExecutableSHA256=$((Get-FileHash -LiteralPath $taskExecutable -Algorithm SHA256).Hash)") + $taskOutput |
+        Set-Content -LiteralPath $taskLog -Encoding UTF8
     $taskOutput | Write-Output
     if ($taskResult -ne 0 -or ($taskOutput -join "`n") -notmatch 'TOTAL: \d+ checks, 0 failures') {
         throw "Actual device verification failed for $taskAbi; see $taskLog"
     }
+    $taskBits = if ($taskAbi -eq 'armeabi-v7a') { 32 } else { 64 }
+    if (($taskOutput -join "`n") -notmatch "pointer=$taskBits bits;") {
+        throw "Wrong actual process pointer width for $taskAbi"
+    }
+    $taskTrace = @($taskOutput | Where-Object { $_ -match '^\s*TRACE scheduler_' } | ForEach-Object { $_.Trim() })
+    if ($taskTrace.Count -ne 4) { throw 'Scheduler traces missing from native suite.' }
+    $taskTraceText = $taskTrace -join "`n"
+    if ($null -ne $taskReferenceTrace -and $taskTraceText -cne $taskReferenceTrace) {
+        throw 'ARM32/ARM64 scheduler semantic traces differ.'
+    }
+    $taskReferenceTrace = $taskTraceText
 }
+if ($Abis.Count -gt 1) { Write-Output 'PASS: scheduler semantic traces are identical across requested ABIs.' }

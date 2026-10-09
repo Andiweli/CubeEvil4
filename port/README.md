@@ -1,7 +1,8 @@
 # RE4 native foundation
 
 Strategy A: compile original RE4 code with a separate native compatibility layer.
-This directory is a Phase-1 verification project, not a playable game. It loads
+This directory contains the verified build foundation and Phase-2 stackful
+scheduler. It is not a playable game. It loads
 no GameCube assets and implements no room, actor, event, renderer or SDK stubs.
 The original `src/`, `include/`, configurations and master history are unchanged.
 
@@ -12,6 +13,8 @@ The original `src/`, `include/`, configurations and master history are unchanged
 - `cmake/OriginalSources.cmake`: reviewed source fingerprints and verbatim extraction.
 - `include/re4/port/`: byte-order helpers, verification API and future boundaries.
 - `src/verification.cpp`, `tests/`: the shared checks and source-identity tests.
+- `src/scheduler.cpp`, `src/stack_context.cpp`: native task policy and real stacks.
+- `third_party/boost_context/`: pinned, licensed ARM context assembly.
 - `platform/android/`: JNI diagnostics bridge.
 - `android/`: pinned Gradle project, verification Activity and device tests.
 - `scripts/`: checked build/test commands for Windows.
@@ -30,6 +33,13 @@ and source locations. Their expressions are not reimplemented. The extractor
 is deliberately restricted to these reviewed functions. Source fingerprints
 normalize CRLF to LF so Linux and Windows checkouts agree. Changing an approved
 source causes configuration to fail until its fingerprint is explicitly reviewed.
+
+Phase 2 also extracts `GetStackSize`, `TaskSuspend`, `TaskSignal`, `TaskStatus`,
+`SetTaskModelPtr`, `SceSleep`, `SceExit`, `cSceSys::checkCTaskRange` and the six
+TASK kind accessors verbatim. These use native control metadata and actual stack
+transfers, not pretend Dolphin threads. `TaskSchedulerMain`'s policy and scenario
+OT ordering are adapted in `NativeScheduler`; their entire engine units are not
+claimed compiled. See [Phase-2 evidence and limits](docs/phase2-status.md).
 
 Only selected original headers are exposed. The legacy include tree must not
 shadow Bionic, the host CRT or the modern C++ standard library. Original RNG
@@ -128,11 +138,17 @@ NDK executable, as the Activity's JNI diagnostics, or as instrumented tests.
 
 ```powershell
 .\port\scripts\test-device.ps1 -Adb 'C:\path\to\adb.exe' -Serial 'device-serial'
+.\port\scripts\test-app-device.ps1 -Adb 'C:\path\to\adb.exe' -Serial 'device-serial'
 ```
 
 The standalone script requires a device that supports both requested ABIs;
 unsupported ABIs fail explicitly, never count as passes. For a device with only
-one ABI, select it explicitly and record the missing ABI separately.
+one ABI, select it explicitly and record the missing ABI separately. It records
+device/version, binary hash, actual pointer width and compares scheduler traces.
+The app script installs the default dual-ABI APK with `adb install --abi`, checks
+`primaryCpuAbi` and passes an expected pointer width to the nine JUnit tests.
+It fails on missing/unsupported ABI or a failed instrumentation result even
+when adb returns zero. It leaves the last requested ABI installed (default ARM64).
 
 For JNI/instrumentation validation, build/install each ABI separately:
 
@@ -148,15 +164,25 @@ normally executes ARM64 on a dual-ABI device, so that alone does not test ARM32.
 
 ## What the checks prove
 
-Five shared groups cover primitive widths/native addresses, fixed RNG byte and
+Five foundation groups cover primitive widths/native addresses, fixed RNG byte and
 float vectors, 32-bit seed overflow, replay/ranges, original top-bit flag
 numbering, exact Hermite/power cases and bounded unaligned big-endian decoding.
 CTest also checks source identity and deliberately changes a build-directory
-copy to prove rejection. RNG vectors are derived from the source recurrence;
+copies to prove rejection of changed RNG, scheduler, scenario and TASK methods.
+Four scheduler groups prove nested stack retention, exact sleep visits, main/OT
+ordering, counted suspend/signal, chain/exit, cancellation, generation handles,
+module quiescence and FP state. Android additionally pins d8-d15 in two tasks
+over 64 yields each. Main callback return without TaskExit/TaskChain fails
+explicitly; scenario callback return removes its OT entry, as in the original.
+There is no cooperative replacement for interrupt-preempted slot 4: requesting
+it fails explicitly. ASan/UBSan require context-switch hooks and are unavailable.
+Supported host context backends are Windows x86/x64; no unverified Unix host
+fallback is claimed. RNG vectors are derived from the source recurrence;
 they are not independently captured GameCube traces. Existing GameCube data and
 a reference run are still needed for broader differential validation.
 
 See [runtime boundaries](docs/runtime-boundaries.md),
 [ABI assessment](docs/abi-strategy.md),
 [graphics requirements](docs/graphics-settings.md) and
-[recorded Phase-1 results](docs/phase1-status.md).
+[recorded Phase-1 results](docs/phase1-status.md) and
+[Phase-2 report](docs/phase2-status.md).

@@ -1,0 +1,2 @@
+android/gradlew text eol=lf
+third_party/boost_context/*.S text eol=lf
