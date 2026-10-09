@@ -1,9 +1,10 @@
-# Verbindliche Integrationsgrenzen nach Phase 3c
+# Verbindliche Integrationsgrenzen nach Phase 4a
 
-Dieses Dokument bereitet Phase 4 vor. Die hier beschriebenen Gameplay-, Modul-,
-Modell- und Eingabesysteme werden durch Phase 3c nicht ausgeführt. Die vorhandenen
-abstrakten Schnittstellen in `include/re4/port/contracts.h` liefern keine
-erfolgreichen Ersatzfunktionen.
+Phase 4a implementiert die native Modulgrenze für geprüfte Teilkomponenten und
+zwei kleine originale Init/Main-Paare. Vollständige Gameplay-, Modell- und
+Eingabesysteme bleiben offen. `include/re4/port/contracts.h` und `modules.h`
+trennen tatsächlich ausführbare Registrierungen von noch fehlenden Verbrauchern.
+Der aktuelle Nachweis und die vollständige Dateiliste stehen in `phase4a-status.md`.
 
 ## Nachgewiesene Originalabhängigkeiten
 
@@ -25,9 +26,10 @@ benutzt Heap 12 und setzt Heap 4 danach fort. `game.cpp` benutzt zusätzlich Hea
 10 und `MemorySwap` mit festen GameCube-Adressen. Diese Adressen dürfen niemals
 als Android-Pointer ausgeführt werden.
 
-Der nächste notwendige Arbeitsschritt ist daher eine native Modul- und
-Heap-Lebenszeitintegration mit den bereits geprüften Ressourcenhandles. Ein
-komplettes `GameTask` kann vorher nicht seriös als funktionsfähig gelten.
+Die Modulverwaltung ist jetzt für den dokumentierten Teilumfang implementiert.
+Die vollständige Heap-Lebenszeitintegration und die Übergabe von Modulwechseln
+aus Gameplay-Tasks an den Frame-Owner bleiben Voraussetzungen. Ein komplettes
+`GameTask` kann vorher nicht als funktionsfähig gelten.
 
 ## REL-Zustände und native Module
 
@@ -60,7 +62,14 @@ kein unsicheres `dlclose` unter einem schlafenden Task.
 Native C++-BSS mit Pointern, Vtables und Besitzobjekten darf nicht byteweise wie
 eine PPC-BSS gesichert werden. Explizite modulbezogene Zustandsobjekte müssen
 Originalzustand erhalten und Konstruktoren/Prologe korrekt unterscheiden.
-Diese Zustandsabbildung ist noch zu implementieren und zu testen.
+Phase 4a prüft diese Abbildung für die beiden übernommenen Raumworks sowie mit
+ausdrücklich isolierten Tests für pointerhaltige C++-Objekte. Sie behauptet keine
+vollständige native Abbildung aller ursprünglichen Modul-BSS-Bereiche.
+
+Der Inventarpfad `sscrn.cpp:430/565` beendet die Raumtasks nicht: temporäres
+`stop/restart` muss deren Stacks erhalten. Die native Registry pausiert deshalb
+zugehörige und verschachtelt aufrufende Tasks einschließlich ihrer Sleep-Zähler.
+Ein endgültiger Wechsel beendet diese Tasks und macht alte Callbacktokens ungültig.
 
 ## Modellaktivierung und Umlagerung
 

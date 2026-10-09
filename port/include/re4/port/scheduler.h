@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace re4::port {
 
@@ -108,6 +109,15 @@ public:
     // suspended/pending tasks are destroyed and future entries are rejected.
     // Only after true may a registry release code/data. No loader is simulated.
     bool invalidateModule(ModuleToken module);
+    // A nested module call can sleep on a task owned by a different module.
+    // Borrowed lifetimes live in scheduler metadata, so abrupt cancellation or
+    // TaskChain cannot leak a stack-local RAII pin. No function-pointer casts.
+    void callModule(ModuleToken module, const TaskEntry &entry, void *context = nullptr);
+    void *moduleCallContext() const;
+    bool canInvalidateModules(const std::vector<ModuleToken> &modules) const;
+    bool invalidateModules(const std::vector<ModuleToken> &modules);
+    bool pauseModule(ModuleToken module);
+    bool resumeModule(ModuleToken module);
 
     static NativeScheduler& active();
 private:

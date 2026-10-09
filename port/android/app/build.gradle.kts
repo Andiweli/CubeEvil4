@@ -25,6 +25,9 @@ android {
         externalNativeBuild {
             cmake {
                 arguments += listOf("-DRE4_BUILD_TESTS=OFF", "-DANDROID_STL=c++_static")
+                providers.gradleProperty("re4.python").orNull?.let {
+                    arguments += "-DPython3_EXECUTABLE=$it"
+                }
                 targets += listOf("re4_port_jni")
             }
         }

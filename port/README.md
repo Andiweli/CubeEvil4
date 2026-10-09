@@ -2,7 +2,8 @@
 
 Strategy A: compile original RE4 code with a separate native compatibility layer.
 This directory contains the verified build foundation, stackful scheduler,
-background/file/Yz2 runtime and Phase-3c original MRAM/ARAM resource controller. It is not a
+background/file/Yz2 runtime, Phase-3c original MRAM/ARAM resource controller and
+Phase-4a native module runtime. It is not a
 playable game. Native tests load privately supplied GameCube data; the APK
 bundles no assets. No rooms, actors, events or renderer are manually recreated.
 The original `src/`, `include/`, configurations and master history are unchanged.
@@ -12,6 +13,14 @@ CPU-backed ARAM, native reservations/leases and verified immutable LRU caches.
 Data readiness is distinct from model creation. See
 [Phase-3c evidence and limits](docs/phase3c-status.md) and
 [Phase-4 module/model/input boundaries](docs/phase4-boundaries.md).
+
+Phase 4a generates metadata for all 114 configured original modules and 122 room
+callback pairs. Fourteen partial stage components execute original registration
+and dispatch code. The complete small `R10dInit/Main` and `R328Init/Main` bodies
+run natively; their original mains are empty. Other room functions remain absent,
+including `R120Init/Main` and `R100Init/Main`. Typed snapshots, retained MRAM work,
+paused stacks and checked callback lifetimes replace unsafe PPC BSS copying.
+See [Phase-4a evidence, complete file list and limits](docs/phase4a-status.md).
 
 ## Layout
 
@@ -24,6 +33,10 @@ Data readiness is distinct from model creation. See
 - `src/async_file.cpp`: single owned-buffer I/O worker and native read pump.
 - `src/yz2.cpp`, `src/yz2_kernel.cpp`: owned Yz2 jobs and PPC decoder translation.
 - `cmake/Yz2Sources.cmake`: explicit adaptations of original C setup.
+- `tools/generate_modules.py`, `config/module-sources.json`: source-guarded
+  module/room catalog and partial original stage components.
+- `src/modules.cpp`, `src/module_rel_index.cpp`: native lifetimes, typed state
+  and bounded original REL metadata validation.
 - `third_party/boost_context/`: pinned, licensed ARM context assembly.
 - `platform/android/`: JNI diagnostics bridge.
 - `android/`: pinned Gradle project, verification Activity and device tests.
@@ -76,6 +89,7 @@ general PowerPC floating-point equivalence.
 | Android NDK | 28.2.13676358 (r28c) |
 | SDK CMake / Ninja | 4.1.2 / 1.12.1 |
 | Native standard | C++17 |
+| Configure-time Python | 3.9 or newer; no extra packages |
 | Android minimum API | 21 |
 | Packaged native ABIs | armeabi-v7a AND arm64-v8a |
 
@@ -116,7 +130,9 @@ Do not force a 64-bit pointer layout: 32-bit hosts are also permitted when their
 compiler/toolchain is installed. The shared types always keep `u32` at 4 bytes.
 The current host context backend supports Windows x86/x64. ASan/UBSan are
 unavailable until verified fiber hooks exist; the sanitizer option fails
-explicitly. When Python 3 is found, CTest also checks the independent Yz2
+explicitly. Python 3.9+ is required to generate the original module catalog.
+Pass `-DPython3_EXECUTABLE=/path/to/python` if discovery selects the wrong runtime.
+CTest also checks the independent Yz2
 fixtures; alternatively run `python port/tools/generate_yz2_fixtures.py --check`.
 
 ## Android build
@@ -124,14 +140,15 @@ fixtures; alternatively run `python port/tools/generate_yz2_fixtures.py --check`
 From the repository root on Windows:
 
 ```powershell
-.\port\scripts\build-android.ps1 -SdkRoot 'C:\path\to\Android\Sdk' -JavaHome 'C:\path\to\jdk'
+.\port\scripts\build-android.ps1 -SdkRoot 'C:\path\to\Android\Sdk' -JavaHome 'C:\path\to\jdk' -Python 'C:\path\to\python.exe'
 ```
 
 The script first builds native test executables and the JNI library for **both**
 ABIs. It then builds the debug APK, instrumentation APK and Android lint report.
 `-NativeOnly` needs neither Java nor Gradle. `-Offline` applies to Gradle and only
 works when all dependencies are already cached. No hard-coded local paths are
-stored in tracked files.
+stored in tracked files. The optional `-Python` path is passed to both standalone
+CMake and Gradle's CMake invocation (`-Pre4.python` for a direct Gradle build).
 
 On another host, configure each ABI with the NDK toolchain directly:
 

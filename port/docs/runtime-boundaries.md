@@ -4,7 +4,9 @@ The current resource boundary is Phase 3c: original DC commands/conditions run
 against bounded native MRAM and CPU-backed logical ARAM. Resource handles and
 leases preserve ownership across relocation/clear. Block data can be cached and
 restored; `BLOCK_CREATE` and full heap/model/REL/input integration are still
-pending. See [Phase-3c status](phase3c-status.md) and
+pending. Phase 4a adds the native module boundary for reviewed partial stage
+components and two small original Init/Main pairs. See
+[Phase-4a status](phase4a-status.md), [Phase-3c status](phase3c-status.md) and
 [next integration contracts](phase4-boundaries.md). Earlier phase descriptions
 below explain the progression and do not override these current limits.
 
@@ -13,8 +15,9 @@ runtime. Phase 1 implements only fixed-width primitive types, scalar endian
 decoding, a small original-code target and its platform verification harness.
 Phase 2 implements `NativeScheduler` in `include/re4/port/scheduler.h`; Phase 2b
 adds explicit slot-4 slices, owned Yz2 decode jobs and a single file-I/O worker.
-`contracts.h` retains proposed abstract module/asset boundaries. Neither those
-systems nor their success-returning substitutes are implemented.
+`contracts.h` retains typed module/asset/consumer interfaces. ModuleRuntime now
+implements the reviewed subset; missing model/input/gameplay consumers have no
+success-returning substitutes.
 
 ## Module registry
 
@@ -30,12 +33,12 @@ real cross-room dependencies, such as `r100` using `r120::EventCarInit`. Resolve
 duplicate entry/helper symbols per their actual scopes before linking modules.
 No manually authored room behavior or replacement enemy placement is needed.
 
-Initial implementation should keep compiled native code resident. Activation,
-constructor registration, function ownership, reset and state preservation still
-need implementation. `stopRelData/restartRelData` preserve original module BSS;
-native objects cannot be preserved by blindly copying arbitrary ELF BSS. Do not
-double-run C++ constructors. Missing modules and unresolved imports must fail.
-Current abstract methods report activation failure by an exception; absence of
+Compiled native code stays resident. ModuleRuntime implements activation,
+function ownership, reset and typed state preservation for the reviewed subset.
+`stopRelData/restartRelData` preserve original module BSS; native objects cannot
+be preserved by blindly copying arbitrary ELF BSS. Nonempty original constructor
+bindings and full module states remain open. Missing native components fail.
+Methods report activation failure by an exception; absence of
 a room callback is represented by an empty optional, not a dummy function.
 
 ## Stackful scheduler
@@ -58,8 +61,11 @@ Main callbacks must explicitly exit/chain or loop; unexpected return is an error
 Scenario return performs original OT cleanup. Generation handles replace unsafe
 long-lived TASK*/SCE_TASK* identities. A module lifetime cannot be invalidated
 while its code is on an active task/caller chain; idle tasks are cancelled first.
-Full callback ownership and transitive module dependencies still need the real
-registry. Keep native code resident until that integration is proven.
+Phase 4a adds a native registry for reviewed partial stage components. Nested
+module calls retain lifetimes in scheduler metadata across sleep; temporary
+module stop pauses these stacks and freezes sleep visits. Final deactivation
+cancels owned/borrowed stacks before releasing state. Full game event/actor
+registrations and their transitive dependencies remain open. Code stays resident.
 
 Native metadata does not emulate OSThread's binary layout. Original pure control
 functions and SceSleep/SceExit are compiled verbatim against narrow adapters.
@@ -78,6 +84,32 @@ Android suspend/Surface destruction is not equivalent to killing the game's task
 
 The verification mutex protects only concurrent test invocations of the
 original global RNG; it is not a game scheduler implementation.
+
+## Native modules (Phase 4a)
+
+`tools/generate_modules.py` derives all 114 module identities/imports and 122
+room bindings from original configuration, FileTbl, stage tables and symbol maps.
+Each partial stage component has its own C++ namespace and native state; duplicate
+`_prolog/_epilog/setTbl` and helper symbols never share a global ELF identity.
+Only reviewed callbacks are callable. Missing functions produce an empty optional
+or an exception, never a dummy successful room initialization.
+
+`ModuleRuntime` distinguishes temporary stop/restart from final deactivation.
+Stop saves typed state before epilog, retains work and paused stacks; restart
+restores without another prolog or constructor. Final deactivation invalidates
+callback epochs, retires stacks and releases state. A retained MRAM lease keeps
+old data alive independently. Native BSS and C++ objects are never memcpy'd.
+Current original execution is limited to fourteen stage registration components,
+original cRoomData dispatch and the complete small R10d/R328 Init/Main pairs.
+Nonempty original constructor lists and full actor/weapon/event units remain open.
+
+REL symbol imports are a graph of resident code references and can contain cycles.
+They are not automatically interpreted as an initialization dependency graph.
+Explicit native activation dependencies are resolved before mutation and cycles
+are rejected. Lifecycle transitions currently require the frame caller stack.
+The real StageSet/game-task bridge must enqueue transitions and yield while the
+frame owner applies them; it is not implemented by a fake blocking loader here.
+See phase4a-status.md for actual execution, adapter tests and remaining consumers.
 
 ## Original data import and runtime loading
 

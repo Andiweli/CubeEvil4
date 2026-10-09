@@ -2,6 +2,7 @@ param(
     [string]$SdkRoot = $env:ANDROID_HOME,
     [string]$JavaHome = $env:JAVA_HOME,
     [string]$GradleUserHome,
+    [string]$Python,
     [switch]$Offline,
     [switch]$NativeOnly
 )
@@ -24,13 +25,18 @@ foreach ($taskRequired in @($taskCmake, $taskNinja,
     }
 }
 
+$taskPythonArgs = @()
+if ($Python) {
+    if (-not (Test-Path -LiteralPath $Python)) { throw "Python interpreter missing: $Python" }
+    $taskPythonArgs = @("-DPython3_EXECUTABLE=$Python")
+}
 foreach ($taskAbi in @('armeabi-v7a', 'arm64-v8a')) {
     $taskBuild = Join-Path $taskPortRoot "build\android-$taskAbi"
     & $taskCmake -S $taskPortRoot -B $taskBuild -G Ninja `
         "-DCMAKE_MAKE_PROGRAM=$taskNinja" `
         "-DCMAKE_TOOLCHAIN_FILE=$taskNdk\build\cmake\android.toolchain.cmake" `
         "-DANDROID_ABI=$taskAbi" -DANDROID_PLATFORM=android-21 `
-        -DANDROID_STL=c++_static -DCMAKE_BUILD_TYPE=Release -DRE4_BUILD_TESTS=ON
+        -DANDROID_STL=c++_static -DCMAKE_BUILD_TYPE=Release -DRE4_BUILD_TESTS=ON @taskPythonArgs
     if ($LASTEXITCODE -ne 0) { throw "CMake configure failed for $taskAbi" }
     & $taskCmake --build $taskBuild --parallel
     if ($LASTEXITCODE -ne 0) { throw "Native build failed for $taskAbi" }
@@ -53,6 +59,7 @@ $env:ANDROID_HOME = $SdkRoot
 if ($GradleUserHome) { $env:GRADLE_USER_HOME = $GradleUserHome }
 $taskGradleArgs = @('-p', (Join-Path $taskPortRoot 'android'), '--no-daemon')
 if ($Offline) { $taskGradleArgs += '--offline' }
+if ($Python) { $taskGradleArgs += "-Pre4.python=$Python" }
 & (Join-Path $taskPortRoot 'android\gradlew.bat') @taskGradleArgs `
     ':app:assembleDebug' ':app:assembleDebugAndroidTest' ':app:lintDebug'
 if ($LASTEXITCODE -ne 0) { throw 'Android Gradle build/tests packaging/lint failed.' }

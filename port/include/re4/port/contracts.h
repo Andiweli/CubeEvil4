@@ -8,12 +8,19 @@
 
 namespace re4::port {
 
-// Proposed native boundaries. No implementations or GameCube API stubs are
-// supplied. See docs/runtime-boundaries.md before adapting original call sites.
+// Typed native boundaries. ModuleRuntime implements the reviewed module subset;
+// the remaining interfaces require real consumers, never successful API stubs.
+// See docs/runtime-boundaries.md before adapting original call sites.
 using RoomFunction = void (*)(); // ROOM_DATA::pInit/pMain in room_data.h
+struct ModuleCallback {
+    std::uint64_t runtime = 0, epoch = 0;
+    std::uint32_t module = 0;
+    std::uint16_t room = 0;
+    bool init = false;
+};
 struct RoomCallbacks {
-    RoomFunction init;
-    RoomFunction main;
+    ModuleCallback init;
+    ModuleCallback main;
 };
 
 class NativeModuleRegistry {

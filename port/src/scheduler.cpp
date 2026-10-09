@@ -41,11 +41,13 @@ thread_local NativeScheduler* activeScheduler = nullptr;
 std::atomic<std::uint64_t> nextRuntime{1};
 }
 struct NativeScheduler::Impl {
+    struct ModuleCall { ModuleToken token; void* context; };
     struct Slot {
         Impl* owner = nullptr;
         int index = 0;
         std::uint64_t generation = 0;
         ModuleToken module;
+        std::vector<ModuleCall> borrowedModules;
         TaskEntry entry;
         TaskEntry replacement;
         std::unique_ptr<detail::StackContext> context;
@@ -67,7 +69,9 @@ struct NativeScheduler::Impl {
     std::array<Slot, 18> slots;
     std::array<std::vector<TaskHandle>, 16> order;
     std::vector<ModuleToken> modules;
+    std::vector<ModuleToken> pausedModules;
     std::vector<ModuleToken> directModules;
+    std::vector<ModuleCall> directCalls;
     bool gameSuspend = false, diedemo = false;
     bool scenarioHold = false, scenarioStop = false, inScenarioPass = false;
     int current = -1;
@@ -126,6 +130,7 @@ struct NativeScheduler::Impl {
         slot.completion = {};
         unlink(slot);
         slot.context.reset();
+        slot.borrowedModules.clear();
         slot.entry = {};
         slot.replacement = {};
         slot.failure = {};
@@ -165,6 +170,9 @@ struct NativeScheduler::Impl {
     }
     void visit(Slot& slot) {
         auto& task = original::Task[slot.index];
+        auto paused = [&](ModuleToken m) { return std::find(pausedModules.begin(), pausedModules.end(), m) != pausedModules.end(); };
+        if (paused(slot.module) || std::any_of(slot.borrowedModules.begin(), slot.borrowedModules.end(),
+            [&](const auto& call) { return paused(call.token); })) return; // Freeze sleep visits too.
         if (slot.executing) throw std::logic_error("A task cannot resume itself or an active ancestor");
         // The checks, exact status switch, and 16-bit decrement follow the
         // original TaskSchedulerMain. Sleep counts visits, not wall-clock time.
@@ -199,6 +207,7 @@ struct NativeScheduler::Impl {
             // TaskChain: discard the old stack before starting the replacement
             // on a future visit. Preserve kind, model, priority and OT position.
             slot.context.reset();
+            slot.borrowedModules.clear();
             slot.entry = std::move(slot.replacement);
             slot.replacement = {};
         } else if (task.Status == original::TASK_NONE) {
@@ -441,6 +450,7 @@ void NativeScheduler::sleep(int visits) {
     if (module == ModuleToken{}) module = slot.module;
     if (!impl_->moduleValid(module)) throw std::logic_error("TaskChain targets an expired module");
     slot.replacement = std::move(entry);
+    entry = {}; // libc++ can copy an SBO callable on move; this stack is abandoned.
     slot.module = module;
     original::Task[slot.index].Status = original::TASK_EXEC;
     slot.context->yield();
@@ -520,14 +530,56 @@ ModuleToken NativeScheduler::createModuleLifetime() {
     return token;
 }
 bool NativeScheduler::invalidateModule(ModuleToken module) {
+    return invalidateModules({module});
+}
+bool NativeScheduler::canInvalidateModules(const std::vector<ModuleToken>& modules) const {
     impl_->checkThread();
-    if (module == ModuleToken{} || !impl_->moduleValid(module)) return false;
-    if (std::find(impl_->directModules.begin(), impl_->directModules.end(), module) != impl_->directModules.end()) return false;
-    for (const auto& slot : impl_->slots) if (slot.entry && slot.module == module && slot.executing) return false;
+    for (auto module : modules) {
+        if (module == ModuleToken{} || !impl_->moduleValid(module)) return false;
+        if (std::find(impl_->directModules.begin(), impl_->directModules.end(), module) != impl_->directModules.end()) return false;
+        if (std::any_of(impl_->directCalls.begin(), impl_->directCalls.end(), [&](const auto& call) { return call.token == module; })) return false;
+        for (const auto& slot : impl_->slots) {
+            if (slot.entry && slot.executing && (slot.module == module ||
+                std::any_of(slot.borrowedModules.begin(), slot.borrowedModules.end(), [&](const auto& call) { return call.token == module; }))) return false;
+        }
+    }
+    return true;
+}
+bool NativeScheduler::invalidateModules(const std::vector<ModuleToken>& modules) {
+    if (!canInvalidateModules(modules)) return false;
     // Retire before releasing captures: a capture destructor cannot submit new
     // work into a lifetime that is already being invalidated.
-    impl_->modules.erase(std::remove(impl_->modules.begin(), impl_->modules.end(), module), impl_->modules.end());
-    for (auto& slot : impl_->slots) if (slot.entry && slot.module == module) impl_->release(slot);
+    const auto matches = [&](ModuleToken token) { return std::find(modules.begin(), modules.end(), token) != modules.end(); };
+    impl_->modules.erase(std::remove_if(impl_->modules.begin(), impl_->modules.end(), matches), impl_->modules.end());
+    impl_->pausedModules.erase(std::remove_if(impl_->pausedModules.begin(), impl_->pausedModules.end(), matches), impl_->pausedModules.end());
+    for (auto& slot : impl_->slots) if (slot.entry && (matches(slot.module) ||
+        std::any_of(slot.borrowedModules.begin(), slot.borrowedModules.end(), [&](const auto& call) { return matches(call.token); }))) impl_->release(slot);
+    return true;
+}
+void NativeScheduler::callModule(ModuleToken module, const TaskEntry& entry, void* context) {
+    impl_->checkThread();
+    if (module == ModuleToken{} || !impl_->moduleValid(module) || !entry) throw std::logic_error("Invalid nested module call");
+    if (std::find(impl_->pausedModules.begin(), impl_->pausedModules.end(), module) != impl_->pausedModules.end()) throw std::logic_error("Stopped module call");
+    const int slot = impl_->current;
+    auto& calls = slot >= 0 ? impl_->slots[slot].borrowedModules : impl_->directCalls;
+    calls.push_back({module, context});
+    try { entry(); } catch (...) { calls.pop_back(); throw; }
+    calls.pop_back();
+}
+void* NativeScheduler::moduleCallContext() const {
+    impl_->checkThread();
+    const auto& calls = impl_->current >= 0 ? impl_->slots[impl_->current].borrowedModules : impl_->directCalls;
+    return calls.empty() ? nullptr : calls.back().context;
+}
+bool NativeScheduler::pauseModule(ModuleToken module) {
+    if (!canInvalidateModules({module})) return false;
+    if (std::find(impl_->pausedModules.begin(), impl_->pausedModules.end(), module) == impl_->pausedModules.end()) impl_->pausedModules.push_back(module);
+    return true;
+}
+bool NativeScheduler::resumeModule(ModuleToken module) {
+    impl_->checkThread();
+    if (module == ModuleToken{} || !impl_->moduleValid(module)) return false;
+    impl_->pausedModules.erase(std::remove(impl_->pausedModules.begin(), impl_->pausedModules.end(), module), impl_->pausedModules.end());
     return true;
 }
 } // namespace re4::port

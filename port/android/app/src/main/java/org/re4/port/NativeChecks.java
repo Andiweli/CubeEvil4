@@ -34,4 +34,8 @@ public final class NativeChecks {
     }
 
     private static native Result nativeRun(String group);
+    public static String runModules(String directory) {
+        return nativeModules(Objects.requireNonNull(directory));
+    }
+    private static native String nativeModules(String directory);
 }
