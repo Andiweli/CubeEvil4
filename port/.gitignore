@@ -1,0 +1,9 @@
+build/
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/app/build/
+android/app/.cxx/
+android/app/.externalNativeBuild/
+CMakeUserPresets.json
+*.user
