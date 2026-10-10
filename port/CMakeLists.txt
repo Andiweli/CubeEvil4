@@ -35,6 +35,18 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_runtime.py"
     --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original"
     COMMAND_ERROR_IS_FATAL ANY)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/consumer-sources.json" consumer_manifest)
+string(JSON consumer_count LENGTH "${consumer_manifest}")
+math(EXPR consumer_last "${consumer_count} - 1")
+foreach(index RANGE 0 ${consumer_last})
+    string(JSON consumer_source MEMBER "${consumer_manifest}" ${index})
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RE4_ROOT}/${consumer_source}")
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/consumer-sources.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_consumers.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_consumers.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
 
 # Only approved headers enter this target. The legacy include/ directory also
 # contains an old libc, which must never shadow the host or NDK standard library.
@@ -98,6 +110,8 @@ add_library(re4_modules STATIC src/modules.cpp src/module_rel_index.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/original/module_stages.cpp")
 target_link_libraries(re4_modules PUBLIC re4_loader)
 add_library(re4_game_runtime STATIC src/game_runtime.cpp src/gameplay_heaps.cpp src/controller_input.cpp
+    src/consumers.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/pad_clamp.cpp")
 target_include_directories(re4_game_runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -109,6 +123,7 @@ set_target_properties(re4_game_verification PROPERTIES POSITION_INDEPENDENT_CODE
 if(MSVC)
     target_compile_options(re4_game_runtime PRIVATE /W4 /WX /fp:strict)
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
+        "${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/pad_clamp.cpp" PROPERTIES COMPILE_OPTIONS "/WX-")
 else()
     target_compile_options(re4_game_runtime PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-fast-math -ffp-contract=off)
@@ -207,6 +222,7 @@ if(RE4_BUILD_TESTS)
         find_package(Python3 QUIET COMPONENTS Interpreter)
         if(Python3_Interpreter_FOUND)
             add_test(NAME runtime_generation COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_runtime_sources.py")
+            add_test(NAME consumer_generation COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_consumer_sources.py")
             add_test(NAME module_generation COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_modules.py")
             set_tests_properties(module_generation PROPERTIES TIMEOUT 90)
             add_test(NAME import_validation

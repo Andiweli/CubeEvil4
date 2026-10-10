@@ -37,13 +37,13 @@ def generate(root, output):
     for name in ['PADStatus', 'PADClampRegion']:
         types.append(re.search(r'typedef struct ' + name + r' \{.*?\} ' + name + ';', pad, re.S)[0])
     types += re.findall(r'^#define (?:JOY_\w+|PAD_CHAN\w+|PAD_ERR_\w+)\s+[^\n]+', joy + '\n' + pad, re.M)
-    for name in ['DBG_FLAG', 'STA_FLAG', 'SYS_FLAG', 'SPF_FLAG', 'SCF_FLAG', 'CFG_FLAG']:
+    for name in ['DBG_FLAG', 'STA_FLAG', 'SYS_FLAG', 'SPF_FLAG', 'SCF_FLAG', 'CFG_FLAG', 'DPF_FLAG']:
         types.append(re.search(r'enum ' + name + r' \{.*?\n\};', glob, re.S)[0])
     # Names/types are copied from GLOBAL_WK; these are native views, not wire offsets.
     fields = ['Rno0','Rno1','Rno2','Rno3','RoomNo_next','room_id','room_id_prev','pl_type','game_mode',
               'game_costume','pl_costume','debug_mode','debug_disp','game_country','System_flg',
               'Stop_flg','Status_flg','Debug_flg','Room_flg','Scenario_flg','Frame_cnt',
-              'game_start_time','play_time','pl_ang_y','ashley_life','Speed','SaveKind','em_list_no']
+              'game_start_time','play_time','pl_ang_y','ashley_life','Speed','SaveKind','em_list_no','game_cnt','Disp_flg','AreaNo','shooting_mode']
     types.append('struct NativeGameState {')
     for name in fields:
         matches = re.findall(r'^\s*((?:u8|u16|u32|s8|s16|s32|f32) ' + name + r'(?:\[\d+\])?);', glob, re.M)
@@ -89,6 +89,7 @@ def generate(root, output):
                       'void InitGameTime()', 'u32 GetGameTime(u32* ret_time, u32* ret_min, u32* ret_sec)', 'void SetGameTime()']:
         add('src/game/main_sub.cpp', signature)
     add('src/game/game.cpp', 'void DoorFlagInit()')
+    add('src/game/game.cpp', 'void gameDebug()')
     add('src/game/game.cpp', 'void GameTask()', [(
         'static void (*game_func_tbl[7])() = {\n        gameInit, gameStageInit, gameRoomInit, gameMainLoop, gameDoordemo, gameEnding, gameOption,\n    };',
         'const std::array<TaskEntry, 7> game_func_tbl = {\n        [this]{gameInit();}, [this]{gameStageInit();}, [this]{gameRoomInit();}, [this]{gameMainLoop();}, [this]{gameDoordemo();}, [this]{gameEnding();}, [this]{gameOption();}\n    };')])
@@ -109,6 +110,25 @@ def generate(root, output):
     for signature in ['void ScenarioRoomInit()', 'void ScenarioMove()', 'void scenarioLoopBeforeInit()', 'void scenarioLoopAfterInit()']:
         add('src/game/sce_sys.cpp', signature, [('    SceSys.pLadderTask = 0;', '    SceSys.pLadderTask = std::nullopt;')] if 'ScenarioRoomInit' in signature else [])
     add('src/game/sce_com.cpp', 'void SceInitItemEvent()', [('        HALT_FILE_FIRST();', '        throw std::logic_error("unreachable original HALT");')])
+    add('src/game/sce_com.cpp', 'int DebugTrg(int)')
+    r120 = read('src/st1/r120.cpp')
+    event = read('include/event.h')
+    bodies.insert(3, re.search(r'enum EvtStatusFlag \{.*?\n\};', event, re.S)[0] +
+                  '\n#define EvtStfBit(f) (0x80000000u >> (f))\nconstexpr int EvtReadFlagNone = 0;\nconstexpr int IDC_LIFE_METER = 33;\nconstexpr int SS_OPEN_SHOP = 16;\nconstexpr int SCE_PRIO_DEF_2 = 2;')
+    for signature in ['void R120Init()', 'void R120Main()', 'void R120Event()',
+                      'void Evt_R120S00_Func(Event* e, u32)', 'void Evt_R120S01_Func(Event* e, u32)',
+                      'void EventCarInit(Event* e)', 'void EvtTexRenderCamTrans(Event* e, int cut)',
+                      'static inline void r120_setTrans(int on)']:
+        changes=[]
+        if 'R120Init' in signature:
+            changes=[('MEM_CALLOC(sizeof(R120Work), 1, 0xD)', 'ModuleContext::active().callocObject<R120Work>()'),
+                     ('(void*) Evt_R120S00_Func','[this](Event* e,u32 p){ Evt_R120S00_Func(e,p); }'),
+                     ('(void*) Evt_R120S01_Func','[this](Event* e,u32 p){ Evt_R120S01_Func(e,p); }'),
+                     ('SceExec(0x12, R120Event,','SceExec(0x12, [this]{ R120Event(); },')]
+        if 'EvtTexRenderCamTrans' in signature:
+            changes=[('Event* e, int cut)', 'Event* e, int)')] # Original cut parameter is unused.
+        add('src/st1/r120.cpp',signature,changes)
+    bodies = [b.replace('static inline void OriginalContext::r120_setTrans','void OriginalContext::r120_setTrans') for b in bodies]
     bodies.append('} // namespace re4::port')
     (output/'runtime_control.cpp').write_text('\n\n'.join(bodies) + '\n', encoding='utf-8')
     clamp = read('src/lib/Padclamp.c')

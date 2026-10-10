@@ -85,7 +85,8 @@ def generate(root, output):
         structure = re.search(r'struct (\w+) \{.*?\n\};', s, re.S)
         pointer = re.search(r'static (\w+)\* (\w+);', s)
         if not structure or not pointer: raise ValueError('reviewed work missing')
-        small[room] = dict(path=path, source=s, init=init, main=main, struct=structure[0], work=pointer[1], pointer=pointer[2])
+        small[room] = dict(path=path, source=s, init=init, main=main, struct=structure[0], work=pointer[1], pointer=pointer[2],
+                           imported=room == 0x120)
     rooms = []
     for stage, pairs in bindings.items():
         for n, init, main in pairs:
@@ -100,7 +101,8 @@ def generate(root, output):
             if owner['name'] not in variant: raise ValueError('primary room source/symbol is absent')
             rid = (stage << 8) | n
             rooms.append(dict(id=rid, file_index=row[2], module=owner['module_id'], save=bool(row[0]), init=init, main=main,
-                              variants=variant, compiled=rid in small))
+                              variants=variant, compiled=rid in small,
+                              resident_imports=rid in small and small[rid]['imported']))
     collisions = {}
     for name, rows_ in symbols.items():
         for r in rows_:
@@ -122,7 +124,7 @@ def generate(root, output):
            'const ModuleCatalog &originalModuleCatalog() { static const ModuleCatalog c{', q(identity)+', {']
     cpp += ['{' + f"{m['module_id']}, {m['file_index']}, {q(m['name'])}, {q(m['object'])}, " + '{'+','.join(map(str, m['imports']))+'},'+f"{m['sections']['.ctors']},{m['sections']['.dtors']},{m['sections'].get('.bss',0)}"+'},' for m in modules]
     cpp += ['}, {']
-    cpp += ['{' + f"{r['id']}, {r['file_index']}, {r['module']}, {str(r['save']).lower()}, {str(r['compiled']).lower()}, {str(r['compiled']).lower()}, {q(r['init'])}, {q(r['main'])}" + '},' for r in rooms]
+    cpp += ['{' + f"{r['id']}, {r['file_index']}, {r['module']}, {str(r['save']).lower()}, {str(r['compiled']).lower()}, {str(r['compiled']).lower()}, {str(r['resident_imports']).lower()}, {q(r['init'])}, {q(r['main'])}" + '},' for r in rooms]
     cpp += ['}}; return c; }', '}']
     (output/'module_catalog.cpp').write_text('\n'.join(cpp)+'\n', encoding='utf-8')
     stagecpp = ['#include "module_original.h"', '#include "types.h"', '#include <stdexcept>', 'namespace re4::port::modules_original {']
@@ -134,6 +136,10 @@ def generate(root, output):
         stagecpp += [f'namespace {name} {{']
         for r in owned:
             b = small[r['id']]
+            if b['imported']:
+                stagecpp += [f"void {b['init']}() {{ ModuleContext::active().importedRoom({r['id']}, true); }}",
+                             f"void {b['main']}() {{ ModuleContext::active().importedRoom({r['id']}, false); }}"]
+                continue
             stagecpp += [b['struct'], f"{b['work']}*& work_{b['pointer']}();",
                          f"#define {b['pointer']} (work_{b['pointer']}())",
                          '#line 1 ' + q((root/b['path']).as_posix()),
@@ -145,11 +151,13 @@ def generate(root, output):
                      'struct Snapshot final : ModuleSnapshot { ModuleContext::Work work; };']
         for r in owned:
             b = small[r['id']]
+            if b['imported']: continue
             stagecpp += [f"{b['work']}* {b['pointer']} = nullptr;"]
         stagecpp += ['std::unique_ptr<ModuleSnapshot> save(ModuleContext& c) const override { auto s = std::make_unique<Snapshot>(); s->work = c.work(); return s; }',
                      'void restore(ModuleContext& c, const ModuleSnapshot& base) override { const auto& s = dynamic_cast<const Snapshot&>(base); c.restoreWork(s.work);']
         for r in owned:
             b = small[r['id']]
+            if b['imported']: continue
             stagecpp += [f"{b['pointer']} = static_cast<{b['work']}*>(c.roomWork({r['id']}));"]
         stagecpp += ['}', 'void prolog(ModuleContext& c) override { ModuleContext::Scope scope(c); prologOriginal();']
         for n, _, _ in bindings[stage]:
@@ -157,11 +165,15 @@ def generate(root, output):
         stagecpp += ['}', 'void epilog(ModuleContext& c) override { ModuleContext::Scope scope(c); epilogOriginal(); }', 'void resetRoom(ModuleContext&, std::uint16_t room) override {']
         for r in owned:
             b = small[r['id']]
+            if b['imported']:
+                stagecpp += [f"if (room == {r['id']}) return;"]
+                continue
             stagecpp += [f"if (room == {r['id']}) {{ {b['pointer']} = nullptr; return; }}"]
         stagecpp += ['(void)room; throw std::logic_error("Unbound room reset"); }', 'void invoke(ModuleContext&, std::uint16_t, bool) override;', '};',
                      'State& state() { return static_cast<State&>(ModuleContext::active().state()); }']
         for r in owned:
             b = small[r['id']]
+            if b['imported']: continue
             stagecpp += [f"{b['work']}*& work_{b['pointer']}() {{ return state().{b['pointer']}; }}"]
         for n, init, main in bindings[stage]:
             if not any(r['id'] == (stage<<8)|n for r in owned): stagecpp += [f'const RoomFunction {init} = nullptr, {main} = nullptr;']
@@ -192,4 +204,4 @@ if __name__ == '__main__':
     p.add_argument('--output', type=Path, required=True)
     args = p.parse_args()
     m = generate(args.root.resolve(), args.output.resolve())
-    print(f"Generated {len(m['modules'])} modules, {len(m['rooms'])} room bindings; {sum(r['compiled'] for r in m['rooms'])} complete reviewed Init/Main pairs")
+    print(f"Generated {len(m['modules'])} modules, {len(m['rooms'])} room bindings; {sum(r['compiled'] for r in m['rooms'])} reviewed entry pairs (resident dependencies may remain)")

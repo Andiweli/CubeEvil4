@@ -18,7 +18,9 @@ public final class GameRuntimeTest {
         JSONObject result = new JSONObject(NativeChecks.runGameRuntime(root.getPath()));
         int bits = Integer.parseInt(InstrumentationRegistry.getArguments().getString("re4.expectedPointerBits"));
         assertEquals(bits,result.getInt("pointer_bits")); assertEquals(0,result.getInt("failed"));
-        assertTrue(result.getInt("checks") >= 140);
+        assertTrue(result.getInt("checks") >= 503);
+        assertTrue(result.getJSONArray("trace").toString().contains("transitions:20-initialized-cross-stage"));
+        assertTrue(result.getJSONArray("trace").toString().contains("event-stack:original-ExeFunc"));
     }
     @Test public void androidRangeNormalization() {
         assertEquals(0,ControllerLoop.normalize(0.1f,-1,1,0.2f,false),0);

@@ -84,6 +84,7 @@ void originalData(int argc, char **argv) {
         if (rejected != 7)
             throw std::runtime_error("malformed REL bounds accepted");
         unsigned originalPairs = 0;
+        unsigned residentBlockers = 0;
         if (m->name.substr(0, 2) == "st") {
             if (!index.emptyConstructors || !index.emptyDestructors)
                 throw std::runtime_error(
@@ -92,6 +93,22 @@ void originalData(int argc, char **argv) {
             for (const auto &r : catalog.rooms)
                 if (r.module == m->id && r.initCompiled) {
                     auto callbacks = *runtime.room(r.id);
+                    if (r.residentBridge) {
+                        bool rejected = false;
+                        try {
+                            runtime.invoke(callbacks.init);
+                        } catch (const std::logic_error &failure) {
+                            if (std::string(failure.what()) !=
+                                "Original room resident imports are unbound")
+                                throw;
+                            rejected = true;
+                        }
+                        if (!rejected)
+                            throw std::runtime_error(
+                                "unbound resident entry unexpectedly succeeded");
+                        ++residentBlockers;
+                        continue; // Actual resident execution is tested by re4_game_tool.
+                    }
                     runtime.invoke(callbacks.init);
                     runtime.invoke(callbacks.main);
                     ++originalPairs;
@@ -108,7 +125,8 @@ void originalData(int argc, char **argv) {
                   << sha256(file->bytes.data(), file->bytes.size()) << "\",\"rel_sha256\":\""
                   << sha256(rel, index.exactBytes) << "\",\"rel_bytes\":" << index.exactBytes
                   << ",\"bss_bytes\":" << index.bssBytes << ",\"rejected\":" << rejected
-                  << ",\"original_pairs\":" << originalPairs << '}';
+                  << ",\"original_pairs\":" << originalPairs
+                  << ",\"resident_import_blockers\":" << residentBlockers << '}';
         loader.cancel(request);
         if (loader.memoryStats().mramBytes)
             throw std::runtime_error("original module read/work leaked MRAM");

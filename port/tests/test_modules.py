@@ -31,12 +31,14 @@ class Modules(unittest.TestCase):
         self.assertEqual((len(modules), len(rooms)), (114, 122))
         self.assertEqual(rooms[0x120]['module'], rooms[0x100]['module'])
         self.assertEqual(rooms[0x120]['file_index'], 146)
+        self.assertTrue(rooms[0x120]['resident_imports'])
+        self.assertFalse(rooms[0x10d]['resident_imports'])
         self.assertEqual(rooms[0x328]['module'], modules['st3_3']['module_id'])
         self.assertEqual(rooms[0x10d]['module'], modules['st1_2']['module_id'])
         self.assertEqual(set(rooms[0x102]['variants']), {'st1_1', 'st1_3'})
-        self.assertFalse(rooms[0x120]['compiled'])
+        self.assertTrue(rooms[0x120]['compiled'])
         self.assertFalse(rooms[0x100]['compiled'])
-        self.assertEqual(sum(r['compiled'] for r in rooms.values()), 2)
+        self.assertEqual(sum(r['compiled'] for r in rooms.values()), 3)
 
     def test_deterministic_output(self):
         generator.generate(ROOT, self.folder/'second')

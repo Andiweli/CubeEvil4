@@ -203,8 +203,11 @@ std::string verifyModules(const std::string &directory) {
                                ":init,main,stop,restart,reset,cancel,inactive");
         }
         runtime.activate(named("st1_0").fileIndex);
-        check.test(!runtime.room(0x120) && !runtime.room(0x100),
-                   "Unported start room reported executable");
+        check.test(runtime.room(0x120).has_value() && !runtime.room(0x100),
+                   "Reviewed r120 entry or unported r100 coverage differs");
+        check.rejects([&] {
+            runtime.invoke(runtime.room(0x120)->init);
+        }); // Imports absent in standalone module tests.
         auto missing = ModuleCallback{0, runtime.info(named("st1_0").id).epoch, named("st1_0").id,
                                       0x120, true};
         check.rejects([&] { runtime.invoke(missing); });

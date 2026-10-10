@@ -50,9 +50,11 @@ def main():
             off, size = struct.unpack_from('>II', exact, 0x4c+8*m['sections'][section])
             empty.append(size == 4 and exact[off&~3:(off&~3)+size] == b'\0'*4)
         if m['name'].startswith('st') and empty != [True, True]: raise ValueError('stage requires original constructor/destructor bindings')
-        pairs = sum(r['compiled'] and r['module'] == m['module_id'] for r in config['rooms'])
+        pairs = sum(r['compiled'] and not r['resident_imports'] and r['module'] == m['module_id'] for r in config['rooms'])
+        blockers = sum(r['resident_imports'] and r['module'] == m['module_id'] for r in config['rooms'])
         cases.setdefault(str(f['disc_number']), []).append(dict(id=m['module_id'], path=f['path'], file_sha256=f['sha256'],
-            rel_sha256=sha(exact), rel_bytes=len(exact), bss_bytes=struct.unpack_from('>I',exact,0x20)[0], rejected=7, original_pairs=pairs))
+            rel_sha256=sha(exact), rel_bytes=len(exact), bss_bytes=struct.unpack_from('>I',exact,0x20)[0], rejected=7, original_pairs=pairs,
+            resident_import_blockers=blockers))
     write_json(output/'module-cases.json', cases)
     write_json(output/'module-manifest.json', config)
     results = []

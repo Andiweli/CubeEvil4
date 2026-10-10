@@ -34,6 +34,7 @@ void OriginalContext::reset() {
         entry = nullptr;
     reads.clear();
     nextRead = 1;
+    r120_work = nullptr;
     trace.clear();
 }
 void *OriginalContext::mem_calloc(u32 bytes, const char *, int, int flag, int heap) {
@@ -91,6 +92,7 @@ void OriginalContext::RoomFacade::linkRelData(u16 room) {
         context->runtime->awaitModule(ModuleOperation::Deactivate, linkedModule);
     context->runtime->awaitModule(ModuleOperation::Activate, meta.module);
     linkedModule = meta.module;
+    linkedRoom = room;
     m_RelNo = meta.fileIndex;
 }
 void OriginalContext::RoomFacade::execInitFunc(u16 room) {
@@ -191,6 +193,7 @@ struct GameRuntime::Impl {
     };
     std::shared_ptr<HeapMemory> moduleMemory = std::make_shared<HeapMemory>(heaps);
     ModuleRuntime modules;
+    EngineConsumers engineConsumers;
     OriginalContext original;
     FrameViAdapter vi;
     const std::thread::id owner = std::this_thread::get_id();
@@ -207,10 +210,31 @@ struct GameRuntime::Impl {
     std::vector<Pending> settled; // Pins await records outside cancellable task stacks.
     Impl(GameRuntime *runtime, std::shared_ptr<const ImportedFiles> files, PlatformGamepads &pads,
          u8 disc)
-        : loader(std::move(files), disc), modules(loader, moduleMemory), original(pads),
-          vi([runtime] { runtime->tick(); }) {
+        : loader(std::move(files), disc), modules(loader, moduleMemory),
+          engineConsumers(&loader.scheduler()), original(pads), vi([runtime] { runtime->tick(); }) {
         original.runtime = runtime;
         original.heaps = heaps.get();
+        modules.bindRoomEntry(0x120, [this](bool init) {
+            original.RoomData.m_RelNo = roomMeta(0x120).fileIndex;
+            original.RoomData.linkedModule = roomMeta(0x120).module;
+            original.RoomData.linkedRoom = 0x120;
+            if (!init) {
+                original.R120Main();
+                return;
+            }
+            original.r120_work =
+                static_cast<OriginalContext::R120Work *>(ModuleContext::active().roomWork(0x120));
+            engineConsumers.setInvocationBoundary(
+                [this](const TaskEntry &call) { modules.callRoomEntry(0x120, call); });
+            try {
+                original.R120Init();
+            } catch (...) {
+                // System-owned cleanup survives cancellation of the failing caller.
+                pending.push_back(
+                    {ModuleOperation::RetireRoom, 0x120, {}, std::make_shared<FrameOperation>()});
+                throw;
+            }
+        });
         original.seconds = [] {
             return static_cast<u32>(std::chrono::duration_cast<std::chrono::seconds>(
                                         std::chrono::steady_clock::now().time_since_epoch())
@@ -234,6 +258,26 @@ struct GameRuntime::Impl {
         pending.clear();
         settled.clear();
     }
+    void retire(u16 id, bool deactivate) {
+        const auto &meta = roomMeta(id);
+        loader.scheduler().killScenarios();
+        modules.quiesceRoom(id); // Kill owned and borrowed stacks before consumer storage.
+        loader.cancelRoom();
+        loader.cancelAll();
+        engineConsumers.clear();
+        original.ScenarioInit();
+        original.r120_work = nullptr;
+        if (deactivate)
+            modules.deactivateId(meta.module);
+        else
+            modules.resetRoom(id);
+        if (deactivate && original.RoomData.linkedModule == meta.module) {
+            original.RoomData.linkedModule = 0;
+            original.RoomData.m_RelNo = 0;
+            original.RoomData.linkedRoom = 0;
+        }
+        original.trace.push_back("retire-room:" + std::to_string(id));
+    }
     void apply() {
         settled.erase(std::remove_if(settled.begin(), settled.end(),
                                      [this](const auto &p) {
@@ -253,15 +297,22 @@ struct GameRuntime::Impl {
                 case ModuleOperation::Activate: {
                     auto phase = modules.info(p.id).phase;
                     // A new link is a fresh prolog, distinct from temporary restart.
-                    if (phase == ModulePhase::Stopped)
-                        modules.deactivateId(p.id);
+                    if (phase == ModulePhase::Stopped) {
+                        if (original.RoomData.linkedModule == p.id && original.RoomData.linkedRoom)
+                            retire(original.RoomData.linkedRoom, true);
+                        else
+                            modules.deactivateId(p.id);
+                    }
                     if (std::find(activated.begin(), activated.end(), p.id) == activated.end())
                         activated.push_back(p.id);
                     modules.activateId(p.id);
                     break;
                 }
                 case ModuleOperation::Deactivate:
-                    modules.deactivateId(p.id);
+                    if (original.RoomData.linkedModule == p.id && original.RoomData.linkedRoom)
+                        retire(original.RoomData.linkedRoom, true);
+                    else
+                        modules.deactivateId(p.id);
                     break;
                 case ModuleOperation::Stop:
                     modules.stopId(p.id);
@@ -270,10 +321,13 @@ struct GameRuntime::Impl {
                     modules.restartId(p.id);
                     break;
                 case ModuleOperation::ResetRoom:
+                case ModuleOperation::RetireRoom:
+                case ModuleOperation::ReleaseRoom: {
                     if (p.id > UINT16_MAX)
                         throw std::invalid_argument("room ID truncation");
-                    modules.resetRoom(static_cast<u16>(p.id));
+                    retire(static_cast<u16>(p.id), p.operation == ModuleOperation::RetireRoom);
                     break;
+                }
                 }
                 p.result->status = OperationStatus::Complete;
             } catch (const std::exception &e) {
@@ -291,7 +345,12 @@ GameRuntime::GameRuntime(std::shared_ptr<const ImportedFiles> files, PlatformGam
     if (seconds)
         impl_->original.seconds = std::move(seconds);
 }
-GameRuntime::~GameRuntime() { impl_->cancelPending(); }
+GameRuntime::~GameRuntime() {
+    impl_->check(true);
+    impl_->loader.scheduler().clearTasks();
+    impl_->engineConsumers.clear();
+    impl_->cancelPending();
+}
 void GameRuntime::initialize(u16 width, u16 height) {
     impl_->check(true);
     if (!width || !height)
@@ -299,6 +358,7 @@ void GameRuntime::initialize(u16 width, u16 height) {
     impl_->loader.cancelRoom();
     impl_->loader.cancelAll();
     impl_->loader.scheduler().clearTasks();
+    impl_->engineConsumers.clear();
     for (auto task : impl_->gameTasks)
         impl_->loader.scheduler().kill(task);
     impl_->gameTasks.clear();
@@ -399,6 +459,25 @@ ModuleRuntime &GameRuntime::modules() {
     impl_->check();
     return impl_->modules;
 }
+EngineConsumers &GameRuntime::engineConsumers() {
+    impl_->check();
+    return impl_->engineConsumers;
+}
+std::shared_ptr<FrameOperation> GameRuntime::queueRoomRetirement(u16 id) {
+    return queueModule(ModuleOperation::RetireRoom, id);
+}
+void GameRuntime::retireRoom(u16 id) { awaitModule(ModuleOperation::RetireRoom, id); }
+void GameRuntime::invokeRoomEntry(u16 id, bool init) {
+    impl_->check();
+    auto entry = impl_->modules.room(id);
+    if (!entry)
+        throw MissingGameConsumer(roomMeta(id).init);
+    impl_->modules.invoke(init ? entry->init : entry->main);
+}
+void GameRuntime::runOpeningTask() {
+    impl_->check();
+    impl_->original.R120Event();
+}
 void GameRuntime::bindConsumers(SharedScenarioConsumers *consumer) {
     impl_->check(true);
     if (impl_->loader.scheduler().allocatedStacks())
@@ -439,6 +518,13 @@ void GameRuntime::scenarioMove() {
 }
 void GameRuntime::stageSet() {
     impl_->check();
+    auto &room = impl_->original.RoomData;
+    if (room.linkedModule && room.linkedRoom != impl_->original.global.room_id) {
+        const auto &next = roomMeta(impl_->original.global.room_id);
+        awaitModule(next.module == room.linkedModule ? ModuleOperation::ReleaseRoom
+                                                     : ModuleOperation::RetireRoom,
+                    room.linkedRoom);
+    }
     impl_->original.StageSet();
 }
 void GameRuntime::doorFlagInit() {

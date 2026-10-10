@@ -1,4 +1,5 @@
 #pragma once
+#include "re4/port/consumers.h"
 #include "re4/port/contracts.h"
 #include "re4/port/modules.h"
 #include "re4_runtime_types.h"
@@ -105,7 +106,15 @@ class PadRuntime final {
     std::unique_ptr<OriginalContext> original_;
 };
 
-enum class ModuleOperation { Activate, Deactivate, Stop, Restart, ResetRoom };
+enum class ModuleOperation {
+    Activate,
+    Deactivate,
+    Stop,
+    Restart,
+    ResetRoom,
+    RetireRoom,
+    ReleaseRoom
+};
 enum class OperationStatus { Pending, Complete, Cancelled, Failed };
 struct FrameOperation {
     OperationStatus status = OperationStatus::Pending;
@@ -130,6 +139,12 @@ class GameRuntime final {
     GameplayHeaps &heaps();
     EngineLoader &loader();
     ModuleRuntime &modules();
+    EngineConsumers &engineConsumers();
+    std::shared_ptr<FrameOperation> queueRoomRetirement(std::uint16_t room);
+    void
+    retireRoom(std::uint16_t room); // Stackful boundary adapter, never a replacement room script.
+    void invokeRoomEntry(std::uint16_t room, bool init);
+    void runOpeningTask(); // Diagnostic invocation of actual R120Event; no replacement intro.
     void bindConsumers(SharedScenarioConsumers *); // Borrowed, must outlive all tasks.
     std::shared_ptr<FrameOperation> queueModule(ModuleOperation, std::uint32_t id);
     void awaitModule(ModuleOperation, std::uint32_t id); // Stackful, task only.

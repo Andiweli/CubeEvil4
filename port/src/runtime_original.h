@@ -1,4 +1,5 @@
 #pragma once
+#include "consumer_original.h"
 #include "re4/port/game_runtime.h"
 #include "rnd.h"
 #include <cstring>
@@ -18,9 +19,14 @@ inline void nativeFlagOff(u32 *p, int n) { p[n / 32] &= ~(0x80000000U >> (n % 32
 #define StaFlagOff(g, n) nativeFlagOff((g)->Status_flg, n)
 #define DbgFlagChk(g, n) nativeFlag((g)->Debug_flg, n)
 #define SysFlagChk(g, n) nativeFlag(&(g)->System_flg, n)
+#define SysFlagOn(g, n) nativeFlagOn(&(g)->System_flg, n)
+#define DpfFlagOn(g, n) nativeFlagOn(&(g)->Disp_flg, n)
+#define DpfFlagOff(g, n) nativeFlagOff(&(g)->Disp_flg, n)
 #define ScfFlagChk(g, n) nativeFlag((g)->Scenario_flg, n)
 #define ScfFlagOn(g, n) nativeFlagOn((g)->Scenario_flg, n)
 #define ScfFlagOff(g, n) nativeFlagOff((g)->Scenario_flg, n)
+#define FlagChkSignW(flg, no) ((s32)((flg) << ((no) & 31)) < 0)
+#define FlagChkSign(flg, no) FlagChkSignW((flg)[(no) >> 5], no)
 #define G_ROOM_ID (pG->room_id)
 
 void PADClamp(PADStatus *);
@@ -79,6 +85,7 @@ struct OriginalContext {
         OriginalContext *context = nullptr;
         u16 m_RelNo = 0;
         u32 linkedModule = 0;
+        u16 linkedRoom = 0;
         void stopRelData();
         int checkRelRead(u16 room);
         void linkRelData(u16 room);
@@ -92,7 +99,111 @@ struct OriginalContext {
     struct EventFacade {
         OriginalContext *context = nullptr;
         void Run();
+        int SetFunc(const char *name, EventFunction f) {
+            return context->runtime->engineConsumers().SetFunc(name, std::move(f));
+        }
+        [[noreturn]] void EvtReadAram(const char *, int, int, int, int) {
+            throw MissingGameConsumer("EventMgr::EvtReadAram/SetEvd/SetBin");
+        }
+        [[noreturn]] void EvtReadExec(const char *, int, int) {
+            throw MissingGameConsumer("EventMgr::EvtReadExec/Event::Init/ExePacket");
+        }
     } EvtMgr;
+    using Event = EventCpu;
+    using cModel = ModelCpu;
+    using cObj = ModelCpu; // Only typed CPU fields accessed by reviewed event callbacks.
+    struct CameraFacade {
+        OriginalContext *context{};
+        int CurrentAreaNo() {
+            return context->runtime->engineConsumers().cameraState.CurrentAreaNo();
+        }
+    } CamCtrl{this};
+    struct PlayerFacade {
+        [[noreturn]] cModel *operator->() { throw MissingGameConsumer("gameDebug/pPL/PlayerInit"); }
+        [[noreturn]] operator cModel *() { throw MissingGameConsumer("gameDebug/pPL/PlayerInit"); }
+    } pPL;
+    [[noreturn]] void DbMenuExec() { throw MissingGameConsumer("DbMenuExec"); }
+    [[noreturn]] void VecToCamVec(Vec *, Vec *) {
+        throw MissingGameConsumer("VecToCamVec/camera matrices");
+    }
+    [[noreturn]] void PSVECAdd(Vec *, Vec *, Vec *) {
+        throw MissingGameConsumer("PSVECAdd/unbound debug player path");
+    }
+    [[noreturn]] void PartsWorldPosCalc(cModel *) {
+        throw MissingGameConsumer("PartsWorldPosCalc");
+    }
+    struct TexRenderMng;
+    struct R120Work {
+        TexRenderMng *mgr{};
+        u8 pad_4[0x388 - 4]{};
+    };
+    R120Work *r120_work{};
+    void R120Init();
+    void R120Main();
+    void R120Event();
+    void Evt_R120S00_Func(Event *, u32);
+    void Evt_R120S01_Func(Event *, u32);
+    void EventCarInit(Event *);
+    void EvtTexRenderCamTrans(Event *, int);
+    void r120_setTrans(int);
+    [[noreturn]] void TexRenderInit(TexRenderMng **, int, int) {
+        throw MissingGameConsumer("TexRenderInit/GX render target");
+    }
+    [[noreturn]] void TexRenderModAddOtMirror(int, cModel *) {
+        throw MissingGameConsumer("TexRenderModAddOtMirror");
+    }
+    [[noreturn]] void TexRenderModAddOt(int, cModel *) {
+        throw MissingGameConsumer("TexRenderModAddOt");
+    }
+    [[noreturn]] void Obj18CmfOn(cObj *, u32) {
+        throw MissingGameConsumer("Obj18CmfOn/model material data");
+    }
+    [[noreturn]] void SmdSetTrans(int, int) {
+        throw MissingGameConsumer("SmdSetTrans/SmdSetup/ObjMgr");
+    }
+    [[noreturn]] void FadeSetW(u32, int, int, int) {
+        throw MissingGameConsumer("FadeSetW/presentation");
+    }
+    [[noreturn]] void SubScreenOpen(int, int) { throw MissingGameConsumer("SubScreenOpen"); }
+    [[noreturn]] void systemVISetBlack(int) {
+        throw MissingGameConsumer("systemVISetBlack/presentation adapter");
+    }
+    [[noreturn]] void SceEventStart(int) {
+        throw MissingGameConsumer("SceEventStart/player/managers/audio");
+    }
+    [[noreturn]] void SceEventEnd(int) {
+        throw MissingGameConsumer("SceEventEnd/player/managers/audio");
+    }
+    [[noreturn]] void SceAtExecRoomJump(u16, Vec *, Vec *, int) {
+        throw MissingGameConsumer("SceAtExecRoomJump/gameDoordemo");
+    }
+    struct SofdecFacade {
+        [[noreturn]] void Initialize(const char *, int) {
+            throw MissingGameConsumer("Sofdec.Initialize/SFD video/audio");
+        }
+        [[noreturn]] bool isCancel() { throw MissingGameConsumer("Sofdec.isCancel"); }
+    } Sofdec;
+    struct LightFacade {
+        struct Light {
+            [[noreturn]] void setParent(cModel *) {
+                throw MissingGameConsumer("cLight::setParent");
+            }
+        };
+        [[noreturn]] Light *getKindLight(int) {
+            throw MissingGameConsumer("LightMgr.getKindLight");
+        }
+    } LightMgr;
+    using cLight = LightFacade::Light;
+    struct IdFacade {
+        [[noreturn]] void dispSw(int, int) { throw MissingGameConsumer("IdSys.dispSw"); }
+    } IdSys;
+    int DebugTrg(int);
+    void SceSleep(int n) { runtime->loader().scheduler().sleep(n); }
+    void SceExec(int level, TaskEntry task, int, int, int priority, int) {
+        auto token = runtime->modules().lifetime(RoomData.m_RelNo);
+        if (!runtime->sceExec(level, std::move(task), 0, priority, nullptr, token))
+            throw std::runtime_error("original scenario slots exhausted");
+    }
     struct ReadInto {
         LoadRequest request;
         u8 *destination;
@@ -155,10 +266,11 @@ struct OriginalContext {
     void SetGameTime();
     template <class... A> void OSReport(const char *, A...) {} // Diagnostic sink only.
     template <class... A> void eprintf(int, int, int, int, const char *, A...) {}
+    template <class... A> void eprintf2(int, int, int, int, int, int, const char *, A...) {}
     void *mem_calloc(u32, const char *, int, int, int);
     void DoorFlagInit();
     void GameTask();
-    [[noreturn]] void gameDebug() { throw MissingGameConsumer("gameDebug/CamCtrl.CurrentAreaNo"); }
+    void gameDebug();
     [[noreturn]] void gameInit() { throw MissingGameConsumer("gameInit/ClothInit"); }
     [[noreturn]] void gameStageInit() { throw MissingGameConsumer("gameStageInit/cMes/GameSave"); }
     [[noreturn]] void gameRoomInit() {
@@ -179,7 +291,8 @@ struct OriginalContext {
     void StageSet();
     int MemReplaceHeap(int a, int b) {
         if (!heaps->replace(a, b))
-            throw std::logic_error("MemReplaceHeap: native live-resource boundary prevents handoff");
+            throw std::logic_error(
+                "MemReplaceHeap: native live-resource boundary prevents handoff");
         return 1;
     }
     int MemSetCurrentHeap(int n) {

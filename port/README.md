@@ -253,3 +253,25 @@ shared camera/model/message/event consumers. Initialized-room stage changes
 also require the original room teardown before a heap can be reused safely.
 See [the complete Phase 4b report](docs/phase4b-status.md) for exact coverage,
 reproduction commands, measured device inputs and remaining dependencies.
+
+## Phase 4c: shared CPU consumers and room retirement (partial)
+
+`re4_game_runtime` now owns checked native model-joint, message-table, camera-state
+and event-callback consumers. Frame-boundary room retirement quiesces owned and
+borrowed task stacks before releasing callbacks, consumer storage and module work.
+Stop/restart retains sleeping stacks; reset/release/unload invalidates stale
+references. The original controller and PadRead path remains shared and unchanged.
+
+Source-guarded original methods run on Windows x86/x64 and Android ARM32/ARM64.
+The expanded runtime suite has 503 checks. Private original-data tests load both
+r120 EVD packages through the existing engine loader, verify 37 BIN joint
+hierarchies and English MDT tables, and execute the original cancel callbacks.
+`tools/summarize_consumers.py` compares measured results across all four ABIs.
+
+The complete original start remains blocked: GameTask reaches `gameInit/ClothInit`,
+and the separately invoked original R120Init reaches `TexRenderInit`. Full
+model initialization, camera decisions, Event::init/Run/packet playback and the
+r100 transition are still open. Package indexing and isolated adapter fixtures
+are not a successfully executed game start. See the
+[complete Phase 4c report](docs/phase4c-status.md) for source anchors, all changed
+files, actual device results, reproduction commands and exact remaining imports.

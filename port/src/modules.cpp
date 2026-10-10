@@ -20,6 +20,7 @@ struct ModuleContext::Access {
     std::vector<MemoryReservation> allocations;
     std::map<std::uint16_t, std::pair<RoomFunction, RoomFunction>> bindings;
     std::vector<std::string> *trace = nullptr;
+    std::map<std::uint16_t, std::function<void(bool)>> *imports = nullptr;
 };
 ModuleContext::ModuleContext(Access &access, std::uint16_t room) : access_(access), roomId_(room) {}
 ModuleContext::Scope::Scope(ModuleContext &c) : previous(hookContext) { hookContext = &c; }
@@ -32,6 +33,11 @@ ModuleContext &ModuleContext::active() {
     return *hookContext;
 }
 NativeModuleState &ModuleContext::state() const { return *access_.state; }
+void ModuleContext::importedRoom(std::uint16_t room, bool init) {
+    if (!access_.imports || !access_.imports->count(room))
+        throw std::logic_error("Original room resident imports are unbound");
+    access_.imports->at(room)(init);
+}
 const ModuleContext::Work &ModuleContext::work() const { return access_.work; }
 void ModuleContext::restoreWork(const Work &work) {
     for (const auto &p : work) {
@@ -67,7 +73,8 @@ void ModuleContext::registerRoom(std::uint16_t room, RoomFunction init, RoomFunc
 void *ModuleContext::calloc(std::uint32_t bytes, int flag, int heap, const char *, int) {
     if (flag != 1 || heap != 13 || roomId_ == 0xffff)
         throw std::logic_error("Unbound original heap mode or non-room allocation");
-    auto memory = access_.memory ? access_.memory->reserve(bytes) : access_.loader->reserveMemory(bytes);
+    auto memory =
+        access_.memory ? access_.memory->reserve(bytes) : access_.loader->reserveMemory(bytes);
     access_.allocations.push_back(memory);
     access_.work[roomId_] = memory;
     observe("mem_calloc:" + std::to_string(bytes));
@@ -99,6 +106,7 @@ struct ModuleRuntime::Impl {
     bool transitioning = false;
     std::map<std::uint32_t, Entry> entries;
     std::vector<std::string> trace;
+    std::map<std::uint16_t, std::function<void(bool)>> imports;
     std::shared_ptr<Control> control;
     explicit Impl(EngineLoader &l, ModuleRuntime *r)
         : loader(l), control(std::make_shared<Control>(Control{r})) {}
@@ -137,8 +145,10 @@ struct ModuleRuntime::Impl {
         e.snapshot.reset();
         e.access.work.clear();
         for (auto &memory : e.access.allocations)
-            if (e.access.memory) e.access.memory->release(memory);
-            else loader.releaseMemory(memory);
+            if (e.access.memory)
+                e.access.memory->release(memory);
+            else
+                loader.releaseMemory(memory);
         e.access.allocations.clear();
         e.calls.clear();
         e.callContexts.clear();
@@ -158,7 +168,8 @@ struct ModuleRuntime::Impl {
                 throw std::logic_error("Module still required by active/stopped dependent");
     }
 };
-ModuleRuntime::ModuleRuntime(EngineLoader &loader, std::shared_ptr<Memory> memory) : impl_(std::make_unique<Impl>(loader, this)) {
+ModuleRuntime::ModuleRuntime(EngineLoader &loader, std::shared_ptr<Memory> memory)
+    : impl_(std::make_unique<Impl>(loader, this)) {
     impl_->memoryProvider = std::move(memory);
     for (auto definition : originalModuleDefinitions())
         registerModule(std::move(definition));
@@ -238,6 +249,7 @@ void ModuleRuntime::activateId(std::uint32_t id) {
             e.access.memory = impl_->memoryProvider;
             e.access.id = n;
             e.access.trace = &impl_->trace;
+            e.access.imports = &impl_->imports;
             e.access.state = e.state.get();
             e.context.reset(new ModuleContext(e.access));
             e.token = impl_->loader.scheduler().createModuleLifetime();
@@ -436,7 +448,7 @@ void ModuleRuntime::resetRoom(std::uint16_t id) {
     if (!binding)
         throw std::logic_error("Room is not compiled/active");
     auto &e = impl_->entry(binding->init.module);
-    if (!impl_->loader.scheduler().invalidateModule(e.token))
+    if (!(e.token == ModuleToken{}) && !impl_->loader.scheduler().invalidateModule(e.token))
         throw std::logic_error("Room work is still executing");
     e.token = {};
     impl_->transitioning = true;
@@ -452,8 +464,10 @@ void ModuleRuntime::resetRoom(std::uint16_t id) {
             e.access.work.erase(p);
             for (auto it = e.access.allocations.begin(); it != e.access.allocations.end();) {
                 if (it->data == address) {
-                    if (e.access.memory) e.access.memory->release(*it);
-                    else impl_->loader.releaseMemory(*it);
+                    if (e.access.memory)
+                        e.access.memory->release(*it);
+                    else
+                        impl_->loader.releaseMemory(*it);
                     it = e.access.allocations.erase(it);
                 } else
                     ++it;
@@ -483,5 +497,32 @@ ResourceLease ModuleRuntime::roomWorkLease(std::uint16_t id) const {
 const std::vector<std::string> &ModuleRuntime::trace() const {
     impl_->check();
     return impl_->trace;
+}
+void ModuleRuntime::bindRoomEntry(std::uint16_t id, std::function<void(bool)> fn) {
+    impl_->transitionCheck();
+    if (!fn || room(id))
+        throw std::logic_error("room entry binding requires inactive room");
+    impl_->imports[id] = std::move(fn);
+}
+void ModuleRuntime::callRoomEntry(std::uint16_t id, const TaskEntry &call) {
+    impl_->check();
+    auto callbacks = room(id);
+    if (!callbacks || !call)
+        throw std::logic_error("event callback room is inactive/uncompiled");
+    auto &e = impl_->entry(callbacks->init.module);
+    if (impl_->transitioning)
+        throw std::logic_error("event callback during module transition");
+    impl_->loader.scheduler().callModule(e.token, call, e.callContexts.at({id, true}).get());
+}
+void ModuleRuntime::quiesceRoom(std::uint16_t id) {
+    impl_->transitionCheck();
+    const auto &rows = originalModuleCatalog().rooms;
+    auto row = std::find_if(rows.begin(), rows.end(), [id](const auto &r) { return r.id == id; });
+    if (row == rows.end())
+        throw std::invalid_argument("uncatalogued room retirement");
+    auto &e = impl_->entry(row->module);
+    if (!(e.token == ModuleToken{}) && !impl_->loader.scheduler().invalidateModule(e.token))
+        throw std::logic_error("room borrower still executing");
+    e.token = {};
 }
 } // namespace re4::port

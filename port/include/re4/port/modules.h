@@ -19,6 +19,7 @@ struct RoomMetadata {
     std::uint16_t id = 0, fileIndex = 0;
     std::uint32_t module = 0;
     bool save = false, initCompiled = false, mainCompiled = false;
+    bool residentBridge = false; // Entry compiled; resident engine imports are still required.
     std::string init, main;
 };
 struct ModuleCatalog {
@@ -93,7 +94,11 @@ class ModuleRuntime final : public NativeModuleRegistry {
     void invoke(ModuleCallback);   // Reject inactive, missing, foreign and stale callbacks.
     void resetRoom(std::uint16_t); // Quiesce tasks, release work, rotate callback lifetime.
     ResourceLease roomWorkLease(std::uint16_t) const;
-    TaskEntry bind(ModuleCallback); // Validity is checked again when actually executed.
+    // Typed native bridge for reviewed original room bodies with resident imports.
+    void bindRoomEntry(std::uint16_t, std::function<void(bool)>);
+    void callRoomEntry(std::uint16_t, const TaskEntry &); // Same generation/module checks.
+    void quiesceRoom(std::uint16_t); // Invalidate borrowers before resident consumers release data.
+    TaskEntry bind(ModuleCallback);  // Validity is checked again when actually executed.
     const std::vector<std::string> &trace() const;
 
   private:
@@ -109,11 +114,17 @@ class ModuleContext {
     using Work = std::map<std::uint16_t, MemoryReservation>;
     void registerRoom(std::uint16_t, RoomFunction init, RoomFunction main);
     void *calloc(std::uint32_t bytes, int releaseFlag, int heap, const char *, int);
+    template <class T> T *callocObject() {
+        static_assert(std::is_trivially_destructible_v<T>);
+        static_assert(sizeof(T) <= UINT32_MAX);
+        return new (calloc(static_cast<std::uint32_t>(sizeof(T)), 1, 13, __FILE__, __LINE__)) T{};
+    }
     void observe(const std::string &);
     const Work &work() const;
     void restoreWork(const Work &);
     void *roomWork(std::uint16_t) const;
     NativeModuleState &state() const;
+    void importedRoom(std::uint16_t, bool);
     static ModuleContext &active();
     struct Scope {
         explicit Scope(ModuleContext &);

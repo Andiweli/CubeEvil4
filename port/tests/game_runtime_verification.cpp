@@ -1,3 +1,4 @@
+#include "consumer_verification.h"
 #include "re4/port/game_runtime.h"
 #include "re4/port/sha256.h"
 #include "re4_scheduler_original.h"
@@ -57,8 +58,8 @@ std::shared_ptr<ImportedFiles> fixture(const std::string &directory) {
     std::ofstream catalog(root / "catalog.tsv");
     catalog << "RE4-IMPORT-CATALOG-1\n";
     for (int n = 0; n <= 10; ++n)
-        catalog << "0\t" << n + 1 << "\t8160\tetc/emleon" << (n < 10 ? "0" : "") << n
-                << ".esl\t" << hash << '\n';
+        catalog << "0\t" << n + 1 << "\t8160\tetc/emleon" << (n < 10 ? "0" : "") << n << ".esl\t"
+                << hash << '\n';
     catalog.close();
     return std::make_shared<ImportedFiles>(directory, (root / "catalog.tsv").u8string());
 }
@@ -287,8 +288,14 @@ std::string verifyGameRuntime(const std::string &directory) {
     }
     game.initialize();
     game.startOriginalGameTask();
-    c.rejects([&] { game.tick(); },
-              "original GameTask fails at missing shared debug camera consumer");
+    std::string gameFailure;
+    try {
+        game.tick();
+    } catch (const MissingGameConsumer &failure) {
+        gameFailure = failure.what();
+    }
+    c.test(gameFailure == "Original consumer unavailable: gameInit/ClothInit",
+           "actual GameTask and full gameDebug reach gameInit dependency");
     c.test(game.state().Rno0 == 0 && game.state().Rno1 == 0 && game.state().Rno2 == 0 &&
                game.state().Rno3 == 0,
            "actual original GameTask initial state executed");
@@ -397,6 +404,11 @@ std::string verifyGameRuntime(const std::string &directory) {
            "original readEmList completes after repeated cancellation without queue leak");
     game.initialize();
     c.test(scheduler.allocatedStacks() == 0, "all stack owners released on reset");
+    tests::consumerTests(c, game);
+    tests::openingTests(c, game);
+    tests::retirementTests(c, game);
+    tests::automaticTransitionTests(c, game);
+    tests::callbackStackTests(c, game);
     std::ostringstream out;
     out << "{\"pointer_bits\":" << sizeof(void *) * 8 << ",\"checks\":" << c.count
         << ",\"failed\":0,"
@@ -405,8 +417,14 @@ std::string verifyGameRuntime(const std::string &directory) {
            "repeat,u32-key-cursor\","
            "\"heaps:bounded,lease-pinned,tail-handoff\",\"scenario:original-order,stack-sleep,"
            "pause,resume\","
-           "\"modules:deferred,stop,restart,stale,cancel\",\"VI:60,90,120=>30\",\"GameTask:blocked-"
-           "gameDebug\",\"r120:blocked-R120Init\"]}";
+           "\"modules:deferred,stop,restart,stale,cancel\",\"VI:60,90,120=>30\","
+           "\"GameTask:original-gameDebug,blocked-gameInit-ClothInit\","
+           "\"r120:original-init,blocked-TexRenderInit,12-cleanups\","
+           "\"consumers:original-model-joints,message-address,camera-state,event-callback\","
+           "\"retirement:20-original-room-entries,pending-borrowers,frame-boundary\","
+           "\"transitions:20-initialized-cross-stage,sleeping-borrowers,same-module-reentry\","
+           "\"event-stack:original-ExeFunc,isolated-callback,sleep,stop-restore,cancel-safe-"
+           "ledger\"]}";
     return out.str();
 }
 } // namespace re4::port
