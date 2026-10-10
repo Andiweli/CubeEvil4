@@ -1,5 +1,6 @@
 #pragma once
 #include "re4/port/graphics.h"
+#include "re4/port/gx_scene.h"
 #include <android/native_window.h>
 #include <string>
 namespace re4::port {
@@ -10,6 +11,9 @@ public:
     ~VulkanBootstrap() override;
     void present(const GraphicsClear &,bool) override;
     std::string report() const;
+    void loadScene(GxScene);
+    void presentScene();
+    void saveSceneReadback(const std::string &rgbaPath) const;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

@@ -1,0 +1,14 @@
+{
+  "src/lib/mtx.c": "e26a4269e7718eef3eaa6392fb84c81b086da44dd212e02abd2c72eda913e192",
+  "src/lib/mtx44.c": "89d191bf50e31f7ac4ebd7bc8803ce036b1b558c5f386ef46edc725a2ef7cc81",
+  "src/game/cam_sys.cpp": "74817a780ea4ea9eeb60b33a8352486f7c784c85e6d9c8a3af10244b9561d113",
+  "src/game/cam_motion.cpp": "549b607de89199204bfcde82b8371dd74920720de9ae909d62f4b5b3f70c0f53",
+  "src/game/camera.cpp": "71e372e0fce73e65471d798727fa8fe5b3fa5b91b2c6e6fb04e12f94b9c12bc7",
+  "src/game/trans.cpp": "41c6c5b66aa2d4a4bd30779a3f40e4ee5d8c0dbdebfa48265c48789d2357b4cb",
+  "src/game/scroll.cpp": "05a26ca40567d1c30dd77d991af7e1bbd9c362c304dcd6a319461670e7a854bc",
+  "include/scroll.h": "dadbc4152075bfce5a10179fc40709f72997bab8124d37ef67242a4b001987b7",
+  "include/cam_ctrl.h": "e486fec0c8448795f6de2386f4783a280fdcfaf20d3868b1d39551abbcecd4e9",
+  "tools/motion/gxtex.py": "e63b8d00be19f75496e1907afcb79d22dea2823efc0edb11727303ff0dcbc5f9",
+  "tools/motion/meshbin.py": "93a6bb14df599a7a235d01f860325088e86f8fb16e5ced4acd89a7357f896ab3",
+  "include/math_sub.h": "34ae06c8f05843263a4c1f1fe4be857d776d4f679f29aab102b37f59f839c4a8"
+}

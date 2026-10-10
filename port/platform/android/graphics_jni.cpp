@@ -52,3 +52,21 @@ extern "C" JNIEXPORT jstring JNICALL Java_org_re4_port_GraphicsBootstrapView_nat
         return env->NewStringUTF(report.c_str());
     } catch(const std::exception &e) { error(env,e); return nullptr; }
 }
+extern "C" JNIEXPORT void JNICALL Java_org_re4_port_GraphicsBootstrapView_nativeLoadScene(
+    JNIEnv *env,jclass,jlong h,jstring root,jstring catalog,jstring event) {
+    try {
+        auto string=[&](jstring value){auto *p=env->GetStringUTFChars(value,nullptr);if(!p)throw std::runtime_error("JNI scene string");std::string r;try{r=p;}catch(...){env->ReleaseStringUTFChars(value,p);throw;}env->ReleaseStringUTFChars(value,p);return r;};
+        auto files=std::make_shared<ImportedFiles>(string(root),string(catalog));
+        ControllerInput input;GameRuntime game(files,input,0);game.initialize();
+        auto scene=loadDiagnosticScene(game.loader(),game.engineConsumers(),0x120,string(event),0);
+        get(h).presenter->loadScene(std::move(scene));
+    }catch(const std::exception &e){error(env,e);}
+}
+extern "C" JNIEXPORT jstring JNICALL Java_org_re4_port_GraphicsBootstrapView_nativeSceneFrame(
+    JNIEnv *env,jclass,jlong h,jstring output) {
+    try {
+        auto &p=*get(h).presenter;p.presentScene();
+        if(output){auto *raw=env->GetStringUTFChars(output,nullptr);if(!raw)return nullptr;std::string path;try{path=raw;}catch(...){env->ReleaseStringUTFChars(output,raw);throw;}env->ReleaseStringUTFChars(output,raw);p.saveSceneReadback(path);}
+        auto report=p.report();report.insert(report.size()-1,",\"graphics_domains\":"+std::to_string(domains.size()));return env->NewStringUTF(report.c_str());
+    }catch(const std::exception &e){error(env,e);return nullptr;}
+}
