@@ -18,7 +18,9 @@ public final class GameRuntimeTest {
         JSONObject result = new JSONObject(NativeChecks.runGameRuntime(root.getPath()));
         int bits = Integer.parseInt(InstrumentationRegistry.getArguments().getString("re4.expectedPointerBits"));
         assertEquals(bits,result.getInt("pointer_bits")); assertEquals(0,result.getInt("failed"));
-        assertTrue(result.getInt("checks") >= 503);
+        assertTrue(result.getInt("checks") >= 609);
+        assertTrue(result.getJSONArray("trace").toString().contains("original-init-TexRenderInit"));
+        assertTrue(result.getJSONArray("trace").toString().contains("original-modelInit-joints-matrices-bounds"));
         assertTrue(result.getJSONArray("trace").toString().contains("transitions:20-initialized-cross-stage"));
         assertTrue(result.getJSONArray("trace").toString().contains("event-stack:original-ExeFunc"));
     }

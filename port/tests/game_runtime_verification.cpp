@@ -1,4 +1,5 @@
 #include "consumer_verification.h"
+#include "model_verification.h"
 #include "re4/port/game_runtime.h"
 #include "re4/port/sha256.h"
 #include "re4_scheduler_original.h"
@@ -294,8 +295,10 @@ std::string verifyGameRuntime(const std::string &directory) {
     } catch (const MissingGameConsumer &failure) {
         gameFailure = failure.what();
     }
-    c.test(gameFailure == "Original consumer unavailable: gameInit/ClothInit",
-           "actual GameTask and full gameDebug reach gameInit dependency");
+    c.test(gameFailure == "Original consumer unavailable: gameInit/GXSetCopyClear/EFB clear state (Phase 5)",
+           "actual GameTask/gameInit/ClothInit reach GX state dependency");
+    c.test(std::find(game.trace().begin(),game.trace().end(),"ClothInit:original")!=game.trace().end(),
+           "actual original ClothInit executes before GX clear");
     c.test(game.state().Rno0 == 0 && game.state().Rno1 == 0 && game.state().Rno2 == 0 &&
                game.state().Rno3 == 0,
            "actual original GameTask initial state executed");
@@ -310,8 +313,9 @@ std::string verifyGameRuntime(const std::string &directory) {
     game.tick();
     c.test(start->status == OperationStatus::Complete,
            "original st1_0 registration component activated");
-    c.rejects([&] { game.scenarioRoomInit(); },
-              "actual r120 initializer remains a named dependency blocker");
+    game.scenarioRoomInit();
+    c.test(game.texRender().count()==1,
+           "actual r120 CPU initialization with explicitly isolated scenario consumers");
     game.initialize();
     consumers.calls.clear();
     game.state().em_list_no = -1;
@@ -405,6 +409,8 @@ std::string verifyGameRuntime(const std::string &directory) {
     game.initialize();
     c.test(scheduler.allocatedStacks() == 0, "all stack owners released on reset");
     tests::consumerTests(c, game);
+    tests::modelInitializationTests(c, game);
+    tests::texRenderTests(c, game);
     tests::openingTests(c, game);
     tests::retirementTests(c, game);
     tests::automaticTransitionTests(c, game);
@@ -418,8 +424,9 @@ std::string verifyGameRuntime(const std::string &directory) {
            "\"heaps:bounded,lease-pinned,tail-handoff\",\"scenario:original-order,stack-sleep,"
            "pause,resume\","
            "\"modules:deferred,stop,restart,stale,cancel\",\"VI:60,90,120=>30\","
-           "\"GameTask:original-gameDebug,blocked-gameInit-ClothInit\","
-           "\"r120:original-init,blocked-TexRenderInit,12-cleanups\","
+           "\"GameTask:original-gameDebug-gameInit-ClothInit,blocked-GXSetCopyClear\","
+           "\"r120:original-init-TexRenderInit,opening-SceSleep,blocked-VI,12-cleanups\","
+           "\"models:original-modelInit-joints-matrices-bounds,pool-reuse-rollback\","
            "\"consumers:original-model-joints,message-address,camera-state,event-callback\","
            "\"retirement:20-original-room-entries,pending-borrowers,frame-boundary\","
            "\"transitions:20-initialized-cross-stage,sleeping-borrowers,same-module-reentry\","

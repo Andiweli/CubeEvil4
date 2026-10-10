@@ -168,8 +168,9 @@ template <class Checks> void openingTests(Checks &c, GameRuntime &game) {
         } catch (const MissingGameConsumer &e) {
             failure = e.what();
         }
-        c.test(failure == "Original consumer unavailable: TexRenderInit/GX render target",
-               "actual R120Init stops at real mirror rendering dependency");
+        c.test(failure.empty() && game.texRender().count()==1 &&
+                   game.texRender().target(0).GetWSize()==256 && game.texRender().bufferBytes()==256*256*4,
+               "actual R120Init completes CPU TexRender initialization");
         c.test(game.modules().roomWorkLease(0x120).size >= 0x388 && original::TaskStatus(17) != 0,
                "actual r120 native work and original R120Event scheduled");
         auto &engine = game.engineConsumers();
@@ -183,10 +184,19 @@ template <class Checks> void openingTests(Checks &c, GameRuntime &game) {
                "actual r120 cancel callback persists original scenario bit");
         c.test(game.state().Scenario_flg[1] == (flagsBefore | 0x10),
                "original cancel bit 59 is exactly Scenario_flg[1] mask 0x10");
-        game.tick(); // System-owned failure cleanup precedes any pending scenario visit.
+        // Harness visits the original scenario OT explicitly: production calls it
+        // from ScenarioMove/gameMainLoop, which is not yet reachable from GameTask.
+        game.tick(); scheduler.runScenarios();
+        failure.clear();
+        try { game.tick(); scheduler.runScenarios(); } catch(const MissingGameConsumer &e) { failure=e.what(); }
+        c.test(failure=="Original consumer unavailable: systemVISetBlack/presentation adapter",
+               "original opening advances to actual VI dependency");
+        game.tick(); // System-owned failed-task cleanup survives the invalidated caller.
         c.test(game.modules().info(74).phase == ModulePhase::Inactive &&
                    scheduler.allocatedStacks() == 0,
-               "failed original room init kills borrowers and releases work at frame boundary");
+               "failed original opening kills borrowers and releases work at frame boundary");
+        c.test(game.texRender().count()==0 && !game.texRender().bufferBytes(),
+               "failed original opening releases TexRender buffers");
         c.rejects([&] { engine.event(evt); },
                   "failed original room init invalidates event references");
         c.rejects([&] { copied(nullptr, 0); },
@@ -205,6 +215,14 @@ template <class Checks> void openingTests(Checks &c, GameRuntime &game) {
     }
     c.test(failure == "Original consumer unavailable: systemVISetBlack/presentation adapter",
            "actual opening task cannot silently skip presentation/video");
+    game.initialize();
+    auto activate=game.queueModule(ModuleOperation::Activate,74); game.tick();
+    c.test(activate->status==OperationStatus::Complete,"room generation cleanup fixture activation");
+    game.queueFailedRoomRetirement(0x120);
+    game.modules().deactivateId(74); game.modules().activateId(74);
+    game.tick();
+    c.test(game.modules().info(74).phase==ModulePhase::Active,
+           "queued failure retirement cannot retire a newly linked room generation");
     game.initialize();
 }
 template <class Checks> void retirementTests(Checks &c, GameRuntime &game) {

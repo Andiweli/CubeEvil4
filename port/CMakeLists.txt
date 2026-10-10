@@ -8,6 +8,16 @@ get_filename_component(RE4_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 include(cmake/OriginalSources.cmake)
 re4_prepare_original_sources("${RE4_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/original")
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${RE4_ROOT}/src/game/TexRender.cpp" "${RE4_ROOT}/include/TexRender.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_tex_render.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/tex-render-sources.json")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_tex_render.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original"
+    RESULT_VARIABLE tex_generation_result)
+if(NOT tex_generation_result EQUAL 0)
+    message(FATAL_ERROR "Original TexRender generation failed")
+endif()
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/module-sources.json" module_sources_manifest)
 string(JSON module_source_count LENGTH "${module_sources_manifest}")
 math(EXPR module_source_last "${module_source_count} - 1")
@@ -110,7 +120,8 @@ add_library(re4_modules STATIC src/modules.cpp src/module_rel_index.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/original/module_stages.cpp")
 target_link_libraries(re4_modules PUBLIC re4_loader)
 add_library(re4_game_runtime STATIC src/game_runtime.cpp src/gameplay_heaps.cpp src/controller_input.cpp
-    src/consumers.cpp
+    src/consumers.cpp src/model_runtime.cpp src/tex_render.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/original/tex_render_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/pad_clamp.cpp")
@@ -123,6 +134,7 @@ set_target_properties(re4_game_verification PROPERTIES POSITION_INDEPENDENT_CODE
 if(MSVC)
     target_compile_options(re4_game_runtime PRIVATE /W4 /WX /fp:strict)
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
+        "${CMAKE_CURRENT_BINARY_DIR}/original/tex_render_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/pad_clamp.cpp" PROPERTIES COMPILE_OPTIONS "/WX-")
 else()
@@ -223,6 +235,7 @@ if(RE4_BUILD_TESTS)
         if(Python3_Interpreter_FOUND)
             add_test(NAME runtime_generation COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_runtime_sources.py")
             add_test(NAME consumer_generation COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_consumer_sources.py")
+            add_test(NAME tex_render_generation COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_tex_render_sources.py")
             add_test(NAME module_generation COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_modules.py")
             set_tests_properties(module_generation PROPERTIES TIMEOUT 90)
             add_test(NAME import_validation

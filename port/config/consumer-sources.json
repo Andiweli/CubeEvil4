@@ -8,5 +8,11 @@
   "src/game/mes.cpp": "47d890797567fb93c1b87360c38b94b4f73908be85d0531ed18d8b6c62ddc26d",
   "include/mes.h": "2d633118a365133ae0d7b361248b123b147f545e4f46f83bb1e5bbc7dc19fe17",
   "src/game/cons.cpp": "e754a90cbc3f0bbf2f2d6353c1f5b0b29f0d1ad247dd5afe03bc2c75b2133f80",
-  "src/st1/r120.cpp": "4e17b11a3653c6c36d1aa92b8a5139bd0ed2ebe712a43d09c6dad5c099017b19"
+  "src/st1/r120.cpp": "4e17b11a3653c6c36d1aa92b8a5139bd0ed2ebe712a43d09c6dad5c099017b19",
+  "include/cManager.h": "f4eb3770d2f5f5f08bbc429b95511f99280c9c274a9104a3d273536f015f501f",
+  "src/game/math_sub.cpp": "8ab63b9eda407cc37b4c679842e723d8e4564669149103ef422030498162a637",
+  "src/lib/mtx.c": "e26a4269e7718eef3eaa6392fb84c81b086da44dd212e02abd2c72eda913e192",
+  "src/lib/mtxvec.c": "6a3d9594a3000d8d87288355342ec7a6dab4b94d051e0552d89d2faf0f17bf00",
+  "tools/motion/modelbin.py": "f68c9eeca805d604708f69a890d319cfa6b632e2077f2c135bd855f66c3edab1",
+  "tools/motion/gxtex.py": "e63b8d00be19f75496e1907afcb79d22dea2823efc0edb11727303ff0dcbc5f9"
 }

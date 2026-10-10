@@ -194,6 +194,7 @@ struct GameRuntime::Impl {
     std::shared_ptr<HeapMemory> moduleMemory = std::make_shared<HeapMemory>(heaps);
     ModuleRuntime modules;
     EngineConsumers engineConsumers;
+    TexRenderRuntime texRender;
     OriginalContext original;
     FrameViAdapter vi;
     const std::thread::id owner = std::this_thread::get_id();
@@ -205,13 +206,15 @@ struct GameRuntime::Impl {
         u32 id;
         std::optional<TaskHandle> caller;
         std::shared_ptr<FrameOperation> result;
+        u64 roomEpoch=0; // System cleanup must not retire a newly linked generation.
     };
     std::vector<Pending> pending;
     std::vector<Pending> settled; // Pins await records outside cancellable task stacks.
     Impl(GameRuntime *runtime, std::shared_ptr<const ImportedFiles> files, PlatformGamepads &pads,
          u8 disc)
         : loader(std::move(files), disc), modules(loader, moduleMemory),
-          engineConsumers(&loader.scheduler()), original(pads), vi([runtime] { runtime->tick(); }) {
+          engineConsumers(&loader.scheduler()), texRender([this](u32 bytes){ return moduleMemory->reserve(bytes); }),
+          original(pads), vi([runtime] { runtime->tick(); }) {
         original.runtime = runtime;
         original.heaps = heaps.get();
         modules.bindRoomEntry(0x120, [this](bool init) {
@@ -231,7 +234,7 @@ struct GameRuntime::Impl {
             } catch (...) {
                 // System-owned cleanup survives cancellation of the failing caller.
                 pending.push_back(
-                    {ModuleOperation::RetireRoom, 0x120, {}, std::make_shared<FrameOperation>()});
+                    {ModuleOperation::RetireRoom, 0x120, {}, std::make_shared<FrameOperation>(), modules.info(roomMeta(0x120).module).epoch});
                 throw;
             }
         });
@@ -265,6 +268,7 @@ struct GameRuntime::Impl {
         loader.cancelRoom();
         loader.cancelAll();
         engineConsumers.clear();
+        texRender.clear();
         original.ScenarioInit();
         original.r120_work = nullptr;
         if (deactivate)
@@ -287,6 +291,11 @@ struct GameRuntime::Impl {
         auto batch = std::move(pending);
         pending.clear();
         for (auto &p : batch) {
+            if(p.roomEpoch && modules.info(roomMeta(static_cast<u16>(p.id)).module).epoch!=p.roomEpoch) {
+                p.result->status=OperationStatus::Cancelled;
+                p.result->error="failed-room generation superseded";
+                continue;
+            }
             if (p.caller && !loader.scheduler().state(*p.caller)) {
                 p.result->status = OperationStatus::Cancelled;
                 p.result->error = "requesting task invalidated";
@@ -349,6 +358,7 @@ GameRuntime::~GameRuntime() {
     impl_->check(true);
     impl_->loader.scheduler().clearTasks();
     impl_->engineConsumers.clear();
+    impl_->texRender.clear();
     impl_->cancelPending();
 }
 void GameRuntime::initialize(u16 width, u16 height) {
@@ -359,6 +369,7 @@ void GameRuntime::initialize(u16 width, u16 height) {
     impl_->loader.cancelAll();
     impl_->loader.scheduler().clearTasks();
     impl_->engineConsumers.clear();
+    impl_->texRender.clear();
     for (auto task : impl_->gameTasks)
         impl_->loader.scheduler().kill(task);
     impl_->gameTasks.clear();
@@ -463,8 +474,14 @@ EngineConsumers &GameRuntime::engineConsumers() {
     impl_->check();
     return impl_->engineConsumers;
 }
+TexRenderRuntime &GameRuntime::texRender() { impl_->check(); return impl_->texRender; }
 std::shared_ptr<FrameOperation> GameRuntime::queueRoomRetirement(u16 id) {
     return queueModule(ModuleOperation::RetireRoom, id);
+}
+void GameRuntime::queueFailedRoomRetirement(u16 id) {
+    impl_->check();
+    impl_->pending.push_back({ModuleOperation::RetireRoom, id, {}, std::make_shared<FrameOperation>(),
+                            impl_->modules.info(roomMeta(id).module).epoch});
 }
 void GameRuntime::retireRoom(u16 id) { awaitModule(ModuleOperation::RetireRoom, id); }
 void GameRuntime::invokeRoomEntry(u16 id, bool init) {

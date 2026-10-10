@@ -32,6 +32,7 @@ def generate(root, output):
     joy, main, pad, glob = map(read, ['include/joy.h', 'include/main.h', 'include/dolphin/pad.h', 'include/global.h'])
     types = ['#pragma once\n#include "types.h"\nnamespace re4::port {']
     types.append(re.search(r'typedef struct \{\s*f32 x, y, z;\s*\} Vec;', read('include/vec.h'))[0])
+    types.append(re.search(r'typedef struct \{\s*u8 r, g, b, a;\s*\} GXColor;', read('include/gx.h'))[0])
     for text, name in [(joy, 'PAD_MOTOR'), (joy, 'JOY'), (main, 'KEY')]:
         types.append(re.search(r'struct ' + name + r' \{.*?\n\};', text, re.S)[0])
     for name in ['PADStatus', 'PADClampRegion']:
@@ -90,6 +91,14 @@ def generate(root, output):
         add('src/game/main_sub.cpp', signature)
     add('src/game/game.cpp', 'void DoorFlagInit()')
     add('src/game/game.cpp', 'void gameDebug()')
+    bodies.append(re.search(r'union FadeColor \{.*?\n\};',read('src/game/game.cpp'),re.S)[0])
+    add('src/game/cloth.cpp','void ClothInit()', [('    int i;', '    trace.push_back("ClothInit:original");\n    int i;')])
+    unavailable = ['Game.omake_wep_addr = MEM_ALLOC(0x70000, 1, 13);',
+        'cMes.gameInit();','SubScreenGameInit();','Cckpt.gameInit();','ObjMgr.warnDiv = 100;',
+        'LightMgr.init(LightFuncTbl);','LightMgr.initPath((LightPathHeader*) CORE_ARC(CORE_LIGHT_PATH));',
+        'PlayerInit();','ItemMgr.gameInit();','SceAtInitSaveItem();','MerchantGameInit();',
+        'GameLoad();','GamePointInit(0);']
+    add('src/game/game.cpp','void gameInit()', [(s,'missingGameInit('+json.dumps(s.rstrip(';'))+');') for s in unavailable])
     add('src/game/game.cpp', 'void GameTask()', [(
         'static void (*game_func_tbl[7])() = {\n        gameInit, gameStageInit, gameRoomInit, gameMainLoop, gameDoordemo, gameEnding, gameOption,\n    };',
         'const std::array<TaskEntry, 7> game_func_tbl = {\n        [this]{gameInit();}, [this]{gameStageInit();}, [this]{gameRoomInit();}, [this]{gameMainLoop();}, [this]{gameDoordemo();}, [this]{gameEnding();}, [this]{gameOption();}\n    };')])

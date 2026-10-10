@@ -18,5 +18,7 @@
   "src/st1/r120.cpp": "4e17b11a3653c6c36d1aa92b8a5139bd0ed2ebe712a43d09c6dad5c099017b19",
   "include/event.h": "8fe748aef240d94030b398207ca517f00d9cc2af53d4d743a1e0463d29968434",
   "include/id_sys.h": "e0ac3754054c399799fa1469396bda46d354d57bb529f5065862c4d1ec719dd3",
-  "include/sscrn.h": "e054d63e0b750ea80a39a9e669965db6501ece9735e14b7df98a3ca1b154dd48"
+  "include/sscrn.h": "e054d63e0b750ea80a39a9e669965db6501ece9735e14b7df98a3ca1b154dd48",
+  "src/game/cloth.cpp": "b2dfb38dc02659616f7f13769f3bd551e6dd238a51150c666605ee0243345098",
+  "include/gx.h": "a52ccfce76abbd6cd4c8c0c0be33f8bb32c45cec80e3c1fdecc5fe22d3c50183"
 }

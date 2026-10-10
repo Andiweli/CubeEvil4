@@ -20,6 +20,7 @@ inline void nativeFlagOff(u32 *p, int n) { p[n / 32] &= ~(0x80000000U >> (n % 32
 #define DbgFlagChk(g, n) nativeFlag((g)->Debug_flg, n)
 #define SysFlagChk(g, n) nativeFlag(&(g)->System_flg, n)
 #define SysFlagOn(g, n) nativeFlagOn(&(g)->System_flg, n)
+#define SysFlagOff(g, n) nativeFlagOff(&(g)->System_flg, n)
 #define DpfFlagOn(g, n) nativeFlagOn(&(g)->Disp_flg, n)
 #define DpfFlagOff(g, n) nativeFlagOff(&(g)->Disp_flg, n)
 #define ScfFlagChk(g, n) nativeFlag((g)->Scenario_flg, n)
@@ -132,7 +133,7 @@ struct OriginalContext {
     [[noreturn]] void PartsWorldPosCalc(cModel *) {
         throw MissingGameConsumer("PartsWorldPosCalc");
     }
-    struct TexRenderMng;
+    using TexRenderMng = TexRenderTarget;
     struct R120Work {
         TexRenderMng *mgr{};
         u8 pad_4[0x388 - 4]{};
@@ -146,8 +147,8 @@ struct OriginalContext {
     void EventCarInit(Event *);
     void EvtTexRenderCamTrans(Event *, int);
     void r120_setTrans(int);
-    [[noreturn]] void TexRenderInit(TexRenderMng **, int, int) {
-        throw MissingGameConsumer("TexRenderInit/GX render target");
+    void TexRenderInit(TexRenderMng **out, int size, int repeat) {
+        *out=runtime->texRender().initialize(size,repeat);
     }
     [[noreturn]] void TexRenderModAddOtMirror(int, cModel *) {
         throw MissingGameConsumer("TexRenderModAddOtMirror");
@@ -201,7 +202,12 @@ struct OriginalContext {
     void SceSleep(int n) { runtime->loader().scheduler().sleep(n); }
     void SceExec(int level, TaskEntry task, int, int, int priority, int) {
         auto token = runtime->modules().lifetime(RoomData.m_RelNo);
-        if (!runtime->sceExec(level, std::move(task), 0, priority, nullptr, token))
+        const auto room=RoomData.linkedRoom;
+        TaskEntry owned=[this,room,task=std::move(task)] {
+            try { task(); }
+            catch(...) { if(room) runtime->queueFailedRoomRetirement(room); throw; }
+        };
+        if (!runtime->sceExec(level, std::move(owned), 0, priority, nullptr, token))
             throw std::runtime_error("original scenario slots exhausted");
     }
     struct ReadInto {
@@ -271,7 +277,14 @@ struct OriginalContext {
     void DoorFlagInit();
     void GameTask();
     void gameDebug();
-    [[noreturn]] void gameInit() { throw MissingGameConsumer("gameInit/ClothInit"); }
+    void gameInit();
+    // Only fields touched by ClothInit; cloth simulation remains unbound.
+    struct ClothSlot { u32 be_flag{}; } ClothWk[8];
+    void ClothInit();
+    [[noreturn]] void missingGameInit(const char *name) { throw MissingGameConsumer(name); }
+    [[noreturn]] void GXSetCopyClear(GXColor, u32) {
+        throw MissingGameConsumer("gameInit/GXSetCopyClear/EFB clear state (Phase 5)");
+    }
     [[noreturn]] void gameStageInit() { throw MissingGameConsumer("gameStageInit/cMes/GameSave"); }
     [[noreturn]] void gameRoomInit() {
         throw MissingGameConsumer("gameRoomInit/model/light/player");

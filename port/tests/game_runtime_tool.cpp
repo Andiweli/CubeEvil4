@@ -5,12 +5,14 @@
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <set>
+#include <cmath>
 namespace {
 std::string hash(re4::port::ResourceLease bytes) {
     return re4::port::sha256(bytes.data, bytes.size);
 }
 // Explicit consumer diagnostics. This never substitutes Event::Init/ExePacket.
-void consumers(int argc, char **argv) {
+void consumers(int argc, char **argv, bool originalEntry=true) {
     using namespace re4::port;
     if (argc < 6)
         throw std::invalid_argument("consumers <root> <catalog> <disc> <FST-event-path>...");
@@ -37,9 +39,22 @@ void consumers(int argc, char **argv) {
         if (game.loader().readCheck(request, loaded) != 1 || !loaded)
             throw std::runtime_error("EVD read failure");
         ResourceLease raw{loaded, loaded->bytes.data(), static_cast<u32>(loaded->bytes.size())};
+        auto sourceHash=hash(raw);
         auto &engine = game.engineConsumers();
         auto event = engine.event(raw);
         auto &package = engine.event(event).package;
+        auto refs=indexEventResourceReferences(package);
+        auto findBin=[&](const std::string &name)->const EventBinView* {
+            auto it=std::find_if(package.bins.begin(),package.bins.end(),[&](const auto &b){return b.name==name;});
+            return it==package.bins.end()?nullptr:&*it;
+        };
+        u32 diagnosticParts=2;
+        for(const auto &ref:refs) if(ref.type!=11) {
+            auto *bin=findBin(ref.bin);
+            if(bin && bin->bytes.size>=0x40) diagnosticParts=std::max(diagnosticParts,u32(bin->bytes.data[0x19])+2);
+        }
+        // Explicit harness capacity, not the production CONS/SMD room count.
+        engine.configureModelPools(1,diagnosticParts);
         if (i != 5)
             std::cout << ',';
         std::cout << "{\"path\":\"" << argv[i] << "\",\"sha256\":\"" << hash(raw)
@@ -87,6 +102,61 @@ void consumers(int argc, char **argv) {
             std::cout << '}';
         }
         auto count = engine.modelCount();
+        std::cout << "],\"model_initializations\":[";
+        bool modelComma=false;
+        std::set<std::pair<std::string,std::string>> initialized;
+        for(const auto &ref:refs) {
+            if(ref.type==11 || !initialized.emplace(ref.bin,ref.tpl).second) continue;
+            if(modelComma) std::cout << ',';
+            modelComma=true;
+            std::cout << "{\"bin\":" << std::quoted(ref.bin) << ",\"tpl\":" << std::quoted(ref.tpl);
+            auto *bin=findBin(ref.bin),*tpl=findBin(ref.tpl);
+            if(!bin || !tpl) { std::cout << ",\"status\":\"external-resource-not-bound\"}"; continue; }
+            for(int round=0;round<2;++round) {
+                auto handle=engine.initializeModel(bin->bytes,tpl->bytes,ref.bin);
+                auto &model=engine.model(handle); auto *d=model.pModelInfo->model_addr;
+                auto *texture=static_cast<TexturePaletteView*>(model.pModelInfo->tpl_addr);
+                if(!d->resolved || !texture->resolved || model.nParts!=bin->bytes.data[0x19] ||
+                   model.Motion.Seq_speed!=1 || !(model.be_flag&2)) throw std::runtime_error("original modelInit state");
+                for(u32 p=0;p<model.nParts;++p) {
+                    auto *part=model.getPartsPtr(int(p)); auto parent=d->pHead[p].parentNo;
+                    auto *expected=parent==255?static_cast<ModelCoord*>(&model):model.getPartsPtr(parent);
+                    if(part->pParent!=expected || !std::isfinite(part->world.x) || !std::isfinite(part->world.y) ||
+                       !std::isfinite(part->world.z) || part->world.x!=part->world_old.x ||
+                       part->lt_inv_mat[0][3]!=-part->world.x) throw std::runtime_error("original model matrices/references");
+                }
+                auto read32=[&](u32 p) { const auto *b=bin->bytes.data+p; return (u32(b[0])<<24)|(u32(b[1])<<16)|(u32(b[2])<<8)|b[3]; };
+                auto read16=[&](u32 p) { const auto *b=bin->bytes.data+p; return u16((u16(b[0])<<8)|b[1]); };
+                if(d->version==0x20030818) {
+                    auto flip=read32(0x44),blend=read32(0x40);
+                    if(bool(model.pXFlip)!=bool(flip) || bool(model.pDblJnt)!=bool(blend)) throw std::runtime_error("original motion table assignment");
+                    for(u32 p=0;flip && p<model.nParts;++p)
+                        if(model.pXFlip[p]!=read16(flip+4+p*2)) throw std::runtime_error("native flip joint endian/reference");
+                    if(blend) {
+                        u32 count; std::memcpy(&count,model.pDblJnt,4);
+                        if(count!=read32(blend) || reinterpret_cast<std::uintptr_t>(model.pDblJnt)%4) throw std::runtime_error("native blend header alignment/endian");
+                        for(u32 p=0;p<count*4;++p) if(model.pDblJnt[2+p]!=read16(blend+4+p*2)) throw std::runtime_error("native blend record endian/reference");
+                    }
+                }
+                if(!round) std::cout << ",\"parts\":" << unsigned(model.nParts) << ",\"textures\":" << texture->numDescriptors
+                                    << ",\"vertices\":" << d->nVtx << ",\"bounding_box\":["
+                                    << model.pModelInfo->bound.offset.x << ',' << model.pModelInfo->bound.offset.y << ','
+                                    << model.pModelInfo->bound.offset.z << ',' << model.pModelInfo->bound.size.x << ','
+                                    << model.pModelInfo->bound.size.y << ',' << model.pModelInfo->bound.size.z << ']';
+                engine.releaseModel(handle);
+                try { engine.model(handle); throw std::runtime_error("model handle release failed"); }
+                catch(const std::logic_error &) {}
+            }
+            std::cout << ",\"status\":\"original-modelInit-two-rounds-released\"}";
+        }
+        std::cout << "],\"event_resource_references\":[";
+        for(std::size_t n=0;n<refs.size();++n) {
+            if(n) std::cout << ',';
+            const auto &r=refs[n];
+            std::cout << "{\"offset\":" << r.packetOffset << ",\"type\":" << r.type << ",\"model\":" << std::quoted(r.model)
+                      << ",\"parent\":" << std::quoted(r.parent) << ",\"bin\":" << std::quoted(r.bin)
+                      << ",\"tpl\":" << std::quoted(r.tpl) << ",\"bin_in_package\":" << (findBin(r.bin)?"true":"false") << '}';
+        }
         if (package.room.size() != 4 || package.room[0] != 'r')
             throw std::runtime_error("original EVD room identity");
         auto roomId = static_cast<u16>(std::stoul(package.room.substr(1), nullptr, 16));
@@ -95,23 +165,21 @@ void consumers(int argc, char **argv) {
                                      [&](const auto &r) { return r.id == roomId; });
         if (metadata == catalog.rooms.end())
             throw std::runtime_error("uncatalogued EVD room");
-        auto activated = game.queueModule(ModuleOperation::Activate, metadata->module);
-        game.tick();
-        if (activated->status != OperationStatus::Complete)
-            throw std::runtime_error(activated->error);
         std::string blocker;
-        try {
-            game.invokeRoomEntry(roomId, true);
-        } catch (const MissingGameConsumer &failure) {
-            blocker = failure.what();
+        if(originalEntry) {
+            auto activated = game.queueModule(ModuleOperation::Activate, metadata->module);
+            game.tick();
+            if (activated->status != OperationStatus::Complete) throw std::runtime_error(activated->error);
+            try { game.invokeRoomEntry(roomId,true); }
+            catch(const MissingGameConsumer &failure) { blocker=failure.what(); }
+            if(!blocker.empty() || game.texRender().count()!=1)
+                throw std::runtime_error("original R120Init must complete CPU initialization");
         }
-        if (blocker.empty())
-            throw std::runtime_error(
-                "this diagnostic requires an explicit original entry dependency failure");
         auto before = game.state().Scenario_flg[1];
-        engine.invoke(event, 3, 0); // Actual cancel callback; no event packet execution claimed.
+        if(originalEntry) engine.invoke(event, 3, 0); // Original cancel callback, not packet execution.
         auto after = game.state().Scenario_flg[1];
-        game.tick(); // Original init failure owns a frame-boundary retirement request.
+        if(originalEntry) { game.queueRoomRetirement(roomId); game.tick(); }
+        else engine.clear(); // Explicit consumer diagnostic, no other-room entry claimed.
         bool stale = false;
         try {
             engine.event(event);
@@ -132,8 +200,9 @@ void consumers(int argc, char **argv) {
         }
         std::cout << "],\"native_models\":" << count
                   << ",\"retired\":true,\"original_init_blocker\":" << std::quoted(blocker)
-                  << ",\"callback_mode\":3,\"flags_before\":" << before
+                  << ",\"callback_mode\":" << (originalEntry?3:-1) << ",\"flags_before\":" << before
                   << ",\"flags_after\":" << after << '}';
+        if(hash(raw)!=sourceHash) throw std::runtime_error("model initialization mutated original immutable bytes");
     }
     std::cout << "]}\n";
 }
@@ -262,6 +331,10 @@ int main(int argc, char **argv) {
         }
         if (argc > 1 && std::string(argv[1]) == "consumers") {
             consumers(argc, argv);
+            return 0;
+        }
+        if (argc > 1 && std::string(argv[1]) == "models") {
+            consumers(argc,argv,false);
             return 0;
         }
         if (argc != 3 || std::string(argv[1]) != "self-test")

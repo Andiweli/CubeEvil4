@@ -1,48 +1,13 @@
 #pragma once
 #include "re4/port/engine_loader.h"
 #include "re4_runtime_types.h"
+#include "re4/port/model_types.h"
 #include <array>
 #include <map>
 #include <thread>
 
 namespace re4::port {
-// Native CPU views. These are deliberately not the partial 32-bit wire classes.
-struct ModelJoint {
-    u8 partsNo{}, parentNo{}, x2{}, x3{};
-    Vec center{};
-};
-struct ModelDataView {
-    ModelJoint *pHead{};
-    u8 nParts{};
-    u32 version{};
-};
-struct ModelInfoView {
-    ModelDataView *model_addr{};
-    std::array<u8, 4> color{255, 255, 255, 255};
-};
-struct ModelCoord {
-    Vec pos{}, ang{}, scale{1, 1, 1}, world{}, world_old{}, world_old2{};
-    ModelCoord *pParent{};
-};
-struct ModelPart : ModelCoord {
-    ModelPart *pList{};
-};
-// Selected original model methods execute over checked, stable native views.
-// No claim of modelInit, skinning, collision, lighting or GPU registration.
-struct ModelCpu : ModelPart {
-    u32 be_flag = 1; // cCoord : cUnit(1), include/model.h.
-    u8 nParts{}, kindid{}, ot_type{}, z_mode{};
-    Vec pos_old{};
-    struct {
-        u32 EnableMask{};
-    } LightInfo;
-    ModelInfoView *pModelInfo{};
-    void setPartsParent();
-    ModelPart *getPartsPtr(int);
-    void setNoSuspend(int);
-    int isTrans();
-    void updateOldPos();
-};
+class ModelRuntime;
 struct ConsumerHandle {
     u64 runtime{}, epoch{}, index{};
 };
@@ -57,6 +22,12 @@ struct EventPackageView {
     std::vector<EventBinView> bins;
 };
 EventPackageView indexEventPackage(ResourceLease);
+// Index actual SetOm/SetParts/Mot packets; this does not execute their handlers.
+struct EventResourceReference {
+    u32 packetOffset{}, type{};
+    std::string model, parent, bin, tpl;
+};
+std::vector<EventResourceReference> indexEventResourceReferences(const EventPackageView &);
 struct CameraDataView {
     ResourceLease bytes;
     u8 version{}, cameras{}, areas{}, links{};
@@ -107,7 +78,11 @@ class EngineConsumers final {
     EngineConsumers &operator=(const EngineConsumers &) = delete;
     void clear(); // Rejects live callback stacks; caller must quiesce other borrowers first.
     ConsumerHandle model(ResourceLease bin, std::string name);
+    void configureModelPools(u32 infos, u32 parts); // Actual room CONS/SMD counts must be supplied.
+    ConsumerHandle initializeModel(ResourceLease bin, ResourceLease tpl, std::string name,
+                                   bool systemInvisible = false);
     ModelCpu &model(ConsumerHandle);
+    void releaseModel(ConsumerHandle); // Frame-owner boundary; borrowers must be quiescent.
     std::size_t modelCount() const;
     void bindMessage(int type, ResourceLease, u32 language = 1);
     int messageCount(int type) const;
@@ -144,6 +119,7 @@ class EngineConsumers final {
     const std::thread::id owner_ = std::this_thread::get_id();
     u64 identity_, epoch_ = 1, next_ = 1;
     std::map<u64, std::unique_ptr<Model>> models_;
+    std::unique_ptr<ModelRuntime> modelRuntime_;
     std::map<u64, std::unique_ptr<EventCpu>> events_;
     std::map<int, std::unique_ptr<Message>> messages_;
     std::optional<CameraDataView> camera_;

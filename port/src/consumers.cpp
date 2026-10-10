@@ -1,5 +1,6 @@
 #include "re4/port/consumers.h"
 #include "re4/port/game_runtime.h"
+#include "model_original.h"
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -46,6 +47,29 @@ u64 identity() {
     return id;
 }
 } // namespace
+std::vector<EventResourceReference> indexEventResourceReferences(const EventPackageView &e) {
+    auto stream=slice(e.bytes,e.packetOffset,e.packetSize);
+    std::vector<EventResourceReference> refs;
+    for(u32 at=0;at<stream.size;) {
+        range(stream,at,16);
+        auto type=word(stream,at);
+        auto size=(u32(stream.data[at+12])<<8)|stream.data[at+13];
+        if(size<16 || size>32767 || size>stream.size-at || type>=33)
+            throw std::invalid_argument("EvtPacket id/size boundary");
+        auto packet=slice(stream,at,size);
+        if(type==3 || type==4 || type==11) {
+            EventResourceReference r; r.packetOffset=e.packetOffset+at; r.type=type;
+            r.model=name(packet,16,12);
+            auto pathAt=type==4 ? 40u:28u;
+            if(type==4) r.parent=name(packet,28,12);
+            r.bin=name(packet,pathAt,48);
+            if(type!=11) r.tpl=name(packet,pathAt+48,48);
+            refs.push_back(std::move(r));
+        }
+        at+=size;
+    }
+    return refs;
+}
 EventPackageView indexEventPackage(ResourceLease b) {
     range(b, 0, 0x50);
     if (std::memcmp(b.data, "event", 5))
@@ -112,6 +136,7 @@ struct EngineConsumers::Model {
     ModelDataView data;
     ModelInfoView info;
     ModelCpu cpu;
+    std::unique_ptr<ModelRuntime::Object> initialized;
 };
 struct EngineConsumers::Message {
     ResourceLease bytes;
@@ -151,6 +176,7 @@ void EngineConsumers::clear() {
     functions_ = {};
     events_.clear();
     models_.clear();
+    modelRuntime_.reset();
     messages_.clear();
     camera_.reset();
     cameraState = {};
@@ -193,7 +219,7 @@ ConsumerHandle EngineConsumers::model(ResourceLease b, std::string nm) {
             parent = m->heads[parent].parentNo;
         }
     }
-    m->data = {m->heads.data(), u8(count), version};
+    m->data.pHead=m->heads.data(); m->data.nParts=u8(count); m->data.version=version;
     m->info.model_addr = &m->data;
     m->cpu.nParts = u8(count);
     m->cpu.pModelInfo = &m->info;
@@ -207,7 +233,29 @@ ConsumerHandle EngineConsumers::model(ResourceLease b, std::string nm) {
 }
 ModelCpu &EngineConsumers::model(ConsumerHandle h) {
     validate(h);
-    return models_.at(h.index)->cpu;
+    auto &m=*models_.at(h.index);
+    return m.initialized ? m.initialized->cpu : m.cpu;
+}
+void EngineConsumers::configureModelPools(u32 infos,u32 parts) {
+    check();
+    if(!models_.empty()) throw std::logic_error("model pool reconfiguration with live models");
+    if(!infos || parts<2) throw std::invalid_argument("native model pool capacity");
+    modelRuntime_=std::make_unique<ModelRuntime>(infos,parts);
+}
+void EngineConsumers::releaseModel(ConsumerHandle h) {
+    check(); validate(h);
+    if(domain_ && (domain_->current() || domain_->allocatedStacks()))
+        throw std::logic_error("model release requires quiescent task borrowers");
+    if(!models_.erase(h.index)) throw std::logic_error("retired model reference");
+}
+ConsumerHandle EngineConsumers::initializeModel(ResourceLease bin,ResourceLease tpl,std::string name,bool invisible) {
+    check();
+    if(!modelRuntime_) throw std::logic_error("original room model pool counts are required");
+    auto model=std::make_unique<Model>(); model->name=std::move(name);
+    model->initialized=modelRuntime_->initialize(bin,tpl,invisible);
+    auto id=next_++;
+    if(!id) throw std::overflow_error("consumer handles exhausted");
+    models_.emplace(id,std::move(model)); return {identity_,epoch_,id};
 }
 std::size_t EngineConsumers::modelCount() const {
     check();

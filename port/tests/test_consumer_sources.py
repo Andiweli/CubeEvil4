@@ -16,12 +16,15 @@ class Sources(unittest.TestCase):
             output=Path(folder)
             generate_consumers.generate(ROOT,output)
             manifest=json.loads((output/'consumer-manifest.json').read_text())
-            self.assertEqual(len(manifest['functions']),13)
+            self.assertEqual(len(manifest['functions']),49)
             code=(output/'consumer_control.cpp').read_text()
             self.assertIn('const EventFunction *fn',code)
             self.assertIn('blk->ofs[no]',code)
             self.assertIn('rec->parentNo',code)
-            self.assertNotIn('(u32)',code)
+            self.assertNotIn('return (int) info',code)
+            self.assertIn('ModelInfoView* ModelCpu::modelInit',code)
+            self.assertIn('void C_MTXConcat',code)
+            self.assertIn('ModelPartsManager::createSequential',code)
     def test_changed_original_is_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder)/'root'

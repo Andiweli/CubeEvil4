@@ -17,16 +17,20 @@ def main():
     room_traces={}
     event_traces=set()
     native_traces=set()
+    model_traces={}
     checks=set()
     measured=[]
     for abi,bits,folder in [('host-32',32,args.host),('host-64',64,args.host),
                             ('armeabi-v7a',32,args.device),('arm64-v8a',64,args.device)]:
         rooms=json.loads((folder/f'game-runtime-{abi}.json').read_text())['results']
         events=json.loads((folder/f'consumers-{abi}.json').read_text())['results']
+        models=json.loads((folder/f'models-{abi}.json').read_text())['results']
         if sorted((r['round'],r['disc']) for r in rooms)!=[(1,0),(1,1),(2,0),(2,1)]:
             raise ValueError('missing/duplicate room rounds: '+abi)
         if sorted((r['round'],r['disc']) for r in events)!=[(1,0),(2,0)]:
             raise ValueError('missing/duplicate opening-package rounds: '+abi)
+        if sorted((r['round'],r['disc']) for r in models)!=[(1,0),(1,1),(2,0),(2,1)]:
+            raise ValueError('missing/duplicate additional-model rounds: '+abi)
         for record in rooms:
             if record['abi']!=abi or record['failed'] or record['isolated']['failed']:
                 raise ValueError('runtime failure: '+abi)
@@ -50,23 +54,37 @@ def main():
                     raise ValueError('original cancel/lifetime: '+abi)
                 if package['flags_after']!=(package['flags_before']|0x10):
                     raise ValueError('original scenario flag: '+abi)
+                if package['original_init_blocker']:
+                    raise ValueError('original CPU R120Init did not complete: '+abi)
+        for record in models:
+            if record['abi']!=abi or record['actual']['pointer_bits']!=bits:
+                raise ValueError('additional model ABI: '+abi)
+            if sha(json.dumps(record['actual']['packages'],sort_keys=True).encode())!=record['trace_sha256']:
+                raise ValueError('additional model evidence hash: '+abi)
+            model_traces.setdefault(record['disc'],set()).add(record['trace_sha256'])
+        actual_initializations=sum(2 for r in [*events,*models] for p in r['actual']['packages']
+                                  for m in p['model_initializations'] if m['status']=='original-modelInit-two-rounds-released')
         measured.append(dict(abi=abi,pointer_bits=bits,rounds=2,
                              room_preparations=sum(r['passed'] for r in rooms),
                              event_packages=sum(len(r['actual']['packages']) for r in events),
+                             actual_modelInit_calls=actual_initializations,
                              failed=0,executable_sha256=sorted({r['executable_sha256'] for r in rooms})))
-    if any(len(v)!=1 for v in room_traces.values()) or len(event_traces)!=1 or len(native_traces)!=1 or checks!={503}:
+    if any(len(v)!=1 for v in [*room_traces.values(),*model_traces.values()]) or len(event_traces)!=1 or len(native_traces)!=1 or checks!={609}:
         raise ValueError('ABI/repetition semantic results differ')
     sample=json.loads((args.host/'consumers-host-64.json').read_text())['results'][0]['actual']['packages']
     packages=[dict(path=p['path'],sha256=p['sha256'],bins=len(p['bins']),native_cpu_models=p['native_models'],
+                   model_initializations=p['model_initializations'],event_resource_references=p['event_resource_references'],
                    english_mdt=[dict(name=b['name'],count=b['original_english_count'])
                                 for b in p['bins'] if 'original_english_count' in b]) for p in sample]
     sample=json.loads((args.host/'game-runtime-host-64.json').read_text())['results']
     coverage={r['id']:r['consumers'] for record in sample for r in record['actual']['rooms']}
-    summary=dict(schema='RE4-PHASE4C-MEASUREMENTS-1',checks_per_native_run=503,
+    additional=[p for r in json.loads((args.host/'models-host-64.json').read_text())['results'] if r['round']==1 for p in r['actual']['packages']]
+    summary=dict(schema='RE4-PHASE4C-MODEL-MEASUREMENTS-1',checks_per_native_run=609,
                  measured=measured,identical_native_traces=True,
                  identical_room_traces={str(k):next(iter(v)) for k,v in room_traces.items()},
                  identical_event_trace=next(iter(event_traces)),packages=packages,room_consumer_coverage=coverage,
-                 scope='Partial CPU consumers and controlled original r120 init failure/cancel; no Event::Init/packet playback/full game start')
+                 additional_model_packages=additional,identical_additional_model_traces={str(k):next(iter(v)) for k,v in model_traces.items()},
+                 scope='Actual original CPU modelInit/TexRenderInit and cancel callbacks; no Event::Init/packet playback/MotionSetCore/GPU/full game start')
     write_json(output/'consumer-runtime-summary.json',summary)
     print(json.dumps(summary,indent=2))
 

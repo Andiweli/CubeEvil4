@@ -263,15 +263,22 @@ Stop/restart retains sleeping stacks; reset/release/unload invalidates stale
 references. The original controller and PadRead path remains shared and unchanged.
 
 Source-guarded original methods run on Windows x86/x64 and Android ARM32/ARM64.
-The expanded runtime suite has 503 checks. Private original-data tests load both
+The expanded runtime suite has 609 checks. Private original-data tests load both
 r120 EVD packages through the existing engine loader, verify 37 BIN joint
 hierarchies and English MDT tables, and execute the original cancel callbacks.
+Source-guarded `cModInfoMgr::create`, `cModel::modelInit`, joint/pool/matrix/bounds
+bodies now initialize 35 available r120 BIN/TPL pairs plus six pairs in other
+rooms. The two remaining r120 BIN occurrences lack their referenced TPL in the
+package. Actual packet references are retained; no replacement texture is used.
 `tools/summarize_consumers.py` compares measured results across all four ABIs.
 
-The complete original start remains blocked: GameTask reaches `gameInit/ClothInit`,
-and the separately invoked original R120Init reaches `TexRenderInit`. Full
-model initialization, camera decisions, Event::init/Run/packet playback and the
-r100 transition are still open. Package indexing and isolated adapter fixtures
-are not a successfully executed game start. See the
-[complete Phase 4c report](docs/phase4c-status.md) for source anchors, all changed
-files, actual device results, reproduction commands and exact remaining imports.
+Original `TexRenderInit` completes CPU manager/buffer setup and the separately
+invoked `R120Init` returns. Original `R120Event` resumes after `SceSleep` and stops
+at the explicit VI presentation dependency. `GameTask` executes original
+`gameInit/ClothInit`, then stops at `GXSetCopyClear`. GPU copy/drawing,
+`MotionSetCore`, actor/event-model registration, camera decisions, full
+Event::init/Run/packet playback and the r100 transition remain open.
+The diagnostic route does not claim a playable game. See the
+[model/TexRender continuation report](docs/phase4c-model-status.md) for the
+complete current file list, source anchors, four-ABI measurements and commands.
+The [earlier Phase 4c report](docs/phase4c-status.md) records the preceding milestone.
