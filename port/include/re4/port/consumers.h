@@ -2,6 +2,7 @@
 #include "re4/port/engine_loader.h"
 #include "re4_runtime_types.h"
 #include "re4/port/model_types.h"
+#include "re4/port/event_resources.h"
 #include <array>
 #include <map>
 #include <thread>
@@ -40,6 +41,7 @@ struct EventCpu {
     EventPackageView package;
     u32 StatusFlag{};
     int FuncType{}, NowCut{}, NowFrame{};
+    NativeDatTbl ModTbl{0x60};
     int GetFuncType() const { return FuncType; }
     int GetNowCut() const { return NowCut; }
     int GetNowFrame() const { return NowFrame; }
@@ -48,7 +50,9 @@ struct EventCpu {
     void GetRoomNo(char *) const;
     void GetEventNo(char *) const;
     int ExeFunc(int mode, int parameter);
-    int GetMod(void **, const char *, int, int);
+    int SetMod(const char *, void *, u8, void *, u8, int *);
+    int GetMod(void **, const char *, u8 *, int *);
+    int ExePacket_SetPartsSub(const char *,const char *,const char *,const char *);
 };
 using EventFunction = std::function<void(EventCpu *, u32)>;
 struct MessageIndexCpu {
@@ -72,6 +76,13 @@ struct CameraCpu {
 // Package indexing is not Event::Init/ExePacket or a successfully played cutscene.
 class EngineConsumers final {
   public:
+    EventResources &eventResources() { check(); return eventResources_; }
+    void setAdaOverrideProvider(std::function<bool()> f) { check(); adaOverride_=std::move(f); }
+    bool debugAdaOverride() const { check(); return adaOverride_ && adaOverride_(); }
+    void initializeMotion(ConsumerHandle, ResourceLease, int frame=0, int flags=1, int hokan=0);
+    Vec sampleMotion(ConsumerHandle,u32 joint,f32 frame) const;
+    void registerEventModel(ConsumerHandle event,ConsumerHandle model,const std::string &name,u8 type);
+    ModelInfoView *createModelInfoFor(ModelCpu &,const char *bin,const char *tpl,bool resetOffsets);
     explicit EngineConsumers(NativeScheduler *domain = nullptr);
     ~EngineConsumers();
     EngineConsumers(const EngineConsumers &) = delete;
@@ -119,6 +130,8 @@ class EngineConsumers final {
     const std::thread::id owner_ = std::this_thread::get_id();
     u64 identity_, epoch_ = 1, next_ = 1;
     std::map<u64, std::unique_ptr<Model>> models_;
+    EventResources eventResources_;
+    std::function<bool()> adaOverride_;
     std::unique_ptr<ModelRuntime> modelRuntime_;
     std::map<u64, std::unique_ptr<EventCpu>> events_;
     std::map<int, std::unique_ptr<Message>> messages_;

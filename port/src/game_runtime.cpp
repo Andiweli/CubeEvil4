@@ -195,6 +195,7 @@ struct GameRuntime::Impl {
     ModuleRuntime modules;
     EngineConsumers engineConsumers;
     TexRenderRuntime texRender;
+    GraphicsState graphics;
     OriginalContext original;
     FrameViAdapter vi;
     const std::thread::id owner = std::this_thread::get_id();
@@ -216,6 +217,7 @@ struct GameRuntime::Impl {
           engineConsumers(&loader.scheduler()), texRender([this](u32 bytes){ return moduleMemory->reserve(bytes); }),
           original(pads), vi([runtime] { runtime->tick(); }) {
         original.runtime = runtime;
+        engineConsumers.setAdaOverrideProvider([this]{return DbgFlagChk(original.pG,DBG_ADA_OMAKE_EV);});
         original.heaps = heaps.get();
         modules.bindRoomEntry(0x120, [this](bool init) {
             original.RoomData.m_RelNo = roomMeta(0x120).fileIndex;
@@ -475,6 +477,7 @@ EngineConsumers &GameRuntime::engineConsumers() {
     return impl_->engineConsumers;
 }
 TexRenderRuntime &GameRuntime::texRender() { impl_->check(); return impl_->texRender; }
+GraphicsState &GameRuntime::graphics() { impl_->check(); return impl_->graphics; }
 std::shared_ptr<FrameOperation> GameRuntime::queueRoomRetirement(u16 id) {
     return queueModule(ModuleOperation::RetireRoom, id);
 }

@@ -16,7 +16,7 @@ class Sources(unittest.TestCase):
             output=Path(folder)
             generate_consumers.generate(ROOT,output)
             manifest=json.loads((output/'consumer-manifest.json').read_text())
-            self.assertEqual(len(manifest['functions']),49)
+            self.assertEqual(len(manifest['functions']),87)
             code=(output/'consumer_control.cpp').read_text()
             self.assertIn('const EventFunction *fn',code)
             self.assertIn('blk->ofs[no]',code)
@@ -25,6 +25,11 @@ class Sources(unittest.TestCase):
             self.assertIn('ModelInfoView* ModelCpu::modelInit',code)
             self.assertIn('void C_MTXConcat',code)
             self.assertIn('ModelPartsManager::createSequential',code)
+            self.assertIn('EventCpu::ExePacket_SetPartsSub',code)
+            self.assertIn('void MotionSetCore',code)
+            self.assertIn('GraphicsState::setCopyClear',code)
+            self.assertNotIn('(u32) w->pMot',code)
+            self.assertNotIn('asm("r27")',code)
     def test_changed_original_is_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder)/'root'

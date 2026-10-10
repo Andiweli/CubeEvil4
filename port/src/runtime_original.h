@@ -166,9 +166,8 @@ struct OriginalContext {
         throw MissingGameConsumer("FadeSetW/presentation");
     }
     [[noreturn]] void SubScreenOpen(int, int) { throw MissingGameConsumer("SubScreenOpen"); }
-    [[noreturn]] void systemVISetBlack(int) {
-        throw MissingGameConsumer("systemVISetBlack/presentation adapter");
-    }
+    void systemVISetBlack(int);
+    void VISetBlack(int sw) { runtime->graphics().setBlack(sw); }
     [[noreturn]] void SceEventStart(int) {
         throw MissingGameConsumer("SceEventStart/player/managers/audio");
     }
@@ -282,9 +281,7 @@ struct OriginalContext {
     struct ClothSlot { u32 be_flag{}; } ClothWk[8];
     void ClothInit();
     [[noreturn]] void missingGameInit(const char *name) { throw MissingGameConsumer(name); }
-    [[noreturn]] void GXSetCopyClear(GXColor, u32) {
-        throw MissingGameConsumer("gameInit/GXSetCopyClear/EFB clear state (Phase 5)");
-    }
+    void GXSetCopyClear(GXColor color,u32 depth) { runtime->graphics().setCopyClear(color,depth); }
     [[noreturn]] void gameStageInit() { throw MissingGameConsumer("gameStageInit/cMes/GameSave"); }
     [[noreturn]] void gameRoomInit() {
         throw MissingGameConsumer("gameRoomInit/model/light/player");

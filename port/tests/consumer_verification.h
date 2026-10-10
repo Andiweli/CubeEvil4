@@ -189,8 +189,10 @@ template <class Checks> void openingTests(Checks &c, GameRuntime &game) {
         game.tick(); scheduler.runScenarios();
         failure.clear();
         try { game.tick(); scheduler.runScenarios(); } catch(const MissingGameConsumer &e) { failure=e.what(); }
-        c.test(failure=="Original consumer unavailable: systemVISetBlack/presentation adapter",
-               "original opening advances to actual VI dependency");
+        c.test(failure==(game.graphics().bound()?"Original consumer unavailable: Sofdec.Initialize/SFD video/audio":
+                                             "Original consumer unavailable: systemVISetBlack/presentation adapter"),
+               "original opening reaches the first actual unbound consumer");
+        if(game.graphics().bound()) game.graphics().present();
         game.tick(); // System-owned failed-task cleanup survives the invalidated caller.
         c.test(game.modules().info(74).phase == ModulePhase::Inactive &&
                    scheduler.allocatedStacks() == 0,
@@ -213,7 +215,8 @@ template <class Checks> void openingTests(Checks &c, GameRuntime &game) {
     } catch (const MissingGameConsumer &e) {
         failure = e.what();
     }
-    c.test(failure == "Original consumer unavailable: systemVISetBlack/presentation adapter",
+    c.test(failure == (game.graphics().bound()?"Original consumer unavailable: Sofdec.Initialize/SFD video/audio":
+                                            "Original consumer unavailable: systemVISetBlack/presentation adapter"),
            "actual opening task cannot silently skip presentation/video");
     game.initialize();
     auto activate=game.queueModule(ModuleOperation::Activate,74); game.tick();

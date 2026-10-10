@@ -9,16 +9,20 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.WindowManager;
 
-/** Original-code diagnostics and live controller values. No renderer or playable room. */
+/** Original-code diagnostics, live controller values and a clear-only Vulkan surface. */
 public final class FoundationActivity extends Activity {
     private TextView reportView;
     private ControllerLoop controllers;
     private boolean resumed;
+    private GraphicsBootstrapView graphics;
+    public GraphicsBootstrapView graphics() { return graphics; }
 
     @Override
     public void onCreate(Bundle state) {
         super.onCreate(state);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         int padding = Math.round(16 * getResources().getDisplayMetrics().density);
@@ -27,6 +31,9 @@ public final class FoundationActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("RE4 Native Foundation\nOriginal code verification; no game assets loaded.");
         layout.addView(title);
+        graphics = new GraphicsBootstrapView(this);
+        layout.addView(graphics,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+            Math.round(120 * getResources().getDisplayMetrics().density)));
         TextView input = new TextView(this);
         input.setText("Controller: waiting for native gameplay tick");
         input.setTextIsSelectable(true);

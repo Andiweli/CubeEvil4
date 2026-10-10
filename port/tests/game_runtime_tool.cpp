@@ -23,6 +23,16 @@ void consumers(int argc, char **argv, bool originalEntry=true) {
     ControllerInput input;
     GameRuntime game(files, input, static_cast<u8>(disc));
     game.initialize();
+    std::shared_ptr<const LoadedFile> player;
+    if(originalEntry) {
+        auto request=game.loader().request("em/pl00.drs",0x8100);
+        auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(60);
+        while(game.loader().status(request)==LoadStatus::Pending || game.loader().status(request)==LoadStatus::Reading) {
+            game.tick(); std::this_thread::yield();
+            if(std::chrono::steady_clock::now()>deadline) throw std::runtime_error("original pl00 archive read deadline");
+        }
+        if(game.loader().readCheck(request,player)!=1 || !player) throw std::runtime_error("pl00 original archive read");
+    }
     std::cout << "{\"pointer_bits\":" << sizeof(void *) * 8
               << ",\"kind\":\"actual_EVD_BIN_CPU_consumers_not_Event_Init\",\"packages\":[";
     for (int i = 5; i < argc; ++i) {
@@ -41,17 +51,19 @@ void consumers(int argc, char **argv, bool originalEntry=true) {
         ResourceLease raw{loaded, loaded->bytes.data(), static_cast<u32>(loaded->bytes.size())};
         auto sourceHash=hash(raw);
         auto &engine = game.engineConsumers();
+        if(player) engine.eventResources().bindPlayerArchive({player,player->bytes.data()+player->bodyOffset,player->bodySize});
         auto event = engine.event(raw);
-        auto &package = engine.event(event).package;
+        auto package = engine.event(event).package;
         auto refs=indexEventResourceReferences(package);
         auto findBin=[&](const std::string &name)->const EventBinView* {
             auto it=std::find_if(package.bins.begin(),package.bins.end(),[&](const auto &b){return b.name==name;});
             return it==package.bins.end()?nullptr:&*it;
         };
+        auto resource=[&](const std::string &name) { return engine.eventResources().bin(name); };
         u32 diagnosticParts=2;
         for(const auto &ref:refs) if(ref.type!=11) {
-            auto *bin=findBin(ref.bin);
-            if(bin && bin->bytes.size>=0x40) diagnosticParts=std::max(diagnosticParts,u32(bin->bytes.data[0x19])+2);
+            auto bin=resource(ref.bin);
+            if(bin.data && bin.size>=0x40) diagnosticParts=std::max(diagnosticParts,u32(bin.data[0x19])+2);
         }
         // Explicit harness capacity, not the production CONS/SMD room count.
         engine.configureModelPools(1,diagnosticParts);
@@ -60,7 +72,18 @@ void consumers(int argc, char **argv, bool originalEntry=true) {
         std::cout << "{\"path\":\"" << argv[i] << "\",\"sha256\":\"" << hash(raw)
                   << "\",\"room\":\"" << package.room << "\",\"number\":\"" << package.number
                   << "\",\"packet_offset\":" << package.packetOffset
-                  << ",\"packet_size\":" << package.packetSize << ",\"bins\":[";
+                  << ",\"packet_size\":" << package.packetSize
+                  << ",\"player_archive_sha256\":" << std::quoted(player?sha256(player->bytes.data(),player->bytes.size()):"")
+                  << ",\"external_bins\":[";
+        bool externalComma=false;
+        auto &table=engine.eventResources().BinTbl;
+        for(int n=0;n<table.NumDatTbl;++n) if((table.pWork[n].FlagBe8&1) && !findBin(table.pWork[n].Name)) {
+            auto bytes=resource(table.pWork[n].Name);
+            if(externalComma) std::cout << ','; externalComma=true;
+            std::cout << "{\"name\":" << std::quoted(table.pWork[n].Name) << ",\"size\":" << bytes.size
+                      << ",\"sha256\":" << std::quoted(hash(bytes)) << '}';
+        }
+        std::cout << "],\"bins\":[";
         std::vector<ConsumerHandle> models;
         for (std::size_t n = 0; n < package.bins.size(); ++n) {
             auto &bin = package.bins[n];
@@ -110,8 +133,12 @@ void consumers(int argc, char **argv, bool originalEntry=true) {
             if(modelComma) std::cout << ',';
             modelComma=true;
             std::cout << "{\"bin\":" << std::quoted(ref.bin) << ",\"tpl\":" << std::quoted(ref.tpl);
-            auto *bin=findBin(ref.bin),*tpl=findBin(ref.tpl);
-            if(!bin || !tpl) { std::cout << ",\"status\":\"external-resource-not-bound\"}"; continue; }
+            EventBinView binView{ref.bin,resource(ref.bin)},tplView{ref.tpl,resource(ref.tpl)};
+            auto *bin=&binView,*tpl=&tplView;
+            if(!bin->bytes.data || !tpl->bytes.data) { std::cout << ",\"status\":\"external-resource-not-bound\"}"; continue; }
+            if(ref.type==4 && !findBin(ref.bin)) {
+                std::cout << ",\"status\":\"original-SetPartsSub-in-registration-pass\"}"; continue;
+            }
             for(int round=0;round<2;++round) {
                 auto handle=engine.initializeModel(bin->bytes,tpl->bytes,ref.bin);
                 auto &model=engine.model(handle); auto *d=model.pModelInfo->model_addr;
@@ -148,6 +175,103 @@ void consumers(int argc, char **argv, bool originalEntry=true) {
                 catch(const std::logic_error &) {}
             }
             std::cout << ",\"status\":\"original-modelInit-two-rounds-released\"}";
+        }
+        std::cout << "],\"event_registration\":[";
+        // Execute SetMod/GetMod on CPU models, retaining all bindings through motion
+        // initialization. This does not claim ExePacket_SetOm/SetObj18 cloth/light.
+        engine.clear();
+        if(player) engine.eventResources().bindPlayerArchive({player,player->bytes.data()+player->bodyOffset,player->bodySize});
+        event=engine.event(raw);
+        u32 totalParts=2,modelSlots=0;
+        std::set<std::string> names;
+        for(const auto &ref:refs) if(ref.type!=11 && names.insert(ref.model).second) {
+            auto bin=resource(ref.bin),tpl=resource(ref.tpl);
+            if(bin.data && tpl.data) { if(ref.type==3) totalParts+=bin.data[0x19]; ++modelSlots; }
+        }
+        engine.configureModelPools(std::max(u32(1),modelSlots),totalParts);
+        std::map<std::string,ConsumerHandle> registered;
+        bool comma=false;
+        for(const auto &ref:refs) if(ref.type==3 && !registered.count(ref.model)) {
+            auto bin=resource(ref.bin),tpl=resource(ref.tpl);
+            if(!bin.data || !tpl.data) continue;
+            auto h=engine.initializeModel(bin,tpl,ref.bin);
+            engine.registerEventModel(event,h,ref.model,2); registered.emplace(ref.model,h);
+            void *found=nullptr; u8 type=0; int slot=-1;
+            if(!engine.event(event).GetMod(&found,ref.model.c_str(),&type,&slot) || found!=&engine.model(h) || type!=2)
+                throw std::runtime_error("original Event SetMod/GetMod native pointer identity");
+            if(comma) std::cout << ','; comma=true;
+            std::cout << "{\"name\":" << std::quoted(ref.model) << ",\"type\":" << unsigned(type) << ",\"slot\":" << slot << '}';
+        }
+        std::set<std::string> attachments;
+        for(const auto &ref:refs) if(ref.type==4 && attachments.insert(ref.model).second) {
+            if(!registered.count(ref.parent)) throw std::runtime_error("original attachment parent missing");
+            if(!engine.event(event).ExePacket_SetPartsSub(ref.model.c_str(),ref.bin.c_str(),ref.tpl.c_str(),ref.parent.c_str()))
+                throw std::runtime_error("actual original SetPartsSub failed");
+            void *found=nullptr; u8 type=0; int slot=-1;
+            if(!engine.event(event).GetMod(&found,ref.model.c_str(),&type,&slot) || !found || type!=3)
+                throw std::runtime_error("original SetPartsSub info registration");
+            auto *info=static_cast<ModelInfoView*>(found);
+            if(comma) std::cout << ','; comma=true;
+            std::cout << "{\"name\":" << std::quoted(ref.model) << ",\"parent\":" << std::quoted(ref.parent)
+                      << ",\"type\":3,\"slot\":" << slot << ",\"parts\":" << unsigned(info->model_addr->nParts) << '}';
+        }
+        std::cout << "],\"motion_initializations\":["; comma=false;
+        for(const auto &ref:refs) if(ref.type==11 && registered.count(ref.model)) {
+            auto motion=resource(ref.bin);
+            if(!motion.data) throw std::runtime_error("original registered motion reference missing");
+            // ExePacket_Mot explicitly skips a zero maxFrame word.
+            if(!motion.data[0] && !motion.data[1]) continue;
+            auto h=registered.at(ref.model);
+            engine.initializeMotion(h,motion);
+            const auto &w=engine.model(h).Motion;
+            if(!w.pMot || w.Joint_num!=motion.data[2] || !(w.Mot_flag&0x04000000))
+                throw std::runtime_error("actual original MotionSetCore state");
+            if(comma) std::cout << ','; comma=true;
+            std::cout << "{\"model\":" << std::quoted(ref.model) << ",\"bin\":" << std::quoted(ref.bin)
+                      << ",\"joints\":" << unsigned(w.Joint_num) << ",\"max_frame\":" << w.Mot_frame_max
+                      << ",\"null_pos\":" << w.Null_pos << ",\"null_rot\":" << w.Null_rot
+                      << ",\"root\":[" << w.Pos.x << ',' << w.Pos.y << ',' << w.Pos.z << "],\"samples\":[";
+            for(int sample=0;sample<3;++sample) {
+                if(sample) std::cout << ',';
+                auto v=engine.sampleMotion(h,0,w.Mot_frame_max*float(sample)/2);
+                std::cout << '[' << v.x << ',' << v.y << ',' << v.z << ']';
+            }
+            std::cout << "]}";
+        }
+        std::cout << "],\"player_motion_initializations\":["; comma=false;
+        if(player) {
+            auto body=ResourceLease{player,player->bytes.data()+player->bodyOffset,player->bodySize};
+            auto index=indexAssetBody(body.data,body.size);
+            // Use the model already bound by the original EVD SetOm reference to
+            // pl000a.bin; select FCV entries by the original archive index/tag.
+            auto ref=std::find_if(refs.begin(),refs.end(),[](const auto &r) {
+                return r.type==3 && r.bin=="em/pl00/pl000a.bin";
+            });
+            if(ref==refs.end()) throw std::runtime_error("original opening player model reference absent");
+            auto h=registered.at(ref->model);
+            for(const auto &entry:index.entries) if(!std::memcmp(entry.tag.data(),"FCV",3)) {
+                ResourceLease motion{body.owner,body.data+entry.offset,entry.size};
+                engine.initializeMotion(h,motion);
+                auto &w=engine.model(h).Motion;
+                if(!w.pMot || w.Joint_num!=motion.data[2]) throw std::runtime_error("player original MotionSetCore state");
+                if(comma) std::cout << ','; comma=true;
+                std::cout << "{\"index\":" << entry.index << ",\"sha256\":" << std::quoted(hash(motion))
+                          << ",\"joints\":" << unsigned(w.Joint_num) << ",\"max_frame\":" << w.Mot_frame_max
+                          << ",\"null_pos\":" << w.Null_pos << ",\"null_rot\":" << w.Null_rot << ",\"samples\":[";
+                for(int sample=0;w.Joint_num && sample<3;++sample) {
+                    if(sample) std::cout << ',';
+                    auto v=engine.sampleMotion(h,0,w.Mot_frame_max*float(sample)/2);
+                    std::cout << '[' << v.x << ',' << v.y << ',' << v.z << ']';
+                    // Decode every joint stream with the actual original curve
+                    // readers, not only the independently reported first joint.
+                    for(u32 joint=1;joint<w.Joint_num;++joint) {
+                        auto value=engine.sampleMotion(h,joint,w.Mot_frame_max*float(sample)/2);
+                        if(!std::isfinite(value.x)||!std::isfinite(value.y)||!std::isfinite(value.z))
+                            throw std::runtime_error("player motion nonfinite original sample");
+                    }
+                }
+                std::cout << "]}";
+            }
         }
         std::cout << "],\"event_resource_references\":[";
         for(std::size_t n=0;n<refs.size();++n) {

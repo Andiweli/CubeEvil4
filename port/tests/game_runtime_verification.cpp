@@ -176,7 +176,7 @@ void heapTests(Checks &c) {
 }
 } // namespace
 
-std::string verifyGameRuntime(const std::string &directory) {
+std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<GraphicsPresenter> presenter) {
     Checks c;
     inputTests(c);
     heapTests(c);
@@ -185,6 +185,7 @@ std::string verifyGameRuntime(const std::string &directory) {
     input.connect(9, 0);
     u32 now = 500;
     GameRuntime game(fixture(directory), input, 0, [&] { return now; });
+    game.graphics().attach(std::move(presenter));
     game.initialize();
     c.test(game.state().room_id == 0x120 && game.state().RoomNo_next == 0x120,
            "original boot room");
@@ -295,8 +296,8 @@ std::string verifyGameRuntime(const std::string &directory) {
     } catch (const MissingGameConsumer &failure) {
         gameFailure = failure.what();
     }
-    c.test(gameFailure == "Original consumer unavailable: gameInit/GXSetCopyClear/EFB clear state (Phase 5)",
-           "actual GameTask/gameInit/ClothInit reach GX state dependency");
+    c.test(gameFailure == "Original consumer unavailable: cMes.gameInit()",
+           "actual GameTask passes original GX clear register state and reaches Message gameInit");
     c.test(std::find(game.trace().begin(),game.trace().end(),"ClothInit:original")!=game.trace().end(),
            "actual original ClothInit executes before GX clear");
     c.test(game.state().Rno0 == 0 && game.state().Rno1 == 0 && game.state().Rno2 == 0 &&
@@ -415,6 +416,11 @@ std::string verifyGameRuntime(const std::string &directory) {
     tests::retirementTests(c, game);
     tests::automaticTransitionTests(c, game);
     tests::callbackStackTests(c, game);
+    c.test(game.graphics().clear().depth<=0xffffff,"original clear depth stays a 24-bit GX value");
+    game.graphics().setCopyClear({18,52,86,120},0x123456);
+    c.test(game.graphics().clear().rgba==std::array<u8,4>{18,52,86,120} && game.graphics().clear().depth==0x123456,
+           "actual original GXSetCopyClear packs and restores RGBA/depth registers");
+    c.rejects([&]{game.graphics().setCopyClear({0,0,0,0},0x1000000);},"original GX clear depth guard");
     std::ostringstream out;
     out << "{\"pointer_bits\":" << sizeof(void *) * 8 << ",\"checks\":" << c.count
         << ",\"failed\":0,"
@@ -424,8 +430,10 @@ std::string verifyGameRuntime(const std::string &directory) {
            "\"heaps:bounded,lease-pinned,tail-handoff\",\"scenario:original-order,stack-sleep,"
            "pause,resume\","
            "\"modules:deferred,stop,restart,stale,cancel\",\"VI:60,90,120=>30\","
-           "\"GameTask:original-gameDebug-gameInit-ClothInit,blocked-GXSetCopyClear\","
-           "\"r120:original-init-TexRenderInit,opening-SceSleep,blocked-VI,12-cleanups\","
+           "\"GameTask:original-gameDebug-gameInit-ClothInit-GXSetCopyClear,blocked-cMes.gameInit\","
+        << (game.graphics().bound()?"\"r120:original-init-TexRenderInit,opening-SceSleep-original-VI,blocked-Sofdec,12-cleanups\",":
+                                   "\"r120:original-init-TexRenderInit,opening-SceSleep,blocked-VI,12-cleanups\",")
+        <<
            "\"models:original-modelInit-joints-matrices-bounds,pool-reuse-rollback\","
            "\"consumers:original-model-joints,message-address,camera-state,event-callback\","
            "\"retirement:20-original-room-entries,pending-borrowers,frame-boundary\","

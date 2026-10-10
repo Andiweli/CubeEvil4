@@ -25,6 +25,8 @@ foreach ($taskAbi in $Abis) {
         throw "Installed application ABI is not $taskAbi"
     }
     $taskBits = if ($taskAbi -eq 'armeabi-v7a') { 32 } else { 64 }
+    & $Adb -s $Serial shell input keyevent KEYCODE_WAKEUP
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot wake display for the actual Surface test.' }
     $taskOutput = & $Adb -s $Serial shell am instrument -w `
         -e re4.expectedPointerBits $taskBits org.re4.port.test/androidx.test.runner.AndroidJUnitRunner 2>&1
     $taskExit = $LASTEXITCODE
@@ -33,7 +35,15 @@ foreach ($taskAbi in $Abis) {
         Set-Content -LiteralPath (Join-Path $taskPortRoot "build\instrumentation-$taskAbi.txt") -Encoding UTF8
     $taskOutput | Write-Output
     # adb may return zero even when JUnit failed; inspect the instrumentation result.
-    if ($taskExit -ne 0 -or ($taskOutput -join "`n") -notmatch 'OK \(19 tests\)') {
+    if ($taskExit -ne 0 -or ($taskOutput -join "`n") -notmatch 'OK \(20 tests\)') {
         throw "Actual app-process verification failed for $taskAbi"
     }
+    $taskGraphics = (& $Adb -s $Serial shell run-as org.re4.port cat files/graphics-bootstrap.json) -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot read actual GPU verification evidence.' }
+    $taskGpu = $taskGraphics | ConvertFrom-Json
+    if ($taskGpu.graphics.pointer_bits -ne $taskBits -or $taskGpu.original_runtime.failed -ne 0 -or
+        $taskGpu.graphics.verified_gpu_clears -lt 12 -or $taskGpu.graphics.presents -lt 12) {
+        throw 'Actual GPU readback/presentation evidence does not match this app ABI.'
+    }
+    $taskGraphics | Set-Content -LiteralPath (Join-Path $taskPortRoot "build\graphics-$taskAbi.json") -Encoding UTF8
 }

@@ -2,6 +2,8 @@ package org.re4.port;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 import android.view.KeyEvent;
+import android.content.Intent;
+import android.util.Log;
 import org.json.JSONObject;
 import org.junit.Test;
 import java.io.File;
@@ -13,12 +15,41 @@ import static org.junit.Assert.assertTrue;
 /** Original functions plus clearly isolated native/Java adapter probes. Physical
  * Retroid presses are captured separately by the Activity's event log. */
 public final class GameRuntimeTest {
+    @Test public void originalRuntimeWithRealVulkanSurface() throws Exception {
+        var instrumentation=InstrumentationRegistry.getInstrumentation();
+        var intent=new Intent(instrumentation.getTargetContext(),FoundationActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        var activity=(FoundationActivity)instrumentation.startActivitySync(intent);
+        final boolean[] ready={false};
+        try {
+            for(int i=0;i<100 && !ready[0];++i) {
+                instrumentation.runOnMainSync(() -> ready[0]=activity.graphics().ready());
+                if(!ready[0]) android.os.SystemClock.sleep(100);
+            }
+            assertTrue("Actual Android Vulkan surface did not become ready: " + activity.graphics().report(),ready[0]);
+            final String[] report={null};
+            instrumentation.runOnMainSync(() -> report[0]=activity.graphics().verifyOriginalRuntime());
+            JSONObject result=new JSONObject(report[0]);
+            JSONObject runtime=result.getJSONObject("original_runtime"), gpu=result.getJSONObject("graphics");
+            int bits=Integer.parseInt(InstrumentationRegistry.getArguments().getString("re4.expectedPointerBits"));
+            assertEquals(bits,gpu.getInt("pointer_bits")); assertEquals(bits,runtime.getInt("pointer_bits"));
+            assertEquals(0,runtime.getInt("failed"));
+            assertTrue(runtime.getJSONArray("trace").toString().contains("original-VI,blocked-Sofdec"));
+            assertTrue(runtime.getJSONArray("trace").toString().contains("blocked-cMes.gameInit"));
+            assertTrue(gpu.getInt("verified_gpu_clears")>=12); assertTrue(gpu.getInt("presents")>=12);
+            assertEquals(1,gpu.getInt("active_samples")); assertEquals(1,gpu.getInt("active_anisotropy"));
+            Log.i("RE4GraphicsTest",report[0]);
+            try (FileOutputStream output=new FileOutputStream(new File(instrumentation.getTargetContext().getFilesDir(),"graphics-bootstrap.json"))) {
+                output.write(report[0].getBytes(StandardCharsets.UTF_8));
+            }
+        } finally { instrumentation.runOnMainSync(activity::finish); }
+    }
     @Test public void originalRuntimeInActualAppAbi() throws Exception {
         File root = new File(InstrumentationRegistry.getInstrumentation().getTargetContext().getFilesDir(),"game-verification");
         JSONObject result = new JSONObject(NativeChecks.runGameRuntime(root.getPath()));
         int bits = Integer.parseInt(InstrumentationRegistry.getArguments().getString("re4.expectedPointerBits"));
         assertEquals(bits,result.getInt("pointer_bits")); assertEquals(0,result.getInt("failed"));
-        assertTrue(result.getInt("checks") >= 609);
+        assertTrue(result.getInt("checks") >= 634);
         assertTrue(result.getJSONArray("trace").toString().contains("original-init-TexRenderInit"));
         assertTrue(result.getJSONArray("trace").toString().contains("original-modelInit-joints-matrices-bounds"));
         assertTrue(result.getJSONArray("trace").toString().contains("transitions:20-initialized-cross-stage"));

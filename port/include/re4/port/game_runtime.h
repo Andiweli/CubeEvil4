@@ -1,4 +1,5 @@
 #pragma once
+#include "re4/port/graphics.h"
 #include "re4/port/consumers.h"
 #include "re4/port/contracts.h"
 #include "re4/port/modules.h"
@@ -142,6 +143,7 @@ class GameRuntime final {
     ModuleRuntime &modules();
     EngineConsumers &engineConsumers();
     TexRenderRuntime &texRender();
+    GraphicsState &graphics();
     std::shared_ptr<FrameOperation> queueRoomRetirement(std::uint16_t room);
     void queueFailedRoomRetirement(std::uint16_t room);
     void
@@ -172,5 +174,5 @@ class GameRuntime final {
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
-std::string verifyGameRuntime(const std::string &fixtureDirectory);
+std::string verifyGameRuntime(const std::string &fixtureDirectory,std::shared_ptr<GraphicsPresenter> presenter={});
 } // namespace re4::port

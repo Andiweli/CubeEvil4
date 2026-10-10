@@ -14,5 +14,11 @@
   "src/lib/mtx.c": "e26a4269e7718eef3eaa6392fb84c81b086da44dd212e02abd2c72eda913e192",
   "src/lib/mtxvec.c": "6a3d9594a3000d8d87288355342ec7a6dab4b94d051e0552d89d2faf0f17bf00",
   "tools/motion/modelbin.py": "f68c9eeca805d604708f69a890d319cfa6b632e2077f2c135bd855f66c3edab1",
-  "tools/motion/gxtex.py": "e63b8d00be19f75496e1907afcb79d22dea2823efc0edb11727303ff0dcbc5f9"
+  "tools/motion/gxtex.py": "e63b8d00be19f75496e1907afcb79d22dea2823efc0edb11727303ff0dcbc5f9",
+  "src/game/motion.cpp": "4a0948e99997872b4fe1f26e5a2e43ee0dbaabcd8eb0e41d55e648618de00e96",
+  "src/game/ik.cpp": "e18c685d0c26abdda3e3bf7e94cadffbc7c4530e59c3e0db553d1b6dd0fc6204",
+  "src/lib/vec.c": "56e6bd2a50923120eaeb3a385b2f7e79d0ce64067de99684fcbffb6f7cc1ae95",
+  "include/motion.h": "a8057e429cf4deef61fc105abfeed3b6d512da15fb69f7653cf471340ddfcc57",
+  "src/game/read.cpp": "0ef5bbee701eebc44a329c65014902ed8bdee425d4164feb514ac3ab15063772",
+  "src/lib/GXFrameBuf.c": "665011e241e3acd96590d09d3808b75866b28123ab6cab73a5695eaef7d47316"
 }

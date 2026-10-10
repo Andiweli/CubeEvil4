@@ -4,6 +4,8 @@ import argparse
 import json
 import struct
 import uuid
+import sys
+import re
 from pathlib import Path
 from original_import.pipeline import external_root, sha, write_json
 from test_engine_loading import prepare, run
@@ -25,6 +27,16 @@ def main():
         raise ValueError('separate output / repeat 1..10 / host or adb required')
     cases = prepare(data,output,False)
     manifest = json.loads((data/'manifest.json').read_text())
+    sys.path.insert(0,str(root/'tools'))
+    import drs
+    from motion import fcv
+    registrations=re.findall(r'EvtMgr.SetBin\("([^"]+)", PL_ARC_PTR\(pG->pPlayer, ([\dxA-F]+)\), 0, 2\);',
+                             (root/'src/game/event.cpp').read_text())
+    if len(registrations)!=6: raise ValueError('original player event bin registration changed')
+    player_files={f['disc_number']:f for f in manifest['files'] if f['path']=='em/pl00.drs'}
+    player_bytes=(data/'blobs'/player_files[0]['sha256']).read_bytes()
+    player_drs=drs.Drs(player_bytes)
+    external={name:player_drs.entries[int(index,0)-4][1] for name,index in registrations}
     files = {(f['disc_number'],f['path'].lower()):f for f in manifest['files']}
     # Named packages are evidenced by the original source references, not guessed room rules.
     refs=json.loads((data/'source-references.json').read_text())
@@ -47,6 +59,7 @@ def main():
     digests.update(f['sha256'] for f in manifest['files'] if f['path'].lower().endswith('.esl'))
     digests.update(f['sha256'] for f in packages)
     digests.update(f['sha256'] for f in additional)
+    digests.update(f['sha256'] for f in player_files.values())
     for digest in digests:
         if sha((data/'blobs'/digest).read_bytes()) != digest: raise ValueError('source blob differs')
     catalog = output/'engine-catalog.tsv'
@@ -81,6 +94,14 @@ def main():
                 if b'\0' not in raw: raise ValueError('unbounded reference')
                 return raw.split(b'\0')[0].decode('ascii')
             entries={e['name']:e for e in f['analysis']['entries']}
+            expected_external=[dict(name=name,size=len(blob),sha256=sha(blob)) for name,blob in external.items()] if opening else []
+            if value['external_bins']!=expected_external: raise ValueError('original PL_ARC resource bindings/hash')
+            if value['player_archive_sha256']!=(player_files[f['disc_number']]['sha256'] if opening else ''):
+                raise ValueError('player archive identity differs')
+            def resource(name):
+                if name in entries:
+                    e=entries[name]; return source[e['offset']:e['offset']+e['size']]
+                return external.get(name) if opening else None
             while at<end:
                 kind=struct.unpack_from('>I',source,at)[0]; n=struct.unpack_from('>h',source,at+12)[0]
                 if n<16 or at+n>end: raise ValueError('reference packet boundary')
@@ -94,12 +115,14 @@ def main():
             if len(pairs)!=len(value['model_initializations']): raise ValueError('model pair count')
             for (bn,tn),init in zip(pairs,value['model_initializations']):
                 if (init['bin'],init['tpl'])!=(bn,tn): raise ValueError('model/TPL association changed')
-                if bn not in entries or tn not in entries:
+                raw,rawtex=resource(bn),resource(tn)
+                if raw is None or rawtex is None:
                     if init['status']!='external-resource-not-bound': raise ValueError('missing resource falsely bound')
                     continue
+                if bn not in entries and next(r for r in refs if r['bin']==bn)['type']==4:
+                    if init['status']!='original-SetPartsSub-in-registration-pass': raise ValueError('sparse attachment used as standalone skeleton')
+                    continue
                 if init['status']!='original-modelInit-two-rounds-released': raise ValueError('original model execution missing')
-                entry=entries[bn]; raw=source[entry['offset']:entry['offset']+entry['size']]
-                tex=entries[tn]; rawtex=source[tex['offset']:tex['offset']+tex['size']]
                 n=struct.unpack_from('>H',raw,0x38)[0]; off=struct.unpack_from('>I',raw,0x30)[0]
                 vertices=[struct.unpack_from('>hhh',raw,off+8*i) for i in range(n)]
                 if not vertices: raise ValueError('empty reference bbox must be reviewed')
@@ -108,6 +131,58 @@ def main():
                 box=[(low[k]+high[k])/2 for k in range(3)]+[(high[k]-low[k])/2 for k in range(3)]
                 if init['parts']!=raw[0x19] or init['vertices']!=n or init['textures']!=struct.unpack_from('>I',rawtex,4)[0]: raise ValueError('model counts/TPL descriptors')
                 if any(abs(a-b)>max(1e-4,abs(b)*1e-5) for a,b in zip(init['bounding_box'],box)): raise ValueError('original bounding box differs from independent vertices')
+            bodies=list(dict.fromkeys(r['model'] for r in refs if r['type']==3 and resource(r['bin']) is not None and resource(r['tpl']) is not None))
+            parts=list(dict.fromkeys(r['model'] for r in refs if r['type']==4))
+            registered=value['event_registration']
+            if [r['name'] for r in registered]!=bodies+parts: raise ValueError('original SetMod/SetPartsSub registration coverage')
+            for slot,r in enumerate(registered):
+                if r['slot']!=slot or r['type']!=(2 if slot<len(bodies) else 3): raise ValueError('original model table type/order')
+                if r['type']==3:
+                    ref=next(ref for ref in refs if ref['model']==r['name'] and ref['type']==4)
+                    if r['parent']!=ref['parent'] or r['parts']!=resource(ref['bin'])[25]: raise ValueError('attached hierarchy/model references')
+            expected_motions=[r for r in refs if r['type']==11 and r['model'] in bodies and resource(r['bin'])[:2]!=b'\0\0']
+            if len(value['motion_initializations'])!=len(expected_motions): raise ValueError('actual MotionSetCore coverage')
+            def axis_value(axis,fmt,frame,max_frame):
+                values=[fcv.to_float(fcv.FCC_FMT[fmt][0],k[0]) for k in axis.keys]
+                if frame>=max_frame: return values[-1]
+                if frame in axis.frames: return values[axis.frames.index(frame)]
+                i=next(i for i in range(len(axis.frames)-1) if axis.frames[i]<frame<axis.frames[i+1])
+                t=(frame-axis.frames[i])/(axis.frames[i+1]-axis.frames[i]); t2=t*t; t3=t2*t
+                tangents=fcv.FCC_FMT[fmt][1]
+                a=fcv.to_float(tangents,axis.keys[i][2]); b=fcv.to_float(tangents,axis.keys[i+1][1])
+                return (2*t3-3*t2+1)*values[i]+(-2*t3+3*t2)*values[i+1]+(t3-2*t2+t)*a+(t3-t2)*b
+            for got,ref in zip(value['motion_initializations'],expected_motions):
+                motion=fcv.parse(resource(ref['bin']))
+                if got['model']!=ref['model'] or got['bin']!=ref['bin'] or got['joints']!=len(motion.joints) or got['max_frame']!=motion.max_frame:
+                    raise ValueError('original motion identity/frame/joint count')
+                for field,kind in [('null_pos',1),('null_rot',0x40)]:
+                    expected=next((i for i,j in enumerate(motion.joints) if j.kind==kind),65535)
+                    if got[field]!=expected: raise ValueError('original MotionSetCore root assignment')
+                if not motion.joints:
+                    if got['samples']: raise ValueError('empty player FCV must not fabricate samples')
+                    continue
+                first=motion.joints[0]
+                for n,sample in enumerate(got['samples']):
+                    reference=[axis_value(a,first.fcc_type,motion.max_frame*n/2,motion.max_frame) for a in first.axes]
+                    if any(abs(a-b)>max(2e-5,abs(b)*2e-5) for a,b in zip(sample,reference)):
+                        raise ValueError('actual original Hermite differs from independent FCV curves')
+            player_motions=[(i,blob) for i,(tag,blob) in enumerate(player_drs.entries) if tag==b'FCV\0'] if opening else []
+            if len(value['player_motion_initializations'])!=len(player_motions): raise ValueError('player FCV execution coverage')
+            for got,(index,blob) in zip(value['player_motion_initializations'],player_motions):
+                motion=fcv.parse(blob)
+                if got['index']!=index or got['sha256']!=sha(blob) or got['joints']!=len(motion.joints) or got['max_frame']!=motion.max_frame:
+                    raise ValueError('player FCV identity/ABI data')
+                for field,kind in [('null_pos',1),('null_rot',0x40)]:
+                    expected=next((i for i,j in enumerate(motion.joints) if j.kind==kind),65535)
+                    if got[field]!=expected: raise ValueError('player original motion root assignment')
+                if not motion.joints:
+                    if got['samples']: raise ValueError('empty player FCV must not fabricate samples')
+                    continue
+                first=motion.joints[0]
+                for n,sample in enumerate(got['samples']):
+                    reference=[axis_value(a,first.fcc_type,motion.max_frame*n/2,motion.max_frame) for a in first.axes]
+                    if any(abs(a-b)>max(2e-5,abs(b)*2e-5) for a,b in zip(sample,reference)):
+                        raise ValueError('player original Hermite differs from independent FCV curves')
         return sha(json.dumps(actual['packages'],sort_keys=True).encode())
     def verify(actual,reference,disc):
         if len(actual['rooms']) != len(reference): raise ValueError('room result count')
@@ -134,7 +209,7 @@ def main():
     def execute(command,abi,bits,targetRoot,targetCatalog,exeHash,fixtureRoot):
         for repeat in range(1,args.repeat+1):
             isolated = json.loads(run([*command,'self-test',str(fixtureRoot)+'/game-fixtures-'+abi]))
-            if isolated['pointer_bits'] != bits or isolated['failed'] or isolated['checks'] < 609:
+            if isolated['pointer_bits'] != bits or isolated['failed'] or isolated['checks'] < 634:
                 raise ValueError('isolated native runtime test/ABI')
             for disc in sorted({f['disc_number'] for f in packages}):
                 expected=[f for f in packages if f['disc_number']==disc]

@@ -99,6 +99,7 @@ def generate(root, output):
         'PlayerInit();','ItemMgr.gameInit();','SceAtInitSaveItem();','MerchantGameInit();',
         'GameLoad();','GamePointInit(0);']
     add('src/game/game.cpp','void gameInit()', [(s,'missingGameInit('+json.dumps(s.rstrip(';'))+');') for s in unavailable])
+    add('src/game/main_sub.cpp','void systemVISetBlack(int sw)')
     add('src/game/game.cpp', 'void GameTask()', [(
         'static void (*game_func_tbl[7])() = {\n        gameInit, gameStageInit, gameRoomInit, gameMainLoop, gameDoordemo, gameEnding, gameOption,\n    };',
         'const std::array<TaskEntry, 7> game_func_tbl = {\n        [this]{gameInit();}, [this]{gameStageInit();}, [this]{gameRoomInit();}, [this]{gameMainLoop();}, [this]{gameDoordemo();}, [this]{gameEnding();}, [this]{gameOption();}\n    };')])

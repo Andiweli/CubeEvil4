@@ -67,11 +67,13 @@ public:
     ModelRuntime(u32,u32);
     ~ModelRuntime();
     std::unique_ptr<Object> initialize(ResourceLease,ResourceLease,bool);
+    ModelInfoView *createAttachment(Object &,ResourceLease,ResourceLease,bool resetOffsets);
     ModelInfoManager infos;
     ModelPartsManager parts;
 };
 struct ModelRuntime::Object {
     std::unique_ptr<Asset> asset;
+    std::vector<std::unique_ptr<Asset>> attachments;
     ModelCpu cpu;
     ~Object();
 };

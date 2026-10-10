@@ -20,7 +20,7 @@ struct ModelRuntime::Asset {
     std::vector<ModelJoint> joints;
     std::vector<s16> vertices;
     std::vector<u16> blend,flip; // Actual u16 objects; no u32/u16 strict-aliasing overlay.
-    Asset(ResourceLease b,ResourceLease t) : bin(b) {
+    Asset(ResourceLease b,ResourceLease t,const ModelCpu *parent=nullptr) : bin(b) {
         bounds(b,0,0x40);
         auto &d=data;
         d.version=be32(b,0x3c);
@@ -36,10 +36,11 @@ struct ModelRuntime::Asset {
         for(u32 i=0;i<d.nParts;++i) {
             auto at=head+i*16; auto &j=joints[i];
             j={b.data[at],b.data[at+1],b.data[at+2],b.data[at+3],{befloat(b,at+4),befloat(b,at+8),befloat(b,at+12)}};
-            if(j.parentNo!=255 && j.parentNo>=d.nParts) throw std::invalid_argument("BIN parent index");
-            if(j.parentNo!=255 && j.parentNo>=i) throw std::invalid_argument("BIN parent must precede child for original partsWorldCalc");
+            auto targetCount=parent?parent->nParts:d.nParts;
+            if(j.parentNo!=255 && j.parentNo>=targetCount) throw std::invalid_argument("BIN parent index");
+            if(parent && j.partsNo>=targetCount) throw std::invalid_argument("attached BIN references missing parent joint");
         }
-        for(u32 i=0;i<d.nParts;++i) for(u32 p=i,n=0;p!=255;++n) {
+        for(u32 i=0;!parent && i<d.nParts;++i) for(u32 p=i,n=0;p!=255;++n) {
             if(n>=d.nParts) throw std::invalid_argument("cyclic BIN hierarchy");
             p=joints[p].parentNo;
         }
@@ -66,17 +67,18 @@ struct ModelRuntime::Asset {
             auto flipOffset=be32(b,0x44);
             // MotionMoveCore indexes flipTbl[pno], with pno bounded by nParts.
             // Actual checked BIN files carry the joint count in the preceding word.
+            auto targetParts=parent?parent->nParts:d.nParts;
             if(flipOffset && be32(b,flipOffset)!=d.nParts)
                 throw std::invalid_argument("BIN flip count differs from model joints");
             copyTable(be32(b,0x40),blend,8); copyTable(flipOffset,flip,2);
             auto blendOffset=be32(b,0x40);
             for(u32 i=0;blendOffset && i<be32(b,blendOffset);++i)
                 for(u32 j=0;j<3;++j)
-                    if(be16(b,blendOffset+4+i*8+j*2)>=d.nParts)
+                    if(be16(b,blendOffset+4+i*8+j*2)>=targetParts)
                         throw std::invalid_argument("BIN blend joint reference");
             for(u32 i=0;flipOffset && i<d.nParts;++i) {
                 auto index=be16(b,flipOffset+4+i*2);
-                if(index!=65535 && index>=d.nParts) throw std::invalid_argument("BIN flip joint reference");
+                if(index!=65535 && index>=targetParts) throw std::invalid_argument("BIN flip joint reference");
             }
             d.blendTbl=blend.empty()?nullptr:blend.data(); d.flipTbl=flip.empty()?nullptr:reinterpret_cast<u8*>(flip.data());
         }
@@ -116,6 +118,17 @@ ModelRuntime::~ModelRuntime() = default;
 ModelRuntime::Object::~Object() {
     if(cpu.pm) cpu.releaseJoint();
     if(cpu.mm) cpu.releaseModelInfo();
+}
+ModelInfoView *ModelRuntime::createAttachment(Object &object,ResourceLease bin,ResourceLease tpl,bool resetOffsets) {
+    auto asset=std::make_unique<Asset>(bin,tpl,&object.cpu);
+    if(resetOffsets && asset->data.nParts<object.cpu.nParts)
+        throw std::invalid_argument("SetPartsSub offset replacement lacks parent joint records");
+    object.attachments.push_back(std::move(asset)); // Pin before original consumers publish pointers.
+    auto &bound=*object.attachments.back();
+    if(resetOffsets) object.cpu.setPartsOffset(&bound.data);
+    auto *info=infos.create(&bound.data,&bound.texture);
+    if(!info) throw std::runtime_error("original attached ModInfoMgr.create failed");
+    return info;
 }
 std::unique_ptr<ModelRuntime::Object> ModelRuntime::initialize(ResourceLease bin,ResourceLease tpl,bool invisible) {
     auto object=std::make_unique<Object>();

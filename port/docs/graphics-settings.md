@@ -71,3 +71,32 @@ survive restart; apply failure preserves the previous active configuration;
 Surface recreation reapplies valid settings; ARM32 and ARM64 read identical
 settings; requested sample counts/samplers are verified in the actual backend;
 DoF visibly focuses a nearby/aimed subject and respects its Off state.
+
+## Phase 4c clear-only Vulkan bootstrap
+
+`platform/android/vulkan_bootstrap.cpp` now owns an actual Android surface,
+swapchain and separate 512x448 EFB color/depth attachments. Color is RGBA8 UNORM;
+depth is D32 float carrying normalized original 24-bit GX clear depth. Clear
+state preserves the original integer BP registers. This does not establish
+general GameCube depth-comparison or pixel-format equivalence.
+
+The bootstrap allocates one sample, creates no texture samplers, and runs no DoF.
+Its diagnostic report truthfully reports active samples=1, anisotropy=1 and
+DoF=false. Queried global framebuffer sample masks and the anisotropy feature/
+limit are observations, not validated selectable settings. On the tested Retroid
+the global mask is 7 (1/2/4 samples), anisotropy is available up to 16. The actual
+color/depth formats, resolve/copy path and sampler creation still need validation
+before the required options can appear active in the future menu.
+
+Render target ownership is separate from `GraphicsClear` state and from the
+backend-neutral `GraphicsPresenter` boundary. Future sample changes must recreate
+attachments/resolve resources transactionally. Future DoF needs a depth sampling
+usage/resolve path; the current transfer-readback depth image does not provide
+that effect. These future changes must preserve the original GX copy/clear order.
+
+Vulkan is dynamically loaded so the API21 native foundation still builds. The
+Vulkan surface itself requires API24+ and a supported loader/graphics/present
+queue; failures remain explicit. The current synchronous clear/readback path is
+diagnostic and must become a pipelined renderer before continuous gameplay.
+Display callbacks remain separate from the existing 30 Hz gameplay clock.
+Menu, persistence and user-selectable effects are still rendering-phase work.

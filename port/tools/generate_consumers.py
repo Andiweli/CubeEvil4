@@ -13,7 +13,7 @@ def generate(root, output):
         if digest(root/path) != expected:
             raise ValueError('Original consumer fingerprint mismatch: '+path)
     output.mkdir(parents=True, exist_ok=True)
-    cpp=['#include "model_original.h"','namespace re4::port {']
+    cpp=['#include "motion_original.h"','#include "re4/port/graphics.h"','namespace re4::port {']
     entries=[]
     def add(path, signature, changes):
         source=(root/path).read_text(encoding='utf-8')
@@ -24,8 +24,13 @@ def generate(root, output):
         for before, after in changes:
             if body.count(before)!=1: raise ValueError('consumer adaptation no longer unique: '+before)
             body=body.replace(before,after)
+        if path=='src/game/event.cpp':
+            body=body.replace('pLog->err(', 'eventLog.err(').replace('pLog->warn(', 'eventLog.warn(')
         cpp.extend([f'#line {line} "{(root/path).as_posix()}"',body])
-        entries.append(dict(source=path,signature=signature,line=line,adaptations=[a for a,_ in changes]))
+        adaptations=[a for a,_ in changes]
+        if path=='src/game/event.cpp' and ('pLog->err(' in function(source,signature)[0] or 'pLog->warn(' in function(source,signature)[0]):
+            adaptations.append('nonthrowing bounded event diagnostic log; preserve original return/error paths')
+        entries.append(dict(source=path,signature=signature,line=line,adaptations=adaptations))
     for sig in ['void cModel::setPartsParent()', 'inline void cModel::setNoSuspend(int onoff)',
                 'inline int cModel::isTrans()', 'void cModel::updateOldPos()',
                 'inline cParts* cModel::getPartsPtr(int idx)']:
@@ -67,6 +72,56 @@ def generate(root, output):
                 'void C_MTXRotTrig(Mtx m, char axis, f32 sinA, f32 cosA)']:
         add('src/lib/mtx.c',sig,[])
     add('src/lib/mtxvec.c','void C_MTXMultVec(const Mtx m, const Vec* src, Vec* dst)',[])
+    for sig in ['void C_MTXTranspose(const Mtx src, Mtx xPose)', 'u32 C_MTXInverse(const Mtx src, Mtx inv)']:
+        add('src/lib/mtx.c',sig,[])
+    for sig in ['void C_VECSubtract(const Vec* a, const Vec* b, Vec* a_b)',
+                'void C_VECNormalize(const Vec* src, Vec* unit)',
+                'void C_VECCrossProduct(const Vec* a, const Vec* b, Vec* axb)', 'f32 C_VECMag(const Vec* v)',
+                'f32 C_VECSquareMag(const Vec* v)']:
+        add('src/lib/vec.c',sig,[])
+    for sig in ['void SetOrientationZY(Vec* z, Vec* y, Mtx m)', 'void VecRadLimit(f32* p)',
+                'f32 hermite(f32* x, f32* v, f32 t)']:
+        add('src/game/math_sub.cpp',sig,[])
+    add('src/game/ik.cpp','void IKInit(cModel* pEm, MOTION_INFO* pInfo)',[])
+    add('src/game/motion.cpp','void MotionClear(cModel* pEm, int flag)',[])
+    motion=(root/'src/game/motion.cpp').read_text()
+    def add_motion(sig,changes=()):
+        body,line=function(motion,sig)
+        for before,after in changes:
+            if body.count(before)!=1: raise ValueError('motion adaptation changed: '+before)
+            body=body.replace(before,after)
+        # Matching-only compiler anchors; these have no gameplay effects.
+        body=re.sub(r'\basm(?: volatile)?\(""[^;]*;','',body)
+        body=re.sub(r'\bregister (?=int)','',body)
+        body=re.sub(r' asm\("r\d+"\)','',body)
+        body=re.sub(r'    Fcc(?:F32|S16) c[fs];\n','',body)
+        cpp.extend([f'#line {line} "{(root/"src/game/motion.cpp").as_posix()}"',body])
+        entries.append(dict(source='src/game/motion.cpp',signature=sig,line=line,
+                            adaptations=[a for a,_ in changes]+['remove codeless PPC anchors; BE scalar macros']))
+    add_motion('void MotionSetCore(cModel* m, void* w_, void* data_, void* seq_, int hokan, int flags, int frame)',[
+        ('DbgFlagChk(pG, DBG_TEST_MODE)','false'), ('    u32* tbl;','    const u8** tbl;'),
+        ('w->pJoint_kind = (u16*) ((u8*) w->pMot + 3);','w->pJoint_kind = data->kinds.data();'),
+        ('w->pJoint_no = (u8*) w->pMot + (w->Joint_num * 2 + 3);','w->pJoint_no = data->numbers.data();'),
+        ('''    tbl = (u32*) ((u32) w->pJoint_no + w->Joint_num);
+    tbl = (u32*) (((u32) tbl + 3) & ~3);
+    tbl++;
+    if ((s32) tbl[0] >= 0) {
+        for (i = 0; i < w->Joint_num; i++) {
+            tbl[i] += (u32) w->pMot;
+        }
+    }''','    tbl = data->streams.data(); // Checked native references; original file remains immutable.'),
+        ('    u32 zero = 0;','')])
+    add_motion('int HermiteInterpolation(HERMITE_SET* prm, Vec* out, u16* hist)',[
+        ('u16* hp = hist - 1;','u16* hp = hist;'), ('u16* frames;','u8* frames;'),
+        ('n = *(u16*) p;','n = motionBE16(p);'), ('frames = (u16*) (p + 2);','frames = p + 2;'),
+        ('hp++;','hp = hist + axis;'), ('u16* fp = (u16*) (idx * 2 + (u32) frames);','u8* fp = frames + idx * 2;'),
+        ('f0 = (f32) *fp;','f0 = (f32) motionBE16(fp);'), ('f1 = (f32) frames[nx];','f1 = (f32) motionBE16(frames + nx * 2);'),
+        ('fp--;','fp -= 2;'), ('fp++;','fp += 2;'),
+        ('fp = (u16*) (last * 2 + (u32) frames);','fp = frames + last * 2;')])
+    for name in ['000','001','002','010','011','012','020','021','022','033']:
+        add_motion('void Fcc_get_data_'+name+'(u8* d, int i, int j, f32* x, f32* t)')
+    add_motion('void dummy(u8* d, int i, int j, f32* x, f32* t)')
+    add_motion('int Fcc_next_axis_addr(int fmt, int n)')
     # Exact original pool loops/list ordering, with defined native C++ object lifetimes.
     for sig in ['T* cManager<T>::create(int id)','T* cManager<T>::create()',
                 'T* cManager<T>::create(int id, u32 no)','u32 cManager<T>::countActiveWork()',
@@ -80,11 +135,69 @@ def generate(root, output):
                         ('delete p;','p->be_flag &= ~0x601u; // Keep a live native slot object; original destructor mask.')]
         add('include/cManager.h',sig,changes)
     cpp += ['template class ModelPool<ModelPart>;','template class ModelPool<ModelInfoView>;']
+    event_source=(root/'src/game/event.cpp').read_text()
+    begin,_=function(event_source,'void Event::ExeBeginEvt(Event* pEvt, int FlagCommon)')
+    player_bins=re.findall(r'EvtMgr.SetBin\("([^"]+)", PL_ARC_PTR\(pG->pPlayer, ([\dxA-F]+)\), 0, 2\);',begin)
+    if len(player_bins)!=6: raise ValueError('Original event player registration changed')
+    cpp.append('struct PlayerEventBin { const char *name; u32 index; };\n'
+               'extern const std::array<PlayerEventBin,6> originalPlayerEventBins = {{'+
+               ','.join('{'+json.dumps(n)+','+i+'}' for n,i in player_bins)+'}};')
+    for sig in ['int DatTbl::SetDat(const char* nm, void* dat, u8 type, void* dat2, u8 flag, int* wkNo)',
+                'int DatTbl::GetDat(void** pDat, u8* pEtc, const char* pName, int* pNoWork)',
+                'int DatTbl::ChkDat(const char* pName)', 'int DatTbl::DelDat(const char* pName)',
+                'int DatTbl::DelDatWkNo(int noWork)']:
+        changes=[(sig,sig.replace('DatTbl::','NativeDatTbl::'))]
+        if 'SetDat' in sig:
+            changes.append(('pWork[i].Count++;','if (pWork[i].Count == 0xFFFF) throw std::overflow_error("event reference count");\n            pWork[i].Count++;'))
+        if 'DelDatWkNo' in sig:
+            changes.append(('noWork >= NumDatTbl','noWork < 0 || noWork >= NumDatTbl'))
+        add('src/game/event.cpp',sig,changes)
+    add('src/game/event.cpp','int EventMgr::SetBin(char* nm, void* data, void* dat2, int flag)',[
+        ('int EventMgr::SetBin(char* nm','int EventResources::SetBin(const char* nm'),
+        ('(int) data >= 0','!valid(data)')])
+    add('src/game/event.cpp','int EventMgr::GetBin(void** pAddr, const char* pName, int flagGet)',[
+        ('int EventMgr::GetBin','int EventResources::GetBin'),
+        ('strcat(path, pName);','if (strlen(pName) > 47) return 0;\n            strcat(path, pName);')])
+    add('src/game/event.cpp','int EventMgr::SetEvd(char* nm, void* data, void* dat2, int flag)',[
+        ('int EventMgr::SetEvd(char* nm','int EventResources::SetEvd(const char* nm'),
+        ('EvtHeader* hdr = (EvtHeader*) data;','EventPackageView* hdr = (EventPackageView*) data;'),
+        ('EvtBinEntry* e;','EventBinView* e;'),('(int) hdr >= 0','!valid(hdr)'),
+        ("*(u32*) hdr->tag != 0x6576656E || hdr->tag[4] != 't'",'memcmp(hdr->bytes.data, "event", 5) != 0'),
+        ('hdr->nBin','static_cast<int>(hdr->bins.size())'),
+        ('e = (EvtBinEntry*) (i * sizeof(EvtBinEntry) + (hdr->binOfs + (u32) hdr));','e = &hdr->bins[static_cast<std::size_t>(i)];'),
+        ('SetBin(e->name, (u8*) (e->ofs + (u32) hdr), 0, flag)','SetBin(e->name.c_str(), const_cast<u8*>(e->bytes.data), 0, flag)')])
+    add('src/game/event.cpp','int Event::SetMod(char* nm, void* mod, u8 type, void* dat2, u8 flag, int* wkNo)',[
+        ('int Event::SetMod(char* nm','int EventCpu::SetMod(const char* nm')])
+    add('src/game/event.cpp','int Event::ExePacket_SetPartsSub(char* nm, char* bin, char* tpl, char* oya)',[
+        ('int Event::ExePacket_SetPartsSub(char* nm, char* bin, char* tpl, char* oya)',
+         'int EventCpu::ExePacket_SetPartsSub(const char* nm, const char* bin, const char* tpl, const char* oya)'),
+        ('EvtMgr.GetBin(&b, bin, 0)','manager->eventResources().GetBin(&b, bin, 0)'),
+        ('EvtMgr.GetBin(&t, tpl, 0)','manager->eventResources().GetBin(&t, tpl, 0)'),
+        ('    if (strcmp(nm, "ev0002")','    bool resetOffsets=false;\n    if (strcmp(nm, "ev0002")'),
+        ('m->setPartsOffset(b);','resetOffsets=true; // Apply the same original call after resolving the native BIN view.'),
+        ('ModInfoMgr.create(b, t)','manager->createModelInfoFor(*m, bin, tpl, resetOffsets)')])
+    # Remove only compiler register-allocation anchors, which emit no game instructions.
+    event_source=(root/'src/game/event.cpp').read_text()
+    sig='int Event::GetMod(void** mod, char* nm, u8* type, int* wkNo)'
+    getmod,line=function(event_source,sig)
+    getmod=getmod.replace(sig,sig.replace('Event::','EventCpu::').replace('char* nm','const char* nm'))
+    getmod=getmod.replace('DbgFlagChk(pG, DBG_ADA_OMAKE_EV)','manager->debugAdaOverride()')
+    getmod=re.sub(r'\s*register int pin asm\("r27"\);[^\n]*\n\s*asm volatile\("" : "=r"\(pin\)\);','',getmod)
+    getmod=getmod.replace('    asm("" : "+m"(no));','')
+    getmod=getmod.replace('pLog->err(', 'eventLog.err(')
+    cpp.extend([f'#line {line} "{(root/"src/game/event.cpp").as_posix()}"',getmod])
+    entries.append(dict(source='src/game/event.cpp',signature=sig,line=line,
+                        adaptations=['native const name / explicit debug flag / remove codeless PPC register anchors',
+                                     'nonthrowing bounded event diagnostic log; preserve original return/error paths']))
     add('src/game/event.cpp','int Event::ExeFunc(int mode, int param)',[
         ('int Event::ExeFunc','int EventCpu::ExeFunc'),('void* fn;','const EventFunction *fn;'),
         ('EvtMgr.GetFunc(&fn, nm)','manager->GetFunc(&fn, nm)'),
         ('((EvtFunc) fn)(this, param);','(*fn)(this, static_cast<u32>(param));')])
     cpp.append('struct MesTblBlock { u32 x0,count,ofs[1]; };')
+    add('src/lib/GXFrameBuf.c','void GXSetCopyClear(GXColor clear_clr, u32 clear_z)',[
+        ('void GXSetCopyClear','void GraphicsState::setCopyClear'),
+        ('CHECK_GXBEGIN(1596, "GXSetCopyClear");','checkOutsidePrimitive();'),
+        ('__GXData->bpSentNot = 0;','bpSentNot = 0;')])
     for sig in ['u16* MessageData::getAddr(int no, int data_type)',
                 'int MessageData::getMesNum(int data_type)', 'int MessageData::getSpaceWidth()']:
         add('src/game/mes.cpp',sig,[(sig,sig.replace('MessageData::','MessageIndexCpu::'))])

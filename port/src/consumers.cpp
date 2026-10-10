@@ -1,6 +1,7 @@
 #include "re4/port/consumers.h"
 #include "re4/port/game_runtime.h"
 #include "model_original.h"
+#include "re4/port/motion.h"
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -136,6 +137,7 @@ struct EngineConsumers::Model {
     ModelDataView data;
     ModelInfoView info;
     ModelCpu cpu;
+    std::unique_ptr<MotionAsset> motion;
     std::unique_ptr<ModelRuntime::Object> initialized;
 };
 struct EngineConsumers::Message {
@@ -175,6 +177,7 @@ void EngineConsumers::clear() {
     invocations_.clear();
     functions_ = {};
     events_.clear();
+    eventResources_.clear();
     models_.clear();
     modelRuntime_.reset();
     messages_.clear();
@@ -246,6 +249,11 @@ void EngineConsumers::releaseModel(ConsumerHandle h) {
     check(); validate(h);
     if(domain_ && (domain_->current() || domain_->allocatedStacks()))
         throw std::logic_error("model release requires quiescent task borrowers");
+    for(const auto &e:events_) {
+        if(e.second->ModTbl.contains(&model(h))) throw std::logic_error("model is still registered in original event ModTbl");
+        for(auto *p=model(h).pModelInfo;p;p=p->pList)
+            if(e.second->ModTbl.contains(p)) throw std::logic_error("model info is still registered in original event ModTbl");
+    }
     if(!models_.erase(h.index)) throw std::logic_error("retired model reference");
 }
 ConsumerHandle EngineConsumers::initializeModel(ResourceLease bin,ResourceLease tpl,std::string name,bool invisible) {
@@ -260,6 +268,39 @@ ConsumerHandle EngineConsumers::initializeModel(ResourceLease bin,ResourceLease 
 std::size_t EngineConsumers::modelCount() const {
     check();
     return models_.size();
+}
+void EngineConsumers::initializeMotion(ConsumerHandle h,ResourceLease bytes,int frame,int flags,int hokan) {
+    check(); validate(h);
+    auto &m=*models_.at(h.index);
+    if(!m.initialized) throw std::logic_error("Motion requires an actually initialized original model");
+    if(frame<0 || frame>65535 || flags<0 || flags>65535 || hokan<0 || hokan>255)
+        throw std::invalid_argument("original motion arguments");
+    auto asset=std::make_unique<MotionAsset>(bytes,m.initialized->cpu);
+    if(m.initialized->cpu.Motion.pAttachCam)
+        throw MissingGameConsumer("MotionSetCore/attached camera owner not integrated");
+    // Publish ownership before the original functions touch any pointer. On failure
+    // retain the new asset: the partially initialized original work can reference it.
+    m.motion=std::move(asset);
+    MotionClear(&m.initialized->cpu,1);
+    MotionSetCore(&m.initialized->cpu,&m.initialized->cpu.Motion,&m.motion->data,nullptr,hokan,flags,frame);
+}
+Vec EngineConsumers::sampleMotion(ConsumerHandle h,u32 joint,f32 frame) const {
+    check(); validate(h); const auto &m=*models_.at(h.index);
+    if(!m.motion) throw std::logic_error("motion data not initialized");
+    return m.motion->sample(joint,frame);
+}
+void EngineConsumers::registerEventModel(ConsumerHandle eh,ConsumerHandle mh,const std::string &name,u8 type) {
+    check(); validate(eh); validate(mh);
+    if(name.empty() || name.size()>11 || !models_.at(mh.index)->initialized)
+        throw std::invalid_argument("original event model name/initialized object");
+    if(!event(eh).SetMod(name.c_str(),&model(mh),type,nullptr,2,nullptr))
+        throw std::runtime_error("original Event::SetMod failed");
+}
+ModelInfoView *EngineConsumers::createModelInfoFor(ModelCpu &cpu,const char *bin,const char *tpl,bool reset) {
+    check();
+    for(auto &entry:models_) if(entry.second->initialized && &entry.second->initialized->cpu==&cpu)
+        return modelRuntime_->createAttachment(*entry.second->initialized,eventResources_.bin(bin),eventResources_.bin(tpl),reset);
+    throw std::logic_error("attachment parent is not an owned initialized model");
 }
 void EngineConsumers::bindMessage(int type, ResourceLease b, u32 language) {
     check();
@@ -396,6 +437,7 @@ ConsumerHandle EngineConsumers::event(ResourceLease b) {
     check();
     auto e = std::make_unique<EventCpu>();
     e->package = indexEventPackage(b);
+    eventResources_.registerPackage(e->package.room+e->package.number,e->package);
     e->manager = this;
     auto id = next_++;
     if (!id)
@@ -433,8 +475,5 @@ void EventCpu::GetEventNo(char *p) const {
     if (package.number.size() > 7)
         throw std::invalid_argument("event number exceeds original ExeFunc buffer");
     std::memcpy(p, package.number.c_str(), package.number.size() + 1);
-}
-int EventCpu::GetMod(void **, const char *, int, int) {
-    throw MissingGameConsumer("Event::GetMod/SetMod/ObjMgr.create/modelInit");
 }
 } // namespace re4::port

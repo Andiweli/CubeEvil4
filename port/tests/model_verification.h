@@ -73,6 +73,45 @@ template<class Checks> void modelInitializationTests(Checks &c,GameRuntime &game
     c.test(engine.model(h).nParts==2,"parts slots and info slot released after failed modelInit");
     engine.releaseModel(h); engine.releaseModel(b);
     c.test(engine.modelCount()==0,"all original model objects released");
+    engine.configureModelPools(2,8);
+    auto motionModel=engine.initializeModel(bin,tpl,"motion-target");
+    std::vector<u8> fcv(128,0);
+    fcv[1]=10; fcv[2]=1; fcv[4]=4; fcv[5]=1;
+    word(fcv,8,128); word(fcv,12,16);
+    for(u32 axis=0;axis<3;++axis) {
+        auto at=16+axis*30; fcv[at+1]=2; fcv[at+5]=10;
+        word(fcv,at+18,axis==0?0x41200000:axis==1?0x41a00000:0x41f00000);
+    }
+    auto motionBytes=bytes(fcv);
+    engine.initializeMotion(motionModel,motionBytes,5,1,3);
+    auto &work=engine.model(motionModel).Motion;
+    c.test(work.Joint_num==1 && work.Seq_frame==5 && work.Hokan_cnt==3 && work.Seq_speed==1,
+           "actual MotionSetCore preserves model speed and initializes hokan/sequence");
+    auto sampled=engine.sampleMotion(motionModel,0,5);
+    c.test(sampled.x==5 && sampled.y==10 && sampled.z==15,"actual original Hermite and BE FCC readers sample the midpoint");
+    for(int repeat=0;repeat<12;++repeat) {
+        engine.initializeMotion(motionModel,motionBytes,repeat%11);
+        c.test(engine.model(motionModel).Motion.pMot && engine.model(motionModel).Motion.Seq_frame==repeat%11,
+               "repeated original MotionClear/MotionSetCore retains owned buffers");
+    }
+    c.rejects([&]{engine.sampleMotion(motionModel,1,0);},"motion joint range");
+    c.rejects([&]{engine.sampleMotion(motionModel,0,11);},"motion frame range");
+    auto badMotion=fcv; badMotion[5]=2;
+    c.rejects([&]{engine.initializeMotion(motionModel,bytes(badMotion));},"motion references missing model part");
+    badMotion=fcv; word(badMotion,12,127);
+    c.rejects([&]{engine.initializeMotion(motionModel,bytes(badMotion));},"unaligned/truncated FCV axis bounds");
+    c.test(engine.model(motionModel).Motion.pMot && engine.sampleMotion(motionModel,0,10).x==10,
+           "failed FCV validation preserves previous original motion work");
+    EventResources resources;
+    resources.registerBin("sample.fcv",motionBytes); resources.registerBin("sample.fcv",bin);
+    c.test(resources.bin("sample.fcv").data==motionBytes.data && resources.BinTbl.pWork[0].Count==2,
+           "actual DatTbl keeps first pointer and increments references");
+    resources.BinTbl.DelDat("sample.fcv");
+    c.test(resources.BinTbl.pWork[0].Count==1 && resources.bin("sample.fcv").data==motionBytes.data,
+           "actual DatTbl release retains live reference");
+    resources.BinTbl.DelDat("sample.fcv");
+    c.test(!resources.bin("sample.fcv").data,"last original temporary table reference releases slot");
+    resources.clear(); engine.releaseModel(motionModel);
     std::vector<u8> evd(0xcc,0);
     std::memcpy(evd.data(),"event",5); std::memcpy(evd.data()+0x20,"r120",5);
     std::memcpy(evd.data()+0x28,"s00",4);

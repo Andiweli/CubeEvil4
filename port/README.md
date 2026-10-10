@@ -263,22 +263,31 @@ Stop/restart retains sleeping stacks; reset/release/unload invalidates stale
 references. The original controller and PadRead path remains shared and unchanged.
 
 Source-guarded original methods run on Windows x86/x64 and Android ARM32/ARM64.
-The expanded runtime suite has 609 checks. Private original-data tests load both
+The expanded runtime suite has 634 checks. Private original-data tests load both
 r120 EVD packages through the existing engine loader, verify 37 BIN joint
 hierarchies and English MDT tables, and execute the original cancel callbacks.
 Source-guarded `cModInfoMgr::create`, `cModel::modelInit`, joint/pool/matrix/bounds
-bodies now initialize 35 available r120 BIN/TPL pairs plus six pairs in other
-rooms. The two remaining r120 BIN occurrences lack their referenced TPL in the
-package. Actual packet references are retained; no replacement texture is used.
+bodies now initialize all 37 r120 BIN occurrences plus six pairs in other
+rooms. The formerly missing ev000e textures resolve through original pl00
+archive bindings. Original SetBin/SetEvd, SetMod/GetMod and SetPartsSub bodies
+retain event references and sparse attachments. A CPU binding adapter supplies
+SetOm body models; complete Obj18 creation and Event::Run remain open.
+Original MotionClear/SetCore/IKInit/Hermite execute on event motions and all 66
+pl00 FCV entries (one has no joints). SEQ binding and MotionMove remain open.
 `tools/summarize_consumers.py` compares measured results across all four ABIs.
 
 Original `TexRenderInit` completes CPU manager/buffer setup and the separately
-invoked `R120Init` returns. Original `R120Event` resumes after `SceSleep` and stops
-at the explicit VI presentation dependency. `GameTask` executes original
-`gameInit/ClothInit`, then stops at `GXSetCopyClear`. GPU copy/drawing,
-`MotionSetCore`, actor/event-model registration, camera decisions, full
+invoked `R120Init` returns. Original `R120Event` resumes after `SceSleep` and,
+with the Android Vulkan presenter, executes systemVISetBlack and reaches the
+missing Sofdec movie consumer. Headless runs stop at the explicit VI dependency.
+`GameTask` executes original `gameInit/ClothInit/GXSetCopyClear` and stops at
+`cMes.gameInit`. A real clear-only Android Vulkan surface verifies color/depth
+readback and presentation; it implements no GX primitive drawing or XFB copy.
+GPU copy/drawing, complete player/actor initialization, camera decisions, full
 Event::init/Run/packet playback and the r100 transition remain open.
 The diagnostic route does not claim a playable game. See the
-[model/TexRender continuation report](docs/phase4c-model-status.md) for the
-complete current file list, source anchors, four-ABI measurements and commands.
+[event/pl00/motion/Vulkan continuation report](docs/phase4c-event-status.md) for
+the complete current file list, source anchors, four-ABI measurements and commands.
+The [model/TexRender report](docs/phase4c-model-status.md) records the preceding
+milestone, including the model initialization design.
 The [earlier Phase 4c report](docs/phase4c-status.md) records the preceding milestone.

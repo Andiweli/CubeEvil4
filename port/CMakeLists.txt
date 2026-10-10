@@ -120,7 +120,7 @@ add_library(re4_modules STATIC src/modules.cpp src/module_rel_index.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/original/module_stages.cpp")
 target_link_libraries(re4_modules PUBLIC re4_loader)
 add_library(re4_game_runtime STATIC src/game_runtime.cpp src/gameplay_heaps.cpp src/controller_input.cpp
-    src/consumers.cpp src/model_runtime.cpp src/tex_render.cpp
+    src/consumers.cpp src/event_resources.cpp src/model_runtime.cpp src/motion.cpp src/tex_render.cpp src/graphics.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/original/tex_render_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
@@ -139,6 +139,10 @@ if(MSVC)
         "${CMAKE_CURRENT_BINARY_DIR}/original/pad_clamp.cpp" PROPERTIES COMPILE_OPTIONS "/WX-")
 else()
     target_compile_options(re4_game_runtime PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-fast-math -ffp-contract=off)
+    # Preserve unused parameters/locals of complete original bodies. Native
+    # adapter files still compile with the full warning/error policy.
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
+        PROPERTIES COMPILE_OPTIONS "-Wno-unused-parameter;-Wno-unused-variable")
 endif()
 target_include_directories(re4_modules PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set_target_properties(re4_modules PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -252,7 +256,8 @@ if(ANDROID)
     if(NOT ANDROID_ABI MATCHES "^(armeabi-v7a|arm64-v8a)$")
         message(FATAL_ERROR "Supported Android targets: armeabi-v7a and arm64-v8a")
     endif()
-    add_library(re4_port_jni SHARED platform/android/jni.cpp platform/android/loader_jni.cpp platform/android/module_jni.cpp platform/android/game_jni.cpp)
-    target_link_libraries(re4_port_jni PRIVATE re4_verification re4_module_verification re4_game_verification re4_loader log)
+    add_library(re4_port_jni SHARED platform/android/jni.cpp platform/android/loader_jni.cpp platform/android/module_jni.cpp platform/android/game_jni.cpp
+        platform/android/graphics_jni.cpp platform/android/vulkan_bootstrap.cpp)
+    target_link_libraries(re4_port_jni PRIVATE re4_verification re4_module_verification re4_game_verification re4_loader log android dl)
     target_link_options(re4_port_jni PRIVATE -Wl,--no-undefined)
 endif()

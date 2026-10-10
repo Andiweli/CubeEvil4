@@ -54,9 +54,17 @@ struct ModelInfoView : ModelUnit {
     f32 invisible_factor{};
 };
 struct SequenceKey { u16 Frame{}; u8 Se{}, Free{}; };
+struct MotionDataView;
+struct MotionCamera {
+    u8 parts[5]{}, type{}, frame{}, pad{};
+    Mtx *p_mat{};
+    Mtx mat{};
+    Vec camera_data[5]{};
+    u16 history[5][3]{};
+};
 // All named MOTION_INFO fields from include/model.h; pointer widths are native.
 struct ModelMotion {
-    void *pMot{};
+    MotionDataView *pMot{};
     const u8 **pHermite_data{};
     u16 Key_hist[4][3]{};
     f32 Mot_frame_max{}, Mot_frame{}, Mot_frame_sav{}, Mot_frame_old{};
@@ -73,7 +81,7 @@ struct ModelMotion {
     f32 Seq_speed{};
     u8 Hokan_frame{}, Hokan_cnt{};
     f32 Brate{};
-    void *pAttachCam{};
+    MotionCamera *pAttachCam{};
 };
 struct ModelCoord : ModelUnit {
     ModelCoord();
@@ -85,7 +93,11 @@ struct ModelPart : ModelCoord {
     ModelPart *pList{};
     Mtx lt_inv_mat{};
     Vec inv_offset{};
+    f32 length{};
+    Vec ik_dir{}, up_vector{};
+    Mtx ik_inv_mat{};
     struct { Vec pos{}, rot{}, scale{}; f32 ikAng{}; u16 hist[6][3]{}; u32 flags{}; } motParts;
+    u16 (*getKeyHist())[3] { return motParts.hist; }
 };
 class ModelInfoManager;
 class ModelPartsManager;

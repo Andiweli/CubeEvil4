@@ -68,23 +68,28 @@ def main():
                              room_preparations=sum(r['passed'] for r in rooms),
                              event_packages=sum(len(r['actual']['packages']) for r in events),
                              actual_modelInit_calls=actual_initializations,
+                             original_SetPartsSub_calls=sum(len([m for m in p['event_registration'] if m['type']==3]) for r in [*events,*models] for p in r['actual']['packages']),
+                             original_MotionSetCore_calls=sum(len(p['motion_initializations']) for r in [*events,*models] for p in r['actual']['packages']),
+                             player_MotionSetCore_calls=sum(len(p['player_motion_initializations']) for r in events for p in r['actual']['packages']),
                              failed=0,executable_sha256=sorted({r['executable_sha256'] for r in rooms})))
-    if any(len(v)!=1 for v in [*room_traces.values(),*model_traces.values()]) or len(event_traces)!=1 or len(native_traces)!=1 or checks!={609}:
+    if any(len(v)!=1 for v in [*room_traces.values(),*model_traces.values()]) or len(event_traces)!=1 or len(native_traces)!=1 or checks!={634}:
         raise ValueError('ABI/repetition semantic results differ')
     sample=json.loads((args.host/'consumers-host-64.json').read_text())['results'][0]['actual']['packages']
     packages=[dict(path=p['path'],sha256=p['sha256'],bins=len(p['bins']),native_cpu_models=p['native_models'],
                    model_initializations=p['model_initializations'],event_resource_references=p['event_resource_references'],
+                   external_bins=p['external_bins'],event_registration=p['event_registration'],motion_initializations=p['motion_initializations'],
+                   player_motion_initializations=p['player_motion_initializations'],
                    english_mdt=[dict(name=b['name'],count=b['original_english_count'])
                                 for b in p['bins'] if 'original_english_count' in b]) for p in sample]
     sample=json.loads((args.host/'game-runtime-host-64.json').read_text())['results']
     coverage={r['id']:r['consumers'] for record in sample for r in record['actual']['rooms']}
     additional=[p for r in json.loads((args.host/'models-host-64.json').read_text())['results'] if r['round']==1 for p in r['actual']['packages']]
-    summary=dict(schema='RE4-PHASE4C-MODEL-MEASUREMENTS-1',checks_per_native_run=609,
+    summary=dict(schema='RE4-PHASE4C-EVENT-MOTION-MEASUREMENTS-1',checks_per_native_run=634,
                  measured=measured,identical_native_traces=True,
                  identical_room_traces={str(k):next(iter(v)) for k,v in room_traces.items()},
                  identical_event_trace=next(iter(event_traces)),packages=packages,room_consumer_coverage=coverage,
                  additional_model_packages=additional,identical_additional_model_traces={str(k):next(iter(v)) for k,v in model_traces.items()},
-                 scope='Actual original CPU modelInit/TexRenderInit and cancel callbacks; no Event::Init/packet playback/MotionSetCore/GPU/full game start')
+                 scope='Actual original modelInit, SetBin/SetEvd/SetMod/GetMod/SetPartsSub, MotionClear/SetCore/IK/Hermite; CPU binding adapter for SetOm bodies; no full Event::Run/Obj18/GX draw renderer. GPU evidence is separate APK instrumentation.')
     write_json(output/'consumer-runtime-summary.json',summary)
     print(json.dumps(summary,indent=2))
 
