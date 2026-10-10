@@ -60,12 +60,61 @@ def main():
     digests.update(f['sha256'] for f in packages)
     digests.update(f['sha256'] for f in additional)
     digests.update(f['sha256'] for f in player_files.values())
+    boot_files=[f for f in manifest['files'] if f['path'] in ['etc/core.das','font/common_p.fnt']]
+    digests.update(f['sha256'] for f in boot_files)
     for digest in digests:
         if sha((data/'blobs'/digest).read_bytes()) != digest: raise ValueError('source blob differs')
     catalog = output/'engine-catalog.tsv'
     results = []
     consumer_results=[]
     model_results=[]
+    message_results=[]
+    def verify_messages(actual,disc,bits):
+        if actual['pointer_bits']!=bits or actual['kind']!='actual_CoreDataRead_MessageControl_init_gameInit_Font_create':
+            raise ValueError('message original execution/ABI')
+        cf=files[(disc,'etc/core.das')]
+        source=(data/'blobs'/cf['sha256']).read_bytes()
+        core=drs.Drs(source)
+        if actual['core_body_sha256']!=cf['analysis']['body_sha256']: raise ValueError('CoreDataRead body integrity')
+        def tpl(blob):
+            v,n,table=struct.unpack_from('>III',blob)
+            if v!=0x20af30: raise ValueError('original TPL reference signature')
+            result=[]
+            for i in range(n):
+                at,cl=struct.unpack_from('>II',blob,table+8*i)
+                h,w,fmt,pixel=struct.unpack_from('>HHII',blob,at)
+                x,y,z={0:(8,8,32),1:(8,4,32),2:(8,4,32),3:(4,4,32),4:(4,4,32),5:(4,4,32),6:(4,4,64),8:(8,8,32),9:(8,4,32),10:(4,4,32),14:(8,8,32)}[fmt]
+                r=dict(width=w,height=h,format=fmt,sha256=sha(blob[pixel:pixel+((w+x-1)//x)*((h+y-1)//y)*z]))
+                if cl:
+                    entries=struct.unpack_from('>H',blob,cl)[0]; pf,off=struct.unpack_from('>II',blob,cl+4)
+                    r.update(palette_entries=entries,palette_format=pf,palette_sha256=sha(blob[off:off+2*entries]))
+                result.append(r)
+            return result
+        expected=[]
+        for slot in [4,17,18,16]:
+            for r in tpl(core.entries[slot-4][1]): expected.append({k:r[k] for k in ['width','height','format','sha256']})
+        if actual['core_textures']!=expected: raise ValueError('actual original SpecularInit/GlobalIlmTexInit state')
+        if actual['thermal_sha256']!=tpl(core.entries[19-4][1])[0]['palette_sha256']: raise ValueError('original Thermo TLUT')
+        ff=files[(disc,'font/common_p.fnt')]; font=(data/'blobs'/ff['sha256']).read_bytes()
+        at,width=struct.unpack_from('>II',font)
+        if actual['font_textures']!=tpl(font[at:width]) or actual['widths_sha256']!=sha(font[width:]): raise ValueError('actual original English FNT sheets/CLUT/width data')
+        glyphs=[]
+        for n in range((len(font)-width)//2):
+            l,r=struct.unpack_from('>bb',font,width+(n if n else 1)*2); glyphs.append([l,r,r-l])
+        if actual['glyphs']!=glyphs: raise ValueError('original MessageFont::getSize bearings')
+        layout=[[22,32,65535,25],[23,32,0,25],[18,24,65535,19],[21,25,0,20],[21,28,0,25],[23,23,0,28],[16,21,65535,0],[20,25,65535,21],[20,25,65535,21]]
+        if actual['layouts']!=layout: raise ValueError('original English layout presets')
+        for type,r in enumerate(actual['messages']):
+            blob=core.entries[(21 if type==3 else 10)-4][1]
+            at=struct.unpack_from('>I',blob,8)[0]; count=struct.unpack_from('>I',blob,at+4)[0]
+            end=min([n for n in struct.unpack_from('>6I',blob,4) if n>at]+[len(blob)])
+            offsets=struct.unpack_from('>'+str(count)+'I',blob,at+8)
+            hashes=[sha(blob[at+off:min([at+n for n in offsets if n>off]+[end])]) for off in offsets]
+            if r!=dict(type=type,count=count,payload_hashes=hashes): raise ValueError('original MessageData references/spans')
+        if actual['blocker']!='Original consumer unavailable: SubScreenGameInit()' or not actual['repeated_init_released'] or actual['checks']<940:
+            raise ValueError('actual GameTask progress or message lifecycle')
+        stable={k:v for k,v in actual.items() if k!='pointer_bits'}
+        return sha(json.dumps(stable,sort_keys=True).encode())
     def verify_consumers(actual,expected,bits,opening=True):
         if actual['pointer_bits']!=bits or len(actual['packages'])!=len(expected): raise ValueError('consumer ABI/package count')
         for value,f in zip(actual['packages'],expected):
@@ -211,6 +260,12 @@ def main():
             isolated = json.loads(run([*command,'self-test',str(fixtureRoot)+'/game-fixtures-'+abi]))
             if isolated['pointer_bits'] != bits or isolated['failed'] or isolated['checks'] < 634:
                 raise ValueError('isolated native runtime test/ABI')
+            for disc in sorted(int(d) for d in cases):
+                boot=json.loads(run([*command,'messages',targetRoot,targetCatalog,str(disc)]))
+                boot_trace=verify_messages(boot,disc,bits)
+                message_results.append(dict(abi=abi,round=repeat,disc=disc,trace_sha256=boot_trace,actual=boot,executable_sha256=exeHash))
+                write_json(output/f'messages-{abi}.json',dict(results=[r for r in message_results if r['abi']==abi]))
+                print(f'PASS {abi} round {repeat} disc {disc}: original CoreDataRead, Font/Message init, actual GameTask beyond cMes.gameInit',flush=True)
             for disc in sorted({f['disc_number'] for f in packages}):
                 expected=[f for f in packages if f['disc_number']==disc]
                 actual=json.loads(run([*command,'consumers',targetRoot,targetCatalog,str(disc),*[f['path'] for f in expected]]))
@@ -260,6 +315,7 @@ def main():
     for disc in cases:
         if len({r['trace_sha256'] for r in results if r['disc']==int(disc)}) != 1: raise ValueError('ABI/repeat difference')
     if len({r['trace_sha256'] for r in consumer_results})!=1: raise ValueError('consumer ABI/repeat difference')
+    if len({r['trace_sha256'] for r in message_results})!=1: raise ValueError('message ABI/repeat difference')
     for disc in {r['disc'] for r in model_results}:
         if len({r['trace_sha256'] for r in model_results if r['disc']==disc})!=1: raise ValueError('additional model ABI/repeat difference')
 

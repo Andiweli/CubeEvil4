@@ -20,5 +20,9 @@
   "src/lib/vec.c": "56e6bd2a50923120eaeb3a385b2f7e79d0ce64067de99684fcbffb6f7cc1ae95",
   "include/motion.h": "a8057e429cf4deef61fc105abfeed3b6d512da15fb69f7653cf471340ddfcc57",
   "src/game/read.cpp": "0ef5bbee701eebc44a329c65014902ed8bdee425d4164feb514ac3ab15063772",
-  "src/lib/GXFrameBuf.c": "665011e241e3acd96590d09d3808b75866b28123ab6cab73a5695eaef7d47316"
+  "src/lib/GXFrameBuf.c": "665011e241e3acd96590d09d3808b75866b28123ab6cab73a5695eaef7d47316",
+  "src/game/trans.cpp": "41c6c5b66aa2d4a4bd30779a3f40e4ee5d8c0dbdebfa48265c48789d2357b4cb",
+  "include/arc/core.h": "1df39df2dfd71cc6c4f33772ee95ab1239c4b95a516e19cd683878377a9592e2",
+  "include/tpl.h": "a524d9a67851689ab62c6fdb4d3bdadcbafa713732afd685b92e25c002368ed2",
+  "src/lib/GXTexture.c": "6a4338c827df7f3eaf9a80f7d1ed1719f9467eb2efd3e7cd425e08e47ce19148"
 }

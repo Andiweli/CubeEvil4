@@ -58,6 +58,9 @@ using EventFunction = std::function<void(EventCpu *, u32)>;
 struct MessageIndexCpu {
     u32 m_language = 1;
     u8 *m_Data[5]{};
+    void setLanguage(u32);
+    u32 getLanguage();
+    void registData(int,u8 *);
     u16 *getAddr(int, int);
     int getMesNum(int);
     int getSpaceWidth();

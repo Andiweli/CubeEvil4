@@ -208,7 +208,76 @@ def generate(root, output):
     cpp.insert(2,re.search(r'enum EvtStatusFlag \{.*?\n\};',enums,re.S)[0])
     cpp.append('} // namespace re4::port')
     (output/'consumer_control.cpp').write_text('\n\n'.join(cpp)+'\n',encoding='utf-8')
-    (output/'consumer-manifest.json').write_text(json.dumps(dict(sources=hashes,functions=entries),indent=2)+'\n')
+    messages=generate_messages(root,output)
+    (output/'consumer-manifest.json').write_text(json.dumps(dict(sources=hashes,functions=entries,messages=messages),indent=2)+'\n')
+
+
+def generate_messages(root,output):
+    """Whole original initializers; wire relocation is a checked native view."""
+    cpp=['#include "message_original.h"', '#include <cstdio>',
+         'namespace re4::port {',
+         'using TEXPalette=MessageTpl; using TEXHeader=MessageTexHeader; using TEXDescriptor=MessageTexDescriptor; using CLUTHeader=MessageClutHeader; using FONT_TEX=MessageFontTexture;',
+         'void C_MTXScale(Mtx,f32,f32,f32);\n#define PSMTXScale C_MTXScale\n#define CORE_ARC(n) coreArc(n)\n#define CORE_DATA_MAX 0x234000',
+         (root/'include/arc/core.h').read_text(encoding='utf-8')]
+    entries=[]
+    def add(path,signature,changes=()):
+        source=(root/path).read_text(encoding='utf-8')
+        if path.startswith('include/'): source=re.sub(r'^    ','',source,flags=re.M)
+        source=source.replace(signature+' {',signature+'\n{')
+        body,line=function(source,signature)
+        for before,after in changes:
+            if body.count(before)!=1: raise ValueError('message adaptation no longer unique: '+before)
+            body=body.replace(before,after)
+        cpp.extend([f'#line {line} "{(root/path).as_posix()}"',body])
+        entries.append(dict(source=path,signature=signature,line=line,adaptations=[a for a,_ in changes]))
+    for sig in ['void MessageControl::init()', 'void MessageControl::gameInit()',
+                'void MessageControl::loadCommonFont()', 'void MessageControl::loadSystemFont()',
+                'int MessageControl::loadFont(int w, int h, const char* name, int no)',
+                'void MessageControl::releaseFont(int no)', 'void MessageControl::setLanguage(int lang)',
+                'void MessageControl::setLayout(int no, int type)',
+                'void MessageControl::setFontSize(int no, s16 font_w, s16 font_h)',
+                'void MessageControl::setState(u32 b)', 'void MessageControl::unsetState(u32 b)',
+                'int MessageControl::checkState(u32 b)', 'void MessageControl::Delete(int no)']:
+        changes=[(sig,sig.replace('MessageControl::','MessageControlCpu::'))]
+        if 'setLayout' in sig: changes.append(('static s8* p_layout;', 's8* p_layout; // Invocation-local cursor; original lookup unchanged.'))
+        if 'gameInit' in sig: changes.append(('    MesData.registData(0,', '    trace.push_back("MessageControl::gameInit:original");\n    MesData.registData(0,'))
+        add('src/game/mes.cpp',sig,changes)
+    sig='void MessageControl::setupFont(int char_w, int char_h, u8* addr, int no)'
+    add('src/game/mes.cpp',sig,[(sig,sig.replace('MessageControl::','MessageControlCpu::')),
+        ('MesFont[no].create(char_w, char_h, (TEXPalette*) (addr + *(u32*) addr), addr + *(u32*) (addr + 4));',
+         'setupFontView(char_w, char_h, addr, no); // BE FNT offsets, owned native TPL/CLUT view, then original MessageFont::create.')])
+    sig='void MessageFont::create(int char_w, int char_h, TEXPalette* addr, u8* size)'
+    src=(root/'src/game/mes.cpp').read_text(encoding='utf-8')
+    relocation=re.search(r'    if \(\(s32\) addr->descriptorArray >= 0\) \{.*?\n    \}',function(src,sig)[0],re.S)[0]
+    add('src/game/mes.cpp',sig,[(sig,sig.replace('MessageFont::','MessageFontCpu::')),
+        (relocation,'    requireResolvedPalette(addr); // Native relocation verified before executing the original sheet loop.')])
+    for sig in ['void MessageFont::destroy()', 's16 MessageFont::getSize(s16 mes, s8* L, s8* R)']:
+        changes=[(sig,sig.replace('MessageFont::','MessageFontCpu::'))]
+        if 'destroy' in sig: changes.append(('calcTplOffset(m_tpl);','releasePalette(); // Immutable wire offsets never changed; release this view only.'))
+        add('src/game/mes.cpp',sig,changes)
+    for sig in ['void setLanguage(u32 lang)', 'u32 getLanguage()', 'void registData(int type, u8* p)']:
+        add('include/mes.h',sig,[(sig,sig.replace(' ', ' MessageIndexCpu::',1))])
+    for sig in ['void setDie()', 'void setFontSize(s16 w, s16 h)', 'void setLineGap(u16 gap)',
+                'void setFontGap(u16 gap)', 'void registQueue(MSG_QUE* q)']:
+        out=sig.replace('void ','void MessageSlotCpu::').replace('MSG_QUE','MessageGlyph')
+        add('include/mes.h',sig,[(sig,out)])
+    for sig in ['void Clear()', 'void MesRegistQueue(int no, MSG_QUE* q)',
+                'void MesReleaseQueue(int no)', 'void setLineGap(int no, u16 gap)',
+                'void setFontGap(int no, u16 gap)']:
+        add('include/mes.h',sig,[(sig,sig.replace('void ','void MessageControlCpu::').replace('MSG_QUE','MessageGlyph'))])
+    for sig in ['void SpecularInit(TEXPalette* spec, TEXPalette* ind, TEXPalette* ind2, TEXPalette* thermo)',
+                'void GlobalIlmTexInit(TEXPalette* tpl)']:
+        add('src/game/trans.cpp',sig,[(sig,sig.replace('void ','void MessageControlCpu::')),
+            *([('calcTplAddr(spec);','requireMessageTpl(spec);'),('calcTplAddr(ind);','requireMessageTpl(ind);'),
+               ('calcTplAddr(ind2);','requireMessageTpl(ind2);'),('CalcTplAddrC8(thermo);','requireMessageTpl(thermo);')]
+              if 'Specular' in sig else [('calcTplAddr(tpl);','requireMessageTpl(tpl);')])])
+    sig='void CoreDataRead()'
+    add('src/game/read.cpp',sig,[(sig,'void MessageControlCpu::CoreDataRead()'),
+        ('DVD_READINFO info;','ReadInfo info;'),('pG->pCore = (ArcFile*) CORE_DATA_ADDR;','coreReadBegin(); // Native owner, no 0x80578000 pointer.'),
+        ('req = DVD_READ(3, CORE_DATA_ADDR, 0, 0, 0, 0x8001);','req = readCore(3, 0x8001);')])
+    cpp.append('} // namespace re4::port')
+    (output/'message_control.cpp').write_text('\n\n'.join(cpp)+'\n',encoding='utf-8')
+    return entries
 
 
 if __name__=='__main__':

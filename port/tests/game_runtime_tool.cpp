@@ -1,5 +1,6 @@
 #include "re4/port/game_runtime.h"
 #include "re4/port/sha256.h"
+#include "../src/message_original.h"
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -447,8 +448,94 @@ void data(int argc, char **argv) {
               << "\",\"frames\":" << game.state().Frame_cnt << "}\n";
 }
 } // namespace
+// Actual shared boot consumers with private disc bytes, deliberately stops at
+// the next missing original game dependency rather than inventing its state.
+void messages(int argc,char **argv) {
+    using namespace re4::port;
+    if(argc!=5) throw std::invalid_argument("messages <root> <catalog> <disc>");
+    auto disc=std::stoul(argv[4]); if(disc>1) throw std::invalid_argument("disc");
+    auto files=std::make_shared<ImportedFiles>(argv[2],argv[3]);
+    ControllerInput input; GameRuntime game(files,input,static_cast<u8>(disc)); game.initialize();
+    auto &m=game.messages(); auto &scheduler=game.loader().scheduler();
+    int checks=0;
+    auto check=[&](bool yes,const char *why){ ++checks; if(!yes) throw std::runtime_error(why); };
+    auto rejects=[&](const TaskEntry &call){ bool no=false; try{call();}catch(const std::exception &){no=true;} check(no,"invalid message input was accepted"); };
+    auto execute=[&](const TaskEntry &call){
+        bool done=false; auto task=scheduler.exec(1,[&]{call();done=true;scheduler.exit();});
+        check(bool(task),"message task creation");
+        auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(60);
+        while(!done){game.tick();std::this_thread::yield();if(std::chrono::steady_clock::now()>deadline)throw std::runtime_error("message boot timeout");}
+    };
+    auto cancelled=scheduler.exec(1,[&]{m.initialize();scheduler.exit();});
+    check(bool(cancelled),"cancelled boot creation");
+    check(scheduler.suspend(*cancelled),"suspend original boot before dispatch"); game.tick();
+    check(!m.ready(),"suspended boot was dispatched");
+    check(scheduler.signal(*cancelled),"resume original boot before dispatch");
+    check(scheduler.kill(*cancelled),"cancel original boot before dispatch"); game.tick();
+    check(!m.ready() && game.state().IsMessageInit==0,"cancelled boot falsely complete");
+    game.initialize();
+    execute([&]{m.initialize();});
+    check(m.ready(),"original MessageControl::init did not complete");
+    auto core=m.coreBody(); auto coreHash=hash(core); auto textures=m.coreTextures(); auto thermal=m.thermalPalette();
+    check(!textures.empty() && thermal.initialized,"original core texture consumers missing");
+    check(scheduler.allocatedStacks()==0,"message boot stack remains active");
+    check(bool(game.startOriginalGameTask()),"original GameTask creation");
+    std::string blocker;
+    try{game.tick();}catch(const MissingGameConsumer &failure){blocker=failure.what();}
+    check(blocker=="Original consumer unavailable: SubScreenGameInit()","actual GameTask must pass cMes.gameInit and stop at original SubScreenGameInit");
+    check(game.state().IsMessageInit==1 && game.state().Rno0==0,"original message flag or uncompleted gameplay state");
+    auto font=m.font(0),system=m.font(1);
+    check(font.loaded && system.loaded && font.charWidth==32 && font.charHeight==32,"actual English font slots");
+    check(font.textures.size()==system.textures.size() && font.widths.data==system.widths.data,"original English system-font alias");
+    for(int n=0;n<16;++n) check(m.layout(n).queueBound==(n<3),"original glyph queue registration");
+    std::cout<<"{\"pointer_bits\":"<<sizeof(void*)*8<<",\"kind\":\"actual_CoreDataRead_MessageControl_init_gameInit_Font_create\",\"core_body_sha256\":"<<std::quoted(coreHash)<<",\"core_textures\":[";
+    for(std::size_t i=0;i<textures.size();++i){if(i)std::cout<<',';auto &t=textures[i];std::cout<<"{\"width\":"<<t.width<<",\"height\":"<<t.height<<",\"format\":"<<t.format<<",\"sha256\":"<<std::quoted(hash(t.pixels))<<'}';}
+    std::cout<<"],\"thermal_sha256\":"<<std::quoted(hash(thermal.entries))<<",\"font_textures\":[";
+    for(std::size_t i=0;i<font.textures.size();++i){if(i)std::cout<<',';auto &t=font.textures[i];auto &p=font.palettes[i];
+        check(t.initialized && t.indexed && t.minFilter==1 && t.magFilter==1 && p.initialized,"original GX font CPU state");
+        std::cout<<"{\"width\":"<<t.width<<",\"height\":"<<t.height<<",\"format\":"<<t.format<<",\"sha256\":"<<std::quoted(hash(t.pixels))<<",\"palette_entries\":"<<p.count<<",\"palette_format\":"<<p.format<<",\"palette_sha256\":"<<std::quoted(hash(p.entries))<<'}';}
+    std::cout<<"],\"widths_sha256\":"<<std::quoted(hash(font.widths))<<",\"glyphs\":[";
+    for(u32 n=0;n<font.widths.size/2;++n){s8 l{},r{};auto w=m.glyphWidth(0,int(n),&l,&r);auto at=(n?n:1)*2;
+        check(l==s8(font.widths.data[at]) && r==s8(font.widths.data[at+1]) && w==r-l,"actual original glyph bearings");
+        if(n)std::cout<<',';std::cout<<'['<<int(l)<<','<<int(r)<<','<<w<<']';}
+    std::cout<<"],\"layouts\":[";
+    for(int n=0;n<9;++n){m.setLayout(0,n);auto l=m.layout(0);if(n)std::cout<<',';std::cout<<'['<<int(l.width)<<','<<int(l.height)<<','<<l.charGap<<','<<l.lineGap<<']';}
+    std::cout<<"],\"messages\":[";
+    for(int type=0;type<4;++type){if(type)std::cout<<',';int count=m.messageCount(type); std::cout<<"{\"type\":"<<type<<",\"count\":"<<count<<",\"payload_hashes\":[";
+        for(int n=0;n<count;++n){auto raw=m.message(type,n);auto native=m.nativeMessageWords(type,n);bool valid=true;
+            for(std::size_t k=0;k<native.size();++k) valid=valid && native[k]==u16(u16(raw.data[2*k])<<8|raw.data[2*k+1]);
+            check(valid && m.firstNativeWord(type,n)==native[0],"native message BE words/reference");if(n)std::cout<<',';std::cout<<std::quoted(hash(raw));}
+        std::cout<<"]}";
+    }
+    rejects([&]{m.setLayout(-1,0);}); rejects([&]{m.setLayout(0,9);}); rejects([&]{m.glyphWidth(0,-1,nullptr,nullptr);});
+    rejects([&]{s8 l,r;m.glyphWidth(0,int(font.widths.size/2),&l,&r);}); rejects([&]{m.message(0,-1);}); rejects([&]{m.message(0,m.messageCount(0));});
+    rejects([&]{resolveMessageTpl({font.tplSource.owner,font.tplSource.data,11},2);});
+    auto mutated=std::make_shared<std::vector<u8>>(font.tplSource.data,font.tplSource.data+font.tplSource.size);
+    ResourceLease bad{mutated,mutated->data(),static_cast<u32>(mutated->size())};
+    (*mutated)[7]=3; rejects([&]{resolveMessageTpl(bad,2);}); // Original FONT_TEX capacity is two.
+    std::memcpy(mutated->data(),font.tplSource.data,font.tplSource.size);
+    (*mutated)[8]=0xff; rejects([&]{resolveMessageTpl(bad,2);}); // BE descriptor offset outside file.
+    std::memcpy(mutated->data(),font.tplSource.data,font.tplSource.size);
+    auto table=u32((*mutated)[8])<<24|u32((*mutated)[9])<<16|u32((*mutated)[10])<<8|(*mutated)[11];
+    for(int k=4;k<8;++k) (*mutated)[table+u32(k)]=0;
+    rejects([&]{resolveMessageTpl(bad,2);}); // Indexed font without CLUT.
+    execute([&]{rejects([&]{m.clear();});}); // Live task cannot invalidate another stack's views.
+    auto widthHash=hash(font.widths); auto pixelHash=hash(font.textures[0].pixels);
+    m.releaseFont(0); check(!m.font(0).loaded && m.font(1).loaded,"font release corrupts alias slot");
+    check(hash(system.widths)==widthHash && hash(system.textures[0].pixels)==pixelHash,"shared original font data lost");
+    execute([&]{m.reloadCommonFont();}); check(m.font(0).loaded && hash(m.font(0).widths)==widthHash,"font reinitialization");
+    auto trace=m.trace(); game.initialize();
+    check(!m.ready() && !m.font(1).loaded && game.state().IsMessageInit==0,"native/original reset release");
+    check(hash(font.widths)==widthHash && hash(core)==coreHash,"retired snapshot lease lost");
+    execute([&]{m.initialize();m.gameInit();}); check(m.messageCount(0)>0 && m.font(1).loaded,"repeated original boot");
+    m.clear(); check(!m.ready() && !m.font(0).loaded && scheduler.allocatedStacks()==0,"message final release");
+    std::cout<<"],\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
+    for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
+    std::cout<<"]}\n";
+}
 int main(int argc, char **argv) {
     try {
+        if(argc>1 && std::string(argv[1])=="messages") { messages(argc,argv); return 0; }
         if (argc > 1 && std::string(argv[1]) == "data") {
             data(argc, argv);
             return 0;

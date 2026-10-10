@@ -68,6 +68,7 @@ void OriginalContext::Scenario::scheduler() {
 void OriginalContext::MessageFacade::stageInit() {
     context->required("cMes.stageInit").MessageStageInit();
 }
+void OriginalContext::MessageFacade::gameInit() { context->runtime->messages().gameInit(); }
 void OriginalContext::EventFacade::Run() { context->required("EvtMgr.Run").EventRun(); }
 namespace {
 const RoomMetadata &roomMeta(u16 id) {
@@ -197,6 +198,7 @@ struct GameRuntime::Impl {
     TexRenderRuntime texRender;
     GraphicsState graphics;
     OriginalContext original;
+    MessageRuntime messages;
     FrameViAdapter vi;
     const std::thread::id owner = std::this_thread::get_id();
     bool initialized = false, paused = true, stepping = false;
@@ -213,9 +215,9 @@ struct GameRuntime::Impl {
     std::vector<Pending> settled; // Pins await records outside cancellable task stacks.
     Impl(GameRuntime *runtime, std::shared_ptr<const ImportedFiles> files, PlatformGamepads &pads,
          u8 disc)
-        : loader(std::move(files), disc), modules(loader, moduleMemory),
+        : loader(files, disc), modules(loader, moduleMemory),
           engineConsumers(&loader.scheduler()), texRender([this](u32 bytes){ return moduleMemory->reserve(bytes); }),
-          original(pads), vi([runtime] { runtime->tick(); }) {
+          original(pads), messages(loader,*heaps,original.global,original.system.language,std::move(files),disc), vi([runtime] { runtime->tick(); }) {
         original.runtime = runtime;
         engineConsumers.setAdaOverrideProvider([this]{return DbgFlagChk(original.pG,DBG_ADA_OMAKE_EV);});
         original.heaps = heaps.get();
@@ -362,6 +364,7 @@ GameRuntime::~GameRuntime() {
     impl_->engineConsumers.clear();
     impl_->texRender.clear();
     impl_->cancelPending();
+    impl_->messages.clear();
 }
 void GameRuntime::initialize(u16 width, u16 height) {
     impl_->check(true);
@@ -380,6 +383,7 @@ void GameRuntime::initialize(u16 width, u16 height) {
         if (impl_->modules.info(id).phase != ModulePhase::Inactive)
             impl_->modules.deactivateId(id);
     impl_->activated.clear();
+    impl_->messages.clear();
     impl_->heaps->reset();
     impl_->original.reset();
     impl_->original.Rmode = {width, height};
@@ -428,6 +432,7 @@ void GameRuntime::tick() {
     try {
         impl_->apply();
         impl_->original.collectCancelledReads();
+        impl_->messages.collectCancelledReads();
         impl_->original.PadRead();
         ++impl_->original.global.Frame_cnt;
         impl_->loader.scheduler().setGameGates(
@@ -478,6 +483,7 @@ EngineConsumers &GameRuntime::engineConsumers() {
 }
 TexRenderRuntime &GameRuntime::texRender() { impl_->check(); return impl_->texRender; }
 GraphicsState &GameRuntime::graphics() { impl_->check(); return impl_->graphics; }
+MessageRuntime &GameRuntime::messages() { impl_->check(); return impl_->messages; }
 std::shared_ptr<FrameOperation> GameRuntime::queueRoomRetirement(u16 id) {
     return queueModule(ModuleOperation::RetireRoom, id);
 }

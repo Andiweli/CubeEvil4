@@ -44,7 +44,7 @@ def generate(root, output):
     fields = ['Rno0','Rno1','Rno2','Rno3','RoomNo_next','room_id','room_id_prev','pl_type','game_mode',
               'game_costume','pl_costume','debug_mode','debug_disp','game_country','System_flg',
               'Stop_flg','Status_flg','Debug_flg','Room_flg','Scenario_flg','Frame_cnt',
-              'game_start_time','play_time','pl_ang_y','ashley_life','Speed','SaveKind','em_list_no','game_cnt','Disp_flg','AreaNo','shooting_mode']
+              'game_start_time','play_time','pl_ang_y','ashley_life','Speed','SaveKind','em_list_no','game_cnt','Disp_flg','AreaNo','shooting_mode','IsMessageInit']
     types.append('struct NativeGameState {')
     for name in fields:
         matches = re.findall(r'^\s*((?:u8|u16|u32|s8|s16|s32|f32) ' + name + r'(?:\[\d+\])?);', glob, re.M)
@@ -94,7 +94,7 @@ def generate(root, output):
     bodies.append(re.search(r'union FadeColor \{.*?\n\};',read('src/game/game.cpp'),re.S)[0])
     add('src/game/cloth.cpp','void ClothInit()', [('    int i;', '    trace.push_back("ClothInit:original");\n    int i;')])
     unavailable = ['Game.omake_wep_addr = MEM_ALLOC(0x70000, 1, 13);',
-        'cMes.gameInit();','SubScreenGameInit();','Cckpt.gameInit();','ObjMgr.warnDiv = 100;',
+        'SubScreenGameInit();','Cckpt.gameInit();','ObjMgr.warnDiv = 100;',
         'LightMgr.init(LightFuncTbl);','LightMgr.initPath((LightPathHeader*) CORE_ARC(CORE_LIGHT_PATH));',
         'PlayerInit();','ItemMgr.gameInit();','SceAtInitSaveItem();','MerchantGameInit();',
         'GameLoad();','GamePointInit(0);']

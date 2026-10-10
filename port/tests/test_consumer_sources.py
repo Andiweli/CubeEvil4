@@ -30,6 +30,15 @@ class Sources(unittest.TestCase):
             self.assertIn('GraphicsState::setCopyClear',code)
             self.assertNotIn('(u32) w->pMot',code)
             self.assertNotIn('asm("r27")',code)
+            message=(output/'message_control.cpp').read_text()
+            self.assertEqual(len(manifest['messages']),33)
+            self.assertIn('void MessageControlCpu::gameInit()',message)
+            self.assertIn('void MessageControlCpu::CoreDataRead()',message)
+            self.assertIn('SpecularInit((TEXPalette*) CORE_ARC(CORE_SPECULAR_0)',message)
+            self.assertIn('GXInitTexObjCI(&t->tex',message)
+            self.assertIn('requireResolvedPalette(addr)',message)
+            self.assertIn('blk->ofs[no]',code)
+            self.assertNotIn('(u32) addr',message)
     def test_changed_original_is_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder)/'root'

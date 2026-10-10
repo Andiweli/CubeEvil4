@@ -120,7 +120,8 @@ add_library(re4_modules STATIC src/modules.cpp src/module_rel_index.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/original/module_stages.cpp")
 target_link_libraries(re4_modules PUBLIC re4_loader)
 add_library(re4_game_runtime STATIC src/game_runtime.cpp src/gameplay_heaps.cpp src/controller_input.cpp
-    src/consumers.cpp src/event_resources.cpp src/model_runtime.cpp src/motion.cpp src/tex_render.cpp src/graphics.cpp
+    src/consumers.cpp src/event_resources.cpp src/model_runtime.cpp src/motion.cpp src/tex_render.cpp src/graphics.cpp src/messages.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/original/message_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/tex_render_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
@@ -134,6 +135,7 @@ set_target_properties(re4_game_verification PROPERTIES POSITION_INDEPENDENT_CODE
 if(MSVC)
     target_compile_options(re4_game_runtime PRIVATE /W4 /WX /fp:strict)
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
+        "${CMAKE_CURRENT_BINARY_DIR}/original/message_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/tex_render_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/pad_clamp.cpp" PROPERTIES COMPILE_OPTIONS "/WX-")
@@ -142,6 +144,7 @@ else()
     # Preserve unused parameters/locals of complete original bodies. Native
     # adapter files still compile with the full warning/error policy.
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
+        "${CMAKE_CURRENT_BINARY_DIR}/original/message_control.cpp"
         PROPERTIES COMPILE_OPTIONS "-Wno-unused-parameter;-Wno-unused-variable")
 endif()
 target_include_directories(re4_modules PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")

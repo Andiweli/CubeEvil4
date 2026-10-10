@@ -96,6 +96,7 @@ struct OriginalContext {
     struct MessageFacade {
         OriginalContext *context = nullptr;
         void stageInit();
+        void gameInit();
     } cMes;
     struct EventFacade {
         OriginalContext *context = nullptr;

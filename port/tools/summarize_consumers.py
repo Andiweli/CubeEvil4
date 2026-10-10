@@ -19,12 +19,25 @@ def main():
     native_traces=set()
     model_traces={}
     checks=set()
+    message_traces=set()
+    message_checks=set()
     measured=[]
     for abi,bits,folder in [('host-32',32,args.host),('host-64',64,args.host),
                             ('armeabi-v7a',32,args.device),('arm64-v8a',64,args.device)]:
         rooms=json.loads((folder/f'game-runtime-{abi}.json').read_text())['results']
         events=json.loads((folder/f'consumers-{abi}.json').read_text())['results']
         models=json.loads((folder/f'models-{abi}.json').read_text())['results']
+        messages=json.loads((folder/f'messages-{abi}.json').read_text())['results']
+        if sorted((r['round'],r['disc']) for r in messages)!=[(1,0),(1,1),(2,0),(2,1)]:
+            raise ValueError('missing/duplicate message boot rounds: '+abi)
+        for r in messages:
+            actual=r['actual']
+            if r['abi']!=abi or actual['pointer_bits']!=bits or not actual['repeated_init_released']:
+                raise ValueError('message ABI/lifetime: '+abi)
+            stable={k:v for k,v in actual.items() if k!='pointer_bits'}
+            if sha(json.dumps(stable,sort_keys=True).encode())!=r['trace_sha256']:
+                raise ValueError('message evidence hash: '+abi)
+            message_traces.add(r['trace_sha256']); message_checks.add(actual['checks'])
         if sorted((r['round'],r['disc']) for r in rooms)!=[(1,0),(1,1),(2,0),(2,1)]:
             raise ValueError('missing/duplicate room rounds: '+abi)
         if sorted((r['round'],r['disc']) for r in events)!=[(1,0),(2,0)]:
@@ -72,8 +85,10 @@ def main():
                              original_MotionSetCore_calls=sum(len(p['motion_initializations']) for r in [*events,*models] for p in r['actual']['packages']),
                              player_MotionSetCore_calls=sum(len(p['player_motion_initializations']) for r in events for p in r['actual']['packages']),
                              failed=0,executable_sha256=sorted({r['executable_sha256'] for r in rooms})))
+        measured[-1].update(original_message_boot_runs=len(messages),message_checks_per_run=960)
     if any(len(v)!=1 for v in [*room_traces.values(),*model_traces.values()]) or len(event_traces)!=1 or len(native_traces)!=1 or checks!={634}:
         raise ValueError('ABI/repetition semantic results differ')
+    if len(message_traces)!=1 or message_checks!={960}: raise ValueError('message ABI/repetition semantics differ')
     sample=json.loads((args.host/'consumers-host-64.json').read_text())['results'][0]['actual']['packages']
     packages=[dict(path=p['path'],sha256=p['sha256'],bins=len(p['bins']),native_cpu_models=p['native_models'],
                    model_initializations=p['model_initializations'],event_resource_references=p['event_resource_references'],
@@ -84,11 +99,13 @@ def main():
     sample=json.loads((args.host/'game-runtime-host-64.json').read_text())['results']
     coverage={r['id']:r['consumers'] for record in sample for r in record['actual']['rooms']}
     additional=[p for r in json.loads((args.host/'models-host-64.json').read_text())['results'] if r['round']==1 for p in r['actual']['packages']]
-    summary=dict(schema='RE4-PHASE4C-EVENT-MOTION-MEASUREMENTS-1',checks_per_native_run=634,
+    summary=dict(schema='RE4-PHASE4C-MESSAGE-CORE-MEASUREMENTS-1',checks_per_native_run=634,
                  measured=measured,identical_native_traces=True,
                  identical_room_traces={str(k):next(iter(v)) for k,v in room_traces.items()},
                  identical_event_trace=next(iter(event_traces)),packages=packages,room_consumer_coverage=coverage,
                  additional_model_packages=additional,identical_additional_model_traces={str(k):next(iter(v)) for k,v in model_traces.items()},
+                 identical_message_trace=next(iter(message_traces)),message_checks_per_run=960,
+                 message_boot_sample=json.loads((args.host/'messages-host-64.json').read_text())['results'][0]['actual'],
                  scope='Actual original modelInit, SetBin/SetEvd/SetMod/GetMod/SetPartsSub, MotionClear/SetCore/IK/Hermite; CPU binding adapter for SetOm bodies; no full Event::Run/Obj18/GX draw renderer. GPU evidence is separate APK instrumentation.')
     write_json(output/'consumer-runtime-summary.json',summary)
     print(json.dumps(summary,indent=2))
