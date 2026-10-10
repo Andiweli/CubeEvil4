@@ -21,6 +21,8 @@ def main():
     checks=set()
     message_traces=set()
     message_checks=set()
+    light_traces={}
+    light_checks={}
     measured=[]
     for abi,bits,folder in [('host-32',32,args.host),('host-64',64,args.host),
                             ('armeabi-v7a',32,args.device),('arm64-v8a',64,args.device)]:
@@ -28,6 +30,15 @@ def main():
         events=json.loads((folder/f'consumers-{abi}.json').read_text())['results']
         models=json.loads((folder/f'models-{abi}.json').read_text())['results']
         messages=json.loads((folder/f'messages-{abi}.json').read_text())['results']
+        lights=json.loads((folder/f'lights-{abi}.json').read_text())['results']
+        if sorted((r['round'],r['disc']) for r in lights)!=[(1,0),(1,1),(2,0),(2,1)]:raise ValueError('missing light rounds: '+abi)
+        for r in lights:
+            actual=r['actual']
+            stable={'archives':actual['archives'],'paths':actual['paths']}
+            if actual['pointer_bits']!=bits or sha(json.dumps(stable,sort_keys=True).encode())!=r['trace_sha256'] or actual['gpu_lighting'] or actual['full_lightMove']:
+                raise ValueError('original light evidence/scope: '+abi)
+            light_traces.setdefault(r['disc'],set()).add(r['trace_sha256'])
+            light_checks.setdefault(r['disc'],set()).add(actual['checks'])
         if sorted((r['round'],r['disc']) for r in messages)!=[(1,0),(1,1),(2,0),(2,1)]:
             raise ValueError('missing/duplicate message boot rounds: '+abi)
         for r in messages:
@@ -91,9 +102,14 @@ def main():
                             original_SubScreenGameInit_calls=2*len(messages),
                             isolated_inventory_map_modelInit_calls=12*len(messages),
                             subscreen_archive_reads=44*len(messages))
+        measured[-1].update(original_light_boot_calls=len(messages),
+            isolated_original_light_roomInit_calls=sum(len(a['rounds']) for r in lights for a in r['actual']['archives']),
+            isolated_original_light_creations=sum(b['created'] for r in lights for a in r['actual']['archives'] for frame in a['rounds'] for b in frame['blocks']),
+            isolated_light_blocked_model_owners=sum(b['blocked_model_owners'] for r in lights for a in r['actual']['archives'] for frame in a['rounds'] for b in frame['blocks']))
     if any(len(v)!=1 for v in [*room_traces.values(),*model_traces.values()]) or len(event_traces)!=1 or len(native_traces)!=1 or checks!={634}:
         raise ValueError('ABI/repetition semantic results differ')
     if len(message_traces)!=1 or len(message_checks)!=1 or min(message_checks)<1500: raise ValueError('message/SubScreen/ID/save ABI/repetition semantics differ')
+    if any(len(v)!=1 for v in [*light_traces.values(),*light_checks.values()]):raise ValueError('light ABI/repetition semantics differ')
     sample=json.loads((args.host/'consumers-host-64.json').read_text())['results'][0]['actual']['packages']
     packages=[dict(path=p['path'],sha256=p['sha256'],bins=len(p['bins']),native_cpu_models=p['native_models'],
                    model_initializations=p['model_initializations'],event_resource_references=p['event_resource_references'],
@@ -104,14 +120,16 @@ def main():
     sample=json.loads((args.host/'game-runtime-host-64.json').read_text())['results']
     coverage={r['id']:r['consumers'] for record in sample for r in record['actual']['rooms']}
     additional=[p for r in json.loads((args.host/'models-host-64.json').read_text())['results'] if r['round']==1 for p in r['actual']['packages']]
-    summary=dict(schema='RE4-PHASE4C-ID-SAVE-MEASUREMENTS-1',checks_per_native_run=634,
+    summary=dict(schema='RE4-PHASE4C-LIGHT-MEASUREMENTS-1',checks_per_native_run=634,
                  measured=measured,identical_native_traces=True,
                  identical_room_traces={str(k):next(iter(v)) for k,v in room_traces.items()},
                  identical_event_trace=next(iter(event_traces)),packages=packages,room_consumer_coverage=coverage,
                  additional_model_packages=additional,identical_additional_model_traces={str(k):next(iter(v)) for k,v in model_traces.items()},
                  identical_message_trace=next(iter(message_traces)),message_checks_per_run=next(iter(message_checks)),
                  message_boot_sample=json.loads((args.host/'messages-host-64.json').read_text())['results'][0]['actual'],
-                 scope='Actual original Cockpit::gameInit/IDSystem::roomInit with native ID pool and original room/save-image startup allocation. Isolated original ID tree/pool and room save/load/clear, cGameSave offset/address/rebase tests; no aggregate gameplay save/load. Original SubScreen/message/model/motion consumers retained; no menu widgets, full Event::Run/Obj18/GX draw renderer. GPU evidence is separate APK instrumentation.')
+                 identical_light_traces={str(k):next(iter(v)) for k,v in light_traces.items()},light_checks_per_disc={str(k):next(iter(v)) for k,v in light_checks.items()},
+                 light_samples=json.loads((args.host/'lights-host-64.json').read_text())['results'][:2],
+                 scope='Actual GameTask executes original cLightMgr::init/initPath, then existing ScenarioInit and blocks at PlayerInit. Isolated original LIT roomInit/versionUp, CONS, light creation/type dispatch/kind/event/fog scalars and real core path cursors; missing model managers remain explicitly blocked. No full lightMove, setEnv/filter/wind/view pipeline, SAR gameplay, aggregate save/load or GPU lighting. Previous message/SubScreen/ID/save/model/motion consumers retained; GPU bootstrap evidence is separate APK instrumentation.')
     write_json(output/'consumer-runtime-summary.json',summary)
     print(json.dumps(summary,indent=2))
 

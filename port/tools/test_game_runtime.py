@@ -69,6 +69,7 @@ def main():
     consumer_results=[]
     model_results=[]
     message_results=[]
+    light_results=[]
     def verify_messages(actual,disc,bits):
         if actual['pointer_bits']!=bits or actual['kind']!='actual_CoreDataRead_MessageControl_init_gameInit_Font_create':
             raise ValueError('message original execution/ABI')
@@ -149,10 +150,66 @@ def main():
         item_offset=merchant_offset+((0x304+31)&~31); image_size=item_offset+((0x1204+31)&~31)
         if saves['rooms']!=total or saves['room_ids']!=expected_rooms or saves['saved_rooms']!=len(expected_rooms) or saves['room_bytes']!=room_bytes or saves['sections']!=[64,0x3740,ss_offset,merchant_offset,item_offset] or saves['image_bytes']!=image_size or saves['aggregate_save_load']:
             raise ValueError('original room/save allocation coverage')
-        if actual['blocker']!='Original consumer unavailable: LightMgr.init(LightFuncTbl)' or not actual['repeated_init_released'] or actual['checks']<1500:
+        path_entry=cf['analysis']['entries'][0x0F-4]
+        lb=actual['light_boot']
+        if lb['path_sha256']!=path_entry['sha256'] or lb['paths']!=11 or not lb['initialized'] or lb['trace']!=['cLightMgr::init:original','cLightMgr::initPath:original']:
+            raise ValueError('actual original light startup/path reference')
+        if actual['blocker']!='Original consumer unavailable: PlayerInit()' or not actual['repeated_init_released'] or actual['checks']<1500:
             raise ValueError('actual GameTask progress or message lifecycle')
         stable={k:v for k,v in actual.items() if k not in ['pointer_bits','native_layout']}
         return sha(json.dumps(stable,sort_keys=True).encode())
+    def verify_lights(actual,disc,bits,expected):
+        import struct
+        if actual['pointer_bits']!=bits or actual['kind']!='isolated_actual_original_light_consumers' or actual['gpu_lighting'] or actual['full_lightMove']:
+            raise ValueError('light test scope/ABI')
+        core=files[(disc,'etc/core.das')]
+        ce=core['analysis']['entries'][0xF-4];cb=(data/'blobs'/core['analysis']['body_sha256']).read_bytes();pb=cb[ce['offset']:ce['offset']+ce['size']]
+        path_ids=[n for n in range(pb[0]) if struct.unpack_from('>I',pb,4+n*4)[0]]
+        if [p['id'] for p in actual['paths']]!=path_ids:raise ValueError('original path index coverage')
+        for p in actual['paths']:
+            at=struct.unpack_from('>I',pb,4+p['id']*4)[0];end=pb.index(255,at);values=list(pb[at:end]);length=len(values)+1
+            if p['offset']!=at or p['length']!=length:raise ValueError('original path reference/terminator')
+            expected_sequences=[]
+            for flags in range(4):
+                sequence=[]
+                for n in range(length+3):
+                    v=(values[n] if n<len(values) else 255) if flags&1 else values[n%len(values)]
+                    if flags&2 and v!=255:v=200-v
+                    sequence.append(v)
+                expected_sequences.append(sequence)
+            if p['sequences']!=expected_sequences:raise ValueError('original path loop/stop/inversion differs')
+        if len(actual['archives'])!=len(expected): raise ValueError('light archive coverage')
+        for a,f in zip(actual['archives'],expected):
+            if a['path']!=f['path'] or a['body_sha256']!=f['analysis']['body_sha256'] or len(a['rounds'])!=2:
+                raise ValueError('light original archive integrity/rounds')
+            room_body=(data/'blobs'/f['analysis']['body_sha256']).read_bytes()
+            cns=next((e for e in f['analysis']['entries'] if e['tag']=='CNS'),None)
+            capacity=100 # src/game/cons.cpp ConsRoomDefault[CONS_R_NLIGHT]
+            if cns:
+                b=room_body[cns['offset']:cns['offset']+cns['size']];n=struct.unpack_from('>I',b)[0]
+                bit=struct.unpack_from('>I',b,4)[0]
+                if n>5 and bit&(1<<5):capacity=struct.unpack_from('>I',b,4+4*((n>>5)+1)+5*4)[0]
+            resources=[(core,core['analysis']['entries'][0xB-4])]+[(f,e) for e in f['analysis']['entries'] if e['tag']=='LIT'][:2]
+            if len(resources)!=3: raise ValueError('original gameRoomInit requires two room LIT occurrences')
+            for r in a['rounds']:
+                if r['capacity']!=capacity or len(r['blocks'])!=3:raise ValueError('original CONS light capacity')
+                for no,(got,(owner,e)) in enumerate(zip(r['blocks'],resources)):
+                    body=(data/'blobs'/owner['analysis']['body_sha256']).read_bytes();b=body[e['offset']:e['offset']+e['size']]
+                    cuts=struct.unpack_from('>H',b)[0];present=records=0;scalars=bytearray()
+                    for j in range(cuts):
+                        at=struct.unpack_from('>I',b,4+j*4)[0]
+                        if at:
+                            present+=1;count=struct.unpack_from('>I',b,at+4)[0];records+=count
+                            for k in range(count):
+                                w=at+260+k*300;scalars.extend(struct.pack('>II',j,k))
+                                for off in [4,8,12,16,24,32]:scalars.extend(b[w+off:w+off+4])
+                                scalars.extend(struct.pack('>I',struct.unpack_from('>H',b,w+36)[0]))
+                                for off in [44,48,52]:scalars.extend(b[w+off:w+off+4])
+                    if got['sha256']!=sha(b) or got['source_version']!=b[2] or got['native_version']!=(0x2C if no<2 else b[2]) or got['cut_count']!=cuts or got['present_cuts']!=present or got['records']!=records or got['created']+got['blocked_model_owners']!=records or sum(got['handler_calls'])!=got['created']:
+                        raise ValueError('original LIT cuts/records/version/handler coverage')
+                    if got['scalar_sha256']!=sha(scalars):raise ValueError('native light positions/radii/normal/parent scalar BE conversion')
+                    if not re.fullmatch('[0-9a-f]{64}',got['dynamic_state_sha256']):raise ValueError('missing actual dynamic light color/state trace')
+        return sha(json.dumps({'archives':actual['archives'],'paths':actual['paths']},sort_keys=True).encode())
     def verify_consumers(actual,expected,bits,opening=True):
         if actual['pointer_bits']!=bits or len(actual['packages'])!=len(expected): raise ValueError('consumer ABI/package count')
         for value,f in zip(actual['packages'],expected):
@@ -319,6 +376,16 @@ def main():
                 write_json(output/f'models-{abi}.json',dict(results=[r for r in model_results if r['abi']==abi]))
                 print(f'PASS {abi} round {repeat} disc {disc}: additional original models from '+','.join(f['path'] for f in expected),flush=True)
             for disc,group in cases.items():
+                expected=[]
+                for r in group:
+                    f=next(f for f in manifest['files'] if f['disc_number']==int(disc) and f['sha256']==r['source_sha256'])
+                    if f not in expected:expected.append(f)
+                room_ids=list(dict.fromkeys(r['id'] for r in group))
+                actual_lights=json.loads(run([*command,'lights',targetRoot,targetCatalog,disc,*room_ids]))
+                lt=verify_lights(actual_lights,int(disc),bits,expected)
+                light_results.append(dict(abi=abi,round=repeat,disc=int(disc),trace_sha256=lt,actual=actual_lights,executable_sha256=exeHash))
+                write_json(output/f'lights-{abi}.json',dict(results=[r for r in light_results if r['abi']==abi]))
+                print(f'PASS {abi} round {repeat} disc {disc}: actual original light CPU consumers, {actual_lights["checks"]} checks',flush=True)
                 actual = json.loads(run([*command,'data',targetRoot,targetCatalog,disc,*[r['id'] for r in group]]))
                 if actual['pointer_bits'] != bits: raise ValueError('actual ABI')
                 trace = verify(actual,group,int(disc))

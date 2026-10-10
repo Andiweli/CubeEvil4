@@ -8,6 +8,7 @@
 #include "re4/port/subscreen.h"
 #include "re4/port/id_system.h"
 #include "re4/port/save_state.h"
+#include "re4/port/lights.h"
 #include "re4_runtime_types.h"
 #include <array>
 #include <thread>
@@ -152,6 +153,7 @@ class GameRuntime final {
     SubScreenRuntime &subscreen();
     IdRuntime &ids();
     SaveStateRuntime &saveState();
+    LightRuntime &lights();
     std::shared_ptr<FrameOperation> queueRoomRetirement(std::uint16_t room);
     void queueFailedRoomRetirement(std::uint16_t room);
     void

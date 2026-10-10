@@ -11,8 +11,28 @@ sys.path.insert(0,str(ROOT/'port/tools'))
 import generate_consumers
 import generate_subscreen
 import generate_id_save
+import generate_lights
 
 class Sources(unittest.TestCase):
+    def test_original_light_bodies(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output=Path(folder);generate_lights.generate(ROOT,output)
+            code=(output/'light_control.cpp').read_text()
+            for s in ['void LightManagerCpu::init','int LightManagerCpu::roomInit',
+                      'int cLit::versionUp','LightCpu& LightCpu::operator=',
+                      'int cLightPath::movePath','void Light07_Move','LightFuncTbl[17]',
+                      'LightConstants::ConsGetRoomValue','kindFlags[kind >> 5] |= 1u']:
+                self.assertIn(s,code)
+            self.assertNotIn('(u32) pLitPath',code)
+            self.assertNotIn('delete p;',code)
+            self.assertNotIn('int LightManagerCpu::setEnv',code)
+    def test_changed_original_light_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)/'root';hashes=json.loads((ROOT/'port/config/light-sources.json').read_text())
+            for p in [*hashes,'port/config/light-sources.json']:
+                dest=root/p;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/p,dest)
+            p=root/'src/game/light.cpp';p.write_text(p.read_text().replace('ElecPower = 1.0f','ElecPower = 0.0f'))
+            with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):generate_lights.generate(root,Path(folder)/'output')
     def test_original_id_save_bodies(self):
         with tempfile.TemporaryDirectory() as folder:
             output=Path(folder); generate_id_save.generate(ROOT,output)

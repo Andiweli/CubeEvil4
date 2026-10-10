@@ -185,6 +185,9 @@ struct OriginalContext {
         [[noreturn]] bool isCancel() { throw MissingGameConsumer("Sofdec.isCancel"); }
     } Sofdec;
     struct LightFacade {
+        OriginalContext *context{};
+        void init() { context->runtime->lights().initialize(); }
+        void initPath();
         struct Light {
             [[noreturn]] void setParent(cModel *) {
                 throw MissingGameConsumer("cLight::setParent");
@@ -193,7 +196,7 @@ struct OriginalContext {
         [[noreturn]] Light *getKindLight(int) {
             throw MissingGameConsumer("LightMgr.getKindLight");
         }
-    } LightMgr;
+    } LightMgr{this};
     using cLight = LightFacade::Light;
     struct IdFacade {
         OriginalContext *context{};

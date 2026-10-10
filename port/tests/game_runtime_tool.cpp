@@ -1,6 +1,7 @@
 #include "re4/port/game_runtime.h"
 #include "re4/port/sha256.h"
 #include "../src/message_original.h"
+#include "rnd.h"
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -484,7 +485,12 @@ void messages(int argc,char **argv) {
     check(bool(game.startOriginalGameTask()),"original GameTask creation");
     std::string blocker;
     try{game.tick();}catch(const MissingGameConsumer &failure){blocker=failure.what();}
-    check(blocker=="Original consumer unavailable: LightMgr.init(LightFuncTbl)","actual GameTask must pass original Cockpit/ID initialization and stop at lights");
+    check(blocker=="Original consumer unavailable: PlayerInit()","actual GameTask must pass original lights/path and ScenarioInit and stop at PlayerInit");
+    auto &lights=game.lights();auto lightBoot=lights.snapshot();auto lightPaths=lights.paths();
+    check(lightBoot.initialized && lightBoot.pathsBound && lightBoot.capacity==0 && lightBoot.alive==0 && lightBoot.electricPower==1.0f,"original light boot state");
+    check(std::all_of(lightBoot.kindFlags.begin(),lightBoot.kindFlags.end(),[](u32 f){return f==0xFFFFFFFFu;}),"original light kind reset");
+    check(lights.trace()==std::vector<std::string>{"cLightMgr::init:original","cLightMgr::initPath:original"},"original light init order");
+    check(lightPaths && lightPaths->offsets.size()==11 && lightPaths->offsets[7]==0,"actual CORE_LIGHT_PATH references");
     rejects([&]{(void)ids.unit(*preHud);}); // Actual Cockpit::gameInit invalidates the old HUD unit.
     const auto idBoot=ids.snapshot(); const auto saveBoot=saves.snapshot();
     check(idBoot.initialized && idBoot.capacity==0x80 && idBoot.alive==0,"actual original ID boot/reset pool");
@@ -508,7 +514,7 @@ void messages(int argc,char **argv) {
     check(font.loaded && system.loaded && font.charWidth==32 && font.charHeight==32,"actual English font slots");
     check(font.textures.size()==system.textures.size() && font.widths.data==system.widths.data,"original English system-font alias");
     for(int n=0;n<16;++n) check(m.layout(n).queueBound==(n<3),"original glyph queue registration");
-    std::cout<<"{\"pointer_bits\":"<<sizeof(void*)*8<<",\"kind\":\"actual_CoreDataRead_MessageControl_init_gameInit_Font_create\",\"core_body_sha256\":"<<std::quoted(coreHash)<<",\"core_textures\":[";
+    std::cout<<"{\"pointer_bits\":"<<sizeof(void*)*8<<",\"kind\":\"actual_CoreDataRead_MessageControl_init_gameInit_Font_create\",\"light_boot\":{\"initialized\":true,\"paths\":"<<lightPaths->offsets.size()<<",\"path_sha256\":"<<std::quoted(hash(lightPaths->source))<<",\"trace\":[\"cLightMgr::init:original\",\"cLightMgr::initPath:original\"]},\"core_body_sha256\":"<<std::quoted(coreHash)<<",\"core_textures\":[";
     for(std::size_t i=0;i<textures.size();++i){if(i)std::cout<<',';auto &t=textures[i];std::cout<<"{\"width\":"<<t.width<<",\"height\":"<<t.height<<",\"format\":"<<t.format<<",\"sha256\":"<<std::quoted(hash(t.pixels))<<'}';}
     std::cout<<"],\"thermal_sha256\":"<<std::quoted(hash(thermal.entries))<<",\"font_textures\":[";
     for(std::size_t i=0;i<font.textures.size();++i){if(i)std::cout<<',';auto &t=font.textures[i];auto &p=font.palettes[i];
@@ -683,8 +689,138 @@ void messages(int argc,char **argv) {
     for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
     std::cout<<"]}\n";
 }
+// Isolated execution of real original light consumers on private loaded archives.
+// It does not advance gameRoomInit, create model owners, or submit GPU lighting.
+void lights(int argc,char **argv) {
+    using namespace re4::port;
+    if(argc<6) throw std::invalid_argument("lights <root> <catalog> <disc> <room-hex>...");
+    auto disc=std::stoul(argv[4]);if(disc>1)throw std::invalid_argument("disc");
+    auto files=std::make_shared<ImportedFiles>(argv[2],argv[3]);ControllerInput input;
+    GameRuntime game(files,input,u8(disc));game.initialize();auto &l=game.lights();auto &scheduler=game.loader().scheduler();
+    int checks=0;auto check=[&](bool ok,const char *why){++checks;if(!ok)throw std::runtime_error(why);};
+    auto rejects=[&](const TaskEntry &call){bool rejected=false;try{call();}catch(const std::exception &){rejected=true;}check(rejected,"invalid light input accepted");};
+    auto load=[&](const char *path) {
+        auto request=game.loader().request(path,0x8001);std::shared_ptr<const LoadedFile> file;
+        auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(60);
+        while(game.loader().status(request)==LoadStatus::Pending || game.loader().status(request)==LoadStatus::Reading) { game.tick();std::this_thread::yield();if(std::chrono::steady_clock::now()>deadline)throw std::runtime_error("light original read deadline"); }
+        check(game.loader().readCheck(request,file)==1 && bool(file),"light original async archive read");
+        return ResourceLease{file,file->bytes.data()+file->bodyOffset,file->bodySize};
+    };
+    auto core=load("etc/core.das");auto ci=indexAssetBody(core.data,core.size);
+    const auto &pe=ci.entries.at(ORIGINAL_CORE_LIGHT_PATH_SLOT-4);
+    ResourceLease paths{core.owner,core.data+pe.offset,pe.size};
+    RndInit(0x1234); // Isolated deterministic RNG seed, not a gameplay override.
+    l.initialize();l.initializePaths(paths);auto pathView=l.paths();
+    std::cout<<"{\"pointer_bits\":"<<sizeof(void*)*8<<",\"kind\":\"isolated_actual_original_light_consumers\",\"paths\":[";
+    bool comma=false;
+    for(u32 id=0;id<pathView->offsets.size();++id) {
+        if(!pathView->offsets[id]){rejects([&]{(void)l.pathSteps(u8(id),0,1);});continue;}
+        if(comma)std::cout<<',';comma=true;
+        std::cout<<"{\"id\":"<<id<<",\"offset\":"<<pathView->offsets[id]<<",\"length\":"<<pathView->lengths[id]<<",\"sequences\":[";
+        for(u8 flags=0;flags<4;++flags) {
+            auto sequence=l.pathSteps(u8(id),flags,pathView->lengths[id]+3);check(sequence.size()==pathView->lengths[id]+3,"original path steps");
+            if(flags)std::cout<<',';std::cout<<'[';for(std::size_t j=0;j<sequence.size();++j){if(j)std::cout<<',';std::cout<<sequence[j];}std::cout<<']';
+        }
+        std::cout<<"]}";
+    }
+    l.clear();
+    std::cout<<"],\"archives\":[";
+    for(int a=5;a<argc;++a) {
+        auto roomNo=std::stoul(argv[a],nullptr,16);if(roomNo>UINT16_MAX)throw std::invalid_argument("room ID");
+        check(game.loader().loadRoom(u16(roomNo)),"original ReadAreaData room start");
+        auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(60);
+        while(game.loader().roomBusy()){game.tick();std::this_thread::yield();if(std::chrono::steady_clock::now()>deadline)throw std::runtime_error("light room decode deadline");}
+        auto archive=game.loader().room();check(bool(archive),"original ReadAreaData decoded room");
+        ResourceLease room{archive->body,archive->body->data(),u32(archive->body->size())};auto sourceHash=hash(room);auto ri=archive->index;
+        std::optional<LightHandle> previous;
+        if(a!=5)std::cout<<',';
+        std::cout<<"{\"path\":"<<std::quoted(archive->source->identity.path)<<",\"body_sha256\":"<<std::quoted(sourceHash)<<",\"rounds\":[";
+        for(int round=0;round<2;++round) {
+            l.clear();l.initialize();l.initializePaths(paths);l.bindArchives(core,room);
+            if(previous) rejects([&]{(void)l.state(*previous);});
+            auto s=l.snapshot();check(s.alive==0 && s.capacity>0 && s.pathsBound && s.electricPower==1.0f,"original room light reset");
+            check(l.roomSelected(),"original room block selection");l.selectBlock(0);check(!l.roomSelected(),"original event/core lighting selection");l.selectBlock(-1);check(l.roomSelected(),"original room lighting restoration");
+            l.event(true);check(!l.kind(0x7F),"original beginEvent light kind");l.event(false);check(l.kind(0x7F),"original endEvent light kind");
+            l.kind(255,false);check(!l.kind(255),"unsigned high kind bit");l.kind(255,true);check(l.kind(255),"kind restore");
+            check(l.power(-2.0f)==0.0f && l.power(2.0f)==1.0f,"original electric power clamping");
+            l.fogDistances(123.0f,456.0f);check(l.snapshot().environment.Fog.Start==123.0f && l.snapshot().environment.Fog.End==456.0f,"original event fog scalar changes");
+            rejects([&]{(void)l.cut(1,-1);});rejects([&]{(void)l.cut(1,65535);});
+            if(round)std::cout<<',';
+            std::cout<<"{\"capacity\":"<<s.capacity<<",\"blocks\":[";
+            for(int b=0;b<3;++b) {
+                auto block=l.block(b);auto *header=block->header();u32 cuts=0,records=0,created=0,blocked=0;
+                std::array<u32,17> handlerCalls{};
+                std::vector<u8> scalarBytes;
+                std::vector<u8> stateBytes;
+                auto scalar=[&](u32 v){scalarBytes.push_back(u8(v>>24));scalarBytes.push_back(u8(v>>16));scalarBytes.push_back(u8(v>>8));scalarBytes.push_back(u8(v));};
+                auto real=[&](f32 f){u32 bits{};std::memcpy(&bits,&f,4);scalar(bits);};
+                // Compare actual dynamic integer/color states across ABIs and
+                // repetitions, separately from the independent wire-scalar proof.
+                auto stateTrace=[&](const LightStateView &s) {
+                    for(auto v:{s.flags,s.parentNo,u32(s.routine)}) {
+                        stateBytes.push_back(u8(v>>24));stateBytes.push_back(u8(v>>16));
+                        stateBytes.push_back(u8(v>>8));stateBytes.push_back(u8(v));
+                    }
+                    for(auto v:{s.displayColor.r,s.displayColor.g,s.displayColor.b,s.displayColor.a})stateBytes.push_back(v);
+                };
+                for(u32 n=0;n<header->CutNum;++n) {
+                    if(!block->cutOffsets[n])continue;++cuts;
+                    auto env=l.cut(b,int(n));auto all=l.records(b,int(n));check(all.size()==env.nLight,"original LIT getCut/getLightWork count");records+=u32(all.size());
+                    l.tune(b,int(n));auto tuned=l.snapshot().tune;
+                    check((env.tuneOn&1)?std::memcmp(tuned.data(),env.Tune,12)==0:(tuned[0].r==0xC8 && tuned[1].r==0 && tuned[2].a==0x80),"original tune state");
+                    for(u32 w=0;w<all.size();++w) {
+                        const auto &original=all[w];
+                        scalar(n);scalar(w);real(original.Pos.x);real(original.Pos.y);real(original.Pos.z);
+                        real(original.Radius);real(original.Intensity);scalar(original.ParentNo);scalar(original.HitRadius);
+                        real(original.spot.Normal.x);real(original.spot.Normal.y);real(original.spot.Normal.z);
+                        try {
+                            auto h=l.create(b,int(n),int(w),(w&1)!=0);check(bool(h),"original light record allocation");
+                            if(!h)continue;++created;auto state=l.state(*h);
+                            check(state.type==original.Type && state.id==original.Id && state.kind==original.Kind && state.enableMask==original.EnableMask && state.flags==original.BeFlag && state.index==0xFFFF,"original light assignment fields");
+                            check(state.parentNo==(original.ParentType>4?1:original.ParentNo) && state.parentType==(original.ParentType>4?0:original.ParentType),"original parent scalar split/default handling");
+                            check(std::memcmp(&state.color,&original.Col,4)==0,"original light base color");
+                            check(std::memcmp(&state.position,&original.Pos,sizeof(Vec))==0 && state.radius==original.Radius && state.intensity==original.Intensity,"original light scalar assignment");
+                            stateTrace(state);
+                            if(original.Id==7) {
+                                auto &v=state.direction;auto square=v.x*v.x+v.y*v.y+v.z*v.z;
+                                check(std::fabs(square-100000.0f*100000.0f)<3000.0f,"original directional handler geometric invariant");
+                            }
+                            if(original.Id==0 || original.Id>=9) {
+                                if(original.Id!=16)check(std::memcmp(&state.displayColor,&original.Col,4)==0,"original static color handler");
+                            }
+                            l.moveType(*h);++handlerCalls[original.Id];
+                            stateTrace(l.state(*h));
+                            l.destroy(*h);rejects([&]{(void)l.state(*h);});previous=h;
+                            check(l.snapshot().alive==0,"original light destroy/unlink");
+                        } catch(const MissingGameConsumer &) { ++blocked;check(l.snapshot().alive==0,"missing parent manager left published light"); }
+                    }
+                }
+                if(b)std::cout<<',';
+                std::cout<<"{\"sha256\":"<<std::quoted(hash(block->source))<<",\"scalar_sha256\":"<<std::quoted(sha256(scalarBytes.data(),scalarBytes.size()))<<",\"dynamic_state_sha256\":"<<std::quoted(sha256(stateBytes.data(),stateBytes.size()))<<",\"source_version\":"<<unsigned(block->sourceVersion)<<",\"native_version\":"<<unsigned(header->Version)<<",\"cut_count\":"<<header->CutNum<<",\"present_cuts\":"<<cuts<<",\"records\":"<<records<<",\"created\":"<<created<<",\"blocked_model_owners\":"<<blocked<<",\"handler_calls\":[";
+                for(std::size_t n=0;n<handlerCalls.size();++n){if(n)std::cout<<',';std::cout<<handlerCalls[n];}std::cout<<"]}";
+            }
+            std::cout<<"]}";
+            auto holding=scheduler.exec(1,[&]{scheduler.sleep(1);scheduler.exit();});check(bool(holding),"light lifetime task");
+            game.tick();check(scheduler.allocatedStacks()!=0,"light lifetime task actually suspended");
+            rejects([&]{l.clear();});scheduler.kill(*holding);
+            auto leased=l.block(1);l.clear();check(hash(leased->source)==hash({room.owner,room.data+ri.find("LIT",0)->offset,ri.find("LIT",0)->size}),"retired light resource lease");
+            check(!l.snapshot().initialized && l.snapshot().capacity==0,"light pool final release");
+            if(previous)rejects([&]{(void)l.state(*previous);});
+        }
+        check(hash(room)==sourceHash,"LIT versionUp mutated original immutable archive");
+        auto *entry=ri.find("LIT",0);auto mutated=std::make_shared<std::vector<u8>>(room.data+entry->offset,room.data+entry->offset+entry->size);
+        ResourceLease bad{mutated,mutated->data(),u32(mutated->size())};(*mutated)[4]=0xFF;(*mutated)[5]=0xFF;(*mutated)[6]=0xFF;(*mutated)[7]=0xFC;
+        rejects([&]{(void)resolveLightBlock(bad);});bad.size=3;rejects([&]{(void)resolveLightBlock(bad);});
+        auto malformed=std::make_shared<std::vector<u8>>(paths.data,paths.data+paths.size);
+        ResourceLease badPaths{malformed,malformed->data(),u32(malformed->size())};std::fill(malformed->begin()+4,malformed->begin()+8,0xFF);
+        rejects([&]{(void)resolveLightPaths(badPaths);});
+        std::cout<<"]}";
+    }
+    std::cout<<"],\"checks\":"<<checks<<",\"gpu_lighting\":false,\"full_lightMove\":false}\n";
+}
 int main(int argc, char **argv) {
     try {
+        if(argc>1 && std::string(argv[1])=="lights") { lights(argc,argv);return 0; }
         if(argc>1 && std::string(argv[1])=="messages") { messages(argc,argv); return 0; }
         if (argc > 1 && std::string(argv[1]) == "data") {
             data(argc, argv);

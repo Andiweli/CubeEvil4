@@ -97,10 +97,11 @@ def generate(root, output):
     bodies.append(re.search(r'union FadeColor \{.*?\n\};',read('src/game/game.cpp'),re.S)[0])
     add('src/game/cloth.cpp','void ClothInit()', [('    int i;', '    trace.push_back("ClothInit:original");\n    int i;')])
     unavailable = ['Game.omake_wep_addr = MEM_ALLOC(0x70000, 1, 13);',
-        'LightMgr.init(LightFuncTbl);','LightMgr.initPath((LightPathHeader*) CORE_ARC(CORE_LIGHT_PATH));',
         'PlayerInit();','ItemMgr.gameInit();','SceAtInitSaveItem();','MerchantGameInit();',
         'GameLoad();','GamePointInit(0);']
-    add('src/game/game.cpp','void gameInit()', [(s,'missingGameInit('+json.dumps(s.rstrip(';'))+');') for s in unavailable])
+    add('src/game/game.cpp','void gameInit()', [(s,'missingGameInit('+json.dumps(s.rstrip(';'))+');') for s in unavailable]+[
+        ('LightMgr.init(LightFuncTbl);','LightMgr.init();'),
+        ('LightMgr.initPath((LightPathHeader*) CORE_ARC(CORE_LIGHT_PATH));','LightMgr.initPath();')])
     add('src/game/main_sub.cpp','void systemVISetBlack(int sw)')
     add('src/game/game.cpp', 'void GameTask()', [(
         'static void (*game_func_tbl[7])() = {\n        gameInit, gameStageInit, gameRoomInit, gameMainLoop, gameDoordemo, gameEnding, gameOption,\n    };',

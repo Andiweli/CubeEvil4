@@ -71,6 +71,15 @@ void OriginalContext::MessageFacade::stageInit() {
 }
 void OriginalContext::MessageFacade::gameInit() { context->runtime->messages().gameInit(); }
 void OriginalContext::SubScreenGameInit() { runtime->subscreen().gameInit(); }
+void OriginalContext::LightFacade::initPath() {
+    auto core=context->runtime->messages().coreBody();
+    if(!core.owner || !core.data) throw MissingGameConsumer("CORE_ARC(CORE_LIGHT_PATH)");
+    auto index=indexAssetBody(core.data,core.size);
+    constexpr u32 slot=ORIGINAL_CORE_LIGHT_PATH_SLOT;
+    if(index.entries.size()<=slot-4) throw std::out_of_range("original CORE_LIGHT_PATH slot");
+    const auto &e=index.entries[slot-4];
+    context->runtime->lights().initializePaths({core.owner,core.data+e.offset,e.size});
+}
 void OriginalContext::EventFacade::Run() { context->required("EvtMgr.Run").EventRun(); }
 namespace {
 const RoomMetadata &roomMeta(u16 id) {
@@ -204,6 +213,7 @@ struct GameRuntime::Impl {
     SubScreenRuntime subscreen;
     IdRuntime ids;
     SaveStateRuntime saveState;
+    LightRuntime lights;
     FrameViAdapter vi;
     const std::thread::id owner = std::this_thread::get_id();
     bool initialized = false, paused = true, stepping = false;
@@ -224,7 +234,8 @@ struct GameRuntime::Impl {
           engineConsumers(&loader.scheduler()), texRender([this](u32 bytes){ return moduleMemory->reserve(bytes); }),
           original(pads), messages(loader,*heaps,original.global,original.system.language,files,disc),
           subscreen(loader,*heaps,original.global,original.system.language,std::move(files),disc),
-          ids(*heaps,loader.scheduler()),saveState(*heaps,loader.scheduler()),vi([runtime] { runtime->tick(); }) {
+          ids(*heaps,loader.scheduler()),saveState(*heaps,loader.scheduler()),
+          lights(*heaps,loader.scheduler(),engineConsumers,original.global),vi([runtime] { runtime->tick(); }) {
         original.runtime = runtime;
         engineConsumers.setAdaOverrideProvider([this]{return DbgFlagChk(original.pG,DBG_ADA_OMAKE_EV);});
         original.heaps = heaps.get();
@@ -368,6 +379,7 @@ GameRuntime::GameRuntime(std::shared_ptr<const ImportedFiles> files, PlatformGam
 GameRuntime::~GameRuntime() {
     impl_->check(true);
     impl_->loader.scheduler().clearTasks();
+    impl_->lights.clear();
     impl_->engineConsumers.clear();
     impl_->texRender.clear();
     impl_->cancelPending();
@@ -383,6 +395,7 @@ void GameRuntime::initialize(u16 width, u16 height) {
     impl_->loader.cancelRoom();
     impl_->loader.cancelAll();
     impl_->loader.scheduler().clearTasks();
+    impl_->lights.clear();
     impl_->engineConsumers.clear();
     impl_->texRender.clear();
     for (auto task : impl_->gameTasks)
@@ -503,6 +516,7 @@ MessageRuntime &GameRuntime::messages() { impl_->check(); return impl_->messages
 SubScreenRuntime &GameRuntime::subscreen() { impl_->check(); return impl_->subscreen; }
 IdRuntime &GameRuntime::ids() { impl_->check(); return impl_->ids; }
 SaveStateRuntime &GameRuntime::saveState() { impl_->check(); return impl_->saveState; }
+LightRuntime &GameRuntime::lights() { impl_->check(); return impl_->lights; }
 std::shared_ptr<FrameOperation> GameRuntime::queueRoomRetirement(u16 id) {
     return queueModule(ModuleOperation::RetireRoom, id);
 }

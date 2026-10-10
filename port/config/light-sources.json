@@ -1,0 +1,23 @@
+{
+  "src/game/light.cpp": "b09e5b993b28b90c0c985483e9568da147ed1f9f5397d38acfabf01f705681ec",
+  "src/game/game.cpp": "56f815caa65d867e95a0d2e21763b592a99b53a52d940b6801853412aee02b9a",
+  "include/light.h": "671840f847db0ce9a279437b47316a3b09a8a80c9546fe8739dfe95eb657e8df",
+  "include/lightPath.h": "25fb6de26e3fdc8210a5e55dd69336e8236f5063315026556c37a4cbf8800e0a",
+  "include/cManager.h": "f4eb3770d2f5f5f08bbc429b95511f99280c9c274a9104a3d273536f015f501f",
+  "include/arc/core.h": "1df39df2dfd71cc6c4f33772ee95ab1239c4b95a516e19cd683878377a9592e2",
+  "src/game/lightPath.cpp": "74ef4ac800e628282544d11ce0ce23b42e626cdadedbe386d426a7bbf325beec",
+  "src/game/light01.cpp": "3eaebe408d5b9dee0bb9de19144c0b9ef56aa18b1de2984adb3258769feaed18",
+  "src/game/light02.cpp": "d6ad810b8f07516bad18386cc63685e10d3d1574b7ec1f4bb4dba43b907befbb",
+  "src/game/light03.cpp": "6f190b9838efac99a1f462d47b74a66b973b210001a3efce3fcf8f213dd5cbe8",
+  "src/game/light04.cpp": "de56ea412ae91f1c9935e64ac77a016bb0ae7b973c8f7f9e83102ac469025224",
+  "src/game/light05.cpp": "b87d0c7f38aa551d01994e130d9759b322084d85bb0b048a5f96adca33e05763",
+  "src/game/light06.cpp": "9848bfc5e3303b78e0b44b99b28a8978a5644bc51c903d95a9fa093715e95a2a",
+  "src/game/light07.cpp": "48c12ba82d3d51b4c3b25e054ca984944007008e79ef6f489a0d0f36914cb4ce",
+  "src/game/light08.cpp": "1b0aa1e28aec2b7e682de2e6d463200bc86b8678d761ac557638641b61926aac",
+  "src/game/light10.cpp": "b69a0d04f7c742f26157713d6d7178d43fdf3b2dc867fde5fb749d001f450473",
+  "src/lib/vec.c": "56e6bd2a50923120eaeb3a385b2f7e79d0ce64067de99684fcbffb6f7cc1ae95",
+  "src/game/math_sub.cpp": "8ab63b9eda407cc37b4c679842e723d8e4564669149103ef422030498162a637",
+  "include/math_sub_decl.h": "f31dd5683a52e11bfde1fc1556270201486850d4a9c9fc01dd91a250d5d9cec1",
+  "src/game/cons.cpp": "e754a90cbc3f0bbf2f2d6353c1f5b0b29f0d1ad247dd5afe03bc2c75b2133f80",
+  "include/cons.h": "1ff96ad5775ad6dbd7744192b2d9f020f2e1d5068b37418845299dfead8dff12"
+}
