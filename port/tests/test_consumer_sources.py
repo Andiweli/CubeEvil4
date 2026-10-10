@@ -9,8 +9,32 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'port/tools'))
 import generate_consumers
+import generate_subscreen
 
 class Sources(unittest.TestCase):
+    def test_original_subscreen_inventory_bodies(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output=Path(folder); generate_subscreen.generate(ROOT,output)
+            manifest=json.loads((output/'subscreen-manifest.json').read_text())
+            self.assertEqual(len(manifest['functions']),25)
+            code=(output/'subscreen_control.cpp').read_text()
+            for text in ['SubScreenContext::SubScreenGameInit','SubScreenAramRead();',
+                         'InventoryCpu::init','InventoryCpu::search','InventoryCpu::get',
+                         'int MapManagerCpu::roomInit()', 'void mapAreaFilename(int area, char* name)',
+                         'p->isAlive(m_char)', 'wk->pFreeOffs += size;']:
+                self.assertIn(text,code)
+            self.assertNotIn('(void**) &wk->p_module',code)
+            self.assertIn('allocateOrders(m_array_num)',code)
+            self.assertIn('sizeof(cItem)==14',(output/'include/re4_subscreen_types.h').read_text())
+    def test_changed_original_subscreen_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)/'root'
+            hashes=json.loads((ROOT/'port/config/subscreen-sources.json').read_text())
+            for p in [*hashes,'port/config/subscreen-sources.json']:
+                dest=root/p; dest.parent.mkdir(parents=True,exist_ok=True); shutil.copyfile(ROOT/p,dest)
+            p=root/'src/game/sscrn.cpp'; p.write_text(p.read_text().replace('SS_ARAM 0xD00000','SS_ARAM 0xC00000'))
+            with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):
+                generate_subscreen.generate(root,Path(folder)/'output')
     def test_original_methods_and_no_pointer_casts(self):
         with tempfile.TemporaryDirectory() as folder:
             output=Path(folder)

@@ -44,12 +44,15 @@ def generate(root, output):
     fields = ['Rno0','Rno1','Rno2','Rno3','RoomNo_next','room_id','room_id_prev','pl_type','game_mode',
               'game_costume','pl_costume','debug_mode','debug_disp','game_country','System_flg',
               'Stop_flg','Status_flg','Debug_flg','Room_flg','Scenario_flg','Frame_cnt',
-              'game_start_time','play_time','pl_ang_y','ashley_life','Speed','SaveKind','em_list_no','game_cnt','Disp_flg','AreaNo','shooting_mode','IsMessageInit']
+              'game_start_time','play_time','pl_ang_y','ashley_life','Speed','SaveKind','em_list_no','game_cnt','Disp_flg','AreaNo','shooting_mode','IsMessageInit','peseta','time_bonus']
     types.append('struct NativeGameState {')
     for name in fields:
         matches = re.findall(r'^\s*((?:u8|u16|u32|s8|s16|s32|f32) ' + name + r'(?:\[\d+\])?);', glob, re.M)
         if len(matches) != 1: raise ValueError('ambiguous scalar field: ' + name)
         types.append('    ' + matches[0] + '{};')
+    ope=re.search(r'    u32 ope_x82E8;.*?    u8 pad_8304\[0x832C - 0x8304\];',glob,re.S)[0]
+    ope=re.sub(r';(?=\s*(?://|\n|$))','{};',ope)
+    types.append(ope)
     types += ['    Vec pl_pos{};',
               '    u8 Em_list[0x2000]{}; // Original ESL bytes; no native overlay.', '};', '} // namespace re4::port']
     (output/'include/re4_runtime_types.h').write_text('\n'.join(types) + '\n', encoding='utf-8')
@@ -94,7 +97,7 @@ def generate(root, output):
     bodies.append(re.search(r'union FadeColor \{.*?\n\};',read('src/game/game.cpp'),re.S)[0])
     add('src/game/cloth.cpp','void ClothInit()', [('    int i;', '    trace.push_back("ClothInit:original");\n    int i;')])
     unavailable = ['Game.omake_wep_addr = MEM_ALLOC(0x70000, 1, 13);',
-        'SubScreenGameInit();','Cckpt.gameInit();','ObjMgr.warnDiv = 100;',
+        'Cckpt.gameInit();','ObjMgr.warnDiv = 100;',
         'LightMgr.init(LightFuncTbl);','LightMgr.initPath((LightPathHeader*) CORE_ARC(CORE_LIGHT_PATH));',
         'PlayerInit();','ItemMgr.gameInit();','SceAtInitSaveItem();','MerchantGameInit();',
         'GameLoad();','GamePointInit(0);']
@@ -124,7 +127,7 @@ def generate(root, output):
     r120 = read('src/st1/r120.cpp')
     event = read('include/event.h')
     bodies.insert(3, re.search(r'enum EvtStatusFlag \{.*?\n\};', event, re.S)[0] +
-                  '\n#define EvtStfBit(f) (0x80000000u >> (f))\nconstexpr int EvtReadFlagNone = 0;\nconstexpr int IDC_LIFE_METER = 33;\nconstexpr int SS_OPEN_SHOP = 16;\nconstexpr int SCE_PRIO_DEF_2 = 2;')
+                  '\n#define EvtStfBit(f) (0x80000000u >> (f))\nconstexpr int EvtReadFlagNone = 0;\nconstexpr int IDC_LIFE_METER = 33;\nconstexpr int SCE_PRIO_DEF_2 = 2;')
     for signature in ['void R120Init()', 'void R120Main()', 'void R120Event()',
                       'void Evt_R120S00_Func(Event* e, u32)', 'void Evt_R120S01_Func(Event* e, u32)',
                       'void EventCarInit(Event* e)', 'void EvtTexRenderCamTrans(Event* e, int cut)',

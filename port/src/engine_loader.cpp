@@ -538,7 +538,7 @@ EngineLoader::EngineLoader(std::shared_ptr<const ImportedFiles> f, u8 disc,
     : impl_(std::make_unique<Impl>(std::move(f), disc, std::move(observer), limits)) {}
 EngineLoader::~EngineLoader() = default;
 LoadRequest EngineLoader::request(const std::string &path, u16 mode, u16 priority, u32 offset,
-                                  u32 length) {
+                                  u32 length, u32 aramAddress) {
     Binding binding(impl_->c);
     key(path);
     auto &c = impl_->c;
@@ -549,6 +549,9 @@ LoadRequest EngineLoader::request(const std::string &path, u16 mode, u16 priorit
     c.req.mode = mode;
     c.req.offset = offset;
     c.req.size = length;
+    if ((mode & 8) != 0) loading::validateAram(aramAddress,length);
+    else if (aramAddress) throw std::invalid_argument("ARAM address without DVD ARAM mode");
+    c.req.aram_addr = aramAddress;
     std::strcpy(c.req.fname, path.c_str());
     auto id = c.dvd.ReadReq();
     if (id < 0)
@@ -864,6 +867,8 @@ void EngineLoader::loadResource(ResourceHandle h, Residency dest, bool wait,
         if (memory.data)
             throw std::invalid_argument("MRAM pointer in ARAM request");
         if (address) {
+            if(address >= c.limits.aramEnd || loading::alignedSize(u->getSize()) > c.limits.aramEnd-address)
+                throw std::invalid_argument("DC destination outside general ARAM arena");
             loading::validateAram(address, u->getSize());
             auto end = address + loading::alignedSize(u->getSize());
             for (std::size_t i = 0; i < 32; ++i) {
@@ -914,6 +919,19 @@ void EngineLoader::deleteResource(ResourceHandle h) {
     auto *u = unitFor(impl_->c, h);
     u->setDelete();
     impl_->c.unitFiles[h.slot].reset();
+}
+MemoryReservation EngineLoader::readAram(u32 address,u32 bytes) {
+    Binding bind(impl_->c);
+    loading::validateAram(address,bytes);
+    if(!bytes || address-loading::ARAM_FREE_BASE > impl_->c.aramStorage.size() ||
+       bytes > impl_->c.aramStorage.size()-(address-loading::ARAM_FREE_BASE))
+        throw std::out_of_range("ARAM readback has no initialized backing range");
+    auto memory=reserveMemory(bytes);
+    try {
+        const auto id=impl_->c.aram.DmaTransReq(1,address,loading::nativeAddress(memory.data),bytes,1);
+        if(id<0) throw std::runtime_error("original ARAM readback queue full");
+    } catch (...) { releaseMemory(memory); throw; }
+    return memory;
 }
 MemoryReservation EngineLoader::reserveMemory(u32 bytes) {
     Binding bind(impl_->c);

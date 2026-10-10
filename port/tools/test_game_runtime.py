@@ -60,7 +60,7 @@ def main():
     digests.update(f['sha256'] for f in packages)
     digests.update(f['sha256'] for f in additional)
     digests.update(f['sha256'] for f in player_files.values())
-    boot_files=[f for f in manifest['files'] if f['path'] in ['etc/core.das','font/common_p.fnt']]
+    boot_files=[f for f in manifest['files'] if f['path'].lower() in ['etc/core.das','font/common_p.fnt','rel/sscrn.rel'] or f['path'].lower().startswith('ss/eng/') or f['path'].lower().startswith('ss/cmn/map_obj')]
     digests.update(f['sha256'] for f in boot_files)
     for digest in digests:
         if sha((data/'blobs'/digest).read_bytes()) != digest: raise ValueError('source blob differs')
@@ -111,7 +111,28 @@ def main():
             offsets=struct.unpack_from('>'+str(count)+'I',blob,at+8)
             hashes=[sha(blob[at+off:min([at+n for n in offsets if n>off]+[end])]) for off in offsets]
             if r!=dict(type=type,count=count,payload_hashes=hashes): raise ValueError('original MessageData references/spans')
-        if actual['blocker']!='Original consumer unavailable: SubScreenGameInit()' or not actual['repeated_init_released'] or actual['checks']<940:
+        ss=actual['subscreen']; address=0xD00000
+        for r,path in zip(ss['resources'],['rel/sscrn.rel','ss/eng/ss_cmmn.dat','ss/eng/ss_pzzl.dat']):
+            f=files[(disc,path)]; dma=(f['size']+31)&~31
+            if r!=dict(path=f['path'],size=f['size'],sha256=f['sha256'],aram=address,dma_bytes=dma):
+                raise ValueError('original SubScreen DMA resource/hash/offset')
+            address+=dma
+        if len(ss['resources'])!=3 or ss['free_offset']!=address-0xD00000 or ss['inventory_slots']!=384 or len(ss['item_info'])!=256 or len(ss['map_paths'])!=18:
+            raise ValueError('original SubScreen inventory/map state')
+        if ss['trace'].count('SubScreenGameInit:original-complete')!=2:
+            raise ValueError('original SubScreen repeated initialization incomplete')
+        expected_archives=[f for f in boot_files if f['disc_number']==disc and
+                           (f['path'].lower().startswith('ss/cmn/map_obj') or (f['path'].lower().startswith('ss/eng/') and f['path'].lower().endswith('.dat')))]
+        if [r['path'] for r in ss['archives']]!=[f['path'] for f in expected_archives]: raise ValueError('SubScreen resource coverage')
+        for r,f in zip(ss['archives'],expected_archives):
+            if r['sha256']!=f['sha256']: raise ValueError('SubScreen archive hash')
+            from original_import.formats import body_index
+            blob=(data/'blobs'/f['sha256']).read_bytes(); entries,_=body_index(blob)
+            if len(r['entries'])!=len(entries): raise ValueError('SubScreen block count')
+            for value,entry in zip(r['entries'],entries):
+                if any(value[k]!=entry[k] for k in ['index','tag','offset','size']) or value['sha256']!=sha(blob[entry['offset']:entry['offset']+entry['size']]): raise ValueError('SubScreen original block integrity')
+        if len(ss['model_consumers'])!=6 or any(r['rounds']!=2 for r in ss['model_consumers']): raise ValueError('original inventory/map model initialization')
+        if actual['blocker']!='Original consumer unavailable: Cckpt.gameInit()' or not actual['repeated_init_released'] or actual['checks']<960:
             raise ValueError('actual GameTask progress or message lifecycle')
         stable={k:v for k,v in actual.items() if k!='pointer_bits'}
         return sha(json.dumps(stable,sort_keys=True).encode())

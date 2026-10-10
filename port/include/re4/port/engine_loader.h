@@ -56,7 +56,7 @@ class EngineLoader final {
     // DvdReadN -> original ReadReq/LinkQueue, one current read; lower priority first/FIFO ties.
     LoadRequest request(const std::string &path, std::uint16_t mode = 0x100,
                         std::uint16_t priority = 4, std::uint32_t offset = 0,
-                        std::uint32_t length = 0);
+                        std::uint32_t length = 0, std::uint32_t aramAddress = 0);
     LoadRequest requestFile(std::uint16_t fileTableIndex, std::uint16_t mode = 0x100,
                             std::uint32_t offset = 0, std::uint32_t length = 0);
     LoadStatus status(LoadRequest request) const;
@@ -87,6 +87,9 @@ class EngineLoader final {
     void clearResource(ResourceHandle resource);
     void deleteResource(ResourceHandle resource);
     MemoryReservation reserveMemory(std::uint32_t bytes);
+    // Explicit synchronous original cAram DMA readback. Includes the reserved
+    // SubScreen bank; DC allocations/compaction still end at aramEnd (0xD00000).
+    MemoryReservation readAram(std::uint32_t address, std::uint32_t bytes);
     void releaseMemory(MemoryReservation &memory); // Reject while referenced by a live unit.
     ResourceReference reference(ResourceHandle resource, std::uint32_t offset,
                                 std::uint32_t bytes) const;

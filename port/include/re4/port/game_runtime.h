@@ -5,6 +5,7 @@
 #include "re4/port/modules.h"
 #include "re4/port/tex_render.h"
 #include "re4/port/messages.h"
+#include "re4/port/subscreen.h"
 #include "re4_runtime_types.h"
 #include <array>
 #include <thread>
@@ -146,6 +147,7 @@ class GameRuntime final {
     TexRenderRuntime &texRender();
     GraphicsState &graphics();
     MessageRuntime &messages();
+    SubScreenRuntime &subscreen();
     std::shared_ptr<FrameOperation> queueRoomRetirement(std::uint16_t room);
     void queueFailedRoomRetirement(std::uint16_t room);
     void

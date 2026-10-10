@@ -69,6 +69,7 @@ void OriginalContext::MessageFacade::stageInit() {
     context->required("cMes.stageInit").MessageStageInit();
 }
 void OriginalContext::MessageFacade::gameInit() { context->runtime->messages().gameInit(); }
+void OriginalContext::SubScreenGameInit() { runtime->subscreen().gameInit(); }
 void OriginalContext::EventFacade::Run() { context->required("EvtMgr.Run").EventRun(); }
 namespace {
 const RoomMetadata &roomMeta(u16 id) {
@@ -199,6 +200,7 @@ struct GameRuntime::Impl {
     GraphicsState graphics;
     OriginalContext original;
     MessageRuntime messages;
+    SubScreenRuntime subscreen;
     FrameViAdapter vi;
     const std::thread::id owner = std::this_thread::get_id();
     bool initialized = false, paused = true, stepping = false;
@@ -217,7 +219,8 @@ struct GameRuntime::Impl {
          u8 disc)
         : loader(files, disc), modules(loader, moduleMemory),
           engineConsumers(&loader.scheduler()), texRender([this](u32 bytes){ return moduleMemory->reserve(bytes); }),
-          original(pads), messages(loader,*heaps,original.global,original.system.language,std::move(files),disc), vi([runtime] { runtime->tick(); }) {
+          original(pads), messages(loader,*heaps,original.global,original.system.language,files,disc),
+          subscreen(loader,*heaps,original.global,original.system.language,std::move(files),disc), vi([runtime] { runtime->tick(); }) {
         original.runtime = runtime;
         engineConsumers.setAdaOverrideProvider([this]{return DbgFlagChk(original.pG,DBG_ADA_OMAKE_EV);});
         original.heaps = heaps.get();
@@ -365,6 +368,7 @@ GameRuntime::~GameRuntime() {
     impl_->texRender.clear();
     impl_->cancelPending();
     impl_->messages.clear();
+    impl_->subscreen.clear();
 }
 void GameRuntime::initialize(u16 width, u16 height) {
     impl_->check(true);
@@ -384,6 +388,7 @@ void GameRuntime::initialize(u16 width, u16 height) {
             impl_->modules.deactivateId(id);
     impl_->activated.clear();
     impl_->messages.clear();
+    impl_->subscreen.clear();
     impl_->heaps->reset();
     impl_->original.reset();
     impl_->original.Rmode = {width, height};
@@ -391,6 +396,7 @@ void GameRuntime::initialize(u16 width, u16 height) {
     // Native arena tail handoff. GC SystemMemInit's absolute memory map is not copied.
     if (!impl_->heaps->replace(0, 1) || !impl_->heaps->setCurrent(1))
         throw std::runtime_error("game heap handoff");
+    impl_->subscreen.initializeInventory(); // Original Title_task prerequisite; start items remain in gameInit.
     impl_->original.ScenarioInit();
     impl_->original.PadInit();
     impl_->original.InitGameTime();
@@ -484,6 +490,7 @@ EngineConsumers &GameRuntime::engineConsumers() {
 TexRenderRuntime &GameRuntime::texRender() { impl_->check(); return impl_->texRender; }
 GraphicsState &GameRuntime::graphics() { impl_->check(); return impl_->graphics; }
 MessageRuntime &GameRuntime::messages() { impl_->check(); return impl_->messages; }
+SubScreenRuntime &GameRuntime::subscreen() { impl_->check(); return impl_->subscreen; }
 std::shared_ptr<FrameOperation> GameRuntime::queueRoomRetirement(u16 id) {
     return queueModule(ModuleOperation::RetireRoom, id);
 }

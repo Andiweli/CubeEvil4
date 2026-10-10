@@ -25,9 +25,10 @@ void *aramPointer(u32 offset) {
     return reinterpret_cast<void *>(static_cast<std::uintptr_t>(offset));
 }
 void validateAram(std::uintptr_t address, u32 bytes) {
-    const auto end = context().limits.aramEnd;
-    if (address < ARAM_FREE_BASE || address >= end || (address & 31u) ||
-        alignedSize(bytes) > end - address)
+    // sscrn.cpp reserves a distinct 3 MiB bank. General DC free-space code
+    // remains bounded by limits.aramEnd. Never cross the arena/bank boundary.
+    const auto end = address >= 0xD00000u ? 0x1000000u : context().limits.aramEnd;
+    if (address < ARAM_FREE_BASE || address >= end || (address & 31u) || alignedSize(bytes) > end-address)
         throw std::invalid_argument("ARAM range/alignment exceeds data arena");
 }
 void validateMram(const void *p, u32 bytes) {
@@ -110,8 +111,10 @@ void checkAramRequest(int type, std::uintptr_t src, std::uintptr_t dst, u32 byte
 }
 void cAram::DmaTrans(cAramQueue *q, int mode) {
     checkAramRequest(static_cast<int>(q->type), q->src, q->dst, q->len);
-    if (context().aramStorage.empty())
-        context().aramStorage.resize(context().limits.aramEnd - ARAM_FREE_BASE);
+    const auto address = q->type == 0 ? q->dst : q->src;
+    const auto needed = address + alignedSize(q->len) - ARAM_FREE_BASE;
+    if (context().aramStorage.size() < needed)
+        context().aramStorage.resize(std::max<std::size_t>(needed,context().limits.aramEnd-ARAM_FREE_BASE));
     if (mode & 1) {
         while (!q->CkFlag(0x04000000))
             advance(context().limits.transferBytesPerFrame);

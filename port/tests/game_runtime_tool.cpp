@@ -482,7 +482,16 @@ void messages(int argc,char **argv) {
     check(bool(game.startOriginalGameTask()),"original GameTask creation");
     std::string blocker;
     try{game.tick();}catch(const MissingGameConsumer &failure){blocker=failure.what();}
-    check(blocker=="Original consumer unavailable: SubScreenGameInit()","actual GameTask must pass cMes.gameInit and stop at original SubScreenGameInit");
+    check(blocker=="Original consumer unavailable: Cckpt.gameInit()","actual GameTask must pass original SubScreenGameInit and stop at Cockpit");
+    auto &ss=game.subscreen(); auto sw=ss.snapshot(); auto sr=ss.resources();
+    check(sw.initialized && sw.filename=="SS/eng/ss_pzzl.dat" && sw.moduleAram==0xD00000,"actual original SubScreen language/ARAM state");
+    check(sw.boardSize==0 && sw.boardNext==0 && sw.mapMode==0 && sw.open==0 && sw.attributes==0 && sw.close==0 && sw.wait==0 && sw.mapArrayEmpty,"actual original SubScreen/MapMgr initialization");
+    check(game.state().ope_mdt_no==0x18 && game.state().ope_x82E8==0 && game.state().ope_mdt_bits[0]==0,"original Ope state clear");
+    check((game.state().Status_flg[STA_SSCRN_ENABLE/32] & (0x80000000u>>(STA_SSCRN_ENABLE%32)))!=0,"original SubScreen enable flag");
+    check(sr.size()==3 && ss.itemCapacity()==0x180 && !ss.findItem(0x7c),"real Title_task inventory boot prerequisite and three ARAM reads");
+    u32 aram=0xD00000;
+    for(auto &r:sr){check(r.aramAddress==aram && r.dmaBytes==((r.identity.size+31u)&~31u),"original rounded DMA offsets");check(hash(r.bytes)==r.identity.sha256,"actual ARAM to MRAM readback differs from FST hash"); aram+=r.dmaBytes;}
+    check(sw.freeOffset==aram-0xD00000 && sw.commonOffset==sr[0].dmaBytes && sw.puzzleOffset==sr[0].dmaBytes+sr[1].dmaBytes,"original ARAM archive offsets");
     check(game.state().IsMessageInit==1 && game.state().Rno0==0,"original message flag or uncompleted gameplay state");
     auto font=m.font(0),system=m.font(1);
     check(font.loaded && system.loaded && font.charWidth==32 && font.charHeight==32,"actual English font slots");
@@ -524,12 +533,83 @@ void messages(int argc,char **argv) {
     m.releaseFont(0); check(!m.font(0).loaded && m.font(1).loaded,"font release corrupts alias slot");
     check(hash(system.widths)==widthHash && hash(system.textures[0].pixels)==pixelHash,"shared original font data lost");
     execute([&]{m.reloadCommonFont();}); check(m.font(0).loaded && hash(m.font(0).widths)==widthHash,"font reinitialization");
-    auto trace=m.trace(); game.initialize();
+    auto trace=m.trace(); auto ssTrace=ss.trace(); game.initialize();
     check(!m.ready() && !m.font(1).loaded && game.state().IsMessageInit==0,"native/original reset release");
     check(hash(font.widths)==widthHash && hash(core)==coreHash,"retired snapshot lease lost");
     execute([&]{m.initialize();m.gameInit();}); check(m.messageCount(0)>0 && m.font(1).loaded,"repeated original boot");
     m.clear(); check(!m.ready() && !m.font(0).loaded && scheduler.allocatedStacks()==0,"message final release");
-    std::cout<<"],\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
+    // Isolated original inventory function checks. These entries are never
+    // presented as the game's start inventory or inserted into GameTask.
+    for(u16 id=0x7c;id<=0x7f;++id){
+        check(ss.getItem(id,1)==1,"original item registration"); auto *item=ss.findItem(id);
+        check(item && item->id==id && item->num==1 && ss.itemSlot(item)>=0,"original item identity/slot");
+        ss.roomInit(); check(ss.snapshot().boardSize==id-0x7c,"original case-size lookup");
+    }
+    game.state().pl_type=1; ss.inventoryRoomInit(); ss.roomInit();
+    check(!ss.findItem(0x7c) && ss.snapshot().boardSize==0,"original Ashley inventory set");
+    game.state().pl_type=0; ss.inventoryRoomInit(); ss.roomInit(); check(ss.snapshot().boardSize==3,"original Leon inventory set preserved");
+    ss.wait(7); check(ss.snapshot().wait==7,"original SubScreenWait"); ss.roomInit(); check(ss.snapshot().wait==0,"original room reset");
+    ss.clearInventory(); check(!ss.findItem(0x7f),"original inventory clear");
+    check(ss.getItem(0x23)==1 && ss.findItem(0x23)->bullet==10,"original handgun construct and weapon-table magazine");
+    check(ss.getItem(0x57)==1 && ss.getItem(0x57)==1 && ss.findItem(0x57)->num==2,"original treasure default and stacking table");
+    check(ss.getItem(0xac,1)==1 && ss.findItem(0xac)->lv8[0]==0,"original document byte field/countFiles");
+    ss.clearInventory();
+    execute([&]{ss.gameInit();}); check(ss.snapshot().initialized,"repeated original SubScreenGameInit");
+    rejects([&]{game.loader().request("rel/Sscrn.rel",9,4,0,0,0xD00001);});
+    rejects([&]{game.loader().readAram(0xFFFFE0,64);});
+    std::cout<<"],\"subscreen\":{\"filename\":"<<std::quoted(sw.filename)<<",\"free_offset\":"<<sw.freeOffset<<",\"common_offset\":"<<sw.commonOffset<<",\"puzzle_offset\":"<<sw.puzzleOffset<<",\"module_aram\":"<<sw.moduleAram<<",\"inventory_slots\":"<<ss.itemCapacity()<<",\"resources\":[";
+    for(std::size_t i=0;i<sr.size();++i){if(i)std::cout<<',';auto &r=sr[i];std::cout<<"{\"path\":"<<std::quoted(r.identity.path)<<",\"size\":"<<r.bytes.size<<",\"sha256\":"<<std::quoted(hash(r.bytes))<<",\"aram\":"<<r.aramAddress<<",\"dma_bytes\":"<<r.dmaBytes<<'}';}
+    std::cout<<"],\"item_info\":[";
+    for(u16 id=0;id<256;++id){auto info=ss.itemInfo(id);if(id)std::cout<<',';std::cout<<'['<<info.id<<','<<unsigned(info.type)<<','<<unsigned(info.defNum)<<','<<info.maxNum<<']';}
+    std::cout<<"],\"map_paths\":[";
+    for(int area=0;area<18;++area){if(area)std::cout<<',';std::cout<<std::quoted(ss.mapFilename(area));}
+    std::cout<<"],\"archives\":[";
+    // Original disc consumers exercised in isolation; these diagnostic loads
+    // do not open the menu or call unavailable Sscrn.rel widgets.
+    std::map<std::string,ResourceLease> archives;
+    bool archiveComma=false;
+    for(const auto &f:files->entries()) {
+        std::string path=f.path; std::transform(path.begin(),path.end(),path.begin(),[](unsigned char c){return char(std::tolower(c));});
+        if(f.disc!=disc || !((path.rfind("ss/eng/",0)==0 && path.substr(path.size()-4)==".dat") || path.rfind("ss/cmn/map_obj",0)==0)) continue;
+        auto h=game.loader().registerResource(f.path);
+        execute([&]{game.loader().loadResource(h,Residency::Mram,true);});
+        auto bytes=game.loader().resolve(game.loader().reference(h,0,f.size));
+        check(hash(bytes)==f.sha256,"original SubScreen archive MRAM hash");
+        archives.emplace(path,bytes);
+        auto index=indexAssetBody(bytes.data,bytes.size);
+        if(archiveComma)std::cout<<',';archiveComma=true;
+        std::cout<<"{\"path\":"<<std::quoted(f.path)<<",\"sha256\":"<<std::quoted(hash(bytes))<<",\"entries\":[";
+        for(std::size_t n=0;n<index.entries.size();++n){auto &e=index.entries[n];if(n)std::cout<<',';
+            ResourceLease b{bytes.owner,bytes.data+e.offset,e.size}; std::string status="opaque-retained";
+            if(!std::memcmp(e.tag.data(),"TPL",3)){try{(void)resolveMessageTpl(b,1024);status="checked-native-TPL";}catch(const std::invalid_argument &){status="TPL-open-unsupported-layout";}}
+            std::string tag(e.tag.begin(),e.tag.end());while(!tag.empty() && !tag.back())tag.pop_back();
+            std::cout<<"{\"index\":"<<e.index<<",\"tag\":"<<std::quoted(tag)<<",\"offset\":"<<e.offset<<",\"size\":"<<e.size<<",\"sha256\":"<<std::quoted(hash(b))<<",\"status\":"<<std::quoted(status)<<'}';
+        }
+        std::cout<<"]}"; game.loader().deleteResource(h);
+    }
+    std::cout<<"],\"model_consumers\":[";
+    auto arc=[&](const std::string &path,u32 slot){auto bytes=archives.at(path);auto index=indexAssetBody(bytes.data,bytes.size);if(slot<4 || slot-4>=index.entries.size())throw std::out_of_range("original SS_ARC_PTR slot");auto &e=index.entries[slot-4];return ResourceLease{bytes.owner,bytes.data+e.offset,e.size};};
+    game.engineConsumers().configureModelPools(0x80,0x100); // ss_map mapModelAlloc source capacities.
+    bool modelComma=false;
+    auto model=[&](const std::string &path,u32 binSlot,u32 tplSlot){
+        auto bin=arc(path,binSlot),tpl=arc(path,tplSlot); u32 parts=0;
+        for(int round=0;round<2;++round){auto h=game.engineConsumers().initializeModel(bin,tpl,path+std::to_string(binSlot));auto &object=game.engineConsumers().model(h);parts=object.nParts;
+            check(parts==bin.data[0x19] && object.pModelInfo && object.Motion.Seq_speed==1,"original inventory/map modelInit");
+            for(u32 n=0;n<parts;++n){auto parent=object.pModelInfo->model_addr->pHead[n].parentNo;auto *p=object.getPartsPtr(int(n));check(p->pParent==(parent==255?static_cast<ModelCoord*>(&object):object.getPartsPtr(parent)),"original inventory/map hierarchy");}
+            game.engineConsumers().releaseModel(h);check(game.engineConsumers().modelCount()==0,"inventory/map model lifetime");}
+        if(modelComma)std::cout<<',';modelComma=true;
+        std::cout<<"{\"path\":"<<std::quoted(path)<<",\"bin_slot\":"<<binSlot<<",\"tpl_slot\":"<<tplSlot<<",\"parts\":"<<parts<<",\"rounds\":2}";
+    };
+    // Exact source references: pieceModelInit cases 0..3, doorModelInit and
+    // MapGoal::init. This calls original modelInit, not those unported widgets.
+    for(u32 n=0x1a6;n<=0x1a9;++n)model("ss/eng/ss_pzzl.dat",n,0x1a5);
+    model("ss/eng/ss_map.dat",0xc,0xd);model("ss/eng/ss_map.dat",0xf,0x10);
+    game.engineConsumers().clear();
+    std::cout<<"],\"trace\":["; ssTrace.insert(ssTrace.end(),ss.trace().begin(),ss.trace().end());
+    for(std::size_t i=0;i<ssTrace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(ssTrace[i]);}
+    ss.clear(); check(ss.itemCapacity()==0 && !ss.snapshot().initialized,"final inventory/SubScreen release");
+    check(hash(sr[1].bytes)==sr[1].identity.sha256,"retired SubScreen lease invalidated");
+    std::cout<<"]},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
     for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
     std::cout<<"]}\n";
 }
