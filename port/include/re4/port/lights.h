@@ -39,6 +39,7 @@ struct LightStateView {
     GXColor color{},displayColor{};
     u16 index{};
 };
+struct LightRenderRecord { u32 flags{};LightFields fields{}; };
 // Shared CPU state on the frame owner. Snapshots are copied, never GC layouts.
 class LightRuntime final {
 public:
@@ -60,6 +61,9 @@ public:
     std::vector<cLightWork> records(int block,int cut) const;
     std::optional<LightHandle> create(int block,int cut,int light,bool back=false);
     LightStateView state(LightHandle) const;
+    LightRenderRecord renderRecord(LightHandle) const; // Validated owner-frame copy; not a GC overlay.
+    void loadRenderCut(int block,int cut); // Original loadLit; current position adapter requires detached lights.
+    std::vector<LightRenderRecord> renderPool() const;
     void moveType(LightHandle); // Original type handler, not the full lightMove/frame pipeline.
     void destroy(LightHandle);
     void event(bool begin);

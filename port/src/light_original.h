@@ -17,6 +17,7 @@ struct LightCpu : ModelUnit,LightFields {
     int setParent(u8,u32);
     int setParent(ModelCpu *);
     ModelCpu *calcParent();
+    int calcPos(Vec*,Vec*);
     void setTrans(int);
     void setSpotNormal(Vec *);
     void setSpotTarget(Vec *);
@@ -65,6 +66,7 @@ struct LightManagerCpu : LightPool<LightCpu> {
     f32 setElecPower(f32);int onKind(u8);int offKind(u8);int checkKind(u8);
     LightCpu *getKindLight(u8);int roomLitSet(cLit *);int roomLitCheck();
     cLightEnv *getEnvPtr();int initPath(LightPathHeader *);u8 *getPathPtr(u8);LightPathHeader *getPathHeader();
+    int loadLit(cLightWork*,u32);
     void beginEvent();void endEvent();void setTune(cLightEnv *);
     void setFogStart(f32);void setFogEnd(f32);f32 getFogStart();f32 getFogEnd();
     void deleteScr();void offScr(u8);int countScr();cLightEnv *getCutAddr(int,int);

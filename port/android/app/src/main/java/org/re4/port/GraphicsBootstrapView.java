@@ -14,10 +14,23 @@ public final class GraphicsBootstrapView extends SurfaceView implements SurfaceH
     private int frames;
     private String report = "Vulkan surface not attached";
     private String sceneRoot, sceneCatalog, sceneEvent;
+    private String evidenceSession="phase5a";
+    private int sceneRoom=0x120,sceneFrame;
     public interface SceneObserver { void accept(String report); }
     private SceneObserver sceneObserver;
+    public void configureEvidenceSession(String session) {
+        if(handle!=0)throw new IllegalStateException("Configure before attaching surface");
+        if(session==null||!session.matches("[A-Za-z0-9_-]{1,80}"))
+            throw new IllegalArgumentException("Evidence session must be a safe file component");
+        evidenceSession=session;
+    }
     public void configureScene(String root,String catalog,String event,SceneObserver observer) {
+        configureScene(root,catalog,0x120,event,0,observer);
+    }
+    public void configureScene(String root,String catalog,int room,String event,int frame,SceneObserver observer) {
         if(handle!=0) throw new IllegalStateException("Configure before attaching surface");
+        if(room<0||room>0xffff||frame<0)throw new IllegalArgumentException("Original room/frame range");
+        sceneRoom=room;sceneFrame=frame;
         sceneRoot=root;sceneCatalog=catalog;sceneEvent=event;sceneObserver=observer;
     }
     public GraphicsBootstrapView(Context context) {
@@ -26,7 +39,7 @@ public final class GraphicsBootstrapView extends SurfaceView implements SurfaceH
     }
     @Override public void surfaceCreated(SurfaceHolder holder) {
         try { frames=0;handle = nativeOpen(holder.getSurface());
-            if(sceneRoot!=null) nativeLoadScene(handle,sceneRoot,sceneCatalog,sceneEvent);
+            if(sceneRoot!=null) nativeLoadScene(handle,sceneRoot,sceneCatalog,sceneRoom,sceneEvent,sceneFrame);
             active = true; Choreographer.getInstance().postFrameCallback(this); }
         catch (IllegalStateException error) { report = error.getMessage(); Log.e("RE4Graphics",report); if(sceneObserver!=null)sceneObserver.accept(report); }
     }
@@ -40,7 +53,7 @@ public final class GraphicsBootstrapView extends SurfaceView implements SurfaceH
     @Override public void doFrame(long timeNanos) {
         if (!active || handle == 0) return;
         try { report = sceneRoot==null?nativeFrame(handle,false):nativeSceneFrame(handle,
-            frames==2?getContext().getFilesDir()+"/phase5a-gpu.rgba":null); frames++;
+            frames==2?getContext().getFilesDir()+"/"+evidenceSession+"-gpu.rgba":null); frames++;
             if(sceneObserver!=null)sceneObserver.accept(report);
         }
         catch (IllegalStateException error) { report = error.getMessage(); active = false; Log.e("RE4Graphics",report); if(sceneObserver!=null)sceneObserver.accept(report); }
@@ -63,6 +76,6 @@ public final class GraphicsBootstrapView extends SurfaceView implements SurfaceH
     private static native void nativeClose(long handle);
     private static native String nativeFrame(long handle,boolean black);
     private static native String nativeOriginalProbe(long handle,String directory);
-    private static native void nativeLoadScene(long handle,String root,String catalog,String event);
+    private static native void nativeLoadScene(long handle,String root,String catalog,int room,String event,int frame);
     private static native String nativeSceneFrame(long handle,String readback);
 }

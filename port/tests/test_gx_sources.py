@@ -22,6 +22,16 @@ class Sources(unittest.TestCase):
             self.assertNotIn('(u32) w->',code)
             generate_gx.generate(ROOT,out)
             self.assertEqual(code,(out/'gx_control.cpp').read_text())
+            render=(out/'gx_render_control.cpp').read_text()
+            meta=json.loads((out/'gx-render-manifest.json').read_text())
+            self.assertEqual(meta['render_order'],list(range(22)))
+            for signature in ['int ExecOt(', 'u16 OtGetPrevKind()', 'void TextureBlend3(',
+                              'void LightEnv::setModel2(', 'void lightSetColor(',
+                              'void lightSetParallel(', 'void GXInitLightSpot(']:
+                self.assertIn(signature,render)
+            self.assertNotIn('(u32) p < 0x80000000',render)
+            self.assertNotIn('(*(u32*) &l->DispCol',render)
+            self.assertTrue((out/'include/gx_state_types.h').is_file())
     def test_camera_original_change_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder)/'root';hashes=json.loads((ROOT/'port/config/gx-sources.json').read_text())

@@ -1,5 +1,9 @@
 # Phase 5a: sichtbare originale r120-Geometrie über Vulkan
 
+Historischer Bericht zum Stand `b0071bda`. Der folgende Entwicklungsschritt
+mit originaler OT-, TEV- und Lichtausführung ist in
+[phase5a-pipeline-status.md](phase5a-pipeline-status.md) dokumentiert.
+
 Geprüfter Teilstand vom 10. Oktober 2026 auf `android-port`, ausgehend von
 `81fa552a517418f7bbeac8117e8db36f6f23dcd3`.
 

@@ -102,7 +102,8 @@ def generate(root, output):
                 'void cLightMgr::setFogStart(f32 datStart)','void cLightMgr::setFogEnd(f32 datEnd)',
                 'f32 cLightMgr::getFogStart()','f32 cLightMgr::getFogEnd()',
                 'void cLightMgr::deleteScr()','void cLightMgr::offScr(u8 enable)','int cLightMgr::countScr()',
-                'cLightEnv* cLightMgr::getCutAddr(int type, int cutNo)']:
+                'cLightEnv* cLightMgr::getCutAddr(int type, int cutNo)',
+                'int cLightMgr::loadLit(cLightWork* pLw, u32 nL)']:
         changes=[]
         if sig.startswith('u8* cLightMgr::getPathPtr'):
             changes=[('*(u32*) (id * 4 + (u32) pLitPath + 4)','readNativePathOffset(pLitPath,id)')]

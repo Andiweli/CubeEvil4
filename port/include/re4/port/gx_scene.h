@@ -21,6 +21,29 @@ struct GxDraw {
     u32 materialColor=0xffffffff, smxFlags{};
     float uvScrollU{},uvScrollV{}; // Original velocity; diagnostic is frozen at initialization.
     u32 workIndex{}, workId{}, binId{}, tplId{}, partIndex{};
+    u32 modelFlags{};
+    Vec lightPosition{}, lightSize{};
+    Vec modelPosition{},modelAngle{},modelScale{1,1,1},lightOffset{},rootWorld{};
+    Mtx rootMatrix{};
+    u32 lightSelectMask=0xffffffff;
+    u8 attribute{};
+    float radius{};
+};
+struct GxTevStage {
+    std::array<s32,4> colorIn{}, alphaIn{}, colorOp{}, alphaOp{}, order{};
+    std::array<float,4> uv{0,0,1,1};
+};
+struct GxMaterialState {
+    std::array<GxTevStage,16> stages{};
+    std::array<std::array<s32,4>,4> konst{};
+    std::array<s32,4> meta{};
+    std::array<s32,4> alpha{};
+    std::array<s32,4> raster{255,255,255,255};
+    std::array<s32,4> ambient{};
+    std::array<float,4> fog{}, fogColor{};
+    // Eight loaded GX light objects: view position, direction, A, K, colour.
+    std::array<std::array<float,4>,40> lights{};
+    std::array<u32,8> textures{};
 };
 struct GxCameraPoint { Vec Campos{}, Target{}; float Roll{}, Fovy{}; };
 struct GxCamera {
@@ -34,6 +57,10 @@ struct GxScene {
     std::vector<u32> indices;
     std::vector<GxTexture> textures;
     std::vector<GxDraw> draws;
+    std::vector<GxMaterialState> materials;
+    std::vector<u32> renderOrder, otExecution;
+    std::string lightHash;
+    u32 lightingCalls{}, litCut{}, selectedLightRecords{};
     GxCamera camera;
     std::array<float,16> viewProjection{}; // Column-major for SPIR-V.
     std::vector<ResourceLease> owners;

@@ -12,6 +12,7 @@ void CameraSetOrientationRoll(CAMERA*);
 void CameraSetOrientationUp(CAMERA*);
 void MTXSetColumns(Mtx,Vec&,Vec&,Vec&,Vec&);
 void getColumn(Mtx,int,Vec*);
+void C_VECAdd(const Vec*,const Vec*,Vec*);
 u32 CameraSequenceCtrl(ModelMotion*);
 // Native owned work; no GameCube 0x200-byte object overlay or destructor poison.
 struct DiagnosticCameraMotion : GxCamera {

@@ -1,4 +1,5 @@
 #include "gx_original.h"
+#include "re4/port/gx_pipeline.h"
 #include "re4/port/sha256.h"
 #include <algorithm>
 #include <chrono>
@@ -120,7 +121,10 @@ void decodeGxModel(ResourceLease b,const Mtx world,u32 base,u32 count,GxScene &s
             if(op==0x98)for(u32 j=0;j+2<num;++j){if(j&1)tri(j+1,j,j+2);else tri(j,j+1,j+2);}
             ++scene.primitives;
         }
-        draw.indexCount=u32(scene.indices.size())-draw.firstIndex;scene.draws.push_back(draw);part=end;
+        draw.indexCount=u32(scene.indices.size())-draw.firstIndex;draw.modelFlags=flags;
+        GxMaterialInput material;material.flags=draw.flags;material.materialTexture=u8(ti);material.alphaTexture=u8(ai);material.alphaRef=b.data[part+20];material.alphaOverride=draw.alphaOverride;
+        if(draw.uvScrollU!=0||draw.uvScrollV!=0)material.texFlags=1; // smxInit enables scrolling; initial offsets remain zero.
+        scene.materials.push_back(captureOriginalMaterial(material,base,count));scene.draws.push_back(draw);part=end;
     }
     scene.owners.push_back(b);
 }
@@ -143,9 +147,16 @@ GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 roo
             // Original model path overrides min/mag filters to linear/trilinear.
             image.minFilter=image.minLod==image.maxLod?1:5;image.magFilter=1;scene.textures.push_back(std::move(image));}}
         GxDraw id{};id.workIndex=i;id.workId=work;id.binId=bin;id.tplId=tpl;id.cull=1; // Model default CullMode0 -> GX_FRONT.
+        auto &bound=model.pModelInfo->bound;id.lightSize=bound.size;
+        id.modelPosition=model.pos;id.modelAngle=model.ang;id.modelScale=model.scale;id.lightOffset=bound.offset;
+        id.rootWorld=model.getPartsPtr(0)->world;C_MTXCopy(model.getPartsPtr(0)->mat,id.rootMatrix);id.attribute=u8(flag);
+        C_MTXMultVec(model.getPartsPtr(0)->mat,&bound.offset,&id.lightPosition);
+        float scale=std::max(model.scale.x,std::max(model.scale.y,model.scale.z));
+        id.radius=std::sqrt(bound.size.x*bound.size.x+bound.size.y*bound.size.y+bound.size.z*bound.size.z)*scale;
         if(smx.owner)for(u32 k=0;k<smx.data[1];++k){u32 p=16+k*144;if(smx.data[p]!=work)continue;auto c=smx.data[p+3];if(c>2)throw std::invalid_argument("SMX cull mode");id.cull=c==0?1:c==1?2:0;
             auto col=word(smx,p+12);id.blendMode=u8(col);if(id.blendMode>4)throw std::invalid_argument("SMX blend mode");id.materialColor=(col&~255u)?(col|255u):0xffffffff;
             id.otType=smx.data[p+2];id.smxFlags=word(smx,p+8);if(id.smxFlags&8)id.alphaOverride=128;
+            id.lightSelectMask=word(smx,p+4);
             id.uvScrollU=real(smx,p+136);id.uvScrollV=real(smx,p+140);break;}
         auto texPair=textures.at(tpl);decodeGxModel(b,world,texPair.first,texPair.second,scene,id);++scene.models;engine.releaseModel(handle);
     }
@@ -156,21 +167,31 @@ GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 roo
         if(type==9&&found&&half(evd.bytes,at+8)==cameraCut&&text(evd.bytes,at+16,12)=="cam0000")throw MissingGameConsumer("event camera parent/base matrix required");at+=size;
     }
     if(!found)throw MissingGameConsumer("event has no original camera packet");auto cameraBin=std::find_if(evd.bins.begin(),evd.bins.end(),[&](const auto &b){return b.name==scene.cameraName;});if(cameraBin==evd.bins.end())throw std::invalid_argument("event camera bin reference");
-    ModelCpu cameraValidation;cameraValidation.nParts=4;MotionAsset motion(cameraBin->bytes,cameraValidation);if(motion.data.nParts!=4||frame>(motion.data.maxFrame&0x3fff))throw std::invalid_argument("camera track count/frame");
-    auto numbers=motion.data.numbers;std::sort(numbers.begin(),numbers.end());if(numbers!=std::vector<u8>{0,1,2,3})throw std::invalid_argument("camera requires exactly one position/target/roll/FOV track");
+    ModelCpu cameraValidation;cameraValidation.nParts=4;MotionAsset motion(cameraBin->bytes,cameraValidation);if(frame>(motion.data.maxFrame&0x3fff))throw std::invalid_argument("camera frame");
+    // CameraMotion::move explicitly initializes roll to zero when track 2 is absent.
+    auto numbers=motion.data.numbers;std::sort(numbers.begin(),numbers.end());if(numbers!=std::vector<u8>{0,1,2,3}&&numbers!=std::vector<u8>{0,1,3})throw std::invalid_argument("camera requires unique position/target/FOV and optional roll");
     DiagnosticCameraMotion camera;auto &w=camera.m_info;w.Joint_num=motion.data.nParts;w.pJoint_kind=motion.data.kinds.data();w.pJoint_no=motion.data.numbers.data();w.pHermite_data=motion.data.streams.data();w.Mot_frame=float(frame);w.Mot_frame_max=float((motion.data.maxFrame&0x3fff)+1);w.Mot_attr=8;
     camera.move();scene.camera=camera;scene.cameraFrame=frame;if(scene.camera.param.Fovy<=0||scene.camera.param.Fovy>=180)throw std::invalid_argument("original camera FOV");
     C_MTXLookAt(scene.camera.view,&scene.camera.param.Campos,&scene.camera.Up,&scene.camera.param.Target);C_MTXPerspective(scene.camera.projection,scene.camera.param.Fovy,1.3333334f,100.f,1000000.f); // camera.cpp/MainInit constants.
     for(u32 r=0;r<4;++r)for(u32 c=0;c<4;++c){float v=0;for(u32 k=0;k<4;++k)v+=scene.camera.projection[r][k]*(k<3?scene.camera.view[k][c]:(c==3?1.f:0.f));scene.viewProjection[c*4+r]=v;}
+    auto lit=archive->find("LIT");if(!lit)throw MissingGameConsumer("original room LIT required for channel/fog capture");
+    captureOriginalRoomLighting(scene,loader,engine,body,slice(body,lit->offset,lit->size),cameraCut);
+    buildOriginalOrderingTables(scene);
     scene.owners.push_back(body);scene.owners.push_back(cameraBin->bytes);return scene;
 }
 std::string GxScene::report() const {
     Sha256 geometry;geometry.update(reinterpret_cast<const u8*>(vertices.data()),vertices.size()*sizeof(GxVertex));geometry.update(reinterpret_cast<const u8*>(indices.data()),indices.size()*4);
-    std::ostringstream o;o<<"{\"pointer_bits\":"<<sizeof(void*)*8<<",\"kind\":\"isolated_original_SMD_GX_geometry_unlit_materials\",\"models\":"<<models<<",\"vertices\":"<<vertices.size()<<",\"triangles\":"<<indices.size()/3<<",\"primitives\":"<<primitives<<",\"draws\":"<<draws.size()<<",\"textures\":"<<textures.size()<<",\"room_sha256\":"<<std::quoted(roomHash)<<",\"smd_sha256\":"<<std::quoted(smdHash)<<",\"geometry_sha256\":"<<std::quoted(geometry.finish())<<",\"camera\":"<<std::quoted(cameraName)<<",\"frame\":"<<cameraFrame<<",\"fovy\":"<<camera.param.Fovy<<",\"texture_hashes\":[";
+    std::ostringstream o;o<<"{\"pointer_bits\":"<<sizeof(void*)*8<<",\"kind\":\"isolated_original_SMD_GX_OT_TEV_LIT_cut\",\"models\":"<<models<<",\"vertices\":"<<vertices.size()<<",\"triangles\":"<<indices.size()/3<<",\"primitives\":"<<primitives<<",\"draws\":"<<draws.size()<<",\"textures\":"<<textures.size()<<",\"room_sha256\":"<<std::quoted(roomHash)<<",\"smd_sha256\":"<<std::quoted(smdHash)<<",\"geometry_sha256\":"<<std::quoted(geometry.finish())<<",\"camera\":"<<std::quoted(cameraName)<<",\"frame\":"<<cameraFrame<<",\"fovy\":"<<camera.param.Fovy<<",\"texture_hashes\":[";
     for(std::size_t i=0;i<textures.size();++i){if(i)o<<',';Sha256 h;for(auto &m:textures[i].levels)h.update(m.rgba.data(),m.rgba.size());o<<std::quoted(h.finish());}
     o<<"],\"camera_point\":["<<std::setprecision(9)<<camera.param.Campos.x<<','<<camera.param.Campos.y<<','<<camera.param.Campos.z<<','<<camera.param.Target.x<<','<<camera.param.Target.y<<','<<camera.param.Target.z<<','<<camera.param.Roll<<','<<camera.param.Fovy<<"],\"vp\":[";
     for(u32 i=0;i<16;++i){if(i)o<<',';o<<viewProjection[i];}
     o<<"],\"materials\":[";for(std::size_t i=0;i<draws.size();++i){auto &d=draws[i];if(i)o<<',';o<<'['<<d.workIndex<<','<<d.workId<<','<<d.binId<<','<<d.tplId<<','<<d.partIndex<<','<<d.texture<<','<<d.alphaTexture<<','<<unsigned(d.flags)<<','<<unsigned(d.alphaRef)<<','<<unsigned(d.cull)<<','<<d.indexCount<<','<<unsigned(d.blendMode)<<','<<d.materialColor<<','<<unsigned(d.otType)<<','<<d.smxFlags<<','<<d.uvScrollU<<','<<d.uvScrollV<<']';}
-    o<<"],\"limitations\":[\"unlit diagnostic: GX lighting/TEV channel computation absent\",\"SMD file order; original OT integration absent\",\"no event model draw, shadows, fog, mirror, indirect TEV or postprocessing\"]}";return o.str();
+    o<<"],\"render_order\":[";for(std::size_t i=0;i<renderOrder.size();++i){if(i)o<<',';o<<renderOrder[i];}
+    o<<"],\"ot_execution\":[";for(std::size_t i=0;i<otExecution.size();++i){if(i)o<<',';o<<otExecution[i];}
+    static_assert(sizeof(GxMaterialState)==2368, "Native GX state has no ABI padding");
+    o<<"],\"material_state_sha256\":"<<std::quoted(sha256(reinterpret_cast<const u8*>(materials.data()),materials.size()*sizeof(GxMaterialState)));
+    o<<",\"lighting_calls\":"<<lightingCalls<<",\"lit_sha256\":"<<std::quoted(lightHash)<<",\"lit_cut\":"<<litCut<<",\"selected_light_records\":"<<selectedLightRecords<<",\"tev_states\":[";
+    for(std::size_t i=0;i<materials.size();++i){if(i)o<<',';auto &s=materials[i];o<<"{\"stages\":"<<s.meta[0]<<",\"ambient_source\":"<<s.meta[1]<<",\"alpha_source\":"<<s.meta[2]<<",\"fog\":"<<s.meta[3]<<",\"scale\":"<<s.stages[s.meta[0]-1].colorOp[2]<<",\"light_mask\":"<<u32(s.fog[3])<<",\"raster\":[";for(int k=0;k<4;++k){if(k)o<<',';o<<s.raster[k];}o<<"],\"ambient\":[";for(int k=0;k<4;++k){if(k)o<<',';o<<s.ambient[k];}o<<"]}";}
+    o<<"],\"limitations\":[\"isolated SMD diagnostic: not complete Trans/Render or GameTask\",\"frozen original LIT cut; model-bound lights and live SAR states not integrated\",\"static models only; no visible event/pl00 skinning, shadows, mirror, indirect TEV or postprocessing\"]}";return o.str();
 }
 } // namespace re4::port

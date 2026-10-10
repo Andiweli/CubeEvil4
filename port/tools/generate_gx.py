@@ -32,6 +32,123 @@ def generate(root, output):
     code.append('}')
     (output/'gx_control.cpp').write_text('\n\n'.join(code)+'\n')
     (output/'gx-manifest.json').write_text(json.dumps(dict(functions=records),indent=2)+'\n')
+    import re
+    state=re.search(r'class cModelState \{.*?\n\};',(root/'include/model.h').read_text(),re.S)[0]
+    (output/'include').mkdir(parents=True,exist_ok=True)
+    (output/'include/gx_state_types.h').write_text('#pragma once\nnamespace re4::port::gx {\n'+state+'\n}\n')
+    render=['#include "gx_render_original.h"','namespace re4::port::gx {']
+    render_records=[]
+    signatures=[
+        ('src/game/trans_ot.cpp','static inline OtWork* otWork(int type)',[]),
+        ('src/game/trans_ot.cpp','void InitOt()',[]),
+        ('src/game/trans_ot.cpp','void ClearOt()',[]),
+        ('src/game/trans_ot.cpp','void clearOtWork(OtWork* w)',[
+            ('p--;','p = q > w->list ? p - 1 : nullptr;')]),
+        ('src/game/trans_ot.cpp','OtData* MakeOtData(void* data)',[
+            ('(u32) p < 0x80000000 || (u32) p > 0x82FFFFFF','p == nullptr')]),
+        ('src/game/trans_ot.cpp','int AddOtDirect(int ot, void* data, void (*func)(), u32 no, u16 flag, Vec* pos, f32 radius)',[
+            ('void (*func)()','void (*func)(void*)'),
+            ('(void (*)(void*)) func','func')]),
+        ('src/game/trans_ot.cpp','int ExecOt(int type)',[]),
+        ('src/game/trans_ot.cpp','u16 OtGetPrevKind()',[]),
+        ('src/game/trans_ot.cpp','void CrearOtMirrorWork()',[]),
+        ('src/game/trans_ot.cpp','void DeleteOtData(u32 type, u32 no)',[
+            ('q->next = q->next->next;','if (!q->next || !q->next->data) throw std::invalid_argument("OT deletion without entry");\n    q->next = q->next->next;')]),
+    ]
+    source=(root/'src/game/trans_ot.cpp').read_text()
+    begin=source.index('static int Ot_max_tbl[');end=source.index('};',begin)+2
+    render.append(source[begin:end])
+    for name in ['getTexCoord','getTexMtx','getTexMap','getKColor','getKColorSel','getKAlphaSel',
+                 'getTevReg','checkTevReg','getTevRegNext','getTevRegC','getTevRegA','getTevRegCur','getTevRegCurC']:
+        source=(root/'src/game/trans.cpp').read_text()
+        sig=next(line for line in source.splitlines() if line.startswith('static inline ') and name+'(' in line)
+        signatures.append(('src/game/trans.cpp',sig,[]))
+    signatures += [
+        ('src/game/trans.cpp','static inline void loadBlendTex(cPolyHeader* part, u8* tbl, int map)',[]),
+        ('src/game/trans.cpp','void TextureBlend(cPolyHeader* part, cModelInfo* info, int colIn, int alphaIn)',[]),
+        ('src/game/trans.cpp','void TextureBlend2(cPolyHeader* part, cModelInfo* info, int colIn, int alphaIn)',[]),
+        ('src/game/trans.cpp','void TextureBlend3(cPolyHeader* part, cModelInfo* info, int colIn, int alphaIn)',[]),
+        ('src/game/trans.cpp','void materialSetup(cPolyHeader* part, cModelInfo* info, int colIn, int alphaIn)',[]),
+        ('src/game/trans.cpp','void alphaSetup(cModel* m, cPolyHeader* part, cModelInfo* info, int thermo)',[]),
+        ('src/game/trans_lit.cpp','void LightSetInit()',[]),
+        ('src/game/trans_lit.cpp','void LightSetModel(cModel* pMod)',[
+            ('pG->Camera.v_mat','pG->Camera.view')]),
+        ('src/game/trans_lit.cpp','void lightSetAmbient(GXColor* col0)',[]),
+        ('src/game/trans_lit.cpp','void LightDisable()',[]),
+        ('src/game/model.cpp','inline cModelState::cModelState()', [('inline cModelState::','cModelState::')]),
+        ('src/game/lightInfo.cpp','cLightInfo::cLightInfo()',[]),
+        ('src/game/lightInfo.cpp','int cLightInfo::init2(int type, int partsNo, const Vec* pOffset, const Vec* pSize, int mask)',[]),
+        ('src/game/lightInfo.cpp','void cLightInfo::updateMatrix(cModel* pMod)',[]),
+        ('src/game/lightInfo.cpp','cCoord* cLightInfo::getPos(cModel* m, Vec* out)',[]),
+        ('src/game/light.cpp','int cLightMgr::checkKind(u8 kind)', [('cLightMgr::','LightEnv::'),('1 << (kind & 31)','1u << (kind & 31)')]),
+        ('src/game/light.cpp','void cLightMgr::setModel2(cModel* pMod)', [
+            ('cLightMgr::','LightEnv::'),('cModel* parent;','ModelCpu* parent;'),
+            ('1 << i','1u << i'),('(*(u32*) &l->DispCol & 0xFFFFFF00) == 0','!(l->DispCol.r || l->DispCol.g || l->DispCol.b)')]),
+    ]
+    for sig in ['int lightHitCheck(cModel* pMod, cLight* pLight)',
+                'int lightHitCheckSphere(cModel* pMod, cLight* pLight)',
+                'int lightHitCheckCylinder(cModel* pMod, cLight* pLight)',
+                'int lightHitCheckBBox(cModel* pMod, cLight* pLight)']:
+        signatures.append(('src/game/light.cpp',sig,[]))
+    for sig in ['void lightSetConstant(cLight* pLi, GXLightObj* pLo)',
+                'void lightSetLinear(cLight* pLi, GXLightObj* pLo)',
+                'static void lightSetQuadratic(cLight* pLi, GXLightObj* pLo)',
+                'void lightSetSpotlight(cLight* pLi, GXLightObj* pLo)',
+                'void lightSetCustom(cLight* pLi, GXLightObj* pLo)',
+                'void lightSetParallel(cLight* pLi, GXLightObj* pLo)',
+                'void lightSetSpotQuad(cLight* pLi, GXLightObj* pLo)',
+                'void lightSetLocalAmb(cLight* pLi, GXColor* lamb)',
+                'void lightSetColor(GXLightObj* lobj, cLight* pLi, cEm* pMod)']:
+        changes=[]
+        if sig.startswith('static '):changes.append(('static void ','void '))
+        body,_=function((root/'src/game/trans_lit.cpp').read_text(),sig)
+        if 'pG->Camera.v_mat' in body:
+            # Multiple uses in a complete directional callback, all the same field adaptation.
+            changes.append(('pG->Camera.v_mat','pG->Camera.view'))
+        signatures.append(('src/game/trans_lit.cpp',sig,changes))
+    for sig in ['void GXInitLightSpot(GXLightObj* lt_obj, f32 cutoff, GXSpotFn spot_func)',
+                'void GXInitLightDistAttn(GXLightObj* lt_obj, f32 ref_dist, f32 ref_br, GXDistAttnFn dist_func)',
+                'void GXInitLightAttnK(GXLightObj* lt_obj, f32 k0, f32 k1, f32 k2)']:
+        signatures.append(('src/lib/GXLight.c',sig,[]))
+    signatures += [
+        ('src/lib/mtxvec.c','void C_MTXMultVecSR(const Mtx m, const Vec* src, Vec* dst)',[]),
+        ('src/lib/vec.c','void C_VECScale(const Vec* src, Vec* dst, f32 scale)',[]),
+        ('src/game/sub2.cpp','f32 GetDistance3(Vec* v0, Vec* v1)',[]),
+        ('src/game/sub2.cpp','f32 RootSumSquare3(Vec* v)',[]),
+        ('src/game/sub2.cpp','void RotVector(Vec* vec0, Vec* ang, Vec* vec_ans)',[]),
+        ('src/game/math_sub.cpp','void low_RotMatrix(Mtx m, Vec* vec)',[]),
+    ]
+    for path,sig,changes in signatures:
+        body,line=function((root/path).read_text().replace(sig+' {',sig+'\n{'),sig)
+        for a,b in changes:
+            if body.count(a)<1 or (a!='pG->Camera.v_mat' and body.count(a)!=1): raise ValueError('GX render adaptation changed: '+a)
+            body=body.replace(a,b)
+        render += [f'#line {line} "{(root/path).as_posix()}"',body]
+        render_records.append(dict(source=path,signature=sig,adaptations=[a for a,b in changes]))
+    # Preserve shaderSetup's complete final scale/registration segment. The
+    # preceding shadow/specular/indirect branches are explicit unsupported paths.
+    shader,line=function((root/'src/game/trans.cpp').read_text(),'void shaderSetup(cModel* m, cModelInfo* info, cPolyHeader* part, Mtx mv)')
+    marker='    st = TEV_STAGE_ID();\n    GXSetTevOrder(st, 0xFF, 0xFF, 4);'
+    if shader.count(marker)!=1:raise ValueError('original shaderSetup final segment changed')
+    offset=shader.index(marker)
+    render.append(f'#line {line+shader[:offset].count(chr(10))} "{(root/"src/game/trans.cpp").as_posix()}"\nvoid finishModelScale(cModel* m)\n{{\n    int st;\n    int scale;\n'+shader[offset:])
+    render_records.append(dict(source='src/game/trans.cpp',signature='shaderSetup: final scale/registration segment',adaptations=['native standalone segment, not full shaderSetup']))
+    # No guessed priority list: preserve the actual ExecOt statements in Render.
+    source,line=function((root/'src/game/trans.cpp').read_text(),'void Render()')
+    import re
+    calls=re.findall(r'^    ExecOt\(([^)]+)\);',source,re.M)
+    enum=(root/'include/trans_ot.h').read_text()
+    names=re.search(r'enum OT_TYPE\s*{(.*?)};',enum,re.S).group(1)
+    values={};value=0
+    for name in re.findall(r'\b(OT_TYPE_\w+)\s*(?:=\s*(0x[0-9A-Fa-f]+|\d+))?\s*[,\n]',names):
+        if name[1]:value=int(name[1],0)
+        values[name[0]]=value;value+=1
+    resolved=[values[c] if c in values else int(c,0) for c in calls]
+    render.append('const std::array<int,22> originalRenderOrder={'+','.join(map(str,resolved))+'};')
+    render.append('}')
+    (output/'gx_render_control.cpp').write_text('\n\n'.join(render)+'\n')
+    (output/'gx-render-manifest.json').write_text(json.dumps(dict(functions=render_records,
+        render_order=resolved,scope='original complete OT/material/light callback and selection bodies; shaderSetup final segment and Render dispatch slice, neither complete shaderSetup nor complete Render'),indent=2)+'\n')
 
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--root',type=Path,required=True);p.add_argument('--output',type=Path,required=True)

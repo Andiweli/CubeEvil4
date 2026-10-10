@@ -3,6 +3,7 @@ param(
     [string]$JavaHome = $env:JAVA_HOME,
     [string]$GradleUserHome,
     [string]$Python,
+    [string]$ValidationLayers,
     [switch]$Offline,
     [switch]$NativeOnly
 )
@@ -60,6 +61,7 @@ if ($GradleUserHome) { $env:GRADLE_USER_HOME = $GradleUserHome }
 $taskGradleArgs = @('-p', (Join-Path $taskPortRoot 'android'), '--no-daemon')
 if ($Offline) { $taskGradleArgs += '--offline' }
 if ($Python) { $taskGradleArgs += "-Pre4.python=$Python" }
+if ($ValidationLayers) { $taskGradleArgs += "-Pre4.validationLayers=$ValidationLayers" }
 & (Join-Path $taskPortRoot 'android\gradlew.bat') @taskGradleArgs `
     ':app:assembleDebug' ':app:assembleDebugAndroidTest' ':app:lintDebug'
 if ($LASTEXITCODE -ne 0) { throw 'Android Gradle build/tests packaging/lint failed.' }

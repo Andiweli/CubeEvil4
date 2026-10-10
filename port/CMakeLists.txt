@@ -191,7 +191,9 @@ foreach(index RANGE 0 ${gx_last})
 endforeach()
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_gx.py"
     --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
-add_library(re4_gx STATIC src/gx_scene.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/gx_control.cpp")
+add_library(re4_gx STATIC src/gx_scene.cpp src/gx_pipeline.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/original/gx_control.cpp"
+    "${CMAKE_CURRENT_BINARY_DIR}/original/gx_render_control.cpp")
 target_include_directories(re4_gx PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(re4_gx PUBLIC re4_game_runtime)
 set_target_properties(re4_gx PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -349,6 +351,7 @@ if(ANDROID)
     find_program(gx_glslc NAMES glslc HINTS "${ANDROID_NDK}/shader-tools/${gx_shader_host}" REQUIRED)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/shaders/gx_diagnostic.vert" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/gx_diagnostic.frag"
+        "${CMAKE_CURRENT_SOURCE_DIR}/shaders/gx_state.glsl"
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/embed_spirv.py")
     foreach(stage vert frag)
         execute_process(COMMAND "${gx_glslc}" --target-env=vulkan1.0

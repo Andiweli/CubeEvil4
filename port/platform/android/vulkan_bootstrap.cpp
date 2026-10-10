@@ -12,6 +12,8 @@
 #include <vector>
 #include <fstream>
 #include <chrono>
+#include <atomic>
+#include <android/log.h>
 #include "gx_spirv.h"
 #include "re4/port/sha256.h"
 
@@ -78,7 +80,8 @@ struct VulkanBootstrap::Impl {
     float lastDepth{};
     ANativeWindow *window{};
     std::unique_ptr<GxScene> scene;
-    struct Buffer { VkBuffer buffer{}; VkDeviceMemory memory{}; void *map{}; } vertexBuffer,indexBuffer,sceneReadback;
+    struct Buffer { VkBuffer buffer{}; VkDeviceMemory memory{}; void *map{}; } vertexBuffer,indexBuffer,sceneReadback,materialBuffer;
+    VkDeviceSize materialStride{};
     struct Texture { Target target; VkImageView view{}; VkSampler sampler{}; };
     std::vector<Texture> sceneTextures;
     VkImageView colorView{},depthView{};
@@ -90,6 +93,18 @@ struct VulkanBootstrap::Impl {
     std::string pixelHash;
     std::string sceneReport;
     u32 availableValidationLayers{};
+    bool validationEnabled{};
+    std::atomic<u32> validationWarnings{},validationErrors{};
+    VkDebugUtilsMessengerEXT validationMessenger{};
+    PFN_vkDestroyDebugUtilsMessengerEXT destroyMessenger{};
+    static VKAPI_ATTR VkBool32 VKAPI_CALL validationMessage(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+        VkDebugUtilsMessageTypeFlagsEXT,const VkDebugUtilsMessengerCallbackDataEXT *data,void *owner) {
+        auto &v=*static_cast<Impl*>(owner);
+        if(severity&VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)++v.validationErrors;
+        else if(severity&VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)++v.validationWarnings;
+        __android_log_print(ANDROID_LOG_WARN,"RE4Validation","%s",data->pMessage?data->pMessage:"empty validation message");
+        return VK_FALSE;
+    }
     Impl(ANativeWindow *w):window(w) {
         ANativeWindow_acquire(w);
         try { initialize(); } catch(...) { cleanup(); throw; }
@@ -112,12 +127,32 @@ struct VulkanBootstrap::Impl {
         u32 layerCount=0;ok(enumerateLayers(&layerCount,nullptr),"vkEnumerateInstanceLayerProperties");
         std::vector<VkLayerProperties> layers(layerCount);ok(enumerateLayers(&layerCount,layers.data()),"vkEnumerateInstanceLayerProperties");
         for(const auto &layer:layers)if(std::strcmp(layer.layerName,"VK_LAYER_KHRONOS_validation")==0)++availableValidationLayers;
-        const char *extensions[]={VK_KHR_SURFACE_EXTENSION_NAME,VK_KHR_ANDROID_SURFACE_EXTENSION_NAME};
+        std::vector<const char*> extensions{VK_KHR_SURFACE_EXTENSION_NAME,VK_KHR_ANDROID_SURFACE_EXTENSION_NAME};
+        const char *validationLayer="VK_LAYER_KHRONOS_validation";
+        auto debug=info<VkDebugUtilsMessengerCreateInfoEXT>(VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
+        debug.messageSeverity=VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT|VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        debug.messageType=VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT|VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT|VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        debug.pfnUserCallback=validationMessage;debug.pUserData=this;
+#ifndef NDEBUG
+        if(availableValidationLayers){
+            auto enumerate=reinterpret_cast<PFN_vkEnumerateInstanceExtensionProperties>(get(nullptr,"vkEnumerateInstanceExtensionProperties"));
+            u32 count=0;ok(enumerate(nullptr,&count,nullptr),"validation extensions");std::vector<VkExtensionProperties> available(count);ok(enumerate(nullptr,&count,available.data()),"validation extensions");
+            for(auto &extension:available)if(std::strcmp(extension.extensionName,VK_EXT_DEBUG_UTILS_EXTENSION_NAME)==0)validationEnabled=true;
+            if(validationEnabled)extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
+#endif
         auto application=info<VkApplicationInfo>(VK_STRUCTURE_TYPE_APPLICATION_INFO);
         application.pApplicationName="RE4 original GX bootstrap"; application.apiVersion=VK_API_VERSION_1_0;
         auto create=info<VkInstanceCreateInfo>(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO);
-        create.pApplicationInfo=&application; create.enabledExtensionCount=2; create.ppEnabledExtensionNames=extensions;
+        create.pApplicationInfo=&application; create.enabledExtensionCount=u32(extensions.size()); create.ppEnabledExtensionNames=extensions.data();
+        if(validationEnabled){create.enabledLayerCount=1;create.ppEnabledLayerNames=&validationLayer;create.pNext=&debug;}
         ok(CreateInstance(&create,nullptr,&instance),"vkCreateInstance");
+        if(validationEnabled){
+            auto make=reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(get(instance,"vkCreateDebugUtilsMessengerEXT"));
+            destroyMessenger=reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(get(instance,"vkDestroyDebugUtilsMessengerEXT"));
+            if(!make||!destroyMessenger)throw std::runtime_error("Vulkan validation messenger missing");
+            ok(make(instance,&debug,nullptr,&validationMessenger),"vkCreateDebugUtilsMessengerEXT");
+        }
 #define LOAD(name) name=reinterpret_cast<PFN_vk##name>(get(instance,"vk" #name)); if(!name) throw std::runtime_error("Vulkan function missing: vk" #name);
         VK_INSTANCE_FUNCTIONS(LOAD)
 #undef LOAD
@@ -317,6 +352,7 @@ struct VulkanBootstrap::Impl {
             if(DestroyDevice) DestroyDevice(device,nullptr);
         }
         if(surface && DestroySurfaceKHR) DestroySurfaceKHR(instance,surface,nullptr);
+        if(validationMessenger && destroyMessenger)destroyMessenger(instance,validationMessenger,nullptr);
         if(instance && DestroyInstance) DestroyInstance(instance,nullptr);
         if(library) dlclose(library);
         if(window) ANativeWindow_release(window);
@@ -338,7 +374,7 @@ struct VulkanBootstrap::Impl {
         for(auto &t:sceneTextures){if(t.sampler)DestroySampler(device,t.sampler,nullptr);if(t.view)DestroyImageView(device,t.view,nullptr);if(t.target.image)DestroyImage(device,t.target.image,nullptr);if(t.target.memory)FreeMemory(device,t.target.memory,nullptr);}sceneTextures.clear();
         if(colorView)DestroyImageView(device,colorView,nullptr);colorView={};
         if(depthView)DestroyImageView(device,depthView,nullptr);depthView={};
-        destroyBuffer(vertexBuffer);destroyBuffer(indexBuffer);destroyBuffer(sceneReadback);scene.reset();
+        destroyBuffer(vertexBuffer);destroyBuffer(indexBuffer);destroyBuffer(sceneReadback);destroyBuffer(materialBuffer);scene.reset();
         sceneReport.clear();pixelHash.clear();geometryFrames=nonClearPixels=frameMicros=0;
     }
     void buffer(Buffer &b,VkDeviceSize bytes,VkBufferUsageFlags usage,const void *data=nullptr) {
@@ -378,6 +414,13 @@ struct VulkanBootstrap::Impl {
         try {
             if(data.draws.empty()||data.vertices.empty()||data.indices.empty())throw std::invalid_argument("empty original geometry scene");scene=std::make_unique<GxScene>(std::move(data));
             sceneReport=scene->report(); // Immutable source/hash evidence; do not hash 16 MB each display frame.
+            static_assert(sizeof(GxTevStage)==96 && offsetof(GxMaterialState,meta)==1600 && offsetof(GxMaterialState,lights)==1696);
+            if(scene->materials.size()!=scene->draws.size())throw std::invalid_argument("GX draw/material state count");
+            auto alignment=std::max<VkDeviceSize>(16,properties.limits.minUniformBufferOffsetAlignment);
+            materialStride=(sizeof(GxMaterialState)+alignment-1)/alignment*alignment;
+            if(sizeof(GxMaterialState)>properties.limits.maxUniformBufferRange)throw std::runtime_error("GX material exceeds uniform buffer range");
+            buffer(materialBuffer,materialStride*scene->materials.size(),VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+            for(u32 i=0;i<scene->materials.size();++i)std::memcpy(static_cast<u8*>(materialBuffer.map)+materialStride*i,&scene->materials[i],sizeof(GxMaterialState));
             buffer(vertexBuffer,scene->vertices.size()*sizeof(GxVertex),VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,scene->vertices.data());buffer(indexBuffer,scene->indices.size()*4,VK_BUFFER_USAGE_INDEX_BUFFER_BIT,scene->indices.data());buffer(sceneReadback,512*448*4,VK_BUFFER_USAGE_TRANSFER_DST_BIT);
             sceneTextures.resize(scene->textures.size());for(u32 i=0;i<sceneTextures.size();++i)texture(sceneTextures[i],scene->textures[i]);
             colorView=view(color.image,VK_FORMAT_R8G8B8A8_UNORM,VK_IMAGE_ASPECT_COLOR_BIT);depthView=view(depth.image,VK_FORMAT_D32_SFLOAT,VK_IMAGE_ASPECT_DEPTH_BIT);
@@ -386,13 +429,13 @@ struct VulkanBootstrap::Impl {
             VkSubpassDependency deps[2]{};deps[0].srcSubpass=VK_SUBPASS_EXTERNAL;deps[0].dstSubpass=0;deps[0].srcStageMask=VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;deps[0].dstStageMask=VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT|VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;deps[0].dstAccessMask=VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT|VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;deps[1].srcSubpass=0;deps[1].dstSubpass=VK_SUBPASS_EXTERNAL;deps[1].srcStageMask=VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;deps[1].dstStageMask=VK_PIPELINE_STAGE_TRANSFER_BIT;deps[1].srcAccessMask=VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;deps[1].dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT;
             auto rc=info<VkRenderPassCreateInfo>(VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO);rc.attachmentCount=2;rc.pAttachments=attachments;rc.subpassCount=1;rc.pSubpasses=&sub;rc.dependencyCount=2;rc.pDependencies=deps;ok(CreateRenderPass(device,&rc,nullptr,&renderPass),"vkCreateRenderPass/GX");
             VkImageView views[]={colorView,depthView};auto fc=info<VkFramebufferCreateInfo>(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO);fc.renderPass=renderPass;fc.attachmentCount=2;fc.pAttachments=views;fc.width=512;fc.height=448;fc.layers=1;ok(CreateFramebuffer(device,&fc,nullptr,&framebuffer),"vkCreateFramebuffer/GX");
-            VkDescriptorSetLayoutBinding bindings[2]{};for(u32 i=0;i<2;++i){bindings[i].binding=i;bindings[i].descriptorType=VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;bindings[i].descriptorCount=1;bindings[i].stageFlags=VK_SHADER_STAGE_FRAGMENT_BIT;}auto dl=info<VkDescriptorSetLayoutCreateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);dl.bindingCount=2;dl.pBindings=bindings;ok(CreateDescriptorSetLayout(device,&dl,nullptr,&descriptorLayout),"vkCreateDescriptorSetLayout/GX");
-            VkPushConstantRange push{VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT,0,96};auto pl=info<VkPipelineLayoutCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO);pl.setLayoutCount=1;pl.pSetLayouts=&descriptorLayout;pl.pushConstantRangeCount=1;pl.pPushConstantRanges=&push;ok(CreatePipelineLayout(device,&pl,nullptr,&pipelineLayout),"vkCreatePipelineLayout/GX");
-            VkDescriptorPoolSize poolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,u32(scene->draws.size())*2};auto dp=info<VkDescriptorPoolCreateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO);dp.maxSets=u32(scene->draws.size());dp.poolSizeCount=1;dp.pPoolSizes=&poolSize;ok(CreateDescriptorPool(device,&dp,nullptr,&descriptorPool),"vkCreateDescriptorPool/GX");std::vector<VkDescriptorSetLayout> layouts(scene->draws.size(),descriptorLayout);sets.resize(scene->draws.size());auto alloc=info<VkDescriptorSetAllocateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO);alloc.descriptorPool=descriptorPool;alloc.descriptorSetCount=u32(sets.size());alloc.pSetLayouts=layouts.data();ok(AllocateDescriptorSets(device,&alloc,sets.data()),"vkAllocateDescriptorSets/GX");
-            for(u32 i=0;i<sets.size();++i){auto &d=scene->draws[i];if(d.texture>=sceneTextures.size()||d.alphaTexture>=sceneTextures.size()||d.cull>2||d.blendMode>4)throw std::invalid_argument("GPU draw resource reference");VkDescriptorImageInfo im[2]{};VkWriteDescriptorSet writes[2]{};for(u32 k=0;k<2;++k){auto &t=sceneTextures[k?d.alphaTexture:d.texture];im[k]={t.sampler,t.view,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};writes[k]=info<VkWriteDescriptorSet>(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET);writes[k].dstSet=sets[i];writes[k].dstBinding=k;writes[k].descriptorCount=1;writes[k].descriptorType=VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;writes[k].pImageInfo=&im[k];}UpdateDescriptorSets(device,2,writes,0,nullptr);}
+            VkDescriptorSetLayoutBinding bindings[9]{};for(u32 i=0;i<9;++i){bindings[i].binding=i;bindings[i].descriptorType=i==8?VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;bindings[i].descriptorCount=1;bindings[i].stageFlags=i==8?VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT:VK_SHADER_STAGE_FRAGMENT_BIT;}auto dl=info<VkDescriptorSetLayoutCreateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);dl.bindingCount=9;dl.pBindings=bindings;ok(CreateDescriptorSetLayout(device,&dl,nullptr,&descriptorLayout),"vkCreateDescriptorSetLayout/GX");
+            VkPushConstantRange push{VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT,0,128};auto pl=info<VkPipelineLayoutCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO);pl.setLayoutCount=1;pl.pSetLayouts=&descriptorLayout;pl.pushConstantRangeCount=1;pl.pPushConstantRanges=&push;ok(CreatePipelineLayout(device,&pl,nullptr,&pipelineLayout),"vkCreatePipelineLayout/GX");
+            VkDescriptorPoolSize poolSizes[]={{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,u32(scene->draws.size())*8},{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,u32(scene->draws.size())}};auto dp=info<VkDescriptorPoolCreateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO);dp.maxSets=u32(scene->draws.size());dp.poolSizeCount=2;dp.pPoolSizes=poolSizes;ok(CreateDescriptorPool(device,&dp,nullptr,&descriptorPool),"vkCreateDescriptorPool/GX");std::vector<VkDescriptorSetLayout> layouts(scene->draws.size(),descriptorLayout);sets.resize(scene->draws.size());auto alloc=info<VkDescriptorSetAllocateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO);alloc.descriptorPool=descriptorPool;alloc.descriptorSetCount=u32(sets.size());alloc.pSetLayouts=layouts.data();ok(AllocateDescriptorSets(device,&alloc,sets.data()),"vkAllocateDescriptorSets/GX");
+            for(u32 i=0;i<sets.size();++i){auto &d=scene->draws[i];if(d.cull>2||d.blendMode>4)throw std::invalid_argument("GPU draw pipeline state");VkDescriptorImageInfo im[8]{};VkWriteDescriptorSet writes[9]{};for(u32 k=0;k<8;++k){auto id=scene->materials[i].textures[k];if(id>=sceneTextures.size())throw std::invalid_argument("GPU material texture reference");auto &t=sceneTextures[id];im[k]={t.sampler,t.view,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};writes[k]=info<VkWriteDescriptorSet>(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET);writes[k].dstSet=sets[i];writes[k].dstBinding=k;writes[k].descriptorCount=1;writes[k].descriptorType=VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;writes[k].pImageInfo=&im[k];}VkDescriptorBufferInfo uniform{materialBuffer.buffer,materialStride*i,sizeof(GxMaterialState)};writes[8]=info<VkWriteDescriptorSet>(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET);writes[8].dstSet=sets[i];writes[8].dstBinding=8;writes[8].descriptorCount=1;writes[8].descriptorType=VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;writes[8].pBufferInfo=&uniform;UpdateDescriptorSets(device,9,writes,0,nullptr);}
             VkShaderModule vs{},fs{};
             try{vs=shader(gxVertexSpirv,sizeof(gxVertexSpirv));fs=shader(gxFragmentSpirv,sizeof(gxFragmentSpirv));VkPipelineShaderStageCreateInfo stages[2]={info<VkPipelineShaderStageCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO),info<VkPipelineShaderStageCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)};stages[0].stage=VK_SHADER_STAGE_VERTEX_BIT;stages[0].module=vs;stages[0].pName="main";stages[1].stage=VK_SHADER_STAGE_FRAGMENT_BIT;stages[1].module=fs;stages[1].pName="main";
-                VkVertexInputBindingDescription binding{0,sizeof(GxVertex),VK_VERTEX_INPUT_RATE_VERTEX};VkVertexInputAttributeDescription attributes[]={{0,0,VK_FORMAT_R32G32B32_SFLOAT,offsetof(GxVertex,position)},{1,0,VK_FORMAT_R32G32_SFLOAT,offsetof(GxVertex,uv)}};auto vi=info<VkPipelineVertexInputStateCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);vi.vertexBindingDescriptionCount=1;vi.pVertexBindingDescriptions=&binding;vi.vertexAttributeDescriptionCount=2;vi.pVertexAttributeDescriptions=attributes;
+                VkVertexInputBindingDescription binding{0,sizeof(GxVertex),VK_VERTEX_INPUT_RATE_VERTEX};VkVertexInputAttributeDescription attributes[]={{0,0,VK_FORMAT_R32G32B32_SFLOAT,offsetof(GxVertex,position)},{1,0,VK_FORMAT_R32G32_SFLOAT,offsetof(GxVertex,uv)},{2,0,VK_FORMAT_R8G8B8A8_UNORM,offsetof(GxVertex,color)},{3,0,VK_FORMAT_R32G32B32_SFLOAT,offsetof(GxVertex,normal)}};auto vi=info<VkPipelineVertexInputStateCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);vi.vertexBindingDescriptionCount=1;vi.pVertexBindingDescriptions=&binding;vi.vertexAttributeDescriptionCount=4;vi.pVertexAttributeDescriptions=attributes;
                 auto ia=info<VkPipelineInputAssemblyStateCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO);ia.topology=VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;VkViewport viewport{0,0,512,448,0,1};VkRect2D scissor{{0,0},{512,448}};auto vp=info<VkPipelineViewportStateCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO);vp.viewportCount=1;vp.pViewports=&viewport;vp.scissorCount=1;vp.pScissors=&scissor;auto rs=info<VkPipelineRasterizationStateCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO);rs.polygonMode=VK_POLYGON_MODE_FILL;
                 // GX API FRONT/BACK are swapped by GXGeometry.c before the BP
                 // register. With the Vulkan Y correction, API front is clockwise.
@@ -415,8 +458,8 @@ struct VulkanBootstrap::Impl {
         if(!scene)throw std::logic_error("original geometry scene not loaded");auto started=std::chrono::steady_clock::now();u32 image=0;auto result=AcquireNextImageKHR(device,swap,1000000000ULL,acquired,VK_NULL_HANDLE,&image);
         if(result==VK_ERROR_OUT_OF_DATE_KHR){ok(DeviceWaitIdle(device),"vkDeviceWaitIdle/geometry resize");DestroySwapchainKHR(device,swap,nullptr);swap={};createSwapchain();result=AcquireNextImageKHR(device,swap,1000000000ULL,acquired,VK_NULL_HANDLE,&image);}if(result!=VK_SUBOPTIMAL_KHR)ok(result,"vkAcquireNextImageKHR/geometry");beginCommands();
         VkClearValue clear[2]{};clear[0].color={{0,0,0,1}};clear[1].depthStencil={1,0};auto rp=info<VkRenderPassBeginInfo>(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO);rp.renderPass=renderPass;rp.framebuffer=framebuffer;rp.renderArea={{0,0},{512,448}};rp.clearValueCount=2;rp.pClearValues=clear;CmdBeginRenderPass(command,&rp,VK_SUBPASS_CONTENTS_INLINE);VkDeviceSize offset=0;CmdBindVertexBuffers(command,0,1,&vertexBuffer.buffer,&offset);CmdBindIndexBuffer(command,indexBuffer.buffer,0,VK_INDEX_TYPE_UINT32);
-        struct Push{std::array<float,16> vp;float alpha[4];float tint[4];} push{};static_assert(sizeof(Push)==96);push.vp=scene->viewProjection;
-        for(u32 i=0;i<scene->draws.size();++i){auto &d=scene->draws[i];push.alpha[0]=float(d.alphaRef)/255;push.alpha[1]=(d.flags&4)?1.f:0.f;for(u32 k=0;k<4;++k)push.tint[k]=float((d.materialColor>>(24-k*8))&255)/255;CmdBindPipeline(command,VK_PIPELINE_BIND_POINT_GRAPHICS,pipelines[d.blendMode*3+d.cull]);CmdBindDescriptorSets(command,VK_PIPELINE_BIND_POINT_GRAPHICS,pipelineLayout,0,1,&sets[i],0,nullptr);CmdPushConstants(command,pipelineLayout,VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT,0,sizeof(push),&push);CmdDrawIndexed(command,d.indexCount,1,d.firstIndex,0,0);}CmdEndRenderPass(command);
+        struct Push{std::array<float,16> vp;float view[3][4];float reserved[4];} push{};static_assert(sizeof(Push)==128);push.vp=scene->viewProjection;std::memcpy(push.view,scene->camera.view,sizeof(push.view));
+        for(auto i:scene->renderOrder){if(i>=scene->draws.size())throw std::invalid_argument("GPU OT draw reference");auto &d=scene->draws[i];CmdBindPipeline(command,VK_PIPELINE_BIND_POINT_GRAPHICS,pipelines[d.blendMode*3+d.cull]);CmdBindDescriptorSets(command,VK_PIPELINE_BIND_POINT_GRAPHICS,pipelineLayout,0,1,&sets[i],0,nullptr);CmdPushConstants(command,pipelineLayout,VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT,0,sizeof(push),&push);CmdDrawIndexed(command,d.indexCount,1,d.firstIndex,0,0);}CmdEndRenderPass(command);
         VkBufferImageCopy read{};read.imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1};read.imageExtent={512,448,1};CmdCopyImageToBuffer(command,color.image,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,sceneReadback.buffer,1,&read);auto host=info<VkBufferMemoryBarrier>(VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER);host.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;host.dstAccessMask=VK_ACCESS_HOST_READ_BIT;host.srcQueueFamilyIndex=host.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;host.buffer=sceneReadback.buffer;host.size=VK_WHOLE_SIZE;CmdPipelineBarrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_HOST_BIT,0,0,nullptr,1,&host,0,nullptr);
         barrier(images[image],VK_IMAGE_ASPECT_COLOR_BIT,VK_IMAGE_LAYOUT_UNDEFINED,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,0,VK_ACCESS_TRANSFER_WRITE_BIT);VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};VkClearColorValue black{{0,0,0,1}};CmdClearColorImage(command,images[image],VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,&black,1,&range);
         // Transfer write -> write dependency: the blit covers only the centered VI rectangle.
@@ -449,7 +492,9 @@ std::string VulkanBootstrap::report() const {
         << ",\"surface_transform\":"<<v.surfaceTransform
         << ",\"rgba_sha256\":"<<std::quoted(v.pixelHash)<<",\"last_frame_cpu_us\":"<<v.frameMicros
         << ",\"available_khronos_validation_layers\":"<<v.availableValidationLayers
-        << ",\"validation_layer\":\"not enabled; no validation-error claim\"";
+        << ",\"validation_enabled\":"<<(v.validationEnabled?"true":"false")
+        << ",\"validation_warnings\":"<<v.validationWarnings.load()
+        << ",\"validation_errors\":"<<v.validationErrors.load();
     if(v.scene)out<<",\"scene\":"<<v.sceneReport;out<<'}';return out.str();
 }
 } // namespace re4::port

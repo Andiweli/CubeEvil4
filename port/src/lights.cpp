@@ -220,6 +220,29 @@ LightStateView LightRuntime::state(LightHandle h) const {
     auto *p=impl_->unit(h);return {p->be_flag,p->ParentNo,p->Type,p->Id,p->Kind,p->EnableMask,p->ParentType,p->Rno0,p->Pos,p->World,p->normal,p->Radius,p->Intensity,p->Col,p->DispCol,p->LitIndex};
 }
 void LightRuntime::moveType(LightHandle h) { auto &i=*impl_;auto *p=i.unit(h);CallScope scope(i.call);p->move(); }
+LightRenderRecord LightRuntime::renderRecord(LightHandle h) const { auto *p=impl_->unit(h);return {p->be_flag,static_cast<const LightFields&>(*p)}; }
+int LightCpu::calcPos(Vec *from,Vec *to) {
+    if(!from||!to)throw std::invalid_argument("light position pointer");
+    if(ParentType)throw MissingGameConsumer("original model-bound light calcPos/getCoord");
+    *to=*from;return 1; // Original calcPos case 0, with an explicit boundary on other parents.
+}
+void LightRuntime::loadRenderCut(int blockNo,int cutNo) {
+    auto &i=*impl_;i.check(true);auto data=block(blockNo);auto env=cut(blockNo,cutNo);
+    if(i.mgr.countActiveWork())throw std::logic_error("render cut requires an empty original light pool");
+    auto recordsCopy=records(blockNo,cutNo);
+    for(auto &record:recordsCopy)if(record.ParentType)throw MissingGameConsumer("original model-bound light registration");
+    if(env.nLight>i.mgr.nArray)throw std::invalid_argument("original LIT cut exceeds pool");
+    i.invalidate(); // Bulk original allocation must never revive a previously retired handle.
+    CallScope scope(i.call);auto *view=const_cast<cLit*>(data->header())->getCut(u16(cutNo));
+    try {
+        if(!i.mgr.loadLit(env.nLight?view->getLightWork(0):nullptr,env.nLight))throw std::runtime_error("original loadLit failed");
+    } catch(...) { i.mgr.destroyAll(); throw; }
+    i.trace.push_back("cLightMgr::loadLit:original-frozen-render-cut");
+}
+std::vector<LightRenderRecord> LightRuntime::renderPool() const {
+    auto &i=*impl_;i.check();std::vector<LightRenderRecord> out;
+    for(u32 n=0;n<i.mgr.nArray;++n){auto *p=i.mgr.pArray+n;out.push_back({p->be_flag,static_cast<const LightFields&>(*p)});}return out;
+}
 void LightRuntime::destroy(LightHandle h) { auto &i=*impl_;auto *p=i.unit(h);CallScope scope(i.call);i.mgr.destroy(p); }
 void LightRuntime::event(bool begin) { auto &i=*impl_;i.check();CallScope scope(i.call);if(begin)i.mgr.beginEvent();else i.mgr.endEvent(); }
 void LightRuntime::kind(u8 n,bool on) { impl_->check();CallScope scope(impl_->call);if(on)impl_->mgr.onKind(n);else impl_->mgr.offKind(n); }

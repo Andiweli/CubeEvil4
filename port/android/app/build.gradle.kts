@@ -47,6 +47,10 @@ android {
             isMinifyEnabled = false
         }
     }
+    // Optional official Khronos binaries, outside tracked sources; debug APK only.
+    providers.gradleProperty("re4.validationLayers").orNull?.let {
+        sourceSets.getByName("debug").jniLibs.srcDir(file(it))
+    }
 }
 
 dependencies {

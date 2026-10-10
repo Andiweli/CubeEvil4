@@ -53,12 +53,13 @@ extern "C" JNIEXPORT jstring JNICALL Java_org_re4_port_GraphicsBootstrapView_nat
     } catch(const std::exception &e) { error(env,e); return nullptr; }
 }
 extern "C" JNIEXPORT void JNICALL Java_org_re4_port_GraphicsBootstrapView_nativeLoadScene(
-    JNIEnv *env,jclass,jlong h,jstring root,jstring catalog,jstring event) {
+    JNIEnv *env,jclass,jlong h,jstring root,jstring catalog,jint room,jstring event,jint frame) {
     try {
         auto string=[&](jstring value){auto *p=env->GetStringUTFChars(value,nullptr);if(!p)throw std::runtime_error("JNI scene string");std::string r;try{r=p;}catch(...){env->ReleaseStringUTFChars(value,p);throw;}env->ReleaseStringUTFChars(value,p);return r;};
         auto files=std::make_shared<ImportedFiles>(string(root),string(catalog));
         ControllerInput input;GameRuntime game(files,input,0);game.initialize();
-        auto scene=loadDiagnosticScene(game.loader(),game.engineConsumers(),0x120,string(event),0);
+        if(room<0||room>0xffff||frame<0)throw std::invalid_argument("original room/frame range");
+        auto scene=loadDiagnosticScene(game.loader(),game.engineConsumers(),u16(room),string(event),u32(frame));
         get(h).presenter->loadScene(std::move(scene));
     }catch(const std::exception &e){error(env,e);}
 }
