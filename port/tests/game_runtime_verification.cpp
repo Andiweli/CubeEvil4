@@ -5,6 +5,7 @@
 #include "re4_scheduler_original.h"
 #include <algorithm>
 #include <filesystem>
+#include <cstring>
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -194,6 +195,50 @@ std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<Graph
            "original boot settings");
     c.test(game.state().pl_type == 0 && game.state().game_country == 1,
            "original Leon / English init");
+    // Isolated execution of the complete original player reset and key consumer.
+    // No player actor, synthetic movement, REL or weapon gameplay is installed.
+    {
+        auto saved=game.state(); auto &g=game.state(); auto &player=game.player();
+        const u16 life[]={1200,600,1560,1680,2400,1860,1200};
+        const u8 weapon[]={2,2,1,11,28,2,93};
+        for(u8 type=0;type<7;++type) for(int flags=0;flags<8;++flags) {
+            g=NativeGameState{}; g.pl_type=type;
+            g.System_flg=(flags&1)?(0x80000000u>>SYS_OMAKE_ETC_GAME):0;
+            if(flags&2) g.Debug_flg[DBG_START_ST2/32]|=0x80000000u>>(DBG_START_ST2%32);
+            if(flags&4) g.Debug_flg[DBG_START_ST3/32]|=0x80000000u>>(DBG_START_ST3%32);
+            g.Debug_flg[DBG_PL_LOCK_FOLLOW/32]|=0x80000000u>>(DBG_PL_LOCK_FOLLOW%32);
+            g.weapon_no=93;g.weapon_type=9;g.weapon_lv_power=4;g.weapon_lv_speed=5;g.weapon_lv_blt=6;g.weapon_lv_reload=7;
+            g.weapon_no_old=0;g.pl_flag=0xff;g.Status_flg[3]=0x12345678;
+            player.gameInit();
+            u16 expected=(flags&4)?1920:((flags&2)?1440:((type==0 && (flags&1))?1860:life[type]));
+            c.test(g.pl_life==expected && g.pl_life_max==expected && g.ashley_life==600 && g.ashley_life_max==600,"original life and debug override order");
+            c.test(g.weapon_no==weapon[type] && g.weapon_type==(type==6?9:(type==5?1:0)),"original character equipment reset/default preservation");
+            c.test(type==6?(g.weapon_lv_power==4 && g.weapon_lv_speed==5 && g.weapon_lv_blt==6 && g.weapon_lv_reload==7):
+                !(g.weapon_lv_power || g.weapon_lv_speed || g.weapon_lv_blt || g.weapon_lv_reload),"original upgrade reset/default preservation");
+            c.test(g.pl_flag==1 && g.weapon_no_old==0xff && player.snapshot().oldWeaponId==0xff && player.snapshot().kaiou==0 && player.snapshot().weaponSlotEmpty,"original module release and player flags");
+            c.test(!(g.Debug_flg[DBG_PL_LOCK_FOLLOW/32]&(0x80000000u>>(DBG_PL_LOCK_FOLLOW%32))) && g.Status_flg[3]==0x12345678,"original precise flag mutation");
+        }
+        auto baseline=game.heaps().liveBytes();
+        for(bool debug:{false,true}) {
+            g.weapon_no_old=2;auto *p=player.allocateWeaponData(4096,debug);std::memset(p,0x5a,4096);
+            c.test(game.heaps().liveBytes()>baseline && !player.snapshot().weaponSlotEmpty,"owned native weapon allocation adapter");
+            player.gameInit();c.test(game.heaps().liveBytes()==baseline && player.snapshot().weaponSlotEmpty,"original InitModule frees normal/debug owned allocation");
+            player.gameInit();c.test(game.heaps().liveBytes()==baseline,"repeated original ReleaseWepData idempotence");
+        }
+        g.weapon_no_old=0xff;player.allocateWeaponData(64);player.gameInit();
+        c.test(!player.snapshot().weaponSlotEmpty,"original FF weapon sentinel must not release slot");
+        g.weapon_no_old=1;player.gameInit();c.test(player.snapshot().weaponSlotEmpty,"original later weapon release");
+        // Real native PadRead state is tested elsewhere. This isolated KEY models
+        // its output and runs the actual cPlayer consumer without a second mapping.
+        GameplayHeaps h;EngineConsumers models;NativeGameState state;KEY key{};u8 layout=0;
+        PlayerRuntime keys(state,key,layout,h,models,game.loader().scheduler());
+        key.on=2;key.trg=0x40000000;keys.keyConfig();c.test(key.trg==(0x40000000|0x100),"original B trigger / held action combination");
+        key.trg=0;keys.keyConfig();c.test(key.trg==0x100,"original B latch survives one frame");
+        key.trg=0;keys.keyConfig();c.test(key.trg==0,"original B latch expires");
+        layout=1;key.trg=0x40000000;keys.keyConfig();c.test(key.trg==(0x40000000|0x100),"original alternate layout shares TypeA");
+        layout=2;key.trg=0x100;keys.keyConfig();c.test(key.trg==0x100,"original unknown layout does not mutate KEY");
+        player.clear();g=saved;
+    }
     game.state().play_time = 3661;
     game.initGameTime();
     u32 h = 0, m = 0, s = 0;

@@ -102,11 +102,19 @@ def main():
                             original_SubScreenGameInit_calls=2*len(messages),
                             isolated_inventory_map_modelInit_calls=12*len(messages),
                             subscreen_archive_reads=44*len(messages))
+        player_runs=[r['actual']['player'] for r in messages]
+        if any(not r['gameTask_PlayerInit_complete'] or r['actor_constructed'] for r in player_runs):
+            raise ValueError('PlayerInit execution/scope: '+abi)
+        measured[-1].update(original_GameTask_PlayerInit_calls=len(player_runs),
+            isolated_original_Leon_setModel_calls=3*len(player_runs),
+            isolated_original_Leon_setMotion_calls=3*len(player_runs),
+            isolated_Leon_sequence_MotionSetCore_calls=3*sum(len(a['sequence_initializations']) for r in player_runs for a in r['leon_assets']),
+            player_actor_constructed=False)
         measured[-1].update(original_light_boot_calls=len(messages),
             isolated_original_light_roomInit_calls=sum(len(a['rounds']) for r in lights for a in r['actual']['archives']),
             isolated_original_light_creations=sum(b['created'] for r in lights for a in r['actual']['archives'] for frame in a['rounds'] for b in frame['blocks']),
             isolated_light_blocked_model_owners=sum(b['blocked_model_owners'] for r in lights for a in r['actual']['archives'] for frame in a['rounds'] for b in frame['blocks']))
-    if any(len(v)!=1 for v in [*room_traces.values(),*model_traces.values()]) or len(event_traces)!=1 or len(native_traces)!=1 or checks!={634}:
+    if any(len(v)!=1 for v in [*room_traces.values(),*model_traces.values()]) or len(event_traces)!=1 or len(native_traces)!=1 or len(checks)!=1:
         raise ValueError('ABI/repetition semantic results differ')
     if len(message_traces)!=1 or len(message_checks)!=1 or min(message_checks)<1500: raise ValueError('message/SubScreen/ID/save ABI/repetition semantics differ')
     if any(len(v)!=1 for v in [*light_traces.values(),*light_checks.values()]):raise ValueError('light ABI/repetition semantics differ')
@@ -120,7 +128,7 @@ def main():
     sample=json.loads((args.host/'game-runtime-host-64.json').read_text())['results']
     coverage={r['id']:r['consumers'] for record in sample for r in record['actual']['rooms']}
     additional=[p for r in json.loads((args.host/'models-host-64.json').read_text())['results'] if r['round']==1 for p in r['actual']['packages']]
-    summary=dict(schema='RE4-PHASE4C-LIGHT-MEASUREMENTS-1',checks_per_native_run=634,
+    summary=dict(schema='RE4-PHASE4C-PLAYER-MEASUREMENTS-1',checks_per_native_run=next(iter(checks)),
                  measured=measured,identical_native_traces=True,
                  identical_room_traces={str(k):next(iter(v)) for k,v in room_traces.items()},
                  identical_event_trace=next(iter(event_traces)),packages=packages,room_consumer_coverage=coverage,
@@ -129,7 +137,7 @@ def main():
                  message_boot_sample=json.loads((args.host/'messages-host-64.json').read_text())['results'][0]['actual'],
                  identical_light_traces={str(k):next(iter(v)) for k,v in light_traces.items()},light_checks_per_disc={str(k):next(iter(v)) for k,v in light_checks.items()},
                  light_samples=json.loads((args.host/'lights-host-64.json').read_text())['results'][:2],
-                 scope='Actual GameTask executes original cLightMgr::init/initPath, then existing ScenarioInit and blocks at PlayerInit. Isolated original LIT roomInit/versionUp, CONS, light creation/type dispatch/kind/event/fog scalars and real core path cursors; missing model managers remain explicitly blocked. No full lightMove, setEnv/filter/wind/view pipeline, SAR gameplay, aggregate save/load or GPU lighting. Previous message/SubScreen/ID/save/model/motion consumers retained; GPU bootstrap evidence is separate APK instrumentation.')
+                 scope='Actual GameTask executes original cLightMgr::init/initPath, then ScenarioInit and complete original PlayerInit; stops at MerchantGameInit. Separate original Leon setModel/setMotion helpers on private pl00 archive; cPlayer/cPlLeon actor construction and weapon/collision/startUp remain unbound. Isolated original LIT roomInit/versionUp, CONS, light creation/type dispatch/kind/event/fog scalars and real core path cursors; missing model managers remain explicitly blocked. No full lightMove, setEnv/filter/wind/view pipeline, SAR gameplay, aggregate save/load or GPU lighting. Previous message/SubScreen/ID/save/model/motion consumers retained; GPU bootstrap evidence is separate APK instrumentation.')
     write_json(output/'consumer-runtime-summary.json',summary)
     print(json.dumps(summary,indent=2))
 

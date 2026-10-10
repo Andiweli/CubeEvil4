@@ -19,6 +19,7 @@ struct ModelUnit {
 };
 struct ModelJoint { u8 partsNo{}, parentNo{}, x2{}, x3{}; Vec center{}; };
 struct ModelDataView {
+    ResourceLease source; // Native ownership metadata, never serialized into the original BIN.
     ModelJoint *pHead{};
     u8 nParts{}, shift{};
     u16 nVtx{}, nNrm{}, displist_num{};
@@ -43,6 +44,8 @@ struct TexturePaletteView {
     bool resolved{};
 };
 struct ModelBoundingBox { Vec offset{}, size{}; };
+struct ShapeData;
+struct ShapeKey { f32 rate{}; ShapeData *data{}; };
 struct ModelInfoView : ModelUnit {
     ModelInfoView();
     ModelDataView *model_addr{};
@@ -52,6 +55,10 @@ struct ModelInfoView : ModelUnit {
     Mtx mat{};
     union { u8 color[4]; u32 colorWord; };
     f32 invisible_factor{};
+    ShapeData *pShape{};
+    ShapeKey shape[5]{};
+    u32 shapeFlags{};
+    s16 shape_frame{};
 };
 struct SequenceKey { u16 Frame{}; u8 Se{}, Free{}; };
 struct MotionDataView;
@@ -125,6 +132,7 @@ struct ModelCpu : ModelPart {
     void partsMatCalc();
     void partsWorldCalc();
     void addModel(ModelInfoView *);
+    int deleteModelInfo(ModelInfoView *);
     void releaseModelInfo();
     int makePartsList(int);
     void setJointInfo(void *);

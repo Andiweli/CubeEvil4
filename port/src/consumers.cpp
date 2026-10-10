@@ -138,6 +138,7 @@ struct EngineConsumers::Model {
     ModelInfoView info;
     ModelCpu cpu;
     std::unique_ptr<MotionAsset> motion;
+    std::unique_ptr<MotionSequenceView> sequence;
     std::unique_ptr<ModelRuntime::Object> initialized;
 };
 struct EngineConsumers::Message {
@@ -270,19 +271,25 @@ std::size_t EngineConsumers::modelCount() const {
     return models_.size();
 }
 void EngineConsumers::initializeMotion(ConsumerHandle h,ResourceLease bytes,int frame,int flags,int hokan) {
+    initializeMotion(h,bytes,ResourceLease{},frame,flags,hokan);
+}
+void EngineConsumers::initializeMotion(ConsumerHandle h,ResourceLease bytes,ResourceLease sequence,int frame,int flags,int hokan) {
     check(); validate(h);
     auto &m=*models_.at(h.index);
     if(!m.initialized) throw std::logic_error("Motion requires an actually initialized original model");
     if(frame<0 || frame>65535 || flags<0 || flags>65535 || hokan<0 || hokan>255)
         throw std::invalid_argument("original motion arguments");
     auto asset=std::make_unique<MotionAsset>(bytes,m.initialized->cpu);
+    auto seq=sequence.owner ? std::make_unique<MotionSequenceView>(resolveMotionSequence(sequence)) : nullptr;
+    if(!sequence.owner && (sequence.data || sequence.size)) throw std::invalid_argument("SEQ owner required");
     if(m.initialized->cpu.Motion.pAttachCam)
         throw MissingGameConsumer("MotionSetCore/attached camera owner not integrated");
     // Publish ownership before the original functions touch any pointer. On failure
     // retain the new asset: the partially initialized original work can reference it.
     m.motion=std::move(asset);
+    m.sequence=std::move(seq);
     MotionClear(&m.initialized->cpu,1);
-    MotionSetCore(&m.initialized->cpu,&m.initialized->cpu.Motion,&m.motion->data,nullptr,hokan,flags,frame);
+    MotionSetCore(&m.initialized->cpu,&m.initialized->cpu.Motion,&m.motion->data,m.sequence.get(),hokan,flags,frame);
 }
 Vec EngineConsumers::sampleMotion(ConsumerHandle h,u32 joint,f32 frame) const {
     check(); validate(h); const auto &m=*models_.at(h.index);
@@ -300,6 +307,12 @@ ModelInfoView *EngineConsumers::createModelInfoFor(ModelCpu &cpu,const char *bin
     check();
     for(auto &entry:models_) if(entry.second->initialized && &entry.second->initialized->cpu==&cpu)
         return modelRuntime_->createAttachment(*entry.second->initialized,eventResources_.bin(bin),eventResources_.bin(tpl),reset);
+    throw std::logic_error("attachment parent is not an owned initialized model");
+}
+ModelInfoView *EngineConsumers::createModelInfoFor(ModelCpu &cpu,ResourceLease bin,ResourceLease tpl) {
+    check();
+    for(auto &entry:models_) if(entry.second->initialized && &entry.second->initialized->cpu==&cpu)
+        return modelRuntime_->createAttachment(*entry.second->initialized,bin,tpl,false);
     throw std::logic_error("attachment parent is not an owned initialized model");
 }
 void EngineConsumers::bindMessage(int type, ResourceLease b, u32 language) {

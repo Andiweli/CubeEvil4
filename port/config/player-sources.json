@@ -1,0 +1,13 @@
+{
+  "src/game/player.cpp": "de2e83daa2974f9d9eb269e4596a6887d5aed9302a9215e462f1b7e67e8beba3",
+  "src/game/read.cpp": "0ef5bbee701eebc44a329c65014902ed8bdee425d4164feb514ac3ab15063772",
+  "src/game/pl_leon.cpp": "cb6e6a1245b0eaab6faaec6e0c0b1deeb8102f501dde2140576d262cfa92c024",
+  "src/game/pl_body.cpp": "8226a07e271d70c85bb34f556863d4730c6108b40ad200af1fdce76e892a611f",
+  "src/game/pl_class.cpp": "1ab9c84393322136c114c551c5572683808fa5892f8e9e1a9592a88baf05c434",
+  "src/game/shape.cpp": "82fd6f035ed2219db20094dc019625b3c6e687255e50e2142cd0a8c90172a0d9",
+  "include/read.h": "c4ae0d746997ba445e72045f965bdd39ad51d37d9218d671e3de6e6461dc7010",
+  "include/cFlag.h": "b52d6bc77d05f61865bf18f9492a576c773676b4930abce3d71467d7070bbb80",
+  "include/pl_body.h": "7c35549a9210d4af2ae4c272b9239ca2c9030bbf58c7d6e47fd1004a5b4b7cdd",
+  "include/model.h": "0b5e63ccbc7ae21404527bf100e792804c495bc82f4bd417ef966ab668ac12a2",
+  "include/global.h": "12cf7d5dd385273f44bd5234fe49de62278a1642746d99b59a442c48d132773a"
+}

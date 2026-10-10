@@ -52,6 +52,7 @@ def generate(root, output):
         if 'setJointInfo' in sig:
             changes.append(('(u16*) (d->flipTbl + 4)','(u16*) (d->flipTbl + 4)'))
         add('src/game/model.cpp',sig,changes)
+    add('src/game/model.cpp','int cModel::deleteModelInfo(cModelInfo* addr)',[('cModel::deleteModelInfo','ModelCpu::deleteModelInfo')])
     add('src/game/model.cpp','cModelInfo* cModInfoMgr::create(void* bin, void* tpl)',[
         ('cModelInfo* cModInfoMgr::create','ModelInfoView* ModelInfoManager::create'),
         ('cManager<cModelInfo>::create()','ModelPool<ModelInfoView>::create()')])
@@ -99,7 +100,11 @@ def generate(root, output):
         entries.append(dict(source='src/game/motion.cpp',signature=sig,line=line,
                             adaptations=[a for a,_ in changes]+['remove codeless PPC anchors; BE scalar macros']))
     add_motion('void MotionSetCore(cModel* m, void* w_, void* data_, void* seq_, int hokan, int flags, int frame)',[
-        ('DbgFlagChk(pG, DBG_TEST_MODE)','false'), ('    u32* tbl;','    const u8** tbl;'),
+        ('DbgFlagChk(pG, DBG_TEST_MODE)','false'),
+        ('u16* seq = (u16*) seq_;','MotionSequenceView* seq = (MotionSequenceView*) seq_;'),
+        ('(SEQUENCE_DATA*) (seq + 2)','seq->keys.data()'),
+        ('seq[0]','seq->count'),
+        ('((u8*) seq)[2]','seq->flags'), ('    u32* tbl;','    const u8** tbl;'),
         ('w->pJoint_kind = (u16*) ((u8*) w->pMot + 3);','w->pJoint_kind = data->kinds.data();'),
         ('w->pJoint_no = (u8*) w->pMot + (w->Joint_num * 2 + 3);','w->pJoint_no = data->numbers.data();'),
         ('''    tbl = (u32*) ((u32) w->pJoint_no + w->Joint_num);

@@ -92,6 +92,18 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_lights.py"
     --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
 
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/player-sources.json" player_manifest)
+string(JSON player_count LENGTH "${player_manifest}")
+math(EXPR player_last "${player_count} - 1")
+foreach(index RANGE 0 ${player_last})
+    string(JSON player_source MEMBER "${player_manifest}" ${index})
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RE4_ROOT}/${player_source}")
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/player-sources.json" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_player.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_player.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
+
 # Only approved headers enter this target. The legacy include/ directory also
 # contains an old libc, which must never shadow the host or NDK standard library.
 add_library(re4_original STATIC
@@ -157,6 +169,7 @@ add_library(re4_game_runtime STATIC src/game_runtime.cpp src/gameplay_heaps.cpp 
     src/consumers.cpp src/event_resources.cpp src/model_runtime.cpp src/motion.cpp src/tex_render.cpp src/graphics.cpp src/messages.cpp src/subscreen.cpp
     src/id_save.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
     src/lights.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"
+    src/player.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/player_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/subscreen_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/message_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/tex_render_control.cpp"
@@ -174,6 +187,7 @@ if(MSVC)
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"
+        "${CMAKE_CURRENT_BINARY_DIR}/original/player_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/subscreen_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/message_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/tex_render_control.cpp"
@@ -186,6 +200,7 @@ else()
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"
+        "${CMAKE_CURRENT_BINARY_DIR}/original/player_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/message_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/subscreen_control.cpp"
         PROPERTIES COMPILE_OPTIONS "-Wno-unused-parameter;-Wno-unused-variable")

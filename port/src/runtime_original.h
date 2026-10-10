@@ -287,6 +287,7 @@ struct OriginalContext {
     void GameTask();
     void gameDebug();
     void gameInit();
+    void PlayerInit() { runtime->player().gameInit(); }
     void SubScreenGameInit();
     // Only fields touched by ClothInit; cloth simulation remains unbound.
     struct ClothSlot { u32 be_flag{}; } ClothWk[8];

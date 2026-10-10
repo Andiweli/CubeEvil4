@@ -154,8 +154,30 @@ def main():
         lb=actual['light_boot']
         if lb['path_sha256']!=path_entry['sha256'] or lb['paths']!=11 or not lb['initialized'] or lb['trace']!=['cLightMgr::init:original','cLightMgr::initPath:original']:
             raise ValueError('actual original light startup/path reference')
-        if actual['blocker']!='Original consumer unavailable: PlayerInit()' or not actual['repeated_init_released'] or actual['checks']<1500:
+        if actual['blocker']!='Original consumer unavailable: MerchantGameInit()' or not actual['repeated_init_released'] or actual['checks']<1500:
             raise ValueError('actual GameTask progress or message lifecycle')
+        player=actual['player']
+        if not player['gameTask_PlayerInit_complete'] or player['actor_constructed'] or [player[k] for k in ['life','max_life','weapon','weapon_type','flag']]!=[1200,1200,2,0,1] or player['trace']!=['PlayerInit:original','PlayerLifeReset:original','ReleaseWepData:original','InitModule:original']:
+            raise ValueError('actual original PlayerInit state/order/scope')
+        plfile=player_files[disc];plsource=(data/'blobs'/plfile['sha256']).read_bytes();plarc=drs.Drs(plsource)
+        text=(root/'src/game/pl_leon.cpp').read_text();motiontext=text[text.index('void cPlLeon::setMotion()'):text.index('// Just cPlayer::move')]
+        pairs=[(int(i,0),int(slot,0)) for i,slot in re.findall(r'PLA_MOT\(this, (0x[0-9A-F]+), (0x[0-9A-F]+)\)',motiontext)]
+        pairs += [(int(i,0),int(slot,0)) for i,slot in re.findall(r'm_MotTbl\[(0x[0-9A-F]+)\] = PL_ARC_PTR\(pG->pPlayer, (0x[0-9A-F]+)\)',motiontext)]
+        expected_motions=[dict(motion_index=i,archive_slot=slot,sha256=sha(plarc.entries[slot-4][1])) for i,slot in sorted(pairs)]
+        if len(player['leon_assets'])!=2: raise ValueError('missing repeated Leon asset initialization')
+        slots=[(4,5),(10,5),(13,5),(8,7),(6,7),(9,7),(18,17),(21,17)]
+        expected_models=[dict(parts=plarc.entries[b-4][1][0x19],textures=struct.unpack_from('>I',plarc.entries[t-4][1],4)[0],bin_sha256=sha(plarc.entries[b-4][1]),tpl_sha256=sha(plarc.entries[t-4][1])) for b,t in slots]
+        for record in player['leon_assets']:
+            if record['motions']!=expected_motions or record['parts']!=plarc.entries[0][1][0x19] or record['models']!=8 or record['model_sources']!=expected_models or record['archive_body_sha256']!=plfile['analysis']['body_sha256']:
+                raise ValueError('original Leon model/TPL/motion registration differs from disc data/source')
+            expected_sequences=[]
+            for idx,slot in sorted(pairs):
+                if slot&1:continue
+                motion=fcv.parse(plarc.entries[slot-4][1]);sequence=fcv.parse_seq(plarc.entries[slot+1-4][1])
+                keys=[[k.frame,k.se,k.free] for k in sequence.keys]
+                expected_sequences.append(dict(motion_index=idx,max_frame=motion.max_frame,joints=len(motion.joints),sequence_count=len(keys),sequence_flags=sequence.flags,first_key=keys[0],mot_attr=1|(0x1000 if sequence.flags&1 else 0),sequence_keys=keys))
+            if record['sequence_initializations']!=expected_sequences:
+                raise ValueError('actual original MotionSetCore SEQ state differs from independent FCV/SEQ parser')
         stable={k:v for k,v in actual.items() if k not in ['pointer_bits','native_layout']}
         return sha(json.dumps(stable,sort_keys=True).encode())
     def verify_lights(actual,disc,bits,expected):

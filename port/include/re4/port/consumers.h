@@ -83,9 +83,11 @@ class EngineConsumers final {
     void setAdaOverrideProvider(std::function<bool()> f) { check(); adaOverride_=std::move(f); }
     bool debugAdaOverride() const { check(); return adaOverride_ && adaOverride_(); }
     void initializeMotion(ConsumerHandle, ResourceLease, int frame=0, int flags=1, int hokan=0);
+    void initializeMotion(ConsumerHandle,ResourceLease motion,ResourceLease sequence,int frame=0,int flags=1,int hokan=0);
     Vec sampleMotion(ConsumerHandle,u32 joint,f32 frame) const;
     void registerEventModel(ConsumerHandle event,ConsumerHandle model,const std::string &name,u8 type);
     ModelInfoView *createModelInfoFor(ModelCpu &,const char *bin,const char *tpl,bool resetOffsets);
+    ModelInfoView *createModelInfoFor(ModelCpu &,ResourceLease bin,ResourceLease tpl);
     explicit EngineConsumers(NativeScheduler *domain = nullptr);
     ~EngineConsumers();
     EngineConsumers(const EngineConsumers &) = delete;

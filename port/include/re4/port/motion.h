@@ -10,6 +10,13 @@ struct MotionDataView {
     std::vector<u8> numbers;
     std::vector<const u8*> streams;
 };
+struct MotionSequenceView {
+    ResourceLease source;
+    u16 count{};
+    u8 flags{};
+    std::vector<SequenceKey> keys;
+};
+MotionSequenceView resolveMotionSequence(ResourceLease);
 // Keeps original FCV bytes alive, checks every axis and model reference before execution.
 class MotionAsset final {
 public:

@@ -23,6 +23,7 @@ struct ModelRuntime::Asset {
     Asset(ResourceLease b,ResourceLease t,const ModelCpu *parent=nullptr) : bin(b) {
         bounds(b,0,0x40);
         auto &d=data;
+        d.source=b;
         d.version=be32(b,0x3c);
         if(d.version!=0x20010801 && d.version!=0x20030818) notBinData();
         d.nParts=b.data[0x19]; d.shift=b.data[0x28]; d.nVtx=be16(b,0x38); d.nNrm=be16(b,0x3a);

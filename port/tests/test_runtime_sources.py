@@ -42,5 +42,26 @@ class Sources(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'fingerprint mismatch'):
                 generator.generate(copy,Path(directory)/'output')
 
+    def test_player_provenance_and_changed_source_refusal(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'port/tools'))
+        from generate_player import generate
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)/'output';generate(ROOT,output)
+            functions=json.loads((output/'player-manifest.json').read_text())['functions']
+            self.assertEqual(len(functions),17)
+            signatures={f['signature'] for f in functions}
+            self.assertIn('void PlayerInit()',signatures)
+            self.assertIn('void cPlLeon::setModel()',signatures)
+            self.assertIn('void cPlLeon::setMotion()',signatures)
+            self.assertNotIn('cPlLeon::cPlLeon()',signatures)
+            copy=Path(directory)/'root'
+            hashes=json.loads((ROOT/'port/config/player-sources.json').read_text())
+            for relative in [*hashes,'port/config/player-sources.json']:
+                target=copy/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/relative,target)
+            p=copy/'src/game/player.cpp';p.write_text(p.read_text().replace('1200);','1201);'))
+            with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):
+                generate(copy,Path(directory)/'bad-output')
+
 
 if __name__ == '__main__': unittest.main()

@@ -1,5 +1,6 @@
 #include "re4/port/game_runtime.h"
 #include "re4/port/sha256.h"
+#include "re4/port/motion.h"
 #include "../src/message_original.h"
 #include "rnd.h"
 #include <algorithm>
@@ -485,7 +486,12 @@ void messages(int argc,char **argv) {
     check(bool(game.startOriginalGameTask()),"original GameTask creation");
     std::string blocker;
     try{game.tick();}catch(const MissingGameConsumer &failure){blocker=failure.what();}
-    check(blocker=="Original consumer unavailable: PlayerInit()","actual GameTask must pass original lights/path and ScenarioInit and stop at PlayerInit");
+    check(blocker=="Original consumer unavailable: MerchantGameInit()","actual GameTask must complete PlayerInit and stop at the next genuine original dependency");
+    auto &pg=game.state();auto playerBoot=game.player().snapshot();auto playerTrace=game.player().trace();
+    check(pg.pl_type==0 && pg.pl_life==1200 && pg.pl_life_max==1200 && pg.ashley_life==600 && pg.ashley_life_max==600,"original Leon life reset reached through GameTask");
+    check(pg.weapon_no==2 && pg.weapon_type==0 && !(pg.weapon_lv_power || pg.weapon_lv_speed || pg.weapon_lv_blt || pg.weapon_lv_reload),"original Leon equipment reset");
+    check(pg.pl_flag==1 && pg.weapon_no_old==0xff && playerBoot.kaiou==0 && playerBoot.oldWeaponId==0xff && playerBoot.weaponSlotEmpty,"original PlayerInit flags / weapon release");
+    check(playerTrace==std::vector<std::string>{"PlayerInit:original","PlayerLifeReset:original","ReleaseWepData:original","InitModule:original"},"original PlayerInit dependency order");
     auto &lights=game.lights();auto lightBoot=lights.snapshot();auto lightPaths=lights.paths();
     check(lightBoot.initialized && lightBoot.pathsBound && lightBoot.capacity==0 && lightBoot.alive==0 && lightBoot.electricPower==1.0f,"original light boot state");
     check(std::all_of(lightBoot.kindFlags.begin(),lightBoot.kindFlags.end(),[](u32 f){return f==0xFFFFFFFFu;}),"original light kind reset");
@@ -685,6 +691,60 @@ void messages(int argc,char **argv) {
     std::cout<<"],\"sections\":[";for(std::size_t i=0;i<saveBoot.sectionOffsets.size();++i){if(i)std::cout<<',';std::cout<<saveBoot.sectionOffsets[i];}
     std::cout<<"],\"aggregate_save_load\":false,\"trace\":[";for(std::size_t i=0;i<saveTrace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(saveTrace[i]);}
     ids.clear(); saves.clear(); check(!ids.snapshot().initialized && !saves.snapshot().initialized,"ID/save final release");
+    std::cout<<"]},\"player\":{\"gameTask_PlayerInit_complete\":true,\"life\":1200,\"max_life\":1200,\"weapon\":2,\"weapon_type\":0,\"flag\":1,\"actor_constructed\":false,\"trace\":[";
+    for(std::size_t i=0;i<playerTrace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(playerTrace[i]);}
+    std::cout<<"],\"leon_assets\":[";
+    auto request=game.loader().request("em/pl00.drs",0x8100);std::shared_ptr<const LoadedFile> playerFile;
+    execute([&]{while(game.loader().readCheck(request,playerFile)==0)scheduler.sleep(1);});
+    check(playerFile && playerFile->bodySize>0,"actual player DVD/Yz2 request");
+    auto &pf=*playerFile;ResourceLease pl{playerFile,playerFile->bytes.data()+pf.bodyOffset,pf.bodySize};
+    game.engineConsumers().configureModelPools(0x80,0x100);
+    game.state().pl_type=0;game.state().pl_costume=0;
+    for(int round=0;round<2;++round) {
+        auto handle=game.player().initializeLeonAssets(pl);auto &cpu=game.engineConsumers().model(handle);auto infos=game.player().leonModelInfos();
+        check(cpu.nParts==pl.data[indexAssetBody(pl.data,pl.size).entries[0].offset+0x19] && infos.size()==8 && cpu.TevScaleGroup==1,"original Leon model and eight material/model attachments");
+        auto *knife=game.player().knife(),*face=game.player().face();
+        check(knife && knife->mat[0][0]==0 && knife->mat[1][1]==0 && knife->mat[2][2]==0,"original hidden knife matrix");
+        check(face && !face->pShape && face->shape_frame==0,"original neutral face ShapeEnd");
+        for(const auto &key:face->shape)check(key.rate==0 && !key.data,"original five neutral shape channels");
+        for(u32 n=0;n<cpu.nParts;++n){auto parent=cpu.pModelInfo->model_addr->pHead[n].parentNo;auto *part=cpu.getPartsPtr(int(n));check(part->pParent==(parent==255?static_cast<ModelCoord*>(&cpu):cpu.getPartsPtr(parent)),"original Leon joint parent resolution");}
+        auto bindings=game.player().motionBindings();check(bindings.size()==14,"original Leon motion registration count");
+        if(round)std::cout<<',';std::cout<<"{\"archive_body_sha256\":"<<std::quoted(hash(pl))<<",\"parts\":"<<unsigned(cpu.nParts)<<",\"models\":"<<infos.size()<<",\"motions\":[";
+        for(std::size_t i=0;i<bindings.size();++i){auto &b=bindings[i];if(i)std::cout<<',';std::cout<<"{\"motion_index\":"<<b.motionIndex<<",\"archive_slot\":"<<b.archiveSlot<<",\"sha256\":"<<std::quoted(hash(b.bytes))<<'}';}
+        std::cout<<"],\"model_sources\":[";
+        // Every info points to a resolved native BIN/TPL. Match them back to the
+        // immutable original slots without reading native pointers as GC words.
+        for(std::size_t i=0;i<infos.size();++i){if(i)std::cout<<',';auto *d=infos[i]->model_addr;auto *t=static_cast<TexturePaletteView*>(infos[i]->tpl_addr);
+            check(d->resolved && t->resolved,"original Leon BIN/TPL relocation adapters");
+            std::cout<<"{\"parts\":"<<unsigned(d->nParts)<<",\"textures\":"<<t->numDescriptors<<",\"bin_sha256\":"<<std::quoted(hash(d->source))<<",\"tpl_sha256\":"<<std::quoted(hash(t->bytes))<<'}';}
+        std::cout<<"],\"sequence_initializations\":[";
+        bool sequenceComma=false;
+        for(const auto &motion:bindings) {
+            if((motion.archiveSlot&1)!=0)continue;
+            auto it=std::find_if(bindings.begin(),bindings.end(),[&](const auto &seq){return seq.motionIndex==motion.motionIndex+1;});
+            check(it!=bindings.end(),"original Leon FCV/SEQ table pair");auto seq=resolveMotionSequence(it->bytes);
+            game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes);
+            const auto &w=cpu.Motion;
+            check(w.pMot && w.pSeq_top && w.Seq_frame_num==seq.count && w.Seq.Frame==seq.keys[0].Frame && w.Seq.Se==seq.keys[0].Se && w.Seq.Free==seq.keys[0].Free,"actual original MotionSetCore initial sequence state");
+            if(sequenceComma)std::cout<<',';sequenceComma=true;
+            std::cout<<"{\"motion_index\":"<<motion.motionIndex<<",\"max_frame\":"<<w.Mot_frame_max<<",\"joints\":"<<unsigned(w.Joint_num)<<",\"sequence_count\":"<<seq.count<<",\"sequence_flags\":"<<unsigned(seq.flags)<<",\"first_key\":["<<w.Seq.Frame<<','<<unsigned(w.Seq.Se)<<','<<unsigned(w.Seq.Free)<<"],\"mot_attr\":"<<w.Mot_attr<<",\"sequence_keys\":[";
+            for(std::size_t n=0;n<seq.keys.size();++n){if(n)std::cout<<',';auto &k=seq.keys[n];std::cout<<'['<<k.Frame<<','<<unsigned(k.Se)<<','<<unsigned(k.Free)<<']';}
+            std::cout<<"]}";
+            for(int frame:{int(seq.count/2),int(seq.count-1)}){game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes,frame);check(cpu.Motion.Seq.Frame==seq.keys[frame].Frame && cpu.Motion.Seq.Se==seq.keys[frame].Se && cpu.Motion.Seq.Free==seq.keys[frame].Free,"original sequence start at middle/last frame");}
+            rejects([&]{resolveMotionSequence({it->bytes.owner,it->bytes.data,3});});
+        }
+        std::cout<<"]}";
+        game.player().setHands(0,0);game.player().setHands(0,0x63);
+        check(game.player().leonModelInfos().size()==8,"original hand replacement deletes old infos");
+        execute([&]{rejects([&]{game.player().releaseLeonAssets();});});
+        auto retainedHash=hash(bindings[0].bytes);game.player().releaseLeonAssets();check(game.engineConsumers().modelCount()==0,"original Leon joint/model release");
+        rejects([&]{(void)game.engineConsumers().model(handle);});check(hash(bindings[0].bytes)==retainedHash,"retired motion reference remains leased");
+    }
+    auto finalHandle=game.player().initializeLeonAssets(pl);game.initialize();
+    rejects([&]{(void)game.engineConsumers().model(finalHandle);});
+    check(game.engineConsumers().modelCount()==0 && game.player().motionBindings().empty(),"GameRuntime reset releases original Leon assets");
+    rejects([&]{game.player().initializeLeonAssets({pl.owner,pl.data,15});});
+    check(game.engineConsumers().modelCount()==0,"malformed player archive did not publish model");
     std::cout<<"]},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
     for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
     std::cout<<"]}\n";

@@ -44,7 +44,7 @@ def generate(root, output):
     fields = ['Rno0','Rno1','Rno2','Rno3','RoomNo_next','room_id','room_id_prev','pl_type','game_mode',
               'game_costume','pl_costume','debug_mode','debug_disp','game_country','System_flg',
               'Stop_flg','Status_flg','Debug_flg','Room_flg','Scenario_flg','Frame_cnt',
-              'game_start_time','play_time','pl_ang_y','ashley_life','Speed','SaveKind','em_list_no','game_cnt','Disp_flg','AreaNo','shooting_mode','IsMessageInit','peseta','time_bonus']
+              'game_start_time','play_time','pl_ang_y','ashley_life','pl_life','pl_life_max','ashley_life_max','weapon_no_old','weapon_no','weapon_type','bullet_type','weapon_lv_power','weapon_lv_speed','weapon_lv_blt','weapon_lv_reload','pl_flag','Speed','SaveKind','em_list_no','game_cnt','Disp_flg','AreaNo','shooting_mode','IsMessageInit','peseta','time_bonus']
     types.append('struct NativeGameState {')
     for name in fields:
         matches = re.findall(r'^\s*((?:u8|u16|u32|s8|s16|s32|f32) ' + name + r'(?:\[\d+\])?);', glob, re.M)
@@ -97,7 +97,7 @@ def generate(root, output):
     bodies.append(re.search(r'union FadeColor \{.*?\n\};',read('src/game/game.cpp'),re.S)[0])
     add('src/game/cloth.cpp','void ClothInit()', [('    int i;', '    trace.push_back("ClothInit:original");\n    int i;')])
     unavailable = ['Game.omake_wep_addr = MEM_ALLOC(0x70000, 1, 13);',
-        'PlayerInit();','ItemMgr.gameInit();','SceAtInitSaveItem();','MerchantGameInit();',
+        'ItemMgr.gameInit();','SceAtInitSaveItem();','MerchantGameInit();',
         'GameLoad();','GamePointInit(0);']
     add('src/game/game.cpp','void gameInit()', [(s,'missingGameInit('+json.dumps(s.rstrip(';'))+');') for s in unavailable]+[
         ('LightMgr.init(LightFuncTbl);','LightMgr.init();'),

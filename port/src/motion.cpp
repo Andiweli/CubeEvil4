@@ -3,6 +3,22 @@
 #include <cstring>
 #include <stdexcept>
 namespace re4::port {
+MotionSequenceView resolveMotionSequence(ResourceLease bytes) {
+    // src/game/motion.cpp MotionSetCore and tools/motion/fcv.py parse_seq.
+    if(!bytes.owner || !bytes.data || bytes.size<4 || bytes.data[3])
+        throw std::invalid_argument("SEQ owner/header/padding");
+    MotionSequenceView view;view.source=bytes;view.count=u16(u16(bytes.data[0])<<8|bytes.data[1]);view.flags=bytes.data[2];
+    const auto end=std::size_t(4)+std::size_t(view.count)*4;
+    if(!view.count || end>bytes.size || bytes.size-end>=32) throw std::invalid_argument("SEQ count/bounds");
+    if(end<bytes.size) {
+        auto fill=bytes.data[end];if(fill!=0 && fill!=0xcd)throw std::invalid_argument("SEQ padding byte");
+        for(auto p=end;p<bytes.size;++p)if(bytes.data[p]!=fill)throw std::invalid_argument("SEQ mixed padding");
+    }
+    view.keys.reserve(view.count);
+    for(u32 n=0;n<view.count;++n){auto p=4+n*4;view.keys.push_back({u16(u16(bytes.data[p])<<8|bytes.data[p+1]),bytes.data[p+2],bytes.data[p+3]});}
+    return view;
+}
+
 u16 motionBE16(const u8 *p) { return u16((u16(p[0])<<8)|p[1]); }
 f32 motionBEFloat(const u8 *p) {
     u32 value=(u32(p[0])<<24)|(u32(p[1])<<16)|(u32(p[2])<<8)|p[3]; f32 f;
