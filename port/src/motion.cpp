@@ -3,6 +3,32 @@
 #include <cstring>
 #include <stdexcept>
 namespace re4::port {
+namespace { thread_local f32 frameSpeed=1.f; }
+f32 motionFrameSpeed() { return frameSpeed; }
+u32 motionBlendCount(const u16 *p) { u32 count;std::memcpy(&count,p,4);return count; }
+f32 motionLimitAngle(f32 a) {
+    if(!std::isfinite(a))throw std::invalid_argument("motion angle");
+    while(a>=3.1415927f)a-=6.2831855f;
+    while(a< -3.1415927f)a+=6.2831855f;
+    return a;
+}
+void requireNoActiveIk(ModelCpu *m,int) {
+    for(auto *p=m->pList;p;p=p->pList)if((p->motParts.flags&4) && !(p->motParts.flags&0x80))
+        throw MissingGameConsumer("InverseKinematics/ikCalc/SatMgr::getFloor actor collision state");
+}
+u32 moveModelMotion(ModelCpu &m,f32 speed) {
+    if(!m.Motion.pMot || !m.Motion.Joint_num)throw std::invalid_argument("MotionMove requires nonempty original FCV");
+    if(!std::isfinite(speed) || speed<0 || speed>16)throw std::invalid_argument("motion frame speed");
+    if(m.pMotionB || m.Motion.Hokan_cnt || m.Motion.pAttachCam)
+        throw MissingGameConsumer("MotionMove secondary/Hokan/attached camera");
+    for(u32 i=0;i<m.Motion.Joint_num;++i)if(m.Motion.pJoint_kind[i]&0x30)
+        throw MissingGameConsumer("MotionMove IK chain requires InverseKinematics/SatMgr");
+    requireNoActiveIk(&m,1);
+    if(m.scale.x==0 || m.scale.y==0 || m.scale.z==0)throw std::invalid_argument("MotionMove zero scale");
+    const auto previous=frameSpeed;frameSpeed=speed;
+    try { auto result=MotionMove(&m,nullptr);frameSpeed=previous;return result; }
+    catch(...) { frameSpeed=previous;throw; }
+}
 MotionSequenceView resolveMotionSequence(ResourceLease bytes) {
     // src/game/motion.cpp MotionSetCore and tools/motion/fcv.py parse_seq.
     if(!bytes.owner || !bytes.data || bytes.size<4 || bytes.data[3])

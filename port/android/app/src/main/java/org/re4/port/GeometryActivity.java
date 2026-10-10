@@ -21,6 +21,8 @@ public final class GeometryActivity extends Activity {
         LinearLayout layout=new LinearLayout(this);layout.setOrientation(LinearLayout.VERTICAL);
         TextView label=new TextView(this);label.setText("Original data / isolated GX diagnostic");layout.addView(label);
         GraphicsBootstrapView graphics=new GraphicsBootstrapView(this);
+        String model=getIntent().getStringExtra("model");graphics.configureEventModel(model==null?"":model);
+        graphics.configureEventCut(getIntent().getIntExtra("cut",-1));
         String root=getIntent().getStringExtra("root"),catalog=getIntent().getStringExtra("catalog");
         if(root==null || catalog==null)throw new IllegalArgumentException("Private imported root and catalog required");
         int room=getIntent().getIntExtra("room",0x120),frame=getIntent().getIntExtra("frame",0);

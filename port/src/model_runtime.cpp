@@ -27,6 +27,7 @@ struct ModelRuntime::Asset {
         d.version=be32(b,0x3c);
         if(d.version!=0x20010801 && d.version!=0x20030818) notBinData();
         d.nParts=b.data[0x19]; d.shift=b.data[0x28]; d.nVtx=be16(b,0x38); d.nNrm=be16(b,0x3a);
+        d.weight_palette_num=b.data[0x18];d.weight_ext_num=be16(b,0x2a);
         if(!d.nParts) throw MissingGameConsumer("zero-joint BIN original one-part fallback layout");
         d.displist_num=be16(b,0x1a); d.shapeOfs=be32(b,0x2c); d.flags=be32(b,0x20); d.nTex=be32(b,0x24);
         if(d.shift>=31) throw std::invalid_argument("BIN fixed-point shift");

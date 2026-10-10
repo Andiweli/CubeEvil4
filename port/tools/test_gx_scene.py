@@ -19,7 +19,16 @@ def run(cmd,timeout=120):
     if r.returncode: raise RuntimeError(r.stderr.decode(errors='replace')+'\n'+r.stdout.decode(errors='replace'))
     return r.stdout
 
-def oracle(root,data,files,room_path='St1/r120.das',event_path='Evd/r120s00.evd'):
+def sample_curve(axis,fmt,frame,maximum,fcv):
+    values=[fcv.to_float(fcv.FCC_FMT[fmt][0],k[0]) for k in axis.keys]
+    if frame>=maximum:return values[-1]
+    if frame in axis.frames:return values[axis.frames.index(frame)]
+    i=next(i for i in range(len(axis.frames)-1) if axis.frames[i]<frame<axis.frames[i+1])
+    t=(frame-axis.frames[i])/(axis.frames[i+1]-axis.frames[i]);t2=t*t;t3=t2*t
+    kind=fcv.FCC_FMT[fmt][1];a=fcv.to_float(kind,axis.keys[i][2]);b=fcv.to_float(kind,axis.keys[i+1][1])
+    return (2*t3-3*t2+1)*values[i]+(-2*t3+3*t2)*values[i+1]+(t3-2*t2+t)*a+(t3-t2)*b
+
+def oracle(root,data,files,room_path='St1/r120.das',event_path='Evd/r120s00.evd',frame=0,requested_cut=None,model=''):
     sys.path.insert(0,str(root/'tools'))
     from motion import archive,gxtex,fcv
     f=files[room_path];a,_=archive.load_das(data/'blobs'/f['sha256'])
@@ -66,19 +75,46 @@ def oracle(root,data,files,room_path='St1/r120.das',event_path='Evd/r120s00.evd'
     evd=(data/'blobs'/files[event_path]['sha256']).read_bytes();offset,size=struct.unpack_from('>II',evd,64)
     while offset<struct.unpack_from('>I',evd,64)[0]+size:
         typ=u32(evd,offset);sz=struct.unpack_from('>H',evd,offset+12)[0]
-        if typ==6:camera=evd[offset+16:offset+64].split(b'\0')[0].decode();break
+        if typ==6 and (requested_cut is None or struct.unpack_from('>h',evd,offset+8)[0]==requested_cut):camera=evd[offset+16:offset+64].split(b'\0')[0].decode();break
         offset+=sz
     motion=fcv.parse(dict(archive.parse_event(evd))[camera]);tracks={j.parts_no:j for j in motion.joints}
-    def first(j):return [fcv.to_float(fcv.FCC_FMT[j.fcc_type][0],a.keys[0][0]) for a in j.axes]
+    def first(j):return [sample_curve(a,j.fcc_type,frame,motion.max_frame,fcv) for a in j.axes]
     cp=first(tracks[0])+first(tracks[1])+[first(tracks[2])[1] if 2 in tracks else 0.,first(tracks[3])[1]*180/3.1415927]
     lit=next(b for tag,b in a.entries if tag==b'LIT\0');cut=struct.unpack_from('>H',evd,offset+8)[0]
     light_at=u32(lit,4+4*cut)
+    if model:
+        import re
+        from motion import meshbin
+        resources=dict(archive.parse_event(evd));player=archive.load_das(data/'blobs'/files['em/pl00.drs']['sha256'])[0]
+        refs=re.findall(r'EvtMgr\.SetBin\("([^"]+)",\s*PL_ARC_PTR\(pG->pPlayer,\s*([^)]+)\)',(root/'src/game/event.cpp').read_text())
+        for name,index in refs:resources.setdefault(name,player.entries[int(index,0)-4][1])
+        at=struct.unpack_from('>I',evd,64)[0];bin_name=tpl_name=None
+        while at<struct.unpack_from('>I',evd,64)[0]+size:
+            typ=u32(evd,at);length=struct.unpack_from('>H',evd,at+12)[0]
+            if typ in (3,4) and evd[at+16:at+28].split(b'\0')[0].decode()==model:
+                bp,tp=(28,76) if typ==3 else (40,88)
+                bin_name=evd[at+bp:at+bp+48].split(b'\0')[0].decode();tpl_name=evd[at+tp:at+tp+48].split(b'\0')[0].decode();break
+            at+=length
+        if bin_name is None:raise ValueError('original event model reference missing')
+        mesh=meshbin.parse(resources[bin_name]);tpl=resources[tpl_name];base=len(hashes);count,table=struct.unpack_from('>II',tpl,4)
+        for k in range(count):
+            header,clut=struct.unpack_from('>II',tpl,table+k*8)
+            if clut:raise ValueError('event oracle CLUT not implemented')
+            h,w,fmt,pixel=struct.unpack_from('>HHII',tpl,header);levels=[]
+            for level in range(tpl[header+34]+1):
+                size_level=gxtex.base_size(fmt,w,h);levels.append(gxtex.decode(fmt,w,h,tpl[pixel:pixel+size_level]).tobytes());pixel+=size_level;w=max(1,w//2);h=max(1,h//2)
+            hashes.append(sha(b''.join(levels)))
+        for k,part in enumerate(mesh.parts):
+            if part.flags&~4:raise ValueError('original material requires missing GX mechanism')
+            indices=len(part.triangles())*3;primitive_count+=len(part.prims);triangles+=indices//3
+            materials.append([n,n,0,0,k,base+part.tex_id,base+(part.alpha_tex if part.flags&4 else part.tex_id),part.flags,part.alpha_ref,1,indices,0,0xffffffff,0,0,0.,0.])
+        models+=1
     return dict(models=models,triangles=triangles,primitives=primitive_count,draws=len(materials),textures=len(hashes),texture_hashes=hashes,materials=materials,camera=camera,camera_point=cp,smd_sha256=sha(smd),room_sha256=f['sha256'],lit_sha256=sha(lit),lit_cut=cut,selected_light_records=u32(lit,light_at+4),lighting_calls=len(materials),ot_execution=list(range(22)))
 
 def verify(actual,expected):
     for k,v in expected.items():
         if k=='camera_point':
-            if any(abs(a-b)>max(1e-5,abs(b)*1e-6) for a,b in zip(actual[k],v)):raise ValueError('original camera track mismatch')
+            if any(abs(a-b)>max(.01,abs(b)*2e-6) for a,b in zip(actual[k],v)):raise ValueError('original camera track mismatch')
         elif k=='materials':
             if len(actual[k])!=len(v):raise ValueError('material count')
             for a,b in zip(actual[k],v):
@@ -90,7 +126,7 @@ def verify(actual,expected):
     # Original ModelTrans table/bucket mapping; ExecOt far-first and LIFO.
     previous=None
     for i in order:
-        row=draws[i];key={2:(11,4),3:(11,2),4:(11,1),5:(16,0)}[row[13]]
+        row=draws[i];key={0:(13,0),1:(17,0),2:(11,4),3:(11,2),4:(11,1),5:(16,0)}[row[13]]
         sequence=(key[0],-key[1],-row[0],row[4])
         if previous is not None and sequence<previous:raise ValueError('original OT bucket/LIFO/part order')
         previous=sequence
@@ -99,20 +135,26 @@ def verify(actual,expected):
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--data',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--host-exe',type=Path);p.add_argument('--adb',type=Path);p.add_argument('--serial',default='dbdcacc');p.add_argument('--repeat',type=int,default=2)
     p.add_argument('--room',type=lambda s:int(s,16),default=0x120);p.add_argument('--event',default='Evd/r120s00.evd')
+    p.add_argument('--model',default='');p.add_argument('--cut',type=int);p.add_argument('--frame',type=int,default=0)
+    p.add_argument('--baseline-output',type=Path,help='GPU evidence for the identical room/camera/frame without the selected event model')
     args=p.parse_args();root=Path(__file__).resolve().parents[2];data=args.data.resolve();output=args.output.resolve()
     if output==data or output.is_relative_to(root) or not 1<=args.repeat<=10:raise ValueError('separate private output / repeat1..10')
     room_path=f'St{args.room>>8:x}/r{args.room:03x}.das'
-    output.mkdir(parents=True,exist_ok=True);manifest=json.loads((data/'manifest.json').read_text());files={f['path']:f for f in manifest['files'] if f['disc_number']==0 and f['path'] in [room_path,args.event,'etc/core.das']}
-    if set(files)!={room_path,args.event,'etc/core.das'}:raise ValueError('required original room/event/core references absent')
+    required={room_path,args.event,'etc/core.das'}
+    if args.model:required.add('em/pl00.drs')
+    output.mkdir(parents=True,exist_ok=True);manifest=json.loads((data/'manifest.json').read_text());files={f['path']:f for f in manifest['files'] if f['disc_number']==0 and f['path'] in required}
+    if set(files)!=required:raise ValueError('required original room/event/core/player references absent')
     catalog=output/'catalog.tsv';catalog.write_text('RE4-IMPORT-CATALOG-1\n'+''.join(f"0\t{f['index']}\t{f['size']}\t{f['path']}\t{f['sha256']}\n" for f in files.values()),encoding='utf-8',newline='\n')
     for f in files.values():
         if sha((data/'blobs'/f['sha256']).read_bytes())!=f['sha256']:raise ValueError('original CAS integrity')
-    expected=oracle(root,data,files,room_path,args.event);(output/'oracle.json').write_text(json.dumps(expected,indent=2)+'\n')
+    expected=oracle(root,data,files,room_path,args.event,args.frame,args.cut,args.model);(output/'oracle.json').write_text(json.dumps(expected,indent=2)+'\n')
+    scene_args=[f'{args.room:x}',args.event,args.frame]
+    if args.model or args.cut is not None:scene_args += [args.model or '-',args.cut if args.cut is not None else 4294967295]
     semantic=[]
     if args.host_exe:
         results=[]
         for i in range(args.repeat):
-            actual=json.loads(run([args.host_exe,'scene',data,catalog,0,f'{args.room:x}',args.event,0]));verify(actual,expected);results.append(actual)
+            actual=json.loads(run([args.host_exe,'scene',data,catalog,0,*scene_args]));verify(actual,expected);results.append(actual)
             semantic.append((actual['material_state_sha256'],actual['render_order']))
         (output/f"host-{results[0]['pointer_bits']}.json").write_text(json.dumps(results,indent=2)+'\n');print('PASS host',results[0]['pointer_bits'],'original scene, independent primitive/material/camera/TPL mip oracle',flush=True)
     if args.adb:
@@ -125,7 +167,7 @@ def main():
             if adapters['pointer_bits']!=bits or adapters['failed']!=0:raise ValueError('GX adapter test ABI/failure')
             (output/f'adapters-{abi}.json').write_text(json.dumps(adapters,indent=2)+'\n')
             for i in range(args.repeat):
-                actual=json.loads(adb('shell',target,'scene',remote,remote+'/catalog.tsv',0,f'{args.room:x}',args.event,0));verify(actual,expected)
+                actual=json.loads(adb('shell',target,'scene',remote,remote+'/catalog.tsv',0,*scene_args));verify(actual,expected)
                 if actual['pointer_bits']!=bits:raise ValueError('actual process ABI mismatch')
                 semantic.append((actual['material_state_sha256'],actual['render_order']))
                 results.append(actual)
@@ -141,7 +183,10 @@ def main():
                 # Each recreation gets its own evidence files; PID reuse still proves teardown.
                 session='phase5a-'+uuid.uuid4().hex
                 report_file=f'files/{session}-graphics.json';image_file=f'files/{session}-gpu.rgba'
-                adb('shell','input','keyevent','KEYCODE_WAKEUP');adb('shell','am','start','-n','org.re4.port/.GeometryActivity','--es','root','/data/user/0/org.re4.port/files/phase5a','--es','catalog','/data/user/0/org.re4.port/files/phase5a/catalog.tsv','--ei','room',args.room,'--es','event',args.event,'--es','capture',session)
+                intents=['--ei','frame',args.frame]
+                if args.model:intents+=['--es','model',args.model]
+                if args.cut is not None:intents+=['--ei','cut',args.cut]
+                adb('shell','input','keyevent','KEYCODE_WAKEUP');adb('shell','am','start','-n','org.re4.port/.GeometryActivity','--es','root','/data/user/0/org.re4.port/files/phase5a','--es','catalog','/data/user/0/org.re4.port/files/phase5a/catalog.tsv','--ei','room',args.room,'--es','event',args.event,'--es','capture',session,*intents)
                 deadline=time.monotonic()+60
                 while time.monotonic()<deadline:
                     time.sleep(.5)
@@ -151,6 +196,7 @@ def main():
                     if gpu['geometry_frames']>=12:break
                 else:raise RuntimeError('no completed geometry frames: '+adb('logcat','-d','-t','80').decode(errors='replace'))
                 verify(gpu['scene'],expected)
+                if args.model and (gpu['scene']['skinned_models']<1 or gpu['scene']['event_model']!=args.model or not any(gpu['scene']['materials'][i][0]==expected['materials'][-1][0] for i in gpu['scene']['render_order'])):raise ValueError('requested original weighted pose was not rendered')
                 semantic.append((gpu['scene']['material_state_sha256'],gpu['scene']['render_order']))
                 if gpu.get('validation_errors',0):raise ValueError('Vulkan validation errors')
                 pid=adb('shell','pidof','org.re4.port').decode().strip()
@@ -165,6 +211,18 @@ def main():
                 prefix.with_suffix('.rgba').write_bytes(rgba)
                 from PIL import Image
                 Image.frombytes('RGBA',(512,448),rgba).save(prefix.with_suffix('.png'))
+                if args.baseline_output:
+                    baseline=args.baseline_output/f'gpu-{abi}-1';reference=json.loads(baseline.with_suffix('.json').read_text())
+                    for field in ['room_sha256','camera','camera_point','frame','vp']:
+                        if reference['scene'][field]!=gpu['scene'][field]:raise ValueError('pixel baseline room/camera/frame mismatch')
+                    if reference['scene']['event_model'] or not args.model:raise ValueError('pixel baseline must omit only the selected event model')
+                    before=baseline.with_suffix('.rgba').read_bytes()
+                    if len(before)!=len(rgba):raise ValueError('pixel baseline extent')
+                    changed=[i//4 for i in range(0,len(rgba),4) if before[i:i+4]!=rgba[i:i+4]]
+                    if not changed:raise ValueError('weighted event model produced no visible fragments')
+                    gpu['event_model_changed_pixels']=len(changed);gpu['event_model_pixel_bounds']=[min(i%512 for i in changed),min(i//512 for i in changed),max(i%512 for i in changed),max(i//512 for i in changed)]
+                    prefix.with_suffix('.json').write_text(json.dumps(gpu,indent=2)+'\n')
+                    print('PASS weighted model visible pixels',abi,len(changed),flush=True)
                 (output/f'display-{abi}-{repeat+1}.png').write_bytes(adb('exec-out','screencap','-p'))
                 print('PASS GPU',abi,repeat+1,gpu['geometry_frames'],'frames',gpu['non_clear_pixels'],'pixels',flush=True)
                 adb('shell','input','keyevent','KEYCODE_BACK');time.sleep(.7)

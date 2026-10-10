@@ -12,8 +12,24 @@ import generate_consumers
 import generate_subscreen
 import generate_id_save
 import generate_lights
+import generate_skinning
 
 class Sources(unittest.TestCase):
+    def test_original_skinning_bodies_and_guard(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out=Path(folder)/'out';generate_skinning.generate(ROOT,out)
+            code=(out/'skinning_control.cpp').read_text()
+            for signature in ['void calcWeightMat(', 'int MakeWeightPalette(', 'int MakeWeightPaletteExt(']:
+                self.assertIn(signature,code)
+            self.assertIn('1.0f - total',code)
+            self.assertIn('std::uintptr_t wa',code)
+            self.assertNotIn('0xE0000000',code)
+            generate_skinning.generate(ROOT,out);self.assertEqual(code,(out/'skinning_control.cpp').read_text())
+            root=Path(folder)/'root'
+            for p in ['src/game/trans.cpp','src/lib/psmtx.c','port/config/consumer-sources.json']:
+                dest=root/p;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/p,dest)
+            p=root/'src/game/trans.cpp';p.write_text(p.read_text().replace('rate = 1.0f - total','rate = 0.5f - total'))
+            with self.assertRaisesRegex(ValueError,'fingerprint changed'):generate_skinning.generate(root,out)
     def test_original_light_bodies(self):
         with tempfile.TemporaryDirectory() as folder:
             output=Path(folder);generate_lights.generate(ROOT,output)
@@ -84,7 +100,7 @@ class Sources(unittest.TestCase):
             output=Path(folder)
             generate_consumers.generate(ROOT,output)
             manifest=json.loads((output/'consumer-manifest.json').read_text())
-            self.assertEqual(len(manifest['functions']),88)
+            self.assertEqual(len(manifest['functions']),102)
             code=(output/'consumer_control.cpp').read_text()
             self.assertIn('const EventFunction *fn',code)
             self.assertIn('blk->ofs[no]',code)
@@ -95,6 +111,10 @@ class Sources(unittest.TestCase):
             self.assertIn('ModelPartsManager::createSequential',code)
             self.assertIn('EventCpu::ExePacket_SetPartsSub',code)
             self.assertIn('void MotionSetCore',code)
+            self.assertIn('u32 MotionMove(',code)
+            self.assertIn('u16 MotionSequenceCtrl(',code)
+            self.assertIn('void ModelCpu::matBlend(',code)
+            self.assertIn('void ResetShape(',code)
             self.assertIn('MotionSequenceView* seq',code)
             self.assertIn('int ModelCpu::deleteModelInfo',code)
             self.assertIn('GraphicsState::setCopyClear',code)

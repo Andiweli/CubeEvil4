@@ -33,6 +33,30 @@ struct MotionCameraBoundary {
     [[noreturn]] void deleteAttachCamera(ATTACH_CAMERA*,cModel*) { throw MissingGameConsumer("MotionSetCore/CameraControl::deleteAttachCamera"); }
 };
 inline MotionCameraBoundary CamCtrl;
+struct Quaternion { f32 x{},y{},z{},w{}; };
+struct GxCamera;
+using CAMERA=GxCamera;
+void C_QUATMtx(Quaternion *,const Mtx);
+void C_QUATSlerp(const Quaternion *,const Quaternion *,Quaternion *,f32);
+void C_MTXQuat(Mtx,const Quaternion *);
+void C_VECAdd(const Vec *,const Vec *,Vec *);
+void motionVecScale(const Vec *,Vec *,f32);
+void MotionMoveCore(cModel *,MOTION_INFO *,CAMERA *);
+u16 MotionSequenceCtrl(MOTION_INFO *);
+u32 MotionMove(cModel *,CAMERA *);
+f32 motionFrameSpeed();
+u32 motionBlendCount(const u16 *);
+f32 motionLimitAngle(f32);
+// Explicit failure boundaries, not successful substitutes for gameplay systems.
+void MotionGetSpeed(cModel *,MOTION_INFO *,int,Vec *,Vec *);
+void MotionAddSpeed(cModel *,MOTION_INFO *,Vec *,Vec *);
+void ResetShape(ModelInfoView *,void *);
+void SetOriginalShape(ModelInfoView *);
+void ClrShape(ModelCpu *);
+void motionMultVecSR(const Mtx,const Vec *,Vec *);
+[[noreturn]] inline void MotionHokan(cModel *,MOTION_INFO *) { throw MissingGameConsumer("MotionHokan/inter-motion interpolation"); }
+[[noreturn]] inline void VecLinearCombination(Vec *,float,Vec *,float,Vec *) { throw MissingGameConsumer("secondary motion/root blend"); }
+void requireNoActiveIk(cModel *,int);
 #define FCC_DECL(name) void name(u8*,int,int,f32*,f32*)
 FCC_DECL(Fcc_get_data_000); FCC_DECL(Fcc_get_data_001); FCC_DECL(Fcc_get_data_002);
 FCC_DECL(Fcc_get_data_010); FCC_DECL(Fcc_get_data_011); FCC_DECL(Fcc_get_data_012);
@@ -53,6 +77,13 @@ FCC_DECL(Fcc_get_data_033); FCC_DECL(dummy);
 #define VECNormalize C_VECNormalize
 #define PSMTXTranspose C_MTXTranspose
 #define PSMTXInverse C_MTXInverse
+#define PSMTXQuat C_MTXQuat
+#define PSMTXMultVecSR motionMultVecSR
+#define MOT_HIST(w,flip,n) ((w)->Key_hist[(flip)*2+(n)])
+#define PSVECAdd C_VECAdd
+#define PSVECScale motionVecScale
+#define SEQ_FRAME(frame) (f32(frame)*0.015625f)
+#define LIMIT_ANGLE(value) motionLimitAngle(value)
 #define MTX_COPY_DOWN(src,dst) C_MTXCopy(src,dst)
 #define PI 3.1415927f
 #define PI2 6.2831855f

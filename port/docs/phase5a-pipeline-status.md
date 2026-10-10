@@ -1,5 +1,9 @@
 # Phase 5a: originale OT-, Material- und Lichtsteuerung über Vulkan
 
+Die geprüfte Weight-/Skinning-Fortsetzung mit originalen FK-Posen und
+GPU-Nachweis einer Leon-Anbauhierarchie steht in
+[phase5a-skinning-status.md](phase5a-skinning-status.md).
+
 Geprüfter Teilstand, ausgehend von `b0071bda3a4a97737c486d7df353970a013ccb26`
 auf `android-port`. Prüfung am 10. Oktober 2026, Windows x86/x64 und
 Retroid Pocket Flip2 `dbdcacc`, Android 13/API 33, Adreno 650/Vulkan 1.1.128.

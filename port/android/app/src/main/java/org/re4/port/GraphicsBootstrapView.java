@@ -14,8 +14,10 @@ public final class GraphicsBootstrapView extends SurfaceView implements SurfaceH
     private int frames;
     private String report = "Vulkan surface not attached";
     private String sceneRoot, sceneCatalog, sceneEvent;
+    private String sceneModel="";
     private String evidenceSession="phase5a";
     private int sceneRoom=0x120,sceneFrame;
+    private int sceneCut=-1;
     public interface SceneObserver { void accept(String report); }
     private SceneObserver sceneObserver;
     public void configureEvidenceSession(String session) {
@@ -37,9 +39,17 @@ public final class GraphicsBootstrapView extends SurfaceView implements SurfaceH
         super(context); getHolder().addCallback(this);
         System.loadLibrary("re4_port_jni");
     }
+    public void configureEventModel(String name) {
+        if(handle!=0)throw new IllegalStateException("Configure before attaching surface");
+        if(name==null||!name.matches("[A-Za-z0-9_]{0,11}"))throw new IllegalArgumentException("Original event model name");
+        sceneModel=name;
+    }
+    public void configureEventCut(int cut) {
+        if(handle!=0||cut< -1||cut>32767)throw new IllegalArgumentException("Original event cut");sceneCut=cut;
+    }
     @Override public void surfaceCreated(SurfaceHolder holder) {
         try { frames=0;handle = nativeOpen(holder.getSurface());
-            if(sceneRoot!=null) nativeLoadScene(handle,sceneRoot,sceneCatalog,sceneRoom,sceneEvent,sceneFrame);
+            if(sceneRoot!=null) nativeLoadScene(handle,sceneRoot,sceneCatalog,sceneRoom,sceneEvent,sceneFrame,sceneModel,sceneCut);
             active = true; Choreographer.getInstance().postFrameCallback(this); }
         catch (IllegalStateException error) { report = error.getMessage(); Log.e("RE4Graphics",report); if(sceneObserver!=null)sceneObserver.accept(report); }
     }
@@ -76,6 +86,6 @@ public final class GraphicsBootstrapView extends SurfaceView implements SurfaceH
     private static native void nativeClose(long handle);
     private static native String nativeFrame(long handle,boolean black);
     private static native String nativeOriginalProbe(long handle,String directory);
-    private static native void nativeLoadScene(long handle,String root,String catalog,int room,String event,int frame);
+    private static native void nativeLoadScene(long handle,String root,String catalog,int room,String event,int frame,String model,int cut);
     private static native String nativeSceneFrame(long handle,String readback);
 }

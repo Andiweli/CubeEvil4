@@ -53,6 +53,14 @@ def generate(root, output):
             changes.append(('(u16*) (d->flipTbl + 4)','(u16*) (d->flipTbl + 4)'))
         add('src/game/model.cpp',sig,changes)
     add('src/game/model.cpp','int cModel::deleteModelInfo(cModelInfo* addr)',[('cModel::deleteModelInfo','ModelCpu::deleteModelInfo')])
+    add('include/model.h','void matCalc()', [('void matCalc()','void ModelCoord::matCalc()')])
+    # Complete original blend body; only the matching compiler anchors are removed.
+    body,line=function((root/'src/game/model.cpp').read_text(),'void cModel::matBlend(f32 rate)')
+    body=body.replace('cModel::matBlend','ModelCpu::matBlend')
+    body=re.sub(r'\basm(?: volatile)?\(""[^;]*;','',body)
+    body=re.sub(r'\bregister ', '',body);body=re.sub(r' asm\("r\d+"\)','',body)
+    cpp.extend([f'#line {line} "{(root/"src/game/model.cpp").as_posix()}"',body])
+    entries.append(dict(source='src/game/model.cpp',signature='void cModel::matBlend(f32 rate)',line=line,adaptations=['native class name; remove codeless compiler anchors']))
     add('src/game/model.cpp','cModelInfo* cModInfoMgr::create(void* bin, void* tpl)',[
         ('cModelInfo* cModInfoMgr::create','ModelInfoView* ModelInfoManager::create'),
         ('cManager<cModelInfo>::create()','ModelPool<ModelInfoView>::create()')])
@@ -80,14 +88,25 @@ def generate(root, output):
                 'void C_VECCrossProduct(const Vec* a, const Vec* b, Vec* axb)', 'f32 C_VECMag(const Vec* v)',
                 'f32 C_VECSquareMag(const Vec* v)']:
         add('src/lib/vec.c',sig,[])
+    for sig in ['void C_VECScale(const Vec* src, Vec* dst, f32 scale)']:
+        add('src/lib/vec.c',sig,[('C_VECScale','motionVecScale')])
+    add('src/lib/mtxvec.c','void C_MTXMultVecSR(const Mtx m, const Vec* src, Vec* dst)', [('C_MTXMultVecSR','motionMultVecSR')])
+    add('src/lib/mtx.c','void C_MTXQuat(Mtx m, const Quaternion* q)',[])
+    for sig in ['void C_QUATMtx(Quaternion* r, const Mtx m)','void C_QUATSlerp(const Quaternion* p, const Quaternion* q, Quaternion* r, f32 t)']:
+        add('src/lib/quat.c',sig,[])
     for sig in ['void SetOrientationZY(Vec* z, Vec* y, Mtx m)', 'void VecRadLimit(f32* p)',
                 'f32 hermite(f32* x, f32* v, f32 t)']:
         add('src/game/math_sub.cpp',sig,[])
     add('src/game/ik.cpp','void IKInit(cModel* pEm, MOTION_INFO* pInfo)',[])
+    for sig in ['void ResetShape(cModelInfo* info, void* dst)','void ClrShape(cModel* pMod)']:
+        add('src/game/shape.cpp',sig,[])
     add('src/game/motion.cpp','void MotionClear(cModel* pEm, int flag)',[])
     motion=(root/'src/game/motion.cpp').read_text()
     def add_motion(sig,changes=()):
         body,line=function(motion,sig)
+        if sig=='u16 MotionSequenceCtrl(MOTION_INFO* w)':
+            if body.count('pG->Speed')!=3:raise ValueError('MotionSequenceCtrl speed anchors')
+            body=body.replace('pG->Speed','motionFrameSpeed()')
         for before,after in changes:
             if body.count(before)!=1: raise ValueError('motion adaptation changed: '+before)
             body=body.replace(before,after)
@@ -98,7 +117,7 @@ def generate(root, output):
         body=re.sub(r'    Fcc(?:F32|S16) c[fs];\n','',body)
         cpp.extend([f'#line {line} "{(root/"src/game/motion.cpp").as_posix()}"',body])
         entries.append(dict(source='src/game/motion.cpp',signature=sig,line=line,
-                            adaptations=[a for a,_ in changes]+['remove codeless PPC anchors; BE scalar macros']))
+                            adaptations=[a for a,_ in changes]+(['three original pG->Speed reads use the bounded native frame speed'] if sig=='u16 MotionSequenceCtrl(MOTION_INFO* w)' else [])+['remove codeless PPC anchors; BE scalar macros']))
     add_motion('void MotionSetCore(cModel* m, void* w_, void* data_, void* seq_, int hokan, int flags, int frame)',[
         ('DbgFlagChk(pG, DBG_TEST_MODE)','false'),
         ('u16* seq = (u16*) seq_;','MotionSequenceView* seq = (MotionSequenceView*) seq_;'),
@@ -116,6 +135,13 @@ def generate(root, output):
         }
     }''','    tbl = data->streams.data(); // Checked native references; original file remains immutable.'),
         ('    u32 zero = 0;','')])
+    add_motion('void MotionMoveCore(cModel* pEm, MOTION_INFO* w, CAMERA* pCamera)', [('pPL == pEm','pEm->kindid == 0 && pEm->id == 0')])
+    add_motion('u16 MotionSequenceCtrl(MOTION_INFO* w)')
+    add_motion('void MotionGetSpeed(cModel* pEm, MOTION_INFO* w, int flg, Vec* Pos_move, Vec* Ang_move)')
+    add_motion('void MotionAddSpeed(cModel* pEm, MOTION_INFO* w, Vec* Pos_move, Vec* Ang_move)')
+    add_motion('u32 MotionMove(cModel* pEm, CAMERA* pCamera)', [
+        ('InverseKinematics(pEm, 1);','requireNoActiveIk(pEm, 1); // Original loop has no work for the prevalidated FK subset.'),
+        ('*(s32*) pEm->pDblJnt','motionBlendCount(pEm->pDblJnt)')])
     add_motion('int HermiteInterpolation(HERMITE_SET* prm, Vec* out, u16* hist)',[
         ('u16* hp = hist - 1;','u16* hp = hist;'), ('u16* frames;','u8* frames;'),
         ('n = *(u16*) p;','n = motionBE16(p);'), ('frames = (u16*) (p + 2);','frames = p + 2;'),

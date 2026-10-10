@@ -39,9 +39,14 @@ def generate(root, output):
     render=['#include "gx_render_original.h"','namespace re4::port::gx {']
     render_records=[]
     signatures=[
+        ('src/game/camera.cpp','void CameraGetLookVecInverse(CAMERA* pCam, Vec* look_inv)',[]),
         ('src/game/trans_ot.cpp','static inline OtWork* otWork(int type)',[]),
         ('src/game/trans_ot.cpp','void InitOt()',[]),
         ('src/game/trans_ot.cpp','void ClearOt()',[]),
+        ('src/game/trans_ot.cpp','int AddOtModelPosRadius(void* data, void (*func)(void*), Vec* pos, f32 radius, u16 kind, f32 zlimit)', [
+            ('(u16) (z * 0.01f)','depthBucket(z * 0.01f)')]),
+        ('src/game/trans_ot.cpp','int AddOtWorldPosRadius(void* data, void (*func)(void*), Vec* pos, f32 radius, u16 kind, f32 zlimit)', [
+            ('(u16) (z * OT_MUL)','depthBucket(z * OT_MUL)')]),
         ('src/game/trans_ot.cpp','void clearOtWork(OtWork* w)',[
             ('p--;','p = q > w->list ? p - 1 : nullptr;')]),
         ('src/game/trans_ot.cpp','OtData* MakeOtData(void* data)',[
@@ -113,6 +118,7 @@ def generate(root, output):
     signatures += [
         ('src/lib/mtxvec.c','void C_MTXMultVecSR(const Mtx m, const Vec* src, Vec* dst)',[]),
         ('src/lib/vec.c','void C_VECScale(const Vec* src, Vec* dst, f32 scale)',[]),
+        ('src/lib/vec.c','f32 C_VECDotProduct(const Vec* a, const Vec* b)',[]),
         ('src/game/sub2.cpp','f32 GetDistance3(Vec* v0, Vec* v1)',[]),
         ('src/game/sub2.cpp','f32 RootSumSquare3(Vec* v)',[]),
         ('src/game/sub2.cpp','void RotVector(Vec* vec0, Vec* ang, Vec* vec_ans)',[]),

@@ -24,5 +24,8 @@
   "src/game/trans.cpp": "41c6c5b66aa2d4a4bd30779a3f40e4ee5d8c0dbdebfa48265c48789d2357b4cb",
   "include/arc/core.h": "1df39df2dfd71cc6c4f33772ee95ab1239c4b95a516e19cd683878377a9592e2",
   "include/tpl.h": "a524d9a67851689ab62c6fdb4d3bdadcbafa713732afd685b92e25c002368ed2",
-  "src/lib/GXTexture.c": "6a4338c827df7f3eaf9a80f7d1ed1719f9467eb2efd3e7cd425e08e47ce19148"
+  "src/lib/GXTexture.c": "6a4338c827df7f3eaf9a80f7d1ed1719f9467eb2efd3e7cd425e08e47ce19148",
+  "src/lib/quat.c": "52fcf2a6ced7e3a35173531ca9ce2c039d994b907fcc7d2df27c74ac2248ea62",
+  "src/game/shape.cpp": "82fd6f035ed2219db20094dc019625b3c6e687255e50e2142cd0a8c90172a0d9",
+  "src/lib/psmtx.c": "03e4c0529363afd1ea0b5c28a101a9903cb6b9804b0be8aa1247dd305bd8e938"
 }

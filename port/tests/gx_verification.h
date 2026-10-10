@@ -1,6 +1,7 @@
 #pragma once
 #include "../src/gx_original.h"
 #include "re4/port/gx_pipeline.h"
+#include "skinning_verification.h"
 #include <iostream>
 namespace re4::port {
 // Synthetic wire-format adapter checks; these are never presented as a game scene.
@@ -46,6 +47,7 @@ inline int verifyGxAdapters() {
     auto z=[&](float p){float c=projection[2][2]*p+projection[2][3],w=-p;return (c+w)/w;};check(std::fabs(z(-100))<1e-6f);check(std::fabs(z(-1000000)-1)<1e-6f);
     GxCamera c;c.param.Campos={0,0,10};c.param.Target={0,0,0};CameraSetOrientationRoll(&c);C_MTXLookAt(c.view,&c.param.Campos,&c.Up,&c.param.Target);Vec origin{},view;C_MTXMultVec(c.view,&origin,&view);check(view.x==0&&view.y==0&&view.z==-10);
     checks+=verifyOriginalGxControl();
+    checks+=verifyCpuSkinningAdapters();
     std::cout<<"{\"kind\":\"isolated_GX_adapter_tests_with_original_SDK_matrices_OT_and_material_bodies\",\"pointer_bits\":"<<sizeof(void*)*8<<",\"checks\":"<<checks<<",\"failed\":0}\n";return 0;
 }
 }

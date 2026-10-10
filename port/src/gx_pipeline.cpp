@@ -50,6 +50,7 @@ void Log::warn(int,int,const char *fmt,...){va_list args;va_start(args,fmt);char
 void *allocateBuckets(std::size_t n){if(n%sizeof(OtData)||n>4096*sizeof(OtData))throw std::invalid_argument("OT allocation");auto &b=capture().buckets;b.emplace_back(n/sizeof(OtData));return b.back().data();}
 void *GetPrimBuff(int n){if(n!=sizeof(OtPrim))throw std::invalid_argument("OT primitive allocation type");auto &p=capture().prims;if(p.size()>=65536)return nullptr;p.emplace_back();return &p.back();}
 void checkSdkCall(){(void)capture();}
+u16 depthBucket(float value){if(!std::isfinite(value) || value<=-2147483648.f || value>=2147483648.f)throw std::invalid_argument("OT depth conversion");return u16(s32(value));}
 GEOM_HEXAHEDRON *CameraViewFrustumPtr(GxCamera *camera){static thread_local GEOM_HEXAHEDRON view;view.camera=camera;return &view;}
 int collision_sphere_hexahedron(GEOM_SPHERE *s,GEOM_HEXAHEDRON *h){
     // Six normalized clip planes of the original GX SDK perspective matrix.
@@ -121,6 +122,8 @@ void buildOriginalOrderingTables(GxScene &scene){
     // Smd::setObj createsBack, which appends to the active list; Trans walks that
     // list. Registration thus follows SMD order, then the original OT's LIFO.
     for(auto &model:submissions){auto &d=scene.draws[model.parts[0]];u32 table,bucket;
+        if(d.otType==0){gx::AddOtModelPosRadius(&model,callback,&d.rootWorld,d.radius,1,1.f);continue;}
+        if(d.otType==1){gx::AddOtWorldPosRadius(&model,callback,&d.lightPosition,d.radius,1,1.f);continue;}
         switch(d.otType){case 2:table=11;bucket=4;break;case 3:table=11;bucket=2;break;case 4:table=11;bucket=1;break;case 5:table=16;bucket=0;break;
             default:throw MissingGameConsumer("ModelTrans depth/mirror/item-camera OT type "+std::to_string(d.otType));}
         gx::AddOtDirect(int(table),&model,callback,bucket,2,&d.lightPosition,d.radius);

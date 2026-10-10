@@ -1,5 +1,12 @@
 # RE4 native foundation
 
+The current Phase-5a continuation executes original weight/FK-motion bodies
+and a scalar PPC quantisation adapter on Windows x86/x64 and Android ARM32/ARM64.
+A shared Vulkan path renders an original weighted Leon attachment pose;
+full actor materials, morphs, IK and gameplay remain incomplete. See the
+[skinning report and reproducible tests](docs/phase5a-skinning-status.md).
+The phase descriptions below record preceding integration milestones.
+
 Strategy A: compile original RE4 code with a separate native compatibility layer.
 This directory contains the verified build foundation, stackful scheduler,
 background/file/Yz2 runtime, Phase-3c original MRAM/ARAM resource controller and

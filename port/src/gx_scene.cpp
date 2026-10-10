@@ -1,6 +1,7 @@
 #include "gx_original.h"
 #include "re4/port/gx_pipeline.h"
 #include "re4/port/sha256.h"
+#include "re4/port/event_skinning.h"
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
@@ -87,10 +88,11 @@ std::vector<GxTexture> decodeGxTpl(ResourceLease b) {
     }return result;
 }
 
-void decodeGxModel(ResourceLease b,const Mtx world,u32 base,u32 count,GxScene &scene,GxDraw id) {
+void decodeGxModel(ResourceLease b,const Mtx world,u32 base,u32 count,GxScene &scene,GxDraw id,const SkinningResult *skin) {
     range(b,0,64);auto ver=word(b,60);if(ver!=0x20010801&&ver!=0x20030818)throw std::invalid_argument("GX BIN version");
     auto flags=word(b,32),vtx=word(b,48),nrm=word(b,52),clr=word(b,12),tex=word(b,16),part=word(b,28);
     auto nv=half(b,56),nn=half(b,58),np=half(b,26);auto shift=b.data[40];if(shift>=31)throw std::invalid_argument("GX fixed point exponent");
+    if(skin && (skin->source.data!=b.data || skin->source.owner!=b.owner))throw std::invalid_argument("GX skin/BIN ownership mismatch");
     if(!(flags&0x80000000))throw MissingGameConsumer("GX BIN VAT without CLR0 requires descriptor-driven FIFO decoding");
     range(b,vtx,std::size_t(nv)*8);range(b,nrm,std::size_t(nn)*((flags&0x20000000)?4:8));
     auto sectionEnd=[&](u32 start){u32 end=b.size;for(auto field:{0u,12u,16u,20u,28u,44u,48u,52u}){auto o=word(b,field);if(o>start)end=std::min(end,o);}if(ver==0x20030818)for(auto field:{64u,68u}){auto o=word(b,field);if(o>start)end=std::min(end,o);}return end;};
@@ -110,6 +112,7 @@ void decodeGxModel(ResourceLease b,const Mtx world,u32 base,u32 count,GxScene &s
                 auto found=vertices.find(idx);if(found!=vertices.end()){ids.push_back(found->second);continue;}
                 GxVertex vertex{};Vec pos{},no{},wp{};auto at=vtx+u32(idx[0])*8;float s=1.f/float(u32(1)<<shift);pos={float(s16(half(b,at)))*s,float(s16(half(b,at+2)))*s,float(s16(half(b,at+4)))*s};C_MTXMultVec(world,&pos,&wp);vertex.position[0]=wp.x;vertex.position[1]=wp.y;vertex.position[2]=wp.z;
                 at=nrm+u32(idx[1])*((flags&0x20000000)?4:8);if(flags&0x20000000)no={float(s8(b.data[at]))/64,float(s8(b.data[at+1]))/64,float(s8(b.data[at+2]))/64};else no={float(s16(half(b,at)))/16384,float(s16(half(b,at+2)))/16384,float(s16(half(b,at+4)))/16384};
+                if(skin){pos=skin->position(idx[0]);no=skin->normal(idx[1]);C_MTXMultVec(world,&pos,&wp);vertex.position[0]=wp.x;vertex.position[1]=wp.y;vertex.position[2]=wp.z;}
                 for(u32 r=0;r<3;++r)vertex.normal[r]=normal[r][0]*no.x+normal[r][1]*no.y+normal[r][2]*no.z;
                 at=tex+u32(idx[3])*4;s=(flags&0x80000000)?1.f/256:1.f/32768;for(u32 r=0;r<2;++r)vertex.uv[r]=float((flags&0x80000000)?s32(s16(half(b,at+r*2))):s32(half(b,at+r*2)))*s;
                 std::copy(b.data+clr+u32(idx[2])*4,b.data+clr+u32(idx[2])*4+4,vertex.color.begin());
@@ -129,19 +132,19 @@ void decodeGxModel(ResourceLease b,const Mtx world,u32 base,u32 count,GxScene &s
     scene.owners.push_back(b);
 }
 
-GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 room,const std::string &eventPath,u32 frame) {
+GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 room,const std::string &eventPath,u32 frame,const std::string &eventModel,u32 requestedCut) {
     if(!loader.loadRoom(room,false))throw std::runtime_error("diagnostic room already loading");waitRoom(loader);auto archive=loader.room();GxScene scene;scene.roomHash=archive->source->identity.sha256;
     ResourceLease body{archive->body,archive->body->data(),u32(archive->body->size())};auto entry=archive->find("SMD");if(!entry)throw MissingGameConsumer("room has no SMD");auto smd=slice(body,entry->offset,entry->size);scene.smdHash=sha256(smd.data,smd.size);
     range(smd,0,16);if(smd.data[0]<32 || (smd.data[1]&1))throw MissingGameConsumer("SMD old version/grouped works need original group creation");u32 n=half(smd,2),bt=word(smd,4),tt=word(smd,8),mt=word(smd,12);range(smd,16,u64(n)*72);
-    engine.configureModelPools(1,4);std::map<u32,std::pair<u32,u32>> textures;
+    engine.configureModelPools(1,250);std::map<u32,std::pair<u32,u32>> textures;
     auto smxEntry=archive->find("SMX");ResourceLease smx;if(smxEntry){smx=slice(body,smxEntry->offset,smxEntry->size);range(smx,0,16);range(smx,16,u64(smx.data[1])*144);}
     for(u32 i=0;i<n;++i){u32 at=16+i*72;u8 bin=smd.data[at+36],tpl=smd.data[at+37],mot=smd.data[at+38],work=smd.data[at+39];if(work==255)continue;auto flag=word(smd,at+68);
         if(flag&0x10)throw MissingGameConsumer("SMD shared BIN/TPL table binding");if(mot!=255)throw MissingGameConsumer("SMD animated scroll object requires original MotionMove");
         auto b=tableEntry(smd,bt,tt,bin),t=tableEntry(smd,tt,mt,tpl);
-        if(b.data[25]!=1 || b.data[24]>1 || half(b,42)>255)throw MissingGameConsumer("GX scroll model needs original skinning palette");
         auto handle=engine.initializeModel(b,t,"SMD original CPU model");auto &model=engine.model(handle);
         model.pos={real(smd,at),real(smd,at+4),real(smd,at+8)};model.ang={real(smd,at+12),real(smd,at+16),real(smd,at+20)};model.scale={real(smd,at+24),real(smd,at+28),real(smd,at+32)};
-        RotMatrix(model.mat,&model.ang);TransMatrix(model.mat,&model.pos);ScaleMatrix(model.mat,&model.scale);model.partsMatCalc();model.partsWorldCalc();Mtx world;C_MTXConcat(model.getPartsPtr(b.data[word(b,0)])->mat,model.pModelInfo->mat,world);
+        RotMatrix(model.mat,&model.ang);TransMatrix(model.mat,&model.pos);ScaleMatrix(model.mat,&model.scale);model.partsMatCalc();model.partsWorldCalc();
+        auto skin=skinModelCpu(model,*model.pModelInfo);Mtx world;auto *drawRoot=skin.staticBypass?model.getPartsPtr(b.data[word(b,0)]):model.pList;C_MTXConcat(drawRoot->mat,model.pModelInfo->mat,world);
         if(!textures.count(tpl)){auto decoded=decodeGxTpl(t);u32 base=u32(scene.textures.size());textures.emplace(tpl,std::make_pair(base,u32(decoded.size())));for(auto &image:decoded){ // Original commonModelTrans overrides BIN S16 UV wrapping to repeat.
             if(word(b,32)&0x80000000)image.wrapS=image.wrapT=1;
             // Original model path overrides min/mag filters to linear/trilinear.
@@ -158,12 +161,13 @@ GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 roo
             id.otType=smx.data[p+2];id.smxFlags=word(smx,p+8);if(id.smxFlags&8)id.alphaOverride=128;
             id.lightSelectMask=word(smx,p+4);
             id.uvScrollU=real(smx,p+136);id.uvScrollV=real(smx,p+140);break;}
-        auto texPair=textures.at(tpl);decodeGxModel(b,world,texPair.first,texPair.second,scene,id);++scene.models;engine.releaseModel(handle);
+        if(!skin.staticBypass)++scene.skinnedModels;
+        auto texPair=textures.at(tpl);decodeGxModel(b,world,texPair.first,texPair.second,scene,id,skin.staticBypass?nullptr:&skin);++scene.models;engine.releaseModel(handle);
     }
     auto req=loader.request(eventPath);auto end=std::chrono::steady_clock::now()+std::chrono::seconds(60);while(loader.status(req)==LoadStatus::Pending||loader.status(req)==LoadStatus::Reading){loader.frame();std::this_thread::yield();if(std::chrono::steady_clock::now()>end)throw std::runtime_error("camera EVD load timeout");}
     std::shared_ptr<const LoadedFile> loaded;if(loader.readCheck(req,loaded)!=1||!loaded)throw std::runtime_error("camera EVD read");auto evd=indexEventPackage({loaded,loaded->bytes.data(),u32(loaded->bytes.size())});u32 cameraCut=0;bool found=false;
     for(u32 at=evd.packetOffset;at<evd.packetOffset+evd.packetSize;){auto size=half(evd.bytes,at+12);if(size<16||size>evd.packetOffset+evd.packetSize-at)throw std::invalid_argument("camera packet boundary");auto type=word(evd.bytes,at);
-        if(type==6&&!found){if(size<64||half(evd.bytes,at+10)!=0)throw MissingGameConsumer("first event camera packet does not start at frame0");scene.cameraName=text(evd.bytes,at+16,48);cameraCut=half(evd.bytes,at+8);found=true;}
+        if(type==6&&!found&&(requestedCut==UINT32_MAX || half(evd.bytes,at+8)==requestedCut)){if(size<64||half(evd.bytes,at+10)!=0)throw MissingGameConsumer("event camera packet does not start at frame0");scene.cameraName=text(evd.bytes,at+16,48);cameraCut=half(evd.bytes,at+8);found=true;}
         if(type==9&&found&&half(evd.bytes,at+8)==cameraCut&&text(evd.bytes,at+16,12)=="cam0000")throw MissingGameConsumer("event camera parent/base matrix required");at+=size;
     }
     if(!found)throw MissingGameConsumer("event has no original camera packet");auto cameraBin=std::find_if(evd.bins.begin(),evd.bins.end(),[&](const auto &b){return b.name==scene.cameraName;});if(cameraBin==evd.bins.end())throw std::invalid_argument("event camera bin reference");
@@ -175,6 +179,23 @@ GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 roo
     C_MTXLookAt(scene.camera.view,&scene.camera.param.Campos,&scene.camera.Up,&scene.camera.param.Target);C_MTXPerspective(scene.camera.projection,scene.camera.param.Fovy,1.3333334f,100.f,1000000.f); // camera.cpp/MainInit constants.
     for(u32 r=0;r<4;++r)for(u32 c=0;c<4;++c){float v=0;for(u32 k=0;k<4;++k)v+=scene.camera.projection[r][k]*(k<3?scene.camera.view[k][c]:(c==3?1.f:0.f));scene.viewProjection[c*4+r]=v;}
     auto lit=archive->find("LIT");if(!lit)throw MissingGameConsumer("original room LIT required for channel/fog capture");
+    if(!eventModel.empty()) {
+        auto snapshot=evaluateEventSkinning(loader,engine,eventPath,cameraCut,frame);
+        auto found=std::find_if(snapshot.models.begin(),snapshot.models.end(),[&](const auto &m){return m.name==eventModel;});
+        if(found==snapshot.models.end())throw MissingGameConsumer("original event model pose not resolved: "+eventModel);
+        auto &m=*found;if(m.motion.empty() || m.skin.staticBypass)throw MissingGameConsumer("selected event model has no original animated weighted pose");
+        // Morph packets are a hard boundary for the requested model, not silently skipped.
+        for(auto &dep:snapshot.dependencies)if(dep=="ShapeSet/ShapeMove morph packet: "+m.name)throw MissingGameConsumer(dep);
+        auto decoded=decodeGxTpl(m.texture);auto base=u32(scene.textures.size()),count=u32(decoded.size());
+        for(auto &t:decoded){if(word(m.skin.source,32)&0x80000000)t.wrapS=t.wrapT=1;t.minFilter=t.minLod==t.maxLod?1:5;t.magFilter=1;scene.textures.push_back(std::move(t));}
+        GxDraw id;id.workIndex=n;id.workId=n;id.otType=m.otType; // original cModel state; diagnostic is not SetObj18/cloth
+        const u8 cullModes[3]={1,2,0};id.cull=m.cullMode<3?cullModes[m.cullMode]:1; // shaderSetup's actual CullMode switch
+        id.lightOffset=m.boundOffset;id.lightSize=m.boundSize;id.modelPosition=m.position;id.modelAngle=m.angle;id.modelScale=m.scale;
+        C_MTXCopy(m.rootMatrix,id.rootMatrix);id.rootWorld=m.rootWorld;
+        C_MTXMultVec(m.rootMatrix,&m.boundOffset,&id.lightPosition);id.radius=std::sqrt(m.boundSize.x*m.boundSize.x+m.boundSize.y*m.boundSize.y+m.boundSize.z*m.boundSize.z)*std::max({m.scale.x,m.scale.y,m.scale.z});
+        decodeGxModel(m.skin.source,m.world,base,count,scene,id,&m.skin);++scene.models;++scene.skinnedModels;
+        scene.eventModel=m.name;scene.eventMotion=m.motion;Sha256 hash;hash.update(reinterpret_cast<const u8*>(m.skin.positions.data()),m.skin.positions.size()*2);hash.update(reinterpret_cast<const u8*>(m.skin.normals8.data()),m.skin.normals8.size());hash.update(reinterpret_cast<const u8*>(m.skin.normals16.data()),m.skin.normals16.size()*2);scene.skinHash=hash.finish();
+    }
     captureOriginalRoomLighting(scene,loader,engine,body,slice(body,lit->offset,lit->size),cameraCut);
     buildOriginalOrderingTables(scene);
     scene.owners.push_back(body);scene.owners.push_back(cameraBin->bytes);return scene;
@@ -192,6 +213,7 @@ std::string GxScene::report() const {
     o<<"],\"material_state_sha256\":"<<std::quoted(sha256(reinterpret_cast<const u8*>(materials.data()),materials.size()*sizeof(GxMaterialState)));
     o<<",\"lighting_calls\":"<<lightingCalls<<",\"lit_sha256\":"<<std::quoted(lightHash)<<",\"lit_cut\":"<<litCut<<",\"selected_light_records\":"<<selectedLightRecords<<",\"tev_states\":[";
     for(std::size_t i=0;i<materials.size();++i){if(i)o<<',';auto &s=materials[i];o<<"{\"stages\":"<<s.meta[0]<<",\"ambient_source\":"<<s.meta[1]<<",\"alpha_source\":"<<s.meta[2]<<",\"fog\":"<<s.meta[3]<<",\"scale\":"<<s.stages[s.meta[0]-1].colorOp[2]<<",\"light_mask\":"<<u32(s.fog[3])<<",\"raster\":[";for(int k=0;k<4;++k){if(k)o<<',';o<<s.raster[k];}o<<"],\"ambient\":[";for(int k=0;k<4;++k){if(k)o<<',';o<<s.ambient[k];}o<<"]}";}
-    o<<"],\"limitations\":[\"isolated SMD diagnostic: not complete Trans/Render or GameTask\",\"frozen original LIT cut; model-bound lights and live SAR states not integrated\",\"static models only; no visible event/pl00 skinning, shadows, mirror, indirect TEV or postprocessing\"]}";return o.str();
+    o<<"],\"skinned_models\":"<<skinnedModels<<",\"event_model\":"<<std::quoted(eventModel)<<",\"event_motion\":"<<std::quoted(eventMotion)<<",\"skin_sha256\":"<<std::quoted(skinHash);
+    o<<",\"limitations\":[\"isolated SMD/event-pose diagnostic: not complete Trans/Render or GameTask\",\"frozen original LIT cut; model-bound lights and live SAR states not integrated\",\"active shape morphs, cloth, IK, Hokan, shadows, mirror, indirect TEV and postprocessing not integrated\"]}";return o.str();
 }
 } // namespace re4::port

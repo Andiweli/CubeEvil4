@@ -191,7 +191,11 @@ foreach(index RANGE 0 ${gx_last})
 endforeach()
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_gx.py"
     --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
-add_library(re4_gx STATIC src/gx_scene.cpp src/gx_pipeline.cpp
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_skinning.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_skinning.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
+add_library(re4_gx STATIC src/gx_scene.cpp src/gx_pipeline.cpp src/skinning.cpp src/event_skinning.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/original/skinning_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/gx_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/gx_render_control.cpp")
 target_include_directories(re4_gx PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")

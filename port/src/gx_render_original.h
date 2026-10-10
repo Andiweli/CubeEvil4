@@ -24,6 +24,11 @@ using re4::port::memclr_asm;
 void InitOt();void ClearOt();void clearOtWork(OtWork *);void CrearOtMirrorWork();
 OtData *MakeOtData(void*);
 int AddOtDirect(int,void*,void(*)(void*),u32,u16,Vec*,float);
+int AddOtModelPosRadius(void*,void(*)(void*),Vec*,float,u16,float);
+int AddOtWorldPosRadius(void*,void(*)(void*),Vec*,float,u16,float);
+void CameraGetLookVecInverse(GxCamera*,Vec*);
+float C_VECDotProduct(const Vec*,const Vec*);
+u16 depthBucket(float);
 int ExecOt(int);u16 OtGetPrevKind();void DeleteOtData(u32,u32);
 struct GEOM_SPHERE { Vec pos{};float radius{}; };
 struct GEOM_HEXAHEDRON { GxCamera *camera{}; };
@@ -119,13 +124,17 @@ extern const std::array<int,22> originalRenderOrder;
 #define IRef(x) (x)
 #define MAX(a,b) ((a)>(b)?(a):(b))
 #define PSMTXMultVec C_MTXMultVec
+#undef PSMTXMultVecSR
 #define PSMTXMultVecSR C_MTXMultVecSR
 #define PSMTXInverse C_MTXInverse
+#undef PSVECScale
 #define PSVECScale C_VECScale
+#undef PSVECAdd
 #define PSVECAdd re4::port::C_VECAdd
 #undef VALID_PTR
 #define VALID_PTR(p) ((p)!=nullptr)
 #define SQRTF std::sqrt
+#define PSVECDotProduct C_VECDotProduct
 #define SINF std::sin
 #define COSF std::cos
 #define CHECK_GXBEGIN(line,message) checkSdkCall()

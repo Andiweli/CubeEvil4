@@ -1,5 +1,6 @@
 #pragma once
 #include "re4/port/consumers.h"
+#include "re4/port/skinning.h"
 #include <array>
 
 namespace re4::port {
@@ -66,15 +67,17 @@ struct GxScene {
     std::vector<ResourceLease> owners;
     std::string cameraName, roomHash, smdHash;
     u32 models{}, primitives{}, cameraFrame{};
+    u32 skinnedModels{};
+    std::string eventModel, eventMotion, skinHash;
     std::string report() const;
 };
 std::vector<GxTexture> decodeGxTpl(ResourceLease);
 // GXCallDisplayList subset from commonModelTrans: POS/NRM/CLR0/TEX0 index16, VAT0.
 // Unsupported FIFO commands and all invalid references fail, never disappear.
 void decodeGxModel(ResourceLease bin, const Mtx world, u32 textureBase,
-                   u32 textureCount, GxScene &, GxDraw identity);
+                   u32 textureCount, GxScene &, GxDraw identity,const SkinningResult *skin=nullptr);
 // Original Dvd/ReadAreaData/Yz2 loader, CPU model initialization, first actual Cam
 // packet of the supplied event, and original CameraMotion sampling / SDK matrices.
 GxScene loadDiagnosticScene(EngineLoader &, EngineConsumers &, u16 room,
-                            const std::string &eventPath, u32 frame = 0);
+                            const std::string &eventPath, u32 frame = 0,const std::string &eventModel="",u32 cut=UINT32_MAX);
 } // namespace re4::port

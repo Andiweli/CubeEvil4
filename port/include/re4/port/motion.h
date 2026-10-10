@@ -27,4 +27,8 @@ public:
 };
 void MotionSetCore(ModelCpu *,void *,void *,void *,int,int,int);
 void MotionClear(ModelCpu *,int);
+// Actual MotionMove chain for the supported forward-kinematic subset. Rejects
+// active IK, secondary motion and Hokan before mutation.
+// The original sequence advances by speed, independently of display cadence.
+u32 moveModelMotion(ModelCpu &,f32 speed=1.f);
 } // namespace re4::port
