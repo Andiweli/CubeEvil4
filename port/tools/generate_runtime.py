@@ -97,7 +97,6 @@ def generate(root, output):
     bodies.append(re.search(r'union FadeColor \{.*?\n\};',read('src/game/game.cpp'),re.S)[0])
     add('src/game/cloth.cpp','void ClothInit()', [('    int i;', '    trace.push_back("ClothInit:original");\n    int i;')])
     unavailable = ['Game.omake_wep_addr = MEM_ALLOC(0x70000, 1, 13);',
-        'Cckpt.gameInit();','ObjMgr.warnDiv = 100;',
         'LightMgr.init(LightFuncTbl);','LightMgr.initPath((LightPathHeader*) CORE_ARC(CORE_LIGHT_PATH));',
         'PlayerInit();','ItemMgr.gameInit();','SceAtInitSaveItem();','MerchantGameInit();',
         'GameLoad();','GamePointInit(0);']
@@ -127,7 +126,7 @@ def generate(root, output):
     r120 = read('src/st1/r120.cpp')
     event = read('include/event.h')
     bodies.insert(3, re.search(r'enum EvtStatusFlag \{.*?\n\};', event, re.S)[0] +
-                  '\n#define EvtStfBit(f) (0x80000000u >> (f))\nconstexpr int EvtReadFlagNone = 0;\nconstexpr int IDC_LIFE_METER = 33;\nconstexpr int SCE_PRIO_DEF_2 = 2;')
+                  '\n#define EvtStfBit(f) (0x80000000u >> (f))\nconstexpr int EvtReadFlagNone = 0;\nconstexpr int SCE_PRIO_DEF_2 = 2;')
     for signature in ['void R120Init()', 'void R120Main()', 'void R120Event()',
                       'void Evt_R120S00_Func(Event* e, u32)', 'void Evt_R120S01_Func(Event* e, u32)',
                       'void EventCarInit(Event* e)', 'void EvtTexRenderCamTrans(Event* e, int cut)',

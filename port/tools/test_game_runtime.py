@@ -132,9 +132,26 @@ def main():
             for value,entry in zip(r['entries'],entries):
                 if any(value[k]!=entry[k] for k in ['index','tag','offset','size']) or value['sha256']!=sha(blob[entry['offset']:entry['offset']+entry['size']]): raise ValueError('SubScreen original block integrity')
         if len(ss['model_consumers'])!=6 or any(r['rounds']!=2 for r in ss['model_consumers']): raise ValueError('original inventory/map model initialization')
-        if actual['blocker']!='Original consumer unavailable: Cckpt.gameInit()' or not actual['repeated_init_released'] or actual['checks']<960:
+        ids=actual['id_system']; saves=actual['save_state']; layout=actual['native_layout']
+        if ids['capacity']!=128 or ids['alive_after_Cockpit']!=0 or ids['trace'].count('void Cockpit::gameInit()')!=1:
+            raise ValueError('original Cockpit/ID initialization')
+        if layout!={'ID_UNIT':312 if actual['pointer_bits']==32 else 344,'SAVE_DATA_HEAD':28 if actual['pointer_bits']==32 else 56}:
+            raise ValueError('native ID/save ABI layout')
+        tables=(root/'src/game/roomdata.cpp').read_text()
+        expected_rooms=[]; total=0
+        for stage in range(5):
+            declaration=re.search(r'ROOM_DATA St'+str(stage)+r'_data_tbl\[(\d+)\] = \{(.*?)\n\};',tables,re.S)
+            entries=re.findall(r'\{(\d+),\s*0,\s*\d+,\s*0,\s*0\}',declaration[2])
+            if len(entries)!=int(declaration[1]): raise ValueError('original room table entry count')
+            total+=len(entries); expected_rooms.extend((stage<<8)|n for n,flag in enumerate(entries) if flag=='1')
+        room_bytes=16+216*len(expected_rooms)
+        ss_offset=0x3740+((room_bytes+31)&~31); merchant_offset=ss_offset+32
+        item_offset=merchant_offset+((0x304+31)&~31); image_size=item_offset+((0x1204+31)&~31)
+        if saves['rooms']!=total or saves['room_ids']!=expected_rooms or saves['saved_rooms']!=len(expected_rooms) or saves['room_bytes']!=room_bytes or saves['sections']!=[64,0x3740,ss_offset,merchant_offset,item_offset] or saves['image_bytes']!=image_size or saves['aggregate_save_load']:
+            raise ValueError('original room/save allocation coverage')
+        if actual['blocker']!='Original consumer unavailable: LightMgr.init(LightFuncTbl)' or not actual['repeated_init_released'] or actual['checks']<1500:
             raise ValueError('actual GameTask progress or message lifecycle')
-        stable={k:v for k,v in actual.items() if k!='pointer_bits'}
+        stable={k:v for k,v in actual.items() if k not in ['pointer_bits','native_layout']}
         return sha(json.dumps(stable,sort_keys=True).encode())
     def verify_consumers(actual,expected,bits,opening=True):
         if actual['pointer_bits']!=bits or len(actual['packages'])!=len(expected): raise ValueError('consumer ABI/package count')

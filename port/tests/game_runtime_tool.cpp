@@ -479,10 +479,21 @@ void messages(int argc,char **argv) {
     auto core=m.coreBody(); auto coreHash=hash(core); auto textures=m.coreTextures(); auto thermal=m.thermalPalette();
     check(!textures.empty() && thermal.initialized,"original core texture consumers missing");
     check(scheduler.allocatedStacks()==0,"message boot stack remains active");
+    auto &ids=game.ids(); auto &saves=game.saveState();
+    auto preHud=ids.pull(); check(bool(preHud),"original ID pool prerequisite");
     check(bool(game.startOriginalGameTask()),"original GameTask creation");
     std::string blocker;
     try{game.tick();}catch(const MissingGameConsumer &failure){blocker=failure.what();}
-    check(blocker=="Original consumer unavailable: Cckpt.gameInit()","actual GameTask must pass original SubScreenGameInit and stop at Cockpit");
+    check(blocker=="Original consumer unavailable: LightMgr.init(LightFuncTbl)","actual GameTask must pass original Cockpit/ID initialization and stop at lights");
+    rejects([&]{(void)ids.unit(*preHud);}); // Actual Cockpit::gameInit invalidates the old HUD unit.
+    const auto idBoot=ids.snapshot(); const auto saveBoot=saves.snapshot();
+    check(idBoot.initialized && idBoot.capacity==0x80 && idBoot.alive==0,"actual original ID boot/reset pool");
+    check(std::all_of(idBoot.setFlags.begin(),idBoot.setFlags.end(),[](u32 f){return !f;}) &&
+          std::all_of(idBoot.displayOff.begin(),idBoot.displayOff.end(),[](u32 f){return !f;}),"original ID room flag clearing");
+    check(std::count(ids.trace().begin(),ids.trace().end(),"void Cockpit::gameInit()") == 1 &&
+          std::count(ids.trace().begin(),ids.trace().end(),"void IDSystem::roomInit()") == 2,"real GameTask Cockpit/ID source order");
+    check(saveBoot.initialized && saveBoot.rooms==216 && saveBoot.savedRooms==saveBoot.roomIds.size() &&
+          saveBoot.roomBytes==16+216*saveBoot.savedRooms,"original room save table initialization");
     auto &ss=game.subscreen(); auto sw=ss.snapshot(); auto sr=ss.resources();
     check(sw.initialized && sw.filename=="SS/eng/ss_pzzl.dat" && sw.moduleAram==0xD00000,"actual original SubScreen language/ARAM state");
     check(sw.boardSize==0 && sw.boardNext==0 && sw.mapMode==0 && sw.open==0 && sw.attributes==0 && sw.close==0 && sw.wait==0 && sw.mapArrayEmpty,"actual original SubScreen/MapMgr initialization");
@@ -533,7 +544,59 @@ void messages(int argc,char **argv) {
     m.releaseFont(0); check(!m.font(0).loaded && m.font(1).loaded,"font release corrupts alias slot");
     check(hash(system.widths)==widthHash && hash(system.textures[0].pixels)==pixelHash,"shared original font data lost");
     execute([&]{m.reloadCommonFont();}); check(m.font(0).loaded && hash(m.font(0).widths)==widthHash,"font reinitialization");
+    // Isolated tests of the actual original ID pool bodies. These unit fields
+    // exercise hierarchy and lifetimes; no fake HUD is attached to gameplay.
+    auto parent=ids.pull(),child=ids.pull(); check(parent && child,"original ID unitPull");
+    ids.unit(*parent).type=1; ids.parent(*parent,*child);
+    check(ids.unit(*child).pParent==&ids.unit(*parent) && ids.unit(*child).levelNo==1,"original ID parent/depth");
+    rejects([&]{ids.parent(*child,*parent);});
+    ids.time(*parent,123); ids.moving(*parent,false);
+    check(ids.unit(*parent).timer[0]==123 && ids.unit(*child).timer[3]==123 && !(ids.unit(*child).be_flag&4),"original recursive ID time/move flags");
+    ids.moving(*parent,true); check((ids.unit(*parent).be_flag&4) && (ids.unit(*child).be_flag&4),"original recursive ID resume");
+    ids.display(IDC_LIFE_METER,0); check(ids.snapshot().displayOff[1]==0x40000000u,"original class 33 display bit");
+    ids.roomInit(); rejects([&]{(void)ids.unit(*parent);}); rejects([&]{(void)ids.unit(*child);});
+    std::vector<IdHandle> filled;
+    for(int n=0;n<0x80;++n){ auto h=ids.pull(); check(bool(h),"original ID sequential pool allocation"); auto &u=ids.unit(*h);
+        check(h->slot==u32(n) && u.be_flag==0xD && !u.pParent && !u.path0 && !u.path1 && !u.curve[0] &&
+              u.u0==0 && u.u1==1 && u.v0==0 && u.v1==1 && u.timer[0]==0,"original cleared native ID fields/UV"); filled.push_back(*h); }
+    check(!ids.pull() && ids.snapshot().alive==128,"original ID pool exhaustion");
+    ids.push(filled[3]); rejects([&]{(void)ids.unit(filled[3]);});
+    auto reused=ids.pull(); check(reused && reused->slot==3 && reused->generation!=filled[3].generation,"ID generation on original slot reuse");
+    ids.kill(0xFF,IDC_ANY); check(ids.snapshot().alive==0,"original ID kill all");
+    ids.roomInit(); parent=ids.pull(); child=ids.pull(); ids.unit(*parent).type=1; ids.parent(*parent,*child);
+    ids.push(*parent); check(ids.snapshot().alive==0,"original group release recursively frees child"); rejects([&]{(void)ids.unit(*child);});
+    {
+        GameplayHeaps isolatedHeaps;
+        IdRuntime a(isolatedHeaps,scheduler),b(isolatedHeaps,scheduler);
+        a.initialize(); b.initialize(); auto ha=a.pull(),hb=b.pull();
+        check(ha && hb && ha->slot==hb->slot && ha->generation==hb->generation && ha->runtime!=hb->runtime,"isolated original ID pools with equal slot generations");
+        rejects([&]{(void)a.unit(*hb);}); rejects([&]{(void)b.unit(*ha);});
+        a.clear(); check(b.unit(*hb).be_flag==0xD,"freeing one original pool preserves the other"); b.clear();
+    }
+    execute([&]{rejects([&]{ids.clear();});rejects([&]{saves.clear();});});
+    // Actual room-save and cGameSave pointer bodies; no aggregate global/player
+    // save/load is claimed. Native images never masquerade as GC card bytes.
+    auto nativeImage=saves.image();
+    for(auto room:saveBoot.roomIds){ check(!saves.passed(room,3),"original blank room record"); saves.setPassed(room,3); check(saves.passed(room,3)==0x10,"original room passed bit"); }
+    saves.saveRooms(nativeImage);
+    for(auto room:saveBoot.roomIds) saves.setPassed(room,5);
+    saves.loadRooms(nativeImage);
+    for(auto room:saveBoot.roomIds) check(saves.passed(room,3)==0x10 && !saves.passed(room,5),"original room state restored by ID");
+    auto nativeCopy=saves.copyImage(nativeImage); check(nativeCopy.head->base==nativeCopy.head && nativeCopy.head!=nativeImage.head,"original checkAddr rebases copied native image");
+    saves.offsets(nativeCopy); check(!nativeCopy.head->base && reinterpret_cast<std::uintptr_t>(nativeCopy.head->pGlobal)==0x40,"original save offset form");
+    saves.offsets(nativeCopy); saves.addresses(nativeCopy); saves.addresses(nativeCopy);
+    check(reinterpret_cast<u8*>(nativeCopy.head->pItm)-reinterpret_cast<u8*>(nativeCopy.head)==saveBoot.sectionOffsets[4],"native-width calcAddr preserves original section offsets");
+    auto *roomHdr=static_cast<RoomSaveHdr*>(nativeCopy.head->pRm); auto num=roomHdr->num; roomHdr->num=UINT32_MAX;
+    rejects([&]{saves.loadRooms(nativeCopy);}); roomHdr->num=num;
+    auto rm=nativeCopy.head->pRm; nativeCopy.head->pRm=nullptr; rejects([&]{saves.offsets(nativeCopy);}); nativeCopy.head->pRm=rm;
+    rejects([&]{saves.setPassed(0x120,8);});
+    saves.clearRooms(nativeCopy); check(saves.snapshot().roomIds==saveBoot.roomIds,"original room clear preserves room IDs");
+    for(auto room:saveBoot.roomIds) check(!saves.passed(room,3),"original room clear removed flags");
+    check(!saves.passed(0x000,0) && !saves.passed(0xFFF,0),"original room without save record");
+    auto idTrace=ids.trace(); auto saveTrace=saves.trace();
     auto trace=m.trace(); auto ssTrace=ss.trace(); game.initialize();
+    rejects([&]{saves.addresses(nativeCopy);}); check(nativeCopy.head->base==nativeCopy.head,"retired native save lease remains owned");
+    check(ids.snapshot().capacity==128 && saves.snapshot().roomIds==saveBoot.roomIds,"repeated original ID/room/save initialization");
     check(!m.ready() && !m.font(1).loaded && game.state().IsMessageInit==0,"native/original reset release");
     check(hash(font.widths)==widthHash && hash(core)==coreHash,"retired snapshot lease lost");
     execute([&]{m.initialize();m.gameInit();}); check(m.messageCount(0)>0 && m.font(1).loaded,"repeated original boot");
@@ -609,7 +672,14 @@ void messages(int argc,char **argv) {
     for(std::size_t i=0;i<ssTrace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(ssTrace[i]);}
     ss.clear(); check(ss.itemCapacity()==0 && !ss.snapshot().initialized,"final inventory/SubScreen release");
     check(hash(sr[1].bytes)==sr[1].identity.sha256,"retired SubScreen lease invalidated");
-    std::cout<<"]},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
+    std::cout<<"]},\"id_system\":{\"capacity\":"<<idBoot.capacity<<",\"alive_after_Cockpit\":"<<idBoot.alive<<",\"trace\":[";
+    for(std::size_t i=0;i<idTrace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(idTrace[i]);}
+    std::cout<<"]},\"save_state\":{\"rooms\":"<<saveBoot.rooms<<",\"saved_rooms\":"<<saveBoot.savedRooms<<",\"room_bytes\":"<<saveBoot.roomBytes<<",\"image_bytes\":"<<saveBoot.imageBytes<<",\"room_ids\":[";
+    for(std::size_t i=0;i<saveBoot.roomIds.size();++i){if(i)std::cout<<',';std::cout<<saveBoot.roomIds[i];}
+    std::cout<<"],\"sections\":[";for(std::size_t i=0;i<saveBoot.sectionOffsets.size();++i){if(i)std::cout<<',';std::cout<<saveBoot.sectionOffsets[i];}
+    std::cout<<"],\"aggregate_save_load\":false,\"trace\":[";for(std::size_t i=0;i<saveTrace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(saveTrace[i]);}
+    ids.clear(); saves.clear(); check(!ids.snapshot().initialized && !saves.snapshot().initialized,"ID/save final release");
+    std::cout<<"]},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
     for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
     std::cout<<"]}\n";
 }

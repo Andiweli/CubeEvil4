@@ -10,8 +10,32 @@ ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'port/tools'))
 import generate_consumers
 import generate_subscreen
+import generate_id_save
 
 class Sources(unittest.TestCase):
+    def test_original_id_save_bodies(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output=Path(folder); generate_id_save.generate(ROOT,output)
+            manifest=json.loads((output/'id-save-manifest.json').read_text())
+            self.assertEqual(len(manifest['functions']),31)
+            code=(output/'id_save_control.cpp').read_text()
+            self.assertIn('void IdSystemCpu::cockpitGameInit()',code)
+            self.assertIn('m_IdUnit[i].be_flag = 0xFF;',code)
+            self.assertIn('void RoomSaveCpu::load(void* p)',code)
+            self.assertIn('SAVE_DATA_HEAD* SaveImageCpu::alloc()',code)
+            self.assertIn('std::uintptr_t headaddr',code)
+            self.assertNotIn('(u32) head',code)
+            self.assertNotIn('(u32) m_pRoomSaveData',code)
+            self.assertNotIn('bool cGameSave::save',code)
+    def test_changed_original_id_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)/'root'
+            hashes=json.loads((ROOT/'port/config/id-save-sources.json').read_text())
+            for p in [*hashes,'port/config/id-save-sources.json']:
+                dest=root/p; dest.parent.mkdir(parents=True,exist_ok=True); shutil.copyfile(ROOT/p,dest)
+            path=root/'src/game/id_sys.cpp'; path.write_text(path.read_text().replace('be_flag = 0xFF','be_flag = 0xFE'))
+            with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):
+                generate_id_save.generate(root,Path(folder)/'output')
     def test_original_subscreen_inventory_bodies(self):
         with tempfile.TemporaryDirectory() as folder:
             output=Path(folder); generate_subscreen.generate(ROOT,output)

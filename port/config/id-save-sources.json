@@ -1,0 +1,17 @@
+{
+  "src/game/id_sys.cpp": "f6ceb0cb4c03a6be9bdb75724cb2fb36831b5addf50d51b5739d9b099b5f43bf",
+  "include/id_sys.h": "e0ac3754054c399799fa1469396bda46d354d57bb529f5065862c4d1ec719dd3",
+  "src/game/cockpit.cpp": "d0ddc564e98ced1a022591091b1ad8f89802c6cc56a17a800adb1d65866b5896",
+  "include/cockpit.h": "3348b0108ae2e7cb9b91429818a6e03cf9d907c73bae21ac265070b6cb00f245",
+  "src/game/main.cpp": "945a8df0f4997f7a920eff67296b0cb586758dc61a83854c49f44fba893fd9e6",
+  "src/game/game.cpp": "56f815caa65d867e95a0d2e21763b592a99b53a52d940b6801853412aee02b9a",
+  "include/game.h": "8f3c70395361b9267b5a9a964b6b9b8cabe54971f5d5dc1bf460ab2e3e48b33a",
+  "src/game/roomdata.cpp": "d0487cb744a4aa8416361be418a278ca48551aa3bd3fa28067499c788295bff5",
+  "include/room_data.h": "aff7a573d293b0aff1afa8f060fec0b4150caddd3f68d0f1a66fe8baa2d8858d",
+  "src/game/item.cpp": "c16fa4d43d96e2e6306e4554800e3d629d702a216afb8924e86b7b08afb6981d",
+  "include/item.h": "133be8f7ddd53e651e13bb70ce0d99d9516dcbaabadbbda42116f2b797a6e7da",
+  "src/game/sscrn.cpp": "230931b28dc6eecd98909fdbd1ec05d0074c765b6dd7aa2be124c327c341042a",
+  "include/sscrn.h": "e054d63e0b750ea80a39a9e669965db6501ece9735e14b7df98a3ca1b154dd48",
+  "src/game/merchant.cpp": "37cd95fb0dcc44f36031d721e10bda3180565ba2b951eb28fbd6978b378027d1",
+  "include/merchant.h": "70f151530a55d0e5696f8fdecbbf3f482bcc85c945a5a852a286122c52dfb81e"
+}

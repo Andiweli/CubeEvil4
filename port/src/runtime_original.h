@@ -196,8 +196,14 @@ struct OriginalContext {
     } LightMgr;
     using cLight = LightFacade::Light;
     struct IdFacade {
-        [[noreturn]] void dispSw(int, int) { throw MissingGameConsumer("IdSys.dispSw"); }
-    } IdSys;
+        OriginalContext *context{};
+        void dispSw(int c,int sw) { context->runtime->ids().display(static_cast<ID_CLASS>(c),sw); }
+    } IdSys{this};
+    struct CockpitFacade {
+        OriginalContext *context{};
+        void gameInit() { context->runtime->ids().cockpitGameInit(); }
+    } Cckpt{this};
+    struct ObjectManagerState { u32 warnDiv=10; } ObjMgr; // Original cManager default; object allocation remains unbound.
     int DebugTrg(int);
     void SceSleep(int n) { runtime->loader().scheduler().sleep(n); }
     void SceExec(int level, TaskEntry task, int, int, int priority, int) {

@@ -36,6 +36,7 @@ void OriginalContext::reset() {
     nextRead = 1;
     r120_work = nullptr;
     trace.clear();
+    ObjMgr.warnDiv=10;
 }
 void *OriginalContext::mem_calloc(u32 bytes, const char *, int, int flag, int heap) {
     if (!heaps || flag != 1)
@@ -201,6 +202,8 @@ struct GameRuntime::Impl {
     OriginalContext original;
     MessageRuntime messages;
     SubScreenRuntime subscreen;
+    IdRuntime ids;
+    SaveStateRuntime saveState;
     FrameViAdapter vi;
     const std::thread::id owner = std::this_thread::get_id();
     bool initialized = false, paused = true, stepping = false;
@@ -220,7 +223,8 @@ struct GameRuntime::Impl {
         : loader(files, disc), modules(loader, moduleMemory),
           engineConsumers(&loader.scheduler()), texRender([this](u32 bytes){ return moduleMemory->reserve(bytes); }),
           original(pads), messages(loader,*heaps,original.global,original.system.language,files,disc),
-          subscreen(loader,*heaps,original.global,original.system.language,std::move(files),disc), vi([runtime] { runtime->tick(); }) {
+          subscreen(loader,*heaps,original.global,original.system.language,std::move(files),disc),
+          ids(*heaps,loader.scheduler()),saveState(*heaps,loader.scheduler()),vi([runtime] { runtime->tick(); }) {
         original.runtime = runtime;
         engineConsumers.setAdaOverrideProvider([this]{return DbgFlagChk(original.pG,DBG_ADA_OMAKE_EV);});
         original.heaps = heaps.get();
@@ -369,6 +373,8 @@ GameRuntime::~GameRuntime() {
     impl_->cancelPending();
     impl_->messages.clear();
     impl_->subscreen.clear();
+    impl_->ids.clear();
+    impl_->saveState.clear();
 }
 void GameRuntime::initialize(u16 width, u16 height) {
     impl_->check(true);
@@ -389,13 +395,17 @@ void GameRuntime::initialize(u16 width, u16 height) {
     impl_->activated.clear();
     impl_->messages.clear();
     impl_->subscreen.clear();
+    impl_->ids.clear();
+    impl_->saveState.clear();
     impl_->heaps->reset();
     impl_->original.reset();
     impl_->original.Rmode = {width, height};
     impl_->original.systemWorkInit();
+    impl_->ids.initialize(); // Original systemInit prerequisite, system heap before game-heap handoff.
     // Native arena tail handoff. GC SystemMemInit's absolute memory map is not copied.
     if (!impl_->heaps->replace(0, 1) || !impl_->heaps->setCurrent(1))
         throw std::runtime_error("game heap handoff");
+    impl_->saveState.initialize(); // Original room save storage, then Title_task's cGameSave::alloc.
     impl_->subscreen.initializeInventory(); // Original Title_task prerequisite; start items remain in gameInit.
     impl_->original.ScenarioInit();
     impl_->original.PadInit();
@@ -491,6 +501,8 @@ TexRenderRuntime &GameRuntime::texRender() { impl_->check(); return impl_->texRe
 GraphicsState &GameRuntime::graphics() { impl_->check(); return impl_->graphics; }
 MessageRuntime &GameRuntime::messages() { impl_->check(); return impl_->messages; }
 SubScreenRuntime &GameRuntime::subscreen() { impl_->check(); return impl_->subscreen; }
+IdRuntime &GameRuntime::ids() { impl_->check(); return impl_->ids; }
+SaveStateRuntime &GameRuntime::saveState() { impl_->check(); return impl_->saveState; }
 std::shared_ptr<FrameOperation> GameRuntime::queueRoomRetirement(u16 id) {
     return queueModule(ModuleOperation::RetireRoom, id);
 }

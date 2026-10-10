@@ -34,7 +34,7 @@ def main():
             actual=r['actual']
             if r['abi']!=abi or actual['pointer_bits']!=bits or not actual['repeated_init_released']:
                 raise ValueError('message ABI/lifetime: '+abi)
-            stable={k:v for k,v in actual.items() if k!='pointer_bits'}
+            stable={k:v for k,v in actual.items() if k not in ['pointer_bits','native_layout']}
             if sha(json.dumps(stable,sort_keys=True).encode())!=r['trace_sha256']:
                 raise ValueError('message evidence hash: '+abi)
             message_traces.add(r['trace_sha256']); message_checks.add(actual['checks'])
@@ -85,13 +85,15 @@ def main():
                              original_MotionSetCore_calls=sum(len(p['motion_initializations']) for r in [*events,*models] for p in r['actual']['packages']),
                              player_MotionSetCore_calls=sum(len(p['player_motion_initializations']) for r in events for p in r['actual']['packages']),
                              failed=0,executable_sha256=sorted({r['executable_sha256'] for r in rooms})))
-        measured[-1].update(original_message_boot_runs=len(messages),message_checks_per_run=1130,
+        measured[-1].update(original_message_boot_runs=len(messages),message_checks_per_run=messages[0]['actual']['checks'],
+                            native_layout=messages[0]['actual']['native_layout'],
+                            original_Cockpit_gameInit_calls=len(messages),
                             original_SubScreenGameInit_calls=2*len(messages),
                             isolated_inventory_map_modelInit_calls=12*len(messages),
                             subscreen_archive_reads=44*len(messages))
     if any(len(v)!=1 for v in [*room_traces.values(),*model_traces.values()]) or len(event_traces)!=1 or len(native_traces)!=1 or checks!={634}:
         raise ValueError('ABI/repetition semantic results differ')
-    if len(message_traces)!=1 or message_checks!={1130}: raise ValueError('message/SubScreen ABI/repetition semantics differ')
+    if len(message_traces)!=1 or len(message_checks)!=1 or min(message_checks)<1500: raise ValueError('message/SubScreen/ID/save ABI/repetition semantics differ')
     sample=json.loads((args.host/'consumers-host-64.json').read_text())['results'][0]['actual']['packages']
     packages=[dict(path=p['path'],sha256=p['sha256'],bins=len(p['bins']),native_cpu_models=p['native_models'],
                    model_initializations=p['model_initializations'],event_resource_references=p['event_resource_references'],
@@ -102,14 +104,14 @@ def main():
     sample=json.loads((args.host/'game-runtime-host-64.json').read_text())['results']
     coverage={r['id']:r['consumers'] for record in sample for r in record['actual']['rooms']}
     additional=[p for r in json.loads((args.host/'models-host-64.json').read_text())['results'] if r['round']==1 for p in r['actual']['packages']]
-    summary=dict(schema='RE4-PHASE4C-SUBSCREEN-MEASUREMENTS-1',checks_per_native_run=634,
+    summary=dict(schema='RE4-PHASE4C-ID-SAVE-MEASUREMENTS-1',checks_per_native_run=634,
                  measured=measured,identical_native_traces=True,
                  identical_room_traces={str(k):next(iter(v)) for k,v in room_traces.items()},
                  identical_event_trace=next(iter(event_traces)),packages=packages,room_consumer_coverage=coverage,
                  additional_model_packages=additional,identical_additional_model_traces={str(k):next(iter(v)) for k,v in model_traces.items()},
-                 identical_message_trace=next(iter(message_traces)),message_checks_per_run=1130,
+                 identical_message_trace=next(iter(message_traces)),message_checks_per_run=next(iter(message_checks)),
                  message_boot_sample=json.loads((args.host/'messages-host-64.json').read_text())['results'][0]['actual'],
-                 scope='Actual original SubScreenGameInit, SubScreenRoomInit, inventory init/search/get/itemInfo, map manager reset/map filenames and DMA; 44 isolated original archive loads, 78 checked TPL blocks, six model pairs initialized twice. Existing model/event/motion consumers retained; no menu widgets, full Event::Run/Obj18/GX draw renderer. GPU evidence is separate APK instrumentation.')
+                 scope='Actual original Cockpit::gameInit/IDSystem::roomInit with native ID pool and original room/save-image startup allocation. Isolated original ID tree/pool and room save/load/clear, cGameSave offset/address/rebase tests; no aggregate gameplay save/load. Original SubScreen/message/model/motion consumers retained; no menu widgets, full Event::Run/Obj18/GX draw renderer. GPU evidence is separate APK instrumentation.')
     write_json(output/'consumer-runtime-summary.json',summary)
     print(json.dumps(summary,indent=2))
 

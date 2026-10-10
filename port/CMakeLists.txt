@@ -68,6 +68,17 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/config/subscreen-sources.json" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_subscreen.py")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_subscreen.py"
     --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/id-save-sources.json" id_save_manifest)
+string(JSON id_save_count LENGTH "${id_save_manifest}")
+math(EXPR id_save_last "${id_save_count} - 1")
+foreach(index RANGE 0 ${id_save_last})
+    string(JSON id_save_source MEMBER "${id_save_manifest}" ${index})
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RE4_ROOT}/${id_save_source}")
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/id-save-sources.json" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_id_save.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_id_save.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
 
 # Only approved headers enter this target. The legacy include/ directory also
 # contains an old libc, which must never shadow the host or NDK standard library.
@@ -132,6 +143,7 @@ add_library(re4_modules STATIC src/modules.cpp src/module_rel_index.cpp
 target_link_libraries(re4_modules PUBLIC re4_loader)
 add_library(re4_game_runtime STATIC src/game_runtime.cpp src/gameplay_heaps.cpp src/controller_input.cpp
     src/consumers.cpp src/event_resources.cpp src/model_runtime.cpp src/motion.cpp src/tex_render.cpp src/graphics.cpp src/messages.cpp src/subscreen.cpp
+    src/id_save.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/subscreen_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/message_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/tex_render_control.cpp"
@@ -147,6 +159,7 @@ set_target_properties(re4_game_verification PROPERTIES POSITION_INDEPENDENT_CODE
 if(MSVC)
     target_compile_options(re4_game_runtime PRIVATE /W4 /WX /fp:strict)
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
+        "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/subscreen_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/message_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/tex_render_control.cpp"
@@ -157,6 +170,7 @@ else()
     # Preserve unused parameters/locals of complete original bodies. Native
     # adapter files still compile with the full warning/error policy.
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
+        "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/message_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/subscreen_control.cpp"
         PROPERTIES COMPILE_OPTIONS "-Wno-unused-parameter;-Wno-unused-variable")

@@ -6,6 +6,8 @@
 #include "re4/port/tex_render.h"
 #include "re4/port/messages.h"
 #include "re4/port/subscreen.h"
+#include "re4/port/id_system.h"
+#include "re4/port/save_state.h"
 #include "re4_runtime_types.h"
 #include <array>
 #include <thread>
@@ -148,6 +150,8 @@ class GameRuntime final {
     GraphicsState &graphics();
     MessageRuntime &messages();
     SubScreenRuntime &subscreen();
+    IdRuntime &ids();
+    SaveStateRuntime &saveState();
     std::shared_ptr<FrameOperation> queueRoomRetirement(std::uint16_t room);
     void queueFailedRoomRetirement(std::uint16_t room);
     void
