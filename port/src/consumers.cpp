@@ -279,6 +279,11 @@ void EngineConsumers::releaseUnpublishedModel(ConsumerHandle h,const std::shared
 void EngineConsumers::releaseModel(ConsumerHandle h) {
     checkModelRelease(h);if(!models_.erase(h.index)) throw std::logic_error("retired model reference");
 }
+void EngineConsumers::releaseObjectModel(ConsumerHandle h,ModelCpu &owner) {
+    checkModelReferences(h);
+    if(&model(h)!=&owner)throw std::logic_error("object model owner mismatch");
+    if(!models_.erase(h.index))throw std::logic_error("retired object model registration");
+}
 ConsumerHandle EngineConsumers::initializeModel(ResourceLease bin,ResourceLease tpl,std::string name,bool invisible,u8 kindId,u32 initialFlags,std::shared_ptr<ModelCpu> originalOwner) {
     check();
     if(!modelRuntime_) throw std::logic_error("original room model pool counts are required");

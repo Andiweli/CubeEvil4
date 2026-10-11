@@ -1,5 +1,6 @@
 #include "consumer_verification.h"
 #include "model_verification.h"
+#include "object_verification.h"
 #include "light_parent_verification.h"
 #include "re4/port/game_runtime.h"
 #include "re4/port/sha256.h"
@@ -331,7 +332,9 @@ std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<Graph
         // Real native PadRead state is tested elsewhere. This isolated KEY models
         // its output and runs the actual cPlayer consumer without a second mapping.
         GameplayHeaps h;EngineConsumers models;NativeGameState state;KEY key{};u8 layout=0;
-        PlayerRuntime keys(state,key,layout,h,models,game.loader().scheduler());
+        ObjectRuntime objects(h,models,game.loader().scheduler());
+        EffectRuntime effects(h,game.loader().scheduler(),objects);
+        PlayerRuntime keys(state,key,layout,h,models,game.loader().scheduler(),objects,effects);
         key.on=2;key.trg=0x40000000;keys.keyConfig();c.test(key.trg==(0x40000000|0x100),"original B trigger / held action combination");
         key.trg=0;keys.keyConfig();c.test(key.trg==0x100,"original B latch survives one frame");
         key.trg=0;keys.keyConfig();c.test(key.trg==0,"original B latch expires");
@@ -557,6 +560,7 @@ std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<Graph
     tests::consumerTests(c, game);
     tests::modelInitializationTests(c, game);
     sphereTests(c,game);
+    tests::objectTests(c,game);
     tests::lightParentTests(c, game);
     tests::texRenderTests(c, game);
     tests::openingTests(c, game);
@@ -584,6 +588,8 @@ std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<Graph
            "\"models:original-modelInit-joints-matrices-bounds,pool-reuse-rollback\","
            "\"H1:original-Hokan-slerp-scale-cancel,cMot3-owned-blend,typed-cEm-model-root\","
            "\"H1:original-SAT-EAT-sphere-face-edge-mask-lifetime\","
+           "\"H1:original-ObjMgr-front-back-indexed-deferred-destruction,typed-weapon-constructor\","
+           "\"H1:original-Esp-Espgen-Efm-delete-bodies,numeric-lifecycle-fixtures\","
            "\"consumers:original-model-joints,message-address,camera-state,event-callback\","
            "\"retirement:20-original-room-entries,pending-borrowers,frame-boundary\","
            "\"transitions:20-initialized-cross-stage,sleeping-borrowers,same-module-reentry\","

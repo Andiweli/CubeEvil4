@@ -803,16 +803,41 @@ void messages(int argc,char **argv,bool newGame=false) {
     auto &pf=*playerFile;ResourceLease pl{playerFile,playerFile->bytes.data()+pf.bodyOffset,pf.bodySize};
     game.engineConsumers().configureModelPools(0x80,0x100);
     game.state().pl_type=0;game.state().pl_costume=0;
+    // Shared consumer probe, not gameRoomInit: real CNS counts provide the
+    // base object/effect capacities. Scroll objects are not registered here.
+    check(game.loader().loadRoom(0x120,false),"original room load for lifecycle prerequisites");
+    const auto poolDeadline=std::chrono::steady_clock::now()+std::chrono::seconds(60);
+    while(game.loader().roomBusy()){game.tick();std::this_thread::yield();if(std::chrono::steady_clock::now()>poolDeadline)throw std::runtime_error("room lifecycle prerequisite timeout");}
+    auto poolRoom=game.loader().room();check(bool(poolRoom),"actual room/CNS prerequisite");
+    check(poolRoom->body->size()<=UINT32_MAX,"native CNS lease extent");
+    ResourceLease poolBody{poolRoom->body,poolRoom->body->data(),static_cast<u32>(poolRoom->body->size())};
+    auto capacities=originalRoomConstants(poolBody);
+    game.objects().configure(capacities[1]);game.effects().configurePools(capacities[2],capacities[3]);
+    const auto playerIndex=indexAssetBody(pl.data,pl.size);
+    auto playerSlot=[&](u32 slot){const auto &s=playerIndex.entries.at(slot-4);return ResourceLease{pl.owner,pl.data+s.offset,s.size};};
+    // The shared model owner executes original modelInit with actual pl00 BIN
+    // and TPL. This is an ownership probe, not a fake weapon model assignment.
+    for(int round=0;round<2;++round){
+        auto object=*game.objects().create(11);
+        game.objects().initializeModel(object,playerSlot(4),playerSlot(5));
+        check(game.objects().snapshot(object).model && game.engineConsumers().modelCount()==1,"shared object holds original pl00 model owner");
+        execute([&]{game.objects().destroy(object,true);});
+        check(game.engineConsumers().modelCount()==0,"original object push releases model inside scheduler");
+        rejects([&]{game.objects().snapshot(object);});
+    }
     // Actual preserved construction sequence in the existing player runtime,
     // using the imported pl00 owner. Expected failure is NOT actor success.
     for(int attempt=0;attempt<2;++attempt) {
+        auto thrown=*game.objects().create(10);auto retained=*game.objects().create(0);
         auto live=game.heaps().liveBytes();std::string actorBlocker;
         execute([&] {
             check(bool(scheduler.current()),"actual constructor caller is a scheduler task");
             try {(void)game.player().constructLeon(pl);} catch(const MissingGameConsumer &e) {actorBlocker=e.what();}
         });
         auto result=game.player().constructionSnapshot();
-        check(actorBlocker=="Original consumer unavailable: cPlayer::weaponRelease/ObjMgr.getActiveWork (live generic object pool)","actual Leon constructor next consumer");
+        check(actorBlocker=="Original consumer unavailable: ReadWepData/owned weapon archive and native WeaponInitFunc module binding","actual Leon constructor next consumer");
+        check(result.weaponReleased && game.objects().snapshot().active==1 && (game.objects().snapshot(thrown).flags&0x200),"original weaponRelease iterates live shared objects and defers thrown item destruction");
+        check(game.objects().snapshot(retained).flags==0x21,"original weaponRelease retains unrelated object");
         check(!result.returnedActor && result.playerConstructor && result.subobjects && result.modelInitialized && result.rolledBack && result.schedulerTask,
               "preserved player/subwork/model construction ran; failed actor was not published");
         check(result.hp==game.state().pl_life && result.motionSlots==0x6D && result.registeredMotionSlots==12 && result.debugCallbacks==11,
@@ -820,8 +845,11 @@ void messages(int argc,char **argv,bool newGame=false) {
         check(result.parts==119 && result.modelInfos==8,"constructor uses the original complete pl00 hierarchy and attachments");
         check(game.engineConsumers().modelCount()==0 && game.heaps().liveBytes()==live,"constructor failure releases shared model and work owners");
         rejects([&]{(void)game.player().leonModel();});
+        game.objects().destroy(retained,true);game.objects().dieCheck();game.objects().dieCheck();
+        check(game.objects().snapshot().occupied==0,"constructor cleanup drains original deferred objects");
     }
     const auto constructor=game.player().constructionSnapshot();
+    game.effects().clear();game.objects().clear();
     for(int round=0;round<2;++round) {
         auto handle=game.player().initializeLeonAssets(pl);auto &cpu=game.engineConsumers().model(handle);auto infos=game.player().leonModelInfos();
         check(cpu.nParts==pl.data[indexAssetBody(pl.data,pl.size).entries[0].offset+0x19] && infos.size()==8 && cpu.TevScaleGroup==1,"original Leon model and eight material/model attachments");
@@ -903,7 +931,7 @@ void messages(int argc,char **argv,bool newGame=false) {
     check(game.engineConsumers().modelCount()==0 && game.player().motionBindings().empty(),"GameRuntime reset releases original Leon assets");
     rejects([&]{game.player().initializeLeonAssets({pl.owner,pl.data,15});});
     check(game.engineConsumers().modelCount()==0,"malformed player archive did not publish model");
-    std::cout<<"],\"construction\":{\"returned_actor\":false,\"em_mgr_dispatch_bound\":false,\"player_constructor\":true,\"subobjects\":true,\"scheduler_task\":true,\"startUp_executed\":false,\"rolled_back\":true,\"parts\":"<<constructor.parts<<",\"model_infos\":"<<constructor.modelInfos<<",\"motion_slots\":"<<constructor.motionSlots<<",\"registered_motion_slots\":"<<constructor.registeredMotionSlots<<",\"debug_callbacks\":"<<constructor.debugCallbacks<<",\"blocker\":"<<std::quoted(constructor.blocker)<<"}},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
+    std::cout<<"],\"construction\":{\"returned_actor\":false,\"em_mgr_dispatch_bound\":false,\"player_constructor\":true,\"subobjects\":true,\"scheduler_task\":true,\"weapon_release_complete\":true,\"startUp_executed\":false,\"rolled_back\":true,\"parts\":"<<constructor.parts<<",\"model_infos\":"<<constructor.modelInfos<<",\"motion_slots\":"<<constructor.motionSlots<<",\"registered_motion_slots\":"<<constructor.registeredMotionSlots<<",\"debug_callbacks\":"<<constructor.debugCallbacks<<",\"blocker\":"<<std::quoted(constructor.blocker)<<"}},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
     for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
     std::cout<<"]}\n";
 }

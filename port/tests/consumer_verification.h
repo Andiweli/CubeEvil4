@@ -249,6 +249,8 @@ template <class Checks> void retirementTests(Checks &c, GameRuntime &game) {
                "initialized original rooms can cross stage heaps after central retirement");
         game.scenarioRoomInit(); // Existing consumer-order fixture; actual original R10d/R328
                                  // allocation.
+        game.objects().configure(2);game.effects().configurePools(1,1);
+        auto oldObject=*game.objects().create(11);
         auto before = game.modules().room(room)->main;
         auto metadata =
             std::find_if(originalModuleCatalog().rooms.begin(), originalModuleCatalog().rooms.end(),
@@ -261,6 +263,9 @@ template <class Checks> void retirementTests(Checks &c, GameRuntime &game) {
         game.tick();
         c.test(retire->status == OperationStatus::Complete && !scheduler.state(*borrower),
                "retirement invalidates pending main borrower before work release");
+        c.test(!game.objects().configured() && !game.effects().snapshot().configured,
+               "central retirement releases shared object/effect arenas");
+        c.rejects([&]{game.objects().snapshot(oldObject);},"room transition retires object handle epoch");
         c.rejects([&] { game.modules().invoke(before); },
                   "retirement invalidates original room callback epoch");
     }

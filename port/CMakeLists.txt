@@ -15,6 +15,17 @@ get_filename_component(RE4_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 include(cmake/OriginalSources.cmake)
 re4_prepare_original_sources("${RE4_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/original")
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/object-sources.json" object_manifest)
+string(JSON object_count LENGTH "${object_manifest}")
+math(EXPR object_last "${object_count} - 1")
+foreach(index RANGE 0 ${object_last})
+    string(JSON object_source MEMBER "${object_manifest}" ${index})
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RE4_ROOT}/${object_source}")
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/object-sources.json" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_objects.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_objects.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${RE4_ROOT}/src/game/TexRender.cpp" "${RE4_ROOT}/include/TexRender.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_tex_render.py"
@@ -201,6 +212,7 @@ add_library(re4_game_runtime STATIC src/game_runtime.cpp src/gameplay_heaps.cpp 
     src/id_save.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
     src/lights.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"
     src/player.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/player_control.cpp"
+    src/objects.cpp src/effects.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/object_control.cpp"
     src/merchant.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/merchant_control.cpp"
     src/collision.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/collision_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/subscreen_control.cpp"
@@ -254,6 +266,8 @@ if(MSVC)
     # Original cAtariInfo intentionally narrows its public int arguments into
     # 16-bit fields. Keep those bodies intact; native adapters remain /WX.
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/collision_control.cpp"
+        PROPERTIES COMPILE_OPTIONS "/wd4244")
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/object_control.cpp"
         PROPERTIES COMPILE_OPTIONS "/wd4244")
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"

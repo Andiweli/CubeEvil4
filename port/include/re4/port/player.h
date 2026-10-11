@@ -4,6 +4,7 @@
 
 namespace re4::port {
 class GameplayHeaps;
+class ObjectRuntime;class EffectRuntime;
 // Constructor prefix only: named native cEm model/damage fields. This is not
 // a cPlayer/cPlLeon, an EM_WORK_SIZE overlay, or a published gameplay actor.
 struct ActorDamageCpu {
@@ -39,6 +40,7 @@ struct PlayerMotionBinding { u32 motionIndex{}, archiveSlot{}; ResourceLease byt
 struct LeonConstructionSnapshot {
     bool returnedActor{},playerConstructor{},subobjects{},modelInitialized{},rolledBack{};
     bool schedulerTask{};
+    bool weaponReleased{};
     s16 hp{};
     u32 motionSlots{},registeredMotionSlots{},debugCallbacks{};
     u32 parts{},modelInfos{};
@@ -50,7 +52,7 @@ struct LeonConstructionSnapshot {
 class PlayerRuntime final {
 public:
     PlayerRuntime(NativeGameState &, KEY &, u8 &padType, GameplayHeaps &,
-                  EngineConsumers &, NativeScheduler &);
+                  EngineConsumers &, NativeScheduler &,ObjectRuntime &,EffectRuntime &);
     ~PlayerRuntime();
     void gameInit();
     void lifeReset();

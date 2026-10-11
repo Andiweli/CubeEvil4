@@ -166,9 +166,9 @@ def main():
         player=actual['player']
         construction=player['construction']
         if construction!={'returned_actor':False,'em_mgr_dispatch_bound':False,'player_constructor':True,
-            'subobjects':True,'scheduler_task':True,'startUp_executed':False,'rolled_back':True,'parts':119,'model_infos':8,
+            'subobjects':True,'scheduler_task':True,'weapon_release_complete':True,'startUp_executed':False,'rolled_back':True,'parts':119,'model_infos':8,
             'motion_slots':109,'registered_motion_slots':12,'debug_callbacks':11,
-            'blocker':'Original consumer unavailable: cPlayer::weaponRelease/ObjMgr.getActiveWork (live generic object pool)'}:
+            'blocker':'Original consumer unavailable: ReadWepData/owned weapon archive and native WeaponInitFunc module binding'}:
             raise ValueError('actual preserved Leon construction prefix/blocker/rollback')
         if not player['gameTask_PlayerInit_complete'] or player['actor_constructed'] or [player[k] for k in ['life','max_life','weapon','weapon_type','flag']]!=[1200,1200,2,0,1] or player['trace']!=['PlayerInit:original','PlayerLifeReset:original','ReleaseWepData:original','InitModule:original']:
             raise ValueError('actual original PlayerInit state/order/scope')

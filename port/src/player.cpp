@@ -5,8 +5,8 @@ namespace re4::port {
 struct PlayerRuntime::Impl {
     PlayerDomain original;
     const std::thread::id owner=std::this_thread::get_id();
-    Impl(NativeGameState &g,KEY &k,u8 &p,GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s)
-        : original(g,k,p,h,m,s) {}
+    Impl(NativeGameState &g,KEY &k,u8 &p,GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s,ObjectRuntime &o,EffectRuntime &e)
+        : original(g,k,p,h,m,s,o,e) {}
     void check(bool boundary=false) const {
         if(owner!=std::this_thread::get_id()) throw std::logic_error("player frame owner");
         if(boundary && (original.scheduler.current() || original.scheduler.allocatedStacks()))
@@ -42,8 +42,8 @@ ModelInfoView *PlayerDomain::ModelInfoFacade::create(void *bin,void *tpl) {
     if(!domain->modelHandle) throw std::logic_error("Leon attachment without original root model");
     return domain->models.createModelInfoFor(domain->models.model(*domain->modelHandle),domain->lease(bin),domain->lease(tpl));
 }
-PlayerRuntime::PlayerRuntime(NativeGameState &g,KEY &k,u8 &p,GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s)
-    :impl_(std::make_unique<Impl>(g,k,p,h,m,s)) {}
+PlayerRuntime::PlayerRuntime(NativeGameState &g,KEY &k,u8 &p,GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s,ObjectRuntime &o,EffectRuntime &e)
+    :impl_(std::make_unique<Impl>(g,k,p,h,m,s,o,e)) {}
 PlayerRuntime::~PlayerRuntime()=default;
 void PlayerRuntime::gameInit() { impl_->check();impl_->original.PlayerInit(); }
 void PlayerRuntime::lifeReset() { impl_->check();impl_->original.PlayerLifeReset(); }

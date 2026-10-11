@@ -216,6 +216,8 @@ struct GameRuntime::Impl {
     IdRuntime ids;
     SaveStateRuntime saveState;
     LightRuntime lights;
+    ObjectRuntime objects;
+    EffectRuntime effects;
     PlayerRuntime player;
     MerchantRuntime merchant;
     CollisionRuntime sat,eat;
@@ -241,7 +243,8 @@ struct GameRuntime::Impl {
           subscreen(loader,*heaps,original.global,original.system.language,std::move(files),disc),
           ids(*heaps,loader.scheduler()),saveState(*heaps,loader.scheduler()),
           lights(*heaps,loader.scheduler(),engineConsumers,original.global),
-          player(original.global,original.Key,original.system.pad_type,*heaps,engineConsumers,loader.scheduler()),
+          objects(*heaps,engineConsumers,loader.scheduler()),effects(*heaps,loader.scheduler(),objects),
+          player(original.global,original.Key,original.system.pad_type,*heaps,engineConsumers,loader.scheduler(),objects,effects),
           merchant(original.global,original.system.language),sat(original.global),eat(original.global,true),vi([runtime] { runtime->tick(); }) {
         original.runtime = runtime;
         engineConsumers.setAdaOverrideProvider([this]{return DbgFlagChk(original.pG,DBG_ADA_OMAKE_EV);});
@@ -298,6 +301,8 @@ struct GameRuntime::Impl {
         loader.cancelAll();
         player.releaseLeonAssets();
         sat.clear();eat.clear();
+        if(effects.snapshot().configured)effects.clear();
+        if(objects.configured())objects.clear();
         engineConsumers.clear();
         texRender.clear();
         original.ScenarioInit();
@@ -392,6 +397,7 @@ GameRuntime::~GameRuntime() {
     impl_->merchant.clear();
     impl_->sat.clear();impl_->eat.clear();
     impl_->lights.clear();
+    impl_->effects.clear();impl_->objects.clear();
     impl_->engineConsumers.clear();
     impl_->texRender.clear();
     impl_->cancelPending();
@@ -411,6 +417,7 @@ void GameRuntime::initialize(u16 width, u16 height) {
     impl_->merchant.clear();
     impl_->sat.clear();impl_->eat.clear();
     impl_->lights.clear();
+    impl_->effects.clear();impl_->objects.clear();
     impl_->engineConsumers.clear();
     impl_->texRender.clear();
     for (auto task : impl_->gameTasks)
@@ -533,6 +540,8 @@ IdRuntime &GameRuntime::ids() { impl_->check(); return impl_->ids; }
 SaveStateRuntime &GameRuntime::saveState() { impl_->check(); return impl_->saveState; }
 LightRuntime &GameRuntime::lights() { impl_->check(); return impl_->lights; }
 PlayerRuntime &GameRuntime::player() { impl_->check(); return impl_->player; }
+ObjectRuntime &GameRuntime::objects() { impl_->check(); return impl_->objects; }
+EffectRuntime &GameRuntime::effects() { impl_->check(); return impl_->effects; }
 MerchantRuntime &GameRuntime::merchant() { impl_->check(); return impl_->merchant; }
 CollisionRuntime &GameRuntime::sat() { impl_->check(); return impl_->sat; }
 CollisionRuntime &GameRuntime::eat() { impl_->check(); return impl_->eat; }

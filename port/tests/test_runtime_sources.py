@@ -14,6 +14,31 @@ spec.loader.exec_module(generator)
 
 
 class Sources(unittest.TestCase):
+    def test_object_lifecycle_bodies_and_native_stride(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'port/tools'))
+        from generate_objects import generate
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)/'output';generate(ROOT,output)
+            source=(output/'object_control.cpp').read_text()
+            generate(ROOT,output);self.assertEqual(source,(output/'object_control.cpp').read_text())
+            self.assertIn('NativeObjectManager::createBack(int id)',source)
+            self.assertIn('p->be_flag |= 0x400;',source)
+            self.assertIn('ModelLightInfo::init2(',source)
+            self.assertIn('EffectDomain::EspDelete(',source)
+            self.assertIn('EffectDomain::EfmDeleteSub(',source)
+            self.assertNotIn('(u32)p',source)
+            self.assertNotIn('(u8*)pArray + size',source)
+            self.assertNotIn('delete p;',source)
+            self.assertNotIn('i * 0x150',source)
+            self.assertIn('void* Core_pEm',(output/'include/re4_object_types.h').read_text())
+            copy=Path(directory)/'root'
+            hashes=json.loads((ROOT/'port/config/object-sources.json').read_text())
+            for relative in [*hashes,'port/config/object-sources.json']:
+                target=copy/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/relative,target)
+            p=copy/'src/game/obj.cpp';p.write_text(p.read_text()+'\n// changed fingerprint\n')
+            with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):generate(copy,Path(directory)/'bad')
+
     def test_merchant_and_collision_original_bodies_guard(self):
         import sys
         sys.path.insert(0,str(ROOT/'port/tools'))
@@ -65,7 +90,7 @@ class Sources(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output=Path(directory)/'output';generate(ROOT,output)
             functions=json.loads((output/'player-manifest.json').read_text())['functions']
-            self.assertEqual(len(functions),51)
+            self.assertEqual(len(functions),53)
             signatures={f['signature'] for f in functions}
             self.assertIn('void PlayerInit()',signatures)
             self.assertIn('void cPlLeon::setModel()',signatures)

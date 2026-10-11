@@ -53,13 +53,13 @@ def generate(root, output):
     base=re.sub(r';(?=\s*(?://|\n))','{};',base).replace('PlayerMotionBaseCpu(){};','PlayerMotionBaseCpu();')+'};'
     base=re.sub(r'^(    )(?!private|public)(.+?\{\};)',r'\1[[maybe_unused]] \2',base,flags=re.M)
     wep=read('include/pl_wep.h');wep=wep[wep.index('class cPlWep {'):wep.index('    f32 getAngle();')]
-    wep=wep.replace('cPlWep','PlayerWeaponCpu').replace('cObjWep*','NativePlayerObject*')
+    wep=wep.replace('cPlWep','PlayerWeaponCpu').replace('cObjWep*','NativeObject*')
     wep=re.sub(r';(?=\s*(?://|\n))','{};',wep).replace('PlayerWeaponCpu(){};','PlayerWeaponCpu();')+'};'
     esp=read('include/esp.h')
     effects=[re.search(r'enum '+n+r' \{.*?\n\};',esp,re.S)[0] for n in ['ESP_OWNER','ESP_CORE_KIND']]
     types=['#pragma once','#include "re4/port/model_types.h"','#include <stdexcept>',
            '#include <functional>','namespace re4::port {','struct NativePlayerObject;',flag,enum,slot,shape,body,
-           actorflag,maho,waist,push,base,wep,*effects,'}']
+           actorflag,maho,waist,push,base,'struct NativeObject;',wep,*effects,'}']
     (output/'include/re4_player_types.h').write_text('\n'.join(types)+'\n',encoding='utf-8')
     cpp=['#include "player_original.h"','namespace re4::port {']
     entries=[]
@@ -123,6 +123,10 @@ def generate(root, output):
         ('cPlLeon::cPlLeon()','void constructCharacter()'),('PlArc* arc;','void* arc;'),('arc = pG->pPlayer;','arc = subArc;'),
         ('(u32) PL_ARC_PTR(arc, 0x1A)','arcEntry(arc, 0x1A)'),('pFsdTbl = pl_fs_tbl;','bindFootShadowTable();')])
     add('src/game/pl_wep.cpp','void cPlayer::weaponRelease()', [('cPlayer::F_NO_WEP_EFF','F_NO_WEP_EFF'),('objCur->id','ObjMgr.id(objCur)')])
+    # Completion is recorded only after the full preserved release body returned.
+    cpp[-1]=cpp[-1].rsplit('}',1)[0]+'    construction.weaponReleased=true;\n}'
+    add('src/game/pl_class.cpp','int cPlayer::endCamera()', [('be_flag |= 2;','actorModel->be_flag |= 2;')])
+    add('src/game/pl_wep.cpp','void cPlayer::weaponLoad(int wep_id, int wep_type)')
     for sig in ['void PlayerInit()','void PlayerLifeReset()']:
         add('src/game/player.cpp',sig,[(sig+'\n{',sig+'\n{\n    trace.push_back("'+sig.split('(')[0].split()[-1]+':original");')])
     for sig in ['void ReleaseWepData()','void InitModule(MODULE_DAT* m)']:

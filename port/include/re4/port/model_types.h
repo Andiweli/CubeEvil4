@@ -7,6 +7,21 @@
 namespace re4::port {
 using Mtx = f32[3][4];
 using MtxPtr = f32 (*)[4];
+struct LightCpu;
+struct ModelLightInfo {
+    Mtx imat{};
+    LightCpu *pLight[8]{};
+    u8 EnableMask{},Flag{};
+    s8 PartsNo{};
+    u8 x53{};
+    u32 SelectMask{};
+    Vec Offset{},Size{};
+    f32 Radius{};
+    ModelLightInfo();
+    int init2(int,int,const Vec*,const Vec*,int);
+    u32 getLightNum();
+    u8 getType() const {return Flag&3;}
+};
 // Native counterparts of the named original fields; never wire-layout overlays.
 struct ModelUnit {
     u32 be_flag = 1;
@@ -114,6 +129,7 @@ class ModelInfoManager;
 class ModelPartsManager;
 struct ModelCpu : ModelPart {
     ModelCpu();
+    u32 guid{};
     u8 nParts{}, kindid{}, ot_type{}, z_mode{}, alpha_omit{}, TevScaleGroup{}, CullMode{},
         Shader_type{}, Refract_pow{}, Fix_parts{}, r_no_0{}, r_no_1{}, r_no_2{}, r_no_3{}, id{}, type{};
     Vec speed{}, pos_old{}, Wall_norm{}, Fix_pos{};
@@ -124,7 +140,7 @@ struct ModelCpu : ModelPart {
     u32 Shd_color{}, inscreen_pos{};
     u8 invisible_trg{}, invisible_old{}, invisible_mode{}, invisible_busy{}, invisible_timer{};
     f32 invisible_factor{}, invisible_factor2{};
-    struct { u8 EnableMask{}; } LightInfo;
+    ModelLightInfo LightInfo;
     ModelInfoView *pModelInfo{}, *pShadowModelInfo{};
     ModelMotion Motion{}, *pMotionB{};
     u16 *pDblJnt{}, *pXFlip{};

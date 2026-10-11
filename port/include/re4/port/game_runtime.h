@@ -12,6 +12,8 @@
 #include "re4/port/player.h"
 #include "re4/port/merchant.h"
 #include "re4/port/collision.h"
+#include "re4/port/objects.h"
+#include "re4/port/effects.h"
 #include "re4_runtime_types.h"
 #include <array>
 #include <thread>
@@ -158,6 +160,8 @@ class GameRuntime final {
     SaveStateRuntime &saveState();
     LightRuntime &lights();
     PlayerRuntime &player();
+    ObjectRuntime &objects();
+    EffectRuntime &effects();
     MerchantRuntime &merchant();
     CollisionRuntime &sat();
     CollisionRuntime &eat();

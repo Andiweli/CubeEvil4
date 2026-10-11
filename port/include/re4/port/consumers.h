@@ -135,8 +135,11 @@ class EngineConsumers final {
 
   private:
     friend class PlayerRuntime;
+    friend struct NativeObjectManager;
     // Constructor rollback only, never a public room/model release shortcut.
     void releaseUnpublishedModel(ConsumerHandle,const std::shared_ptr<ModelCpu>&);
+    // Object manager owns the stable native slot and has already validated it.
+    void releaseObjectModel(ConsumerHandle,ModelCpu &);
     void checkModelReferences(ConsumerHandle) const;
     struct Model;
     struct Message;

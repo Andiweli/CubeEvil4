@@ -1,6 +1,8 @@
 #pragma once
 #include "re4/port/game_runtime.h"
 #include "re4_player_types.h"
+#include "re4/port/objects.h"
+#include "re4/port/effects.h"
 #include <map>
 
 namespace re4::port {
@@ -8,7 +10,7 @@ using cModelInfo = ModelInfoView;
 using cModel = ModelCpu;
 using cParts = ModelPart;
 using cPlBody = PlayerBodyCpu;
-using cObj = NativePlayerObject; // Opaque until the generic object owner is integrated.
+using cObj = NativeObject;
 void ShapeEnd(void *);
 void SetOriginalShape(ModelInfoView *);
 [[noreturn]] inline int ShapeSet(void *, int, void *, int) {
@@ -19,15 +21,16 @@ inline void memclr_asm(ShapeKey *key, std::size_t size) {
     *key=ShapeKey{};
 }
 struct PlayerDomain {
-    // A live generic object pool is not yet available. This boundary refuses
-    // access; returning an invented empty list would bypass weaponRelease.
-    struct ObjectBoundary {
-        [[noreturn]] NativePlayerObject *getActiveWork() { throw MissingGameConsumer("cPlayer::weaponRelease/ObjMgr.getActiveWork (live generic object pool)"); }
-        [[noreturn]] NativePlayerObject *getNext(NativePlayerObject*) { throw MissingGameConsumer("ObjMgr.getNext/live object lifetime"); }
-        [[noreturn]] void destroy(NativePlayerObject*) { throw MissingGameConsumer("ObjMgr.destroy/weapon object lifetime"); }
-        [[noreturn]] void destroyNow(NativePlayerObject*) { throw MissingGameConsumer("ObjMgr.destroyNow/weapon object lifetime"); }
-        [[noreturn]] int id(NativePlayerObject*) { throw MissingGameConsumer("ObjMgr.id/live object lifetime"); }
-    } ObjMgr;
+    ObjectRuntime &ObjMgr;
+    EffectRuntime &effects;
+    struct CameraBoundary {
+        int areaNo{};
+        [[noreturn]] void endScope(){throw MissingGameConsumer("CamCtrl.endScope/live camera");}
+        [[noreturn]] void LowerBinocular(){throw MissingGameConsumer("CamCtrl.LowerBinocular/live camera");}
+        [[noreturn]] void endPushObject(){throw MissingGameConsumer("CamCtrl.endPushObject/live camera");}
+    } CamCtrl;
+    struct LightBoundary {[[noreturn]] void update(int,int){throw MissingGameConsumer("LightMgr.update/special player camera");}} LightMgr;
+    [[noreturn]] void CameraMove(){throw MissingGameConsumer("CameraMove/full player camera");}
     NativeGameState *pG;
     struct System { u8 &pad_type; } system;
     System *pSys=&system;
@@ -86,8 +89,8 @@ struct PlayerDomain {
         void mes(int,int,const char *message) { messages.emplace_back(message); }
     } log;
     Log *pLog=&log;
-    PlayerDomain(NativeGameState &g,KEY &key,u8 &pad,GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s)
-        :pG(&g),system{pad},Key(key),heaps(h),models(m),scheduler(s) {}
+    PlayerDomain(NativeGameState &g,KEY &key,u8 &pad,GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s,ObjectRuntime &o,EffectRuntime &e)
+        :ObjMgr(o),effects(e),pG(&g),system{pad},Key(key),heaps(h),models(m),scheduler(s) {}
     void PlayerInit();
     void PlayerLifeReset();
     void ReleaseWepData();
@@ -116,12 +119,13 @@ struct PlayerDomain {
     void *arcEntry(void *base,u32 slot) const {
         if(base!=archive.data) throw std::invalid_argument("player archive base owner");return arc(slot);
     }
-    [[noreturn]] int endCamera() { throw MissingGameConsumer("cPlayer::endCamera/live CameraControl"); }
+    int endCamera();
     [[noreturn]] void EspDataRelease(ESP_OWNER,int,int) { throw MissingGameConsumer("EspDataRelease/live effect owners"); }
-    [[noreturn]] void EffectEspDelete(int,ESP_CORE_KIND,PlayerDomain*,int) { throw MissingGameConsumer("EffectEspDelete/live effect list"); }
-    [[noreturn]] void EffectEspgenDelete(int,ESP_CORE_KIND,PlayerDomain*) { throw MissingGameConsumer("EffectEspgenDelete/live effect list"); }
-    [[noreturn]] void EffectEfmDelete(int,ESP_CORE_KIND,PlayerDomain*) { throw MissingGameConsumer("EffectEfmDelete/live effect list"); }
-    [[noreturn]] void weaponLoad(int,int) { throw MissingGameConsumer("cPlayer::weaponLoad/ReadWepData/native weapon module"); }
+    void EffectEspDelete(int a,ESP_CORE_KIND b,PlayerDomain* c,int model) {if(model)throw std::invalid_argument("native player effect model selector");effects.deleteSprites(a,b,c);}
+    void EffectEspgenDelete(int a,ESP_CORE_KIND b,PlayerDomain* c) {effects.deleteGenerators(a,b,c);}
+    void EffectEfmDelete(int a,ESP_CORE_KIND b,PlayerDomain* c) {effects.deleteModels(a,b,c);}
+    void weaponLoad(int,int);
+    [[noreturn]] void ReadWepData(int,int) {throw MissingGameConsumer("ReadWepData/owned weapon archive and native WeaponInitFunc module binding");}
     [[noreturn]] void weaponInit() { throw MissingGameConsumer("cPlayer::weaponInit/WeaponInitFunc"); }
     [[noreturn]] void init1() { throw MissingGameConsumer("cPlayer::init1/YarareInit/cloth/light/collision setup"); }
     [[noreturn]] void EspDataLoad(void*,ESP_OWNER,int) { throw MissingGameConsumer("EspDataLoad/native effect data owners"); }
@@ -149,6 +153,9 @@ struct PlayerDomain {
 #define DbgFlagChk(g,n) ((g)->Debug_flg[(n)/32] & (0x80000000u >> ((n)%32)))
 #define DbgFlagOff(g,n) ((g)->Debug_flg[(n)/32] &= ~(0x80000000u >> ((n)%32)))
 #define SysFlagChk(g,n) ((g)->System_flg & (0x80000000u >> (n)))
+#define StaFlagChk(g,n) ((g)->Status_flg[(n)/32] & (0x80000000u >> ((n)%32)))
+#define StaFlagOff(g,n) ((g)->Status_flg[(n)/32] &= ~(0x80000000u >> ((n)%32)))
+#define SpfFlagOff(g,n) ((g)->Stop_flg &= ~(0x80000000u >> (n)))
 #define ScfFlagChk(g,n) ((g)->Scenario_flg[(n)/32] & (0x80000000u >> ((n)%32)))
 #define VALID_PTR(p) ((p)!=nullptr)
 #define HALT() throw std::runtime_error("original Leon model creation HALT")
