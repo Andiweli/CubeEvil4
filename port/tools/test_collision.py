@@ -46,6 +46,9 @@ def oracle(data,a,b,flags,mask,effect):
         closest=t;point=p;normal=list(n);attribute=attr|0x1000000
     return dict(attribute=attribute,point=point,normal=normal)
 
+from retroid_adb import hardware_sequence
+
+@hardware_sequence()
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--data',required=True);p.add_argument('--output',required=True)
     p.add_argument('--host-exe');p.add_argument('--adb');p.add_argument('--serial');p.add_argument('--repeat',type=int,default=2)
@@ -103,4 +106,5 @@ def main():
             execute([a.adb,'-s',a.serial,'shell',target],bits,abi,paths)
     write_json(out/'collision-summary.json',dict(kind='isolated_original_queries_not_actor_simulation',results=results))
 
-if __name__=='__main__':main()
+if __name__ == '__main__':
+    raise SystemExit(main())

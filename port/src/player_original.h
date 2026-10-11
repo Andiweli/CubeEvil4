@@ -32,6 +32,7 @@ struct PlayerDomain {
     ResourceLease archive;
     AssetIndex archiveIndex;
     std::optional<ConsumerHandle> modelHandle;
+    std::shared_ptr<ActorModelCpu> actorModel;
     PlayerBodyCpu body{nullptr};
     PlayerBodyCpu *Body=&body;
     std::array<void *,0x6D> motionTable{}; // Original 0x1B4 / sizeof(GC pointer).

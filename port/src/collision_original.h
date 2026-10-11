@@ -31,7 +31,9 @@ struct cSatMgr {
     int hitCheck2(Vec*,Vec*,Vec*,Vec**,int,int);
     int hitCheck(Vec*,Vec*,Vec*,Vec*,int,int);
     f32 getFloor(Vec*,Vec**,f32,f32,int);
+    int polySphereCk(Vec*,Vec*,f32,int,Vec*,int);
 };
+extern thread_local NativeGameState *pG;
 extern thread_local int SEck;
 extern thread_local u8 polyBit[0x400];
 extern thread_local cSat *pBypassAt;
@@ -42,7 +44,20 @@ void InterVectorXYZ(Vec*,Vec*,Vec*,f32);
 u32 At_poly_line_ck(cSat*,Vec*,SAT_POLY*,Vec*,Vec*,u32,u32);
 int blkPolyLineCk(cSat*,cSatBlock*,Vec*,Vec*,int,int,Vec*,Vec**);
 int blkPolyLineCkCore(cSat*,cSatBlock*,Vec*,Vec*,int,int,Vec*,Vec**);
+f32 C_VECSquareDistance(const Vec*,const Vec*);
+f32 At_surface_point_rel(Vec*,Vec*,Vec*);
+int At_surface_line_ck(Vec*,Vec*,Vec*,Vec*,Vec*);
+int At_poly_point_rel(Vec*,Vec*,Vec*);
+u32 At_poly_sphere_ck2(Vec*,Vec*,u32,Vec*,Vec*,f32,u32,u32);
+u32 At_poly_sphere_ck(cSat*,SAT_POLY*,Vec*,Vec*,f32,u32,u32);
+void polyBitSet(u32);
+int polyBitCk(u32);
+int blkPolySphereCkCore(cSat*,cSatBlock*,Vec*,Vec*,f32,int,Vec*,int);
+int blkPolySphereCk(cSat*,cSatBlock*,Vec*,Vec*,f32,int,Vec*,int);
 } // namespace re4::port::collision
 #undef PSVECDotProduct
 #define PSVECDotProduct C_VECDotProduct
+#define PSVECSquareDistance C_VECSquareDistance
+#define PSVECSquareMag C_VECSquareMag
+#define PSVECNormalize C_VECNormalize
 #define DbgFlagChk(g,n) (((g)->Debug_flg[(n)/32] & (0x80000000u>>((n)%32)))!=0)

@@ -101,7 +101,7 @@ class Sources(unittest.TestCase):
             output=Path(folder)
             generate_consumers.generate(ROOT,output)
             manifest=json.loads((output/'consumer-manifest.json').read_text())
-            self.assertEqual(len(manifest['functions']),111)
+            self.assertEqual(len(manifest['functions']),118)
             code=(output/'consumer_control.cpp').read_text()
             self.assertIn('void InverseKinematics(',code)
             self.assertIn('void ikCalc(',code)

@@ -87,6 +87,9 @@ def verify_model(got,raw,motion=None):
                 count+=1
     return dict(scalar_checks=count,psq_quantized_difference=0,weight_matrix_max_abs_error=matrix_error,weight_linear_max_abs_error=linear_error,weight_translation_max_abs_error=translation_error,fcv_max_abs_error=motion_error,fcv_max_abs_error_by_target=motion_errors)
 
+from retroid_adb import hardware_sequence
+
+@hardware_sequence()
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--data',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--host-exe',type=Path);p.add_argument('--adb',type=Path);p.add_argument('--serial',default='dbdcacc');p.add_argument('--repeat',type=int,default=2)
     a=p.parse_args();root=Path(__file__).resolve().parents[2];data=a.data.resolve();out=a.output.resolve()
@@ -165,4 +168,5 @@ def main():
         print('ARM32/ARM64 native float matrix/pose maximum absolute difference',delta,flush=True)
         print('PASS ARM32/ARM64 original skinning results byte-identical',flush=True)
     (out/'skinning-summary.json').write_text(json.dumps(abi_reports,indent=2)+'\n')
-if __name__=='__main__':main()
+if __name__ == '__main__':
+    raise SystemExit(main())

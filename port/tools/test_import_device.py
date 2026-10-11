@@ -16,6 +16,9 @@ sys.stdout.reconfigure(encoding="utf-8",errors="backslashreplace")
 from original_import.pipeline import external_root, write_json, sha
 
 
+from retroid_adb import hardware_sequence
+
+@hardware_sequence()
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adb",required=True)
@@ -85,4 +88,5 @@ def main():
     print("PASS: every real-data case and repeated ABI trace matches",flush=True)
 
 
-if __name__=="__main__":main()
+if __name__ == '__main__':
+    raise SystemExit(main())

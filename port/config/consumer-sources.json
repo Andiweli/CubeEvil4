@@ -1,4 +1,5 @@
 {
+  "src/game/pl_class.cpp": "1ab9c84393322136c114c551c5572683808fa5892f8e9e1a9592a88baf05c434",
   "src/game/model.cpp": "e8bd5ee322737b65b9dcb9a3fc629a22603d1a22fcc170cdaf8f56a90cbf7a34",
   "include/model.h": "0b5e63ccbc7ae21404527bf100e792804c495bc82f4bd417ef966ab668ac12a2",
   "src/game/event.cpp": "359f09e0d543897fea8fdac0b50140438e6556c6c394069f0e3593bc05ad78bf",

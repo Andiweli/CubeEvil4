@@ -127,14 +127,17 @@ def generate(root, output):
         for before,after in changes:
             if body.count(before)!=1: raise ValueError('motion adaptation changed: '+before)
             body=body.replace(before,after)
-        # Matching-only compiler anchors; these have no gameplay effects.
+        # A tied output/input is a real assignment (MotionHokan's prevMat
+        # destination). The donor generate_motion64.py retains it identically.
+        body=re.sub(r'asm\(""\s*:\s*"=r"\((\w+)\)\s*:\s*"0"\(([^)]+)\)\);',r'\1 = \2;',body)
+        # Remaining matching-only compiler anchors have no gameplay effects.
         body=re.sub(r'\basm(?: volatile)?\(""[^;]*;','',body)
         body=re.sub(r'\bregister (?=int)','',body)
         body=re.sub(r' asm\("r\d+"\)','',body)
         body=re.sub(r'    Fcc(?:F32|S16) c[fs];\n','',body)
         cpp.extend([f'#line {line} "{(root/"src/game/motion.cpp").as_posix()}"',body])
         entries.append(dict(source='src/game/motion.cpp',signature=sig,line=line,
-                            adaptations=[a for a,_ in changes]+(['three original pG->Speed reads use the bounded native frame speed'] if sig=='u16 MotionSequenceCtrl(MOTION_INFO* w)' else [])+['remove codeless PPC anchors; BE scalar macros']))
+                            adaptations=[a for a,_ in changes]+(['three original pG->Speed reads use the bounded native frame speed'] if sig=='u16 MotionSequenceCtrl(MOTION_INFO* w)' else [])+['preserve tied-register assignments; remove codeless PPC anchors; BE scalar macros']))
     add_motion('void MotionSetCore(cModel* m, void* w_, void* data_, void* seq_, int hokan, int flags, int frame)',[
         ('DbgFlagChk(pG, DBG_TEST_MODE)','false'),
         ('u16* seq = (u16*) seq_;','MotionSequenceView* seq = (MotionSequenceView*) seq_;'),
@@ -155,6 +158,18 @@ def generate(root, output):
     add_motion('void MotionMoveCore(cModel* pEm, MOTION_INFO* w, CAMERA* pCamera)', [('pPL == pEm','pEm->kindid == 0 && pEm->id == 0')])
     add_motion('u16 MotionSequenceCtrl(MOTION_INFO* w)')
     add_motion('int MotionCheckCrossFrame(MOTION_INFO* w, f32 frame)')
+    add_motion('static inline int nearZero(f32 d, f32 eps)')
+    add_motion('void MotionHokan(cModel* m, MOTION_INFO* w)')
+    add('src/game/math_sub.cpp','void VecLinearCombination(Vec* a, f32 c0, Vec* b, f32 c1, Vec* vec)',[])
+    for sig in ['cMot3::cMot3()',
+                'void cMot3::set(cModel* m, void* m0, void* m1, void* m2, void* seq, u8 b, int c, u16 d, u16 e)',
+                'void cMot3::set0(void* m, u8 a, int b)', 'void cMot3::move(f32 r0)']:
+        body,line=function((root/'src/game/pl_class.cpp').read_text(),sig)
+        body=body.replace('cMot3::cMot3()', 'MotionBlend3::MotionBlend3()').replace('cMot3::','MotionBlend3::')
+        body=body.replace('    register int rb asm("r9");\n    int mode = (u8) rb;', '    int mode = b; // Actual incoming u8, independent of PPC argument registers.')
+        body=body.replace('((cEm*) m_pEm)', 'm_pEm').replace('((cEm*) m)', 'm')
+        cpp.extend([f'#line {line} "{(root/"src/game/pl_class.cpp").as_posix()}"',body])
+        entries.append(dict(source='src/game/pl_class.cpp',signature=sig,line=line,adaptations=['typed native model owner; incoming b replaces pinned r9; original branches unchanged']))
     add_motion('void MotionGetSpeed(cModel* pEm, MOTION_INFO* w, int flg, Vec* Pos_move, Vec* Ang_move)')
     add_motion('void MotionAddSpeed(cModel* pEm, MOTION_INFO* w, Vec* Pos_move, Vec* Ang_move)')
     add_motion('u32 MotionMove(cModel* pEm, CAMERA* pCamera)', [

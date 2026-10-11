@@ -27,6 +27,20 @@ def generate(root, output):
         ('src/game/at_sub.cpp','u32 Get_poly_attr(SAT_POLY* poly)',[
             ('return (((u16*) poly)[8] << 16) | ((u16*) poly)[9];','return poly->m_Status; // Native endian scalar, not BE halfword overlay.')]),
         ('src/game/at_sub.cpp','void InterVectorXYZ(Vec* cross, Vec* a, Vec* b, f32 rate)',[]),
+        ('src/lib/vec.c','f32 C_VECSquareDistance(const Vec* a, const Vec* b)',[]),
+        ('src/game/at_sub.cpp','f32 At_surface_point_rel(Vec* a, Vec* norm, Vec* point)',[]),
+        ('src/game/at_sub.cpp','int At_surface_line_ck(Vec* cross, Vec* a, Vec* norm, Vec* point1, Vec* point2)',[]),
+        ('src/game/at_sub.cpp','int At_poly_point_rel(Vec* poly, Vec* nrm, Vec* p)',[]),
+        ('src/game/at_sub.cpp','u32 At_poly_sphere_ck2(Vec* tri, Vec* n, u32 attr, Vec* oldPos, Vec* pos, f32 r, u32 flag, u32 mask)',[
+            ('eprintf(80, 160, 0, 0, "HIT ERROR %d", hit);','throw std::runtime_error("original sphere HIT ERROR");')]),
+        ('src/game/at_sub.cpp','u32 At_poly_sphere_ck(cSat* atp, SAT_POLY* poly, Vec* pos0, Vec* pos1, f32 r, u32 flag, u32 mask)',[]),
+        ('src/game/atari.cpp','void polyBitSet(u32 pno)',[]),
+        ('src/game/atari.cpp','int polyBitCk(u32 pno)',[]),
+        ('src/game/atari.cpp','int blkPolySphereCkCore(cSat* pAt, cSatBlock* pBlock, Vec* pos0, Vec* pos1, f32 radius, int flag, Vec* pNorm, int mask)',[
+            ('pAt->disp(*idx, 0x40FF0000, 1);','throw MissingGameConsumer("SAT debug polygon rendering");')]),
+        ('src/game/atari.cpp','int blkPolySphereCk(cSat* pAt, cSatBlock* pBlock, Vec* pos0, Vec* pos1, f32 radius, int flag, Vec* pNorm, int mask)',[
+            ('(cSatBlock*) pBlock->idx','pBlock->children')]),
+        ('src/game/atari.cpp','int cSatMgr::polySphereCk(Vec* pos0, Vec* pos1, f32 radius, int flag, Vec* pNorm, int mask)',[]),
         ('src/game/at_sub.cpp','u32 At_poly_line_ck(cSat* atp, Vec* cross, SAT_POLY* poly, Vec* vert0, Vec* vert1, u32 flag, u32 mask)',[]),
         ('src/game/atari.cpp','int cSatBlock::lineOverlap(Vec* center, Vec* w, Vec* v)',[]),
         ('src/game/atari.cpp','static inline int lineCross(Vec* a, Vec* b, Vec* c, Vec* d)',[]),
@@ -51,6 +65,14 @@ def generate(root, output):
         for a,b in changes:
             if a not in body:raise ValueError('Collision adaptation missing: '+a)
             body=body.replace(a,b)
+        if sig.startswith('int cSatMgr::polySphereCk('):
+            # The two PPC counter blocks observe profiling only. Fail explicitly
+            # in that debug mode; never emulate nonexistent hardware counters.
+            pattern=r'    if \(pG->debug_mode == 0x14\) \{.*?\n    \}'
+            body,count=re.subn(pattern,'    if (pG->debug_mode == 0x14) throw MissingGameConsumer("SAT PPC performance counters");',body,flags=re.S)
+            if count!=2:raise ValueError('SAT profiling blocks changed')
+            body=body.replace('    u32 idx = 0;','')
+            changes=changes+[('two PPC profiling-only blocks','explicit unsupported debug profiling mode')]
         code += [f'#line {line} "{(root/path).as_posix()}"',body]
         entries.append(dict(source=path,signature=sig,line=line,adaptations=[a for a,b in changes]))
     code.append('}')

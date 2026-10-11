@@ -8,6 +8,7 @@ namespace re4::port::collision {
 thread_local int SEck{};
 thread_local u8 polyBit[0x400]{};
 thread_local cSat *pBypassAt{};
+thread_local NativeGameState *pG{};
 }
 namespace re4::port {
 namespace {
@@ -95,4 +96,16 @@ void CollisionRuntime::setCoord(CollisionHandle h,Vec pos,Vec rot){finite(pos);f
 CollisionSnapshot CollisionRuntime::snapshot(CollisionHandle h) const {auto &a=impl_->get(h);return {a.sat.vertex_num,a.sat.normal_num,a.sat.edge_num,a.sat.polygon_num,u32(a.blocks.size()),a.sat.enabled};}
 CollisionHit CollisionRuntime::hitCheck(Vec a,Vec b,int flags,int mask){auto &i=*impl_;i.check();finite(a);finite(b);CollisionHit h;h.point=b;h.attribute=u32(i.manager.hitCheck(&a,&b,&h.point,&h.normal,flags,mask));finite(h.point);if(h.attribute)finite(h.normal);return h;}
 f32 CollisionRuntime::getFloor(Vec pos,f32 above,f32 below,int mask){impl_->check();finite(pos);if(!std::isfinite(above)||!std::isfinite(below)||above<0||below<0)throw std::invalid_argument("SAT floor ray extent");return impl_->manager.getFloor(&pos,nullptr,above,below,mask);}
+bool CollisionRuntime::pushSphere(Vec old,Vec &pos,f32 radius,Vec &normal,int flags,int mask) {
+    auto &i=*impl_;i.check();finite(old);finite(pos);
+    if(!std::isfinite(radius) || radius<=0)throw std::invalid_argument("SAT sphere radius");
+    auto *saved=collision::pG;auto type=collision::SEck;
+    collision::pG=i.manager.pG;collision::SEck=i.manager.type;
+    Vec resolved=pos,n{};
+    try {
+        bool hit=i.manager.polySphereCk(&old,&resolved,radius,flags,&n,mask)!=0;
+        finite(resolved);finite(n);pos=resolved;normal=n;
+        collision::pG=saved;collision::SEck=type;return hit;
+    } catch(...) {collision::pG=saved;collision::SEck=type;throw;}
+}
 } // namespace re4::port

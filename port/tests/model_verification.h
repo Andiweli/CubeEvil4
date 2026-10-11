@@ -1,5 +1,6 @@
 #pragma once
 #include "consumer_verification.h"
+#include "re4/port/motion.h"
 #include <cmath>
 namespace re4::port::tests {
 // Isolated format fixtures, explicitly not original room assets.
@@ -75,6 +76,23 @@ template<class Checks> void modelInitializationTests(Checks &c,GameRuntime &game
     c.test(engine.modelCount()==0,"all original model objects released");
     engine.configureModelPools(2,8);
     auto motionModel=engine.initializeModel(bin,tpl,"motion-target");
+    {
+        auto owner=std::make_shared<ActorModelCpu>();
+        c.test(owner->be_flag==0x21 && owner->kindid==0 && !owner->dmg.m_Flag && !owner->dmg.m_Timer,
+               "actual original cEm/cDmgInfo constructors initialize typed native base work");
+        auto actor=engine.initializeModel(bin,tpl,"actor-base",false,0,0,owner);
+        c.test(&engine.model(actor)==static_cast<ModelCpu*>(owner.get()) && owner->pList->pParent==owner.get(),
+               "original actor root is the model root; no duplicate model or cEm overlay cast");
+        c.rejects([&]{engine.initializeModel(bin,tpl,"duplicate",false,0,0,owner);},"reject duplicate actor-model registration");
+        std::vector<u8> pose(40);pose[2]=1;pose[3]=0xf0;pose[4]=4;pose[5]=1;
+        word(pose,8,40);word(pose,12,16);
+        for(u32 axis=0;axis<3;++axis)pose[17+axis*8]=1;
+        engine.initializeMotion(actor,bytes(std::move(pose)));
+        c.test(owner->Motion.pMot!=nullptr,"external actor root retains its owned original motion");
+        engine.releaseModel(actor);
+        c.test(!owner->mm && !owner->pm && !owner->pList && !owner->pModelInfo && !owner->Motion.pMot && !owner->pMotionB,
+               "native actor outlives pool release without stale parts or motion references");
+    }
     std::vector<u8> fcv(128,0);
     fcv[1]=10; fcv[2]=1; fcv[4]=4; fcv[5]=1;
     word(fcv,8,128); word(fcv,12,16);
@@ -83,6 +101,31 @@ template<class Checks> void modelInitializationTests(Checks &c,GameRuntime &game
         word(fcv,at+18,axis==0?0x41200000:axis==1?0x41a00000:0x41f00000);
     }
     auto motionBytes=bytes(fcv);
+    // Analytic adapter fixtures execute the complete original Hokan body.
+    // They are numerical references, never invented gameplay/animation data.
+    {
+        ModelCpu target;ModelPart part;target.pList=&part;part.pParent=&target;
+        target.scale=target.r_scale={1,1,1};part.scale={1,1,1};
+        part.prevMat[0][0]=part.prevMat[1][1]=part.prevMat[2][2]=1;
+        part.l_mat[0][0]=part.l_mat[1][1]=0;
+        part.l_mat[0][1]=-1;part.l_mat[1][0]=1;part.l_mat[2][2]=1;
+        part.l_mat[0][3]=8;part.motParts.flags=0x10000000;
+        target.Motion.Hokan_frame=target.Motion.Hokan_cnt=2;
+        MotionHokan(&target,&target.Motion);
+        const auto root=std::sqrt(.5f);
+        c.test(target.Motion.Hokan_cnt==1 && std::fabs(part.l_mat[0][3]-4)<1e-6f &&
+               std::fabs(part.l_mat[0][0]-root)<1e-6f && std::fabs(part.l_mat[1][0]-root)<1e-6f,
+               "original Hokan translation/slerp analytic half pose");
+        c.test(part.prevMat[0][3]==4 && part.prevMat[0][0]==part.l_mat[0][0] &&
+               !(part.motParts.flags&0x10000000),"PPC tied prevMat destination preserved, consumed flag cleared");
+        target.scale=target.r_scale={2,2,2};part.scale={.5f,.5f,.5f};
+        part.motParts.flags=0x10000000;
+        part.l_mat[0][0]=part.l_mat[1][1]=part.l_mat[2][2]=1;
+        part.l_mat[0][1]=part.l_mat[1][0]=0;
+        MotionHokan(&target,&target.Motion);
+        c.test(!target.Motion.Hokan_cnt && part.scale.x==.5f && part.scale.y==.5f &&
+               part.scale.z==.5f && !(part.motParts.flags&0x20000),"original parent scale cancellation, final count");
+    }
     engine.initializeMotion(motionModel,motionBytes,5,1,3);
     auto &work=engine.model(motionModel).Motion;
     c.test(work.Joint_num==1 && work.Seq_frame==5 && work.Hokan_cnt==3 && work.Seq_speed==1,
@@ -96,6 +139,28 @@ template<class Checks> void modelInitializationTests(Checks &c,GameRuntime &game
     }
     c.rejects([&]{engine.sampleMotion(motionModel,1,0);},"motion joint range");
     c.rejects([&]{engine.sampleMotion(motionModel,0,11);},"motion frame range");
+    auto negativeFcv=fcv;
+    for(u32 axis=0;axis<3;++axis)word(negativeFcv,16+axis*30+18,axis==0?0xc1200000:axis==1?0xc1a00000:0xc1f00000);
+    auto negative=bytes(negativeFcv);
+    engine.initializeMotionBlend(motionModel,motionBytes,motionBytes,negative,{},2,0);
+    auto &cpu=engine.model(motionModel);
+    auto *blendWork=cpu.pMotionB;
+    c.test(blendWork && blendWork->Brate==0 && blendWork->Hokan_cnt==2,"actual cMot3::set attaches native stable work");
+    engine.setMotionBlendRate(motionModel,-.5f);
+    c.test(cpu.pMotionB==blendWork && blendWork->pMot->streams[0]==negative.data+16 && blendWork->Brate==.5f,
+           "original negative crossing selects mot2 without untyped cEm cast");
+    for(int tick=0;tick<4;++tick){cpu.matCalc();engine.advanceMotion(motionModel);}
+    c.test(!work.Hokan_cnt && work.Seq_frame==4 && blendWork->Seq_frame==4 &&
+           std::fabs(cpu.getPartsPtr(1)->l_mat[0][3])<1e-5f,"actual original MotionMove/cMot3 matrix blend");
+    engine.setMotionBlendRate(motionModel,2);
+    c.test(blendWork->pMot->streams[0]==motionBytes.data+16 && blendWork->Brate==1,"original positive crossing selects mot1 and clamps");
+    c.rejects([&]{engine.setMotionBlendRate(motionModel,std::numeric_limits<f32>::quiet_NaN());},"nonfinite blend input");
+    engine.clearMotionBlend(motionModel);c.test(!cpu.pMotionB,"detach before freeing secondary work");
+    engine.initializeMotionBlend(motionModel,motionBytes,motionBytes,negative,{},0,1);
+    engine.setMotionBlendRate(motionModel,.25f);cpu.matCalc();engine.advanceMotion(motionModel);
+    c.test((cpu.pMotionB->Mot_flag&0x80000000) && (work.Mot_attr&0x2000),"original additive cMot3 mode reaches MotionMove path");
+    engine.initializeMotion(motionModel,motionBytes);
+    c.test(!cpu.pMotionB,"ordinary motion change retires owned cMot3 work");
     auto badMotion=fcv; badMotion[5]=2;
     c.rejects([&]{engine.initializeMotion(motionModel,bytes(badMotion));},"motion references missing model part");
     badMotion=fcv; word(badMotion,12,127);

@@ -31,7 +31,9 @@ ResourceLease PlayerDomain::lease(void *p) const {
 }
 ModelInfoView *PlayerDomain::modelInit(void *bin,void *tpl) {
     if(modelHandle) throw std::logic_error("Leon model initialized twice without release");
-    modelHandle=models.initializeModel(lease(bin),lease(tpl),"pl00",SysFlagChk(pG,SYS_INVISIBLE)!=0);
+    actorModel=std::make_shared<ActorModelCpu>();
+    modelHandle=models.initializeModel(lease(bin),lease(tpl),"pl00",SysFlagChk(pG,SYS_INVISIBLE)!=0,0,0,actorModel);
+    trace.push_back("cDmgInfo::cDmgInfo/cEm::cEm/initWork:original");
     auto &cpu=models.model(*modelHandle);
     body=PlayerBodyCpu(&cpu);
     return cpu.pModelInfo;
@@ -101,7 +103,7 @@ void PlayerRuntime::releaseLeonAssets() {
     impl_->check();auto &d=impl_->original;
     if(d.modelHandle || d.archive.owner) impl_->check(true);
     if(d.modelHandle) d.models.releaseModel(*d.modelHandle);
-    d.modelHandle.reset();d.archive={};d.archiveIndex={};d.motionTable.fill(nullptr);d.bindings.clear();d.body=PlayerBodyCpu(nullptr);
+    d.modelHandle.reset();d.actorModel.reset();d.archive={};d.archiveIndex={};d.motionTable.fill(nullptr);d.bindings.clear();d.body=PlayerBodyCpu(nullptr);
 }
 void PlayerRuntime::clear() {
     impl_->check(true);releaseLeonAssets();auto &d=impl_->original;

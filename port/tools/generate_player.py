@@ -55,6 +55,11 @@ def generate(root, output):
         entries.append(dict(source=path,signature=sig,line=line,adaptations=
             (['native domain qualification'] if member else [])+[old for old,_ in changes]))
     add('src/game/player.cpp','static inline void U16Set2(u16& a, u16& b, u16 v)',member=False)
+    for sig,native in [('cDmgInfo::cDmgInfo()','ActorDamageCpu::ActorDamageCpu()'),
+                       ('void cDmgInfo::clear()','void ActorDamageCpu::clear()'),
+                       ('cEm::cEm()','ActorModelCpu::ActorModelCpu()'),
+                       ('int cEm::initWork()','int ActorModelCpu::initWork()')]:
+        add('src/game/em.cpp',sig,[(sig,native)],member=False)
     for sig in ['void PlayerInit()','void PlayerLifeReset()']:
         add('src/game/player.cpp',sig,[(sig+'\n{',sig+'\n{\n    trace.push_back("'+sig.split('(')[0].split()[-1]+':original");')])
     for sig in ['void ReleaseWepData()','void InitModule(MODULE_DAT* m)']:
@@ -85,7 +90,7 @@ def generate(root, output):
     (output/'player_control.cpp').write_text('\n\n'.join(cpp)+'\n',encoding='utf-8')
     (output/'player-manifest.json').write_text(json.dumps(dict(sources=hashes,functions=entries,
         layouts='Named native fields; no GC MODULE_DAT, cPlayer or cEm memory overlay. Hand selectors widened to uintptr_t.',
-        scope='Complete PlayerInit reset; original Leon CPU model/motion helpers, not cPlayer/cPlLeon construction.'),indent=2)+'\n')
+        scope='Complete PlayerInit reset; cEm/cDmgInfo constructor prefix on the same owned model root; original Leon CPU model/motion helpers, not cPlayer/cPlLeon construction.'),indent=2)+'\n')
 
 
 if __name__=='__main__':

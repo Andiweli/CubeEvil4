@@ -11,6 +11,9 @@ from original_import.pipeline import external_root, sha, write_json
 from test_engine_loading import prepare, run
 
 
+from retroid_adb import hardware_sequence
+
+@hardware_sequence()
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--data', required=True)
@@ -148,4 +151,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

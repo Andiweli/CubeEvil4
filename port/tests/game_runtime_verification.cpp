@@ -34,6 +34,38 @@ struct Checks {
         test(rejected, why);
     }
 };
+// Numeric adapter fixture: original triangle/block kernels run on checked BE
+// storage. This geometry is solely a collision test, never a room resource.
+void sphereTests(Checks &c,GameRuntime &game) {
+    using namespace collision;
+    auto fixture=[](u32 attr) {
+        std::vector<u8> b(138);b[0]=0xff;b[3]=3;b[5]=1;b[7]=1;b[11]=1;b[19]=1;
+        auto scalar=[&](u32 at,f32 v){u32 bits;std::memcpy(&bits,&v,4);tests::word(b,at,bits);};
+        for(u32 i=0;i<9;++i)scalar(20+i*4,std::array<f32,9>{-10,0,-10,-10,0,10,10,0,-10}[i]);
+        scalar(60,1); // Normal (0,1,0).
+        // 20 + vertices(36) + normals(12) + edges(12) = 80.
+        b[83]=1;b[85]=2;tests::word(b,96,attr);
+        scalar(100,-10);scalar(104,-1);scalar(108,-10);
+        scalar(112,20);scalar(116,2);scalar(120,20);b[125]=1;
+        return tests::bytes(std::move(b));
+    };
+    auto &sat=game.sat();auto &eat=game.eat();sat.configure(2);eat.configure(1);
+    auto h=sat.create(fixture(SAT_ATTR_PL_NOHIT));Vec pos{-2,.25f,-2},normal;
+    c.test(!sat.pushSphere({-2,2,-2},pos,1,normal,SAT_TYPE_PL) && pos.y==.25f,"original SAT player attribute rejection");
+    c.test(sat.pushSphere({-2,2,-2},pos,1,normal,SAT_TYPE_EM|SAT_CK_FLOOR) && pos.y==1 && normal.y==1,"original sphere face push-out and normal");
+    pos={-2,.25f,-2};c.test(!sat.pushSphere({-2,2,-2},pos,1,normal,0,SAT_ATTR_PL_NOHIT),"original sphere attribute mask");
+    c.test(!sat.pushSphere({-2,-2,-2},pos,1,normal),"original back-face rejection");
+    sat.enable(h,false);c.test(!sat.pushSphere({-2,2,-2},pos,1,normal),"disabled collision work excluded");sat.enable(h,true);
+    pos={-2,.25f,-10.5f};c.test(sat.pushSphere({-2,2,-10.5f},pos,1,normal) &&
+        std::fabs(std::sqrt(pos.y*pos.y+(pos.z+10)*(pos.z+10))-.99f)<1e-5f,"original edge response retains 0.99 radius");
+    pos={-2,.25f,-10.5f};c.test(!sat.pushSphere({-2,2,-10.5f},pos,1,normal,SAT_EDGE_CANCEL),"original edge cancellation flag");
+    auto e=eat.create(fixture(EAT_ATTR_SMALL_NOHIT));pos={-2,.25f,-2};
+    c.test(!eat.pushSphere({-2,2,-2},pos,1,normal,SAT_TYPE_SMALL),"original EAT filter selected without prior line query");
+    c.test(eat.pushSphere({-2,2,-2},pos,1,normal,0) && pos.y==1,"original EAT sphere allowed with other type");
+    c.rejects([&]{sat.pushSphere({},pos,0,normal);},"invalid native radius rejected");
+    sat.destroy(h);eat.destroy(e);sat.clear();eat.clear();
+    c.rejects([&]{sat.snapshot(h);},"sphere work lifetime invalidates references");
+}
 // Explicit isolated consumer-order fixture. No actor/event/trigger implementation.
 struct ConsumerOrder final : SharedScenarioConsumers {
     std::vector<std::string> calls;
@@ -496,6 +528,7 @@ std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<Graph
     c.test(scheduler.allocatedStacks() == 0, "all stack owners released on reset");
     tests::consumerTests(c, game);
     tests::modelInitializationTests(c, game);
+    sphereTests(c,game);
     tests::lightParentTests(c, game);
     tests::texRenderTests(c, game);
     tests::openingTests(c, game);
@@ -521,6 +554,8 @@ std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<Graph
                                    "\"r120:original-init-TexRenderInit,opening-SceSleep,blocked-VI,12-cleanups\",")
         <<
            "\"models:original-modelInit-joints-matrices-bounds,pool-reuse-rollback\","
+           "\"H1:original-Hokan-slerp-scale-cancel,cMot3-owned-blend,typed-cEm-model-root\","
+           "\"H1:original-SAT-EAT-sphere-face-edge-mask-lifetime\","
            "\"consumers:original-model-joints,message-address,camera-state,event-callback\","
            "\"retirement:20-original-room-entries,pending-borrowers,frame-boundary\","
            "\"transitions:20-initialized-cross-stage,sleeping-borrowers,same-module-reentry\","

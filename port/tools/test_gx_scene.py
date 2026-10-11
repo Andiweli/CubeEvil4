@@ -271,6 +271,9 @@ def verify_material_programs(actual):
                     got=np.array(p['indirect_matrices'][:2])[:,:3]
                     if np.max(np.abs(got-quant))>1:raise ValueError('original indirect S0.10 matrix')
 
+from retroid_adb import hardware_sequence
+
+@hardware_sequence()
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--data',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--host-exe',type=Path);p.add_argument('--adb',type=Path);p.add_argument('--serial',default='dbdcacc');p.add_argument('--repeat',type=int,default=2)
     p.add_argument('--room',type=lambda s:int(s,16),default=0x120);p.add_argument('--event',default='Evd/r120s00.evd')
@@ -415,4 +418,5 @@ def main():
     if any(state!=semantic[0] for state in semantic):raise ValueError('OT/TEV/light states differ across runs or ABIs')
     print('PASS repeated native/ABI geometry, resource IDs and texture equality' if args.smd_only else 'PASS repeated native/ABI OT + TEV + light state equality',flush=True)
 
-if __name__=='__main__':main()
+if __name__ == '__main__':
+    raise SystemExit(main())

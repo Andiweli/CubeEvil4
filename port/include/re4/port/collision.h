@@ -8,7 +8,7 @@ struct CollisionHandle { u64 runtime{},epoch{},index{}; };
 struct CollisionHit { u32 attribute{}; Vec point{},normal{}; };
 struct CollisionSnapshot { u32 vertices{},normals{},edges{},polygons{},blocks{}; bool enabled{}; };
 // Owned BE-to-native boundary for the original segment/floor algorithms. This
-// does not replace cSatMgr::check, sphere push-out or actor ground resolution.
+// includes sphere push-out but does not replace cSatMgr::check/actor resolution.
 class CollisionRuntime final {
 public:
     explicit CollisionRuntime(NativeGameState &,bool effect=false);
@@ -22,6 +22,7 @@ public:
     CollisionSnapshot snapshot(CollisionHandle) const;
     CollisionHit hitCheck(Vec from,Vec to,int flags=0,int mask=0);
     f32 getFloor(Vec position,f32 above,f32 below,int mask=0);
+    bool pushSphere(Vec previous,Vec &position,f32 radius,Vec &normal,int flags=0,int mask=0);
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

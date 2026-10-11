@@ -4,6 +4,18 @@
 
 namespace re4::port {
 class GameplayHeaps;
+// Constructor prefix only: named native cEm model/damage fields. This is not
+// a cPlayer/cPlLeon, an EM_WORK_SIZE overlay, or a published gameplay actor.
+struct ActorDamageCpu {
+    u8 m_Flag{},m_Timer{};
+    ActorDamageCpu();
+    void clear();
+};
+struct ActorModelCpu : ModelCpu {
+    ActorDamageCpu dmg;
+    ActorModelCpu();
+    int initWork();
+};
 struct PlayerInitSnapshot {
     u8 kaiou{}, oldWeaponId{};
     bool weaponSlotEmpty{};

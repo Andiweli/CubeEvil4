@@ -5,6 +5,12 @@ param(
     [string[]]$Abis = @('armeabi-v7a', 'arm64-v8a')
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Retroid-Adb-Exclusive.ps1')
+Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
+    if ((& $Adb -s $Serial get-state) -ne 'device' -or $LASTEXITCODE -ne 0) {
+        throw 'Requested ADB serial is not connected/authorized.'
+    }
+
 $taskPortRoot = Split-Path -Parent $PSScriptRoot
 if (-not (Test-Path -LiteralPath $Adb)) { throw "adb missing: $Adb" }
 $taskSupported = ((& $Adb -s $Serial shell getprop ro.product.cpu.abilist) -join '').Trim().Split(',')
@@ -46,4 +52,6 @@ foreach ($taskAbi in $Abis) {
         throw 'Actual GPU readback/presentation evidence does not match this app ABI.'
     }
     $taskGraphics | Set-Content -LiteralPath (Join-Path $taskPortRoot "build\graphics-$taskAbi.json") -Encoding UTF8
+}
+
 }

@@ -117,9 +117,16 @@ void calcTplAddr(TexturePaletteView *t) {
 }
 ModelRuntime::ModelRuntime(u32 n,u32 p):infos(n),parts(p) {}
 ModelRuntime::~ModelRuntime() = default;
+ModelRuntime::Object::Object(std::shared_ptr<ModelCpu> m)
+    :owner(m?std::move(m):std::make_shared<ModelCpu>()),cpu(*owner) {}
 ModelRuntime::Object::~Object() {
     if(cpu.pm) cpu.releaseJoint();
     if(cpu.mm) cpu.releaseModelInfo();
+    cpu.pm=nullptr;cpu.mm=nullptr;
+    // An actor owner may outlive its pool registration. Retire all pointers to
+    // leases/parts released by the consumer, not just the manager addresses.
+    cpu.Motion={};cpu.pMotionB=nullptr;cpu.pFloor_norm=nullptr;
+    cpu.pDblJnt=nullptr;cpu.pXFlip=nullptr;
 }
 ModelInfoView *ModelRuntime::createAttachment(Object &object,ResourceLease bin,ResourceLease tpl,bool resetOffsets) {
     auto asset=std::make_unique<Asset>(bin,tpl,&object.cpu);
@@ -132,8 +139,10 @@ ModelInfoView *ModelRuntime::createAttachment(Object &object,ResourceLease bin,R
     if(!info) throw std::runtime_error("original attached ModInfoMgr.create failed");
     return info;
 }
-std::unique_ptr<ModelRuntime::Object> ModelRuntime::initialize(ResourceLease bin,ResourceLease tpl,bool invisible,u8 kindId,u32 initialFlags) {
-    auto object=std::make_unique<Object>();
+std::unique_ptr<ModelRuntime::Object> ModelRuntime::initialize(ResourceLease bin,ResourceLease tpl,bool invisible,u8 kindId,u32 initialFlags,std::shared_ptr<ModelCpu> owner) {
+    if(owner && (owner->mm || owner->pm || owner->pList || owner->pModelInfo))
+        throw std::logic_error("actor model already registered in a pool");
+    auto object=std::make_unique<Object>(std::move(owner));
     object->asset=std::make_unique<Asset>(bin,tpl);
     object->cpu.mm=&infos; object->cpu.pm=&parts; object->cpu.systemInvisible=invisible;
     // cModel::modelInit distinguishes actor kind 0 from room objects. Supply

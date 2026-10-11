@@ -65,7 +65,7 @@ class Sources(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output=Path(directory)/'output';generate(ROOT,output)
             functions=json.loads((output/'player-manifest.json').read_text())['functions']
-            self.assertEqual(len(functions),17)
+            self.assertEqual(len(functions),21)
             signatures={f['signature'] for f in functions}
             self.assertIn('void PlayerInit()',signatures)
             self.assertIn('void cPlLeon::setModel()',signatures)

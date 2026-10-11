@@ -141,6 +141,9 @@ struct EngineConsumers::Model {
     std::unique_ptr<MotionAsset> motion;
     std::unique_ptr<MotionSequenceView> sequence;
     std::unique_ptr<ModelRuntime::Object> initialized;
+    std::unique_ptr<MotionAsset> positive,negative;
+    // Destroy/detach before releasing CPU model and immutable motion leases.
+    std::unique_ptr<MotionBlend3> blend;
 };
 struct EngineConsumers::Message {
     ResourceLease bytes;
@@ -268,11 +271,11 @@ void EngineConsumers::checkModelRelease(ConsumerHandle h) const {
 void EngineConsumers::releaseModel(ConsumerHandle h) {
     checkModelRelease(h);if(!models_.erase(h.index)) throw std::logic_error("retired model reference");
 }
-ConsumerHandle EngineConsumers::initializeModel(ResourceLease bin,ResourceLease tpl,std::string name,bool invisible,u8 kindId,u32 initialFlags) {
+ConsumerHandle EngineConsumers::initializeModel(ResourceLease bin,ResourceLease tpl,std::string name,bool invisible,u8 kindId,u32 initialFlags,std::shared_ptr<ModelCpu> originalOwner) {
     check();
     if(!modelRuntime_) throw std::logic_error("original room model pool counts are required");
     auto model=std::make_unique<Model>(); model->name=std::move(name);
-    model->initialized=modelRuntime_->initialize(bin,tpl,invisible,kindId,initialFlags);
+    model->initialized=modelRuntime_->initialize(bin,tpl,invisible,kindId,initialFlags,std::move(originalOwner));
     auto id=next_++;
     if(!id) throw std::overflow_error("consumer handles exhausted");
     models_.emplace(id,std::move(model)); return {identity_,epoch_,id};
@@ -302,10 +305,44 @@ void EngineConsumers::initializeMotion(ConsumerHandle h,ResourceLease bytes,Reso
         throw MissingGameConsumer("MotionSetCore/attached camera owner not integrated");
     // Publish ownership before the original functions touch any pointer. On failure
     // retain the new asset: the partially initialized original work can reference it.
+    m.blend.reset();m.positive.reset();m.negative.reset();
     m.motion=std::move(asset);
     m.sequence=std::move(seq);
     MotionClear(&m.initialized->cpu,1);
     MotionSetCore(&m.initialized->cpu,&m.initialized->cpu.Motion,&m.motion->data,m.sequence.get(),hokan,flags,frame);
+}
+void EngineConsumers::initializeMotionBlend(ConsumerHandle h,ResourceLease primary,ResourceLease positive,
+        ResourceLease negative,ResourceLease sequence,u8 hokan,int mode,u16 flags,u16 frame) {
+    check();validate(h);auto &m=*models_.at(h.index);
+    if(!m.initialized)throw std::logic_error("cMot3 requires an initialized original model");
+    if(mode!=0 && mode!=1)throw std::invalid_argument("cMot3 mode");
+    auto a=std::make_unique<MotionAsset>(primary,m.initialized->cpu);
+    auto p=std::make_unique<MotionAsset>(positive,m.initialized->cpu);
+    auto n=std::make_unique<MotionAsset>(negative,m.initialized->cpu);
+    auto seq=sequence.owner ? std::make_unique<MotionSequenceView>(resolveMotionSequence(sequence)) : nullptr;
+    if(!sequence.owner && (sequence.data || sequence.size))throw std::invalid_argument("SEQ owner required");
+    if(seq)for(const auto &key:seq->keys)
+        if(f32(key.Frame)>f32(a->data.maxFrame&0x3fff)*64.f)throw std::invalid_argument("SEQ key exceeds original FCV frame extent");
+    if(m.initialized->cpu.Motion.pAttachCam)throw MissingGameConsumer("cMot3 attached camera owner");
+    // Allocate before retiring any lease: allocation failure must leave the
+    // previous work and its data owners intact.
+    auto blend=std::make_unique<MotionBlend3>();
+    // Unlike an explicit initializeMotion reset, cMot3::set must retain the
+    // current pose: MotionSetCore snapshots those matrices for Hokan.
+    m.blend.reset();m.motion=std::move(a);m.sequence=std::move(seq);
+    m.positive=std::move(p);m.negative=std::move(n);m.blend=std::move(blend);
+    m.blend->set(&m.initialized->cpu,&m.motion->data,&m.positive->data,&m.negative->data,
+                 m.sequence.get(),hokan,mode,flags,frame);
+}
+void EngineConsumers::setMotionBlendRate(ConsumerHandle h,f32 rate) {
+    check();validate(h);auto &m=*models_.at(h.index);
+    if(!m.blend)throw std::logic_error("owned cMot3 required");
+    if(!std::isfinite(rate))throw std::invalid_argument("cMot3 nonfinite rate");
+    m.blend->move(rate);
+}
+void EngineConsumers::clearMotionBlend(ConsumerHandle h) {
+    check();validate(h);auto &m=*models_.at(h.index);
+    m.blend.reset();m.positive.reset();m.negative.reset();
 }
 u32 EngineConsumers::advanceMotion(ConsumerHandle h,f32 speed,const MotionActorContext *actor) {
     check();validate(h);

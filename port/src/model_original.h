@@ -66,15 +66,17 @@ public:
     struct Object;
     ModelRuntime(u32,u32);
     ~ModelRuntime();
-    std::unique_ptr<Object> initialize(ResourceLease,ResourceLease,bool,u8,u32);
+    std::unique_ptr<Object> initialize(ResourceLease,ResourceLease,bool,u8,u32,std::shared_ptr<ModelCpu> = {});
     ModelInfoView *createAttachment(Object &,ResourceLease,ResourceLease,bool resetOffsets);
     ModelInfoManager infos;
     ModelPartsManager parts;
 };
 struct ModelRuntime::Object {
+    std::shared_ptr<ModelCpu> owner;
+    ModelCpu &cpu;
+    explicit Object(std::shared_ptr<ModelCpu>);
     std::unique_ptr<Asset> asset;
     std::vector<std::unique_ptr<Asset>> attachments;
-    ModelCpu cpu;
     ~Object();
 };
 } // namespace re4::port

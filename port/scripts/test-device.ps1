@@ -6,6 +6,12 @@ param(
     [ValidateRange(1, 100)][int]$Repeat = 1
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Retroid-Adb-Exclusive.ps1')
+Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
+    if ((& $Adb -s $Serial get-state) -ne 'device' -or $LASTEXITCODE -ne 0) {
+        throw 'Requested ADB serial is not connected/authorized.'
+    }
+
 $taskPortRoot = Split-Path -Parent $PSScriptRoot
 if (-not (Test-Path -LiteralPath $Adb)) { throw "adb missing: $Adb" }
 $taskSupportedText = & $Adb -s $Serial shell getprop ro.product.cpu.abilist
@@ -55,3 +61,5 @@ foreach ($taskAbi in $Abis) {
     }
 }
 if ($Abis.Count -gt 1) { Write-Output 'PASS: scheduler semantic traces are identical across requested ABIs.' }
+
+}

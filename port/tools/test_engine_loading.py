@@ -104,6 +104,9 @@ def run(command, timeout=600):
     return r.stdout.strip()
 
 
+from retroid_adb import hardware_sequence
+
+@hardware_sequence()
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data',required=True)
@@ -181,4 +184,5 @@ def main():
     print(f"PASS: catalog {len(json.loads((data/'manifest.json').read_text())['files'])} original files; tested {sum(map(len,cases.values()))} room loads per run",flush=True)
 
 
-if __name__=='__main__':main()
+if __name__ == '__main__':
+    raise SystemExit(main())

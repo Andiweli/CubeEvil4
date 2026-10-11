@@ -64,8 +64,8 @@ void ResetShape(ModelInfoView *,void *);
 void SetOriginalShape(ModelInfoView *);
 void ClrShape(ModelCpu *);
 void motionMultVecSR(const Mtx,const Vec *,Vec *);
-[[noreturn]] inline void MotionHokan(cModel *,MOTION_INFO *) { throw MissingGameConsumer("MotionHokan/inter-motion interpolation"); }
-[[noreturn]] inline void VecLinearCombination(Vec *,float,Vec *,float,Vec *) { throw MissingGameConsumer("secondary motion/root blend"); }
+void MotionHokan(cModel *,MOTION_INFO *);
+void VecLinearCombination(Vec *,float,Vec *,float,Vec *);
 void requireNoActiveIk(cModel *,int);
 #define FCC_DECL(name) void name(u8*,int,int,f32*,f32*)
 FCC_DECL(Fcc_get_data_000); FCC_DECL(Fcc_get_data_001); FCC_DECL(Fcc_get_data_002);

@@ -858,8 +858,13 @@ void messages(int argc,char **argv,bool newGame=false) {
             game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes,0,9);game.engineConsumers().advanceMotion(handle,1.f,&context);
             check(w.Seq_frame==0 && w.Seq.Se==0 && w.Seq.Frame==seq.keys[0].Frame,"original paused SEQ suppresses SE key");
             if(seq.count>1){game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes);game.engineConsumers().advanceMotion(handle,.5f,&context);auto expected=u16(seq.keys[0].Frame+u16(.5f*(int(seq.keys[1].Frame)-int(seq.keys[0].Frame))));check(w.Seq_frame==.5f && w.Seq.Frame==expected,"original fractional SEQ interpolation");}
-            game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes,0,1,2);auto previous=w.Seq_frame;
-            rejects([&]{game.engineConsumers().advanceMotion(handle,1.f,&context);});check(w.Seq_frame==previous,"Hokan remains explicit before mutation");
+            game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes,0,1,2);
+            for(u8 remaining:{u8(1),u8(0)}) {
+                cpu.matCalc();game.engineConsumers().advanceMotion(handle,1.f,&context);
+                check(w.Hokan_cnt==remaining,"actual original Hokan completes on owned Leon FCV/SEQ");
+                for(auto *part=cpu.pList;part;part=part->pList)
+                    for(const auto &row:part->mat)for(auto value:row)check(std::isfinite(value),"Hokan Leon matrix finite");
+            }
             for(int frame:{int(seq.count/2),int(seq.count-1)}){game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes,frame);check(cpu.Motion.Seq.Frame==seq.keys[frame].Frame && cpu.Motion.Seq.Se==seq.keys[frame].Se && cpu.Motion.Seq.Free==seq.keys[frame].Free,"original sequence start at middle/last frame");}
             rejects([&]{resolveMotionSequence({it->bytes.owner,it->bytes.data,3});});
         }

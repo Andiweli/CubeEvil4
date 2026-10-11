@@ -85,8 +85,13 @@ class EngineConsumers final {
     bool debugAdaOverride() const { check(); return adaOverride_ && adaOverride_(); }
     void initializeMotion(ConsumerHandle, ResourceLease, int frame=0, int flags=1, int hokan=0);
     void initializeMotion(ConsumerHandle,ResourceLease motion,ResourceLease sequence,int frame=0,int flags=1,int hokan=0);
+    void initializeMotionBlend(ConsumerHandle,ResourceLease primary,ResourceLease positive,
+                               ResourceLease negative,ResourceLease sequence={},u8 hokan=0,
+                               int mode=0,u16 flags=1,u16 frame=0);
+    void setMotionBlendRate(ConsumerHandle,f32);
+    void clearMotionBlend(ConsumerHandle);
     // Executes original MotionMove/Core/SequenceCtrl on the persistent owned model.
-    // IK needs a typed actor/collision context; Hokan/secondary motion remain explicit.
+    // IK needs a typed actor/collision context; Hokan and cMot3 use owned work.
     u32 advanceMotion(ConsumerHandle, f32 gameplaySpeed=1.f,const MotionActorContext *actor=nullptr);
     Vec sampleMotion(ConsumerHandle,u32 joint,f32 frame) const;
     void registerEventModel(ConsumerHandle event,ConsumerHandle model,const std::string &name,u8 type);
@@ -100,7 +105,8 @@ class EngineConsumers final {
     ConsumerHandle model(ResourceLease bin, std::string name);
     void configureModelPools(u32 infos, u32 parts); // Actual room CONS/SMD counts must be supplied.
     ConsumerHandle initializeModel(ResourceLease bin, ResourceLease tpl, std::string name,
-                                   bool systemInvisible = false, u8 kindId = 0, u32 initialFlags = 0);
+                                   bool systemInvisible = false, u8 kindId = 0, u32 initialFlags = 0,
+                                   std::shared_ptr<ModelCpu> originalOwner = {});
     ModelCpu &model(ConsumerHandle);
     // A frame-owner borrow prevents pool retirement while a manager retains a
     // native model/parts pointer. No pointer is serialized or narrowed to u32.

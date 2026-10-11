@@ -13,6 +13,9 @@ from original_import.formats import validate_rel
 from test_engine_loading import prepare, run
 
 
+from retroid_adb import hardware_sequence
+
+@hardware_sequence()
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--data', required=True)
@@ -102,4 +105,5 @@ def main():
         if len({r['trace_sha256'] for r in results if str(r['disc']) == disc}) != 1: raise ValueError('module ABI/repeat data/state trace differs')
 
 
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+    raise SystemExit(main())

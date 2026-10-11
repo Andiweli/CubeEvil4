@@ -5,6 +5,9 @@
 #include <stdexcept>
 namespace re4::port {
 namespace { thread_local f32 frameSpeed=1.f; thread_local const MotionActorContext *actorContext{}; }
+MotionBlend3::~MotionBlend3() {
+    if(m_pEm && m_pEm->pMotionB==&work)m_pEm->pMotionB=nullptr;
+}
 f32 motionFrameSpeed() { return frameSpeed; }
 int motionCrossedFrame(ModelCpu &m,f32 frame) {
     if(!std::isfinite(frame) || frame<0)throw std::invalid_argument("MotionCheckCrossFrame input");
@@ -32,13 +35,16 @@ void requireNoActiveIk(ModelCpu *m,int) {
 u32 moveModelMotion(ModelCpu &m,f32 speed,const MotionActorContext *actor) {
     if(!m.Motion.pMot || !m.Motion.Joint_num)throw std::invalid_argument("MotionMove requires nonempty original FCV");
     if(!std::isfinite(speed) || speed<0 || speed>16)throw std::invalid_argument("motion frame speed");
-    if(m.pMotionB || m.Motion.Hokan_cnt || m.Motion.pAttachCam)
-        throw MissingGameConsumer("MotionMove secondary/Hokan/attached camera");
+    if(m.Motion.pAttachCam || (m.pMotionB && m.pMotionB->pAttachCam))
+        throw MissingGameConsumer("MotionMove attached camera");
+    if(m.Motion.Hokan_cnt>m.Motion.Hokan_frame)
+        throw std::invalid_argument("MotionMove invalid Hokan count");
     bool ik=false;
     for(auto *p=m.pList;p;p=p->pList)if((p->motParts.flags&4) && !(p->motParts.flags&0x80))ik=true;
     if(ik && (!actor || !actor->sat))throw MissingGameConsumer("MotionMove IK original actor status/SAT owner");
     if(m.scale.x==0 || m.scale.y==0 || m.scale.z==0)throw std::invalid_argument("MotionMove zero scale");
-    const auto &w=m.Motion;
+    auto validateWork=[&](const ModelMotion &w) {
+    if(!w.pMot || !w.Joint_num)throw std::invalid_argument("MotionMove empty work");
     if(!w.Seq_frame_num || !std::isfinite(w.Seq_frame) || !std::isfinite(w.Seq_speed))
         throw std::invalid_argument("MotionMove sequence state");
     // Original reverse playback and loops adjust once, not repeatedly. Reject an
@@ -55,6 +61,19 @@ u32 moveModelMotion(ModelCpu &m,f32 speed,const MotionActorContext *actor) {
     }
     if(!std::isfinite(next) || next<0 || next>=w.Seq_frame_num)
         throw std::invalid_argument("MotionMove next sequence index out of bounds");
+    };
+    validateWork(m.Motion);
+    if(m.pMotionB) {
+        validateWork(*m.pMotionB);
+        if(!std::isfinite(m.pMotionB->Brate) || m.pMotionB->Brate<0 || m.pMotionB->Brate>1)
+            throw std::invalid_argument("MotionMove blend rate");
+    }
+    if(m.Motion.Hokan_cnt)for(auto *p=m.pList;p;p=p->pList) {
+        if(!p->pParent)throw std::invalid_argument("MotionHokan missing parent");
+        const auto &s=p->pParent->scale;
+        if(!std::isfinite(s.x) || !std::isfinite(s.y) || !std::isfinite(s.z) || s.x==0 || s.y==0 || s.z==0)
+            throw std::invalid_argument("MotionHokan invalid parent scale");
+    }
     const auto previous=frameSpeed;const auto previousActor=actorContext;frameSpeed=speed;actorContext=actor;
     try { auto result=MotionMove(&m,nullptr);frameSpeed=previous;actorContext=previousActor;return result; }
     catch(...) { frameSpeed=previous;actorContext=previousActor;throw; }
