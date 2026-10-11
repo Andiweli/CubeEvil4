@@ -10,6 +10,8 @@
 #include "re4/port/save_state.h"
 #include "re4/port/lights.h"
 #include "re4/port/player.h"
+#include "re4/port/merchant.h"
+#include "re4/port/collision.h"
 #include "re4_runtime_types.h"
 #include <array>
 #include <thread>
@@ -156,6 +158,9 @@ class GameRuntime final {
     SaveStateRuntime &saveState();
     LightRuntime &lights();
     PlayerRuntime &player();
+    MerchantRuntime &merchant();
+    CollisionRuntime &sat();
+    CollisionRuntime &eat();
     std::shared_ptr<FrameOperation> queueRoomRetirement(std::uint16_t room);
     void queueFailedRoomRetirement(std::uint16_t room);
     void

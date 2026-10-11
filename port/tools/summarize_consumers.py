@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-check Phase-4c measurements; summary contains metadata, never asset bytes."""
+"""Cross-check original runtime measurements; metadata only, never asset bytes."""
 import argparse
 import json
 from pathlib import Path
@@ -9,6 +9,7 @@ from original_import.pipeline import external_root, sha, write_json
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host',required=True,type=Path)
+    parser.add_argument('--host32',type=Path,help='Optional separate directory for the host-32 reports')
     parser.add_argument('--device',required=True,type=Path)
     parser.add_argument('--output',required=True,type=Path)
     args=parser.parse_args()
@@ -24,7 +25,7 @@ def main():
     light_traces={}
     light_checks={}
     measured=[]
-    for abi,bits,folder in [('host-32',32,args.host),('host-64',64,args.host),
+    for abi,bits,folder in [('host-32',32,args.host32 or args.host),('host-64',64,args.host),
                             ('armeabi-v7a',32,args.device),('arm64-v8a',64,args.device)]:
         rooms=json.loads((folder/f'game-runtime-{abi}.json').read_text())['results']
         events=json.loads((folder/f'consumers-{abi}.json').read_text())['results']
@@ -128,7 +129,7 @@ def main():
     sample=json.loads((args.host/'game-runtime-host-64.json').read_text())['results']
     coverage={r['id']:r['consumers'] for record in sample for r in record['actual']['rooms']}
     additional=[p for r in json.loads((args.host/'models-host-64.json').read_text())['results'] if r['round']==1 for p in r['actual']['packages']]
-    summary=dict(schema='RE4-PHASE4C-PLAYER-MEASUREMENTS-1',checks_per_native_run=next(iter(checks)),
+    summary=dict(schema='RE4-PHASE5B-RUNTIME-MEASUREMENTS-1',checks_per_native_run=next(iter(checks)),
                  measured=measured,identical_native_traces=True,
                  identical_room_traces={str(k):next(iter(v)) for k,v in room_traces.items()},
                  identical_event_trace=next(iter(event_traces)),packages=packages,room_consumer_coverage=coverage,
@@ -137,7 +138,7 @@ def main():
                  message_boot_sample=json.loads((args.host/'messages-host-64.json').read_text())['results'][0]['actual'],
                  identical_light_traces={str(k):next(iter(v)) for k,v in light_traces.items()},light_checks_per_disc={str(k):next(iter(v)) for k,v in light_checks.items()},
                  light_samples=json.loads((args.host/'lights-host-64.json').read_text())['results'][:2],
-                 scope='Actual GameTask executes original cLightMgr::init/initPath, then ScenarioInit and complete original PlayerInit; stops at MerchantGameInit. Separate original Leon setModel/setMotion helpers on private pl00 archive; cPlayer/cPlLeon actor construction and weapon/collision/startUp remain unbound. Isolated original LIT roomInit/versionUp, CONS, light creation/type dispatch/kind/event/fog scalars and real core path cursors; missing model managers remain explicitly blocked. No full lightMove, setEnv/filter/wind/view pipeline, SAR gameplay, aggregate save/load or GPU lighting. Previous message/SubScreen/ID/save/model/motion consumers retained; GPU bootstrap evidence is separate APK instrumentation.')
+                 scope='Actual GameTask executes original light, scenario, PlayerInit and MerchantGameInit and completes the default original gameInit branch with an explicitly isolated CPU VI observer. Stops at unported gameStageInit/cMes/GameSave. Seven original pl00 FCV/SEQ pairs execute persistent MotionMove and complete original leg/heel/toe IK over sixteen ticks, with separate loop/reverse/pause/fractional input tests and an explicit isolated actor-status view/empty original SAT manager. This is not cPlLeon actor construction, weapon simulation, Event::Run or a live shoulder camera. Previous message/SubScreen/ID/save/model/light consumers retained; GPU diagnostics are separate from these CPU runtime tests.')
     write_json(output/'consumer-runtime-summary.json',summary)
     print(json.dumps(summary,indent=2))
 

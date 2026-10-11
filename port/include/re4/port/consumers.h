@@ -36,6 +36,7 @@ struct CameraDataView {
 CameraDataView indexCameraData(ResourceLease);
 
 class EngineConsumers;
+struct MotionActorContext;
 struct EventCpu {
     EngineConsumers *manager{};
     EventPackageView package;
@@ -84,6 +85,9 @@ class EngineConsumers final {
     bool debugAdaOverride() const { check(); return adaOverride_ && adaOverride_(); }
     void initializeMotion(ConsumerHandle, ResourceLease, int frame=0, int flags=1, int hokan=0);
     void initializeMotion(ConsumerHandle,ResourceLease motion,ResourceLease sequence,int frame=0,int flags=1,int hokan=0);
+    // Executes original MotionMove/Core/SequenceCtrl on the persistent owned model.
+    // IK needs a typed actor/collision context; Hokan/secondary motion remain explicit.
+    u32 advanceMotion(ConsumerHandle, f32 gameplaySpeed=1.f,const MotionActorContext *actor=nullptr);
     Vec sampleMotion(ConsumerHandle,u32 joint,f32 frame) const;
     void registerEventModel(ConsumerHandle event,ConsumerHandle model,const std::string &name,u8 type);
     ModelInfoView *createModelInfoFor(ModelCpu &,const char *bin,const char *tpl,bool resetOffsets);

@@ -1,0 +1,8 @@
+{
+  "src/game/atari.cpp": "e81ca84f1b72c90294d16554f13ae8e172725c3e20fe6897d2c68d1858097912",
+  "src/game/at_sub.cpp": "f082820ae1440b458d00e9e7dbcc4a3cd4c2aa593858bb04566cb66d7a14c03b",
+  "src/game/sub2.cpp": "cbd24b0ebad299886a8c2e43e685b08871d93cdb603eea0b2d920da9e5c62d51",
+  "src/lib/vec.c": "56e6bd2a50923120eaeb3a385b2f7e79d0ce64067de99684fcbffb6f7cc1ae95",
+  "include/atari.h": "577bb72e1db16b09bd98520ca395d873adfe608954336e3df77c110776fbe573",
+  "include/at_sub.h": "dbe13f478e8dd8f3a03941ec0315caf6e93ac24f6ecb69c1165453a20c5b6937"
+}

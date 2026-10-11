@@ -161,6 +161,7 @@ extern const std::array<int,22> originalRenderOrder;
 #undef VALID_PTR
 #define VALID_PTR(p) ((p)!=nullptr)
 #define SQRTF std::sqrt
+#undef PSVECDotProduct
 #define PSVECDotProduct C_VECDotProduct
 #define SINF std::sin
 #define COSF std::cos

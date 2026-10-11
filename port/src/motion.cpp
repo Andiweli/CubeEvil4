@@ -1,10 +1,23 @@
 #include "motion_original.h"
+#include "re4/port/collision.h"
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
 namespace re4::port {
-namespace { thread_local f32 frameSpeed=1.f; }
+namespace { thread_local f32 frameSpeed=1.f; thread_local const MotionActorContext *actorContext{}; }
 f32 motionFrameSpeed() { return frameSpeed; }
+int motionCrossedFrame(ModelCpu &m,f32 frame) {
+    if(!std::isfinite(frame) || frame<0)throw std::invalid_argument("MotionCheckCrossFrame input");
+    return MotionCheckCrossFrame(&m.Motion,frame);
+}
+const MotionActorContext &motionActorContext(ModelCpu *) {
+    if(!actorContext)throw MissingGameConsumer("InverseKinematics original actor status/collision owner");
+    return *actorContext;
+}
+f32 motionFloor(Vec *p,int normal,f32 above,f32 below,int mask) {
+    if(normal || !actorContext || !actorContext->sat)throw MissingGameConsumer("InverseKinematics SAT owner");
+    return actorContext->sat->getFloor(*p,above,below,mask);
+}
 u32 motionBlendCount(const u16 *p) { u32 count;std::memcpy(&count,p,4);return count; }
 f32 motionLimitAngle(f32 a) {
     if(!std::isfinite(a))throw std::invalid_argument("motion angle");
@@ -16,18 +29,35 @@ void requireNoActiveIk(ModelCpu *m,int) {
     for(auto *p=m->pList;p;p=p->pList)if((p->motParts.flags&4) && !(p->motParts.flags&0x80))
         throw MissingGameConsumer("InverseKinematics/ikCalc/SatMgr::getFloor actor collision state");
 }
-u32 moveModelMotion(ModelCpu &m,f32 speed) {
+u32 moveModelMotion(ModelCpu &m,f32 speed,const MotionActorContext *actor) {
     if(!m.Motion.pMot || !m.Motion.Joint_num)throw std::invalid_argument("MotionMove requires nonempty original FCV");
     if(!std::isfinite(speed) || speed<0 || speed>16)throw std::invalid_argument("motion frame speed");
     if(m.pMotionB || m.Motion.Hokan_cnt || m.Motion.pAttachCam)
         throw MissingGameConsumer("MotionMove secondary/Hokan/attached camera");
-    for(u32 i=0;i<m.Motion.Joint_num;++i)if(m.Motion.pJoint_kind[i]&0x30)
-        throw MissingGameConsumer("MotionMove IK chain requires InverseKinematics/SatMgr");
-    requireNoActiveIk(&m,1);
+    bool ik=false;
+    for(auto *p=m.pList;p;p=p->pList)if((p->motParts.flags&4) && !(p->motParts.flags&0x80))ik=true;
+    if(ik && (!actor || !actor->sat))throw MissingGameConsumer("MotionMove IK original actor status/SAT owner");
     if(m.scale.x==0 || m.scale.y==0 || m.scale.z==0)throw std::invalid_argument("MotionMove zero scale");
-    const auto previous=frameSpeed;frameSpeed=speed;
-    try { auto result=MotionMove(&m,nullptr);frameSpeed=previous;return result; }
-    catch(...) { frameSpeed=previous;throw; }
+    const auto &w=m.Motion;
+    if(!w.Seq_frame_num || !std::isfinite(w.Seq_frame) || !std::isfinite(w.Seq_speed))
+        throw std::invalid_argument("MotionMove sequence state");
+    // Original reverse playback and loops adjust once, not repeatedly. Reject an
+    // invalid next index rather than normalizing it into a different animation.
+    f32 next=w.Seq_frame;
+    if(!(w.Mot_attr&8)) {
+        if(w.Mot_attr&2) {
+            if(next<=0)next=(w.Mot_attr&4)?next+w.Seq_frame_num:0.f;
+            else next-=w.Seq_speed*speed;
+        } else {
+            next+=w.Seq_speed*speed;
+            if(next>=w.Seq_frame_num)next=(w.Mot_attr&4)?next-w.Seq_frame_num:f32(w.Seq_frame_num-1);
+        }
+    }
+    if(!std::isfinite(next) || next<0 || next>=w.Seq_frame_num)
+        throw std::invalid_argument("MotionMove next sequence index out of bounds");
+    const auto previous=frameSpeed;const auto previousActor=actorContext;frameSpeed=speed;actorContext=actor;
+    try { auto result=MotionMove(&m,nullptr);frameSpeed=previous;actorContext=previousActor;return result; }
+    catch(...) { frameSpeed=previous;actorContext=previousActor;throw; }
 }
 MotionSequenceView resolveMotionSequence(ResourceLease bytes) {
     // src/game/motion.cpp MotionSetCore and tools/motion/fcv.py parse_seq.

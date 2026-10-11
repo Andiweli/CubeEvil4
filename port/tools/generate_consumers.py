@@ -22,7 +22,8 @@ def generate(root, output):
         source=source.replace(signature+' {',signature+'\n{')
         body,line=function(source,signature)
         for before, after in changes:
-            if body.count(before)!=1: raise ValueError('consumer adaptation no longer unique: '+before)
+            count=2 if signature=='void InverseKinematics(cModel* pEm, int arm_flag)' and before=='SatMgr.getFloor(&target, 0, 500.0f, 100000.0f, 0)' else 1
+            if body.count(before)!=count: raise ValueError('consumer adaptation occurrence count changed: '+before)
             body=body.replace(before,after)
         if path=='src/game/event.cpp':
             body=body.replace('pLog->err(', 'eventLog.err(').replace('pLog->warn(', 'eventLog.warn(')
@@ -98,6 +99,22 @@ def generate(root, output):
                 'f32 hermite(f32* x, f32* v, f32 t)']:
         add('src/game/math_sub.cpp',sig,[])
     add('src/game/ik.cpp','void IKInit(cModel* pEm, MOTION_INFO* pInfo)',[])
+    for sig in ['void SetOrientationZX(Vec* z, Vec* x, Mtx m)','f32 VecAngle(Vec* vec_a, Vec* vec_b)']:
+        add('src/game/math_sub.cpp',sig,[])
+    add('src/lib/vec.c','f32 C_VECDotProduct(const Vec* a, const Vec* b)',[('C_VECDotProduct','ikDotProduct')])
+    add('src/lib/mtx.c','void C_MTXRotAxisRad(Mtx m, const Vec* axis, f32 rad)',[('C_MTXRotAxisRad','ikRotAxisRad')])
+    add('src/game/sub2.cpp','f32 GetDistance3(Vec* v0, Vec* v1)',[('GetDistance3','ikDistance'),('RootSumSquare3(&d)','std::sqrt(d.x*d.x+d.y*d.y+d.z*d.z)')])
+    add('src/game/ik.cpp','void ikCalc(cParts* root, cParts* joint, cParts* eff)',[('GetDistance3','ikDistance')])
+    add('src/game/ik.cpp','static void heel2toe(Mtx m, cParts* p, Vec* pos)',[])
+    ik=(root/'src/game/ik.cpp').read_text()
+    cpp.append(ik[ik.index('#define IK_LOCAL'):ik.index('// Per-frame leg IK')])
+    add('src/game/ik.cpp','void InverseKinematics(cModel* pEm, int arm_flag)',[
+        ('    cEm* em = (cEm*) pEm;','    // Actor status is read through a typed owner, never a cEm byte overlay.'),
+        ('em->checkStatus(EM_STATUS_IK_OFF)','motionActorContext(pEm).ikOff'),
+        ('em->atari.m_flag','motionActorContext(pEm).atariFlags'),
+        ('SatMgr.getFloor(&target, 0, 500.0f, 100000.0f, 0)','motionFloor(&target, 0, 500.0f, 100000.0f, 0)'),
+        ('SatMgr.getFloor(&target, 0, 6000.0f, 100000.0f, 0)','motionFloor(&target, 0, 6000.0f, 100000.0f, 0)'),
+        ('GetDistance3','ikDistance')])
     for sig in ['void ResetShape(cModelInfo* info, void* dst)','void ClrShape(cModel* pMod)']:
         add('src/game/shape.cpp',sig,[])
     add('src/game/motion.cpp','void MotionClear(cModel* pEm, int flag)',[])
@@ -137,10 +154,10 @@ def generate(root, output):
         ('    u32 zero = 0;','')])
     add_motion('void MotionMoveCore(cModel* pEm, MOTION_INFO* w, CAMERA* pCamera)', [('pPL == pEm','pEm->kindid == 0 && pEm->id == 0')])
     add_motion('u16 MotionSequenceCtrl(MOTION_INFO* w)')
+    add_motion('int MotionCheckCrossFrame(MOTION_INFO* w, f32 frame)')
     add_motion('void MotionGetSpeed(cModel* pEm, MOTION_INFO* w, int flg, Vec* Pos_move, Vec* Ang_move)')
     add_motion('void MotionAddSpeed(cModel* pEm, MOTION_INFO* w, Vec* Pos_move, Vec* Ang_move)')
     add_motion('u32 MotionMove(cModel* pEm, CAMERA* pCamera)', [
-        ('InverseKinematics(pEm, 1);','requireNoActiveIk(pEm, 1); // Original loop has no work for the prevalidated FK subset.'),
         ('*(s32*) pEm->pDblJnt','motionBlendCount(pEm->pDblJnt)')])
     add_motion('int HermiteInterpolation(HERMITE_SET* prm, Vec* out, u16* hist)',[
         ('u16* hp = hist - 1;','u16* hp = hist;'), ('u16* frames;','u8* frames;'),

@@ -3,6 +3,12 @@
 #include <memory>
 #include <vector>
 namespace re4::port {
+class CollisionRuntime;
+struct MotionActorContext {
+    CollisionRuntime *sat{};
+    bool ikOff{};
+    u32 atariFlags{};
+};
 struct MotionDataView {
     u16 maxFrame{};
     u8 nParts{};
@@ -27,8 +33,9 @@ public:
 };
 void MotionSetCore(ModelCpu *,void *,void *,void *,int,int,int);
 void MotionClear(ModelCpu *,int);
-// Actual MotionMove chain for the supported forward-kinematic subset. Rejects
-// active IK, secondary motion and Hokan before mutation.
+// Actual MotionMove chain. Active IK requires the caller's typed original actor
+// status/collision view; secondary motion and Hokan still fail before mutation.
 // The original sequence advances by speed, independently of display cadence.
-u32 moveModelMotion(ModelCpu &,f32 speed=1.f);
+u32 moveModelMotion(ModelCpu &,f32 speed=1.f,const MotionActorContext *actor=nullptr);
+int motionCrossedFrame(ModelCpu &,f32 frame);
 } // namespace re4::port

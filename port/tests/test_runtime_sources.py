@@ -14,6 +14,22 @@ spec.loader.exec_module(generator)
 
 
 class Sources(unittest.TestCase):
+    def test_merchant_and_collision_original_bodies_guard(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'port/tools'))
+        from generate_merchant import generate as merchant
+        from generate_collision import generate as collision
+        for name,generator,filename,signature in [('merchant',merchant,'merchant.cpp','void MerchantDomain::MerchantGameInit()'),('collision',collision,'at_sub.cpp','u32 At_poly_line_ck(')]:
+            with tempfile.TemporaryDirectory() as folder:
+                out=Path(folder)/'out';generator(ROOT,out)
+                code=(out/(name+'_control.cpp')).read_text();self.assertIn(signature,code)
+                generator(ROOT,out);self.assertEqual(code,(out/(name+'_control.cpp')).read_text())
+                copy=Path(folder)/'root';hashes=json.loads((ROOT/f'port/config/{name}-sources.json').read_text())
+                for relative in [*hashes,f'port/config/{name}-sources.json']:
+                    target=copy/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/relative,target)
+                target=copy/'src/game'/filename;target.write_text(target.read_text()+'\n// changed fingerprint\n')
+                with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):generator(copy,Path(folder)/'bad')
+
     def test_original_bodies_and_native_views(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)

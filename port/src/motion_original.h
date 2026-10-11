@@ -43,8 +43,18 @@ void C_VECAdd(const Vec *,const Vec *,Vec *);
 void motionVecScale(const Vec *,Vec *,f32);
 void MotionMoveCore(cModel *,MOTION_INFO *,CAMERA *);
 u16 MotionSequenceCtrl(MOTION_INFO *);
+int MotionCheckCrossFrame(MOTION_INFO *,f32);
 u32 MotionMove(cModel *,CAMERA *);
 f32 motionFrameSpeed();
+const MotionActorContext &motionActorContext(ModelCpu *);
+f32 motionFloor(Vec*,int,f32,f32,int);
+void InverseKinematics(cModel*,int);
+void ikCalc(cParts*,cParts*,cParts*);
+f32 ikDistance(Vec*,Vec*);
+f32 ikDotProduct(const Vec*,const Vec*);
+void ikRotAxisRad(Mtx,const Vec*,f32);
+void SetOrientationZX(Vec*,Vec*,Mtx);
+f32 VecAngle(Vec*,Vec*);
 u32 motionBlendCount(const u16 *);
 f32 motionLimitAngle(f32);
 // Explicit failure boundaries, not successful substitutes for gameplay systems.
@@ -89,3 +99,5 @@ FCC_DECL(Fcc_get_data_033); FCC_DECL(dummy);
 #define PI2 6.2831855f
 #define SET_REG_FIELD(line,reg,width,shift,value) ((reg)=((reg)&~(((u32(1)<<(width))-1)<<(shift)))|((u32(value)&((u32(1)<<(width))-1))<<(shift)))
 #define GX_WRITE_RAS_REG(reg) writeRas(reg)
+#define PSVECDotProduct ikDotProduct
+#define PSMTXRotAxisRad ikRotAxisRad

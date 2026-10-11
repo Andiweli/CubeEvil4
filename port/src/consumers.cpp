@@ -292,6 +292,11 @@ void EngineConsumers::initializeMotion(ConsumerHandle h,ResourceLease bytes,Reso
         throw std::invalid_argument("original motion arguments");
     auto asset=std::make_unique<MotionAsset>(bytes,m.initialized->cpu);
     auto seq=sequence.owner ? std::make_unique<MotionSequenceView>(resolveMotionSequence(sequence)) : nullptr;
+    if(seq) for(const auto &key:seq->keys)
+        if(f32(key.Frame)>f32(asset->data.maxFrame&0x3fff)*64.f)
+            throw std::invalid_argument("SEQ key exceeds original FCV frame extent");
+    // Original MotionSetCore clamps an excessive requested start frame. Preserve
+    // that behavior; only the stored data references are validated here.
     if(!sequence.owner && (sequence.data || sequence.size)) throw std::invalid_argument("SEQ owner required");
     if(m.initialized->cpu.Motion.pAttachCam)
         throw MissingGameConsumer("MotionSetCore/attached camera owner not integrated");
@@ -301,6 +306,12 @@ void EngineConsumers::initializeMotion(ConsumerHandle h,ResourceLease bytes,Reso
     m.sequence=std::move(seq);
     MotionClear(&m.initialized->cpu,1);
     MotionSetCore(&m.initialized->cpu,&m.initialized->cpu.Motion,&m.motion->data,m.sequence.get(),hokan,flags,frame);
+}
+u32 EngineConsumers::advanceMotion(ConsumerHandle h,f32 speed,const MotionActorContext *actor) {
+    check();validate(h);
+    auto &m=*models_.at(h.index);
+    if(!m.initialized || !m.motion)throw std::logic_error("owned original motion required");
+    return moveModelMotion(m.initialized->cpu,speed,actor);
 }
 Vec EngineConsumers::sampleMotion(ConsumerHandle h,u32 joint,f32 frame) const {
     check(); validate(h); const auto &m=*models_.at(h.index);

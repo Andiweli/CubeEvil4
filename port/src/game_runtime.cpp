@@ -215,6 +215,8 @@ struct GameRuntime::Impl {
     SaveStateRuntime saveState;
     LightRuntime lights;
     PlayerRuntime player;
+    MerchantRuntime merchant;
+    CollisionRuntime sat,eat;
     FrameViAdapter vi;
     const std::thread::id owner = std::this_thread::get_id();
     bool initialized = false, paused = true, stepping = false;
@@ -237,7 +239,8 @@ struct GameRuntime::Impl {
           subscreen(loader,*heaps,original.global,original.system.language,std::move(files),disc),
           ids(*heaps,loader.scheduler()),saveState(*heaps,loader.scheduler()),
           lights(*heaps,loader.scheduler(),engineConsumers,original.global),
-          player(original.global,original.Key,original.system.pad_type,*heaps,engineConsumers,loader.scheduler()),vi([runtime] { runtime->tick(); }) {
+          player(original.global,original.Key,original.system.pad_type,*heaps,engineConsumers,loader.scheduler()),
+          merchant(original.global,original.system.language),sat(original.global),eat(original.global,true),vi([runtime] { runtime->tick(); }) {
         original.runtime = runtime;
         engineConsumers.setAdaOverrideProvider([this]{return DbgFlagChk(original.pG,DBG_ADA_OMAKE_EV);});
         original.heaps = heaps.get();
@@ -292,6 +295,7 @@ struct GameRuntime::Impl {
         loader.cancelRoom();
         loader.cancelAll();
         player.releaseLeonAssets();
+        sat.clear();eat.clear();
         engineConsumers.clear();
         texRender.clear();
         original.ScenarioInit();
@@ -383,6 +387,8 @@ GameRuntime::~GameRuntime() {
     impl_->check(true);
     impl_->loader.scheduler().clearTasks();
     impl_->player.clear();
+    impl_->merchant.clear();
+    impl_->sat.clear();impl_->eat.clear();
     impl_->lights.clear();
     impl_->engineConsumers.clear();
     impl_->texRender.clear();
@@ -400,6 +406,8 @@ void GameRuntime::initialize(u16 width, u16 height) {
     impl_->loader.cancelAll();
     impl_->loader.scheduler().clearTasks();
     impl_->player.clear();
+    impl_->merchant.clear();
+    impl_->sat.clear();impl_->eat.clear();
     impl_->lights.clear();
     impl_->engineConsumers.clear();
     impl_->texRender.clear();
@@ -523,6 +531,9 @@ IdRuntime &GameRuntime::ids() { impl_->check(); return impl_->ids; }
 SaveStateRuntime &GameRuntime::saveState() { impl_->check(); return impl_->saveState; }
 LightRuntime &GameRuntime::lights() { impl_->check(); return impl_->lights; }
 PlayerRuntime &GameRuntime::player() { impl_->check(); return impl_->player; }
+MerchantRuntime &GameRuntime::merchant() { impl_->check(); return impl_->merchant; }
+CollisionRuntime &GameRuntime::sat() { impl_->check(); return impl_->sat; }
+CollisionRuntime &GameRuntime::eat() { impl_->check(); return impl_->eat; }
 std::shared_ptr<FrameOperation> GameRuntime::queueRoomRetirement(u16 id) {
     return queueModule(ModuleOperation::RetireRoom, id);
 }

@@ -1,5 +1,14 @@
 # RE4 native foundation
 
+The Phase-5b partial runtime executes original MerchantGameInit through GameTask,
+then explicitly stops at the unported gameStageInit/save boundary. The CLI proof
+uses a labelled CPU VI observer, not a GPU gameplay frame. Original MotionMove,
+SEQ, leg/heel/toe IK and animation-frame crossing run on persistent native models;
+seven real pl00 motion pairs are exercised over multiple ticks. Original SAT/EAT
+segment/floor algorithms use checked immutable BE resources. Actor construction,
+weapon logic, sphere push-out, live shoulder camera and Event::Run remain open.
+See the [Phase-5b report](docs/phase5b-runtime-status.md) for tests and exact limits.
+
 The current Phase-5a continuation preserves original CNS-sized model pools through
 light/OT capture and executes original model-bound light transforms. r100, r102
 and r119 produce dual-ABI Vulkan texture diagnostics using original EVD cameras.

@@ -154,8 +154,10 @@ def main():
         lb=actual['light_boot']
         if lb['path_sha256']!=path_entry['sha256'] or lb['paths']!=11 or not lb['initialized'] or lb['trace']!=['cLightMgr::init:original','cLightMgr::initPath:original']:
             raise ValueError('actual original light startup/path reference')
-        if actual['blocker']!='Original consumer unavailable: MerchantGameInit()' or not actual['repeated_init_released'] or actual['checks']<1500:
+        if actual['blocker']!='Original consumer unavailable: gameStageInit/cMes/GameSave' or not actual['repeated_init_released'] or actual['checks']<1500:
             raise ValueError('actual GameTask progress or message lifecycle')
+        if actual['merchant_boot']!={'original_complete':True,'friendship':50,'character_bound':False} or actual['game_init']!={'original_complete':True,'next_state':1,'presentation':'isolated_CPU_recording_probe','new_game_inventory_branch':False}:
+            raise ValueError('original Merchant/gameInit execution scope')
         player=actual['player']
         if not player['gameTask_PlayerInit_complete'] or player['actor_constructed'] or [player[k] for k in ['life','max_life','weapon','weapon_type','flag']]!=[1200,1200,2,0,1] or player['trace']!=['PlayerInit:original','PlayerLifeReset:original','ReleaseWepData:original','InitModule:original']:
             raise ValueError('actual original PlayerInit state/order/scope')
@@ -175,7 +177,10 @@ def main():
                 if slot&1:continue
                 motion=fcv.parse(plarc.entries[slot-4][1]);sequence=fcv.parse_seq(plarc.entries[slot+1-4][1])
                 keys=[[k.frame,k.se,k.free] for k in sequence.keys]
-                expected_sequences.append(dict(motion_index=idx,max_frame=motion.max_frame,joints=len(motion.joints),sequence_count=len(keys),sequence_flags=sequence.flags,first_key=keys[0],mot_attr=1|(0x1000 if sequence.flags&1 else 0),sequence_keys=keys))
+                blocked=False # Complete original IK, isolated explicit actor view / empty SAT.
+                ticks=[] if blocked else [dict(sequence_frame=min(t+1,len(keys)-1),motion_frame=(keys[0] if t==0 else keys[min(t,len(keys)-1)])[0]/64,
+                    key=keys[min(t+1,len(keys)-1)],state=4 if t+1>=len(keys) else 0) for t in range(16)]
+                expected_sequences.append(dict(motion_index=idx,max_frame=motion.max_frame,joints=len(motion.joints),sequence_count=len(keys),sequence_flags=sequence.flags,first_key=keys[0],mot_attr=1|(0x1000 if sequence.flags&1 else 0),sequence_keys=keys,ticks=ticks,ik_blocked=blocked))
             if record['sequence_initializations']!=expected_sequences:
                 raise ValueError('actual original MotionSetCore SEQ state differs from independent FCV/SEQ parser')
         stable={k:v for k,v in actual.items() if k not in ['pointer_bits','native_layout']}
@@ -351,6 +356,8 @@ def main():
                         raise ValueError('player original Hermite differs from independent FCV curves')
         return sha(json.dumps(actual['packages'],sort_keys=True).encode())
     def verify(actual,reference,disc):
+        if actual.get('isolated_collision_reset') is not True:
+            raise ValueError('real SAT/EAT runtime reset lifecycle was not verified')
         if len(actual['rooms']) != len(reference): raise ValueError('room result count')
         for value,expected in zip(actual['rooms'],reference):
             for key in ['id','source_sha256','body_sha256','body_size']:

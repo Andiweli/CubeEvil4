@@ -22,6 +22,7 @@ struct DiagnosticCameraMotion : GxCamera {
     void move();
 };
 }
+#undef PSMTXRotAxisRad
 #define PSMTXRotAxisRad C_MTXRotAxisRad
 #define VECCrossProduct C_VECCrossProduct
 #define CAM_HIST(w,i) ((w)->Key_hist[i])

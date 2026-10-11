@@ -10,7 +10,13 @@
 #include <iostream>
 #include <set>
 #include <cmath>
+#include <fstream>
 namespace {
+// Explicit CPU VI observer for CLI initialization tests; no GPU or display claim.
+struct CpuPresentationProbe final:re4::port::GraphicsPresenter {
+    re4::port::GraphicsClear last{};bool black{};u64 visits{};
+    void present(const re4::port::GraphicsClear &c,bool b) override { last=c;black=b;++visits; }
+};
 std::string hash(re4::port::ResourceLease bytes) {
     return re4::port::sha256(bytes.data, bytes.size);
 }
@@ -346,6 +352,7 @@ void data(int argc, char **argv) {
     game.initialize();
     std::cout << "{\"pointer_bits\":" << sizeof(void *) * 8
               << ",\"kind\":\"shared_runtime_original_archive_and_esl_reads\",\"rooms\":[";
+    ResourceLease resetSat,resetEat;
     for (int i = 5; i < argc; ++i) {
         auto id = std::stoul(argv[i], nullptr, 16);
         if (id > UINT16_MAX)
@@ -382,6 +389,16 @@ void data(int argc, char **argv) {
         for (auto j = identity->size; j < sizeof(game.state().Em_list); ++j)
             if (game.state().Em_list[j] != 0x71)
                 throw std::runtime_error("ESL short read overwrote tail");
+        if(i==5) {
+            // Hold real collision bytes for the explicit lifecycle test after
+            // the original read/scenario measurements have been captured.
+            auto block=[&](const char *tag) {
+                auto it=std::find_if(room->index.entries.begin(),room->index.entries.end(),[&](const auto &e){return !std::memcmp(e.tag.data(),tag,3);});
+                if(it==room->index.entries.end())throw std::runtime_error("real collision reset fixture missing");
+                return ResourceLease{room->body,room->body->data()+it->offset,it->size};
+            };
+            resetSat=block("SAT");resetEat=block("EAT");
+        }
         if (i != 5)
             std::cout << ',';
         std::cout << "{\"id\":\"" << argv[i] << "\",\"source_sha256\":\""
@@ -446,8 +463,22 @@ void data(int argc, char **argv) {
     }
     if (blocker.empty())
         throw std::runtime_error("missing shared scenario consumers must not succeed");
+    const auto readFrames=game.state().Frame_cnt;
+    // Isolated reset contract on the one permitted original task domain. These
+    // real resources are not a substitute gameRoomInit or a gameplay actor.
+    game.sat().configure(1);game.eat().configure(1);
+    auto satHandle=game.sat().create(resetSat),eatHandle=game.eat().create(resetEat);
+    game.merchant().gameInit();game.initialize();
+    if(game.merchant().snapshot().initialized)throw std::runtime_error("runtime reset retained merchant state");
+    auto stale=[&](CollisionRuntime &owner,CollisionHandle old) {
+        try {(void)owner.snapshot(old);}catch(const std::invalid_argument &){return;}
+        throw std::runtime_error("runtime reset retained original collision reference");
+    };
+    stale(game.sat(),satHandle);stale(game.eat(),eatHandle);
+    game.sat().configure(1);game.eat().configure(1);
+    game.sat().create(resetSat);game.eat().create(resetEat);
     std::cout << "],\"scenario_blocker\":\"" << blocker
-              << "\",\"frames\":" << game.state().Frame_cnt << "}\n";
+              << "\",\"frames\":" << readFrames << ",\"isolated_collision_reset\":true}\n";
 }
 } // namespace
 // Actual shared boot consumers with private disc bytes, deliberately stops at
@@ -484,9 +515,17 @@ void messages(int argc,char **argv) {
     auto &ids=game.ids(); auto &saves=game.saveState();
     auto preHud=ids.pull(); check(bool(preHud),"original ID pool prerequisite");
     check(bool(game.startOriginalGameTask()),"original GameTask creation");
+    game.graphics().attach(std::make_shared<CpuPresentationProbe>());
     std::string blocker;
+    game.tick();
+    check(game.state().Rno0==1 && game.state().Speed==1.f,"original gameInit completes to stage state");
     try{game.tick();}catch(const MissingGameConsumer &failure){blocker=failure.what();}
-    check(blocker=="Original consumer unavailable: MerchantGameInit()","actual GameTask must complete PlayerInit and stop at the next genuine original dependency");
+    check(blocker=="Original consumer unavailable: gameStageInit/cMes/GameSave","actual GameTask advances to the next genuine original dependency");
+    const auto merchant=game.merchant().snapshot();
+    check(merchant.initialized && !merchant.characterBound && merchant.data.friendship==50 &&
+          !merchant.data.study_num && !merchant.data.reduction_ratio && !merchant.data.bonus_flag,"original MerchantGameInit reset");
+    for(const auto &e:merchant.data.stock.e)check(e.id==0xffff && !e.num && !e.isNew,"original merchant stock reset");
+    for(const auto &e:merchant.data.level.e)check(e.id==0xffff && std::all_of(std::begin(e.lv),std::end(e.lv),[](u8 v){return !v;}),"original tune reset");
     auto &pg=game.state();auto playerBoot=game.player().snapshot();auto playerTrace=game.player().trace();
     check(pg.pl_type==0 && pg.pl_life==1200 && pg.pl_life_max==1200 && pg.ashley_life==600 && pg.ashley_life_max==600,"original Leon life reset reached through GameTask");
     check(pg.weapon_no==2 && pg.weapon_type==0 && !(pg.weapon_lv_power || pg.weapon_lv_speed || pg.weapon_lv_blt || pg.weapon_lv_reload),"original Leon equipment reset");
@@ -515,7 +554,7 @@ void messages(int argc,char **argv) {
     u32 aram=0xD00000;
     for(auto &r:sr){check(r.aramAddress==aram && r.dmaBytes==((r.identity.size+31u)&~31u),"original rounded DMA offsets");check(hash(r.bytes)==r.identity.sha256,"actual ARAM to MRAM readback differs from FST hash"); aram+=r.dmaBytes;}
     check(sw.freeOffset==aram-0xD00000 && sw.commonOffset==sr[0].dmaBytes && sw.puzzleOffset==sr[0].dmaBytes+sr[1].dmaBytes,"original ARAM archive offsets");
-    check(game.state().IsMessageInit==1 && game.state().Rno0==0,"original message flag or uncompleted gameplay state");
+    check(game.state().IsMessageInit==1 && game.state().Rno0==1,"original message / stage-entry state");
     auto font=m.font(0),system=m.font(1);
     check(font.loaded && system.loaded && font.charWidth==32 && font.charHeight==32,"actual English font slots");
     check(font.textures.size()==system.textures.size() && font.widths.data==system.widths.data,"original English system-font alias");
@@ -729,7 +768,34 @@ void messages(int argc,char **argv) {
             if(sequenceComma)std::cout<<',';sequenceComma=true;
             std::cout<<"{\"motion_index\":"<<motion.motionIndex<<",\"max_frame\":"<<w.Mot_frame_max<<",\"joints\":"<<unsigned(w.Joint_num)<<",\"sequence_count\":"<<seq.count<<",\"sequence_flags\":"<<unsigned(seq.flags)<<",\"first_key\":["<<w.Seq.Frame<<','<<unsigned(w.Seq.Se)<<','<<unsigned(w.Seq.Free)<<"],\"mot_attr\":"<<w.Mot_attr<<",\"sequence_keys\":[";
             for(std::size_t n=0;n<seq.keys.size();++n){if(n)std::cout<<',';auto &k=seq.keys[n];std::cout<<'['<<k.Frame<<','<<unsigned(k.Se)<<','<<unsigned(k.Free)<<']';}
-            std::cout<<"]}";
+            std::cout<<"],\"ticks\":[";
+            // Isolated motion owner, not a constructed Leon actor: explicit actor
+            // status view with an empty original SAT manager (no floor hit).
+            MotionActorContext context{&game.sat(),false,0x100};
+            for(u32 tick=0;tick<16;++tick) {
+                cpu.matCalc(); // Original model-coordinate update by this isolated owner.
+                auto result=game.engineConsumers().advanceMotion(handle,1.f,&context);
+                auto frame=std::min<u32>(tick+1,seq.count-1);auto key=seq.keys[frame];
+                check(w.Seq_frame==f32(frame) && w.Seq.Frame==key.Frame && w.Seq.Se==key.Se && w.Seq.Free==key.Free,"original MotionMove/SEQ persistent tick");
+                check(result==w.Mot_state,"original MotionMove result/state");
+                for(u32 n=0;n<cpu.nParts;++n){auto *p=cpu.getPartsPtr(int(n));check(std::isfinite(p->pos.x+p->pos.y+p->pos.z+p->ang.x+p->ang.y+p->ang.z),"original evolving part pose finite");}
+                for(u32 n=0;n<cpu.nParts;++n){auto *p=cpu.getPartsPtr(int(n));for(const auto &row:p->mat)for(auto value:row)check(std::isfinite(value),"original IK world matrix finite");}
+                if(w.Mot_frame>w.Mot_frame_old && !(w.Mot_flag&0x04000000))check(motionCrossedFrame(cpu,w.Mot_frame)==1,"original animation crossing event");
+                if(tick)std::cout<<',';
+                std::cout<<"{\"sequence_frame\":"<<w.Seq_frame<<",\"motion_frame\":"<<w.Mot_frame<<",\"key\":["<<w.Seq.Frame<<','<<unsigned(w.Seq.Se)<<','<<unsigned(w.Seq.Free)<<"],\"state\":"<<result<<'}';
+            }
+            std::cout<<"],\"ik_blocked\":false}";
+            // Original SEQ progression semantics on the same disc pair: loop,
+            // reverse, pause and fractional time. These are isolated input modes,
+            // not invented gameplay state transitions.
+            game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes,0,5);
+            for(u32 n=0;n<u32(seq.count)+3;++n){cpu.matCalc();game.engineConsumers().advanceMotion(handle,1.f,&context);auto expected=(n+1)%seq.count;check(w.Seq_frame==expected && w.Seq.Frame==seq.keys[expected].Frame,"original loop and wrap");}
+            if(seq.count>2){game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes,int(seq.count-1),3);for(u32 n=0;n<2;++n){cpu.matCalc();game.engineConsumers().advanceMotion(handle,1.f,&context);check(w.Seq_frame==f32(seq.count-2-n),"original reverse sequence progression");}}
+            game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes,0,9);game.engineConsumers().advanceMotion(handle,1.f,&context);
+            check(w.Seq_frame==0 && w.Seq.Se==0 && w.Seq.Frame==seq.keys[0].Frame,"original paused SEQ suppresses SE key");
+            if(seq.count>1){game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes);game.engineConsumers().advanceMotion(handle,.5f,&context);auto expected=u16(seq.keys[0].Frame+u16(.5f*(int(seq.keys[1].Frame)-int(seq.keys[0].Frame))));check(w.Seq_frame==.5f && w.Seq.Frame==expected,"original fractional SEQ interpolation");}
+            game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes,0,1,2);auto previous=w.Seq_frame;
+            rejects([&]{game.engineConsumers().advanceMotion(handle,1.f,&context);});check(w.Seq_frame==previous,"Hokan remains explicit before mutation");
             for(int frame:{int(seq.count/2),int(seq.count-1)}){game.engineConsumers().initializeMotion(handle,motion.bytes,it->bytes,frame);check(cpu.Motion.Seq.Frame==seq.keys[frame].Frame && cpu.Motion.Seq.Se==seq.keys[frame].Se && cpu.Motion.Seq.Free==seq.keys[frame].Free,"original sequence start at middle/last frame");}
             rejects([&]{resolveMotionSequence({it->bytes.owner,it->bytes.data,3});});
         }
@@ -745,7 +811,7 @@ void messages(int argc,char **argv) {
     check(game.engineConsumers().modelCount()==0 && game.player().motionBindings().empty(),"GameRuntime reset releases original Leon assets");
     rejects([&]{game.player().initializeLeonAssets({pl.owner,pl.data,15});});
     check(game.engineConsumers().modelCount()==0,"malformed player archive did not publish model");
-    std::cout<<"]},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
+    std::cout<<"]},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":false},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
     for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
     std::cout<<"]}\n";
 }
@@ -878,8 +944,46 @@ void lights(int argc,char **argv) {
     }
     std::cout<<"],\"checks\":"<<checks<<",\"gpu_lighting\":false,\"full_lightMove\":false}\n";
 }
+// Real original SAT/EAT algorithms, isolated ray inputs chosen by the independent
+// test driver. No actor placement or camera is manufactured here.
+void collisionQueries(int argc,char **argv) {
+    using namespace re4::port;
+    if(argc!=5)throw std::invalid_argument("collision <SAT-or-EAT-file> <query-file> <effect-0-or-1>");
+    auto bytes=std::make_shared<std::vector<u8>>();std::ifstream stream(argv[2],std::ios::binary);
+    if(!stream)throw std::runtime_error("collision file missing");bytes->assign(std::istreambuf_iterator<char>(stream),{});
+    NativeGameState state{};CollisionRuntime runtime(state,std::stoi(argv[4])!=0);runtime.configure(1);
+    ResourceLease lease{bytes,bytes->data(),u32(bytes->size())};auto originalHash=hash(lease);auto handle=runtime.create(lease);auto info=runtime.snapshot(handle);
+    std::ifstream queries(argv[3]);if(!queries)throw std::runtime_error("collision queries missing");
+    std::cout<<std::setprecision(9)<<"{\"pointer_bits\":"<<sizeof(void*)*8<<",\"kind\":\"isolated_original_SAT_EAT_ray_floor\",\"sha256\":"<<std::quoted(hash(lease))<<",\"counts\":["<<info.vertices<<','<<info.normals<<','<<info.edges<<','<<info.polygons<<','<<info.blocks<<"],\"queries\":[";
+    Vec from{},to{};int flags{},mask{};bool comma=false;
+    while(queries>>from.x>>from.y>>from.z>>to.x>>to.y>>to.z>>flags>>mask) {
+        auto hit=runtime.hitCheck(from,to,flags,mask);
+        auto movedFrom=from,movedTo=to;
+        for(auto *p:{&movedFrom,&movedTo}){p->x+=17;p->y-=31;p->z+=53;}
+        runtime.setCoord(handle,{17,-31,53},{});auto moved=runtime.hitCheck(movedFrom,movedTo,flags,mask);runtime.setCoord(handle,{},{});
+        if(moved.attribute!=hit.attribute || std::abs(moved.point.x-hit.point.x-17)>.05f || std::abs(moved.point.y-hit.point.y+31)>.05f || std::abs(moved.point.z-hit.point.z-53)>.05f)throw std::runtime_error("original SAT setCoord ray transformation");
+        if(from.x==to.x && from.z==to.z && from.y>=to.y) {
+            auto floor=runtime.getFloor(from,0,from.y-to.y,mask);
+            auto floorBottom=from;floorBottom.y=from.y-(from.y-to.y);
+            auto floorHit=runtime.hitCheck(from,floorBottom,0x40,mask);
+            if(floor!=(floorHit.attribute?floorHit.point.y:-100000.f))throw std::runtime_error("original SAT getFloor ray chain");
+        }
+        if(comma)std::cout<<',';comma=true;
+        std::cout<<"{\"attribute\":"<<hit.attribute<<",\"point\":["<<hit.point.x<<','<<hit.point.y<<','<<hit.point.z<<"],\"normal\":["<<hit.normal.x<<','<<hit.normal.y<<','<<hit.normal.z<<"]}";
+    }
+    if(!queries.eof())throw std::invalid_argument("collision query syntax");
+    auto rejects=[&](const auto &f){try{f();}catch(const std::exception&){return;}throw std::runtime_error("collision invalid input accepted");};
+    rejects([&]{runtime.create(lease);});rejects([&]{runtime.configure(2);});
+    runtime.enable(handle,false);if(runtime.hitCheck(from,to).attribute)throw std::runtime_error("disabled SAT participated");
+    runtime.enable(handle,true);runtime.setCoord(handle,{0,0,0},{0,0,0});runtime.destroy(handle);
+    rejects([&]{runtime.snapshot(handle);});auto second=runtime.create(lease);runtime.clear();rejects([&]{runtime.enable(second,true);});runtime.configure(1);
+    for(u32 size:{0u,1u,19u})rejects([&]{runtime.create({lease.owner,lease.data,size});});
+    if(hash(lease)!=originalHash)throw std::runtime_error("SAT mutation");
+    std::cout<<"],\"released_and_repeated\":true}\n";
+}
 int main(int argc, char **argv) {
     try {
+        if(argc>1 && std::string(argv[1])=="collision") {collisionQueries(argc,argv);return 0;}
         if(argc>1 && std::string(argv[1])=="lights") { lights(argc,argv);return 0; }
         if(argc>1 && std::string(argv[1])=="messages") { messages(argc,argv); return 0; }
         if (argc > 1 && std::string(argv[1]) == "data") {

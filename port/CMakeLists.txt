@@ -111,6 +111,30 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_player.py"
     --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
 
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/merchant-sources.json" merchant_manifest)
+string(JSON merchant_count LENGTH "${merchant_manifest}")
+math(EXPR merchant_last "${merchant_count} - 1")
+foreach(index RANGE 0 ${merchant_last})
+    string(JSON merchant_source MEMBER "${merchant_manifest}" ${index})
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RE4_ROOT}/${merchant_source}")
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/merchant-sources.json" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_merchant.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_merchant.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
+
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/collision-sources.json" collision_manifest)
+string(JSON collision_count LENGTH "${collision_manifest}")
+math(EXPR collision_last "${collision_count} - 1")
+foreach(index RANGE 0 ${collision_last})
+    string(JSON collision_source MEMBER "${collision_manifest}" ${index})
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RE4_ROOT}/${collision_source}")
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/collision-sources.json" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_collision.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_collision.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
+
 # Only approved headers enter this target. The legacy include/ directory also
 # contains an old libc, which must never shadow the host or NDK standard library.
 add_library(re4_original STATIC
@@ -177,6 +201,8 @@ add_library(re4_game_runtime STATIC src/game_runtime.cpp src/gameplay_heaps.cpp 
     src/id_save.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
     src/lights.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"
     src/player.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/player_control.cpp"
+    src/merchant.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/merchant_control.cpp"
+    src/collision.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/collision_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/subscreen_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/message_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/tex_render_control.cpp"
@@ -229,6 +255,7 @@ if(MSVC)
         "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/player_control.cpp"
+        "${CMAKE_CURRENT_BINARY_DIR}/original/merchant_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/subscreen_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/message_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/tex_render_control.cpp"
@@ -238,6 +265,8 @@ else()
     target_compile_options(re4_game_runtime PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-fast-math -ffp-contract=off)
     # Preserve unused parameters/locals of complete original bodies. Native
     # adapter files still compile with the full warning/error policy.
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/merchant_control.cpp"
+        PROPERTIES COMPILE_OPTIONS "-Wno-unused-variable;-Wno-missing-field-initializers")
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"

@@ -10,8 +10,12 @@
 #include <fstream>
 #include <limits>
 #include <sstream>
+#include <cmath>
 
 namespace re4::port {
+// Signatures from src/game/ik.cpp; numeric fixtures are test inputs, never game data.
+void IKInit(ModelCpu*,ModelMotion*);
+void ikCalc(ModelPart*,ModelPart*,ModelPart*);
 namespace {
 struct Checks {
     int count = 0;
@@ -182,6 +186,22 @@ std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<Graph
     Checks c;
     inputTests(c);
     heapTests(c);
+    // Independent analytic equal-bone oracle for the complete original IK solve.
+    // This isolated synthetic fixture is not a player pose or an animation asset.
+    for(float distance:{80.f,120.f,150.f,200.f,250.f}) {
+        ModelCpu model;ModelPart root,joint,effector;
+        model.nParts=3;model.pList=&root;root.pList=&joint;joint.pList=&effector;
+        root.pParent=&model;joint.pParent=&root;effector.pParent=&joint;
+        for(auto *p:{&root,&joint,&effector})for(int r=0;r<3;++r){for(int col=0;col<4;++col)p->lt_inv_mat[r][col]=p->mat[r][col]=(r==col)?1.f:0.f;}
+        joint.lt_inv_mat[0][3]=-100;effector.lt_inv_mat[0][3]=-200;joint.pos={100,0,0};
+        u16 kind=0x0410;u8 number=0;ModelMotion motion{};motion.Joint_num=1;motion.pJoint_kind=&kind;motion.pJoint_no=&number;
+        IKInit(&model,&motion);effector.world={distance,0,0};ikCalc(&root,&joint,&effector);
+        const float x=distance<200?distance*.5f:100.f;
+        const float side=distance<200?std::sqrt(10000.f-x*x):0.f;
+        c.test(std::abs(joint.world.x-x)<.002f && std::abs(std::sqrt(joint.world.y*joint.world.y+joint.world.z*joint.world.z)-side)<.002f,"original IK solve vs independent equal-bone intersection");
+        float endpoint[3];for(int r=0;r<3;++r)endpoint[r]=joint.mat[r][0]*100+joint.mat[r][3];
+        c.test(std::abs(endpoint[0]-std::min(distance,200.f))<.002f && std::abs(endpoint[1])<.002f && std::abs(endpoint[2])<.002f,"original IK effector reaches/clamps analytic target");
+    }
     ConsumerOrder consumers;
     ControllerInput input;
     input.connect(9, 0);
@@ -189,6 +209,25 @@ std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<Graph
     GameRuntime game(fixture(directory), input, 0, [&] { return now; });
     game.graphics().attach(std::move(presenter));
     game.initialize();
+    // Source-table checks, isolated original merchant consumer execution. The
+    // stage/debug test inputs are restored before any scenario is dispatched.
+    const auto originalState=game.state();auto &merchant=game.merchant();
+    merchant.gameInit();auto bootMerchant=merchant.snapshot();
+    c.test(bootMerchant.initialized && !bootMerchant.characterBound && bootMerchant.data.friendship==50,"original merchant boot state");
+    for(const auto &entry:bootMerchant.data.stock.e)c.test(entry.id==0xffff && entry.num==0 && !entry.isNew,"original stock sentinel reset");
+    merchant.secondRoundInit();auto clearedMerchant=merchant.snapshot();
+    c.test(clearedMerchant.characterBound && clearedMerchant.data.stock.e[0].id==3 && clearedMerchant.data.stock.e[0].num==1 && clearedMerchant.data.stock.e[1].id==0x6d,"original second-round stock table");
+    c.test(clearedMerchant.data.level.e[0].id==3 && clearedMerchant.data.level.e[0].lv[0]==6 && clearedMerchant.data.level.e[0].lv[3]==7,"original second-round tune table");
+    game.state().room_id=0x300;game.state().Debug_flg[3]|=0x00800000;
+    merchant.gameInit();auto debugMerchant=merchant.snapshot();
+    c.test(std::count_if(std::begin(debugMerchant.data.stock.e),std::end(debugMerchant.data.stock.e),[](const auto &e){return e.id!=0xffff;})>10,"original stage1/2 debug stock aggregation");
+    c.test(std::count_if(std::begin(debugMerchant.data.level.e),std::end(debugMerchant.data.level.e),[](const auto &e){return e.id!=0xffff;})>10,"original stage1/2 debug tune aggregation");
+    game.state()=originalState;merchant.gameInit();
+    c.test(merchant.snapshot().data.stock.e[0].id==0xffff && !merchant.snapshot().characterBound,"original reinit clears stock and typed references");
+    merchant.clear();c.test(!merchant.snapshot().initialized,"merchant native owner retirement");
+    c.rejects([&]{merchant.secondRoundInit();},"second round before original gameInit rejected");
+    merchant.gameInit();game.initialize();
+    c.test(!merchant.snapshot().initialized && merchant.trace().empty(),"GameRuntime reset retires merchant state and typed references");
     c.test(game.state().room_id == 0x120 && game.state().RoomNo_next == 0x120,
            "original boot room");
     c.test(game.state().debug_mode == 1 && game.state().debug_disp == -1 &&

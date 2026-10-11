@@ -97,7 +97,7 @@ def generate(root, output):
     bodies.append(re.search(r'union FadeColor \{.*?\n\};',read('src/game/game.cpp'),re.S)[0])
     add('src/game/cloth.cpp','void ClothInit()', [('    int i;', '    trace.push_back("ClothInit:original");\n    int i;')])
     unavailable = ['Game.omake_wep_addr = MEM_ALLOC(0x70000, 1, 13);',
-        'ItemMgr.gameInit();','SceAtInitSaveItem();','MerchantGameInit();',
+        'ItemMgr.gameInit();','SceAtInitSaveItem();',
         'GameLoad();','GamePointInit(0);']
     add('src/game/game.cpp','void gameInit()', [(s,'missingGameInit('+json.dumps(s.rstrip(';'))+');') for s in unavailable]+[
         ('LightMgr.init(LightFuncTbl);','LightMgr.init();'),
