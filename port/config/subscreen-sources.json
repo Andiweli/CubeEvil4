@@ -7,5 +7,6 @@
   "include/global.h": "12cf7d5dd385273f44bd5234fe49de62278a1642746d99b59a442c48d132773a",
   "src/game/dvd.cpp": "c7edd921ecbc59d43c4e34a7b5b4d22baa8bbc70aa922f2715089db730a72bb9",
   "src/game/title.cpp": "640d330b50426d572f82be309bd37cdcfb9116ec1195eb3ffa5f7f5de3931355",
-  "src/Sscrn/ss_map.cpp": "d0f4995523b3c46c55efe515adbe164eb5fbe5a258b174fee4fe2ac8c49eb7da"
+  "src/Sscrn/ss_map.cpp": "d0f4995523b3c46c55efe515adbe164eb5fbe5a258b174fee4fe2ac8c49eb7da",
+  "src/game/pl_sub.cpp": "bbb5aadb90a7e731b4c25a26ba1c8c3d974e66b408e92142af80038d39d4d210"
 }

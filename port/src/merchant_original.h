@@ -28,6 +28,8 @@ struct MerchantDomain {
     void stockDataAdd(MERCHANT_DATA *,StockEntry *);
     void levelDataInit(MERCHANT_DATA *);
     void levelDataAdd(MERCHANT_DATA *,LevelEntry *);
+    void MerchantDataSave(void *);
+    void MerchantDataLoad(void *);
     template<class T> void memclr_asm(T *p,std::size_t bytes) {
         if(bytes%sizeof(T))throw std::logic_error("merchant typed clear extent");
         for(std::size_t n=0;n<bytes/sizeof(T);++n)p[n]=T{};

@@ -537,6 +537,17 @@ EngineLoader::EngineLoader(std::shared_ptr<const ImportedFiles> f, u8 disc,
                            std::function<void(std::uint64_t)> observer, MemoryLimits limits)
     : impl_(std::make_unique<Impl>(std::move(f), disc, std::move(observer), limits)) {}
 EngineLoader::~EngineLoader() = default;
+u8 EngineLoader::disc() const { Binding binding(impl_->c);return impl_->c.disc; }
+void EngineLoader::selectDisc(u8 disc) {
+    Binding binding(impl_->c);auto &c=impl_->c;
+    if(disc>1)throw std::invalid_argument("original disc number");
+    if(disc==c.disc)return;
+    if(c.busy || c.roomTask || c.dvd.pCur_queue || c.dvd.pQueue_list)
+        throw std::logic_error("disc switch requires completed reads");
+    if(std::none_of(c.files->entries().begin(),c.files->entries().end(),[&](const auto &f){return f.disc==disc;}))
+        throw std::invalid_argument("requested original disc is not imported");
+    c.disc=disc;c.observed.emplace("Dvd.DiscChange:imported-disc-adapter");
+}
 LoadRequest EngineLoader::request(const std::string &path, u16 mode, u16 priority, u32 offset,
                                   u32 length, u32 aramAddress) {
     Binding binding(impl_->c);

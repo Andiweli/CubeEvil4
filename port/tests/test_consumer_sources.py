@@ -53,7 +53,7 @@ class Sources(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output=Path(folder); generate_id_save.generate(ROOT,output)
             manifest=json.loads((output/'id-save-manifest.json').read_text())
-            self.assertEqual(len(manifest['functions']),31)
+            self.assertEqual(len(manifest['functions']),33)
             code=(output/'id_save_control.cpp').read_text()
             self.assertIn('void IdSystemCpu::cockpitGameInit()',code)
             self.assertIn('m_IdUnit[i].be_flag = 0xFF;',code)
@@ -62,7 +62,8 @@ class Sources(unittest.TestCase):
             self.assertIn('std::uintptr_t headaddr',code)
             self.assertNotIn('(u32) head',code)
             self.assertNotIn('(u32) m_pRoomSaveData',code)
-            self.assertNotIn('bool cGameSave::save',code)
+            self.assertIn('bool SaveImageCpu::save',code)
+            self.assertIn('static_cast<const GameSaveBlock&>(*pG)',code)
     def test_changed_original_id_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder)/'root'
@@ -76,7 +77,7 @@ class Sources(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output=Path(folder); generate_subscreen.generate(ROOT,output)
             manifest=json.loads((output/'subscreen-manifest.json').read_text())
-            self.assertEqual(len(manifest['functions']),25)
+            self.assertEqual(len(manifest['functions']),40)
             code=(output/'subscreen_control.cpp').read_text()
             for text in ['SubScreenContext::SubScreenGameInit','SubScreenAramRead();',
                          'InventoryCpu::init','InventoryCpu::search','InventoryCpu::get',
@@ -125,7 +126,7 @@ class Sources(unittest.TestCase):
             self.assertNotIn('(u32) w->pMot',code)
             self.assertNotIn('asm("r27")',code)
             message=(output/'message_control.cpp').read_text()
-            self.assertEqual(len(manifest['messages']),33)
+            self.assertEqual(len(manifest['messages']),35)
             self.assertIn('void MessageControlCpu::gameInit()',message)
             self.assertIn('void MessageControlCpu::CoreDataRead()',message)
             self.assertIn('SpecularInit((TEXPalette*) CORE_ARC(CORE_SPECULAR_0)',message)

@@ -43,7 +43,8 @@ def generate(root, output):
         entries.append(dict(source=path, signature=sig, line=line, adaptations=[a for a,_ in changes]))
     for sig in ['void SubScreenAramRead()', 'void sscrnSetLanguage(SubScreenWork* pSscrn, int language)',
                 'void sscrnDataFilename(SubScreenWork* pSscrn, const char* name)',
-                'void SubScreenGameInit()', 'void SubScreenRoomInit()', 'void SubScreenWait(int frame)']:
+                'void SubScreenGameInit()', 'void SubScreenRoomInit()', 'void SubScreenWait(int frame)',
+                'void SscrnDataSave(SSCRN_SAVE_DATA* dst)', 'void SscrnDataLoad(SSCRN_SAVE_DATA* pData)']:
         out = sig.replace('void ', 'void SubScreenContext::', 1)
         changes = [(sig, out)]
         if 'AramRead' in sig:
@@ -57,7 +58,11 @@ def generate(root, output):
                 'void cItemMgr::roomInit()', 'cItem* cItemMgr::search(u16 id)',
                 'cItem* cItemMgr::at(int i)', 'int cItemMgr::searchAt(cItem* p)',
                 'void cItemMgr::construct(cItem* p, ITEM_ID id)', 'int cItemMgr::get(ITEM_ID id, int num)',
-                'int cItemMgr::countFiles()']:
+                'int cItemMgr::countFiles()', 'void cItemMgr::save(void* pData)', 'void cItemMgr::load(void* pData)',
+                'void cItemMgr::gameInit()', 'int cItemMgr::set_game(int trial_flag)',
+                'int cItemMgr::arm(cItem* p)', 'u16 cItemMgr::weaponId(cItem* p)',
+                'int cItemMgr::dump(ITEM_ID id)', 'int cItemMgr::dump(cItem* p)', 'void cItemMgr::erase(cItem* p)',
+                'u16 cItemMgr::num(int id, u8 type)']:
         changes=[(sig, sig.replace('cItemMgr::', 'InventoryCpu::'))]
         if 'construct' in sig:
             changes.append(('asm volatile("");', '/* Codeless original PPC compiler anchor. */'))
@@ -68,6 +73,8 @@ def generate(root, output):
             changes.append(('if (i < m_array_num)', 'if (i >= 0 && i < m_array_num)'))
         if 'countFiles' in sig:
             changes.extend([('ItemMgr.m_array_num', 'm_array_num'), ('ItemMgr.at(i)', 'at(i)')])
+        if sig=='void cItemMgr::save(void* pData)':
+            changes += [('register int m1 asm("r0");','int m1;')]
         add('src/game/item.cpp', sig, changes)
     sig='void itemInfo(ITEM_ID id, ITEM_INFO* info)'
     add('src/game/item.cpp', sig)
@@ -77,6 +84,12 @@ def generate(root, output):
     src=(root/'src/game/item.cpp').read_text()
     cpp.insert(2, re.search(r'struct ITEM_WEAPON_INFO \{.*?\n\};', src, re.S)[0])
     cpp.insert(3, re.search(r'const ITEM_WEAPON_INFO wep_info\[\] = \{.*?\n\};', src, re.S)[0])
+    cpp.insert(4, re.search(r'struct ITEM_COMBINATION \{.*?\n\};', src, re.S)[0])
+    cpp.insert(5, re.search(r'const ITEM_COMBINATION combination_info\[\] = \{.*?\n\};', src, re.S)[0])
+    cpp.insert(6, 'u16 bareHand();\nint itemCombine(ITEM_ID,ITEM_ID,u16*);')
+    add('src/game/item.cpp','u16 bareHand()')
+    add('src/game/item.cpp','int itemCombine(ITEM_ID srcA, ITEM_ID srcB, u16* dst)')
+    add('src/game/pl_sub.cpp','int PlSetCostume()', [('int PlSetCostume()', 'int SubScreenContext::PlSetCostume()')])
     add('src/game/item.cpp', 'static inline void setBullet(cItem* p, u16 n)', [('static inline ', '')])
     sig='u16 WeaponId2ChargeNum(ITEM_ID id, int level)'
     add('src/game/item.cpp', sig, [(sig, 'u16 InventoryCpu::WeaponId2ChargeNum(ITEM_ID id, int level)')])

@@ -51,6 +51,10 @@ class EngineLoader final {
                           std::function<void(std::uint64_t)> ioProgressObserver = {},
                           MemoryLimits limits = {});
     ~EngineLoader();
+    std::uint8_t disc() const;
+    // Imported immutable discs replace the hardware lid prompt. Queued reads
+    // must finish before switching; existing leases keep their disc identity.
+    void selectDisc(std::uint8_t);
     EngineLoader(const EngineLoader &) = delete;
     EngineLoader &operator=(const EngineLoader &) = delete;
     // DvdReadN -> original ReadReq/LinkQueue, one current read; lower priority first/FIFO ties.

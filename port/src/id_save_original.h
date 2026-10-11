@@ -63,7 +63,36 @@ struct SaveImageCpu {
     GameplayHeaps &heaps;
     RoomSaveCpu &RoomData;
     SaveImageCpu(GameplayHeaps &h,RoomSaveCpu &r):heaps(h),RoomData(r) {}
-    struct ItemSize { int saveDataSize(); } ItemMgr;
+    struct ItemSize {
+        int saveDataSize();
+        std::function<void(void *)> writer;
+        std::function<void(void *)> reader;
+        void save(void *p) { writer(p); }
+        void load(void *p) { reader(p); }
+        [[noreturn]] int dumpType(int) { throw MissingGameConsumer("cGameSave::load/new round inventory"); }
+    } ItemMgr;
+    NativeGameState *pG{};
+    struct UnboundActor {
+        Vec pos{},ang{};
+        [[noreturn]] UnboundActor *operator->() {
+            throw MissingGameConsumer("cGameSave::save/live cPlayer position");
+        }
+    } pPL;
+    std::function<void(SSCRN_SAVE_DATA *)> subscreenWriter;
+    std::function<void(void *)> merchantWriter;
+    std::function<void(SSCRN_SAVE_DATA *)> subscreenReader;
+    std::function<void(void *)> merchantReader;
+    std::function<int()> costume;
+    void SscrnDataSave(SSCRN_SAVE_DATA *p) { subscreenWriter(p); }
+    void MerchantDataSave(void *p) { merchantWriter(p); }
+    void SscrnDataLoad(SSCRN_SAVE_DATA *p) { subscreenReader(p); }
+    void MerchantDataLoad(void *p) { merchantReader(p); }
+    int PlSetCostume() { return costume(); }
+    [[noreturn]] void clearGlobalSaveData() { throw MissingGameConsumer("cGameSave::load/new round reset"); }
+    [[noreturn]] void SndBgmTblInit() { throw MissingGameConsumer("SndBgmTblInit/original BGM table"); }
+    [[noreturn]] void Merchant2ndRoundInit() { throw MissingGameConsumer("cGameSave::load/new round reset"); }
+    bool save(SAVE_DATA_HEAD *,int);
+    bool load(SAVE_DATA_HEAD *);
     std::vector<std::string> trace;
     std::vector<GameplayHeaps::Allocation> allocations;
     void *mem_calloc(std::size_t,int,int);

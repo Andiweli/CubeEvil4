@@ -30,7 +30,7 @@ def generate(root, output):
     (output/'include').mkdir(exist_ok=True)
     read = lambda path: (root/path).read_text(encoding='utf-8')
     joy, main, pad, glob = map(read, ['include/joy.h', 'include/main.h', 'include/dolphin/pad.h', 'include/global.h'])
-    types = ['#pragma once\n#include "types.h"\nnamespace re4::port {']
+    types = ['#pragma once\n#include "types.h"\n#include <cstddef>\nnamespace re4::port {']
     types.append(re.search(r'typedef struct \{\s*f32 x, y, z;\s*\} Vec;', read('include/vec.h'))[0])
     types.append(re.search(r'typedef struct \{\s*u8 r, g, b, a;\s*\} GXColor;', read('include/gx.h'))[0])
     for text, name in [(joy, 'PAD_MOTOR'), (joy, 'JOY'), (main, 'KEY')]:
@@ -38,23 +38,33 @@ def generate(root, output):
     for name in ['PADStatus', 'PADClampRegion']:
         types.append(re.search(r'typedef struct ' + name + r' \{.*?\} ' + name + ';', pad, re.S)[0])
     types += re.findall(r'^#define (?:JOY_\w+|PAD_CHAN\w+|PAD_ERR_\w+)\s+[^\n]+', joy + '\n' + pad, re.M)
-    for name in ['DBG_FLAG', 'STA_FLAG', 'SYS_FLAG', 'SPF_FLAG', 'SCF_FLAG', 'CFG_FLAG', 'DPF_FLAG']:
+    for name in ['DBG_FLAG', 'STA_FLAG', 'SYS_FLAG', 'SPF_FLAG', 'SCF_FLAG', 'CFG_FLAG', 'DPF_FLAG', 'EXT_FLAG']:
         types.append(re.search(r'enum ' + name + r' \{.*?\n\};', glob, re.S)[0])
+    # The complete pointer-free GLOBAL_WK save tail is a native value, not a
+    # wire overlay. Retain every named scalar and unknown byte, including fields
+    # not yet used by an executed consumer. A save must never silently omit them.
+    tail = glob[glob.index('    u8 save_data_start_addr[4];'):glob.index('    s8 debug_mode;')]
+    tail = re.sub(r'    union \{.*?\n    \};',
+                  lambda m: '    u16 '+re.search(r'u16 (\w+);',m[0])[1]+';', tail, flags=re.S)
+    tail = tail.replace('EM_LIST Em_list[256]', 'u8 Em_list[0x2000]')
+    tail = tail.replace('ITEM_SAVE_WORK item_save[0x100]', 'u8 item_save[0x1000]')
+    tail = re.sub(r';(?=\s*(?://|\n|$))','{};',tail)
+    types += ['struct GameSaveBlock {',tail,'};',
+              'static_assert(sizeof(GameSaveBlock)==0x36F8, "complete pointer-free original save tail");',
+              'static_assert(offsetof(GameSaveBlock, room_id)==0x1C && offsetof(GameSaveBlock, SaveKind)==0x33D8);']
     # Names/types are copied from GLOBAL_WK; these are native views, not wire offsets.
     fields = ['Rno0','Rno1','Rno2','Rno3','RoomNo_next','room_id','room_id_prev','pl_type','game_mode',
-              'game_costume','pl_costume','debug_mode','debug_disp','game_country','System_flg',
+              'game_costume','pl_costume','debug_mode','debug_disp','game_country','System_flg','Part_next',
               'Stop_flg','Status_flg','Debug_flg','Room_flg','Scenario_flg','Frame_cnt',
               'game_start_time','play_time','pl_ang_y','ashley_life','pl_life','pl_life_max','ashley_life_max','weapon_no_old','weapon_no','weapon_type','bullet_type','weapon_lv_power','weapon_lv_speed','weapon_lv_blt','weapon_lv_reload','pl_flag','Speed','SaveKind','em_list_no','game_cnt','Disp_flg','AreaNo','shooting_mode','IsMessageInit','peseta','time_bonus']
-    types.append('struct NativeGameState {')
+    types.append('struct NativeGameState : GameSaveBlock {')
     for name in fields:
+        if re.search(r'\b'+name+r'(?:\[.*?\])?\{\};',tail):
+            continue
         matches = re.findall(r'^\s*((?:u8|u16|u32|s8|s16|s32|f32) ' + name + r'(?:\[\d+\])?);', glob, re.M)
         if len(matches) != 1: raise ValueError('ambiguous scalar field: ' + name)
         types.append('    ' + matches[0] + '{};')
-    ope=re.search(r'    u32 ope_x82E8;.*?    u8 pad_8304\[0x832C - 0x8304\];',glob,re.S)[0]
-    ope=re.sub(r';(?=\s*(?://|\n|$))','{};',ope)
-    types.append(ope)
-    types += ['    Vec pl_pos{};',
-              '    u8 Em_list[0x2000]{}; // Original ESL bytes; no native overlay.', '};', '} // namespace re4::port']
+    types += ['};', '} // namespace re4::port']
     (output/'include/re4_runtime_types.h').write_text('\n'.join(types) + '\n', encoding='utf-8')
     bodies = ['// Generated from reviewed sources. Adaptations recorded in runtime-manifest.json.',
               '#include "runtime_original.h"', '#include <cmath>', 'namespace re4::port {']
@@ -96,12 +106,19 @@ def generate(root, output):
     add('src/game/game.cpp', 'void gameDebug()')
     bodies.append(re.search(r'union FadeColor \{.*?\n\};',read('src/game/game.cpp'),re.S)[0])
     add('src/game/cloth.cpp','void ClothInit()', [('    int i;', '    trace.push_back("ClothInit:original");\n    int i;')])
-    unavailable = ['Game.omake_wep_addr = MEM_ALLOC(0x70000, 1, 13);',
-        'ItemMgr.gameInit();','SceAtInitSaveItem();',
-        'GameLoad();','GamePointInit(0);']
+    unavailable = ['Game.omake_wep_addr = MEM_ALLOC(0x70000, 1, 13);']
     add('src/game/game.cpp','void gameInit()', [(s,'missingGameInit('+json.dumps(s.rstrip(';'))+');') for s in unavailable]+[
         ('LightMgr.init(LightFuncTbl);','LightMgr.init();'),
         ('LightMgr.initPath((LightPathHeader*) CORE_ARC(CORE_LIGHT_PATH));','LightMgr.initPath();')])
+    add('src/game/game.cpp','void gameStageInit()', [
+        ('pG->stage_no','(pG->room_id >> 8)'),
+        ('GameSave.save(pSaveData, -1);','runtime->saveState().save(runtime->saveState().image(), -1, *pG, runtime->subscreen(), runtime->merchant());'),
+        ('    pG->Rno0 = 2;','    pG->Rno0 = 2;\n    trace.push_back("gameStageInit:original-complete");')])
+    add('src/game/game.cpp','void GamePointInit(u32 type)')
+    add('src/game/game.cpp','void GameAddPoint(int type)')
+    add('src/game/game.cpp','void GameLoad()', [('GameSave.load(pSaveData);',
+        'runtime->saveState().load(runtime->saveState().image(), *pG, runtime->subscreen(), runtime->merchant());')])
+    add('src/game/sce_at.cpp','void SceAtInitSaveItem()')
     add('src/game/main_sub.cpp','void systemVISetBlack(int sw)')
     add('src/game/game.cpp', 'void GameTask()', [(
         'static void (*game_func_tbl[7])() = {\n        gameInit, gameStageInit, gameRoomInit, gameMainLoop, gameDoordemo, gameEnding, gameOption,\n    };',

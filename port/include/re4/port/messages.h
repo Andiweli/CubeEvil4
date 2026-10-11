@@ -40,6 +40,8 @@ class MessageRuntime final {
     // original pSys language 1; all disc reads use the existing Dvd queues.
     void initialize();
     void gameInit();
+    void stageInit();
+    void retireStageFont(); // Owner-thread heap handoff; live snapshots retain their leases.
     void clear(); // Frame-boundary release; snapshots independently retain leases.
     bool ready() const;
     void setLayout(int slot, int layout);

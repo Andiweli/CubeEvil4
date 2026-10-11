@@ -67,7 +67,9 @@ void OriginalContext::Scenario::scheduler() {
     scheduler.runScenarios();
 }
 void OriginalContext::MessageFacade::stageInit() {
-    context->required("cMes.stageInit").MessageStageInit();
+    context->trace.push_back("cMes.stageInit");
+    if(context->consumers)context->consumers->MessageStageInit(); // Explicit isolated observer compatibility.
+    else context->runtime->messages().stageInit();
 }
 void OriginalContext::MessageFacade::gameInit() { context->runtime->messages().gameInit(); }
 void OriginalContext::SubScreenGameInit() { runtime->subscreen().gameInit(); }
@@ -611,6 +613,7 @@ void GameRuntime::initGameTime() {
     impl_->check();
     impl_->original.InitGameTime();
 }
+void GameRuntime::loadGameState() { impl_->check();impl_->original.GameLoad(); }
 void GameRuntime::setGameTime() {
     impl_->check();
     impl_->original.SetGameTime();

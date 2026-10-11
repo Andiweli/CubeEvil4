@@ -92,6 +92,10 @@ void SubScreenRuntime::gameInit() {
     if(!c.inventoryReady) throw std::logic_error("missing original Title_task ItemMgr.init prerequisite");
     c.initialized=false; c.loaded.clear(); c.SubScreenGameInit(); c.initialized=true;
 }
+void SubScreenRuntime::initializeStartInventory() {
+    auto &c=impl_->c;c.check();if(!c.inventoryReady)throw std::logic_error("inventory not ready");
+    c.ItemMgr.gameInit();c.trace.push_back("cItemMgr::gameInit:original-complete");
+}
 void SubScreenRuntime::roomInit() { auto &c=impl_->c; c.check(); if(!c.inventoryReady) throw std::logic_error("inventory not ready"); c.SubScreenRoomInit(); }
 void SubScreenRuntime::wait(int frames) { impl_->c.check(); impl_->c.SubScreenWait(frames); }
 void SubScreenRuntime::clear() {
@@ -115,6 +119,24 @@ void SubScreenRuntime::clearInventory() { impl_->c.check(); impl_->c.ItemMgr.cle
 void SubScreenRuntime::inventoryRoomInit() { impl_->c.check(); impl_->c.ItemMgr.roomInit(); }
 int SubScreenRuntime::itemSlot(const cItem *p) const { impl_->c.check(); return impl_->c.ItemMgr.searchAt(const_cast<cItem *>(p)); }
 int SubScreenRuntime::itemCapacity() const { impl_->c.check(); return impl_->c.ItemMgr.m_array_num; }
+void SubScreenRuntime::saveInventory(_ITEM_SAVE_DATA &d) {
+    auto &c=impl_->c;c.check();if(!c.inventoryReady)throw std::logic_error("inventory not ready");
+    c.ItemMgr.save(&d);
+}
+void SubScreenRuntime::loadInventory(const _ITEM_SAVE_DATA &d) {
+    auto &c=impl_->c;c.check();if(!c.inventoryReady)throw std::logic_error("inventory not ready");
+    validateInventory(d);
+    c.ItemMgr.load(const_cast<_ITEM_SAVE_DATA *>(&d));
+}
+void SubScreenRuntime::validateInventory(const _ITEM_SAVE_DATA &d) const {
+    auto &c=impl_->c;c.check();if(!c.inventoryReady)throw std::logic_error("inventory not ready");
+    if(d.arm_no!=0xffff && d.arm_no>=c.ItemMgr.m_array_num)throw std::invalid_argument("save armed slot outside inventory");
+    for(auto &v:d.item_list)if(v.id!=0xffff && (v.id&0x7fff)>255)throw std::invalid_argument("save item ID outside original table");
+}
+void SubScreenRuntime::saveState(SSCRN_SAVE_DATA &d) { impl_->c.check();impl_->c.SscrnDataSave(&d); }
+void SubScreenRuntime::loadState(const SSCRN_SAVE_DATA &d) { impl_->c.check();impl_->c.SscrnDataLoad(const_cast<SSCRN_SAVE_DATA *>(&d)); }
+int SubScreenRuntime::setCostume() { impl_->c.check();return impl_->c.PlSetCostume(); }
+bool SubScreenRuntime::usesState(const NativeGameState &g) const { impl_->c.check();return impl_->c.pG==&g; }
 void mapAreaFilename(int,char *);
 std::string SubScreenRuntime::mapFilename(int area) const {
     impl_->c.check(); if(area<0 || area>17) throw std::out_of_range("original map area");

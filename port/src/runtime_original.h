@@ -26,6 +26,7 @@ inline void nativeFlagOff(u32 *p, int n) { p[n / 32] &= ~(0x80000000U >> (n % 32
 #define ScfFlagChk(g, n) nativeFlag((g)->Scenario_flg, n)
 #define ScfFlagOn(g, n) nativeFlagOn((g)->Scenario_flg, n)
 #define ScfFlagOff(g, n) nativeFlagOff((g)->Scenario_flg, n)
+#define ExtFlagChk(g, n) nativeFlag(&(g)->Extra_flg, n)
 #define FlagChkSignW(flg, no) ((s32)((flg) << ((no) & 31)) < 0)
 #define FlagChkSign(flg, no) FlagChkSignW((flg)[(no) >> 5], no)
 #define G_ROOM_ID (pG->room_id)
@@ -42,7 +43,7 @@ struct OriginalContext {
     NativeGameState global{};
     NativeGameState *pG = &global;
     struct System {
-        u32 Config_flg{};
+        u32 Config_flg{},Extra_flg{};
         u8 language{}, eff_country{}, brightness{}, pad_type{};
     } system;
     System *pSys = &system;
@@ -97,6 +98,11 @@ struct OriginalContext {
         OriginalContext *context = nullptr;
         void stageInit();
         void gameInit();
+        void setLayout(int n,int type) { context->runtime->messages().setLayout(n,type); }
+        s8 getLineGap(int n) { return static_cast<s8>(context->runtime->messages().layout(n).lineGap); }
+        s8 getFontHeight(int n) { return context->runtime->messages().layout(n).height; }
+        [[noreturn]] void MesSet(int,int,int,int,int,int,int) { throw MissingGameConsumer("cMes.MesSet/message execution"); }
+        [[noreturn]] int GetSelectMessage(int) { throw MissingGameConsumer("cMes.GetSelectMessage/message execution"); }
     } cMes;
     struct EventFacade {
         OriginalContext *context = nullptr;
@@ -230,10 +236,13 @@ struct OriginalContext {
     struct DvdFacade {
         OriginalContext *context = nullptr;
         int ReadCheck(int id, int *result, void *, void *);
+        int GetDiscNo() { return context->runtime->loader().disc(); }
+        void DiscChange(int n) { context->runtime->loader().selectDisc(static_cast<u8>(n)); }
     } Dvd;
     int DvdReadN(const char *, void *, int, int, int, int, const char *, int);
     void collectCancelledReads();
     struct Log {
+        template<class... A> void warn(int,int,const char *format,A... args) { std::fprintf(stderr,format,args...);std::fputc('\n',stderr); }
         [[noreturn]] void err(int, int, const char *) {
             throw std::logic_error("original unreachable log error");
         }
@@ -264,8 +273,10 @@ struct OriginalContext {
         *joy = JOY{};
     }
     void memclr_asm(u8 *buffer, std::size_t bytes) {
-        if (buffer != global.Em_list || bytes != sizeof(global.Em_list))
-            throw std::logic_error("ESL clear range");
+        const bool enemies = buffer == global.Em_list && bytes == sizeof(global.Em_list);
+        const bool items = buffer == global.item_save && bytes == sizeof(global.item_save);
+        if (!enemies && !items)
+            throw std::logic_error("original saved enemy/item clear range");
         std::memset(buffer, 0, bytes);
     }
     void systemScreenInit();
@@ -295,7 +306,17 @@ struct OriginalContext {
     void ClothInit();
     [[noreturn]] void missingGameInit(const char *name) { throw MissingGameConsumer(name); }
     void GXSetCopyClear(GXColor color,u32 depth) { runtime->graphics().setCopyClear(color,depth); }
-    [[noreturn]] void gameStageInit() { throw MissingGameConsumer("gameStageInit/cMes/GameSave"); }
+    void gameStageInit();
+    u32 Flag54(u32 b) { return pG->System_flg & b; } // src/game/game.cpp:89
+    void GamePointInit(u32);
+    void GameAddPoint(int);
+    void SceAtInitSaveItem();
+    struct InventoryFacade {
+        OriginalContext *context;
+        void gameInit() { context->runtime->subscreen().initializeStartInventory(); }
+    } ItemMgr{this};
+    int PlSetCostume() { return runtime->subscreen().setCostume(); }
+    void GameLoad();
     [[noreturn]] void gameRoomInit() {
         throw MissingGameConsumer("gameRoomInit/model/light/player");
     }
@@ -313,6 +334,7 @@ struct OriginalContext {
     int getEmListNum();
     void StageSet();
     int MemReplaceHeap(int a, int b) {
+        if(a==1 && b==2 && runtime->messages().ready())runtime->messages().retireStageFont();
         if (!heaps->replace(a, b))
             throw std::logic_error(
                 "MemReplaceHeap: native live-resource boundary prevents handoff");

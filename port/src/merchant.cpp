@@ -27,5 +27,14 @@ void MerchantRuntime::clear() {
 MerchantSnapshot MerchantRuntime::snapshot() const {
     auto &i=*impl_;i.check();return {i.original.merchantData[0],i.initialized,i.original.merchantChar.m_p_data!=nullptr};
 }
+void MerchantRuntime::save(MERCHANT_DATA &d) {
+    auto &i=*impl_;i.check();if(!i.initialized)throw std::logic_error("merchant not initialized");
+    i.original.MerchantDataSave(&d);
+}
+void MerchantRuntime::load(const MERCHANT_DATA &d) {
+    auto &i=*impl_;i.check();if(!i.initialized)throw std::logic_error("merchant not initialized");
+    i.original.MerchantDataLoad(const_cast<MERCHANT_DATA *>(&d));
+}
+bool MerchantRuntime::usesState(const NativeGameState &g) const { impl_->check();return impl_->original.pG==&g; }
 const std::vector<std::string> &MerchantRuntime::trace() const { impl_->check();return impl_->trace; }
 } // namespace re4::port

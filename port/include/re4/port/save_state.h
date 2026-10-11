@@ -7,6 +7,8 @@
 namespace re4::port {
 class GameplayHeaps;
 class NativeScheduler;
+class SubScreenRuntime;
+class MerchantRuntime;
 struct NativeSaveImage {
     std::shared_ptr<void> owner;
     SAVE_DATA_HEAD *head{};
@@ -18,9 +20,9 @@ struct SaveStateSnapshot {
     std::vector<u32> sectionOffsets;
     bool initialized{};
 };
-// Native in-memory save image, not a GameCube memory-card wire image. Global,
-// merchant, inventory and SubScreen aggregate save/load are not yet bound.
-// No cGameSave::save/load success is advertised by this limited startup service.
+// Native in-memory save image, not a GameCube memory-card wire image. The
+// original aggregate save and ordinary load are bound to the real managers.
+// New-round load and the Rno0=3 live actor position branch remain explicit dependencies.
 class SaveStateRuntime final {
   public:
     SaveStateRuntime(GameplayHeaps &, NativeScheduler &);
@@ -35,6 +37,8 @@ class SaveStateRuntime final {
     void saveRooms(const NativeSaveImage &);
     void loadRooms(const NativeSaveImage &);
     void clearRooms(const NativeSaveImage &);
+    bool save(const NativeSaveImage &,int mode,NativeGameState &,SubScreenRuntime &,MerchantRuntime &);
+    bool load(const NativeSaveImage &,NativeGameState &,SubScreenRuntime &,MerchantRuntime &);
     int passed(u16 room, int part) const;
     void setPassed(u16 room, int part);
     const std::vector<std::string> &trace() const;

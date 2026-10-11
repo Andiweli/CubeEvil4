@@ -1,4 +1,5 @@
 #include "id_save_original.h"
+#include "re4/port/game_runtime.h"
 #include <algorithm>
 #include <atomic>
 #include <cstdarg>
@@ -214,6 +215,36 @@ void SaveStateRuntime::addresses(const NativeSaveImage &h) { impl_->validate(h);
 void SaveStateRuntime::saveRooms(const NativeSaveImage &h) { impl_->validate(h,true); impl_->rooms.save(h.head->pRm); }
 void SaveStateRuntime::loadRooms(const NativeSaveImage &h) { impl_->roomImage(h); impl_->rooms.load(h.head->pRm); }
 void SaveStateRuntime::clearRooms(const NativeSaveImage &h) { impl_->roomImage(h); impl_->rooms.clear(h.head->pRm); }
+bool SaveStateRuntime::save(const NativeSaveImage &h,int mode,NativeGameState &g,SubScreenRuntime &ss,MerchantRuntime &mr) {
+    auto &i=*impl_;i.validate(h);
+    if(!h.head->base)return i.save.save(h.head,mode); // Original offset-form image returns false without mutation.
+    i.validate(h,true);
+    if(!ss.snapshot().initialized || !mr.snapshot().initialized)throw std::logic_error("aggregate save managers not initialized");
+    if(!ss.usesState(g) || !mr.usesState(g))throw std::invalid_argument("aggregate save state owner");
+    auto &s=i.save;
+    if(s.pG)throw std::logic_error("recursive aggregate save");
+    struct Unbind { SaveImageCpu &s;~Unbind(){s.pG=nullptr;s.ItemMgr.writer={};s.subscreenWriter={};s.merchantWriter={};} } unbind{s};
+    s.pG=&g;s.ItemMgr.writer=[&ss](void *p){ss.saveInventory(*static_cast<_ITEM_SAVE_DATA *>(p));};
+    s.subscreenWriter=[&ss](SSCRN_SAVE_DATA *p){ss.saveState(*p);};
+    s.merchantWriter=[&mr](void *p){mr.save(*static_cast<MERCHANT_DATA *>(p));};
+    return s.save(h.head,mode);
+}
+bool SaveStateRuntime::load(const NativeSaveImage &h,NativeGameState &g,SubScreenRuntime &ss,MerchantRuntime &mr) {
+    auto &i=*impl_;i.validate(h);
+    if(!h.head->base)return i.save.load(h.head);
+    i.roomImage(h);
+    if(h.head->pGlobal->SaveKind==3)throw MissingGameConsumer("cGameSave::load/new round/SndBgmTblInit");
+    if(!ss.snapshot().initialized || !mr.snapshot().initialized)throw std::logic_error("aggregate load managers not initialized");
+    if(!ss.usesState(g) || !mr.usesState(g))throw std::invalid_argument("aggregate load state owner");
+    ss.validateInventory(*static_cast<_ITEM_SAVE_DATA *>(h.head->pItm));
+    auto &s=i.save;if(s.pG)throw std::logic_error("recursive aggregate load");
+    struct Unbind { SaveImageCpu &s;~Unbind(){s.pG=nullptr;s.ItemMgr.reader={};s.subscreenReader={};s.merchantReader={};s.costume={};} } unbind{s};
+    s.pG=&g;s.ItemMgr.reader=[&ss](void *p){ss.loadInventory(*static_cast<_ITEM_SAVE_DATA *>(p));};
+    s.subscreenReader=[&ss](SSCRN_SAVE_DATA *p){ss.loadState(*p);};
+    s.merchantReader=[&mr](void *p){mr.load(*static_cast<MERCHANT_DATA *>(p));};
+    s.costume=[&ss]{return ss.setCostume();};
+    return s.load(h.head);
+}
 int SaveStateRuntime::passed(u16 room,int part) const { impl_->check(); if(part<0 || part>7) throw std::out_of_range("passed bit"); return impl_->rooms.checkPassed(room,part); }
 void SaveStateRuntime::setPassed(u16 room,int part) { impl_->check(); if(part<0 || part>7) throw std::out_of_range("passed bit"); impl_->rooms.setPassed(room,part); }
 const std::vector<std::string> &SaveStateRuntime::trace() const { impl_->check(false); return impl_->save.trace; }

@@ -10,8 +10,8 @@ struct MerchantSnapshot {
     MERCHANT_DATA data{};
     bool initialized{}, characterBound{};
 };
-// Actual original persistent merchant boot tables; shop UI/actors and aggregate
-// save/load remain separate dependencies. Pointers never overlay a GC save image.
+// Actual original merchant boot tables and save/load bodies. Shop UI and actors
+// remain separate dependencies. Pointers never overlay a GC save image.
 class MerchantRuntime final {
 public:
     MerchantRuntime(NativeGameState &, u8 &language);
@@ -20,6 +20,9 @@ public:
     void secondRoundInit();
     void clear();
     MerchantSnapshot snapshot() const;
+    void save(MERCHANT_DATA &);
+    void load(const MERCHANT_DATA &);
+    bool usesState(const NativeGameState &) const;
     const std::vector<std::string> &trace() const;
 private:
     struct Impl;

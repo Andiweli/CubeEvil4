@@ -275,11 +275,15 @@ def generate_messages(root,output):
         source=source.replace(signature+' {',signature+'\n{')
         body,line=function(source,signature)
         for before,after in changes:
-            if body.count(before)!=1: raise ValueError('message adaptation no longer unique: '+before)
+            expected={('void MessageControl::stageInit()','pG->stage_no'):3,
+                      ('void MessageControl::stageInit()','pG->pStFnt'):2,
+                      ('void MessageControl::loadStageFont()','pG->stage_no'):2}.get((signature,before),1)
+            if body.count(before)!=expected: raise ValueError('message adaptation count changed: '+before)
             body=body.replace(before,after)
         cpp.extend([f'#line {line} "{(root/path).as_posix()}"',body])
         entries.append(dict(source=path,signature=signature,line=line,adaptations=[a for a,_ in changes]))
     for sig in ['void MessageControl::init()', 'void MessageControl::gameInit()',
+                'void MessageControl::stageInit()', 'void MessageControl::loadStageFont()',
                 'void MessageControl::loadCommonFont()', 'void MessageControl::loadSystemFont()',
                 'int MessageControl::loadFont(int w, int h, const char* name, int no)',
                 'void MessageControl::releaseFont(int no)', 'void MessageControl::setLanguage(int lang)',
@@ -290,6 +294,11 @@ def generate_messages(root,output):
         changes=[(sig,sig.replace('MessageControl::','MessageControlCpu::'))]
         if 'setLayout' in sig: changes.append(('static s8* p_layout;', 's8* p_layout; // Invocation-local cursor; original lookup unchanged.'))
         if 'gameInit' in sig: changes.append(('    MesData.registData(0,', '    trace.push_back("MessageControl::gameInit:original");\n    MesData.registData(0,'))
+        if 'stageInit' in sig or 'loadStageFont' in sig:
+            # Occurs several times; every occurrence is the same canonical
+            # room scalar adapter instead of the original big-endian union.
+            changes.append(('pG->stage_no','(pG->room_id >> 8)'))
+            if 'stageInit' in sig: changes.append(('pG->pStFnt','pStFnt'))
         add('src/game/mes.cpp',sig,changes)
     sig='void MessageControl::setupFont(int char_w, int char_h, u8* addr, int no)'
     add('src/game/mes.cpp',sig,[(sig,sig.replace('MessageControl::','MessageControlCpu::')),

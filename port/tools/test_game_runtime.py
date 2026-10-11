@@ -60,7 +60,7 @@ def main():
     digests.update(f['sha256'] for f in packages)
     digests.update(f['sha256'] for f in additional)
     digests.update(f['sha256'] for f in player_files.values())
-    boot_files=[f for f in manifest['files'] if f['path'].lower() in ['etc/core.das','font/common_p.fnt','rel/sscrn.rel'] or f['path'].lower().startswith('ss/eng/') or f['path'].lower().startswith('ss/cmn/map_obj')]
+    boot_files=[f for f in manifest['files'] if f['path'].lower() in ['etc/core.das','font/common_p.fnt','rel/sscrn.rel'] or re.fullmatch(r'font/(stage|event)\d_j\.fnt',f['path'].lower()) or f['path'].lower().startswith('ss/eng/') or f['path'].lower().startswith('ss/cmn/map_obj')]
     digests.update(f['sha256'] for f in boot_files)
     for digest in digests:
         if sha((data/'blobs'/digest).read_bytes()) != digest: raise ValueError('source blob differs')
@@ -70,7 +70,7 @@ def main():
     model_results=[]
     message_results=[]
     light_results=[]
-    def verify_messages(actual,disc,bits):
+    def verify_messages(actual,disc,bits,new_game=False):
         if actual['pointer_bits']!=bits or actual['kind']!='actual_CoreDataRead_MessageControl_init_gameInit_Font_create':
             raise ValueError('message original execution/ABI')
         cf=files[(disc,'etc/core.das')]
@@ -148,15 +148,17 @@ def main():
         room_bytes=16+216*len(expected_rooms)
         ss_offset=0x3740+((room_bytes+31)&~31); merchant_offset=ss_offset+32
         item_offset=merchant_offset+((0x304+31)&~31); image_size=item_offset+((0x1204+31)&~31)
-        if saves['rooms']!=total or saves['room_ids']!=expected_rooms or saves['saved_rooms']!=len(expected_rooms) or saves['room_bytes']!=room_bytes or saves['sections']!=[64,0x3740,ss_offset,merchant_offset,item_offset] or saves['image_bytes']!=image_size or saves['aggregate_save_load']:
+        if saves['rooms']!=total or saves['room_ids']!=expected_rooms or saves['saved_rooms']!=len(expected_rooms) or saves['room_bytes']!=room_bytes or saves['sections']!=[64,0x3740,ss_offset,merchant_offset,item_offset] or saves['image_bytes']!=image_size or not saves['aggregate_save_load'] or saves['new_round_load']:
             raise ValueError('original room/save allocation coverage')
         path_entry=cf['analysis']['entries'][0x0F-4]
         lb=actual['light_boot']
         if lb['path_sha256']!=path_entry['sha256'] or lb['paths']!=11 or not lb['initialized'] or lb['trace']!=['cLightMgr::init:original','cLightMgr::initPath:original']:
             raise ValueError('actual original light startup/path reference')
-        if actual['blocker']!='Original consumer unavailable: gameStageInit/cMes/GameSave' or not actual['repeated_init_released'] or actual['checks']<1500:
+        if actual['blocker']!='Original consumer unavailable: gameRoomInit/model/light/player' or not actual['repeated_init_released'] or actual['checks']<1500:
             raise ValueError('actual GameTask progress or message lifecycle')
-        if actual['merchant_boot']!={'original_complete':True,'friendship':50,'character_bound':False} or actual['game_init']!={'original_complete':True,'next_state':1,'presentation':'isolated_CPU_recording_probe','new_game_inventory_branch':False}:
+        if not saves['aggregate_save'] or not saves['aggregate_load'] or actual['game_stage_init']!={'original_complete':True,'next_state':2,'save_kind':-1,'disc_after':0}:
+            raise ValueError('actual aggregate save / original stage transition')
+        if actual['merchant_boot']!={'original_complete':True,'friendship':50,'character_bound':False} or actual['game_init']!={'original_complete':True,'next_state':1,'presentation':'isolated_CPU_recording_probe','new_game_inventory_branch':new_game}:
             raise ValueError('original Merchant/gameInit execution scope')
         player=actual['player']
         if not player['gameTask_PlayerInit_complete'] or player['actor_constructed'] or [player[k] for k in ['life','max_life','weapon','weapon_type','flag']]!=[1200,1200,2,0,1] or player['trace']!=['PlayerInit:original','PlayerLifeReset:original','ReleaseWepData:original','InitModule:original']:
@@ -385,11 +387,12 @@ def main():
             if isolated['pointer_bits'] != bits or isolated['failed'] or isolated['checks'] < 634:
                 raise ValueError('isolated native runtime test/ABI')
             for disc in sorted(int(d) for d in cases):
-                boot=json.loads(run([*command,'messages',targetRoot,targetCatalog,str(disc)]))
-                boot_trace=verify_messages(boot,disc,bits)
-                message_results.append(dict(abi=abi,round=repeat,disc=disc,trace_sha256=boot_trace,actual=boot,executable_sha256=exeHash))
-                write_json(output/f'messages-{abi}.json',dict(results=[r for r in message_results if r['abi']==abi]))
-                print(f'PASS {abi} round {repeat} disc {disc}: original CoreDataRead, Font/Message init, actual GameTask beyond cMes.gameInit',flush=True)
+                for new_game in [False,True]:
+                    boot=json.loads(run([*command,'new-game' if new_game else 'messages',targetRoot,targetCatalog,str(disc)]))
+                    boot_trace=verify_messages(boot,disc,bits,new_game)
+                    message_results.append(dict(abi=abi,round=repeat,disc=disc,new_game=new_game,trace_sha256=boot_trace,actual=boot,executable_sha256=exeHash))
+                    write_json(output/f'messages-{abi}.json',dict(results=[r for r in message_results if r['abi']==abi]))
+                    print(f'PASS {abi} round {repeat} disc {disc} new_game={new_game}: actual GameTask gameStageInit, aggregate save and room-entry transition',flush=True)
             for disc in sorted({f['disc_number'] for f in packages}):
                 expected=[f for f in packages if f['disc_number']==disc]
                 actual=json.loads(run([*command,'consumers',targetRoot,targetCatalog,str(disc),*[f['path'] for f in expected]]))
@@ -449,7 +452,9 @@ def main():
     for disc in cases:
         if len({r['trace_sha256'] for r in results if r['disc']==int(disc)}) != 1: raise ValueError('ABI/repeat difference')
     if len({r['trace_sha256'] for r in consumer_results})!=1: raise ValueError('consumer ABI/repeat difference')
-    if len({r['trace_sha256'] for r in message_results})!=1: raise ValueError('message ABI/repeat difference')
+    for new_game in (False,True):
+        if len({r['trace_sha256'] for r in message_results if r['new_game']==new_game})!=1:
+            raise ValueError('message ABI/repeat difference for startup input '+str(new_game))
     for disc in {r['disc'] for r in model_results}:
         if len({r['trace_sha256'] for r in model_results if r['disc']==disc})!=1: raise ValueError('additional model ABI/repeat difference')
 

@@ -112,7 +112,7 @@ void MessageControlCpu::reset() {
     for(auto &t:Specular) t={};
     for(auto &t:IndTex) t={};
     for(auto &t:GlobalIlmTex) t={};
-    ThermoTlut={}; trace.clear(); pG->IsMessageInit=0;
+    ThermoTlut={}; trace.clear(); pG->IsMessageInit=0;pStFnt=nullptr;
 }
 void MessageControlCpu::collectCancelledReads() {
     check();
@@ -131,7 +131,7 @@ void *MessageControlCpu::mem_alloc(u32 n,const char *,int,int flag,int heap) {
     if(!ptr) throw std::bad_alloc(); allocations.push_back(std::move(a)); return ptr;
 }
 int MessageControlCpu::DvdFacade::FileExistCheck(const char *path,u32 *size) {
-    context->check(); auto *f=context->files->find(context->disc,path);
+    context->check(); auto *f=context->files->find(context->loader.disc(),path);
     if(!f) return -1;
     if(size) *size=f->size;
     return static_cast<int>(f->fstIndex);
@@ -141,7 +141,7 @@ int MessageControlCpu::DvdReadN(const char *path,void *dst,int a,int b,int c,int
     if(a || b || c || mode!=0x11) throw std::invalid_argument("font original DvdReadN flags");
     auto it=std::find_if(allocations.begin(),allocations.end(),[&](const auto &v){return v.data==dst;});
     if(it==allocations.end()) throw std::invalid_argument("font destination allocation");
-    auto *f=files->find(disc,path);
+    auto *f=files->find(loader.disc(),path);
     if(!f || f->size>it->bytes) throw std::invalid_argument("font file exceeds original allocation");
     if(nextRead==INT32_MAX) throw std::overflow_error("message read identity");
     int id=nextRead++; reads.emplace(id,Read{loader.request(path,static_cast<u16>(mode)),dst,it->bytes,false,*loader.scheduler().current()});
@@ -239,6 +239,26 @@ void MessageRuntime::gameInit() {
     auto &c=impl_->c; c.check(true);
     if(!c.initialized) throw MissingGameConsumer("cMes.gameInit()");
     c.gameInit(); c.trace.push_back("MessageControl::gameInit:original-complete");
+}
+void MessageRuntime::stageInit() {
+    auto &c=impl_->c;c.check(true);
+    if(!c.initialized)throw std::logic_error("message init required");
+    if(c.pStFnt) {
+        // A second stage cannot overwrite an owned font buffer while slots
+        // refer to it. Stage teardown is a separate checked lifecycle boundary.
+        throw MissingGameConsumer("cMes.stageInit/stage font retirement");
+    }
+    c.stageInit();c.trace.push_back("MessageControl::stageInit:original-complete");
+}
+void MessageRuntime::retireStageFont() {
+    auto &c=impl_->c;c.check();auto *p=c.pStFnt;if(!p)return;
+    for(auto &r:c.reads)if(r.second.destination==p)throw std::logic_error("stage font read not quiescent");
+    c.releaseFont(2);c.releaseFont(3);c.m_font_addr[2]=c.m_font_addr[3]=nullptr;
+    c.loadedSizes.erase(p);
+    auto it=std::find_if(c.allocations.begin(),c.allocations.end(),[&](const auto &a){return a.data==p;});
+    if(it==c.allocations.end())throw std::logic_error("unowned stage font allocation");
+    c.allocations.erase(it);c.pStFnt=nullptr;
+    c.trace.push_back("stage-font:native-owner-retirement");
 }
 void MessageRuntime::clear() {
     impl_->c.check();

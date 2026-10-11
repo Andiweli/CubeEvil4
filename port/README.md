@@ -1,13 +1,18 @@
 # RE4 native foundation
 
-The Phase-5b partial runtime executes original MerchantGameInit through GameTask,
-then explicitly stops at the unported gameStageInit/save boundary. The CLI proof
-uses a labelled CPU VI observer, not a GPU gameplay frame. Original MotionMove,
+The Phase-5b partial runtime now executes original gameInit and gameStageInit
+through GameTask to Rno0=2, including the actual new-game inventory/difficulty
+branch, stage font ownership, imported-disc selection and aggregate save.
+Ordinary aggregate load and GameLoad are verified separately. GameTask stops
+at the entirely unported gameRoomInit body. The CLI proof uses a labelled CPU
+VI observer, not a GPU gameplay frame. Original MotionMove,
 SEQ, leg/heel/toe IK and animation-frame crossing run on persistent native models;
 seven real pl00 motion pairs are exercised over multiple ticks. Original SAT/EAT
 segment/floor algorithms use checked immutable BE resources. Actor construction,
 weapon logic, sphere push-out, live shoulder camera and Event::Run remain open.
-See the [Phase-5b report](docs/phase5b-runtime-status.md) for tests and exact limits.
+See the [current Phase-5b progress report](docs/phase5b-scene-status.md) for
+tests and exact limits, and the [preceding report](docs/phase5b-runtime-status.md)
+for the existing motion/collision integration.
 
 The current Phase-5a continuation preserves original CNS-sized model pools through
 light/OT capture and executes original model-bound light transforms. r100, r102

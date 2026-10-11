@@ -32,6 +32,7 @@ def generate(root, output):
             'void Merchant2ndRoundInit()', 'void stockDataInit(MERCHANT_DATA* p_data)',
             'void add_stock(StockEntry* dst, StockEntry* src)', 'void stockDataAdd(MERCHANT_DATA* d, StockEntry* tbl)',
             'void levelDataInit(MERCHANT_DATA* p_data)', 'void levelDataAdd(MERCHANT_DATA* d, LevelEntry* tbl)',
+            'void MerchantDataSave(void* dst)', 'void MerchantDataLoad(void* src)',
             'void MerchantCharacter::setChar(MERCHANT_INFO* info, MERCHANT_DATA* data, PRICE_INFO* sell, PRICE_INFO* exer, LEVEL_PRICE* lvup)']
     for sig in sigs:
         body, line = function(source, sig)

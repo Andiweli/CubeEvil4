@@ -7,7 +7,7 @@
 #include <cstddef>
 
 namespace re4::port {
-static_assert(offsetof(NativeGameState,pad_8304)+sizeof(NativeGameState::pad_8304)-offsetof(NativeGameState,ope_x82E8)==0x44,
+static_assert(offsetof(GameSaveBlock,pad_8304)+sizeof(GameSaveBlock::pad_8304)-offsetof(GameSaveBlock,ope_x82E8)==0x44,
               "original Ope memset span must remain pointer-free and exactly 68 bytes");
 // Original named native fields, not an overlay of the GC SUB_SCREEN.
 struct SubScreenWorkCpu {
@@ -19,6 +19,7 @@ struct SubScreenWorkCpu {
     std::uintptr_t relAddr{};
     u32 p_module{}; // Logical ARAM address, never a dereferenceable native pointer.
     u8 board_next{},board_size{},map_mode{};
+    u32 save{};
 };
 using SubScreenWork=SubScreenWorkCpu;
 struct MapManagerCpu {
@@ -60,6 +61,26 @@ struct InventoryCpu {
     void construct(cItem *,ITEM_ID);
     int get(ITEM_ID,int);
     int countFiles();
+    void gameInit();
+    int set_game(int);
+    [[noreturn]] int set_ada(int) { throw MissingGameConsumer("cItemMgr::set_ada/PutInCase"); }
+    [[noreturn]] int set_char(int) { throw MissingGameConsumer("cItemMgr::set_char/PutInCase"); }
+    cItem *newbie() { return m_pNew; } // Original inline include/item.h.
+    cItem *weapon() { return m_pWep; }
+    u16 weaponId() { return m_wep_id; }
+    u16 weaponId(cItem *);
+    u16 num(int,u8);
+    int arm(cItem *);
+    int dump(ITEM_ID);
+    int dump(cItem *);
+    void erase(cItem *);
+    InventoryCpu &ItemMgr=*this; // Original manager global is this owned instance.
+    void save(void *);
+    void load(void *);
+    static void memclr_asm(ItemSaveWork *p,std::size_t n) {
+        if(n!=sizeof(*p))throw std::invalid_argument("original item save clear extent");
+        *p=ItemSaveWork{};
+    }
     u16 WeaponId2ChargeNum(ITEM_ID,int);
     int addMoney(int);
     [[noreturn]] void MercSysSetAddTime(int) { throw MissingGameConsumer("MercSysSetAddTime"); }
@@ -105,9 +126,16 @@ struct SubScreenContext {
     void SubScreenGameInit();
     void SubScreenRoomInit();
     void SubScreenWait(int);
+    void SscrnDataSave(SSCRN_SAVE_DATA *);
+    void SscrnDataLoad(SSCRN_SAVE_DATA *);
+    int PlSetCostume();
     void OSReport(const char *,...) const;
 };
 #define StaFlagOn(g,n) ((g)->Status_flg[(n)/32] |= (0x80000000u >> ((n)%32)))
 #define StaFlagOff(g,n) ((g)->Status_flg[(n)/32] &= ~(0x80000000u >> ((n)%32)))
 #define ScfFlagChk(g,n) ((g)->Scenario_flg[(n)/32] & (0x80000000u >> ((n)%32)))
 } // namespace re4::port
+#define SysFlagChk(g,n) ((g)->System_flg & (0x80000000u >> ((n)%32)))
+#define DbgFlagChk(g,n) ((g)->Debug_flg[(n)/32] & (0x80000000u >> ((n)%32)))
+#define FlagChkSign(flg,n) ((s32)((flg)[(n)/32] << ((n)%32)) < 0)
+#define FlagChkSignW(flg,n) ((s32)((flg) << ((n)%32)) < 0)

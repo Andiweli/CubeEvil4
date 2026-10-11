@@ -483,7 +483,7 @@ void data(int argc, char **argv) {
 } // namespace
 // Actual shared boot consumers with private disc bytes, deliberately stops at
 // the next missing original game dependency rather than inventing its state.
-void messages(int argc,char **argv) {
+void messages(int argc,char **argv,bool newGame=false) {
     using namespace re4::port;
     if(argc!=5) throw std::invalid_argument("messages <root> <catalog> <disc>");
     auto disc=std::stoul(argv[4]); if(disc>1) throw std::invalid_argument("disc");
@@ -514,19 +514,44 @@ void messages(int argc,char **argv) {
     check(scheduler.allocatedStacks()==0,"message boot stack remains active");
     auto &ids=game.ids(); auto &saves=game.saveState();
     auto preHud=ids.pull(); check(bool(preHud),"original ID pool prerequisite");
+    // Explicit startup input for the second boot case, not a fabricated result
+    // or a Title_task claim. The original gameInit performs every state change.
+    if(newGame)game.state().System_flg|=0x80000000u>>SYS_NEW_GAME;
     check(bool(game.startOriginalGameTask()),"original GameTask creation");
     game.graphics().attach(std::make_shared<CpuPresentationProbe>());
     std::string blocker;
     game.tick();
     check(game.state().Rno0==1 && game.state().Speed==1.f,"original gameInit completes to stage state");
-    try{game.tick();}catch(const MissingGameConsumer &failure){blocker=failure.what();}
-    check(blocker=="Original consumer unavailable: gameStageInit/cMes/GameSave","actual GameTask advances to the next genuine original dependency");
+    const auto stageDeadline=std::chrono::steady_clock::now()+std::chrono::seconds(60);
+    while(blocker.empty()) {
+        try{game.tick();}catch(const MissingGameConsumer &failure){blocker=failure.what();}
+        if(std::chrono::steady_clock::now()>stageDeadline)throw std::runtime_error("original gameStageInit timeout");
+        std::this_thread::yield();
+    }
+    check(blocker=="Original consumer unavailable: gameRoomInit/model/light/player","actual GameTask completes original stage and reaches unbound room setup");
+    check(game.state().Rno0==2 && game.state().SaveKind==-1,"stage's original state transition and save mode");
+    const auto stageDisc=game.loader().disc();
+    check(std::count(game.trace().begin(),game.trace().end(),"gameStageInit:original-complete")==1,"original stage body completed exactly once");
+    auto &pg=game.state();auto stageImage=saves.image();
+    check(stageImage.head->pGlobal->room_id==0x120 && stageImage.head->pGlobal->SaveKind==-1 && stageImage.head->pGlobal->pl_life==1200,"original aggregate global save");
+    check(static_cast<MERCHANT_DATA *>(stageImage.head->pMr)->friendship==50,"aggregate calls actual merchant save");
+    auto *stageInventory=static_cast<_ITEM_SAVE_DATA *>(stageImage.head->pItm);
+    if(newGame) {
+        const u16 originalIds[]={0x7c,0x23,4,5,0xac,0xad};
+        for(std::size_t n=0;n<6;++n)check(stageInventory->item_list[n].id==originalIds[n],"actual original new-game inventory order");
+        check(stageInventory->arm_no==1 && stageInventory->wep_id==0x23 && stageInventory->item_list[1].bullet==10 && stageInventory->item_list[2].num==20,"actual original start handgun, ammunition and armed slot");
+        check(stageInventory->item_list[1].x==2 && stageInventory->item_list[1].y==1 && stageInventory->item_list[1].board==1,"original set_game handgun case coordinates");
+        check(pg.point==5500 && pg.Game_level==5,"original GamePointInit -> GameAddPoint");
+        check(std::all_of(std::begin(pg.item_save),std::end(pg.item_save),[](u8 v){return !v;}),"original SceAtInitSaveItem clears actual save block");
+    } else {
+        check(stageInventory->arm_no==0xffff && std::all_of(std::begin(stageInventory->item_list),std::end(stageInventory->item_list),[](const auto &v){return v.id==0xffff;}),"default boot saves original empty Title inventory; no synthetic start items");
+    }
     const auto merchant=game.merchant().snapshot();
     check(merchant.initialized && !merchant.characterBound && merchant.data.friendship==50 &&
           !merchant.data.study_num && !merchant.data.reduction_ratio && !merchant.data.bonus_flag,"original MerchantGameInit reset");
     for(const auto &e:merchant.data.stock.e)check(e.id==0xffff && !e.num && !e.isNew,"original merchant stock reset");
     for(const auto &e:merchant.data.level.e)check(e.id==0xffff && std::all_of(std::begin(e.lv),std::end(e.lv),[](u8 v){return !v;}),"original tune reset");
-    auto &pg=game.state();auto playerBoot=game.player().snapshot();auto playerTrace=game.player().trace();
+    auto playerBoot=game.player().snapshot();auto playerTrace=game.player().trace();
     check(pg.pl_type==0 && pg.pl_life==1200 && pg.pl_life_max==1200 && pg.ashley_life==600 && pg.ashley_life_max==600,"original Leon life reset reached through GameTask");
     check(pg.weapon_no==2 && pg.weapon_type==0 && !(pg.weapon_lv_power || pg.weapon_lv_speed || pg.weapon_lv_blt || pg.weapon_lv_reload),"original Leon equipment reset");
     check(pg.pl_flag==1 && pg.weapon_no_old==0xff && playerBoot.kaiou==0 && playerBoot.oldWeaponId==0xff && playerBoot.weaponSlotEmpty,"original PlayerInit flags / weapon release");
@@ -550,11 +575,11 @@ void messages(int argc,char **argv) {
     check(sw.boardSize==0 && sw.boardNext==0 && sw.mapMode==0 && sw.open==0 && sw.attributes==0 && sw.close==0 && sw.wait==0 && sw.mapArrayEmpty,"actual original SubScreen/MapMgr initialization");
     check(game.state().ope_mdt_no==0x18 && game.state().ope_x82E8==0 && game.state().ope_mdt_bits[0]==0,"original Ope state clear");
     check((game.state().Status_flg[STA_SSCRN_ENABLE/32] & (0x80000000u>>(STA_SSCRN_ENABLE%32)))!=0,"original SubScreen enable flag");
-    check(sr.size()==3 && ss.itemCapacity()==0x180 && !ss.findItem(0x7c),"real Title_task inventory boot prerequisite and three ARAM reads");
+    check(sr.size()==3 && ss.itemCapacity()==0x180 && bool(ss.findItem(0x7c))==newGame,"real Title inventory prerequisite / original new-game branch / three ARAM reads");
     u32 aram=0xD00000;
     for(auto &r:sr){check(r.aramAddress==aram && r.dmaBytes==((r.identity.size+31u)&~31u),"original rounded DMA offsets");check(hash(r.bytes)==r.identity.sha256,"actual ARAM to MRAM readback differs from FST hash"); aram+=r.dmaBytes;}
     check(sw.freeOffset==aram-0xD00000 && sw.commonOffset==sr[0].dmaBytes && sw.puzzleOffset==sr[0].dmaBytes+sr[1].dmaBytes,"original ARAM archive offsets");
-    check(game.state().IsMessageInit==1 && game.state().Rno0==1,"original message / stage-entry state");
+    check(game.state().IsMessageInit==1 && game.state().Rno0==2,"original message / room-entry state");
     auto font=m.font(0),system=m.font(1);
     check(font.loaded && system.loaded && font.charWidth==32 && font.charHeight==32,"actual English font slots");
     check(font.textures.size()==system.textures.size() && font.widths.data==system.widths.data,"original English system-font alias");
@@ -625,16 +650,55 @@ void messages(int argc,char **argv) {
         a.clear(); check(b.unit(*hb).be_flag==0xD,"freeing one original pool preserves the other"); b.clear();
     }
     execute([&]{rejects([&]{ids.clear();});rejects([&]{saves.clear();});});
-    // Actual room-save and cGameSave pointer bodies; no aggregate global/player
-    // save/load is claimed. Native images never masquerade as GC card bytes.
+    // Actual room/aggregate save bodies. Native images never masquerade as GC
+    // card bytes. The live actor position branch remains an explicit error.
     auto nativeImage=saves.image();
+    {
+        auto originalGlobal=game.state();auto preservedSave=*nativeImage.head->pGlobal;
+        game.state().pad_835C[0]=0x73;game.state().Em_flg[11][7]=0x12345678;
+        check(saves.save(nativeImage,-1,game.state(),ss,game.merchant()),"actual original aggregate save");
+        check(std::memcmp(nativeImage.head->pGlobal,static_cast<const GameSaveBlock *>(&game.state()),sizeof(GameSaveBlock))==0,"complete native global save tail, including currently unused fields");
+        game.state().Rno0=3;auto kind=game.state().SaveKind;auto before=*nativeImage.head->pGlobal;
+        rejects([&]{saves.save(nativeImage,7,game.state(),ss,game.merchant());});
+        check(game.state().SaveKind==kind && std::memcmp(&before,nativeImage.head->pGlobal,sizeof(before))==0,"missing live actor position fails before save mutation");
+        game.state()=originalGlobal;*nativeImage.head->pGlobal=preservedSave;
+        saves.offsets(nativeImage);check(!saves.save(nativeImage,9,game.state(),ss,game.merchant()) && game.state().SaveKind==originalGlobal.SaveKind,"original offset-form save returns false without state change");saves.addresses(nativeImage);
+    }
     for(auto room:saveBoot.roomIds){ check(!saves.passed(room,3),"original blank room record"); saves.setPassed(room,3); check(saves.passed(room,3)==0x10,"original room passed bit"); }
     saves.saveRooms(nativeImage);
     for(auto room:saveBoot.roomIds) saves.setPassed(room,5);
     saves.loadRooms(nativeImage);
     for(auto room:saveBoot.roomIds) check(saves.passed(room,3)==0x10 && !saves.passed(room,5),"original room state restored by ID");
     auto nativeCopy=saves.copyImage(nativeImage); check(nativeCopy.head->base==nativeCopy.head && nativeCopy.head!=nativeImage.head,"original checkAddr rebases copied native image");
+    {
+        // Isolated round-trip inputs after the actual GameTask stopped. Every
+        // restore below executes the original body; no actor or frame is made.
+        _ITEM_SAVE_DATA itemsBefore{};ss.saveInventory(itemsBefore);
+        SSCRN_SAVE_DATA subBefore{};ss.saveState(subBefore);
+        const auto merchantBefore=game.merchant().snapshot().data;
+        auto oldState=game.state();
+        check(saves.save(nativeCopy,-1,game.state(),ss,game.merchant()),"original aggregate save of current managers");
+        const auto globalBefore=*nativeCopy.head->pGlobal;
+        game.state().point=42;game.state().pad_835C[1]=0x57;game.state().Em_flg[9][5]=1;
+        ss.clearInventory();SSCRN_SAVE_DATA alteredSub{};alteredSub.save=0x98765432;ss.loadState(alteredSub);
+        auto alteredMerchant=merchantBefore;alteredMerchant.friendship=17;game.merchant().load(alteredMerchant);
+        check(saves.load(nativeCopy,game.state(),ss,game.merchant()),"original aggregate normal load");
+        check(std::memcmp(&globalBefore,static_cast<const GameSaveBlock *>(&game.state()),sizeof(GameSaveBlock))==0,"complete global value restored without changing native runtime fields");
+        _ITEM_SAVE_DATA itemsAfter{};ss.saveInventory(itemsAfter);SSCRN_SAVE_DATA subAfter{};ss.saveState(subAfter);
+        check(std::memcmp(&itemsBefore,&itemsAfter,sizeof(itemsBefore))==0 && subBefore.save==subAfter.save,"original inventory/SubScreen save-load roundtrip");
+        auto merchantAfter=game.merchant().snapshot().data;
+        check(std::memcmp(&merchantBefore,&merchantAfter,sizeof(merchantBefore))==0,"original merchant save-load roundtrip");
+        game.loadGameState();check(game.state().RoomNo_next==game.state().room_id && game.state().Part_next==game.state().Part && game.state().pl_flag==1 && (game.state().System_flg&(0x80000000u>>SYS_LOAD_GAME)),"actual GameLoad destination and original load flags");
+        game.state()=oldState;
+        auto *badItems=static_cast<_ITEM_SAVE_DATA *>(nativeCopy.head->pItm);auto armed=badItems->arm_no;badItems->arm_no=0x180;
+        rejects([&]{saves.load(nativeCopy,game.state(),ss,game.merchant());});badItems->arm_no=armed;
+        check(game.state().point==oldState.point,"invalid inventory rejected before aggregate global mutation");
+        auto mode=nativeCopy.head->pGlobal->SaveKind;nativeCopy.head->pGlobal->SaveKind=3;
+        rejects([&]{saves.load(nativeCopy,game.state(),ss,game.merchant());});nativeCopy.head->pGlobal->SaveKind=mode;
+        check(game.state().SaveKind==oldState.SaveKind,"unported new-round dependencies fail before restore");
+    }
     saves.offsets(nativeCopy); check(!nativeCopy.head->base && reinterpret_cast<std::uintptr_t>(nativeCopy.head->pGlobal)==0x40,"original save offset form");
+    check(!saves.load(nativeCopy,game.state(),ss,game.merchant()),"original offset-form load returns false");
     saves.offsets(nativeCopy); saves.addresses(nativeCopy); saves.addresses(nativeCopy);
     check(reinterpret_cast<u8*>(nativeCopy.head->pItm)-reinterpret_cast<u8*>(nativeCopy.head)==saveBoot.sectionOffsets[4],"native-width calcAddr preserves original section offsets");
     auto *roomHdr=static_cast<RoomSaveHdr*>(nativeCopy.head->pRm); auto num=roomHdr->num; roomHdr->num=UINT32_MAX;
@@ -728,7 +792,7 @@ void messages(int argc,char **argv) {
     std::cout<<"]},\"save_state\":{\"rooms\":"<<saveBoot.rooms<<",\"saved_rooms\":"<<saveBoot.savedRooms<<",\"room_bytes\":"<<saveBoot.roomBytes<<",\"image_bytes\":"<<saveBoot.imageBytes<<",\"room_ids\":[";
     for(std::size_t i=0;i<saveBoot.roomIds.size();++i){if(i)std::cout<<',';std::cout<<saveBoot.roomIds[i];}
     std::cout<<"],\"sections\":[";for(std::size_t i=0;i<saveBoot.sectionOffsets.size();++i){if(i)std::cout<<',';std::cout<<saveBoot.sectionOffsets[i];}
-    std::cout<<"],\"aggregate_save_load\":false,\"trace\":[";for(std::size_t i=0;i<saveTrace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(saveTrace[i]);}
+    std::cout<<"],\"aggregate_save\":true,\"aggregate_load\":true,\"aggregate_save_load\":true,\"new_round_load\":false,\"trace\":[";for(std::size_t i=0;i<saveTrace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(saveTrace[i]);}
     ids.clear(); saves.clear(); check(!ids.snapshot().initialized && !saves.snapshot().initialized,"ID/save final release");
     std::cout<<"]},\"player\":{\"gameTask_PlayerInit_complete\":true,\"life\":1200,\"max_life\":1200,\"weapon\":2,\"weapon_type\":0,\"flag\":1,\"actor_constructed\":false,\"trace\":[";
     for(std::size_t i=0;i<playerTrace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(playerTrace[i]);}
@@ -811,7 +875,7 @@ void messages(int argc,char **argv) {
     check(game.engineConsumers().modelCount()==0 && game.player().motionBindings().empty(),"GameRuntime reset releases original Leon assets");
     rejects([&]{game.player().initializeLeonAssets({pl.owner,pl.data,15});});
     check(game.engineConsumers().modelCount()==0,"malformed player archive did not publish model");
-    std::cout<<"]},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":false},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
+    std::cout<<"]},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
     for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
     std::cout<<"]}\n";
 }
@@ -986,6 +1050,7 @@ int main(int argc, char **argv) {
         if(argc>1 && std::string(argv[1])=="collision") {collisionQueries(argc,argv);return 0;}
         if(argc>1 && std::string(argv[1])=="lights") { lights(argc,argv);return 0; }
         if(argc>1 && std::string(argv[1])=="messages") { messages(argc,argv); return 0; }
+        if(argc>1 && std::string(argv[1])=="new-game") { messages(argc,argv,true); return 0; }
         if (argc > 1 && std::string(argv[1]) == "data") {
             data(argc, argv);
             return 0;

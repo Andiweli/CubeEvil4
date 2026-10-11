@@ -116,6 +116,9 @@ struct MessageControlCpu {
     void GlobalIlmTexInit(MessageTpl *);
     void init();
     void gameInit();
+    void stageInit();
+    void loadStageFont();
+    void *pStFnt{};
     void loadCommonFont();
     void loadSystemFont();
     void setupFont(int,int,u8 *,int);

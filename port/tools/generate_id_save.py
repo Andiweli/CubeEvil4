@@ -17,14 +17,14 @@ def generate(root, output):
     def read(path): return (root/path).read_text(encoding='utf-8')
     def struct(path,name):
         return re.search(r'struct '+name+r' \{.*?\n\};',read(path),re.S)[0]
-    types=['#pragma once','#include "re4/port/model_types.h"','namespace re4::port {',
+    types=['#pragma once','#include "re4/port/model_types.h"','#include "re4_runtime_types.h"','namespace re4::port {',
            'struct HERMITE_1_PTR;',struct('include/id_sys.h','ID_UNIT'),
            re.search(r'enum ID_CLASS \{.*?\n\};',read('include/id_sys.h'),re.S)[0],
            struct('include/room_data.h','ROOM_DATA'),struct('include/room_data.h','StageTbl'),
            struct('include/room_data.h','RoomSaveHdr')]
     room=struct('include/room_data.h','ROOM_SAVE_DATA')
     room=re.sub(r'    union \{.*?\n    \};','    u16 RoomNo; // Native scalar stage<<8|room, not a little-endian union.',room,flags=re.S)
-    types.extend([room,struct('include/game.h','GameSaveBlock'),struct('include/sscrn.h','SSCRN_SAVE_DATA'),
+    types.extend([room,struct('include/sscrn.h','SSCRN_SAVE_DATA'),
                   struct('include/game.h','SAVE_DATA_HEAD')])
     for name in ['ItemSaveWork','_ITEM_SAVE_DATA']:
         types.append(struct('include/item.h',name))
@@ -38,7 +38,7 @@ def generate(root, output):
                   '} // namespace re4::port'])
     (output/'include/re4_id_save_types.h').write_text('\n'.join(types)+'\n',encoding='utf-8')
     cpp=['#include "id_save_original.h"','namespace re4::port {',
-         '#define MEM_ALLOC(n,f,h) allocatePool(n,f,h)\n#define MEM_CALLOC(n,f,h) mem_calloc(n,f,h)\n#define ID_UNIT(i) (m_IdUnit+(i))\n#define ALIGN32(n) (((n)+31u)&~31u)\n#define MERCHANT_NUM 1',
+         '#define MEM_ALLOC(n,f,h) allocatePool(n,f,h)\n#define MEM_CALLOC(n,f,h) mem_calloc(n,f,h)\n#define ID_UNIT(i) (m_IdUnit+(i))\n#define ALIGN32(n) (((n)+31u)&~31u)\n#define MERCHANT_NUM 1\n#define VEC_COPY(d,s) ((d)=(s))',
          'static inline int IdBitChk(u32 *tbl,u8 n) { return (tbl[n/32] & (0x80000000u>>(n%32))) ? 1 : 0; }',
          '#define FlagOffVar(p,n) ((p)[(n)/32] &= ~(0x80000000u>>((n)%32)))\n#define FlagOnVar(p,n) ((p)[(n)/32] |= (0x80000000u>>((n)%32)))']
     entries=[]
@@ -112,6 +112,13 @@ def generate(root, output):
     add('src/game/sscrn.cpp','int SscrnDataSize()', [('int SscrnDataSize()','int SaveImageCpu::SscrnDataSize()')])
     add('src/game/merchant.cpp','int MerchantDataSize()', [('int MerchantDataSize()','int SaveImageCpu::MerchantDataSize()')])
     add('src/game/item.cpp','int cItemMgr::saveDataSize()', [('int cItemMgr::saveDataSize()','int SaveImageCpu::ItemSize::saveDataSize()')])
+    add('src/game/game.cpp','bool cGameSave::save(SAVE_DATA_HEAD* data, int mode)', [
+        ('bool cGameSave::save(SAVE_DATA_HEAD* data, int mode)','bool SaveImageCpu::save(SAVE_DATA_HEAD* data, int mode)'),
+        ('*data->pGlobal = *(GameSaveBlock*) pG->save_data_start_addr;',
+         '*data->pGlobal = static_cast<const GameSaveBlock&>(*pG);')], trace=True)
+    add('src/game/game.cpp','bool cGameSave::load(SAVE_DATA_HEAD* head)', [
+        ('bool cGameSave::load(SAVE_DATA_HEAD* head)','bool SaveImageCpu::load(SAVE_DATA_HEAD* head)'),
+        ('u32* save = (u32*) &pG->save_data_start_addr;', 'auto *save = static_cast<GameSaveBlock *>(pG);')], trace=True)
     cpp.append('} // namespace re4::port')
     (output/'id_save_control.cpp').write_text('\n\n'.join(cpp)+'\n',encoding='utf-8')
     (output/'id-save-manifest.json').write_text(json.dumps(dict(sources=hashes,functions=entries),indent=2)+'\n',encoding='utf-8')

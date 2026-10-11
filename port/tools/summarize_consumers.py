@@ -20,8 +20,8 @@ def main():
     native_traces=set()
     model_traces={}
     checks=set()
-    message_traces=set()
-    message_checks=set()
+    message_traces={False:set(),True:set()}
+    message_checks={False:set(),True:set()}
     light_traces={}
     light_checks={}
     measured=[]
@@ -40,7 +40,7 @@ def main():
                 raise ValueError('original light evidence/scope: '+abi)
             light_traces.setdefault(r['disc'],set()).add(r['trace_sha256'])
             light_checks.setdefault(r['disc'],set()).add(actual['checks'])
-        if sorted((r['round'],r['disc']) for r in messages)!=[(1,0),(1,1),(2,0),(2,1)]:
+        if sorted((r['round'],r['disc'],r['new_game']) for r in messages)!=[(n,d,b) for n in (1,2) for d in (0,1) for b in (False,True)]:
             raise ValueError('missing/duplicate message boot rounds: '+abi)
         for r in messages:
             actual=r['actual']
@@ -49,7 +49,9 @@ def main():
             stable={k:v for k,v in actual.items() if k not in ['pointer_bits','native_layout']}
             if sha(json.dumps(stable,sort_keys=True).encode())!=r['trace_sha256']:
                 raise ValueError('message evidence hash: '+abi)
-            message_traces.add(r['trace_sha256']); message_checks.add(actual['checks'])
+            if actual['game_stage_init']!={'original_complete':True,'next_state':2,'save_kind':-1,'disc_after':0} or actual['blocker']!='Original consumer unavailable: gameRoomInit/model/light/player':
+                raise ValueError('original stage progress/scope: '+abi)
+            message_traces[r['new_game']].add(r['trace_sha256']); message_checks[r['new_game']].add(actual['checks'])
         if sorted((r['round'],r['disc']) for r in rooms)!=[(1,0),(1,1),(2,0),(2,1)]:
             raise ValueError('missing/duplicate room rounds: '+abi)
         if sorted((r['round'],r['disc']) for r in events)!=[(1,0),(2,0)]:
@@ -97,7 +99,8 @@ def main():
                              original_MotionSetCore_calls=sum(len(p['motion_initializations']) for r in [*events,*models] for p in r['actual']['packages']),
                              player_MotionSetCore_calls=sum(len(p['player_motion_initializations']) for r in events for p in r['actual']['packages']),
                              failed=0,executable_sha256=sorted({r['executable_sha256'] for r in rooms})))
-        measured[-1].update(original_message_boot_runs=len(messages),message_checks_per_run=messages[0]['actual']['checks'],
+        measured[-1].update(original_message_boot_runs=len(messages),message_checks_per_run={str(b):sorted({r['actual']['checks'] for r in messages if r['new_game']==b}) for b in (False,True)},
+                            original_gameStageInit_calls=len(messages),original_new_game_inventory_calls=sum(r['new_game'] for r in messages),
                             native_layout=messages[0]['actual']['native_layout'],
                             original_Cockpit_gameInit_calls=len(messages),
                             original_SubScreenGameInit_calls=2*len(messages),
@@ -117,7 +120,7 @@ def main():
             isolated_light_blocked_model_owners=sum(b['blocked_model_owners'] for r in lights for a in r['actual']['archives'] for frame in a['rounds'] for b in frame['blocks']))
     if any(len(v)!=1 for v in [*room_traces.values(),*model_traces.values()]) or len(event_traces)!=1 or len(native_traces)!=1 or len(checks)!=1:
         raise ValueError('ABI/repetition semantic results differ')
-    if len(message_traces)!=1 or len(message_checks)!=1 or min(message_checks)<1500: raise ValueError('message/SubScreen/ID/save ABI/repetition semantics differ')
+    if any(len(message_traces[b])!=1 or len(message_checks[b])!=1 or min(message_checks[b])<1500 for b in (False,True)): raise ValueError('message/SubScreen/ID/save ABI/repetition semantics differ')
     if any(len(v)!=1 for v in [*light_traces.values(),*light_checks.values()]):raise ValueError('light ABI/repetition semantics differ')
     sample=json.loads((args.host/'consumers-host-64.json').read_text())['results'][0]['actual']['packages']
     packages=[dict(path=p['path'],sha256=p['sha256'],bins=len(p['bins']),native_cpu_models=p['native_models'],
@@ -129,16 +132,16 @@ def main():
     sample=json.loads((args.host/'game-runtime-host-64.json').read_text())['results']
     coverage={r['id']:r['consumers'] for record in sample for r in record['actual']['rooms']}
     additional=[p for r in json.loads((args.host/'models-host-64.json').read_text())['results'] if r['round']==1 for p in r['actual']['packages']]
-    summary=dict(schema='RE4-PHASE5B-RUNTIME-MEASUREMENTS-1',checks_per_native_run=next(iter(checks)),
+    summary=dict(schema='RE4-PHASE5B-RUNTIME-MEASUREMENTS-2',checks_per_native_run=next(iter(checks)),
                  measured=measured,identical_native_traces=True,
                  identical_room_traces={str(k):next(iter(v)) for k,v in room_traces.items()},
                  identical_event_trace=next(iter(event_traces)),packages=packages,room_consumer_coverage=coverage,
                  additional_model_packages=additional,identical_additional_model_traces={str(k):next(iter(v)) for k,v in model_traces.items()},
-                 identical_message_trace=next(iter(message_traces)),message_checks_per_run=next(iter(message_checks)),
+                 identical_message_trace={str(b):next(iter(message_traces[b])) for b in (False,True)},message_checks_per_run={str(b):next(iter(message_checks[b])) for b in (False,True)},
                  message_boot_sample=json.loads((args.host/'messages-host-64.json').read_text())['results'][0]['actual'],
                  identical_light_traces={str(k):next(iter(v)) for k,v in light_traces.items()},light_checks_per_disc={str(k):next(iter(v)) for k,v in light_checks.items()},
                  light_samples=json.loads((args.host/'lights-host-64.json').read_text())['results'][:2],
-                 scope='Actual GameTask executes original light, scenario, PlayerInit and MerchantGameInit and completes the default original gameInit branch with an explicitly isolated CPU VI observer. Stops at unported gameStageInit/cMes/GameSave. Seven original pl00 FCV/SEQ pairs execute persistent MotionMove and complete original leg/heel/toe IK over sixteen ticks, with separate loop/reverse/pause/fractional input tests and an explicit isolated actor-status view/empty original SAT manager. This is not cPlLeon actor construction, weapon simulation, Event::Run or a live shoulder camera. Previous message/SubScreen/ID/save/model/light consumers retained; GPU diagnostics are separate from these CPU runtime tests.')
+                 scope='Actual GameTask executes original gameInit (default and explicit SYS_NEW_GAME input) and gameStageInit through Rno0=2, including original item startup, difficulty, stage font ownership, disc selection and aggregate save. Ordinary aggregate load and GameLoad execute as separate isolated restoration tests. Stops at the entirely unported gameRoomInit body; gameMainLoop and a gameplay GPU frame are not reached. The boot proof uses an explicitly isolated CPU VI observer. Seven original pl00 FCV/SEQ pairs retain persistent MotionMove and complete leg/heel/toe IK over sixteen ticks with an isolated actor-status view/empty original SAT manager. This is not cPlLeon actor construction, weapon simulation, Event::Run or a live shoulder camera. Previous consumers retained; GPU diagnostics are separate from these CPU runtime tests.')
     write_json(output/'consumer-runtime-summary.json',summary)
     print(json.dumps(summary,indent=2))
 

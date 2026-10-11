@@ -175,6 +175,7 @@ class GameRuntime final {
     void scenarioRoomInit();
     void scenarioMove();
     void stageSet();
+    void loadGameState(); // Actual GameLoad; uses the current validated native save image.
     void doorFlagInit();
     void initGameTime();
     void setGameTime();
