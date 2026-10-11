@@ -66,7 +66,7 @@ public:
     struct Object;
     ModelRuntime(u32,u32);
     ~ModelRuntime();
-    std::unique_ptr<Object> initialize(ResourceLease,ResourceLease,bool);
+    std::unique_ptr<Object> initialize(ResourceLease,ResourceLease,bool,u8,u32);
     ModelInfoView *createAttachment(Object &,ResourceLease,ResourceLease,bool resetOffsets);
     ModelInfoManager infos;
     ModelPartsManager parts;

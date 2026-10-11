@@ -8,8 +8,36 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'port/tools'))
 import generate_gx
+import generate_scroll
 
 class Sources(unittest.TestCase):
+    def test_original_scroll_registration_bodies(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out=Path(folder);generate_scroll.generate(ROOT,out)
+            code=(out/'scroll_control.cpp').read_text()
+            for signature in ['int Domain::SmdInit(', 'int Domain::setObj(',
+                              'int Domain::SmdSetParam(', 'void Domain::BlockCreate(',
+                              'void Domain::BlockDestroy(', 'cObj* ObjectManager::createBack(',
+                              'int cSmd::getWorkNum()', 'void cObj::setNoSuspend(',
+                              'void cObj::initializeObject()', 'void cObj::initializeScroll()']:
+                self.assertIn(signature,code)
+            self.assertIn('n += grp.num[i];',code)
+            self.assertIn('ObjMgr.createBack(cObjMgr::ID_SCROLL)',code)
+            self.assertIn('w->WorkNo != 0xFE && scrObjTbl[w->WorkNo] == NULL',code)
+            self.assertNotIn('scrObjTbl[w->WorkNo] == NULL && w->WorkNo != 0xFE',code)
+            self.assertIn('MotionSetCore(pObj, &pObj->Motion, mot, 0, 0, 5, 0)',code)
+            self.assertIn('pObj->be_flag |= 0x80000;',code)
+            self.assertNotIn('(u32) scrObjTbl',code)
+            self.assertNotIn('(u32) obj < 0x80000000',code)
+            generate_scroll.generate(ROOT,out)
+            self.assertEqual(code,(out/'scroll_control.cpp').read_text())
+    def test_scroll_original_change_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)/'root';hashes=json.loads((ROOT/'port/config/scroll-sources.json').read_text())
+            for path in [*hashes,'port/config/scroll-sources.json']:
+                dest=root/path;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/path,dest)
+            p=root/'src/game/scroll.cpp';p.write_text(p.read_text().replace('n += grp.num[i];','n += 1;'))
+            with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):generate_scroll.generate(root,Path(folder)/'out')
     def test_complete_original_camera_and_sdk_bodies(self):
         with tempfile.TemporaryDirectory() as folder:
             out=Path(folder);generate_gx.generate(ROOT,out)

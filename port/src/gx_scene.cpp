@@ -1,4 +1,5 @@
 #include "gx_original.h"
+#include "scroll_original.h"
 #include "re4/port/gx_pipeline.h"
 #include "re4/port/sha256.h"
 #include "re4/port/event_skinning.h"
@@ -60,15 +61,6 @@ GxMip decodeLevel(ResourceLease d,u32 fmt,u32 w,u32 h,ResourceLease clut,u32 cf)
             put(x+c,y+r,px);
         }at+=fmt==6?64:32;
     }return out;
-}
-ResourceLease tableEntry(ResourceLease smd,u32 table,u32 limit,u32 id) {
-    if(table>limit || limit>smd.size)throw std::invalid_argument("SMD table extent");
-    auto first=word(smd,table);if(first<4 || first%4 || first>limit-table || id>=first/4)throw std::invalid_argument("SMD table index");
-    u32 start=word(smd,table+id*4),stop=limit-table;
-    for(u32 i=0;i<first/4;++i){auto o=word(smd,table+i*4);if(!o)continue; // Zero alignment words are not table entries.
-        if(o<first||o>limit-table)throw std::invalid_argument("SMD table offset");if(o>start)stop=std::min(stop,o);}
-    if(start<first)throw std::invalid_argument("SMD used entry points into offset table");
-    if(start>=stop)throw std::invalid_argument("SMD empty or inverted entry");return slice(smd,table+start,stop-start);
 }
 void waitRoom(EngineLoader &loader){auto end=std::chrono::steady_clock::now()+std::chrono::seconds(60);while(loader.roomBusy()){loader.frame();std::this_thread::yield();if(std::chrono::steady_clock::now()>end)throw std::runtime_error("diagnostic room load timeout");}if(!loader.room())throw std::runtime_error(loader.roomError());}
 } // namespace
@@ -138,38 +130,9 @@ void decodeGxModel(ResourceLease b,const Mtx world,u32 base,u32 count,GxScene &s
 }
 
 GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 room,const std::string &eventPath,u32 frame,const std::string &eventModel,u32 requestedCut) {
-    if(!loader.loadRoom(room,false))throw std::runtime_error("diagnostic room already loading");waitRoom(loader);auto archive=loader.room();GxScene scene;scene.roomHash=archive->source->identity.sha256;
+    if(!loader.loadRoom(room,true))throw std::runtime_error("diagnostic room already loading");waitRoom(loader);auto archive=loader.room();GxScene scene;scene.roomHash=archive->source->identity.sha256;
     ResourceLease body{archive->body,archive->body->data(),u32(archive->body->size())};auto entry=archive->find("SMD");if(!entry)throw MissingGameConsumer("room has no SMD");auto smd=slice(body,entry->offset,entry->size);scene.smdHash=sha256(smd.data,smd.size);
-    range(smd,0,16);if(smd.data[0]<32 || (smd.data[1]&1))throw MissingGameConsumer("SMD old version/grouped works need original group creation");u32 n=half(smd,2),bt=word(smd,4),tt=word(smd,8),mt=word(smd,12);range(smd,16,u64(n)*72);
-    engine.configureModelPools(1,250);std::map<u32,std::pair<u32,u32>> textures;
-    auto smxEntry=archive->find("SMX");ResourceLease smx;if(smxEntry){smx=slice(body,smxEntry->offset,smxEntry->size);range(smx,0,16);range(smx,16,u64(smx.data[1])*144);}
-    for(u32 i=0;i<n;++i){u32 at=16+i*72;u8 bin=smd.data[at+36],tpl=smd.data[at+37],mot=smd.data[at+38],work=smd.data[at+39];if(work==255)continue;auto flag=word(smd,at+68);
-        if(flag&0x10)throw MissingGameConsumer("SMD shared BIN/TPL table binding");if(mot!=255)throw MissingGameConsumer("SMD animated scroll object requires original MotionMove");
-        auto b=tableEntry(smd,bt,tt,bin),t=tableEntry(smd,tt,mt,tpl);
-        auto handle=engine.initializeModel(b,t,"SMD original CPU model");auto &model=engine.model(handle);
-        model.pos={real(smd,at),real(smd,at+4),real(smd,at+8)};model.ang={real(smd,at+12),real(smd,at+16),real(smd,at+20)};model.scale={real(smd,at+24),real(smd,at+28),real(smd,at+32)};
-        RotMatrix(model.mat,&model.ang);TransMatrix(model.mat,&model.pos);ScaleMatrix(model.mat,&model.scale);model.partsMatCalc();model.partsWorldCalc();
-        auto skin=skinModelCpu(model,*model.pModelInfo);Mtx world;auto *drawRoot=skin.staticBypass?model.getPartsPtr(b.data[word(b,0)]):model.pList;C_MTXConcat(drawRoot->mat,model.pModelInfo->mat,world);
-        if(!textures.count(tpl)){auto decoded=decodeGxTpl(t);u32 base=u32(scene.textures.size());textures.emplace(tpl,std::make_pair(base,u32(decoded.size())));for(auto &image:decoded){ // Original commonModelTrans overrides BIN S16 UV wrapping to repeat.
-            if(word(b,32)&0x80000000)image.wrapS=image.wrapT=1;
-            // Original model path overrides min/mag filters to linear/trilinear.
-            image.minFilter=image.minLod==image.maxLod?1:5;image.magFilter=1;scene.textures.push_back(std::move(image));}}
-        GxDraw id{};id.workIndex=i;id.workId=work;id.binId=bin;id.tplId=tpl;id.cull=1; // Model default CullMode0 -> GX_FRONT.
-        C_MTXCopy(model.mat,id.modelMatrix);id.modelScaleForSpecular=model.scale;id.modelStateFlags=model.be_flag;std::copy(model.pModelInfo->color2,model.pModelInfo->color2+4,id.color2.begin());
-        auto &bound=model.pModelInfo->bound;id.lightSize=bound.size;
-        id.modelPosition=model.pos;id.modelAngle=model.ang;id.modelScale=model.scale;id.lightOffset=bound.offset;
-        id.rootWorld=model.getPartsPtr(0)->world;C_MTXCopy(model.getPartsPtr(0)->mat,id.rootMatrix);id.attribute=u8(flag);
-        C_MTXMultVec(model.getPartsPtr(0)->mat,&bound.offset,&id.lightPosition);
-        float scale=std::max(model.scale.x,std::max(model.scale.y,model.scale.z));
-        id.radius=std::sqrt(bound.size.x*bound.size.x+bound.size.y*bound.size.y+bound.size.z*bound.size.z)*scale;
-        if(smx.owner)for(u32 k=0;k<smx.data[1];++k){u32 p=16+k*144;if(smx.data[p]!=work)continue;auto c=smx.data[p+3];if(c>2)throw std::invalid_argument("SMX cull mode");id.cull=c==0?1:c==1?2:0;
-            auto col=word(smx,p+12);id.blendMode=u8(col);if(id.blendMode>4)throw std::invalid_argument("SMX blend mode");id.materialColor=(col&~255u)?(col|255u):0xffffffff;
-            id.otType=smx.data[p+2];id.smxFlags=word(smx,p+8);if(id.smxFlags&8)id.alphaOverride=128;
-            id.lightSelectMask=word(smx,p+4);
-            id.uvScrollU=real(smx,p+136);id.uvScrollV=real(smx,p+140);break;}
-        if(!skin.staticBypass)++scene.skinnedModels;
-        auto texPair=textures.at(tpl);decodeGxModel(b,world,texPair.first,texPair.second,scene,id,skin.staticBypass?nullptr:&skin);++scene.models;engine.releaseModel(handle);
-    }
+    scroll::appendRoomScrollGeometry(loader,engine,*archive,scene);u32 n=scene.scrollWorkCount;
     auto req=loader.request(eventPath);auto end=std::chrono::steady_clock::now()+std::chrono::seconds(60);while(loader.status(req)==LoadStatus::Pending||loader.status(req)==LoadStatus::Reading){loader.frame();std::this_thread::yield();if(std::chrono::steady_clock::now()>end)throw std::runtime_error("camera EVD load timeout");}
     std::shared_ptr<const LoadedFile> loaded;if(loader.readCheck(req,loaded)!=1||!loaded)throw std::runtime_error("camera EVD read");auto evd=indexEventPackage({loaded,loaded->bytes.data(),u32(loaded->bytes.size())});u32 cameraCut=0;bool found=false;
     for(u32 at=evd.packetOffset;at<evd.packetOffset+evd.packetSize;){auto size=half(evd.bytes,at+12);if(size<16||size>evd.packetOffset+evd.packetSize-at)throw std::invalid_argument("camera packet boundary");auto type=word(evd.bytes,at);
@@ -215,23 +178,30 @@ GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 roo
         scene.eventModel=rootModel.name;scene.eventMotion=rootModel.motion;scene.skinHash=hash.finish();
     }
     captureOriginalRoomLighting(scene,loader,engine,body,slice(body,lit->offset,lit->size),cameraCut);
-    buildOriginalOrderingTables(scene);
+    buildOriginalOrderingTables(scene);scene.materialLightingReady=true;
     scene.owners.push_back(body);scene.owners.push_back(cameraBin->bytes);return scene;
+}
+GxScene loadOriginalScrollGeometry(EngineLoader &loader,EngineConsumers &engine,u16 room) {
+    if(!loader.loadRoom(room,true))throw std::runtime_error("scroll room already loading");waitRoom(loader);auto archive=loader.room();
+    GxScene scene;scene.roomHash=archive->source->identity.sha256;scroll::appendRoomScrollGeometry(loader,engine,*archive,scene);return scene;
 }
 std::string GxScene::report() const {
     Sha256 geometry;geometry.update(reinterpret_cast<const u8*>(vertices.data()),vertices.size()*sizeof(GxVertex));geometry.update(reinterpret_cast<const u8*>(indices.data()),indices.size()*4);
-    std::ostringstream o;o<<"{\"pointer_bits\":"<<sizeof(void*)*8<<",\"kind\":\"isolated_original_SMD_GX_OT_TEV_LIT_cut\",\"models\":"<<models<<",\"vertices\":"<<vertices.size()<<",\"triangles\":"<<indices.size()/3<<",\"primitives\":"<<primitives<<",\"draws\":"<<draws.size()<<",\"textures\":"<<textures.size()<<",\"room_sha256\":"<<std::quoted(roomHash)<<",\"smd_sha256\":"<<std::quoted(smdHash)<<",\"geometry_sha256\":"<<std::quoted(geometry.finish())<<",\"camera\":"<<std::quoted(cameraName)<<",\"frame\":"<<cameraFrame<<",\"fovy\":"<<camera.param.Fovy<<",\"texture_hashes\":[";
+    std::ostringstream o;o<<"{\"pointer_bits\":"<<sizeof(void*)*8<<",\"kind\":"<<std::quoted(materialLightingReady?"isolated_original_SMD_GX_OT_TEV_LIT_cut":"original_SMD_registration_geometry_only")<<",\"models\":"<<models<<",\"vertices\":"<<vertices.size()<<",\"triangles\":"<<indices.size()/3<<",\"primitives\":"<<primitives<<",\"draws\":"<<draws.size()<<",\"textures\":"<<textures.size()<<",\"room_sha256\":"<<std::quoted(roomHash)<<",\"smd_sha256\":"<<std::quoted(smdHash)<<",\"geometry_sha256\":"<<std::quoted(geometry.finish())<<",\"camera\":"<<std::quoted(cameraName)<<",\"frame\":"<<cameraFrame<<",\"fovy\":"<<camera.param.Fovy<<",\"texture_hashes\":[";
     for(std::size_t i=0;i<textures.size();++i){if(i)o<<',';Sha256 h;for(auto &m:textures[i].levels)h.update(m.rgba.data(),m.rgba.size());o<<std::quoted(h.finish());}
     o<<"],\"camera_point\":["<<std::setprecision(9)<<camera.param.Campos.x<<','<<camera.param.Campos.y<<','<<camera.param.Campos.z<<','<<camera.param.Target.x<<','<<camera.param.Target.y<<','<<camera.param.Target.z<<','<<camera.param.Roll<<','<<camera.param.Fovy<<"],\"vp\":[";
     for(u32 i=0;i<16;++i){if(i)o<<',';o<<viewProjection[i];}
     o<<"],\"view_matrix\":[";for(u32 r=0;r<3;++r)for(u32 k=0;k<4;++k){if(r||k)o<<char(44);o<<camera.view[r][k];}
     o<<"],\"materials\":[";for(std::size_t i=0;i<draws.size();++i){auto &d=draws[i];if(i)o<<',';o<<'['<<d.workIndex<<','<<d.workId<<','<<d.binId<<','<<d.tplId<<','<<d.partIndex<<','<<d.texture<<','<<d.alphaTexture<<','<<unsigned(d.flags)<<','<<unsigned(d.alphaRef)<<','<<unsigned(d.cull)<<','<<d.indexCount<<','<<unsigned(d.blendMode)<<','<<d.materialColor<<','<<unsigned(d.otType)<<','<<d.smxFlags<<','<<d.uvScrollU<<','<<d.uvScrollV<<']';}
+    o<<"],\"material_lighting_ready\":"<<(materialLightingReady?"true":"false")<<",\"scroll_work_count\":"<<scrollWorkCount<<",\"active_blocks\":[";for(std::size_t i=0;i<activeBlocks.size();++i){if(i)o<<char(44);o<<activeBlocks[i];}
+    o<<"],\"block_hashes\":[";for(std::size_t i=0;i<blockHashes.size();++i){if(i)o<<char(44);o<<std::quoted(blockHashes[i]);}
+    o<<"],\"scroll_functions\":[";for(std::size_t i=0;i<scrollFunctions.size();++i){if(i)o<<char(44);o<<std::quoted(scrollFunctions[i]);}
     o<<"],\"render_order\":[";for(std::size_t i=0;i<renderOrder.size();++i){if(i)o<<',';o<<renderOrder[i];}
     o<<"],\"ot_execution\":[";for(std::size_t i=0;i<otExecution.size();++i){if(i)o<<',';o<<otExecution[i];}
     static_assert(sizeof(GxMaterialState)==3312, "Native GX state has no ABI padding");
     o<<"],\"material_state_sha256\":"<<std::quoted(sha256(reinterpret_cast<const u8*>(materials.data()),materials.size()*sizeof(GxMaterialState)));
     o<<",\"lighting_calls\":"<<lightingCalls<<",\"lit_sha256\":"<<std::quoted(lightHash)<<",\"lit_cut\":"<<litCut<<",\"selected_light_records\":"<<selectedLightRecords<<",\"tev_states\":[";
-    for(std::size_t i=0;i<materials.size();++i){if(i)o<<',';auto &s=materials[i];o<<"{\"stages\":"<<s.meta[0]<<",\"ambient_source\":"<<s.meta[1]<<",\"alpha_source\":"<<s.meta[2]<<",\"fog\":"<<s.meta[3]<<",\"scale\":"<<s.stages[s.meta[0]-1].colorOp[2]<<",\"light_mask\":"<<u32(s.fog[3])<<",\"raster\":[";for(int k=0;k<4;++k){if(k)o<<',';o<<s.raster[k];}o<<"],\"ambient\":[";for(int k=0;k<4;++k){if(k)o<<',';o<<s.ambient[k];}o<<"]}";}
+    for(std::size_t i=0;i<materials.size();++i){if(i)o<<',';auto &s=materials[i];o<<"{\"stages\":"<<s.meta[0]<<",\"ambient_source\":"<<s.meta[1]<<",\"alpha_source\":"<<s.meta[2]<<",\"fog\":"<<s.meta[3]<<",\"scale\":"<<(s.meta[0]>0?s.stages[s.meta[0]-1].colorOp[2]:0)<<",\"light_mask\":"<<u32(s.fog[3])<<",\"raster\":[";for(int k=0;k<4;++k){if(k)o<<',';o<<s.raster[k];}o<<"],\"ambient\":[";for(int k=0;k<4;++k){if(k)o<<',';o<<s.ambient[k];}o<<"]}";}
     o<<"],\"skinned_models\":"<<skinnedModels<<",\"event_model\":"<<std::quoted(eventModel)<<",\"event_motion\":"<<std::quoted(eventMotion)<<",\"skin_sha256\":"<<std::quoted(skinHash);
     o<<",\"event_hierarchies\":[";for(std::size_t i=0;i<eventHierarchies.size();++i){if(i)o<<',';o<<std::quoted(eventHierarchies[i]);}o<<"],\"core_texture_bindings\":["<<specularTextureBase<<','<<specularTextureCount<<','<<indirectTextureBase<<','<<indirectTextureCount<<','<<globalTextureBase<<','<<globalTextureCount<<"],\"material_programs\":[";
     auto array=[&](const auto &a){o<<'[';for(std::size_t k=0;k<a.size();++k){if(k)o<<',';o<<a[k];}o<<']';};
@@ -241,6 +211,6 @@ std::string GxScene::report() const {
         o<<"],\"indirect_matrices\":[";for(int n=0;n<6;++n){if(n)o<<',';array(s.indirectMatrices[n]);}o<<"],\"indirect_order\":[";for(int n=0;n<s.indirectMeta[0];++n){if(n)o<<',';array(s.indirectOrder[n]);}o<<"]}";
     }
     o<<']';
-    o<<",\"limitations\":[\"isolated SMD/event-pose diagnostic: not complete Trans/Render or GameTask\",\"frozen original LIT cut; model-bound lights and live SAR states not integrated\",\"active shape morphs, cloth, IK, Hokan, shadows, mirror, other indirect formats and postprocessing not integrated\",\"cut-isolated neutral morph state; no event state carry across preceding cuts\"]}";return o.str();
+    o<<",\"limitations\":[\"isolated SMD/event-pose diagnostic: not complete Trans/Render or GameTask\","<<std::quoted(materialLightingReady?"frozen original LIT cut; model-bound lights and live SAR states not integrated":"registration/geometry only: no camera, OT, material-light capture or GPU submission")<<",\"all-resident original block creation; player-dependent cBlock.check activation not integrated\",\"active shape morphs, cloth, IK, Hokan, shadows, mirror, other indirect formats and postprocessing not integrated\",\"cut-isolated neutral morph state; no event state carry across preceding cuts\"]}";return o.str();
 }
 } // namespace re4::port

@@ -132,10 +132,13 @@ ModelInfoView *ModelRuntime::createAttachment(Object &object,ResourceLease bin,R
     if(!info) throw std::runtime_error("original attached ModInfoMgr.create failed");
     return info;
 }
-std::unique_ptr<ModelRuntime::Object> ModelRuntime::initialize(ResourceLease bin,ResourceLease tpl,bool invisible) {
+std::unique_ptr<ModelRuntime::Object> ModelRuntime::initialize(ResourceLease bin,ResourceLease tpl,bool invisible,u8 kindId,u32 initialFlags) {
     auto object=std::make_unique<Object>();
     object->asset=std::make_unique<Asset>(bin,tpl);
     object->cpu.mm=&infos; object->cpu.pm=&parts; object->cpu.systemInvisible=invisible;
+    // cModel::modelInit distinguishes actor kind 0 from room objects. Supply
+    // the caller's original constructor/workInit state before executing it.
+    object->cpu.kindid=kindId; object->cpu.be_flag|=initialFlags;
     if(!object->cpu.modelInit(&object->asset->data,&object->asset->texture)) throw std::runtime_error("original modelInit failed");
     return object;
 }

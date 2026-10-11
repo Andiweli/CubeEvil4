@@ -194,7 +194,14 @@ execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/too
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_skinning.py")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_skinning.py"
     --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
-add_library(re4_gx STATIC src/gx_scene.cpp src/gx_pipeline.cpp src/skinning.cpp src/event_skinning.cpp
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_scroll.py" "${CMAKE_CURRENT_SOURCE_DIR}/config/scroll-sources.json"
+    "${RE4_ROOT}/src/game/scroll.cpp" "${RE4_ROOT}/include/scroll.h" "${RE4_ROOT}/include/cManager.h"
+    "${RE4_ROOT}/src/game/model.cpp" "${RE4_ROOT}/src/game/obj.cpp" "${RE4_ROOT}/src/game/obj02.cpp")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_scroll.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
+add_library(re4_gx STATIC src/gx_scene.cpp src/gx_pipeline.cpp src/skinning.cpp src/event_skinning.cpp src/scroll_scene.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/original/scroll_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/skinning_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/gx_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/gx_render_control.cpp")

@@ -1,0 +1,8 @@
+{
+  "src/game/scroll.cpp": "05a26ca40567d1c30dd77d991af7e1bbd9c362c304dcd6a319461670e7a854bc",
+  "include/scroll.h": "dadbc4152075bfce5a10179fc40709f72997bab8124d37ef67242a4b001987b7",
+  "include/cManager.h": "f4eb3770d2f5f5f08bbc429b95511f99280c9c274a9104a3d273536f015f501f",
+  "src/game/model.cpp": "e8bd5ee322737b65b9dcb9a3fc629a22603d1a22fcc170cdaf8f56a90cbf7a34",
+  "src/game/obj.cpp": "497d72d4817ddc7fbf41db1d68c2a4848eb75a2be8c8a0a10df528c58d4fef46",
+  "src/game/obj02.cpp": "89815a5c4f1035450612db3a474153e39e99ab218289dec6635538d185385bcb"
+}

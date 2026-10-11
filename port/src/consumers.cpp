@@ -257,11 +257,11 @@ void EngineConsumers::releaseModel(ConsumerHandle h) {
     }
     if(!models_.erase(h.index)) throw std::logic_error("retired model reference");
 }
-ConsumerHandle EngineConsumers::initializeModel(ResourceLease bin,ResourceLease tpl,std::string name,bool invisible) {
+ConsumerHandle EngineConsumers::initializeModel(ResourceLease bin,ResourceLease tpl,std::string name,bool invisible,u8 kindId,u32 initialFlags) {
     check();
     if(!modelRuntime_) throw std::logic_error("original room model pool counts are required");
     auto model=std::make_unique<Model>(); model->name=std::move(name);
-    model->initialized=modelRuntime_->initialize(bin,tpl,invisible);
+    model->initialized=modelRuntime_->initialize(bin,tpl,invisible,kindId,initialFlags);
     auto id=next_++;
     if(!id) throw std::overflow_error("consumer handles exhausted");
     models_.emplace(id,std::move(model)); return {identity_,epoch_,id};

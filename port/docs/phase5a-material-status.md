@@ -1,5 +1,10 @@
 # Phase 5a: vollständige registrierte Leon-Hierarchie und originale Materialpfade
 
+Fortsetzung: [r100, gruppierte Original-SMD-Erstellung und nachgewiesene
+Spieler-/Licht-/Kameraabhängigkeiten](phase5a-r100-status.md). Der unten
+beschriebene gruppierte SMD-Abbruch ist dort behoben; die übrigen Grenzen
+bleiben als historischer Stand dieses Berichts erhalten.
+
 Geprüfte Fortsetzung vom 11. Oktober 2026 auf `android-port`, ausgehend von
 `af1cafa33dd35adaa49d962ffef478c73a77a061`. Windows x86/x64 und Retroid
 Pocket Flip 2 `dbdcacc`, Android 13/API 33, Adreno 650, Vulkan 1.1.128.

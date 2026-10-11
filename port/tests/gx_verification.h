@@ -1,5 +1,6 @@
 #pragma once
 #include "../src/gx_original.h"
+#include "../src/scroll_original.h"
 #include "re4/port/gx_pipeline.h"
 #include "skinning_verification.h"
 #include <iostream>
@@ -15,6 +16,31 @@ inline int verifyGxAdapters() {
     put32(0,64);put32(12,160);put32(16,176);put32(20,192);put32(28,192);put32(32,0xa0000000);put32(48,96);put32(52,128);put16(56,4);put16(58,4);put16(26,1);put32(60,0x20010801);(*bytes)[25]=1;put32(216,32);
     for(u32 i=0;i<4;++i){put16(96+i*8,u16(i));(*bytes)[128+i*4+2]=64;(*bytes)[160+i*4+3]=255;put16(176+i*4,u16(i*256));}
     auto lease=[&](){return ResourceLease{bytes,bytes->data(),u32(bytes->size())};};
+    // Isolated SMD wire guards and actual original scalar/group/constructor
+    // bodies. These checks do not replace the private real-room registration.
+    auto smd=std::make_shared<std::vector<u8>>(128,0);
+    auto smdPut=[&](u32 at,u32 w){for(u32 k=0;k<4;++k)smd->at(at+k)=u8(w>>(24-8*k));};
+    auto smdLease=[&]{return ResourceLease{smd,smd->data(),u32(smd->size())};};
+    (*smd)[0]=0x40;(*smd)[1]=1;(*smd)[3]=1;
+    smdPut(4,100);smdPut(8,108);smdPut(12,116);smdPut(16,2);smdPut(20,3);smdPut(24,7);
+    smdPut(100,4);smdPut(104,0x12345678);
+    scroll::cSmd grouped(smdLease());check(grouped.getWorkNum()==11);
+    check(grouped.getWorkPtr(0)==grouped.getWorkPtr(9));
+    check(*static_cast<const u8*>(grouped.getBinPtr(0))==0x12);
+    fail([&]{grouped.getBinPtr(1);});fail([&]{grouped.getBinPtr(-1);});
+    for(u32 extent=0;extent<100;++extent)fail([&]{auto b=smdLease();b.size=extent;scroll::cSmd rejected(b);});
+    smdPut(16,33);fail([&]{scroll::cSmd rejected(smdLease());});smdPut(16,2);
+    smdPut(28,0x7fc00000);fail([&]{scroll::cSmd rejected(smdLease());});smdPut(28,0);
+    smdPut(100,8);fail([&]{scroll::cSmd changed(smdLease());changed.getBinPtr(0);});smdPut(100,4);
+    scroll::cObj object;object.initializeObject();object.initializeScroll();
+    check(object.be_flag==0x21&&object.kindid==1&&!object.CallBackFunc&&object.Attribute==0);
+    object.setNoSuspend(1);check(object.be_flag==0x821);object.setNoSuspend(0);check(object.be_flag==0x21);
+    auto smx=std::make_shared<std::vector<u8>>(160,0);(*smx)[1]=1;
+    (*smx)[148]=0x12;(*smx)[149]=0x34;(*smx)[150]=0x56;(*smx)[151]=0x78;
+    scroll::cSmxData decodedSmx({smx,smx->data(),160});
+    check(decodedSmx.work[0].SpecularColor==0x12345678);
+    check(std::vector<u8>(decodedSmx.work[0].Free+116,decodedSmx.work[0].Free+120)==std::vector<u8>{0x12,0x34,0x56,0x78});
+    fail([&]{scroll::cSmxData truncated({smx,smx->data(),159});});
     Mtx world;C_MTXIdentity(world);
     auto primitive=[&](u8 op,u16 count){std::fill(bytes->begin()+224,bytes->end(),u8(0));(*bytes)[224]=op;put16(225,count);for(u32 i=0;i<count;++i){put16(227+i*8,u16(i));put16(229+i*8,u16(i));put16(231+i*8,u16(i));put16(233+i*8,u16(i));}};
     // Four indices require 35 bytes -> aligned list size 64, not 32.

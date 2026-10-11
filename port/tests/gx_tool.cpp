@@ -26,6 +26,22 @@ int main(int argc,char **argv) {
             re4::port::GameRuntime game(files,input,u8(disc));game.initialize();
             std::cout<<re4::port::evaluateEventSkinning(game.loader(),game.engineConsumers(),argv[5],u32(cut),u32(frame)).report()<<'\n';return 0;
         }
+        if((argc==6||argc==7) && std::string(argv[1])=="scroll") {
+            auto disc=std::stoul(argv[4]),room=std::stoul(argv[5],nullptr,16);
+            if(disc>1||room>65535)throw std::invalid_argument("scroll arguments");
+            auto files=std::make_shared<re4::port::ImportedFiles>(argv[2],argv[3]);re4::port::ControllerInput input;
+            re4::port::GameRuntime game(files,input,u8(disc));game.initialize();
+            auto first=re4::port::loadOriginalScrollGeometry(game.loader(),game.engineConsumers(),u16(room));
+            auto second=re4::port::loadOriginalScrollGeometry(game.loader(),game.engineConsumers(),u16(room));
+            if(first.report()!=second.report())throw std::runtime_error("original scroll repeated room/lifetime mismatch");
+            if(argc==7) {
+                std::ofstream out(argv[6],std::ios::binary|std::ios::trunc);
+                out.write(reinterpret_cast<const char*>(second.vertices.data()),std::streamsize(second.vertices.size()*sizeof(re4::port::GxVertex)));
+                out.write(reinterpret_cast<const char*>(second.indices.data()),std::streamsize(second.indices.size()*sizeof(u32)));
+                if(!out)throw std::runtime_error("private SMD geometry comparison output");
+            }
+            std::cout<<second.report()<<'\n';return 0;
+        }
         if((argc<8 || argc>10) || std::string(argv[1])!="scene")throw std::invalid_argument("scene <root> <catalog> <disc> <room-hex> <event-FST-path> <frame> [event-model] [cut]; skin <root> <catalog> <disc> <event-FST-path> <cut> <frame>");
         auto disc=std::stoul(argv[4]);auto room=std::stoul(argv[5],nullptr,16);auto frame=std::stoul(argv[7]);
         if(disc>1||room>65535||frame>65535)throw std::invalid_argument("scene argument range");

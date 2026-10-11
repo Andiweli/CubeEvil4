@@ -410,6 +410,7 @@ struct VulkanBootstrap::Impl {
         auto ci=info<VkShaderModuleCreateInfo>(VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO);ci.codeSize=bytes;ci.pCode=data;VkShaderModule result{};ok(CreateShaderModule(device,&ci,nullptr,&result),"vkCreateShaderModule/GX");return result;
     }
     void loadScene(GxScene data) {
+        if(!data.materialLightingReady)throw std::invalid_argument("GX geometry has no completed original camera/material/light state");
         ok(DeviceWaitIdle(device),"vkDeviceWaitIdle/scene replacement");clearScene();
         try {
             if(data.draws.empty()||data.vertices.empty()||data.indices.empty())throw std::invalid_argument("empty original geometry scene");scene=std::make_unique<GxScene>(std::move(data));

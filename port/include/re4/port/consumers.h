@@ -96,7 +96,7 @@ class EngineConsumers final {
     ConsumerHandle model(ResourceLease bin, std::string name);
     void configureModelPools(u32 infos, u32 parts); // Actual room CONS/SMD counts must be supplied.
     ConsumerHandle initializeModel(ResourceLease bin, ResourceLease tpl, std::string name,
-                                   bool systemInvisible = false);
+                                   bool systemInvisible = false, u8 kindId = 0, u32 initialFlags = 0);
     ModelCpu &model(ConsumerHandle);
     void releaseModel(ConsumerHandle); // Frame-owner boundary; borrowers must be quiescent.
     std::size_t modelCount() const;

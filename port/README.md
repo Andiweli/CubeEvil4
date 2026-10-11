@@ -1,13 +1,20 @@
 # RE4 native foundation
 
-The current Phase-5a continuation executes complete original shaderSetup,
+The current Phase-5a continuation also executes original grouped SMD and block
+registration on Windows x86/x64 and Android ARM32/ARM64. All 310 r100 models
+and their five blocks are created, decoded and released; r102 and r119 verify
+the same shared path. This is a CPU registration/geometry milestone. r100 GPU
+submission still stops at its real model-bound player light; original gameplay
+player startup and the dependent shoulder camera remain unintegrated. See the
+[r100 progress report and exact remaining dependencies](docs/phase5a-r100-status.md).
+
+The preceding Phase-5a continuation executes complete original shaderSetup,
 specular/bump, weight and FK-motion bodies with native GX/PPC adapters.
 The shared Vulkan path draws Leon's registered body and attachments in r120
 and r119 on Android ARM32/ARM64; Windows x86/x64 verifies the same source data
 and material states. This is an isolated rendering proof with neutral morphs,
 not complete event playback or visually verified gameplay. The requested r100
-start-camera test remains blocked by original grouped scroll creation and
-player/shoulder-camera consumers. See the
+start-camera test remains blocked by player/light/shoulder-camera consumers. See the
 [material report and reproducible tests](docs/phase5a-material-status.md) and
 the preceding [skinning report](docs/phase5a-skinning-status.md).
 The phase descriptions below record preceding integration milestones.

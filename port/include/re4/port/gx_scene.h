@@ -23,6 +23,7 @@ struct GxDraw {
     float uvScrollU{},uvScrollV{}; // Original velocity; diagnostic is frozen at initialization.
     u32 workIndex{}, workId{}, binId{}, tplId{}, partIndex{};
     u32 modelFlags{};
+    int blockNo=-1;
     std::array<u8,9> specular{}; // Original part bytes 0x0d,0x0f..0x13,0x15,0x17 and reserved.
     u32 textureBase{}, textureCount{};
     Mtx modelMatrix{}; // commonModelTrans uses m->mat for specular, not the draw-root matrix.
@@ -82,6 +83,10 @@ struct GxScene {
     u32 skinnedModels{};
     std::string eventModel, eventMotion, skinHash;
     std::vector<std::string> eventHierarchies;
+    u32 scrollWorkCount{};
+    std::vector<int> activeBlocks;
+    std::vector<std::string> blockHashes,scrollFunctions;
+    bool materialLightingReady{};
     u32 specularTextureBase{},specularTextureCount{},indirectTextureBase{},indirectTextureCount{},globalTextureBase{},globalTextureCount{};
     std::string report() const;
 };
@@ -94,4 +99,5 @@ void decodeGxModel(ResourceLease bin, const Mtx world, u32 textureBase,
 // packet of the supplied event, and original CameraMotion sampling / SDK matrices.
 GxScene loadDiagnosticScene(EngineLoader &, EngineConsumers &, u16 room,
                             const std::string &eventPath, u32 frame = 0,const std::string &eventModel="",u32 cut=UINT32_MAX);
+GxScene loadOriginalScrollGeometry(EngineLoader &,EngineConsumers &,u16 room); // No camera/light/GPU success claim.
 } // namespace re4::port
