@@ -33,11 +33,13 @@ def generate(root, output):
     for sig in ['void workInit(cObj* pObj)','void SmdSetup(int blockNo)','int setObj(int blkNo)',
                 'void SmxSetFlag(cObj* pObj, u32 flag)','void smxInit(cObj* obj, u8 id)',
                 'void BlockCreate(int blkNo, cSmd* pBlock)','void BlockDestroy(int blkNo)',
-                'cObj* SmdGetGroupNext(cObj* pObj00)']:
+                'cObj* SmdGetGroupNext(cObj* pObj00)', 'cObj* SmdGetGroupObjPtr2(u32 idx)']:
         parts=sig.split(' ',1);out=parts[0]+' Domain::'+parts[1]
         # Pointer return's star remains attached to the native return type.
         if sig.startswith('cObj* '):out='cObj* Domain::'+sig[6:]
         changes=[(sig,out)]
+        if 'BlockDestroy(' in sig:
+            changes.append(('\n{','\n{\n    checkBlockRelease(blkNo); // Validate all native borrowers before retiring any group member.'))
         if 'setObj' in sig:
             changes.append(('scrTbl[i] = obj;','scrTbl[i] = obj; obj->localIndex=u32(i); // Preserve wire work index across unused entries.'))
             # The original probes slot 0xFE before checking its sentinel even

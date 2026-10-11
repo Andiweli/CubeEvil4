@@ -98,6 +98,10 @@ class EngineConsumers final {
     ConsumerHandle initializeModel(ResourceLease bin, ResourceLease tpl, std::string name,
                                    bool systemInvisible = false, u8 kindId = 0, u32 initialFlags = 0);
     ModelCpu &model(ConsumerHandle);
+    // A frame-owner borrow prevents pool retirement while a manager retains a
+    // native model/parts pointer. No pointer is serialized or narrowed to u32.
+    std::shared_ptr<const void> borrowModel(ConsumerHandle);
+    void checkModelRelease(ConsumerHandle) const;
     void releaseModel(ConsumerHandle); // Frame-owner boundary; borrowers must be quiescent.
     std::size_t modelCount() const;
     void bindMessage(int type, ResourceLease, u32 language = 1);

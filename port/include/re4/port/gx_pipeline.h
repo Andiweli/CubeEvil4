@@ -1,5 +1,6 @@
 #pragma once
 #include "re4/port/gx_scene.h"
+#include "re4/port/lights.h"
 
 namespace re4::port {
 // std140 transport. These are native GX states, never GameCube structure overlays.
@@ -23,7 +24,8 @@ GxMaterialState captureOriginalMaterial(const GxMaterialInput &,u32 textureBase,
 // address immutable scene draws, not sorted copies of geometry or room rules.
 void buildOriginalOrderingTables(GxScene &);
 // Executes original loadLit/setModel2/LightSetModel for a frozen original cut.
-// Model-bound light coordinates and live SAR changes remain explicit boundaries.
-void captureOriginalRoomLighting(GxScene &,EngineLoader &,EngineConsumers &,ResourceLease roomBody,ResourceLease lit,u32 cut);
+// Model-bound coordinates require live owners from the original manager resolver;
+// missing actor/ETC owners and live SAR changes remain explicit boundaries.
+void captureOriginalRoomLighting(GxScene &,EngineLoader &,EngineConsumers &,ResourceLease roomBody,ResourceLease lit,u32 cut,LightRuntime::ModelResolver resolver={},bool eventLight=false);
 int verifyOriginalGxControl();
 } // namespace re4::port

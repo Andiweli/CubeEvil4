@@ -97,8 +97,11 @@ struct Domain {
     void SmxSetFlag(cObj*,u32); void smxInit(cObj*,u8); void smxInit(cObj*,cSmxWork*);
     void BlockCreate(int,cSmd*); void BlockDestroy(int);
     cObj *SmdGetGroupNext(cObj*);
+    cObj *SmdGetGroupObjPtr2(u32);
+    void checkBlockRelease(int);
+    std::optional<ConsumerHandle> lightParent(u8,u16);
     void MotionSetCore(cObj*,ModelMotion*,void*,void*,int,int,int);
     void storeColor(u8*,u32);
 };
-void appendRoomScrollGeometry(EngineLoader&,EngineConsumers&,const RoomArchive&,GxScene&);
+std::unique_ptr<Domain> appendRoomScrollGeometry(EngineLoader&,EngineConsumers&,const RoomArchive&,GxScene&,bool retain=false);
 } // namespace re4::port::scroll

@@ -22,6 +22,8 @@ public final class GeometryActivity extends Activity {
         LinearLayout layout=new LinearLayout(this);layout.setOrientation(LinearLayout.VERTICAL);
         TextView label=new TextView(this);label.setText("Original data / isolated GX diagnostic");layout.addView(label);
         GraphicsBootstrapView graphics=new GraphicsBootstrapView(this);
+        final int debugView=getIntent().getIntExtra("debug_view",0);
+        graphics.configureDebugView(debugView);
         String model=getIntent().getStringExtra("model");graphics.configureEventModel(model==null?"":model);
         graphics.configureEventCut(getIntent().getIntExtra("cut",-1));
         String root=getIntent().getStringExtra("root"),catalog=getIntent().getStringExtra("catalog");
@@ -37,8 +39,8 @@ public final class GeometryActivity extends Activity {
                 JSONObject evidence=new JSONObject(report);
                 JSONObject scene=evidence.getJSONObject("scene");
                 label.setText(String.format(Locale.ROOT,
-                    "Isolated rendering test: r%03x | frame %d | model %s\nCamera: %s",
-                    room,scene.getInt("frame"),scene.optString("event_model",""),scene.getString("camera")));
+                    "DEBUG view %d / isolated render: r%03x | frame %d | model %s\nCamera: %s",
+                    debugView,room,scene.getInt("frame"),scene.optString("event_model",""),scene.getString("camera")));
                 out.write(evidence.put("evidence_session",session).toString().getBytes(StandardCharsets.UTF_8));
             }catch(java.io.IOException|org.json.JSONException e){android.util.Log.e("RE4Graphics","Cannot save evidence: "+report,e);}
         });

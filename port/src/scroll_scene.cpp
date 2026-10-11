@@ -77,6 +77,15 @@ void ObjectManager::destroy(cObj *p) {
 }
 Domain::Domain(EngineConsumers &e,u32 count):engine(e),ObjMgr(this,count) {}
 Domain::~Domain() { while(ObjMgr.head)ObjMgr.destroy(ObjMgr.head); }
+void Domain::checkBlockRelease(int block) {
+    for(auto *o=ObjMgr.head;o;o=o->next)if(o->blk==block&&o->handle)engine.checkModelRelease(*o->handle);
+}
+std::optional<ConsumerHandle> Domain::lightParent(u8 type,u16 no) {
+    if(type==4){if(no>=ObjMgr.nArray)return {};auto *o=ObjMgr.pArray+no;if(!o->isAlive()||!o->handle)return {};return o->handle;}
+    if(type!=2)throw MissingGameConsumer("original light parent manager type "+std::to_string(type)+" (live EmMgr/Etc/ObjMgr required)");
+    auto *o=SmdGetGroupObjPtr2(no);if(!o||!o->isAlive()||!o->handle)return {};
+    (void)engine.model(*o->handle);return o->handle;
+}
 ResourceLease Domain::lease(void *p) const {
     for(auto &a:assets){auto it=a->entries.find(p);if(it!=a->entries.end())return it->second;}
     throw std::invalid_argument("unresolved scroll resource pointer");
@@ -105,11 +114,13 @@ void cObj::updateLight() {
     view.LightInfo.updateMatrix(&view);LightInfo=view.LightInfo;
 }
 
-void appendRoomScrollGeometry(EngineLoader&,EngineConsumers &engine,const RoomArchive &archive,GxScene &scene) {
+std::unique_ptr<Domain> appendRoomScrollGeometry(EngineLoader&,EngineConsumers &engine,const RoomArchive &archive,GxScene &scene,bool retain) {
     ResourceLease body{archive.body,archive.body->data(),u32(archive.body->size())};auto entry=archive.find("SMD");if(!entry)throw MissingGameConsumer("room has no SMD");
     auto primary=std::make_unique<cSmd>(slice(body,entry->offset,entry->size));u32 count=u32(primary->getWorkNum());
     if(!count||count>65535)throw std::invalid_argument("scroll model capacity");
-    Domain domain(engine,count);auto *main=primary.get();scene.smdHash=sha256(main->bytes.data,main->bytes.size);domain.assets.push_back(std::move(primary));
+    auto constants=originalRoomConstants(body);
+    auto limit=[&](u32 base){u64 n=u64(base)+count;if(n>65535)throw std::invalid_argument("original model/object pool capacity");return u32(n);};
+    auto owner=std::make_unique<Domain>(engine,limit(constants[1]));auto &domain=*owner;auto *main=primary.get();scene.smdHash=sha256(main->bytes.data,main->bytes.size);domain.assets.push_back(std::move(primary));
     cSmd *common=nullptr;if(auto *e=archive.find("SMD",1)){auto a=std::make_unique<cSmd>(slice(body,e->offset,e->size));common=a.get();domain.assets.push_back(std::move(a));}
     if(auto *e=archive.find("SMX"))domain.smx=std::make_unique<cSmxData>(slice(body,e->offset,e->size));
     std::vector<std::pair<int,cSmd*>> blocks;
@@ -125,7 +136,10 @@ void appendRoomScrollGeometry(EngineLoader&,EngineConsumers &engine,const RoomAr
     for(auto *a: [&]{std::vector<cSmd*> v{main};for(auto &b:blocks)v.push_back(b.second);return v;}())for(auto &w:a->work)if(w.WorkNo!=255){
         auto *src=w.flags&16?common:a;if(!src)throw std::invalid_argument("SMD common BIN absent");auto b=src->entry(src->BinTblOfs,src->TplTblOfs,w.BinId);range(b,0,64);++infos;parts+=u32(b.data[25])+1;
     }
-    engine.configureModelPools(infos,parts);
+    auto infoCapacity=limit(constants[7]),partCapacity=limit(constants[6]);
+    if(infos>infoCapacity||parts>partCapacity)throw std::invalid_argument("original CNS model/parts pool exhausted by SMD");
+    engine.configureModelPools(infoCapacity,partCapacity);
+    scene.originalPoolSizes={domain.ObjMgr.nArray,infoCapacity,partCapacity};
     domain.SmdInit(main,domain.smx.get(),common);domain.SmdSetup(-1);scene.scrollFunctions.push_back("SmdInit/SmdSetup/setObj/SmdSetParam/smxInit");
     for(auto &b:blocks){domain.BlockCreate(b.first,b.second);scene.activeBlocks.push_back(b.first);}
     if(!blocks.empty())scene.scrollFunctions.push_back("BlockCreate");
@@ -135,7 +149,7 @@ void appendRoomScrollGeometry(EngineLoader&,EngineConsumers &engine,const RoomAr
         if(!textures.count(binding)){auto decoded=decodeGxTpl(o->tpl);if(info.additional.owner){auto add=decodeGxTpl(info.additional);decoded.insert(decoded.end(),std::make_move_iterator(add.begin()),std::make_move_iterator(add.end()));}
             u32 base=u32(scene.textures.size());textures.emplace(binding,std::make_pair(base,u32(decoded.size())));for(auto &t:decoded){if(m.pModelInfo->model_addr->flags&0x80000000)t.wrapS=t.wrapT=1;t.minFilter=t.minLod==t.maxLod?1:5;t.magFilter=1;scene.textures.push_back(std::move(t));}}
         auto skin=skinModelCpu(m,*m.pModelInfo);Mtx world;auto *root=skin.staticBypass?m.getPartsPtr(o->bin.data[word(o->bin,0)]):m.pList;C_MTXConcat(root->mat,m.pModelInfo->mat,world);
-        GxDraw id;id.workIndex=i;id.workId=254;
+        GxDraw id;id.cpuOwner=o->handle;id.workIndex=i;id.workId=254;
         // Recover immutable resource IDs from the actual current SMD placement; no renumbering of model tables.
         auto *a=o->blk<0?main:std::find_if(blocks.begin(),blocks.end(),[&](auto &b){return b.first==o->blk;})->second;
         auto &w=a->work.at(o->localIndex);id.workIndex=o->localIndex;
@@ -152,6 +166,8 @@ void appendRoomScrollGeometry(EngineLoader&,EngineConsumers &engine,const RoomAr
         id.radius=std::sqrt(bound.size.x*bound.size.x+bound.size.y*bound.size.y+bound.size.z*bound.size.z)*std::max({m.scale.x,m.scale.y,m.scale.z});
         auto tex=textures.at(binding);decodeGxModel(o->bin,world,tex.first,tex.second,scene,id,skin.staticBypass?nullptr:&skin);++scene.models;if(!skin.staticBypass)++scene.skinnedModels;
     }
+    scene.scrollWorkCount=count;
+    if(retain){scene.scrollFunctions.push_back("persistent original SMD models retained through light/OT capture");return owner;}
     // Actual original block destruction, followed by a second creation and destruction,
     // verifies the same model pools and shared-resource owners before GPU submission.
     for(auto &b:blocks)domain.BlockDestroy(b.first);
@@ -161,5 +177,6 @@ void appendRoomScrollGeometry(EngineLoader&,EngineConsumers &engine,const RoomAr
     domain.BlockDestroy(-1);
     if(engine.modelCount()||domain.ObjMgr.countActiveWork())throw std::logic_error("scroll model release");
     scene.scrollWorkCount=count;scene.scrollFunctions.push_back("original models released; GPU immutable leases retained");
+    return {};
 }
 } // namespace re4::port::scroll

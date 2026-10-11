@@ -50,7 +50,7 @@ def generate(root, output):
         text=read(path).replace(sig+' {',sig+'\n{')
         body,line=function(text,sig)
         for before,after in changes:
-            if body.count(before)!=1: raise ValueError('Light adaptation changed: '+before)
+            if body.count(before)<1 or (before!='DbgFlagChk(pG, DBG_TEST_MODE)' and body.count(before)!=1): raise ValueError('Light adaptation changed: '+before)
             body=body.replace(before,after)
         body=body.replace('cLightMgr::','LightManagerCpu::').replace('cLight::','LightCpu::')
         body=re.sub(r'\bcLight\b','LightCpu',body)
@@ -61,6 +61,7 @@ def generate(root, output):
         entries.append(dict(source=path,signature=sig,line=line,adaptations=[a for a,_ in changes]))
     cpp.append(re.search(r'struct Light10Work \{.*?\n\};',read('src/game/light10.cpp'),re.S)[0])
     add('src/lib/vec.c','void C_VECAdd(const Vec* a, const Vec* b, Vec* ab)')
+    add('src/lib/mtxvec.c','void C_MTXMultVecSR(const Mtx m, const Vec* src, Vec* dst)')
     cpp.append(re.search(r'static u32 ConsRoomDefault\[12\] = \{.*?\n\};',read('src/game/cons.cpp'),re.S)[0])
     for sig in ['int ConsInitRoom(ConsRoom* p)','u32 ConsGetRoomValue(u32 id)']:
         add('src/game/cons.cpp',sig,[(sig,sig.replace('ConsInitRoom','LightConstants::ConsInitRoom').replace('ConsGetRoomValue','LightConstants::ConsGetRoomValue'))])
@@ -119,6 +120,8 @@ def generate(root, output):
                 'cLight& cLight::operator=(cLightWork& w)','cLightWork& cLightWork::operator=(cLight& l)',
                 'int cLight::checkScr()','void cLight::setPartsNo(int pno)',
                 'int cLight::setParent(u8 type, u32 no)','cModel* cLight::calcParent()',
+                'cCoord* cLight::getCoord()', 'int cLight::calcPos(Vec* pLiPos, Vec* pPos)',
+                'int cLight::getNormal(Vec* pInNorm, Vec* pNorm)',
                 'void cLight::setTrans(int on_off)',
                 'void cLight::setSpotNormal(Vec* norm)','void cLight::setSpotTarget(Vec* pos)']:
         changes=[]
@@ -130,6 +133,18 @@ def generate(root, output):
                      ('SmdGetGroupObjPtr(parent.no)','LightCall::active().resolve(2,u16(ParentNo))'),
                      ('getRoomEtcOnLight(parent.no, &pParent, 0)','resolveEtc(u16(ParentNo), &pParent)'),
                      ('(cModel*) ObjMgr.fastAt(parent.no)','LightCall::active().resolve(4,u16(ParentNo))')]
+        if 'getCoord()' in sig:
+            changes=[('cCoord* cLight::getCoord()','ModelPart* cLight::getCoord()'),('cModel* p = pParent;','ModelCpu* p = pParent;')]
+        if 'calcPos(' in sig or 'getNormal(' in sig:
+            body,_=function(read('src/game/light.cpp'),sig)
+            candidates=[('cModel* p;','ModelCpu* p;'),('cCoord* c;','ModelPart* c;'),
+                ('G_ROOM_ID','LightCall::active().state.room_id'),
+                ('DbgFlagChk(pG, DBG_TEST_MODE)','(LightCall::active().state.Debug_flg[DBG_TEST_MODE / 32] & (0x80000000u >> (DBG_TEST_MODE % 32)))'),
+                ('EmMgr.getEmPtr((u8) pid, 0)','LightCall::active().resolve(1,u8(pid))'),
+                ('SmdGetGroupObjPtr(no)','LightCall::active().resolve(2,u16(no))'),
+                ('ObjMgr.at(no)','LightCall::active().resolve(4,u16(no))'),
+                ('getRoomEtcOnLight(ParentNo, &p, 0)','resolveEtc(u16(ParentNo), &p)')]
+            changes=[(a,b) for a,b in candidates if a in body]
         add('src/game/light.cpp',sig,changes)
     for i in [1,2,3,4,5,6,7,8,10]:
         sig=f'void Light{i:02d}_Move(cLight* '+('pLight' if i==10 else 'pLi')+')'

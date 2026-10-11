@@ -127,7 +127,7 @@ void GXSetChanCtrl(int chan,int enable,int ambSource,int matSource,u32 mask,int 
 }
 void GXSetChanAmbColor(int chan,GXColor color){if(chan!=4)throw MissingGameConsumer("GX ambient channel");capture().state.ambient=rgba(color);}
 void GXSetChanMatColor(int chan,GXColor color){if(chan!=4)throw MissingGameConsumer("GX material channel");capture().state.raster=rgba(color);}
-int cLight::getNormal(Vec *source,Vec *result){if(ParentType)throw MissingGameConsumer("original model-bound light direction");*result=*source;return 1;}
+int cLight::getNormal(Vec *source,Vec *result){if(direction){*result=direction(*source);return 1;}if(ParentType)throw MissingGameConsumer("original model-bound light direction");*result=*source;return 1;}
 int cLight::isParent(cModel *m){return m->source&&pParent==m->source;}
 } // namespace re4::port::gx
 
@@ -178,13 +178,22 @@ void buildOriginalOrderingTables(GxScene &scene){
     }
     for(auto type:gx::originalRenderOrder){scene.otExecution.push_back(u32(type));gx::ExecOt(type);}
 }
-void captureOriginalRoomLighting(GxScene &scene,EngineLoader &loader,EngineConsumers &consumers,ResourceLease roomBody,ResourceLease lit,u32 cut){
+void captureOriginalRoomLighting(GxScene &scene,EngineLoader &loader,EngineConsumers &consumers,ResourceLease roomBody,ResourceLease lit,u32 cut,LightRuntime::ModelResolver resolver,bool eventLight){
     // Same original core file used by CoreDataRead, through Dvd/ReadReq and CAS hashes.
     auto request=loader.request("etc/core.das",0x8001);auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(60);
     while(loader.status(request)==LoadStatus::Pending||loader.status(request)==LoadStatus::Reading){loader.frame();std::this_thread::yield();if(std::chrono::steady_clock::now()>deadline)throw std::runtime_error("GX core light read timeout");}
     std::shared_ptr<const LoadedFile> core;if(loader.readCheck(request,core)!=1||!core)throw std::runtime_error("GX core original disc read");
-    ResourceLease coreBody{core,core->bytes.data()+core->bodyOffset,core->bodySize};GameplayHeaps heaps;NativeGameState state;LightRuntime lights(heaps,loader.scheduler(),consumers,state);lights.initialize();lights.bindArchives(coreBody,roomBody);
-    auto env=lights.cut(1,int(cut));lights.loadRenderCut(1,int(cut));auto pool=lights.renderPool();
+    ResourceLease coreBody{core,core->bytes.data()+core->bodyOffset,core->bodySize};GameplayHeaps heaps;NativeGameState state;state.room_id=scene.roomId;LightRuntime lights(heaps,loader.scheduler(),consumers,state);lights.initialize();lights.bindArchives(coreBody,roomBody);
+    auto block=eventLight?lights.bindEventBlock(lit):1;
+    lights.setModelResolver(std::move(resolver));auto env=lights.cut(block,int(cut));
+    try { lights.loadRenderCut(block,int(cut)); }
+    catch(const MissingGameConsumer &e) {
+        // Only unlit debug views can expose geometry without a live actor.
+        // Normal captured rendering continues to fail at the real dependency.
+        if(scene.debugView<1||scene.debugView>3)throw;
+        scene.lightDependencyError=e.what();
+    }
+    auto pool=lights.renderPool();
     if(std::any_of(scene.draws.begin(),scene.draws.end(),[](const auto &d){return (d.flags&0x13)||(d.modelStateFlags&0x01000000);})){
         auto index=indexAssetBody(coreBody.data,coreBody.size);
         auto append=[&](u32 slot,bool indirect){if(slot<4||slot-4>=index.entries.size())throw std::invalid_argument("GX CORE_ARC slot");auto &e=index.entries[slot-4];if(std::memcmp(e.tag.data(),"TPL",3))throw std::invalid_argument("GX CORE_ARC texture tag");
@@ -202,10 +211,12 @@ void captureOriginalRoomLighting(GxScene &scene,EngineLoader &loader,EngineConsu
         scene.materials[i]=captureOriginalMaterial(in,d.textureBase,d.textureCount,env.tev_scale[0]);
     }
     gx::Capture cap;gx::Scope scope(cap);cap.context.Camera=scene.camera;gx::LightMgr.environment=env;gx::LightMgr.slots.clear();gx::LightMgr.nArray=u32(pool.size());auto snapshot=lights.snapshot();for(int i=0;i<8;++i)gx::LightMgr.kindFlags[i]=snapshot.kindFlags[i];
-    for(auto &input:pool){gx::cLight l{};static_cast<LightFields&>(l)=input.fields;l.be_flag=input.flags;gx::LightMgr.slots.push_back(l);}
+    for(u32 slot=0;slot<pool.size();++slot){auto &input=pool[slot];gx::cLight l{};static_cast<LightFields&>(l)=input.fields;l.be_flag=input.flags;if(input.flags&1)l.direction=[&lights,slot](Vec source){return lights.transformDirection(slot,source);};gx::LightMgr.slots.push_back(l);}
     gx::LightSetInit();scene.lightHash=sha256(lit.data,lit.size);scene.litCut=cut;scene.selectedLightRecords=env.nLight;scene.lightingCalls=0;
     if(scene.materials.size()!=scene.draws.size())throw std::logic_error("GX material/light draw pairing");
     for(u32 i=0;i<scene.draws.size();++i){auto &d=scene.draws[i];gx::cModelData data{d.modelFlags};gx::cModelInfo info;info.model_addr=&data;for(int k=0;k<4;++k)info.color[k]=u8(d.materialColor>>(24-8*k));gx::LightPart root;root.world=d.rootWorld;C_MTXCopy(d.rootMatrix,root.mat);gx::cModel model;model.be_flag=7;model.pList=&root;model.pModelInfo=&info;model.pos=d.modelPosition;model.ang=d.modelAngle;model.scale=d.modelScale;model.Attribute=d.attribute;
+        if(d.cpuOwner)model.source=&consumers.model(*d.cpuOwner);
+        if(!scene.lightDependencyError.empty()){scene.materials[i].raster={info.color[0],info.color[1],info.color[2],info.color[3]};continue;}
         model.LightInfo.init2(2,1,&d.lightOffset,&d.lightSize,0x10);model.LightInfo.SelectMask=d.lightSelectMask;model.LightInfo.updateMatrix(&model);gx::LightMgr.setModel2(&model);
         if(d.smxFlags&16)model.be_flag|=0x8000;cap.state=scene.materials[i];gx::LightSetModel(&model);auto &state=cap.state;
         state.meta[3]=s32(env.Fog.Type);if(state.meta[3]!=0&&state.meta[3]!=2&&state.meta[3]!=4&&state.meta[3]!=5&&state.meta[3]!=6&&state.meta[3]!=7)throw MissingGameConsumer("GX fog type "+std::to_string(state.meta[3]));state.fog[0]=env.Fog.Start;state.fog[1]=env.Fog.End;if(state.meta[3]&&!(env.Fog.End>env.Fog.Start))throw std::invalid_argument("GX fog interval");state.fogColor={env.Fog.Color.r/255.f,env.Fog.Color.g/255.f,env.Fog.Color.b/255.f,1.f};
@@ -213,6 +224,7 @@ void captureOriginalRoomLighting(GxScene &scene,EngineLoader &loader,EngineConsu
         auto &last=state.stages[state.meta[0]-1];if(env.tev_scale[0]>2)throw std::invalid_argument("LIT TEV scale");last.colorOp[2]=env.tev_scale[0];scene.materials[i]=state;++scene.lightingCalls;
     }
     for(auto &texture:scene.textures){if(texture.maxLod>texture.minLod){texture.minLod=env.min_lod;texture.maxLod=u8(std::min<u32>(env.max_lod,u32(texture.levels.size()-1)));texture.bias=env.lod_bias;if(texture.minLod>texture.maxLod)throw std::invalid_argument("original LIT mip range vs TPL");}}
+    scene.debugSubmissionReady=!scene.lightDependencyError.empty()&&scene.debugView>=1&&scene.debugView<=3;
     scene.owners.push_back(lit);scene.owners.push_back(coreBody);gx::LightMgr.slots.clear();gx::LightMgr.nArray=0;lights.clear();
 }
 int verifyOriginalGxControl(){

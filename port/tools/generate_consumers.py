@@ -147,6 +147,7 @@ def generate(root, output):
         ('n = *(u16*) p;','n = motionBE16(p);'), ('frames = (u16*) (p + 2);','frames = p + 2;'),
         ('hp++;','hp = hist + axis;'), ('u16* fp = (u16*) (idx * 2 + (u32) frames);','u8* fp = frames + idx * 2;'),
         ('f0 = (f32) *fp;','f0 = (f32) motionBE16(fp);'), ('f1 = (f32) frames[nx];','f1 = (f32) motionBE16(frames + nx * 2);'),
+        ('if (frame < f1) {','if (frame < f1) {\n                        if (prm->Data_fmt == 15) throw MissingGameConsumer("FCC15 between-key interpolation has no original tangent definition");'),
         ('fp--;','fp -= 2;'), ('fp++;','fp += 2;'),
         ('fp = (u16*) (last * 2 + (u32) frames);','fp = frames + last * 2;')])
     for name in ['000','001','002','010','011','012','020','021','022','033']:

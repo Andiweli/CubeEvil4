@@ -5,6 +5,11 @@ layout(location=0) in vec2 texCoord;
 layout(location=1) in vec4 rasterColor;
 layout(location=2) in float viewDepth;
 layout(location=3) in vec3 generated[8];
+layout(location=11) in vec4 sourceColor;
+layout(location=12) in vec3 lightingColor;
+// Scene specialization eliminates unused diagnostic colour paths. Original
+// TEV alpha/coverage still executes, including in the debug views.
+layout(constant_id=0) const int debugView=0;
 layout(location=0) out vec4 color;
 layout(set=0,binding=0) uniform sampler2D tex0;
 layout(set=0,binding=1) uniform sampler2D tex1;
@@ -103,6 +108,12 @@ void main() {
     bool pass=gx.alpha.z==0?(a&&b):gx.alpha.z==1?(a||b):gx.alpha.z==2?(a!=b):(a==b);
     if(!pass)discard;
     color=vec4(vec3(registers[0].rgb&255)/255.0,float(alpha)/255.0);
+    // Explicit diagnostic views preserve original geometry/depth/alpha coverage.
+    // Their colours intentionally diverge from GX; they are not gameplay output.
+    if(debugView==1){int map=gx.stages[0].order.y;color.rgb=map==255?vec3(0):sampleMap(map,coord(gx.stages[0].order.x)).rgb;}
+    else if(debugView==2)color.rgb=vec3(gx.raster.rgb)/255.0;
+    else if(debugView==3)color.rgb=sourceColor.rgb;
+    else if(debugView==4)color.rgb=lightingColor;
     if(gx.meta.w!=0){
         float fog=clamp((viewDepth-gx.fog.x)/(gx.fog.y-gx.fog.x),0.0,1.0);
         if(gx.meta.w==4)fog=1-exp2(-8*fog);
@@ -111,6 +122,8 @@ void main() {
         if(gx.meta.w==7)fog=exp2(-8*(1-fog)*(1-fog));
         int amount=int(round(fog*256));ivec3 source=registers[0].rgb&255;
         ivec3 fogRgb=ivec3(round(gx.fogColor.rgb*255));
-        color.rgb=vec3((source*(256-amount)+fogRgb*amount)>>8)/255.0;
+        if(debugView==0)color.rgb=vec3((source*(256-amount)+fogRgb*amount)>>8)/255.0;
+        else if(debugView==6)color.rgb=vec3(fog);
     }
+    else if(debugView==6)color.rgb=vec3(0);
 }

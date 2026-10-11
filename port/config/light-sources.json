@@ -19,5 +19,6 @@
   "src/game/math_sub.cpp": "8ab63b9eda407cc37b4c679842e723d8e4564669149103ef422030498162a637",
   "include/math_sub_decl.h": "f31dd5683a52e11bfde1fc1556270201486850d4a9c9fc01dd91a250d5d9cec1",
   "src/game/cons.cpp": "e754a90cbc3f0bbf2f2d6353c1f5b0b29f0d1ad247dd5afe03bc2c75b2133f80",
-  "include/cons.h": "1ff96ad5775ad6dbd7744192b2d9f020f2e1d5068b37418845299dfead8dff12"
+  "include/cons.h": "1ff96ad5775ad6dbd7744192b2d9f020f2e1d5068b37418845299dfead8dff12",
+  "src/lib/mtxvec.c": "6a3d9594a3000d8d87288355342ec7a6dab4b94d051e0552d89d2faf0f17bf00"
 }

@@ -5,6 +5,7 @@
 #include "rnd.h"
 #include <cstring>
 #include <cstdio>
+#include <map>
 
 namespace re4::port {
 struct LightCpu : ModelUnit,LightFields {
@@ -17,7 +18,9 @@ struct LightCpu : ModelUnit,LightFields {
     int setParent(u8,u32);
     int setParent(ModelCpu *);
     ModelCpu *calcParent();
+    ModelPart *getCoord();
     int calcPos(Vec*,Vec*);
+    int getNormal(Vec*,Vec*);
     void setTrans(int);
     void setSpotNormal(Vec *);
     void setSpotTarget(Vec *);
@@ -86,8 +89,10 @@ struct LightCall {
     std::shared_ptr<LightPathView> paths;
     EngineConsumers &consumers;
     LightRuntime::ModelResolver resolver;
+    NativeGameState &state;
+    std::map<ModelCpu*,std::shared_ptr<const void>> parentBorrows;
     std::optional<ConsumerHandle> lastResolved;
-    LightCall(LightManagerCpu &m,EngineConsumers &c):mgr(m),consumers(c) {}
+    LightCall(LightManagerCpu &m,EngineConsumers &c,NativeGameState &s):mgr(m),consumers(c),state(s) {}
     bool ownsData(const void *) const;
     ModelCpu *enemy(u16);
     ModelCpu *resolve(u8,u16);
@@ -99,6 +104,7 @@ int resolveEtc(u16,ModelCpu **);
 void C_VECSubtract(const Vec *,const Vec *,Vec *);
 void C_VECAdd(const Vec *,const Vec *,Vec *);
 void C_VECNormalize(const Vec *,Vec *);
+void C_MTXMultVecSR(const Mtx,const Vec*,Vec*);
 f32 C_VECMag(const Vec *);
 f32 LIMIT_ANGLE(f32);
 } // namespace re4::port
@@ -106,3 +112,4 @@ f32 LIMIT_ANGLE(f32);
 #define PSVECSubtract C_VECSubtract
 #define PSVECAdd C_VECAdd
 #define VECNormalize C_VECNormalize
+#define PSMTXMultVecSR C_MTXMultVecSR

@@ -10,8 +10,11 @@ layout(location=0) out vec2 texCoord;
 layout(location=1) out vec4 rasterColor;
 layout(location=2) out float viewDepth;
 layout(location=3) out vec3 generated[8];
+layout(location=11) out vec4 sourceColor;
+layout(location=12) out vec3 lightingColor;
 layout(push_constant) uniform State { mat4 vp; vec4 viewRows[3]; vec4 reserved; } state;
 void main() {
+    sourceColor=vertexColor;
     vec4 clip=state.vp*vec4(position,1.0);
     // GX SDK perspective NDC z is [-1,0]. Vulkan is [0,1].
     gl_Position=vec4(clip.x,-clip.y,clip.z+clip.w,clip.w);
@@ -41,6 +44,7 @@ void main() {
         lighting+=ivec3(round(attenuation*max(0.0,dot(direction,viewNormal))*gx.lights[i*5+4].rgb));
     }
     ivec3 ambient=clamp(lighting,ivec3(0),ivec3(255));
+    lightingColor=vec3(ambient)/255.0;
     ivec3 rgb=((ambient+(ambient>>7))*gx.raster.rgb)>>8;
     rasterColor=vec4(vec3(clamp(rgb,ivec3(0),ivec3(255)))/255.0,
         gx.meta.z!=0?vertexColor.a:float(gx.raster.a)/255.0);

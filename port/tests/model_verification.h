@@ -102,6 +102,15 @@ template<class Checks> void modelInitializationTests(Checks &c,GameRuntime &game
     c.rejects([&]{engine.initializeMotion(motionModel,bytes(badMotion));},"unaligned/truncated FCV axis bounds");
     c.test(engine.model(motionModel).Motion.pMot && engine.sampleMotion(motionModel,0,10).x==10,
            "failed FCV validation preserves previous original motion work");
+    auto keyed=std::vector<u8>(64,0);keyed[1]=10;keyed[2]=1;keyed[3]=0xf0;keyed[4]=4;keyed[5]=1;
+    word(keyed,8,64);word(keyed,12,16);
+    for(u32 axis=0;axis<3;++axis){auto at=16+axis*14;keyed[at+1]=2;keyed[at+5]=10;
+        word(keyed,at+6,0x3f800000);word(keyed,at+10,axis==0?0x41200000:axis==1?0x41a00000:0x41f00000);}
+    engine.initializeMotion(motionModel,bytes(keyed),0);
+    c.test(engine.sampleMotion(motionModel,0,0).x==1,"original FCC15 reads an exact first key without tangents");
+    sampled=engine.sampleMotion(motionModel,0,10);
+    c.test(sampled.x==10&&sampled.y==20&&sampled.z==30,"original FCC15 holds the final key without tangents");
+    c.rejects([&]{engine.sampleMotion(motionModel,0,5);},"FCC15 between-key values cannot invent uninitialized original tangents");
     EventResources resources;
     resources.registerBin("sample.fcv",motionBytes); resources.registerBin("sample.fcv",bin);
     c.test(resources.bin("sample.fcv").data==motionBytes.data && resources.BinTbl.pWork[0].Count==2,

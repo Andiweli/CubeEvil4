@@ -129,10 +129,11 @@ void decodeGxModel(ResourceLease b,const Mtx world,u32 base,u32 count,GxScene &s
     scene.owners.push_back(b);
 }
 
-GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 room,const std::string &eventPath,u32 frame,const std::string &eventModel,u32 requestedCut) {
+GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 room,const std::string &eventPath,u32 frame,const std::string &eventModel,u32 requestedCut,u32 debugView) {
+    if(debugView>6)throw std::invalid_argument("GX debug view 0..6");
     if(!loader.loadRoom(room,true))throw std::runtime_error("diagnostic room already loading");waitRoom(loader);auto archive=loader.room();GxScene scene;scene.roomHash=archive->source->identity.sha256;
     ResourceLease body{archive->body,archive->body->data(),u32(archive->body->size())};auto entry=archive->find("SMD");if(!entry)throw MissingGameConsumer("room has no SMD");auto smd=slice(body,entry->offset,entry->size);scene.smdHash=sha256(smd.data,smd.size);
-    scroll::appendRoomScrollGeometry(loader,engine,*archive,scene);u32 n=scene.scrollWorkCount;
+    scene.roomId=room;scene.debugView=debugView;auto models=scroll::appendRoomScrollGeometry(loader,engine,*archive,scene,true);u32 n=scene.scrollWorkCount;
     auto req=loader.request(eventPath);auto end=std::chrono::steady_clock::now()+std::chrono::seconds(60);while(loader.status(req)==LoadStatus::Pending||loader.status(req)==LoadStatus::Reading){loader.frame();std::this_thread::yield();if(std::chrono::steady_clock::now()>end)throw std::runtime_error("camera EVD load timeout");}
     std::shared_ptr<const LoadedFile> loaded;if(loader.readCheck(req,loaded)!=1||!loaded)throw std::runtime_error("camera EVD read");auto evd=indexEventPackage({loaded,loaded->bytes.data(),u32(loaded->bytes.size())});u32 cameraCut=0;bool found=false;
     for(u32 at=evd.packetOffset;at<evd.packetOffset+evd.packetSize;){auto size=half(evd.bytes,at+12);if(size<16||size>evd.packetOffset+evd.packetSize-at)throw std::invalid_argument("camera packet boundary");auto type=word(evd.bytes,at);
@@ -140,6 +141,14 @@ GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 roo
         if(type==9&&found&&half(evd.bytes,at+8)==cameraCut&&text(evd.bytes,at+16,12)=="cam0000")throw MissingGameConsumer("event camera parent/base matrix required");at+=size;
     }
     if(!found)throw MissingGameConsumer("event has no original camera packet");auto cameraBin=std::find_if(evd.bins.begin(),evd.bins.end(),[&](const auto &b){return b.name==scene.cameraName;});if(cameraBin==evd.bins.end())throw std::invalid_argument("event camera bin reference");
+    // ExePacket_Lit names an EVD resource and calls LightMgr.update(0,-1).
+    // An event camera cut is not an index into the room's LIT resource.
+    ResourceLease selectedLit;int latestLightFrame=-1;
+    for(u32 at=evd.packetOffset;at<evd.packetOffset+evd.packetSize;){auto size=half(evd.bytes,at+12);auto type=word(evd.bytes,at);int pc=s16(half(evd.bytes,at+8)),pf=s16(half(evd.bytes,at+10));
+        if(type==14&&pc==int(cameraCut)&&pf>=0&&u32(pf)<=frame&&pf>=latestLightFrame){if(size<64)throw std::invalid_argument("event LIT packet size");scene.lightName=text(evd.bytes,at+16,48);latestLightFrame=pf;}at+=size;
+    }
+    if(latestLightFrame>=0){auto lightBin=std::find_if(evd.bins.begin(),evd.bins.end(),[&](const auto &b){return b.name==scene.lightName;});if(lightBin==evd.bins.end())throw std::invalid_argument("event LIT resource reference");selectedLit=lightBin->bytes;scene.eventLight=true;}
+    else throw MissingGameConsumer("diagnostic event has no applicable Lit packet; live room-camera/light state required");
     ModelCpu cameraValidation;cameraValidation.nParts=4;MotionAsset motion(cameraBin->bytes,cameraValidation);if(frame>(motion.data.maxFrame&0x3fff))throw std::invalid_argument("camera frame");
     // CameraMotion::move explicitly initializes roll to zero when track 2 is absent.
     auto numbers=motion.data.numbers;std::sort(numbers.begin(),numbers.end());if(numbers!=std::vector<u8>{0,1,2,3}&&numbers!=std::vector<u8>{0,1,3})throw std::invalid_argument("camera requires unique position/target/FOV and optional roll");
@@ -147,9 +156,9 @@ GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 roo
     camera.move();scene.camera=camera;scene.cameraFrame=frame;if(scene.camera.param.Fovy<=0||scene.camera.param.Fovy>=180)throw std::invalid_argument("original camera FOV");
     C_MTXLookAt(scene.camera.view,&scene.camera.param.Campos,&scene.camera.Up,&scene.camera.param.Target);C_MTXPerspective(scene.camera.projection,scene.camera.param.Fovy,1.3333334f,100.f,1000000.f); // camera.cpp/MainInit constants.
     for(u32 r=0;r<4;++r)for(u32 c=0;c<4;++c){float v=0;for(u32 k=0;k<4;++k)v+=scene.camera.projection[r][k]*(k<3?scene.camera.view[k][c]:(c==3?1.f:0.f));scene.viewProjection[c*4+r]=v;}
-    auto lit=archive->find("LIT");if(!lit)throw MissingGameConsumer("original room LIT required for channel/fog capture");
     if(!eventModel.empty()) {
-        auto snapshot=evaluateEventSkinning(loader,engine,eventPath,cameraCut,frame);
+        EngineConsumers eventModels(&loader.scheduler());
+        auto snapshot=evaluateEventSkinning(loader,eventModels,eventPath,cameraCut,frame);
         auto found=std::find_if(snapshot.models.begin(),snapshot.models.end(),[&](const auto &m){return m.name==eventModel;});
         if(found==snapshot.models.end())throw MissingGameConsumer("original event model pose not resolved: "+eventModel);
         auto &rootModel=*found;
@@ -177,9 +186,12 @@ GxScene loadDiagnosticScene(EngineLoader &loader,EngineConsumers &engine,u16 roo
         }
         scene.eventModel=rootModel.name;scene.eventMotion=rootModel.motion;scene.skinHash=hash.finish();
     }
-    captureOriginalRoomLighting(scene,loader,engine,body,slice(body,lit->offset,lit->size),cameraCut);
-    buildOriginalOrderingTables(scene);scene.materialLightingReady=true;
-    scene.owners.push_back(body);scene.owners.push_back(cameraBin->bytes);return scene;
+    captureOriginalRoomLighting(scene,loader,engine,body,selectedLit,0,[&](u8 type,u16 no){return models->lightParent(type,no);},scene.eventLight);
+    buildOriginalOrderingTables(scene);scene.materialLightingReady=scene.lightDependencyError.empty();
+    scene.owners.push_back(body);scene.owners.push_back(cameraBin->bytes);
+    models.reset();if(engine.modelCount())throw std::logic_error("persistent SMD model release after capture");
+    for(auto &d:scene.draws)d.cpuOwner.reset();
+    scene.scrollFunctions.push_back("persistent SMD models released after light and OT capture; GPU snapshot owned");return scene;
 }
 GxScene loadOriginalScrollGeometry(EngineLoader &loader,EngineConsumers &engine,u16 room) {
     if(!loader.loadRoom(room,true))throw std::runtime_error("scroll room already loading");waitRoom(loader);auto archive=loader.room();
@@ -187,9 +199,9 @@ GxScene loadOriginalScrollGeometry(EngineLoader &loader,EngineConsumers &engine,
 }
 std::string GxScene::report() const {
     Sha256 geometry;geometry.update(reinterpret_cast<const u8*>(vertices.data()),vertices.size()*sizeof(GxVertex));geometry.update(reinterpret_cast<const u8*>(indices.data()),indices.size()*4);
-    std::ostringstream o;o<<"{\"pointer_bits\":"<<sizeof(void*)*8<<",\"kind\":"<<std::quoted(materialLightingReady?"isolated_original_SMD_GX_OT_TEV_LIT_cut":"original_SMD_registration_geometry_only")<<",\"models\":"<<models<<",\"vertices\":"<<vertices.size()<<",\"triangles\":"<<indices.size()/3<<",\"primitives\":"<<primitives<<",\"draws\":"<<draws.size()<<",\"textures\":"<<textures.size()<<",\"room_sha256\":"<<std::quoted(roomHash)<<",\"smd_sha256\":"<<std::quoted(smdHash)<<",\"geometry_sha256\":"<<std::quoted(geometry.finish())<<",\"camera\":"<<std::quoted(cameraName)<<",\"frame\":"<<cameraFrame<<",\"fovy\":"<<camera.param.Fovy<<",\"texture_hashes\":[";
+    std::ostringstream o;o<<"{\"pointer_bits\":"<<sizeof(void*)*8<<",\"kind\":"<<std::quoted(materialLightingReady?"isolated_original_SMD_GX_OT_TEV_LIT_cut":debugSubmissionReady?"isolated_original_geometry_unlit_DEBUG":"original_SMD_registration_geometry_only")<<",\"models\":"<<models<<",\"vertices\":"<<vertices.size()<<",\"triangles\":"<<indices.size()/3<<",\"primitives\":"<<primitives<<",\"draws\":"<<draws.size()<<",\"textures\":"<<textures.size()<<",\"room_sha256\":"<<std::quoted(roomHash)<<",\"smd_sha256\":"<<std::quoted(smdHash)<<",\"geometry_sha256\":"<<std::quoted(geometry.finish())<<",\"camera\":"<<std::quoted(cameraName)<<",\"frame\":"<<cameraFrame<<",\"fovy\":"<<camera.param.Fovy<<",\"texture_hashes\":[";
     for(std::size_t i=0;i<textures.size();++i){if(i)o<<',';Sha256 h;for(auto &m:textures[i].levels)h.update(m.rgba.data(),m.rgba.size());o<<std::quoted(h.finish());}
-    o<<"],\"camera_point\":["<<std::setprecision(9)<<camera.param.Campos.x<<','<<camera.param.Campos.y<<','<<camera.param.Campos.z<<','<<camera.param.Target.x<<','<<camera.param.Target.y<<','<<camera.param.Target.z<<','<<camera.param.Roll<<','<<camera.param.Fovy<<"],\"vp\":[";
+    o<<"],\"light_resource\":"<<std::quoted(lightName)<<",\"event_light_packet\":"<<(eventLight?"true":"false")<<",\"original_pool_sizes\":["<<originalPoolSizes[0]<<','<<originalPoolSizes[1]<<','<<originalPoolSizes[2]<<"],\"camera_point\":["<<std::setprecision(9)<<camera.param.Campos.x<<','<<camera.param.Campos.y<<','<<camera.param.Campos.z<<','<<camera.param.Target.x<<','<<camera.param.Target.y<<','<<camera.param.Target.z<<','<<camera.param.Roll<<','<<camera.param.Fovy<<"],\"vp\":[";
     for(u32 i=0;i<16;++i){if(i)o<<',';o<<viewProjection[i];}
     o<<"],\"view_matrix\":[";for(u32 r=0;r<3;++r)for(u32 k=0;k<4;++k){if(r||k)o<<char(44);o<<camera.view[r][k];}
     o<<"],\"materials\":[";for(std::size_t i=0;i<draws.size();++i){auto &d=draws[i];if(i)o<<',';o<<'['<<d.workIndex<<','<<d.workId<<','<<d.binId<<','<<d.tplId<<','<<d.partIndex<<','<<d.texture<<','<<d.alphaTexture<<','<<unsigned(d.flags)<<','<<unsigned(d.alphaRef)<<','<<unsigned(d.cull)<<','<<d.indexCount<<','<<unsigned(d.blendMode)<<','<<d.materialColor<<','<<unsigned(d.otType)<<','<<d.smxFlags<<','<<d.uvScrollU<<','<<d.uvScrollV<<']';}
@@ -211,6 +223,8 @@ std::string GxScene::report() const {
         o<<"],\"indirect_matrices\":[";for(int n=0;n<6;++n){if(n)o<<',';array(s.indirectMatrices[n]);}o<<"],\"indirect_order\":[";for(int n=0;n<s.indirectMeta[0];++n){if(n)o<<',';array(s.indirectOrder[n]);}o<<"]}";
     }
     o<<']';
-    o<<",\"limitations\":[\"isolated SMD/event-pose diagnostic: not complete Trans/Render or GameTask\","<<std::quoted(materialLightingReady?"frozen original LIT cut; model-bound lights and live SAR states not integrated":"registration/geometry only: no camera, OT, material-light capture or GPU submission")<<",\"all-resident original block creation; player-dependent cBlock.check activation not integrated\",\"active shape morphs, cloth, IK, Hokan, shadows, mirror, other indirect formats and postprocessing not integrated\",\"cut-isolated neutral morph state; no event state carry across preceding cuts\"]}";return o.str();
+    o<<",\"light_state\":[";for(std::size_t i=0;i<materials.size();++i){if(i)o<<',';const auto &s=materials[i];o<<"{\"fog\":";array(s.fog);o<<",\"fog_color\":";array(s.fogColor);o<<",\"objects\":[";for(std::size_t n=0;n<s.lights.size();++n){if(n)o<<',';array(s.lights[n]);}o<<"]}";}o<<']';
+    o<<",\"debug_view\":"<<debugView<<",\"debug_submission_ready\":"<<(debugSubmissionReady?"true":"false")<<",\"light_dependency_error\":"<<std::quoted(lightDependencyError);
+    o<<",\"limitations\":[\"isolated SMD/event-pose diagnostic: not complete Trans/Render or GameTask\","<<std::quoted(materialLightingReady?"frozen event LIT target; live LightMgr.update/SAR/actor states not integrated":debugSubmissionReady?"explicit unlit DEBUG GPU snapshot; missing live light parents":"registration/geometry only: no camera, OT, material-light capture or GPU submission")<<",\"all-resident original block creation; player-dependent cBlock.check activation not integrated\",\"active shape morphs, cloth, IK, Hokan, shadows, mirror, other indirect formats and postprocessing not integrated\",\"cut-isolated neutral morph state; no event state carry across preceding cuts\"]}";return o.str();
 }
 } // namespace re4::port

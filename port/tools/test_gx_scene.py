@@ -75,6 +75,14 @@ def oracle(root,data,files,room_path='St1/r120.das',event_path='Evd/r120s00.evd'
         for local in range(nlocal):placements.append((n+local,source,base+72*local,block_no))
         n+=nlocal
     if n!=struct.unpack_from('>H',primary,2)[0]+sum(groups):raise ValueError('original getWorkNum differs')
+    limits=[60,200,1024,256,10,100,1300,300,0xa0000,10,30,30]
+    cns=next((b for tag,b in a.entries if tag==b'CNS\0'),None)
+    if cns is not None:
+        num=u32(cns,0);words=(num>>5)+1
+        if 4+4*(words+num)>len(cns):raise ValueError('original CNS extent')
+        for i in range(min(num,12)):
+            if u32(cns,4+4*(i>>5))&(1<<(i&31)):limits[i]=u32(cns,4+4*words+4*i)
+    pools=[limits[i]+n for i in (1,7,6)]
     textures={};hashes=[];materials=[];part_specular=[];primitive_count=triangles=models=0
     for i,smd,at,block_no in placements:
         bid,tid,mot,work=smd[at+36:at+40]
@@ -120,7 +128,7 @@ def oracle(root,data,files,room_path='St1/r120.das',event_path='Evd/r120s00.evd'
         models+=1
     smd=primary
     if geometry_only:
-        return dict(models=models,triangles=triangles,primitives=primitive_count,draws=len(materials),textures=len(hashes),texture_hashes=hashes,materials=materials,part_specular=part_specular,smd_sha256=sha(smd),room_sha256=f['sha256'],scroll_work_count=n,active_blocks=active_blocks,block_hashes=block_hashes)
+        return dict(models=models,triangles=triangles,primitives=primitive_count,draws=len(materials),textures=len(hashes),texture_hashes=hashes,materials=materials,part_specular=part_specular,smd_sha256=sha(smd),room_sha256=f['sha256'],scroll_work_count=n,active_blocks=active_blocks,block_hashes=block_hashes,original_pool_sizes=pools)
     evd=(data/'blobs'/files[event_path]['sha256']).read_bytes();offset,size=struct.unpack_from('>II',evd,64)
     while offset<struct.unpack_from('>I',evd,64)[0]+size:
         typ=u32(evd,offset);sz=struct.unpack_from('>H',evd,offset+12)[0]
@@ -129,8 +137,17 @@ def oracle(root,data,files,room_path='St1/r120.das',event_path='Evd/r120s00.evd'
     motion=fcv.parse(dict(archive.parse_event(evd))[camera]);tracks={j.parts_no:j for j in motion.joints}
     def first(j):return [sample_curve(a,j.fcc_type,frame,motion.max_frame,fcv) for a in j.axes]
     cp=first(tracks[0])+first(tracks[1])+[first(tracks[2])[1] if 2 in tracks else 0.,first(tracks[3])[1]*180/3.1415927]
-    lit=next(b for tag,b in a.entries if tag==b'LIT\0');cut=struct.unpack_from('>H',evd,offset+8)[0]
-    light_at=u32(lit,4+4*cut)
+    camera_cut=struct.unpack_from('>H',evd,offset+8)[0]
+    resources=dict(archive.parse_event(evd));at=struct.unpack_from('>I',evd,64)[0];stop=at+size;light_name=None;latest=-1
+    while at<stop:
+        typ=u32(evd,at);length=struct.unpack_from('>H',evd,at+12)[0]
+        if length<16 or length>stop-at:raise ValueError('original packet extent')
+        pc,pf=struct.unpack_from('>hh',evd,at+8)
+        if typ==14 and pc==camera_cut and 0<=pf<=frame and pf>=latest:
+            light_name=evd[at+16:at+64].split(b'\0')[0].decode();latest=pf
+        at+=length
+    if light_name is None:raise ValueError('event has no applicable original Lit packet')
+    lit=resources[light_name];cut=0;light_at=u32(lit,4)
     if model:
         import re
         from motion import meshbin
@@ -175,10 +192,13 @@ def oracle(root,data,files,room_path='St1/r120.das',event_path='Evd/r120s00.evd'
                 header,clut=struct.unpack_from('>II',tpl,table+k*8);h,w,fmt,pixel=struct.unpack_from('>HHII',tpl,header)
                 if clut:raise ValueError('core oracle CLUT unsupported')
                 hashes.append(sha(gxtex.decode(fmt,w,h,tpl[pixel:pixel+gxtex.base_size(fmt,w,h)]).tobytes()))
-    return dict(models=models,triangles=triangles,primitives=primitive_count,draws=len(materials),textures=len(hashes),texture_hashes=hashes,materials=materials,part_specular=part_specular,camera=camera,camera_point=cp,smd_sha256=sha(smd),room_sha256=f['sha256'],lit_sha256=sha(lit),lit_cut=cut,selected_light_records=u32(lit,light_at+4),lighting_calls=len(materials),ot_execution=list(range(22)),scroll_work_count=n,active_blocks=active_blocks,block_hashes=block_hashes)
+    return dict(models=models,triangles=triangles,primitives=primitive_count,draws=len(materials),textures=len(hashes),texture_hashes=hashes,materials=materials,part_specular=part_specular,camera=camera,camera_point=cp,smd_sha256=sha(smd),room_sha256=f['sha256'],lit_sha256=sha(lit),lit_cut=cut,light_resource=light_name,event_light_packet=True,selected_light_records=u32(lit,light_at+4),lighting_calls=len(materials),ot_execution=list(range(22)),scroll_work_count=n,active_blocks=active_blocks,block_hashes=block_hashes,original_pool_sizes=pools)
 
 def verify(actual,expected,geometry_only=False):
     for k,v in expected.items():
+        if k=='lighting_calls' and actual.get('debug_submission_ready') and actual.get('light_dependency_error'):
+            if actual[k]!=0:raise ValueError('unlit debug must not claim completed lighting')
+            continue
         if k=='part_specular':
             if [p['specular'] for p in actual['material_programs']]!=v:raise ValueError('original part specular/bump header mismatch')
         elif k=='camera_point':
@@ -194,7 +214,8 @@ def verify(actual,expected,geometry_only=False):
         if 'BlockCreate' in actual['scroll_functions'] and 'BlockDestroy/BlockCreate/BlockDestroy' not in actual['scroll_functions']:
             raise ValueError('original block lifetime evidence absent')
         return
-    if actual['triangles']==0 or actual['kind']!='isolated_original_SMD_GX_OT_TEV_LIT_cut':raise ValueError('no original scene')
+    debug_unlit=actual.get('debug_submission_ready',False) and actual.get('debug_view',0) in (1,2,3) and bool(actual.get('light_dependency_error')) and not actual['material_lighting_ready']
+    if actual['triangles']==0 or (actual['kind']!='isolated_original_SMD_GX_OT_TEV_LIT_cut' and not debug_unlit):raise ValueError('no original scene or explicitly unlit debug submission')
     order=actual['render_order'];draws=actual['materials']
     if not order or len(order)!=len(set(order)) or any(i<0 or i>=len(draws) for i in order):raise ValueError('OT draw ownership')
     # Original ModelTrans table/bucket mapping; ExecOt far-first and LIFO.
@@ -254,6 +275,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--data',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--host-exe',type=Path);p.add_argument('--adb',type=Path);p.add_argument('--serial',default='dbdcacc');p.add_argument('--repeat',type=int,default=2)
     p.add_argument('--room',type=lambda s:int(s,16),default=0x120);p.add_argument('--event',default='Evd/r120s00.evd')
     p.add_argument('--model',default='');p.add_argument('--cut',type=int);p.add_argument('--frame',type=int,default=0)
+    p.add_argument('--debug-view',type=int,choices=range(7),default=0,help='Explicit GPU debug output; 0 preserves captured rendering')
     p.add_argument('--geometry-reference',type=Path,help='Compare native vertex/index output with a private SMD output directory')
     p.add_argument('--smd-only',action='store_true',help='Actual SMD/BlockCreate registration and release; no rendering success')
     p.add_argument('--baseline-output',type=Path,help='GPU evidence for the identical room/camera/frame without the selected event model')
@@ -271,6 +293,9 @@ def main():
     expected=oracle(root,data,files,room_path,args.event,args.frame,args.cut,args.model,args.smd_only);(output/'oracle.json').write_text(json.dumps(expected,indent=2)+'\n')
     scene_args=[f'{args.room:x}',args.event,args.frame]
     if args.model or args.cut is not None:scene_args += [args.model or '-',args.cut if args.cut is not None else 4294967295]
+    if args.debug_view:
+        if not args.model and args.cut is None:scene_args+=['-',4294967295]
+        scene_args += [args.debug_view]
     if args.smd_only:scene_args=[f'{args.room:x}']
     command='scroll' if args.smd_only else 'scene'
     semantic=[];geometry_samples=[]
@@ -312,10 +337,11 @@ def main():
                 session='phase5a-'+uuid.uuid4().hex
                 report_file=f'files/{session}-graphics.json';image_file=f'files/{session}-gpu.rgba'
                 intents=['--ei','frame',args.frame]
+                intents+=['--ei','debug_view',args.debug_view]
                 if args.model:intents+=['--es','model',args.model]
                 if args.cut is not None:intents+=['--ei','cut',args.cut]
                 adb('shell','input','keyevent','KEYCODE_WAKEUP');adb('shell','am','start','-n','org.re4.port/.GeometryActivity','--es','root','/data/user/0/org.re4.port/files/phase5a','--es','catalog','/data/user/0/org.re4.port/files/phase5a/catalog.tsv','--ei','room',args.room,'--es','event',args.event,'--es','capture',session,*intents)
-                deadline=time.monotonic()+60
+                started=time.monotonic();deadline=started+180
                 while time.monotonic()<deadline:
                     time.sleep(.5)
                     try:gpu=json.loads(adb('shell','run-as','org.re4.port','cat',report_file))
@@ -332,6 +358,7 @@ def main():
                 process=pid;gpu['process_pid']=pid
                 if gpu['pointer_bits']!=bits or gpu['non_clear_pixels']<100 or gpu['graphics_domains']!=1:raise ValueError('GPU geometry/lifetime evidence')
                 prefix=output/f'gpu-{abi}-{repeat+1}';prefix.with_suffix('.json').write_text(json.dumps(gpu,indent=2)+'\n')
+                gpu['load_to_12_frames_seconds']=time.monotonic()-started
                 rgba=adb('exec-out','run-as','org.re4.port','cat',image_file)
                 if len(rgba)!=512*448*4 or sha(rgba)!=gpu['rgba_sha256']:
                     prefix.with_suffix('.failed-readback.bin').write_bytes(rgba)
@@ -339,6 +366,11 @@ def main():
                 prefix.with_suffix('.rgba').write_bytes(rgba)
                 from PIL import Image
                 Image.frombytes('RGBA',(512,448),rgba).save(prefix.with_suffix('.png'))
+                import numpy as np
+                pixels=np.frombuffer(rgba,dtype=np.uint8).reshape(-1,4)
+                luma=pixels[:,:3]@np.array([.2126,.7152,.0722])
+                gpu['brightness']={'units':'encoded RGB8, not photometric luminance','mean':float(luma.mean()),'p05':float(np.percentile(luma,5)),'median':float(np.median(luma)),'p95':float(np.percentile(luma,95)),'below_16_fraction':float((luma<16).mean()),'above_128_fraction':float((luma>128).mean())}
+                prefix.with_suffix('.json').write_text(json.dumps(gpu,indent=2)+'\n')
                 if args.baseline_output:
                     baseline=args.baseline_output/f'gpu-{abi}-1';reference=json.loads(baseline.with_suffix('.json').read_text())
                     for field in ['room_sha256','camera','camera_point','frame','vp']:

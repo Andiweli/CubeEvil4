@@ -1,5 +1,6 @@
 #include "consumer_verification.h"
 #include "model_verification.h"
+#include "light_parent_verification.h"
 #include "re4/port/game_runtime.h"
 #include "re4/port/sha256.h"
 #include "re4_scheduler_original.h"
@@ -456,6 +457,7 @@ std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<Graph
     c.test(scheduler.allocatedStacks() == 0, "all stack owners released on reset");
     tests::consumerTests(c, game);
     tests::modelInitializationTests(c, game);
+    tests::lightParentTests(c, game);
     tests::texRenderTests(c, game);
     tests::openingTests(c, game);
     tests::retirementTests(c, game);

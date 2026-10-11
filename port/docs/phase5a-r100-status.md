@@ -1,5 +1,10 @@
 # Phase 5a: r100 und originale gruppierte SMD-Erstellung — geprüfter Teilstand
 
+Dieser Bericht dokumentiert den Stand vor der Fortsetzung von `c5c988d0`.
+Der [Folgebericht](phase5a-scene-ownership-light-diagnostics.md) beschreibt
+originale CNS-Pools, Modell-Borrows, korrigierte Event-LIT-Referenzen und echte
+unbeleuchtete r100-GPU-Diagnosen. Die originale Spieler-Startszene bleibt offen.
+
 Fortsetzung auf `android-port`, Ausgangscommit
 `e285a6d6d6e37fcfefed3ed10e7f350c833e3ac2`, 11. Oktober 2026.
 Windows x86/x64 und Retroid Pocket Flip 2 `dbdcacc`, Android 13/API 33,

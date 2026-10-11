@@ -4,6 +4,13 @@ project(re4_native_foundation VERSION 0.2.1 LANGUAGES CXX)
 option(RE4_BUILD_TESTS "Build the original-code verification executable" ON)
 option(RE4_ENABLE_SANITIZERS "Enable ASan/UBSan on a compatible host" OFF)
 
+# Keep the APK debuggable and assertions enabled. The original room decoder and
+# SHA checks must not run at -O0 on the UI-independent graphics owner (r100 took
+# 174 seconds). Do not enable fast-math or change the checked FMA policy.
+if(ANDROID)
+    add_compile_options("$<$<CONFIG:Debug>:-O2>")
+endif()
+
 get_filename_component(RE4_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 include(cmake/OriginalSources.cmake)
 re4_prepare_original_sources("${RE4_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/original")

@@ -1,91 +1,98 @@
 package org.re4.port;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Looper;
 import android.util.Log;
 import android.view.Choreographer;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 
-/** Vulkan clears and isolated original-data geometry diagnostics; no playable-room claim. */
+/** One Vulkan owner per surface. Loading never blocks Android's UI/input loop. */
 public final class GraphicsBootstrapView extends SurfaceView implements SurfaceHolder.Callback, Choreographer.FrameCallback {
-    private long handle;
-    private boolean active;
-    private int frames;
-    private String report = "Vulkan surface not attached";
-    private String sceneRoot, sceneCatalog, sceneEvent;
-    private String sceneModel="";
-    private String evidenceSession="phase5a";
-    private int sceneRoom=0x120,sceneFrame;
-    private int sceneCut=-1;
+    private static final class Session {
+        final HandlerThread thread=new HandlerThread("RE4 graphics owner");
+        final Handler queue;
+        long handle; // Only the graphics thread accesses the JNI owner.
+        volatile boolean closing,active;
+        volatile int frames;
+        boolean pending; // Main-thread frame backpressure.
+        Session(){thread.start();queue=new Handler(thread.getLooper());}
+    }
+    private final Handler main=new Handler(Looper.getMainLooper());
+    private Session session;
+    private volatile String report="Vulkan surface not attached";
+    private String sceneRoot,sceneCatalog,sceneEvent,sceneModel="",evidenceSession="phase5a";
+    private int sceneRoom=0x120,sceneFrame,sceneCut=-1,debugView;
     public interface SceneObserver { void accept(String report); }
     private SceneObserver sceneObserver;
-    public void configureEvidenceSession(String session) {
-        if(handle!=0)throw new IllegalStateException("Configure before attaching surface");
-        if(session==null||!session.matches("[A-Za-z0-9_-]{1,80}"))
-            throw new IllegalArgumentException("Evidence session must be a safe file component");
-        evidenceSession=session;
+    private void configurable(){if(session!=null)throw new IllegalStateException("Configure before attaching surface");}
+    public GraphicsBootstrapView(Context context){super(context);getHolder().addCallback(this);System.loadLibrary("re4_port_jni");}
+    public void configureDebugView(int view){configurable();if(view<0||view>6)throw new IllegalArgumentException("Debug view 0..6");debugView=view;}
+    public void configureEvidenceSession(String value){
+        configurable();if(value==null||!value.matches("[A-Za-z0-9_-]{1,80}"))throw new IllegalArgumentException("Evidence session must be a safe file component");evidenceSession=value;
     }
-    public void configureScene(String root,String catalog,String event,SceneObserver observer) {
-        configureScene(root,catalog,0x120,event,0,observer);
+    public void configureScene(String root,String catalog,String event,SceneObserver observer){configureScene(root,catalog,0x120,event,0,observer);}
+    public void configureScene(String root,String catalog,int room,String event,int frame,SceneObserver observer){
+        configurable();if(room<0||room>0xffff||frame<0)throw new IllegalArgumentException("Original room/frame range");
+        sceneRoot=root;sceneCatalog=catalog;sceneRoom=room;sceneEvent=event;sceneFrame=frame;sceneObserver=observer;
     }
-    public void configureScene(String root,String catalog,int room,String event,int frame,SceneObserver observer) {
-        if(handle!=0) throw new IllegalStateException("Configure before attaching surface");
-        if(room<0||room>0xffff||frame<0)throw new IllegalArgumentException("Original room/frame range");
-        sceneRoom=room;sceneFrame=frame;
-        sceneRoot=root;sceneCatalog=catalog;sceneEvent=event;sceneObserver=observer;
+    public void configureEventModel(String name){configurable();if(name==null||!name.matches("[A-Za-z0-9_]{0,11}"))throw new IllegalArgumentException("Original event model name");sceneModel=name;}
+    public void configureEventCut(int cut){configurable();if(cut< -1||cut>32767)throw new IllegalArgumentException("Original event cut");sceneCut=cut;}
+    private void publish(Session owner,String value){
+        main.post(()->{if(session!=owner||owner.closing)return;report=value;if(sceneObserver!=null)sceneObserver.accept(value);});
     }
-    public GraphicsBootstrapView(Context context) {
-        super(context); getHolder().addCallback(this);
-        System.loadLibrary("re4_port_jni");
+    private void failure(Session owner,RuntimeException error){owner.active=false;Log.e("RE4Graphics",error.getMessage(),error);publish(owner,error.getMessage());}
+    @Override public void surfaceCreated(SurfaceHolder holder){
+        final Session owner=new Session();session=owner;final Surface surface=holder.getSurface();
+        report="Loading original resources / Vulkan on graphics owner";
+        owner.queue.post(()->{
+            if(owner.closing)return;
+            try{
+                owner.handle=nativeOpen(surface);
+                if(sceneRoot!=null)nativeLoadScene(owner.handle,sceneRoot,sceneCatalog,sceneRoom,sceneEvent,sceneFrame,sceneModel,sceneCut,debugView);
+                if(!owner.closing){owner.active=true;main.post(()->{if(session==owner&&!owner.closing)Choreographer.getInstance().postFrameCallback(this);});}
+            }catch(RuntimeException error){failure(owner,error);}
+        });
     }
-    public void configureEventModel(String name) {
-        if(handle!=0)throw new IllegalStateException("Configure before attaching surface");
-        if(name==null||!name.matches("[A-Za-z0-9_]{0,11}"))throw new IllegalArgumentException("Original event model name");
-        sceneModel=name;
+    @Override public void surfaceChanged(SurfaceHolder holder,int format,int width,int height){/* Native OUT_OF_DATE rebuild on next owner frame. */}
+    @Override public void surfaceDestroyed(SurfaceHolder holder){
+        final Session owner=session;session=null;Choreographer.getInstance().removeFrameCallback(this);
+        if(owner==null)return;owner.closing=true;owner.active=false;
+        // Ordered after any in-flight load/frame. No forced suspension or UI join.
+        owner.queue.post(()->{try{if(owner.handle!=0){nativeClose(owner.handle);owner.handle=0;}}finally{owner.thread.quitSafely();}});
     }
-    public void configureEventCut(int cut) {
-        if(handle!=0||cut< -1||cut>32767)throw new IllegalArgumentException("Original event cut");sceneCut=cut;
+    @Override public void doFrame(long timeNanos){
+        final Session owner=session;if(owner==null||!owner.active||owner.closing)return;
+        if(!owner.pending){owner.pending=true;owner.queue.post(()->{
+            try{
+                if(!owner.closing){String value=sceneRoot==null?nativeFrame(owner.handle,false):nativeSceneFrame(owner.handle,
+                    owner.frames==2?getContext().getFilesDir()+"/"+evidenceSession+"-gpu.rgba":null);++owner.frames;publish(owner,value);}
+            }catch(RuntimeException error){failure(owner,error);}
+            finally{main.post(()->owner.pending=false);}
+        });}
+        Choreographer.getInstance().postFrameCallback(this);
     }
-    @Override public void surfaceCreated(SurfaceHolder holder) {
-        try { frames=0;handle = nativeOpen(holder.getSurface());
-            if(sceneRoot!=null) nativeLoadScene(handle,sceneRoot,sceneCatalog,sceneRoom,sceneEvent,sceneFrame,sceneModel,sceneCut);
-            active = true; Choreographer.getInstance().postFrameCallback(this); }
-        catch (IllegalStateException error) { report = error.getMessage(); Log.e("RE4Graphics",report); if(sceneObserver!=null)sceneObserver.accept(report); }
-    }
-    @Override public void surfaceChanged(SurfaceHolder holder,int format,int width,int height) {
-        // Swapchain OUT_OF_DATE is handled by the native owner on its next frame.
-    }
-    @Override public void surfaceDestroyed(SurfaceHolder holder) {
-        active = false; Choreographer.getInstance().removeFrameCallback(this);
-        if (handle != 0) { nativeClose(handle); handle = 0; }
-    }
-    @Override public void doFrame(long timeNanos) {
-        if (!active || handle == 0) return;
-        try { report = sceneRoot==null?nativeFrame(handle,false):nativeSceneFrame(handle,
-            frames==2?getContext().getFilesDir()+"/"+evidenceSession+"-gpu.rgba":null); frames++;
-            if(sceneObserver!=null)sceneObserver.accept(report);
-        }
-        catch (IllegalStateException error) { report = error.getMessage(); active = false; Log.e("RE4Graphics",report); if(sceneObserver!=null)sceneObserver.accept(report); }
-        if (active) Choreographer.getInstance().postFrameCallback(this);
-    }
-    public boolean ready() { return handle != 0 && active && frames > 0; }
-    public String report() { return report; }
-    public String verifyOriginalRuntime() {
-        if (!ready()) throw new IllegalStateException(report);
-        Choreographer.getInstance().removeFrameCallback(this);
-        try {
-            // This invokes actual GameTask/R120Event bodies against the existing
-            // runtime fixtures; asset/model verification uses the separate real-data CLI.
-            String result = nativeOriginalProbe(handle,getContext().getCacheDir()+"/graphics-original-probe");
-            nativeFrame(handle,true); nativeFrame(handle,false);
-            Log.i("RE4Graphics",result); return result;
-        } finally { if (active) Choreographer.getInstance().postFrameCallback(this); }
+    public boolean ready(){Session owner=session;return owner!=null&&owner.active&&!owner.closing&&owner.frames>0;}
+    public String report(){return report;}
+    public String verifyOriginalRuntime(){
+        final Session owner=session;if(!ready())throw new IllegalStateException(report);
+        FutureTask<String> probe=new FutureTask<>(()->{
+            if(owner.closing)throw new IllegalStateException("Surface retired before original probe");
+            String value=nativeOriginalProbe(owner.handle,getContext().getCacheDir()+"/graphics-original-probe");
+            nativeFrame(owner.handle,true);nativeFrame(owner.handle,false);Log.i("RE4Graphics",value);return value;
+        });
+        owner.queue.post(probe);
+        try{return probe.get(30,TimeUnit.SECONDS);}catch(Exception error){throw new IllegalStateException("Original graphics owner probe failed",error);}
     }
     private static native long nativeOpen(Surface surface);
     private static native void nativeClose(long handle);
     private static native String nativeFrame(long handle,boolean black);
     private static native String nativeOriginalProbe(long handle,String directory);
-    private static native void nativeLoadScene(long handle,String root,String catalog,int room,String event,int frame,String model,int cut);
+    private static native void nativeLoadScene(long handle,String root,String catalog,int room,String event,int frame,String model,int cut,int debugView);
     private static native String nativeSceneFrame(long handle,String readback);
 }

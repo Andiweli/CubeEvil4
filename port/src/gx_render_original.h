@@ -45,7 +45,7 @@ struct ModelTexInfo {
 struct cModelData { u32 flags{}; };
 struct cModelInfo { ModelTexInfo tex;u8 flagsDC{};u8 color[4]{255,255,255,255},color2[4]{};u32 be_flag{};cModelData *model_addr{}; };
 struct cModel;
-struct cLight:LightFields { u32 be_flag{};void getPos(Vec *dst){*dst=World;}int getNormal(Vec*,Vec*);int isParent(cModel*); };
+struct cLight:LightFields { u32 be_flag{};std::function<Vec(Vec)> direction;void getPos(Vec *dst){*dst=World;}int getNormal(Vec*,Vec*);int isParent(cModel*); };
 struct GXLightObj { GXColor color{};float a[3]{},k[3]{},lpos[3]{},ldir[3]{}; };
 using __GXLightObjInt_struct=GXLightObj;
 using GXSpotFn=int;using GXDistAttnFn=int;

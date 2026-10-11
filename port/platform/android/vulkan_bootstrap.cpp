@@ -43,6 +43,7 @@ struct VulkanBootstrap::Impl {
  X(CreateRenderPass) X(DestroyRenderPass) X(CreateFramebuffer) X(DestroyFramebuffer) \
  X(CreateShaderModule) X(DestroyShaderModule) X(CreateDescriptorSetLayout) X(DestroyDescriptorSetLayout) \
  X(CreatePipelineLayout) X(DestroyPipelineLayout) X(CreateGraphicsPipelines) X(DestroyPipeline) \
+ X(CreatePipelineCache) X(DestroyPipelineCache) \
  X(CreateDescriptorPool) X(DestroyDescriptorPool) X(AllocateDescriptorSets) X(UpdateDescriptorSets) \
  X(CmdBeginRenderPass) X(CmdEndRenderPass) X(CmdBindPipeline) X(CmdBindVertexBuffers) X(CmdBindIndexBuffer) \
  X(CmdBindDescriptorSets) X(CmdPushConstants) X(CmdDrawIndexed)
@@ -60,9 +61,12 @@ struct VulkanBootstrap::Impl {
     VkQueue queue{};
     u32 family{};
     VkSwapchainKHR swap{};
+    VkPipelineCache pipelineCache{};
     VkExtent2D extent{};
     VkCompositeAlphaFlagBitsKHR compositeAlpha{};
     VkSurfaceTransformFlagBitsKHR surfaceTransform{};
+    VkFormat swapchainFormat{};
+    VkColorSpaceKHR swapchainColorSpace{};
     std::vector<VkImage> images;
     VkCommandPool pool{};
     VkCommandBuffer command{};
@@ -189,6 +193,8 @@ struct VulkanBootstrap::Impl {
         VK_DEVICE_FUNCTIONS(DEVICE)
 #undef DEVICE
         GetDeviceQueue(device,family,0,&queue);
+        auto cache=info<VkPipelineCacheCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO);
+        ok(CreatePipelineCache(device,&cache,nullptr,&pipelineCache),"vkCreatePipelineCache");
         createSwapchain();
         auto pc=info<VkCommandPoolCreateInfo>(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO);
         pc.flags=VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; pc.queueFamilyIndex=family;
@@ -241,6 +247,7 @@ struct VulkanBootstrap::Impl {
         sc.surface=surface; sc.minImageCount=caps.minImageCount+1;
         if(caps.maxImageCount) sc.minImageCount=std::min(sc.minImageCount,caps.maxImageCount);
         sc.imageFormat=format->format; sc.imageColorSpace=format->colorSpace; sc.imageExtent=extent; sc.imageArrayLayers=1;
+        swapchainFormat=format->format;swapchainColorSpace=format->colorSpace;
         sc.imageUsage=VK_IMAGE_USAGE_TRANSFER_DST_BIT; sc.imageSharingMode=VK_SHARING_MODE_EXCLUSIVE;
         // EFB pixels are already in the app's orientation. Ask the compositor to
         // handle native-panel rotation, rather than falsely claiming prerotation.
@@ -349,6 +356,7 @@ struct VulkanBootstrap::Impl {
             if(finished && DestroySemaphore) DestroySemaphore(device,finished,nullptr);
             if(pool && DestroyCommandPool) DestroyCommandPool(device,pool,nullptr);
             if(swap && DestroySwapchainKHR) DestroySwapchainKHR(device,swap,nullptr);
+            if(pipelineCache&&DestroyPipelineCache)DestroyPipelineCache(device,pipelineCache,nullptr);
             if(DestroyDevice) DestroyDevice(device,nullptr);
         }
         if(surface && DestroySurfaceKHR) DestroySurfaceKHR(instance,surface,nullptr);
@@ -410,7 +418,7 @@ struct VulkanBootstrap::Impl {
         auto ci=info<VkShaderModuleCreateInfo>(VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO);ci.codeSize=bytes;ci.pCode=data;VkShaderModule result{};ok(CreateShaderModule(device,&ci,nullptr,&result),"vkCreateShaderModule/GX");return result;
     }
     void loadScene(GxScene data) {
-        if(!data.materialLightingReady)throw std::invalid_argument("GX geometry has no completed original camera/material/light state");
+        if(!data.materialLightingReady&&!(data.debugSubmissionReady&&data.debugView>=1&&data.debugView<=3))throw std::invalid_argument("GX geometry has no completed original camera/material/light state");
         ok(DeviceWaitIdle(device),"vkDeviceWaitIdle/scene replacement");clearScene();
         try {
             if(data.draws.empty()||data.vertices.empty()||data.indices.empty())throw std::invalid_argument("empty original geometry scene");scene=std::make_unique<GxScene>(std::move(data));
@@ -435,7 +443,9 @@ struct VulkanBootstrap::Impl {
             VkDescriptorPoolSize poolSizes[]={{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,u32(scene->draws.size())*8},{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,u32(scene->draws.size())}};auto dp=info<VkDescriptorPoolCreateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO);dp.maxSets=u32(scene->draws.size());dp.poolSizeCount=2;dp.pPoolSizes=poolSizes;ok(CreateDescriptorPool(device,&dp,nullptr,&descriptorPool),"vkCreateDescriptorPool/GX");std::vector<VkDescriptorSetLayout> layouts(scene->draws.size(),descriptorLayout);sets.resize(scene->draws.size());auto alloc=info<VkDescriptorSetAllocateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO);alloc.descriptorPool=descriptorPool;alloc.descriptorSetCount=u32(sets.size());alloc.pSetLayouts=layouts.data();ok(AllocateDescriptorSets(device,&alloc,sets.data()),"vkAllocateDescriptorSets/GX");
             for(u32 i=0;i<sets.size();++i){auto &d=scene->draws[i];if(d.cull>2||d.blendMode>4)throw std::invalid_argument("GPU draw pipeline state");VkDescriptorImageInfo im[8]{};VkWriteDescriptorSet writes[9]{};for(u32 k=0;k<8;++k){auto id=scene->materials[i].textures[k];if(id>=sceneTextures.size())throw std::invalid_argument("GPU material texture reference");auto &t=sceneTextures[id];im[k]={t.sampler,t.view,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};writes[k]=info<VkWriteDescriptorSet>(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET);writes[k].dstSet=sets[i];writes[k].dstBinding=k;writes[k].descriptorCount=1;writes[k].descriptorType=VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;writes[k].pImageInfo=&im[k];}VkDescriptorBufferInfo uniform{materialBuffer.buffer,materialStride*i,sizeof(GxMaterialState)};writes[8]=info<VkWriteDescriptorSet>(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET);writes[8].dstSet=sets[i];writes[8].dstBinding=8;writes[8].descriptorCount=1;writes[8].descriptorType=VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;writes[8].pBufferInfo=&uniform;UpdateDescriptorSets(device,9,writes,0,nullptr);}
             VkShaderModule vs{},fs{};
-            try{vs=shader(gxVertexSpirv,sizeof(gxVertexSpirv));fs=shader(gxFragmentSpirv,sizeof(gxFragmentSpirv));VkPipelineShaderStageCreateInfo stages[2]={info<VkPipelineShaderStageCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO),info<VkPipelineShaderStageCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)};stages[0].stage=VK_SHADER_STAGE_VERTEX_BIT;stages[0].module=vs;stages[0].pName="main";stages[1].stage=VK_SHADER_STAGE_FRAGMENT_BIT;stages[1].module=fs;stages[1].pName="main";
+            VkSpecializationMapEntry debugEntry{0,0,sizeof(u32)};
+            VkSpecializationInfo debugInfo{1,&debugEntry,sizeof(u32),&scene->debugView};
+            try{vs=shader(gxVertexSpirv,sizeof(gxVertexSpirv));fs=shader(gxFragmentSpirv,sizeof(gxFragmentSpirv));VkPipelineShaderStageCreateInfo stages[2]={info<VkPipelineShaderStageCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO),info<VkPipelineShaderStageCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)};stages[0].stage=VK_SHADER_STAGE_VERTEX_BIT;stages[0].module=vs;stages[0].pName="main";stages[1].stage=VK_SHADER_STAGE_FRAGMENT_BIT;stages[1].module=fs;stages[1].pName="main";stages[1].pSpecializationInfo=&debugInfo;
                 VkVertexInputBindingDescription binding{0,sizeof(GxVertex),VK_VERTEX_INPUT_RATE_VERTEX};VkVertexInputAttributeDescription attributes[]={{0,0,VK_FORMAT_R32G32B32_SFLOAT,offsetof(GxVertex,position)},{1,0,VK_FORMAT_R32G32_SFLOAT,offsetof(GxVertex,uv)},{2,0,VK_FORMAT_R8G8B8A8_UNORM,offsetof(GxVertex,color)},{3,0,VK_FORMAT_R32G32B32_SFLOAT,offsetof(GxVertex,normal)},{4,0,VK_FORMAT_R32G32B32_SFLOAT,offsetof(GxVertex,rawNormal)}};auto vi=info<VkPipelineVertexInputStateCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);vi.vertexBindingDescriptionCount=1;vi.pVertexBindingDescriptions=&binding;vi.vertexAttributeDescriptionCount=5;vi.pVertexAttributeDescriptions=attributes;
                 auto ia=info<VkPipelineInputAssemblyStateCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO);ia.topology=VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;VkViewport viewport{0,0,512,448,0,1};VkRect2D scissor{{0,0},{512,448}};auto vp=info<VkPipelineViewportStateCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO);vp.viewportCount=1;vp.pViewports=&viewport;vp.scissorCount=1;vp.pScissors=&scissor;auto rs=info<VkPipelineRasterizationStateCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO);rs.polygonMode=VK_POLYGON_MODE_FILL;
                 // GX API FRONT/BACK are swapped by GXGeometry.c before the BP
@@ -449,7 +459,11 @@ struct VulkanBootstrap::Impl {
                     const VkBlendFactor src[]={VK_BLEND_FACTOR_SRC_ALPHA,VK_BLEND_FACTOR_SRC_ALPHA,VK_BLEND_FACTOR_ONE,VK_BLEND_FACTOR_DST_COLOR,VK_BLEND_FACTOR_ONE};
                     const VkBlendFactor dst[]={VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,VK_BLEND_FACTOR_ONE,VK_BLEND_FACTOR_ONE,VK_BLEND_FACTOR_ONE,VK_BLEND_FACTOR_ZERO};
                     ba.blendEnable=blend==4?VK_FALSE:VK_TRUE;ba.srcColorBlendFactor=ba.srcAlphaBlendFactor=src[blend];ba.dstColorBlendFactor=ba.dstAlphaBlendFactor=dst[blend];
-                    for(u32 i=0;i<3;++i){rs.cullMode=i==0?VK_CULL_MODE_NONE:i==1?VK_CULL_MODE_FRONT_BIT:VK_CULL_MODE_BACK_BIT;ok(CreateGraphicsPipelines(device,VK_NULL_HANDLE,1,&pc,nullptr,&pipelines[blend*3+i]),"vkCreateGraphicsPipelines/GX");}
+                    for(u32 i=0;i<3;++i){
+                        if(std::none_of(scene->draws.begin(),scene->draws.end(),[&](const auto &d){return d.blendMode==blend&&d.cull==i;}))continue;
+                        rs.cullMode=i==0?VK_CULL_MODE_NONE:i==1?VK_CULL_MODE_FRONT_BIT:VK_CULL_MODE_BACK_BIT;
+                        ok(CreateGraphicsPipelines(device,pipelineCache,1,&pc,nullptr,&pipelines[blend*3+i]),"vkCreateGraphicsPipelines/GX");
+                    }
                 }
                 DestroyShaderModule(device,fs,nullptr);DestroyShaderModule(device,vs,nullptr);
             }catch(...){if(fs)DestroyShaderModule(device,fs,nullptr);if(vs)DestroyShaderModule(device,vs,nullptr);throw;}
@@ -460,6 +474,7 @@ struct VulkanBootstrap::Impl {
         if(result==VK_ERROR_OUT_OF_DATE_KHR){ok(DeviceWaitIdle(device),"vkDeviceWaitIdle/geometry resize");DestroySwapchainKHR(device,swap,nullptr);swap={};createSwapchain();result=AcquireNextImageKHR(device,swap,1000000000ULL,acquired,VK_NULL_HANDLE,&image);}if(result!=VK_SUBOPTIMAL_KHR)ok(result,"vkAcquireNextImageKHR/geometry");beginCommands();
         VkClearValue clear[2]{};clear[0].color={{0,0,0,1}};clear[1].depthStencil={1,0};auto rp=info<VkRenderPassBeginInfo>(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO);rp.renderPass=renderPass;rp.framebuffer=framebuffer;rp.renderArea={{0,0},{512,448}};rp.clearValueCount=2;rp.pClearValues=clear;CmdBeginRenderPass(command,&rp,VK_SUBPASS_CONTENTS_INLINE);VkDeviceSize offset=0;CmdBindVertexBuffers(command,0,1,&vertexBuffer.buffer,&offset);CmdBindIndexBuffer(command,indexBuffer.buffer,0,VK_INDEX_TYPE_UINT32);
         struct Push{std::array<float,16> vp;float view[3][4];float reserved[4];} push{};static_assert(sizeof(Push)==128);push.vp=scene->viewProjection;std::memcpy(push.view,scene->camera.view,sizeof(push.view));
+        push.reserved[0]=float(scene->debugView);
         for(auto i:scene->renderOrder){if(i>=scene->draws.size())throw std::invalid_argument("GPU OT draw reference");auto &d=scene->draws[i];CmdBindPipeline(command,VK_PIPELINE_BIND_POINT_GRAPHICS,pipelines[d.blendMode*3+d.cull]);CmdBindDescriptorSets(command,VK_PIPELINE_BIND_POINT_GRAPHICS,pipelineLayout,0,1,&sets[i],0,nullptr);CmdPushConstants(command,pipelineLayout,VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT,0,sizeof(push),&push);CmdDrawIndexed(command,d.indexCount,1,d.firstIndex,0,0);}CmdEndRenderPass(command);
         VkBufferImageCopy read{};read.imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1};read.imageExtent={512,448,1};CmdCopyImageToBuffer(command,color.image,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,sceneReadback.buffer,1,&read);auto host=info<VkBufferMemoryBarrier>(VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER);host.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;host.dstAccessMask=VK_ACCESS_HOST_READ_BIT;host.srcQueueFamilyIndex=host.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;host.buffer=sceneReadback.buffer;host.size=VK_WHOLE_SIZE;CmdPipelineBarrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_HOST_BIT,0,0,nullptr,1,&host,0,nullptr);
         barrier(images[image],VK_IMAGE_ASPECT_COLOR_BIT,VK_IMAGE_LAYOUT_UNDEFINED,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,0,VK_ACCESS_TRANSFER_WRITE_BIT);VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};VkClearColorValue black{{0,0,0,1}};CmdClearColorImage(command,images[image],VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,&black,1,&range);
@@ -491,6 +506,8 @@ std::string VulkanBootstrap::report() const {
         << "],\"last_depth\":" << v.lastDepth
         << ",\"geometry_frames\":"<<v.geometryFrames<<",\"non_clear_pixels\":"<<v.nonClearPixels
         << ",\"surface_transform\":"<<v.surfaceTransform
+        << ",\"efb_format\":"<<u32(VK_FORMAT_R8G8B8A8_UNORM)<<",\"texture_format\":"<<u32(VK_FORMAT_R8G8B8A8_UNORM)
+        << ",\"swapchain_format\":"<<u32(v.swapchainFormat)<<",\"swapchain_colorspace\":"<<u32(v.swapchainColorSpace)
         << ",\"rgba_sha256\":"<<std::quoted(v.pixelHash)<<",\"last_frame_cpu_us\":"<<v.frameMicros
         << ",\"available_khronos_validation_layers\":"<<v.availableValidationLayers
         << ",\"validation_enabled\":"<<(v.validationEnabled?"true":"false")

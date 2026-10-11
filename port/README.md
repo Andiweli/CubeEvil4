@@ -1,6 +1,14 @@
 # RE4 native foundation
 
-The current Phase-5a continuation also executes original grouped SMD and block
+The current Phase-5a continuation preserves original CNS-sized model pools through
+light/OT capture and executes original model-bound light transforms. r100, r102
+and r119 produce dual-ABI Vulkan texture diagnostics using original EVD cameras.
+These explicitly labelled debug frames do not prove the live Leon startup or
+shoulder camera. Event lighting now follows the original Lit packet reference;
+separate GPU light/fog views record brightness and the remaining live actor/SAT
+boundary. See the [ownership and lighting report](docs/phase5a-scene-ownership-light-diagnostics.md).
+
+The preceding Phase-5a continuation executes original grouped SMD and block
 registration on Windows x86/x64 and Android ARM32/ARM64. All 310 r100 models
 and their five blocks are created, decoded and released; r102 and r119 verify
 the same shared path. This is a CPU registration/geometry milestone. r100 GPU

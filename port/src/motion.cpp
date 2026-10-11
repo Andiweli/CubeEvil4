@@ -82,7 +82,6 @@ MotionAsset::MotionAsset(ResourceLease bytes,const ModelCpu &model) : source(byt
         for(int axis=0;axis<3;++axis) {
             bound(at,2); auto count=motionBE16(bytes.data+at);
             if(!count) throw std::invalid_argument("FCV axis without keys");
-            if(fmt==15 && count>1) throw std::invalid_argument("original FCC15 interpolation lacks tangent semantics");
             auto axisSize=std::size_t(2)+count*(std::size_t(2)+std::size_t(strides[fmt]));
             bound(at,axisSize); if(axisSize>end-at) throw std::invalid_argument("FCV axis exceeds size word");
             u16 previous=0;

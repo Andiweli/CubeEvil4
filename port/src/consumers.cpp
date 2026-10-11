@@ -130,6 +130,7 @@ CameraDataView indexCameraData(ResourceLease b) {
     return result;
 }
 struct EngineConsumers::Model {
+    std::shared_ptr<const u8> borrowers=std::make_shared<const u8>(u8(0));
     ResourceLease bin;
     std::string name;
     std::vector<ModelJoint> heads;
@@ -169,6 +170,8 @@ void EngineConsumers::validate(ConsumerHandle h) const {
 }
 void EngineConsumers::clear() {
     check();
+    for(const auto &m:models_)
+        if(m.second->borrowers.use_count()!=1) throw std::logic_error("model manager still has live borrowers");
     for (const auto &call : invocations_)
         if (!call->finished && (!call->task || !domain_ || domain_->state(*call->task)))
             throw std::logic_error("consumer callback stack still live; quiesce before clear");
@@ -240,22 +243,30 @@ ModelCpu &EngineConsumers::model(ConsumerHandle h) {
     auto &m=*models_.at(h.index);
     return m.initialized ? m.initialized->cpu : m.cpu;
 }
+std::shared_ptr<const void> EngineConsumers::borrowModel(ConsumerHandle h) {
+    (void)model(h);return models_.at(h.index)->borrowers;
+}
 void EngineConsumers::configureModelPools(u32 infos,u32 parts) {
     check();
     if(!models_.empty()) throw std::logic_error("model pool reconfiguration with live models");
     if(!infos || parts<2) throw std::invalid_argument("native model pool capacity");
     modelRuntime_=std::make_unique<ModelRuntime>(infos,parts);
 }
-void EngineConsumers::releaseModel(ConsumerHandle h) {
+void EngineConsumers::checkModelRelease(ConsumerHandle h) const {
     check(); validate(h);
+    if(models_.at(h.index)->borrowers.use_count()!=1)
+        throw std::logic_error("model release while light/manager pointers are borrowed");
     if(domain_ && (domain_->current() || domain_->allocatedStacks()))
         throw std::logic_error("model release requires quiescent task borrowers");
     for(const auto &e:events_) {
-        if(e.second->ModTbl.contains(&model(h))) throw std::logic_error("model is still registered in original event ModTbl");
-        for(auto *p=model(h).pModelInfo;p;p=p->pList)
+        const auto &owned=*models_.at(h.index);const auto &cpu=owned.initialized?owned.initialized->cpu:owned.cpu;
+        if(e.second->ModTbl.contains(const_cast<ModelCpu*>(&cpu))) throw std::logic_error("model is still registered in original event ModTbl");
+        for(auto *p=cpu.pModelInfo;p;p=p->pList)
             if(e.second->ModTbl.contains(p)) throw std::logic_error("model info is still registered in original event ModTbl");
     }
-    if(!models_.erase(h.index)) throw std::logic_error("retired model reference");
+}
+void EngineConsumers::releaseModel(ConsumerHandle h) {
+    checkModelRelease(h);if(!models_.erase(h.index)) throw std::logic_error("retired model reference");
 }
 ConsumerHandle EngineConsumers::initializeModel(ResourceLease bin,ResourceLease tpl,std::string name,bool invisible,u8 kindId,u32 initialFlags) {
     check();

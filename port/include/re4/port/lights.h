@@ -15,6 +15,8 @@ struct LightBlockView {
 };
 // A checked native copy. Immutable GC wire data is never patched in place.
 std::shared_ptr<LightBlockView> resolveLightBlock(ResourceLease);
+// Actual ConsInitRoom/ConsGetRoomValue on a validated native CNS copy.
+std::array<u32,12> originalRoomConstants(ResourceLease roomBody);
 struct LightPathView {
     ResourceLease source;
     std::vector<u32> nativeWords;
@@ -51,6 +53,7 @@ public:
     void initializePaths(ResourceLease);
     void bindRoom(ResourceLease core,ResourceLease room,ResourceLease third,u32 capacity);
     void bindArchives(ResourceLease coreBody,ResourceLease roomBody); // Original CORE_ARC/GetDataExt/CNS indices.
+    int bindEventBlock(ResourceLease); // Original versionUp/roomLitSet; caller selects packet's cut 0.
     void clear(); // Requires quiescent callback stacks; invalidates all handles.
     LightSnapshot snapshot() const;
     const std::vector<std::string> &trace() const;
@@ -62,7 +65,9 @@ public:
     std::optional<LightHandle> create(int block,int cut,int light,bool back=false);
     LightStateView state(LightHandle) const;
     LightRenderRecord renderRecord(LightHandle) const; // Validated owner-frame copy; not a GC overlay.
-    void loadRenderCut(int block,int cut); // Original loadLit; current position adapter requires detached lights.
+    void loadRenderCut(int block,int cut); // Original loadLit; real parent managers required.
+    Vec transformDirection(u32 poolSlot,Vec); // Actual cLight::getNormal on a live, owned parent.
+    void refreshParentCoordinates(); // Position/direction preparation, not a full lightMove frame.
     std::vector<LightRenderRecord> renderPool() const;
     void moveType(LightHandle); // Original type handler, not the full lightMove/frame pipeline.
     void destroy(LightHandle);

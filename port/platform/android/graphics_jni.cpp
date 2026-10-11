@@ -1,6 +1,8 @@
 #include "vulkan_bootstrap.h"
 #include "re4/port/game_runtime.h"
 #include <android/native_window_jni.h>
+#include <android/log.h>
+#include <chrono>
 #include <atomic>
 #include <jni.h>
 #include <map>
@@ -9,6 +11,7 @@ using namespace re4::port;
 struct Domain {
     std::shared_ptr<VulkanBootstrap> presenter;
     GraphicsState graphics;
+    u64 cpuSceneMicros{},gpuSceneMicros{};
     explicit Domain(ANativeWindow *w):presenter(std::make_shared<VulkanBootstrap>(w)) {
         graphics.attach(presenter);
         graphics.setCopyClear({18,52,86,120},0x123456);
@@ -53,15 +56,22 @@ extern "C" JNIEXPORT jstring JNICALL Java_org_re4_port_GraphicsBootstrapView_nat
     } catch(const std::exception &e) { error(env,e); return nullptr; }
 }
 extern "C" JNIEXPORT void JNICALL Java_org_re4_port_GraphicsBootstrapView_nativeLoadScene(
-    JNIEnv *env,jclass,jlong h,jstring root,jstring catalog,jint room,jstring event,jint frame,jstring model,jint cut) {
+    JNIEnv *env,jclass,jlong h,jstring root,jstring catalog,jint room,jstring event,jint frame,jstring model,jint cut,jint debugView) {
     try {
         auto string=[&](jstring value){auto *p=env->GetStringUTFChars(value,nullptr);if(!p)throw std::runtime_error("JNI scene string");std::string r;try{r=p;}catch(...){env->ReleaseStringUTFChars(value,p);throw;}env->ReleaseStringUTFChars(value,p);return r;};
         auto files=std::make_shared<ImportedFiles>(string(root),string(catalog));
         ControllerInput input;GameRuntime game(files,input,0);game.initialize();
         if(room<0||room>0xffff||frame<0)throw std::invalid_argument("original room/frame range");
         if(cut< -1||cut>32767)throw std::invalid_argument("original cut range");
-        auto scene=loadDiagnosticScene(game.loader(),game.engineConsumers(),u16(room),string(event),u32(frame),string(model),cut<0?UINT32_MAX:u32(cut));
-        get(h).presenter->loadScene(std::move(scene));
+        if(debugView<0||debugView>6)throw std::invalid_argument("debug view range");
+        auto start=std::chrono::steady_clock::now();
+        auto scene=loadDiagnosticScene(game.loader(),game.engineConsumers(),u16(room),string(event),u32(frame),string(model),cut<0?UINT32_MAX:u32(cut),u32(debugView));
+        auto &domain=get(h);auto gpuStart=std::chrono::steady_clock::now();
+        domain.cpuSceneMicros=u64(std::chrono::duration_cast<std::chrono::microseconds>(gpuStart-start).count());
+        __android_log_print(ANDROID_LOG_INFO,"RE4Graphics","Original scene CPU ready (%llu us), GPU setup starts",static_cast<unsigned long long>(domain.cpuSceneMicros));
+        domain.presenter->loadScene(std::move(scene));
+        domain.gpuSceneMicros=u64(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now()-gpuStart).count());
+        __android_log_print(ANDROID_LOG_INFO,"RE4Graphics","GPU setup ready (%llu us)",static_cast<unsigned long long>(domain.gpuSceneMicros));
     }catch(const std::exception &e){error(env,e);}
 }
 extern "C" JNIEXPORT jstring JNICALL Java_org_re4_port_GraphicsBootstrapView_nativeSceneFrame(
@@ -69,6 +79,6 @@ extern "C" JNIEXPORT jstring JNICALL Java_org_re4_port_GraphicsBootstrapView_nat
     try {
         auto &p=*get(h).presenter;p.presentScene();
         if(output){auto *raw=env->GetStringUTFChars(output,nullptr);if(!raw)return nullptr;std::string path;try{path=raw;}catch(...){env->ReleaseStringUTFChars(output,raw);throw;}env->ReleaseStringUTFChars(output,raw);p.saveSceneReadback(path);}
-        auto report=p.report();report.insert(report.size()-1,",\"graphics_domains\":"+std::to_string(domains.size()));return env->NewStringUTF(report.c_str());
+        auto report=p.report();auto &domain=get(h);report.insert(report.size()-1,",\"graphics_domains\":"+std::to_string(domains.size())+",\"cpu_scene_load_us\":"+std::to_string(domain.cpuSceneMicros)+",\"gpu_scene_setup_us\":"+std::to_string(domain.gpuSceneMicros));return env->NewStringUTF(report.c_str());
     }catch(const std::exception &e){error(env,e);return nullptr;}
 }

@@ -16,6 +16,7 @@ struct GxTexture {
     std::vector<GxMip> levels;
 };
 struct GxDraw {
+    std::optional<ConsumerHandle> cpuOwner; // Native frame identity, never a wire pointer.
     u32 firstIndex{}, indexCount{}, texture{}, alphaTexture{};
     u8 flags{}, alphaRef{}, cull{};
     u8 blendMode{}, alphaOverride=255, otType=3;
@@ -67,6 +68,12 @@ struct GxCamera {
     Vec Up{}, Look{}, Right{};
 };
 struct GxScene {
+    // Explicit debug outputs: 0 captured path, 1 texture, 2 material colour,
+    // 3 vertex colour, 4 lighting, 5 TEV without fog, 6 fog factor.
+    u32 debugView{};
+    u16 roomId{};
+    std::string lightDependencyError;
+    bool debugSubmissionReady{};
     std::vector<GxVertex> vertices;
     std::vector<u32> indices;
     std::vector<GxTexture> textures;
@@ -74,6 +81,9 @@ struct GxScene {
     std::vector<GxMaterialState> materials;
     std::vector<u32> renderOrder, otExecution;
     std::string lightHash;
+    std::string lightName;
+    bool eventLight{};
+    std::array<u32,3> originalPoolSizes{}; // ObjMgr, ModInfoMgr, PartsMgr (game.cpp/CNS).
     u32 lightingCalls{}, litCut{}, selectedLightRecords{};
     GxCamera camera;
     std::array<float,16> viewProjection{}; // Column-major for SPIR-V.
@@ -98,6 +108,6 @@ void decodeGxModel(ResourceLease bin, const Mtx world, u32 textureBase,
 // Original Dvd/ReadAreaData/Yz2 loader, CPU model initialization, first actual Cam
 // packet of the supplied event, and original CameraMotion sampling / SDK matrices.
 GxScene loadDiagnosticScene(EngineLoader &, EngineConsumers &, u16 room,
-                            const std::string &eventPath, u32 frame = 0,const std::string &eventModel="",u32 cut=UINT32_MAX);
+                            const std::string &eventPath, u32 frame = 0,const std::string &eventModel="",u32 cut=UINT32_MAX,u32 debugView=0);
 GxScene loadOriginalScrollGeometry(EngineLoader &,EngineConsumers &,u16 room); // No camera/light/GPU success claim.
 } // namespace re4::port
