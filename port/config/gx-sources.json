@@ -24,5 +24,6 @@
   "src/game/sub2.cpp": "cbd24b0ebad299886a8c2e43e685b08871d93cdb603eea0b2d920da9e5c62d51",
   "src/lib/mtxvec.c": "6a3d9594a3000d8d87288355342ec7a6dab4b94d051e0552d89d2faf0f17bf00",
   "src/lib/vec.c": "56e6bd2a50923120eaeb3a385b2f7e79d0ce64067de99684fcbffb6f7cc1ae95",
-  "src/game/math_sub.cpp": "8ab63b9eda407cc37b4c679842e723d8e4564669149103ef422030498162a637"
+  "src/game/math_sub.cpp": "8ab63b9eda407cc37b4c679842e723d8e4564669149103ef422030498162a637",
+  "src/lib/GXBump.c": "3f68039bf91977383e636aa6c7b9553de66f647c9a4bab1c223783e22ceda6ba"
 }

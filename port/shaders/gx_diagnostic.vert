@@ -5,15 +5,27 @@ layout(location=0) in vec3 position;
 layout(location=1) in vec2 uv;
 layout(location=2) in vec4 vertexColor;
 layout(location=3) in vec3 normal;
+layout(location=4) in vec3 rawNormal;
 layout(location=0) out vec2 texCoord;
 layout(location=1) out vec4 rasterColor;
 layout(location=2) out float viewDepth;
+layout(location=3) out vec3 generated[8];
 layout(push_constant) uniform State { mat4 vp; vec4 viewRows[3]; vec4 reserved; } state;
 void main() {
     vec4 clip=state.vp*vec4(position,1.0);
     // GX SDK perspective NDC z is [-1,0]. Vulkan is [0,1].
     gl_Position=vec4(clip.x,-clip.y,clip.z+clip.w,clip.w);
     texCoord=uv;
+    for(int i=0;i<8;++i){
+        generated[i]=vec3(0,0,1);
+        if(i<gx.indirectMeta.y){
+            TexGen g=gx.texgens[i];
+            vec4 inputCoord=g.meta.y==1?vec4(rawNormal,1):vec4(uv,1,1);
+            generated[i].x=dot(g.rows[0],inputCoord);
+            generated[i].y=dot(g.rows[1],inputCoord);
+            generated[i].z=g.meta.x==0?dot(g.rows[2],inputCoord):1;
+        }
+    }
     // Original LightSetModel chooses vertex ambient for BIN flag 0x40000000.
     vec3 viewPos=vec3(dot(state.viewRows[0],vec4(position,1)),dot(state.viewRows[1],vec4(position,1)),dot(state.viewRows[2],vec4(position,1)));
     vec3 viewNormal=vec3(dot(state.viewRows[0].xyz,normal),dot(state.viewRows[1].xyz,normal),dot(state.viewRows[2].xyz,normal));

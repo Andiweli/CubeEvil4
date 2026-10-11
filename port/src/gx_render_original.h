@@ -37,13 +37,13 @@ extern thread_local Context *pG;
 GEOM_HEXAHEDRON *CameraViewFrustumPtr(GxCamera *);
 int collision_sphere_hexahedron(GEOM_SPHERE*,GEOM_HEXAHEDRON*);
 
-struct cPolyHeader { u8 flag{},material_tex{},alpha_tex{},alpha_omit{}; };
+struct cPolyHeader { u8 flag{},material_tex{},alpha_tex{},alpha_omit{},bump_tex{},specular_tex{},specular_r{},specular_g{},specular_b{},specular_type{},specular_decay{},specTexOrg{}; };
 struct ModelTexInfo {
     u8 flags{},blendType{};u16 blendRatio{},frame{};
     float u{},v{};u8 *blendTbl{},*anim{};
 };
 struct cModelData { u32 flags{}; };
-struct cModelInfo { ModelTexInfo tex;u8 flagsDC{};u8 color[4]{255,255,255,255};cModelData *model_addr{}; };
+struct cModelInfo { ModelTexInfo tex;u8 flagsDC{};u8 color[4]{255,255,255,255},color2[4]{};u32 be_flag{};cModelData *model_addr{}; };
 struct cModel;
 struct cLight:LightFields { u32 be_flag{};void getPos(Vec *dst){*dst=World;}int getNormal(Vec*,Vec*);int isParent(cModel*); };
 struct GXLightObj { GXColor color{};float a[3]{},k[3]{},lpos[3]{},ldir[3]{}; };
@@ -62,6 +62,7 @@ struct cModel:cCoord {
     cLightInfo LightInfo;LightPart *pList{};cModelInfo *pModelInfo{};
     u8 AddAmb_r{},AddAmb_g{},AddAmb_b{};
     u8 id=2,kindid=2,Attribute{};Vec ang{},scale{1,1,1};
+    u8 Shader_type{},Refract_ratio=255;
     ModelCpu *source{};cModelState State;
     cCoord *getPartsPtr(int n){if(n!=0||!pList)throw MissingGameConsumer("GX diagnostic additional model part");return pList;}
     [[noreturn]] void error(){throw std::runtime_error("original light selection exceeds eight lights");}
@@ -108,6 +109,29 @@ void TextureBlend3(cPolyHeader*,cModelInfo*,int,int);
 void materialSetup(cPolyHeader*,cModelInfo*,int,int);
 void alphaSetup(cModel*,cPolyHeader*,cModelInfo*,int);
 void finishModelScale(cModel*);
+void shaderSetup(cModel*,cModelInfo*,cPolyHeader*,Mtx);
+void specularSetup(cPolyHeader*,cModelInfo*,int);void specularSetup2(cPolyHeader*,int);void bumpSetup(cPolyHeader*,cModelInfo*);
+void GlobalIlluminationSetup(cPolyHeader*,int);void updateMatrices(Mtx,Mtx,cModel*);
+struct GXTexObj { u32 texture{}; bool valid{}; };
+extern thread_local GXTexObj Specular[9],IndTex[2],GlobalIlmTex[5];
+extern thread_local Mtx specular_mat;
+extern thread_local int g_specular_tev_stage,isSelfUse,g_SelfShdNum;
+struct ShadowMng { cModel *pModel[2]{}; };
+extern thread_local ShadowMng *g_pShdMng;
+ShadowMng *GetSelfShadowMng(u32);
+void ThermoShaderSetup(cModel*,cModelInfo*,cPolyHeader*);void RefractShaderSetup(cModel*,cModelInfo*,cPolyHeader*,Mtx);
+void SelfShadowSetup(cPolyHeader*,cModel*,ShadowMng*);void ShadowCastSetup(cPolyHeader*,cModel*);
+inline int DpfFlagChk(Context *c,int n){if(n<0||n>=32)throw std::invalid_argument("GX display flag");return c->state.Disp_flg&(0x80000000u>>n);}
+constexpr int STA_THERMO_GRAPH=37,STA_SELF_SHADOW=31,DPF_GLB_ILM=12;
+void GXLoadTexObj(GXTexObj*,int);
+void GXSetIndTexMtx(int,const float[2][3],s8);
+void GXSetIndTexOrder(int,int,int);void GXSetIndTexCoordScale(int,int,int);
+void GXSetTevIndirect(int,int,int,int,int,int,int,int,int,int);
+void GXSetTevIndBumpXYZ(int,int,int);void GXSetTevIndWarp(int,int,u8,u8,int);
+void __GXSetIndirectMask(u32);
+using GXTevStageID=int;using GXIndTexStageID=int;using GXIndTexMtxID=int;using GXIndTexWrap=int;
+constexpr int GX_ITF_8=0,GX_ITB_NONE=0,GX_ITB_STU=7,GX_ITW_OFF=0,GX_ITW_0=6,GX_FALSE=0,GX_ITBA_OFF=0;
+inline int indStageId(){if(ind_stage<0||ind_stage>=4)throw MissingGameConsumer("GX indirect capacity");return ind_stage;}
 void org_LoadTexObj(u32,int);
 void GXSetTevOrder(int,int,int,int);
 void GXSetTevColorIn(int,int,int,int,int);void GXSetTevAlphaIn(int,int,int,int,int);
@@ -122,6 +146,9 @@ extern const std::array<int,22> originalRenderOrder;
 #define MODEL_TEX(info) (&(info)->tex)
 #define TEV_STAGE_ID() stageId()
 #define IRef(x) (x)
+#define ISET0(x) ((x)=0)
+#define IND_STAGE_ID() indStageId()
+#define isBit(value,mask) (((value)&(mask))!=0)
 #define MAX(a,b) ((a)>(b)?(a):(b))
 #define PSMTXMultVec C_MTXMultVec
 #undef PSMTXMultVecSR

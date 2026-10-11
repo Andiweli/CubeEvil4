@@ -75,6 +75,14 @@ def generate(root, output):
         ('src/game/trans.cpp','void TextureBlend3(cPolyHeader* part, cModelInfo* info, int colIn, int alphaIn)',[]),
         ('src/game/trans.cpp','void materialSetup(cPolyHeader* part, cModelInfo* info, int colIn, int alphaIn)',[]),
         ('src/game/trans.cpp','void alphaSetup(cModel* m, cPolyHeader* part, cModelInfo* info, int thermo)',[]),
+        ('src/game/trans.cpp','static void specularSetup(cPolyHeader* part, cModelInfo* info, int flag)', [('static void ','void ')]),
+        ('src/game/trans.cpp','void specularSetup2(cPolyHeader* part, int flag)',[]),
+        ('src/game/trans.cpp','void bumpSetup(cPolyHeader* part, cModelInfo* info)',[]),
+        ('src/game/trans.cpp','void GlobalIlluminationSetup(cPolyHeader* part, int nrm8)',[]),
+        ('src/game/trans.cpp','void updateMatrices(Mtx m, Mtx dst, cModel* model)', [('pG->Camera.v_mat','pG->Camera.view')]),
+        ('src/game/trans.cpp','void shaderSetup(cModel* m, cModelInfo* info, cPolyHeader* part, Mtx mv)',[]),
+        ('src/lib/GXBump.c','void GXSetTevIndBumpXYZ(GXTevStageID tev_stage, GXIndTexStageID ind_stage, GXIndTexMtxID matrix_sel)',[]),
+        ('src/lib/GXBump.c','void GXSetTevIndWarp(GXTevStageID tev_stage, GXIndTexStageID ind_stage, u8 signed_offset, u8 replace_mode, GXIndTexMtxID matrix_sel)',[]),
         ('src/game/trans_lit.cpp','void LightSetInit()',[]),
         ('src/game/trans_lit.cpp','void LightSetModel(cModel* pMod)',[
             ('pG->Camera.v_mat','pG->Camera.view')]),
@@ -131,8 +139,8 @@ def generate(root, output):
             body=body.replace(a,b)
         render += [f'#line {line} "{(root/path).as_posix()}"',body]
         render_records.append(dict(source=path,signature=sig,adaptations=[a for a,b in changes]))
-    # Preserve shaderSetup's complete final scale/registration segment. The
-    # preceding shadow/specular/indirect branches are explicit unsupported paths.
+    # Retain the final segment as a separately tested helper for existing callers.
+    # The render path now executes the complete original shaderSetup above.
     shader,line=function((root/'src/game/trans.cpp').read_text(),'void shaderSetup(cModel* m, cModelInfo* info, cPolyHeader* part, Mtx mv)')
     marker='    st = TEV_STAGE_ID();\n    GXSetTevOrder(st, 0xFF, 0xFF, 4);'
     if shader.count(marker)!=1:raise ValueError('original shaderSetup final segment changed')
@@ -154,7 +162,7 @@ def generate(root, output):
     render.append('}')
     (output/'gx_render_control.cpp').write_text('\n\n'.join(render)+'\n')
     (output/'gx-render-manifest.json').write_text(json.dumps(dict(functions=render_records,
-        render_order=resolved,scope='original complete OT/material/light callback and selection bodies; shaderSetup final segment and Render dispatch slice, neither complete shaderSetup nor complete Render'),indent=2)+'\n')
+        render_order=resolved,scope='complete original OT/material/specular/bump/shaderSetup/light bodies and Render dispatch slice; unsupported thermo/refraction/shadow calls throw'),indent=2)+'\n')
 
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--root',type=Path,required=True);p.add_argument('--output',type=Path,required=True)

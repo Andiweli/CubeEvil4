@@ -4,6 +4,7 @@
 layout(location=0) in vec2 texCoord;
 layout(location=1) in vec4 rasterColor;
 layout(location=2) in float viewDepth;
+layout(location=3) in vec3 generated[8];
 layout(location=0) out vec4 color;
 layout(set=0,binding=0) uniform sampler2D tex0;
 layout(set=0,binding=1) uniform sampler2D tex1;
@@ -22,6 +23,39 @@ vec4 sampleMap(int m,vec2 uv) {
         case 4:return texture(tex4,uv);case 5:return texture(tex5,uv);
         case 6:return texture(tex6,uv);case 7:return texture(tex7,uv);}
     return vec4(0); // GX null map 255; unsupported maps are rejected by the CPU.
+}
+vec2 mapSize(int m){
+    switch(m){case 0:return vec2(textureSize(tex0,0));case 1:return vec2(textureSize(tex1,0));
+        case 2:return vec2(textureSize(tex2,0));case 3:return vec2(textureSize(tex3,0));
+        case 4:return vec2(textureSize(tex4,0));case 5:return vec2(textureSize(tex5,0));
+        case 6:return vec2(textureSize(tex6,0));case 7:return vec2(textureSize(tex7,0));}
+    return vec2(1);
+}
+vec2 coord(int id){
+    if(id==255)return vec2(0);
+    vec3 t=generated[id];return t.z!=0?t.xy/t.z:t.xy;
+}
+vec2 stageCoord(TevStage s){
+    vec2 base=coord(s.order.x);
+    if(s.indirect.x==0)return base;
+    ivec4 reference=gx.indirectOrder[s.indirect.y];
+    vec2 sourceSize=mapSize(reference.y),destinationSize=mapSize(s.order.y);
+    ivec2 lookup=ivec2(coord(reference.x)*sourceSize*128.0);
+    lookup.x>>=reference.z;lookup.y>>=reference.w;
+    // GX indirect components are A, B, G, with signed 8-bit bias selectors.
+    ivec3 values=ivec3(round(sampleMap(reference.y,vec2(lookup)/(sourceSize*128.0)).abg*255.0));
+    int packed=s.indirect.w;
+    for(int k=0;k<3;++k)if((packed&(1<<k))!=0)values[k]-=128;
+    int row=(s.indirect.z-1)*2;ivec4 mx=gx.indirectMatrices[row],my=gx.indirectMatrices[row+1];
+    ivec2 offset=ivec2(mx.x*values.x+mx.y*values.y+mx.z*values.z,
+        my.x*values.x+my.y*values.y+my.z*values.z)>>3;
+    if(mx.w>=0)offset>>=mx.w;else offset<<=-mx.w;
+    ivec2 direct=ivec2(base*destinationSize*128.0);
+    if(((packed>>3)&7)==6)direct.x=0;
+    if(((packed>>6)&7)==6)direct.y=0;
+    ivec2 result=direct+offset;
+    result=(result<<8)>>8; // Original signed 24-bit texture coordinate wrap.
+    return vec2(result)/(destinationSize*128.0);
 }
 ivec3 colorInput(int id) {
     if(id<8)return (id&1)!=0?ivec3(registers[id/2].a):registers[id/2].rgb;
@@ -56,7 +90,7 @@ void main() {
     raster=ivec4(round(clamp(rasterColor,0.0,1.0)*255.0));
     for(int i=0;i<gx.meta.x;++i){
         TevStage s=gx.stages[i];
-        sampled=ivec4(round(sampleMap(s.order.y,texCoord*s.uv.zw+s.uv.xy)*255.0));
+        sampled=ivec4(round(sampleMap(s.order.y,stageCoord(s))*255.0));
         constantColor=ivec4(gx.konst[s.order.z].rgb,gx.konst[s.order.w].a);
         ivec3 a=colorInput(s.colorIn.x),b=colorInput(s.colorIn.y),c=colorInput(s.colorIn.z),d=colorInput(s.colorIn.w);
         int aa=alphaInput(s.alphaIn.x),ab=alphaInput(s.alphaIn.y),ac=alphaInput(s.alphaIn.z),ad=alphaInput(s.alphaIn.w);

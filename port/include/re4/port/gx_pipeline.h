@@ -10,6 +10,13 @@ struct GxMaterialInput {
     float u{},v{};
     std::vector<u8> blendTable,animation;
     u16 animationFrame{};
+    std::array<u8,9> specular{};
+    std::array<u8,4> color2{};
+    u32 modelFlags{}, modelStateFlags{};
+    Mtx modelMatrix{};
+    Vec modelScale{1,1,1};
+    GxCamera camera{};
+    u32 specularBase{},specularCount{},indirectBase{},indirectCount{},globalBase{},globalCount{};
 };
 GxMaterialState captureOriginalMaterial(const GxMaterialInput &,u32 textureBase,u32 textureCount,u8 environmentScale=2);
 // Original OT bodies execute callbacks in native storage. The returned indices

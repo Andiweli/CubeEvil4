@@ -1,5 +1,10 @@
 # Phase 5a: originale OT-, Material- und Lichtsteuerung über Vulkan
 
+Die nachfolgende vollständige registrierte Leon-Draw-Hierarchie mit originalem
+`shaderSetup`, Specular und Bump steht in
+[phase5a-material-status.md](phase5a-material-status.md). Die folgenden
+Messwerte und Grenzen gehören zum früheren OT-/Licht-Teilstand.
+
 Die geprüfte Weight-/Skinning-Fortsetzung mit originalen FK-Posen und
 GPU-Nachweis einer Leon-Anbauhierarchie steht in
 [phase5a-skinning-status.md](phase5a-skinning-status.md).

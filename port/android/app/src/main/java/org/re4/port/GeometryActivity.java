@@ -9,6 +9,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import org.json.JSONObject;
 
 /** Isolated original-data rendering proof. No GameTask state is advanced or bypassed. */
@@ -30,10 +31,15 @@ public final class GeometryActivity extends Activity {
         String requestedSession=getIntent().getStringExtra("capture");
         final String session=requestedSession==null?"phase5a":requestedSession;
         graphics.configureEvidenceSession(session);
+        label.setText(String.format(Locale.ROOT,"Isolated original-data rendering: r%03x, frame %d",room,frame));
         graphics.configureScene(root,catalog,room,event,frame,report -> {
-            label.setText("Original data / isolated GX OT/TEV/LIT diagnostic\n"+report.substring(0,Math.min(160,report.length())));
             try(FileOutputStream out=openFileOutput(session+"-graphics.json",MODE_PRIVATE)) {
-                out.write(new JSONObject(report).put("evidence_session",session).toString().getBytes(StandardCharsets.UTF_8));
+                JSONObject evidence=new JSONObject(report);
+                JSONObject scene=evidence.getJSONObject("scene");
+                label.setText(String.format(Locale.ROOT,
+                    "Isolated rendering test: r%03x | frame %d | model %s\nCamera: %s",
+                    room,scene.getInt("frame"),scene.optString("event_model",""),scene.getString("camera")));
+                out.write(evidence.put("evidence_session",session).toString().getBytes(StandardCharsets.UTF_8));
             }catch(java.io.IOException|org.json.JSONException e){android.util.Log.e("RE4Graphics","Cannot save evidence: "+report,e);}
         });
         layout.addView(graphics,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1));

@@ -24,6 +24,8 @@ struct Retirement { EngineConsumers &e;~Retirement(){e.clear();} };
 }
 EventSkinModel captureSkinnedModel(ModelCpu &m,ModelInfoView &info) {
     EventSkinModel out;out.skin=skinModelCpu(m,info);out.position=m.pos;out.angle=m.ang;out.scale=m.scale;out.cullMode=m.CullMode;out.otType=m.ot_type;
+    C_MTXCopy(m.mat,out.modelMatrix);out.modelFlags=m.be_flag;std::copy(info.color2,info.color2+4,out.color2.begin());
+    for(auto *i=m.pModelInfo;i&&i!=&info;i=i->pList)++out.infoOrder;
     // commonModelTrans: weighted coordinates are relative to the FIRST parts
     // matrix. Only its single-part static branch uses the BIN head parts number.
     auto *root=out.skin.staticBypass?m.getPartsPtr(info.model_addr->pHead[0].partsNo):m.pList;if(!root)throw std::invalid_argument("skin draw root");

@@ -6,7 +6,7 @@
 namespace re4::port {
 // Diagnostic submission data, not a replacement for the original ordering tables.
 // Original immutable bytes and IDs remain owned alongside decoded GPU input.
-struct GxVertex { float position[3], normal[3], uv[2]; std::array<u8,4> color; };
+struct GxVertex { float position[3], normal[3], uv[2]; std::array<u8,4> color; float rawNormal[3]; };
 struct GxMip { u32 width{}, height{}; std::vector<u8> rgba; };
 struct GxTexture {
     ResourceLease source;
@@ -23,6 +23,12 @@ struct GxDraw {
     float uvScrollU{},uvScrollV{}; // Original velocity; diagnostic is frozen at initialization.
     u32 workIndex{}, workId{}, binId{}, tplId{}, partIndex{};
     u32 modelFlags{};
+    std::array<u8,9> specular{}; // Original part bytes 0x0d,0x0f..0x13,0x15,0x17 and reserved.
+    u32 textureBase{}, textureCount{};
+    Mtx modelMatrix{}; // commonModelTrans uses m->mat for specular, not the draw-root matrix.
+    Vec modelScaleForSpecular{1,1,1};
+    u32 modelStateFlags{};
+    std::array<u8,4> color2{};
     Vec lightPosition{}, lightSize{};
     Vec modelPosition{},modelAngle{},modelScale{1,1,1},lightOffset{},rootWorld{};
     Mtx rootMatrix{};
@@ -33,7 +39,9 @@ struct GxDraw {
 struct GxTevStage {
     std::array<s32,4> colorIn{}, alphaIn{}, colorOp{}, alphaOp{}, order{};
     std::array<float,4> uv{0,0,1,1};
+    std::array<s32,4> indirect{}; // enabled, source stage, matrix ID, packed bias/wrap flags.
 };
+struct GxTexGen { std::array<s32,4> meta{}; std::array<std::array<float,4>,3> rows{}; };
 struct GxMaterialState {
     std::array<GxTevStage,16> stages{};
     std::array<std::array<s32,4>,4> konst{};
@@ -44,6 +52,10 @@ struct GxMaterialState {
     std::array<float,4> fog{}, fogColor{};
     // Eight loaded GX light objects: view position, direction, A, K, colour.
     std::array<std::array<float,4>,40> lights{};
+    std::array<GxTexGen,8> texgens{};
+    std::array<std::array<s32,4>,4> indirectOrder{};
+    std::array<std::array<s32,4>,6> indirectMatrices{};
+    std::array<s32,4> indirectMeta{}; // indirect count, texgen count, hardware cache mask, reserved.
     std::array<u32,8> textures{};
 };
 struct GxCameraPoint { Vec Campos{}, Target{}; float Roll{}, Fovy{}; };
@@ -69,6 +81,8 @@ struct GxScene {
     u32 models{}, primitives{}, cameraFrame{};
     u32 skinnedModels{};
     std::string eventModel, eventMotion, skinHash;
+    std::vector<std::string> eventHierarchies;
+    u32 specularTextureBase{},specularTextureCount{},indirectTextureBase{},indirectTextureCount{},globalTextureBase{},globalTextureCount{};
     std::string report() const;
 };
 std::vector<GxTexture> decodeGxTpl(ResourceLease);

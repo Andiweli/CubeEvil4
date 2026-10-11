@@ -55,6 +55,7 @@ struct ModelInfoView : ModelUnit {
     ModelBoundingBox bound;
     Mtx mat{};
     union { u8 color[4]; u32 colorWord; };
+    u8 color2[4]{}; // Original secondary material colour; zeroed by model-pool allocation.
     f32 invisible_factor{};
     ShapeData *pShape{};
     ShapeKey shape[5]{};

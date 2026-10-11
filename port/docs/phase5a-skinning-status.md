@@ -1,5 +1,10 @@
 # Phase 5a: originales Weight-/Skinning-System
 
+Die anschließende Specular-/Bump-Integration und vollständige registrierte
+Leon-Draw-Hierarchie stehen in
+[phase5a-material-status.md](phase5a-material-status.md). Die folgenden Werte
+beschreiben weiterhin den damaligen Skinning-Teilstand.
+
 Geprüfte Fortsetzung vom 11. Oktober 2026 auf `android-port`, ausgehend von
 `bbeef30a74a7ebe85acd18c6f589a38011766e4f`. Windows x86/x64 sowie Retroid
 Pocket Flip 2 `dbdcacc`, Android 13/API 33, ARM32/ARM64, Adreno 650.

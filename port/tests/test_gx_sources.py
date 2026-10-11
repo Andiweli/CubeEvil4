@@ -29,6 +29,9 @@ class Sources(unittest.TestCase):
                               'void LightEnv::setModel2(', 'void lightSetColor(',
                               'void lightSetParallel(', 'void GXInitLightSpot(']:
                 self.assertIn(signature,render)
+            for signature in ['void shaderSetup(', 'void specularSetup(', 'void specularSetup2(',
+                              'void bumpSetup(', 'void updateMatrices(', 'void GXSetTevIndBumpXYZ(']:
+                self.assertIn(signature,render)
             self.assertNotIn('(u32) p < 0x80000000',render)
             self.assertNotIn('(*(u32*) &l->DispCol',render)
             self.assertTrue((out/'include/gx_state_types.h').is_file())

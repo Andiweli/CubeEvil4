@@ -6,7 +6,10 @@ struct EventSkinModel {
     std::string name,parent,bin,tpl,motion,poseStatus;
     ResourceLease texture;
     SkinningResult skin;
-    Mtx world{},rootMatrix{},infoMatrix{};
+    Mtx world{},rootMatrix{},infoMatrix{},modelMatrix{};
+    u32 modelFlags{};
+    u32 infoOrder{};
+    std::array<u8,4> color2{};
     Vec position{},angle{},scale{1,1,1},rootWorld{},boundOffset{},boundSize{};
     std::vector<std::array<float,12>> bones,bind;
     std::vector<Vec> localPosition,localAngle,localScale;

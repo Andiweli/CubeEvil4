@@ -38,7 +38,7 @@ def oracle(root,data,files,room_path='St1/r120.das',event_path='Evd/r120s00.evd'
     def entry(table,limit,index):
         start=u32(smd,table+index*4);offsets=[u32(smd,table+4*i) for i in range(u32(smd,table)//4)]
         end=min([o for o in offsets if o>start]+[limit-table]);return smd[table+start:table+end]
-    textures={};hashes=[];materials=[];primitive_count=triangles=models=0
+    textures={};hashes=[];materials=[];part_specular=[];primitive_count=triangles=models=0
     for i in range(n):
         at=16+72*i;bid,tid,mot,work=smd[at+36:at+40]
         if work==255:continue
@@ -71,6 +71,7 @@ def oracle(root,data,files,room_path='St1/r120.das',event_path='Evd/r120s00.evd'
                 cursor+=8*nv;index_count+=nt*3;primitive_count+=1
             fl=b[part+11];tex=b[part+12];alpha=b[part+14] if fl&4 else tex
             materials.append([i,work,bid,tid,k,base+tex,base+alpha,fl,128 if flags&8 else b[part+20],cull,index_count,blend,color,ot,flags,*uv]);triangles+=index_count//3;part=end
+            head=part-size-32;part_specular.append([b[head+13],b[head+15],*b[head+16:head+20],b[head+21],b[head+23]])
         models+=1
     evd=(data/'blobs'/files[event_path]['sha256']).read_bytes();offset,size=struct.unpack_from('>II',evd,64)
     while offset<struct.unpack_from('>I',evd,64)[0]+size:
@@ -88,32 +89,51 @@ def oracle(root,data,files,room_path='St1/r120.das',event_path='Evd/r120s00.evd'
         resources=dict(archive.parse_event(evd));player=archive.load_das(data/'blobs'/files['em/pl00.drs']['sha256'])[0]
         refs=re.findall(r'EvtMgr\.SetBin\("([^"]+)",\s*PL_ARC_PTR\(pG->pPlayer,\s*([^)]+)\)',(root/'src/game/event.cpp').read_text())
         for name,index in refs:resources.setdefault(name,player.entries[int(index,0)-4][1])
-        at=struct.unpack_from('>I',evd,64)[0];bin_name=tpl_name=None
+        at=struct.unpack_from('>I',evd,64)[0];registrations=[]
         while at<struct.unpack_from('>I',evd,64)[0]+size:
             typ=u32(evd,at);length=struct.unpack_from('>H',evd,at+12)[0]
-            if typ in (3,4) and evd[at+16:at+28].split(b'\0')[0].decode()==model:
+            name=evd[at+16:at+28].split(b'\0')[0].decode(errors='replace')
+            parent=evd[at+28:at+40].split(b'\0')[0].decode(errors='replace') if typ==4 else name
+            if typ in (3,4) and (name==model or parent==model):
                 bp,tp=(28,76) if typ==3 else (40,88)
-                bin_name=evd[at+bp:at+bp+48].split(b'\0')[0].decode();tpl_name=evd[at+tp:at+tp+48].split(b'\0')[0].decode();break
+                registrations.append((name,evd[at+bp:at+bp+48].split(b'\0')[0].decode(),evd[at+tp:at+tp+48].split(b'\0')[0].decode()))
             at+=length
-        if bin_name is None:raise ValueError('original event model reference missing')
-        mesh=meshbin.parse(resources[bin_name]);tpl=resources[tpl_name];base=len(hashes);count,table=struct.unpack_from('>II',tpl,4)
-        for k in range(count):
-            header,clut=struct.unpack_from('>II',tpl,table+k*8)
-            if clut:raise ValueError('event oracle CLUT not implemented')
-            h,w,fmt,pixel=struct.unpack_from('>HHII',tpl,header);levels=[]
-            for level in range(tpl[header+34]+1):
-                size_level=gxtex.base_size(fmt,w,h);levels.append(gxtex.decode(fmt,w,h,tpl[pixel:pixel+size_level]).tobytes());pixel+=size_level;w=max(1,w//2);h=max(1,h//2)
-            hashes.append(sha(b''.join(levels)))
-        for k,part in enumerate(mesh.parts):
-            if part.flags&~4:raise ValueError('original material requires missing GX mechanism')
-            indices=len(part.triangles())*3;primitive_count+=len(part.prims);triangles+=indices//3
-            materials.append([n,n,0,0,k,base+part.tex_id,base+(part.alpha_tex if part.flags&4 else part.tex_id),part.flags,part.alpha_ref,1,indices,0,0xffffffff,0,0,0.,0.])
-        models+=1
-    return dict(models=models,triangles=triangles,primitives=primitive_count,draws=len(materials),textures=len(hashes),texture_hashes=hashes,materials=materials,camera=camera,camera_point=cp,smd_sha256=sha(smd),room_sha256=f['sha256'],lit_sha256=sha(lit),lit_cut=cut,selected_light_records=u32(lit,light_at+4),lighting_calls=len(materials),ot_execution=list(range(22)))
+        if not registrations:raise ValueError('original event model reference missing')
+        bindings={}
+        for name,bin_name,tpl_name in registrations:
+            mesh=meshbin.parse(resources[bin_name]);tpl=resources[tpl_name]
+            if tpl_name not in bindings:
+                base=len(hashes);count,table=struct.unpack_from('>II',tpl,4);bindings[tpl_name]=(base,count)
+                for k in range(count):
+                    header,clut=struct.unpack_from('>II',tpl,table+k*8)
+                    if clut:raise ValueError('event oracle CLUT not implemented')
+                    h,w,fmt,pixel=struct.unpack_from('>HHII',tpl,header);levels=[]
+                    for level in range(tpl[header+34]+1):
+                        size_level=gxtex.base_size(fmt,w,h);levels.append(gxtex.decode(fmt,w,h,tpl[pixel:pixel+size_level]).tobytes());pixel+=size_level;w=max(1,w//2);h=max(1,h//2)
+                    hashes.append(sha(b''.join(levels)))
+            base,count=bindings[tpl_name]
+            for k,part in enumerate(mesh.parts):
+                indices=len(part.triangles())*3;primitive_count+=len(part.prims);triangles+=indices//3
+                materials.append([n,n,0,0,k,base+part.tex_id,base+(part.alpha_tex if part.flags&4 else part.tex_id),part.flags,part.alpha_ref,1,indices,0,0xffffffff,0,0,0.,0.])
+                part_specular.append([part.bump_tex,part.spec_tex,*part.spec_rgb,part.spec_type,part.spec_pow,part.spec_tex_org])
+            models+=1
+    if any(row[7]&0x13 for row in materials):
+        core=archive.load_das(data/'blobs'/files['etc/core.das']['sha256'])[0]
+        for slot in (4,17,18,16):
+            tag,tpl=core.entries[slot-4]
+            if tag!=b'TPL\0':raise ValueError('original core texture tag')
+            count,table=struct.unpack_from('>II',tpl,4)
+            for k in range(count):
+                header,clut=struct.unpack_from('>II',tpl,table+k*8);h,w,fmt,pixel=struct.unpack_from('>HHII',tpl,header)
+                if clut:raise ValueError('core oracle CLUT unsupported')
+                hashes.append(sha(gxtex.decode(fmt,w,h,tpl[pixel:pixel+gxtex.base_size(fmt,w,h)]).tobytes()))
+    return dict(models=models,triangles=triangles,primitives=primitive_count,draws=len(materials),textures=len(hashes),texture_hashes=hashes,materials=materials,part_specular=part_specular,camera=camera,camera_point=cp,smd_sha256=sha(smd),room_sha256=f['sha256'],lit_sha256=sha(lit),lit_cut=cut,selected_light_records=u32(lit,light_at+4),lighting_calls=len(materials),ot_execution=list(range(22)))
 
 def verify(actual,expected):
     for k,v in expected.items():
-        if k=='camera_point':
+        if k=='part_specular':
+            if [p['specular'] for p in actual['material_programs']]!=v:raise ValueError('original part specular/bump header mismatch')
+        elif k=='camera_point':
             if any(abs(a-b)>max(.01,abs(b)*2e-6) for a,b in zip(actual[k],v)):raise ValueError('original camera track mismatch')
         elif k=='materials':
             if len(actual[k])!=len(v):raise ValueError('material count')
@@ -127,10 +147,54 @@ def verify(actual,expected):
     previous=None
     for i in order:
         row=draws[i];key={0:(13,0),1:(17,0),2:(11,4),3:(11,2),4:(11,1),5:(16,0)}[row[13]]
-        sequence=(key[0],-key[1],-row[0],row[4])
+        sequence=(key[0],-key[1],-row[0],i)
         if previous is not None and sequence<previous:raise ValueError('original OT bucket/LIFO/part order')
         previous=sequence
     if len(actual['tev_states'])!=len(draws):raise ValueError('original TEV pairing')
+    verify_material_programs(actual)
+
+def verify_material_programs(actual):
+    """Independent original part/state checks, not a GPU image-quality oracle."""
+    import numpy as np
+    sb,sc,ib,ic,gb,gc=actual['core_texture_bindings']
+    view=np.eye(4)
+    # Use the captured original view matrix for the isolated adapter comparison;
+    # curve/orientation fidelity is covered by the camera tests and SDK bodies.
+    camera_matrix=actual.get('view_matrix')
+    if camera_matrix is None:raise ValueError('original view matrix evidence missing')
+    view[:3]=np.array(camera_matrix).reshape(3,4)
+    for row,material,p in zip(actual['materials'],actual['tev_states'],actual['material_programs']):
+        flags=row[7];bump,spec,r,g,b,kind,decay,external=p['specular'];program=p['program']
+        spec_active=bool(flags&0x13);variant=bool(flags&0x80 and flags&3)
+        stages=2+(3 if variant else (2 if kind==0 else 1) if spec_active else 0)+int(bool(flags&4))
+        if material['stages']!=stages:raise ValueError('original shaderSetup stage count')
+        ind=bool(variant or flags&1)
+        if p['indirect_meta'][0]!=int(ind):raise ValueError('original bump indirect count')
+        if spec_active:
+            if variant:
+                if p['textures'][1:3]!=[p['binding'][0]+bump]*2:raise ValueError('original bump warp texture binding')
+                if p['textures'][3]!=ib or program[2][5]!=[1,0,2,7]:raise ValueError('original specularSetup2 warp state')
+                if p['indirect_matrices'][2:4]!=[[0,-20,0,-1],[20,0,0,-1]]:raise ValueError('original warp coefficient quantization')
+            else:
+                selected=(0 if spec==255 else spec)
+                if not flags&16 and (selected>=sc or p['textures'][1]!=sb+selected):raise ValueError('original Specular[] binding')
+                if flags&16 and p['textures'][1]!=p['binding'][0]+external:raise ValueError('original model specular texture binding')
+                if flags&1 and p['textures'][2]!=p['binding'][0]+bump:raise ValueError('original bump texture binding')
+                if program[1][0]!=([15,8,10,15] if kind==0 else [15,9,0,0]):raise ValueError('original specular TEV inputs')
+                if flags&1 and program[1][5]!=[1,0,1,7]:raise ValueError('original bump XYZ state')
+                model=np.eye(4);model[:3]=np.array(p['model_matrix']).reshape(3,4)
+                scale=np.array(p['model_scale']);adjust=np.diag([*1/scale,1.])@model if any(scale!=1) else model
+                normal=np.linalg.inv(view@adjust).T[:3,:4]
+                power=(decay*.01 if decay else .5)*(.5 if p['model_flags']&0x20000000 else 1)
+                tex=np.diag([power,-power,0.,1.]);translate=np.eye(4);translate[:3,3]=[.5,.5,1.]
+                expected=(translate@tex@np.vstack([normal,[0,0,0,1]]))[:3]
+                gen=p['texgens'][1]
+                if gen[0]!=[0,1,0,0] or not np.allclose(np.array(gen[1:]),expected,rtol=3e-6,atol=2e-6):raise ValueError('original normal specular texture matrix')
+                if flags&1:
+                    matrix=normal[:2,:3]*.4;matrix[1,1]*=-1
+                    quant=np.trunc(matrix*1024).astype(int);quant=((quant+1024)%2048)-1024
+                    got=np.array(p['indirect_matrices'][:2])[:,:3]
+                    if np.max(np.abs(got-quant))>1:raise ValueError('original indirect S0.10 matrix')
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--data',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--host-exe',type=Path);p.add_argument('--adb',type=Path);p.add_argument('--serial',default='dbdcacc');p.add_argument('--repeat',type=int,default=2)
