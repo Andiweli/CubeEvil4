@@ -32,7 +32,22 @@ struct cSatMgr {
     int hitCheck(Vec*,Vec*,Vec*,Vec*,int,int);
     f32 getFloor(Vec*,Vec**,f32,f32,int);
     int polySphereCk(Vec*,Vec*,f32,int,Vec*,int);
+    int check(ModelCpu*,int);
+    int checkRect(ModelCpu*);
+    int checkAir(ModelCpu*,int);
+    f32 scrAtCheckSphere(ModelCpu*,ActorCollisionInfo*,int);
+    f32 scrAtCheckSphereAir(ModelCpu*,ActorCollisionInfo*,int);
+    void wallAdjust(Vec*,Vec*,Vec*,f32,int,int);
+    void adjust(Vec*,Vec*,Vec*,f32,int,int);
 };
+using cAtariInfo=ActorCollisionInfo;
+extern thread_local cSatMgr *activeManager;
+struct CollisionLog { u64 warnings{}; void warn(int,int,const char*,f32,f32,f32); };
+extern thread_local CollisionLog *pLog;
+int atck(Vec*,Vec*,Vec*,ModelCpu*,int);
+void at_pos_calc(ModelCpu*,Vec*);
+[[noreturn]] inline void Draw_line3d(Vec*,Vec*,u32,int) { throw MissingGameConsumer("SAT floor debug line renderer"); }
+[[noreturn]] inline void Draw_sphere(Vec*,f32,u32,int,int) { throw MissingGameConsumer("SAT sphere debug renderer"); }
 extern thread_local NativeGameState *pG;
 extern thread_local int SEck;
 extern thread_local u8 polyBit[0x400];
@@ -55,9 +70,12 @@ int polyBitCk(u32);
 int blkPolySphereCkCore(cSat*,cSatBlock*,Vec*,Vec*,f32,int,Vec*,int);
 int blkPolySphereCk(cSat*,cSatBlock*,Vec*,Vec*,f32,int,Vec*,int);
 } // namespace re4::port::collision
+namespace re4::port { void RotVector(Vec*,Vec*,Vec*); void low_RotMatrix(Mtx,Vec*); }
 #undef PSVECDotProduct
 #define PSVECDotProduct C_VECDotProduct
 #define PSVECSquareDistance C_VECSquareDistance
 #define PSVECSquareMag C_VECSquareMag
 #define PSVECNormalize C_VECNormalize
 #define DbgFlagChk(g,n) (((g)->Debug_flg[(n)/32] & (0x80000000u>>((n)%32)))!=0)
+#define SINF std::sin
+#define COSF std::cos

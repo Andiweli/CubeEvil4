@@ -803,9 +803,32 @@ void messages(int argc,char **argv,bool newGame=false) {
     auto &pf=*playerFile;ResourceLease pl{playerFile,playerFile->bytes.data()+pf.bodyOffset,pf.bodySize};
     game.engineConsumers().configureModelPools(0x80,0x100);
     game.state().pl_type=0;game.state().pl_costume=0;
+    // Actual preserved construction sequence in the existing player runtime,
+    // using the imported pl00 owner. Expected failure is NOT actor success.
+    for(int attempt=0;attempt<2;++attempt) {
+        auto live=game.heaps().liveBytes();std::string actorBlocker;
+        execute([&] {
+            check(bool(scheduler.current()),"actual constructor caller is a scheduler task");
+            try {(void)game.player().constructLeon(pl);} catch(const MissingGameConsumer &e) {actorBlocker=e.what();}
+        });
+        auto result=game.player().constructionSnapshot();
+        check(actorBlocker=="Original consumer unavailable: cPlayer::weaponRelease/ObjMgr.getActiveWork (live generic object pool)","actual Leon constructor next consumer");
+        check(!result.returnedActor && result.playerConstructor && result.subobjects && result.modelInitialized && result.rolledBack && result.schedulerTask,
+              "preserved player/subwork/model construction ran; failed actor was not published");
+        check(result.hp==game.state().pl_life && result.motionSlots==0x6D && result.registeredMotionSlots==12 && result.debugCallbacks==11,
+              "original player life/table lengths/debug registrations");
+        check(result.parts==119 && result.modelInfos==8,"constructor uses the original complete pl00 hierarchy and attachments");
+        check(game.engineConsumers().modelCount()==0 && game.heaps().liveBytes()==live,"constructor failure releases shared model and work owners");
+        rejects([&]{(void)game.player().leonModel();});
+    }
+    const auto constructor=game.player().constructionSnapshot();
     for(int round=0;round<2;++round) {
         auto handle=game.player().initializeLeonAssets(pl);auto &cpu=game.engineConsumers().model(handle);auto infos=game.player().leonModelInfos();
         check(cpu.nParts==pl.data[indexAssetBody(pl.data,pl.size).entries[0].offset+0x19] && infos.size()==8 && cpu.TevScaleGroup==1,"original Leon model and eight material/model attachments");
+        game.player().applyWaist(.5f);
+        check(cpu.getPartsPtr(1)->inv_offset.y==.25f && cpu.getPartsPtr(2)->inv_offset.y==.25f && cpu.getPartsPtr(3)->inv_offset.y==-.5f,
+              "original body distributes waist twist over actual Leon joints");
+        game.player().applyWaist(0);
         auto *knife=game.player().knife(),*face=game.player().face();
         check(knife && knife->mat[0][0]==0 && knife->mat[1][1]==0 && knife->mat[2][2]==0,"original hidden knife matrix");
         check(face && !face->pShape && face->shape_frame==0,"original neutral face ShapeEnd");
@@ -880,7 +903,7 @@ void messages(int argc,char **argv,bool newGame=false) {
     check(game.engineConsumers().modelCount()==0 && game.player().motionBindings().empty(),"GameRuntime reset releases original Leon assets");
     rejects([&]{game.player().initializeLeonAssets({pl.owner,pl.data,15});});
     check(game.engineConsumers().modelCount()==0,"malformed player archive did not publish model");
-    std::cout<<"]},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
+    std::cout<<"],\"construction\":{\"returned_actor\":false,\"em_mgr_dispatch_bound\":false,\"player_constructor\":true,\"subobjects\":true,\"scheduler_task\":true,\"startUp_executed\":false,\"rolled_back\":true,\"parts\":"<<constructor.parts<<",\"model_infos\":"<<constructor.modelInfos<<",\"motion_slots\":"<<constructor.motionSlots<<",\"registered_motion_slots\":"<<constructor.registeredMotionSlots<<",\"debug_callbacks\":"<<constructor.debugCallbacks<<",\"blocker\":"<<std::quoted(constructor.blocker)<<"}},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
     for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
     std::cout<<"]}\n";
 }
@@ -1025,6 +1048,7 @@ void collisionQueries(int argc,char **argv) {
     std::ifstream queries(argv[3]);if(!queries)throw std::runtime_error("collision queries missing");
     std::cout<<std::setprecision(9)<<"{\"pointer_bits\":"<<sizeof(void*)*8<<",\"kind\":\"isolated_original_SAT_EAT_ray_floor\",\"sha256\":"<<std::quoted(hash(lease))<<",\"counts\":["<<info.vertices<<','<<info.normals<<','<<info.edges<<','<<info.polygons<<','<<info.blocks<<"],\"queries\":[";
     Vec from{},to{};int flags{},mask{};bool comma=false;
+    std::vector<Vec> actorChecks;
     while(queries>>from.x>>from.y>>from.z>>to.x>>to.y>>to.z>>flags>>mask) {
         auto hit=runtime.hitCheck(from,to,flags,mask);
         auto movedFrom=from,movedTo=to;
@@ -1036,6 +1060,20 @@ void collisionQueries(int argc,char **argv) {
             auto floorBottom=from;floorBottom.y=from.y-(from.y-to.y);
             auto floorHit=runtime.hitCheck(from,floorBottom,0x40,mask);
             if(floor!=(floorHit.attribute?floorHit.point.y:-100000.f))throw std::runtime_error("original SAT getFloor ray chain");
+            if(floorHit.attribute && actorChecks.size()<3) {
+                // Probe positions originate in the existing SAT triangle-ray
+                // inventory. This runs original actor scenery collision, not
+                // cPlayer movement, gameplay input or a room start pose.
+                auto actor=std::make_shared<ActorModelCpu>();actor->pos=actor->pos_old=from;
+                actor->atari.init(0,0,0,1,1,1,2,0,0x1000,0);
+                for(int tick=0;tick<3;++tick){actor->atari.move();runtime.checkActor(actor,mask);actor->pos_old=actor->pos;}
+                auto finalFloor=runtime.getFloor(actor->pos,600,100000,mask);
+                if(finalFloor!=-100000.f && std::fabs(finalFloor-actor->pos.y)<1000 && std::fabs(finalFloor-actor->pos.y)>.05f)
+                    throw std::runtime_error("original actor floor snap with real SAT data");
+                if(actor->pFloor_norm && actor->pFloor_norm!=&actor->nativeFloorNormal)
+                    throw std::runtime_error("actor floor normal owner");
+                actorChecks.push_back(actor->pos);
+            }
         }
         if(comma)std::cout<<',';comma=true;
         std::cout<<"{\"attribute\":"<<hit.attribute<<",\"point\":["<<hit.point.x<<','<<hit.point.y<<','<<hit.point.z<<"],\"normal\":["<<hit.normal.x<<','<<hit.normal.y<<','<<hit.normal.z<<"]}";
@@ -1048,7 +1086,9 @@ void collisionQueries(int argc,char **argv) {
     rejects([&]{runtime.snapshot(handle);});auto second=runtime.create(lease);runtime.clear();rejects([&]{runtime.enable(second,true);});runtime.configure(1);
     for(u32 size:{0u,1u,19u})rejects([&]{runtime.create({lease.owner,lease.data,size});});
     if(hash(lease)!=originalHash)throw std::runtime_error("SAT mutation");
-    std::cout<<"],\"released_and_repeated\":true}\n";
+    std::cout<<"],\"actor_checks\":[";
+    for(std::size_t n=0;n<actorChecks.size();++n){if(n)std::cout<<',';auto p=actorChecks[n];std::cout<<'['<<p.x<<','<<p.y<<','<<p.z<<']';}
+    std::cout<<"],\"actor_ticks_per_probe\":3,\"player_ticks\":false,\"released_and_repeated\":true}\n";
 }
 int main(int argc, char **argv) {
     try {

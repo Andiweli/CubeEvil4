@@ -89,9 +89,12 @@ template<class Checks> void modelInitializationTests(Checks &c,GameRuntime &game
         for(u32 axis=0;axis<3;++axis)pose[17+axis*8]=1;
         engine.initializeMotion(actor,bytes(std::move(pose)));
         c.test(owner->Motion.pMot!=nullptr,"external actor root retains its owned original motion");
+        owner->atari.on();owner->atari.m_pMod=owner.get();owner->atari.m_pList=&owner->atari;
         engine.releaseModel(actor);
         c.test(!owner->mm && !owner->pm && !owner->pList && !owner->pModelInfo && !owner->Motion.pMot && !owner->pMotionB,
                "native actor outlives pool release without stale parts or motion references");
+        c.test(!owner->atari.m_pMod && !owner->atari.m_pList && !(owner->atari.m_flag&0x300),
+               "retired actor model cannot retain collision links into a released pool");
     }
     std::vector<u8> fcv(128,0);
     fcv[1]=10; fcv[2]=1; fcv[4]=4; fcv[5]=1;

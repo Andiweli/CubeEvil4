@@ -251,6 +251,10 @@ target_link_libraries(re4_game_verification PUBLIC re4_game_runtime)
 set_target_properties(re4_game_verification PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
     target_compile_options(re4_game_runtime PRIVATE /W4 /WX /fp:strict)
+    # Original cAtariInfo intentionally narrows its public int arguments into
+    # 16-bit fields. Keep those bodies intact; native adapters remain /WX.
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/collision_control.cpp"
+        PROPERTIES COMPILE_OPTIONS "/wd4244")
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"
@@ -267,6 +271,8 @@ else()
     # adapter files still compile with the full warning/error policy.
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/merchant_control.cpp"
         PROPERTIES COMPILE_OPTIONS "-Wno-unused-variable;-Wno-missing-field-initializers")
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/collision_control.cpp"
+        PROPERTIES COMPILE_OPTIONS "-Wno-unused-variable")
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/consumer_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"

@@ -255,18 +255,26 @@ void EngineConsumers::configureModelPools(u32 infos,u32 parts) {
     if(!infos || parts<2) throw std::invalid_argument("native model pool capacity");
     modelRuntime_=std::make_unique<ModelRuntime>(infos,parts);
 }
-void EngineConsumers::checkModelRelease(ConsumerHandle h) const {
+void EngineConsumers::checkModelReferences(ConsumerHandle h) const {
     check(); validate(h);
     if(models_.at(h.index)->borrowers.use_count()!=1)
         throw std::logic_error("model release while light/manager pointers are borrowed");
-    if(domain_ && (domain_->current() || domain_->allocatedStacks()))
-        throw std::logic_error("model release requires quiescent task borrowers");
     for(const auto &e:events_) {
         const auto &owned=*models_.at(h.index);const auto &cpu=owned.initialized?owned.initialized->cpu:owned.cpu;
         if(e.second->ModTbl.contains(const_cast<ModelCpu*>(&cpu))) throw std::logic_error("model is still registered in original event ModTbl");
         for(auto *p=cpu.pModelInfo;p;p=p->pList)
             if(e.second->ModTbl.contains(p)) throw std::logic_error("model info is still registered in original event ModTbl");
     }
+}
+void EngineConsumers::checkModelRelease(ConsumerHandle h) const {
+    checkModelReferences(h);
+    if(domain_ && (domain_->current() || domain_->allocatedStacks()))
+        throw std::logic_error("model release requires quiescent task borrowers");
+}
+void EngineConsumers::releaseUnpublishedModel(ConsumerHandle h,const std::shared_ptr<ModelCpu> &owner) {
+    checkModelReferences(h);
+    if(!owner || &model(h)!=owner.get())throw std::logic_error("constructor rollback owner mismatch");
+    if(!models_.erase(h.index))throw std::logic_error("retired construction model reference");
 }
 void EngineConsumers::releaseModel(ConsumerHandle h) {
     checkModelRelease(h);if(!models_.erase(h.index)) throw std::logic_error("retired model reference");

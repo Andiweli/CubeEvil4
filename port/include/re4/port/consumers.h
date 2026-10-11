@@ -134,6 +134,10 @@ class EngineConsumers final {
     }
 
   private:
+    friend class PlayerRuntime;
+    // Constructor rollback only, never a public room/model release shortcut.
+    void releaseUnpublishedModel(ConsumerHandle,const std::shared_ptr<ModelCpu>&);
+    void checkModelReferences(ConsumerHandle) const;
     struct Model;
     struct Message;
     struct Control {

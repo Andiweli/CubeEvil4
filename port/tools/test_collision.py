@@ -83,6 +83,10 @@ def main():
                 got=json.loads(run([*command,'collision',path[0],path[1],int(effect)]))
                 if got['pointer_bits']!=bits or got['counts']!=parsed['counts'] or got['sha256']!=sha(src.read_bytes()) or not got['released_and_repeated']:raise ValueError('collision ownership/ABI/counts/hash')
                 if len(got['queries'])!=len(refs):raise ValueError('collision query count')
+                if got['actor_ticks_per_probe']!=3 or got['player_ticks'] or not 0<=len(got['actor_checks'])<=3:
+                    raise ValueError('original actor scenery probe scope')
+                if any(len(p)!=3 or not all(math.isfinite(x) for x in p) for p in got['actor_checks']):
+                    raise ValueError('original actor scenery probe position')
                 error=0
                 for n,(actual,expected) in enumerate(zip(got['queries'],refs)):
                     if actual['attribute']!=expected['attribute']:raise ValueError(f'{name} query {n}: hit attribute {actual} != {expected}')

@@ -31,11 +31,11 @@ ResourceLease PlayerDomain::lease(void *p) const {
 }
 ModelInfoView *PlayerDomain::modelInit(void *bin,void *tpl) {
     if(modelHandle) throw std::logic_error("Leon model initialized twice without release");
-    actorModel=std::make_shared<ActorModelCpu>();
+    if(!actorModel)actorModel=std::make_shared<ActorModelCpu>();
     modelHandle=models.initializeModel(lease(bin),lease(tpl),"pl00",SysFlagChk(pG,SYS_INVISIBLE)!=0,0,0,actorModel);
     trace.push_back("cDmgInfo::cDmgInfo/cEm::cEm/initWork:original");
     auto &cpu=models.model(*modelHandle);
-    body=PlayerBodyCpu(&cpu);
+    if(!constructing)body=PlayerBodyCpu(&cpu);
     return cpu.pModelInfo;
 }
 ModelInfoView *PlayerDomain::ModelInfoFacade::create(void *bin,void *tpl) {
@@ -99,12 +99,74 @@ void PlayerRuntime::setHands(std::intptr_t right,std::uintptr_t left) {
     // Non-selector pointers are accepted only when lease() resolves a complete owned BIN.
     d.setRightHand(right);d.setLeftHand(left);
 }
+void PlayerRuntime::applyWaist(f32 radians) {
+    impl_->check();auto &d=impl_->original;(void)leonModel();
+    if(!std::isfinite(radians) || !d.Body || d.Body->modelOwner()!=d.actorModel.get() || d.actorModel->nParts<4)
+        throw std::invalid_argument("original waist model/parts ownership");
+    d.Body->waistSet(radians);d.Body->move();
+}
 void PlayerRuntime::releaseLeonAssets() {
     impl_->check();auto &d=impl_->original;
-    if(d.modelHandle || d.archive.owner) impl_->check(true);
-    if(d.modelHandle) d.models.releaseModel(*d.modelHandle);
+    // A construction attempt has no published actor/callback borrowers. It
+    // must be able to roll back on its original GameTask caller's stack.
+    if((d.modelHandle || d.archive.owner) && !d.constructing) impl_->check(true);
+    if(d.modelHandle) {
+        if(d.constructing)d.models.releaseUnpublishedModel(*d.modelHandle,d.actorModel);
+        else d.models.releaseModel(*d.modelHandle);
+    }
     d.modelHandle.reset();d.actorModel.reset();d.archive={};d.archiveIndex={};d.motionTable.fill(nullptr);d.bindings.clear();d.body=PlayerBodyCpu(nullptr);
+    d.Body=&d.body;d.bodyOwner.reset();d.weaponOwner.reset();d.pushOwner.reset();d.waistOwner.reset();d.motionBaseOwner.reset();d.mahoOwner.reset();
+    d.actorMotions.clear();d.registeredMotions.clear();d.m_MotTbl=d.motionTable.data();d.m_MotTbl2=nullptr;
+    d.Wep=nullptr;d.Push=nullptr;d.Waist=nullptr;d.MotBase=nullptr;d.pMaho=nullptr;d.pPL=nullptr;d.pSUB=nullptr;d.subArc=nullptr;d.constructing=false;
 }
+void *PlayerDomain::allocateMotionTable(u32 count,int line) {
+    requireConstructionOwner();
+    auto &table=line==373?actorMotions:registeredMotions;
+    if((line!=373 && line!=376) || (line==373?count!=0x6D:count!=12) || !table.empty())
+        throw std::invalid_argument("original player motion-table allocation identity");
+    // Original heap 13 / current heap, native pointer-width storage. The
+    // standard non-allocating placement-array new has zero array overhead;
+    // it starts typed pointer lifetimes instead of aliasing raw disc words.
+    auto block=heaps.allocate(std::size_t(count)*sizeof(void*),13,false);
+    auto **entries=new(block.data) void*[count]{};
+    table.storage=std::move(block);table.entries=entries;table.count=count;
+    return table.data();
+}
+void PlayerDomain::clearMotionTable(void **table,u32 count) {
+    requireConstructionOwner();
+    const bool first=table==actorMotions.data() && count==actorMotions.size();
+    const bool second=table==registeredMotions.data() && count==registeredMotions.size();
+    if(!first && !second)throw std::invalid_argument("player motion-table clear bounds");
+    std::fill_n(table,count,nullptr);
+}
+ConsumerHandle PlayerRuntime::constructLeon(ResourceLease bytes) {
+    impl_->check();auto &d=impl_->original;
+    if(d.modelHandle || d.archive.owner || d.constructing)throw std::logic_error("Leon construction with live assets");
+    if(d.pG->pl_type!=0 || !bytes.owner || !bytes.data)throw std::invalid_argument("Leon construction archive/type");
+    auto index=indexAssetBody(bytes.data,bytes.size);
+    d.construction={};d.construction.schedulerTask=bool(d.scheduler.current());d.archive=bytes;d.archiveIndex=std::move(index);
+    d.actorModel=std::make_shared<ActorModelCpu>();d.constructing=true;
+    try {
+        d.trace.push_back("cPlayer::cPlayer:original-body/native-owned-fields");d.constructPlayer();
+        d.construction.playerConstructor=true;
+        d.trace.push_back("cPlLeon::cPlLeon:original-body/native-owned-fields");d.constructCharacter();
+        // Success publication is intentionally impossible until the complete
+        // EmMgr type/vtable and every downstream consumer are integrated.
+        throw MissingGameConsumer("EmMgr.construct/full cPlLeon virtual actor publication");
+    } catch(const std::exception &e) {
+        d.construction.hp=d.actorModel->hp;
+        d.construction.motionSlots=u32(d.actorMotions.size());d.construction.registeredMotionSlots=u32(d.registeredMotions.size());
+        d.construction.debugCallbacks=d.pMaho?d.pMaho->count():0;
+        d.construction.subobjects=d.Wep && d.Body && d.Push && d.Waist && d.MotBase;
+        d.construction.modelInitialized=d.modelHandle.has_value();d.construction.blocker=e.what();
+        if(d.modelHandle) {
+            auto &cpu=d.models.model(*d.modelHandle);d.construction.parts=cpu.nParts;
+            for(auto *info=cpu.pModelInfo;info;info=info->pList)++d.construction.modelInfos;
+        }
+        d.trace.push_back("Leon construction rollback:native-owner");releaseLeonAssets();d.construction.rolledBack=true;throw;
+    } catch(...) {releaseLeonAssets();d.construction.rolledBack=true;throw;}
+}
+LeonConstructionSnapshot PlayerRuntime::constructionSnapshot() const {impl_->check();return impl_->original.construction;}
 void PlayerRuntime::clear() {
     impl_->check(true);releaseLeonAssets();auto &d=impl_->original;
     d.InitModule(&d.WepReadModule);d.allocations.clear();d.PlKaiou=d.oldWepId=d.m_BbtnCnt=0;d.trace.clear();

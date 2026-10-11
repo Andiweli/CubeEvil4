@@ -9,6 +9,9 @@ thread_local int SEck{};
 thread_local u8 polyBit[0x400]{};
 thread_local cSat *pBypassAt{};
 thread_local NativeGameState *pG{};
+thread_local cSatMgr *activeManager{};
+thread_local CollisionLog *pLog{};
+void CollisionLog::warn(int,int,const char*,f32,f32,f32) { ++warnings; }
 }
 namespace re4::port {
 namespace {
@@ -107,5 +110,46 @@ bool CollisionRuntime::pushSphere(Vec old,Vec &pos,f32 radius,Vec &normal,int fl
         finite(resolved);finite(n);pos=resolved;normal=n;
         collision::pG=saved;collision::SEck=type;return hit;
     } catch(...) {collision::pG=saved;collision::SEck=type;throw;}
+}
+int CollisionRuntime::checkActor(std::shared_ptr<ModelCpu> actor,int mask,bool air,
+        const std::vector<std::shared_ptr<ModelCpu>> &linked,
+        const std::vector<std::shared_ptr<ActorCollisionInfo>> &infos) {
+    auto &i=*impl_;i.check();
+    if(!actor)throw std::invalid_argument("SAT actor owner absent");
+    if(!(actor->atari.m_flag&0x100))return air?i.manager.checkAir(actor.get(),mask):i.manager.check(actor.get(),mask);
+    std::set<ModelCpu*> models{actor.get()};
+    for(const auto &p:linked) {
+        if(!p || !models.insert(p.get()).second)throw std::invalid_argument("SAT duplicate/absent linked model owner");
+    }
+    std::set<ActorCollisionInfo*> owned;
+    for(auto *p:models)owned.insert(&p->atari);
+    for(const auto &p:infos)if(!p || !owned.insert(p.get()).second)throw std::invalid_argument("SAT duplicate/absent info owner");
+    auto *info=&actor->atari;std::set<ActorCollisionInfo*> visited;
+    while(info) {
+        if(!owned.count(info) || !visited.insert(info).second)throw std::invalid_argument("SAT stale/cyclic collision info link");
+        if(info->m_pMod && !models.count(info->m_pMod))throw std::invalid_argument("SAT unowned linked actor");
+        if(!std::isfinite(info->m_radius) || info->m_radius<=0 || !std::isfinite(info->m_radius2) || info->m_radius2<0)
+            throw std::invalid_argument("SAT actor radius");
+        finite(info->m_offset);info=info->m_pList;
+    }
+    for(auto *p:models) {
+        finite(p->pos);finite(p->pos_old);finite(p->ang);
+        // Validate original part references before getPartsPtr follows them.
+        if(p->pFloor_norm && p->pFloor_norm!=&p->nativeFloorNormal)
+            throw std::invalid_argument("SAT unowned actor floor normal");
+    }
+    for(auto *q:visited)if(q->m_parts_no<0 || (q->m_parts_no && q->m_parts_no>actor->nParts))
+        throw std::invalid_argument("SAT actor parts reference");
+    auto *oldG=collision::pG;auto *oldMgr=collision::activeManager;auto *oldLog=collision::pLog;
+    const auto oldType=collision::SEck;collision::CollisionLog log;
+    collision::pG=i.manager.pG;collision::SEck=i.manager.type;collision::activeManager=&i.manager;collision::pLog=&log;
+    auto restore=[&]{collision::pG=oldG;collision::SEck=oldType;collision::activeManager=oldMgr;collision::pLog=oldLog;
+        // Original getFloor returns borrowed SAT normals. Copy to the owned
+        // model before the query ends; disc/module/SAT release cannot dangle it.
+        for(auto *p:models)if(p->pFloor_norm){p->nativeFloorNormal=*p->pFloor_norm;p->pFloor_norm=&p->nativeFloorNormal;}
+    };
+    try {int result=air?i.manager.checkAir(actor.get(),mask):i.manager.check(actor.get(),mask);
+        for(auto *p:models)finite(p->pos);restore();return result;
+    } catch(...) {restore();throw;}
 }
 } // namespace re4::port

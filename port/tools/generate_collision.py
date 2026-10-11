@@ -22,6 +22,16 @@ def generate(root, output):
     code=['#include "collision_original.h"','namespace re4::port::collision {']
     entries=[]
     functions=[
+        ('src/game/atari.cpp','int cSatMgr::check(cModel* pMod, int mask)',[]),
+        ('src/game/atari.cpp','int cSatMgr::checkRect(cModel* pMod)',[]),
+        ('src/game/atari.cpp','int cSatMgr::checkAir(cModel* pMod, int mask)',[]),
+        ('src/game/atari.cpp','int atck(Vec* vec0, Vec* vec1, Vec* offset, cModel* pMod, int flag)',[
+            ('SatMgr.hitCheck','activeManager->hitCheck')]),
+        ('src/game/atari.cpp','f32 cSatMgr::scrAtCheckSphere(cModel* pMod, cAtariInfo* pAt, int mask)',[]),
+        ('src/game/atari.cpp','f32 cSatMgr::scrAtCheckSphereAir(cModel* pMod, cAtariInfo* pAt, int mask)',[]),
+        ('src/game/atari.cpp','void cSatMgr::wallAdjust(Vec* pNorm, Vec* pos_old, Vec* pos_new, f32 radius, int flag, int mask)',[]),
+        ('src/game/atari.cpp','void cSatMgr::adjust(Vec* pNorm, Vec* pos_old, Vec* pos_new, f32 radius, int flag, int mask)',[]),
+        ('src/game/atari.cpp','void at_pos_calc(cModel* pMod, Vec* vec)',[]),
         ('src/lib/vec.c','f32 C_VECDotProduct(const Vec* a, const Vec* b)',[]),
         ('src/game/sub2.cpp','f32 GetDistance(Vec* v0, Vec* v1)',[]),
         ('src/game/at_sub.cpp','u32 Get_poly_attr(SAT_POLY* poly)',[
@@ -62,6 +72,11 @@ def generate(root, output):
     for path,sig,changes in functions:
         try:body,line=function((root/path).read_text().replace(sig+' {',sig+'\n{'),sig)
         except ValueError as e:raise ValueError('Missing original collision body: '+path+' '+sig) from e
+        # The native model owns these named fields; never reinterpret a model
+        # as a larger GC cEm layout to reach collision or motion work.
+        for old,new in [('((cEm*) pMod)->','pMod->'),('((cEm*) link)->','link->')]:
+            if old in body:
+                changes=changes+[(old,new)]
         for a,b in changes:
             if a not in body:raise ValueError('Collision adaptation missing: '+a)
             body=body.replace(a,b)
@@ -73,6 +88,30 @@ def generate(root, output):
             if count!=2:raise ValueError('SAT profiling blocks changed')
             body=body.replace('    u32 idx = 0;','')
             changes=changes+[('two PPC profiling-only blocks','explicit unsupported debug profiling mode')]
+        code += [f'#line {line} "{(root/path).as_posix()}"',body]
+        entries.append(dict(source=path,signature=sig,line=line,adaptations=[a for a,b in changes]))
+    code += ['}', 'namespace re4::port {']
+    extra=[('src/game/math_sub.cpp','void low_RotMatrix(Mtx m, Vec* vec)',[]),
+           ('src/game/sub2.cpp','void RotVector(Vec* vec0, Vec* ang, Vec* vec_ans)',[])]
+    for sig in ['cAtariInfo::cAtariInfo()',
+                'void cAtariInfo::init0(f32 ox, f32 oy, f32 oz, f32 rs, f32 ro, f32 ra, f32 h, int pno, int hokan, int f)',
+                'void cAtariInfo::init(f32 ox, f32 oy, f32 oz, f32 rs, f32 ro, f32 ra, f32 h, int pno, int f, int hokan)',
+                'void cAtariInfo::set(f32 a, f32 b, int mode)',
+                'void cAtariInfo::move()',
+                'void cAtariInfo::getSpeedVector(cModel* m, Vec* oldPos, Vec* newPos)',
+                'void cAtariInfo::getPos(cModel* m, Vec* out)',
+                'void cAtariInfo::setPriority(int pri)']:
+        changes=[('cAtariInfo::','ActorCollisionInfo::')]
+        if sig=='cAtariInfo::cAtariInfo()':
+            changes += [('ActorCollisionInfo::cAtariInfo()','ActorCollisionInfo::ActorCollisionInfo()'),
+                        ('memclr_asm(this, sizeof(cAtariInfo));','// All named native fields are value-initialized, including pointers.')]
+        if '::init0(' in sig: changes += [('x48 = 0;','m_pList = nullptr; // Full native pointer, including ARM64 high bits.')]
+        extra.append(('src/game/atariInfo.cpp',sig,changes))
+    for path,sig,changes in extra:
+        body,line=function((root/path).read_text(),sig)
+        for old,new in changes:
+            if old not in body:raise ValueError('Actor collision adaptation missing: '+old)
+            body=body.replace(old,new)
         code += [f'#line {line} "{(root/path).as_posix()}"',body]
         entries.append(dict(source=path,signature=sig,line=line,adaptations=[a for a,b in changes]))
     code.append('}')

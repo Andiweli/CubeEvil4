@@ -65,12 +65,14 @@ class Sources(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output=Path(directory)/'output';generate(ROOT,output)
             functions=json.loads((output/'player-manifest.json').read_text())['functions']
-            self.assertEqual(len(functions),21)
+            self.assertEqual(len(functions),51)
             signatures={f['signature'] for f in functions}
             self.assertIn('void PlayerInit()',signatures)
             self.assertIn('void cPlLeon::setModel()',signatures)
             self.assertIn('void cPlLeon::setMotion()',signatures)
-            self.assertNotIn('cPlLeon::cPlLeon()',signatures)
+            self.assertIn('cPlLeon::cPlLeon()',signatures)
+            self.assertIn('cPlayer::cPlayer()',signatures)
+            self.assertIn('void cPlayer::weaponRelease()',signatures)
             copy=Path(directory)/'root'
             hashes=json.loads((ROOT/'port/config/player-sources.json').read_text())
             for relative in [*hashes,'port/config/player-sources.json']:

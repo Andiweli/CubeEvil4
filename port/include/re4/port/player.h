@@ -7,12 +7,27 @@ class GameplayHeaps;
 // Constructor prefix only: named native cEm model/damage fields. This is not
 // a cPlayer/cPlLeon, an EM_WORK_SIZE overlay, or a published gameplay actor.
 struct ActorDamageCpu {
-    u8 m_Flag{},m_Timer{};
+    u8 m_Flag{},m_Timer{},m_Wep{},m_Padding03{};
+    Vec m_PosFrom{};
+    f32 m_Dist{};
+    struct DamagePart *m_pDamageYarare{};
     ActorDamageCpu();
     void clear();
+    void set(int,int,u8,Vec*,f32,DamagePart*);
+    void set(int,int);
+    void move();
+};
+struct DamagePart {
+    Vec offset{},cross{};
+    f32 radius{},height{},extent{};
+    u16 flag{};
+    s16 parts_no{};
+    f32 len{},c_dis{};
+    DamagePart *pList{};
 };
 struct ActorModelCpu : ModelCpu {
     ActorDamageCpu dmg;
+    s16 hp{},hp_max{};
     ActorModelCpu();
     int initWork();
 };
@@ -21,6 +36,14 @@ struct PlayerInitSnapshot {
     bool weaponSlotEmpty{};
 };
 struct PlayerMotionBinding { u32 motionIndex{}, archiveSlot{}; ResourceLease bytes; };
+struct LeonConstructionSnapshot {
+    bool returnedActor{},playerConstructor{},subobjects{},modelInitialized{},rolledBack{};
+    bool schedulerTask{};
+    s16 hp{};
+    u32 motionSlots{},registeredMotionSlots{},debugCallbacks{};
+    u32 parts{},modelInfos{};
+    std::string blocker;
+};
 // PlayerInit is the original global-state reset, not cPlLeon construction.
 // The asset entry runs original Leon model/motion helpers on an owned CPU model;
 // it does not publish pPL or bypass weapon/collision/startUp dependencies.
@@ -45,7 +68,12 @@ public:
     ModelInfoView *knife() const;
     ModelInfoView *face() const;
     void setHands(std::intptr_t right, std::uintptr_t left);
+    void applyWaist(f32 radians); // Original cPlBody::waistSet/move, not a gameplay decision.
     void releaseLeonAssets();
+    // Executes the preserved construction sequence. Missing consumers throw;
+    // a failed attempt does not publish a player or claim a complete actor.
+    ConsumerHandle constructLeon(ResourceLease playerArchive);
+    LeonConstructionSnapshot constructionSnapshot() const;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

@@ -10,5 +10,14 @@
   "include/cFlag.h": "b52d6bc77d05f61865bf18f9492a576c773676b4930abce3d71467d7070bbb80",
   "include/pl_body.h": "7c35549a9210d4af2ae4c272b9239ca2c9030bbf58c7d6e47fd1004a5b4b7cdd",
   "include/model.h": "0b5e63ccbc7ae21404527bf100e792804c495bc82f4bd417ef966ab668ac12a2",
-  "include/global.h": "12cf7d5dd385273f44bd5234fe49de62278a1642746d99b59a442c48d132773a"
+  "include/global.h": "12cf7d5dd385273f44bd5234fe49de62278a1642746d99b59a442c48d132773a",
+  "src/game/pl_wep.cpp": "502d86967a6b9946a01e05a4eea39c4eba37e85fbf83031578b580f126cb98ee",
+  "src/game/pl_debug.cpp": "2b2c778d231ce6cfbd7504b7aa40416b4efc8e79e1fae7fc9d549e98a2b9c757",
+  "src/game/cMotBase.cpp": "f43a9e9542395055fa83baa39ba85c09e59d3421b750784333b3ee01fafe079c",
+  "include/pl_wep.h": "61ad2be0ec5e5a2ab70f5954e157e2cfa381e006af8ddbc2a5ae9a0b39383647",
+  "include/pl_push.h": "81ce60684f8517348a67bf0bda953af383f88384125628bac33351f262d8813d",
+  "include/player.h": "86e9e2f9b32bdf86a5d7136f92ae0dc8be6a1ce9897c6fc478a410377fce2b9f",
+  "include/cMotBase.h": "b39ee0935c410a14c39979d2c94aa8315f3d11ce422194225b5bbcb501c07c1c",
+  "include/esp.h": "65f6c99e00dfe6639d7027102b6ddc4c922b93f17fc01c63172ba929704ad509",
+  "include/em.h": "3917beb327210f0e8bc4f626704a7b77d442707f229a3ccfee00f2c1df71a781"
 }

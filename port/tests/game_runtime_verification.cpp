@@ -63,7 +63,35 @@ void sphereTests(Checks &c,GameRuntime &game) {
     c.test(!eat.pushSphere({-2,2,-2},pos,1,normal,SAT_TYPE_SMALL),"original EAT filter selected without prior line query");
     c.test(eat.pushSphere({-2,2,-2},pos,1,normal,0) && pos.y==1,"original EAT sphere allowed with other type");
     c.rejects([&]{sat.pushSphere({},pos,0,normal);},"invalid native radius rejected");
+    // Original complete scenery-check bodies on a numeric adapter fixture.
+    // These are not cPlayer::startUp or player simulation ticks.
+    auto actor=std::make_shared<ActorModelCpu>();auto linked=std::make_shared<ActorModelCpu>();
+    DamagePart damagePart;Vec from{3,4,5};actor->dmg.set(4,3,2,&from,6,&damagePart);
+    c.test(actor->dmg.m_Flag==5 && actor->dmg.m_Wep==2 && actor->dmg.m_pDamageYarare==&damagePart && actor->dmg.m_PosFrom.y==4,
+           "original damage record retains typed native part pointer");
+    for(int n=0;n<3;++n)actor->dmg.move();c.test(!actor->dmg.m_Flag && !actor->dmg.m_Timer,"original damage timer expires");
+    actor->dmg.set(7,0x83);actor->dmg.move();c.test(actor->dmg.m_Timer==0x83 && actor->dmg.m_Flag==7,"original damage hold bit preserves timer");
+    actor->dmg.clear();c.test(!actor->dmg.m_Timer && !actor->dmg.m_Flag && actor->dmg.m_pDamageYarare==&damagePart,"original damage clear preserves non-state fields");
+    actor->atari.init(0,0,0,1,1,1,2,0,0,0);
+    linked->atari.init(0,0,0,1,1,1,2,0,0,0);
+    actor->pos=actor->pos_old={-2,2,-2};linked->pos=linked->pos_old={-1,2,-2};
+    actor->atari.m_pMod=linked.get();
+    c.rejects([&]{sat.checkActor(actor);},"unowned dynamic actor link rejected before dereference");
+    c.test(sat.checkActor(actor,0,false,{linked})==0 && std::fabs(actor->pos.y)<.02f && std::fabs(linked->pos.y)<.02f,
+           "original sphere actor floor snap including linked model");
+    c.test(actor->pFloor_norm==&actor->nativeFloorNormal && actor->pFloor_norm->y==1,
+           "floor normal copied to model lifetime");
+    actor->atari.m_pMod=nullptr;actor->pos=actor->pos_old={-2,2,-2};
+    c.test(sat.checkActor(actor,0,true)==0 && actor->pos.y==2,"original airborne actor preserves height");
+    actor->atari.offSca();c.test(sat.checkActor(actor)==0 && actor->pos.y==2,"original actor scenario collision disabled");actor->atari.onSca();
+    actor->atari.m_pList=&actor->atari;
+    c.rejects([&]{sat.checkActor(actor);},"cyclic native collision info rejected");actor->atari.m_pList=nullptr;
+    actor->atari.set(5,9,4);for(int n=0;n<4;++n)actor->atari.move();
+    c.test(actor->atari.m_radius==5 && actor->atari.m_radius2==9 && !actor->atari.m_hokan,"original radius interpolation over four ticks");
+    actor->atari.setPriority(3);c.test((actor->atari.m_flag&0x18)==0x18,"original actor push priority mask");
+    actor->atari.m_parts_no=1;c.rejects([&]{sat.checkActor(actor);},"missing original part owner rejected");actor->atari.m_parts_no=0;
     sat.destroy(h);eat.destroy(e);sat.clear();eat.clear();
+    c.test(actor->pFloor_norm->y==1 && linked->pFloor_norm->y==1,"SAT release does not invalidate actor normal");
     c.rejects([&]{sat.snapshot(h);},"sphere work lifetime invalidates references");
 }
 // Explicit isolated consumer-order fixture. No actor/event/trigger implementation.

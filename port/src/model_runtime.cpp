@@ -126,6 +126,7 @@ ModelRuntime::Object::~Object() {
     // An actor owner may outlive its pool registration. Retire all pointers to
     // leases/parts released by the consumer, not just the manager addresses.
     cpu.Motion={};cpu.pMotionB=nullptr;cpu.pFloor_norm=nullptr;
+    cpu.atari.m_pMod=nullptr;cpu.atari.m_pList=nullptr;cpu.atari.off();
     cpu.pDblJnt=nullptr;cpu.pXFlip=nullptr;
 }
 ModelInfoView *ModelRuntime::createAttachment(Object &object,ResourceLease bin,ResourceLease tpl,bool resetOffsets) {

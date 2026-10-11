@@ -1,6 +1,7 @@
 #pragma once
 #include "re4/port/engine_loader.h"
 #include "re4_runtime_types.h"
+#include "re4/port/actor_collision.h"
 #include <array>
 
 namespace re4::port {
@@ -117,6 +118,8 @@ struct ModelCpu : ModelPart {
         Shader_type{}, Refract_pow{}, Fix_parts{}, r_no_0{}, r_no_1{}, r_no_2{}, r_no_3{}, id{}, type{};
     Vec speed{}, pos_old{}, Wall_norm{}, Fix_pos{};
     Vec *pFloor_norm{};
+    ActorCollisionInfo atari;
+    Vec nativeFloorNormal{}; // Stable copy of the borrowed SAT normal, never serialized.
     void *pCldShMd{}, *pPath{}, *pTexChg{};
     u32 Shd_color{}, inscreen_pos{};
     u8 invisible_trg{}, invisible_old{}, invisible_mode{}, invisible_busy{}, invisible_timer{};
