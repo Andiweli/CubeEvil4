@@ -1,4 +1,5 @@
 #include "player_original.h"
+#include "re4/port/sha256.h"
 #include <algorithm>
 
 namespace re4::port {
@@ -27,6 +28,7 @@ ResourceLease PlayerDomain::lease(void *p) const {
     if(!archive.owner) throw std::logic_error("player archive owner absent");
     for(const auto &e:archiveIndex.entries) if(archive.data+e.offset==p)
         return {archive.owner,archive.data+e.offset,e.size};
+    if(nativeWeapons)return nativeWeapons->domain()->lease(p);
     throw std::invalid_argument("player BIN/TPL/motion is not an owned archive entry");
 }
 ModelInfoView *PlayerDomain::modelInit(void *bin,void *tpl) {
@@ -45,6 +47,8 @@ ModelInfoView *PlayerDomain::ModelInfoFacade::create(void *bin,void *tpl) {
 PlayerRuntime::PlayerRuntime(NativeGameState &g,KEY &k,u8 &p,GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s,ObjectRuntime &o,EffectRuntime &e)
     :impl_(std::make_unique<Impl>(g,k,p,h,m,s,o,e)) {}
 PlayerRuntime::~PlayerRuntime()=default;
+void PlayerRuntime::bindWeaponModules(GameRuntime &r){impl_->check(true);auto &d=impl_->original;if(d.nativeWeapons)throw std::logic_error("weapon services already bound");d.nativeWeapons=std::make_unique<WeaponRuntime>(r,d);}
+WeaponRuntime &PlayerRuntime::weapons(){impl_->check();if(!impl_->original.nativeWeapons)throw MissingGameConsumer("native weapon services");return *impl_->original.nativeWeapons;}
 void PlayerRuntime::gameInit() { impl_->check();impl_->original.PlayerInit(); }
 void PlayerRuntime::lifeReset() { impl_->check();impl_->original.PlayerLifeReset(); }
 void PlayerRuntime::keyConfig() { impl_->check();impl_->original.keyConfig(); }
@@ -110,14 +114,22 @@ void PlayerRuntime::releaseLeonAssets() {
     // A construction attempt has no published actor/callback borrowers. It
     // must be able to roll back on its original GameTask caller's stack.
     if((d.modelHandle || d.archive.owner) && !d.constructing) impl_->check(true);
+    if(d.Wep){
+        if(d.Wep->m_pWep){d.ObjMgr.destroyNow(d.Wep->m_pWep);d.Wep->m_pWep=nullptr;}
+        if(d.Wep->m_pWepHand){d.ObjMgr.destroyNow(d.Wep->m_pWepHand);d.Wep->m_pWepHand=nullptr;}
+    }
     if(d.modelHandle) {
         if(d.constructing)d.models.releaseUnpublishedModel(*d.modelHandle,d.actorModel);
         else d.models.releaseModel(*d.modelHandle);
     }
     d.modelHandle.reset();d.actorModel.reset();d.archive={};d.archiveIndex={};d.motionTable.fill(nullptr);d.bindings.clear();d.body=PlayerBodyCpu(nullptr);
-    d.Body=&d.body;d.bodyOwner.reset();d.weaponOwner.reset();d.pushOwner.reset();d.waistOwner.reset();d.motionBaseOwner.reset();d.mahoOwner.reset();
+    d.Body=&d.body;d.bodyOwner.reset();d.weaponOwner.reset();d.pushOwner.reset();d.waistOwner.reset();d.motionBaseOwner.reset();d.mahoOwner.reset();d.Neck=nullptr;d.neckOwner.reset();d.Pl_func_tbl={};
     d.actorMotions.clear();d.registeredMotions.clear();d.m_MotTbl=d.motionTable.data();d.m_MotTbl2=nullptr;
     d.Wep=nullptr;d.Push=nullptr;d.Waist=nullptr;d.MotBase=nullptr;d.pMaho=nullptr;d.pPL=nullptr;d.pSUB=nullptr;d.subArc=nullptr;d.constructing=false;
+    if(d.nativeWeapons && (d.nativeWeapons->snapshot().loaded || !d.nativeWeapons->domain()->requests.empty()))d.ReleaseWepData();
+    if(d.WepReadModule.pData || d.WepReadModule.pDll || d.WepReadModule.ctrl_flag.get())d.InitModule(&d.WepReadModule);
+    if(d.nativeWeapons)d.nativeWeapons->clear();
+    d.WeaponInitFunc={};
 }
 void *PlayerDomain::allocateMotionTable(u32 count,int line) {
     requireConstructionOwner();
@@ -153,12 +165,24 @@ ConsumerHandle PlayerRuntime::constructLeon(ResourceLease bytes) {
         // Success publication is intentionally impossible until the complete
         // EmMgr type/vtable and every downstream consumer are integrated.
         throw MissingGameConsumer("EmMgr.construct/full cPlLeon virtual actor publication");
-    } catch(const std::exception &e) {
+    } catch(const std::exception &error) {
+        if(d.nativeWeapons)d.construction.weapon=d.nativeWeapons->snapshot();
+        if(d.nativeWeapons && !d.nativeWeapons->domain()->effectLoads.empty())d.construction.weaponEffect=d.effects.dataSnapshot(d.nativeWeapons->domain()->effectLoads.front());
+        d.construction.init1Reached=bool(d.Neck);d.construction.lightFlags=d.actorModel->State.m_LightFlag;
+        for(auto *box=&d.actorModel->hitInfo;box && box->flag;box=box->pList)++d.construction.hitboxes;
+        if(d.Wep && d.Wep->m_pWep){auto &w=*d.Wep->m_pWep;d.construction.weaponObjectId=w.id;d.construction.weaponItemId=w.itemId;d.construction.weaponParts=w.nParts;
+            if(w.pModelInfo){auto &b=w.pModelInfo->model_addr->source;auto &t=static_cast<TexturePaletteView*>(w.pModelInfo->tpl_addr)->bytes;d.construction.weaponBinHash=sha256(b.data,b.size);d.construction.weaponTplHash=sha256(t.data,t.size);}
+            if(w.pList && w.pList->pParent){for(u32 n=0;n<d.actorModel->nParts;++n)if(w.pList->pParent==d.actorModel->getPartsPtr(int(n)))d.construction.weaponParentPart=n;}
+            for(u32 n=0;n<0x5f;++n)if(d.m_MotTbl[n]){++d.construction.weaponMotions;auto motionBytes=d.lease(d.m_MotTbl[n]);u32 slot=0;std::string path;
+                for(auto &entry:d.archiveIndex.entries)if(d.archive.data+entry.offset==motionBytes.data){slot=entry.index+4;path="em/pl00.drs";}
+                auto owner=d.nativeWeapons->domain();for(auto &entry:owner->index.entries)if(owner->body.data+entry.offset==motionBytes.data){slot=entry.index+4;path=owner->loaded->identity.path;}
+                if(!slot || path.empty())throw std::logic_error("weapon motion source identity");d.construction.weaponBindings.push_back({n,slot,path,sha256(motionBytes.data,motionBytes.size)});
+            }}
         d.construction.hp=d.actorModel->hp;
         d.construction.motionSlots=u32(d.actorMotions.size());d.construction.registeredMotionSlots=u32(d.registeredMotions.size());
         d.construction.debugCallbacks=d.pMaho?d.pMaho->count():0;
         d.construction.subobjects=d.Wep && d.Body && d.Push && d.Waist && d.MotBase;
-        d.construction.modelInitialized=d.modelHandle.has_value();d.construction.blocker=e.what();
+        d.construction.modelInitialized=d.modelHandle.has_value();d.construction.blocker=error.what();
         if(d.modelHandle) {
             auto &cpu=d.models.model(*d.modelHandle);d.construction.parts=cpu.nParts;
             for(auto *info=cpu.pModelInfo;info;info=info->pList)++d.construction.modelInfos;

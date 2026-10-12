@@ -1,12 +1,26 @@
 #pragma once
 #include "object_original.h"
 #include "re4/port/effects.h"
+#include "effect_data_original.h"
 namespace re4::port {
 struct EffectDomain {
     GameplayHeaps &heaps;NativeScheduler &scheduler;ObjectRuntime &ObjMgr;
-    const std::thread::id owner=std::this_thread::get_id();
-    struct System {EffectSprite *EspArray{};u32 nEsp{},ActiveEspNum{};} system;
-    System *g_pEspSys=&system;
+    const std::thread::id frameOwner=std::this_thread::get_id();
+    using System=EffectSystemCpu;
+    EffectSystemCpu system;
+    EffectSystemCpu *g_pEspSys=&system;
+    std::array<std::shared_ptr<EffectDataFile>,NativeEffectMax> resources;
+    MessagePalette loadedTlut;
+    std::vector<std::string> resourceTrace;
+    int EspDataLoad(EffectDataFile*,u32,int);int EspDataRelease(u32,int,int);
+    MessageTexture *EspPullTexObj(u32);
+    int espTexRegist(MessageTpl*,EffectAnimation*,u8,u32);
+    int estRegist(EffectOffsets*,EffectIds*,u32);int sstRegist(EffectOffsets*,EffectIds*,u32);int pathRegist(EffectOffsets*,EffectIds*,u32);
+    int efmRegist(ResourceLease,ResourceLease,ResourceLease,ResourceLease,u8,u32);
+    int espTexRelease(u32);int estRelease(u32);int sstRelease(u32);int pathRelease(u32);int efmRelease(u32);
+    void GXLoadTlut(MessagePalette *p,u32 slot){if(!p || !p->initialized || slot)throw std::invalid_argument("effect native TLUT state");loadedTlut=*p;}
+    void recordResourceError(u32 owner){resourceTrace.push_back("original effect registration error owner="+std::to_string(owner));}
+    int loadData(ResourceLease,u32,int);int releaseData(u32,int,int);void releaseResourceViews(u32);
     EffectGenerator *EspgenArray{};u32 nEspgen{};
     GameplayHeaps::Allocation spriteArena,generatorArena;
     bool configured{};
@@ -15,7 +29,8 @@ struct EffectDomain {
     std::array<EspgenDestructFunc,0x40> EspgenDestructTbl{};
     std::array<EspgenDestructFunc,6> EspgenDestructTblApp{};
     static constexpr u32 ESPGEN_APP_ID=0x40,ESPGEN_ID_MAX=0x46;
-    struct Log {template<class... A> void warn(int,int,const char*,A...) {}} log;
+    struct Log {template<class... A> void warn(int,int,const char*,A...) {}
+        template<class... A> [[noreturn]] void err(int,int,const char *m,A...){throw std::invalid_argument(m);}} log;
     Log *pLog=&log;
     EffectDomain(GameplayHeaps &,NativeScheduler &,ObjectRuntime &);
     ~EffectDomain();

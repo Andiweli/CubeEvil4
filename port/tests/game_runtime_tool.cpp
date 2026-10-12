@@ -20,6 +20,20 @@ struct CpuPresentationProbe final:re4::port::GraphicsPresenter {
 std::string hash(re4::port::ResourceLease bytes) {
     return re4::port::sha256(bytes.data, bytes.size);
 }
+void weaponJson(const re4::port::LeonConstructionSnapshot &s){
+    const auto &w=s.weapon;const auto &e=s.weaponEffect;
+    std::cout<<"{\"read\":"<<(s.weaponRead?"true":"false")<<",\"initialized\":"<<(s.weaponInitialized?"true":"false")
+        <<",\"module\":"<<w.module<<",\"mapped_weapon\":"<<w.mappedWeapon<<",\"path\":"<<std::quoted(w.path)<<",\"source_sha256\":"<<std::quoted(w.sourceHash)
+        <<",\"body_sha256\":"<<std::quoted(w.bodyHash)<<",\"body_bytes\":"<<w.bodyBytes<<",\"sound_bytes\":"<<w.soundBytes<<",\"rel_offset\":"<<w.relOffset<<",\"rel_bytes\":"<<w.relBytes
+        <<",\"object_id\":"<<s.weaponObjectId<<",\"item_id\":"<<s.weaponItemId<<",\"parts\":"<<s.weaponParts<<",\"parent_part\":"<<s.weaponParentPart
+        <<",\"bin_sha256\":"<<std::quoted(s.weaponBinHash)<<",\"tpl_sha256\":"<<std::quoted(s.weaponTplHash)<<",\"motions\":[";
+    for(std::size_t i=0;i<s.weaponBindings.size();++i){if(i)std::cout<<',';const auto &b=s.weaponBindings[i];std::cout<<"{\"index\":"<<b.index<<",\"slot\":"<<b.slot<<",\"path\":"<<std::quoted(b.path)<<",\"sha256\":"<<std::quoted(b.hash)<<'}';}
+    std::cout<<"],\"effect\":{\"owner\":"<<e.owner<<",\"loads\":"<<e.loads<<",\"sha256\":"<<std::quoted(e.sourceHash)<<",\"est\":"<<e.estRecords<<",\"sst\":"<<e.sstRecords<<",\"paths\":"<<e.pathRecords<<",\"tex_objects\":"<<e.textureObjects<<",\"texture_ids\":[";
+    for(std::size_t i=0;i<e.textureIds.size();++i){if(i)std::cout<<',';std::cout<<e.textureIds[i];}
+    std::cout<<"],\"texture_frames\":[";for(std::size_t i=0;i<e.textureFrames.size();++i){if(i)std::cout<<',';std::cout<<e.textureFrames[i];}
+    std::cout<<"],\"model_ids\":[";for(std::size_t i=0;i<e.modelIds.size();++i){if(i)std::cout<<',';std::cout<<e.modelIds[i];}
+    std::cout<<"]}}";
+}
 // Explicit consumer diagnostics. This never substitutes Event::Init/ExePacket.
 void consumers(int argc, char **argv, bool originalEntry=true) {
     using namespace re4::port;
@@ -815,6 +829,21 @@ void messages(int argc,char **argv,bool newGame=false) {
     game.objects().configure(capacities[1]);game.effects().configurePools(capacities[2],capacities[3]);
     const auto playerIndex=indexAssetBody(pl.data,pl.size);
     auto playerSlot=[&](u32 slot){const auto &s=playerIndex.entries.at(slot-4);return ResourceLease{pl.owner,pl.data+s.offset,s.size};};
+    // Actual player EFF includes empty TPL/ANM offsets. Exercise original
+    // owner counting and release bodies without spawning any replacement FX.
+    auto playerEffects=playerSlot(0x1a);const auto effectHash=hash(playerEffects);
+    check(game.effects().loadData(playerEffects,3,0)==1,"original pl00 effect registration");
+    auto originalEffects=game.effects().dataSnapshot(3);
+    check(originalEffects.loads==1 && originalEffects.estRecords>0 && originalEffects.sourceHash==effectHash,"original pl00 effect table identity");
+    check(game.effects().loadData(playerEffects,3,0)==1 && game.effects().dataSnapshot(3).loads==2,"original shared effect reference count");
+    check(game.effects().loadData(playerEffects,3,1)==0 && game.effects().dataSnapshot(3).loads==3,"original duplicate-not-allowed still increments owner count");
+    check(game.effects().releaseData(3,1,0)==1 && game.effects().dataSnapshot(3).loads==2,"original counted effect release retains owner");
+    check(game.effects().releaseData(3,0,0)==1 && game.effects().dataSnapshot(3).loads==0,"original forced effect release clears all registrations");
+    auto badEffects=std::make_shared<std::vector<u8>>(playerEffects.data,playerEffects.data+playerEffects.size);
+    (*badEffects)[4]=255; // Out-of-resource first ID table, before publication.
+    rejects([&]{game.effects().loadData({badEffects,badEffects->data(),static_cast<u32>(badEffects->size())},3,0);});
+    check(game.effects().dataSnapshot(3).loads==0 && hash(playerEffects)==effectHash,"malformed EFF does not mutate original source or owner state");
+    rejects([&]{game.effects().loadData({pl.owner,playerEffects.data,47},3,0);});
     // The shared model owner executes original modelInit with actual pl00 BIN
     // and TPL. This is an ownership probe, not a fake weapon model assignment.
     for(int round=0;round<2;++round){
@@ -827,7 +856,18 @@ void messages(int argc,char **argv,bool newGame=false) {
     }
     // Actual preserved construction sequence in the existing player runtime,
     // using the imported pl00 owner. Expected failure is NOT actor success.
-    for(int attempt=0;attempt<2;++attempt) {
+    ss.initializeInventory();
+    execute([&]{ss.gameInit();});
+    ss.inventoryRoomInit();
+    struct WeaponCase{u8 no,type;LeonConstructionSnapshot snapshot;};std::vector<WeaponCase> weaponCases;
+    for(auto equipment:std::array<std::pair<u8,u8>,5>{{{2,0},{1,0},{3,0},{2,1},{2,0}}})for(int attempt=0;attempt<2;++attempt) {
+        // game.initialize() above reset the player cache after the earlier
+        // GameTask proof. Re-enter the original PlayerInit before each real
+        // constructor attempt, rather than manufacturing a weapon/cache pair.
+        game.player().gameInit();
+        // Explicit isolated equipped-weapon inputs; not a new-game/save-state
+        // mutation in GameTask. Selection/variants are the original functions.
+        game.state().weapon_no=equipment.first;game.state().weapon_type=equipment.second;
         auto thrown=*game.objects().create(10);auto retained=*game.objects().create(0);
         auto live=game.heaps().liveBytes();std::string actorBlocker;
         execute([&] {
@@ -835,7 +875,13 @@ void messages(int argc,char **argv,bool newGame=false) {
             try {(void)game.player().constructLeon(pl);} catch(const MissingGameConsumer &e) {actorBlocker=e.what();}
         });
         auto result=game.player().constructionSnapshot();
-        check(actorBlocker=="Original consumer unavailable: ReadWepData/owned weapon archive and native WeaponInitFunc module binding","actual Leon constructor next consumer");
+        check(actorBlocker=="Original consumer unavailable: PlClothSetLeon/PenClothSet native cloth owners, joints and collision volumes","actual Leon constructor next consumer");
+        check(result.init1Reached && result.hitboxes==5 && result.lightFlags==1,"original Neck/light/atari/Yarare init1 prefix");
+        check(result.weaponRead && result.weaponInitialized && result.weapon.loaded && result.weapon.initBound && result.weapon.moveBound && result.weapon.initialized,"actual ReadWepData, native prolog and original virtual weapon initialization");
+        check(result.weaponEffect.loads==1 && !result.weaponEffect.sourceHash.empty() && result.weaponEffect.estRecords>0,"actual original weapon EspDataLoad registration");
+        check(result.weaponParentPart==10 && result.weaponParts>0 && result.weaponMotions>0,"actual weapon virtual init/setMotion/player hand parent");
+        check(!game.player().weapons().snapshot().loaded && !game.state().pWep && !game.effects().dataSnapshot(result.weaponEffect.owner).loads,"rollback unlinks native weapon and releases exactly its effect count");
+        weaponCases.push_back({equipment.first,equipment.second,result});
         check(result.weaponReleased && game.objects().snapshot().active==1 && (game.objects().snapshot(thrown).flags&0x200),"original weaponRelease iterates live shared objects and defers thrown item destruction");
         check(game.objects().snapshot(retained).flags==0x21,"original weaponRelease retains unrelated object");
         check(!result.returnedActor && result.playerConstructor && result.subobjects && result.modelInitialized && result.rolledBack && result.schedulerTask,
@@ -849,6 +895,7 @@ void messages(int argc,char **argv,bool newGame=false) {
         check(game.objects().snapshot().occupied==0,"constructor cleanup drains original deferred objects");
     }
     const auto constructor=game.player().constructionSnapshot();
+    ss.clear();
     game.effects().clear();game.objects().clear();
     for(int round=0;round<2;++round) {
         auto handle=game.player().initializeLeonAssets(pl);auto &cpu=game.engineConsumers().model(handle);auto infos=game.player().leonModelInfos();
@@ -931,7 +978,9 @@ void messages(int argc,char **argv,bool newGame=false) {
     check(game.engineConsumers().modelCount()==0 && game.player().motionBindings().empty(),"GameRuntime reset releases original Leon assets");
     rejects([&]{game.player().initializeLeonAssets({pl.owner,pl.data,15});});
     check(game.engineConsumers().modelCount()==0,"malformed player archive did not publish model");
-    std::cout<<"],\"construction\":{\"returned_actor\":false,\"em_mgr_dispatch_bound\":false,\"player_constructor\":true,\"subobjects\":true,\"scheduler_task\":true,\"weapon_release_complete\":true,\"startUp_executed\":false,\"rolled_back\":true,\"parts\":"<<constructor.parts<<",\"model_infos\":"<<constructor.modelInfos<<",\"motion_slots\":"<<constructor.motionSlots<<",\"registered_motion_slots\":"<<constructor.registeredMotionSlots<<",\"debug_callbacks\":"<<constructor.debugCallbacks<<",\"blocker\":"<<std::quoted(constructor.blocker)<<"}},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
+    std::cout<<"],\"weapon_cases\":[";
+    for(std::size_t i=0;i<weaponCases.size();++i){if(i)std::cout<<',';auto &c=weaponCases[i];std::cout<<"{\"equipped_weapon\":"<<unsigned(c.no)<<",\"type\":"<<unsigned(c.type)<<",\"scope\":\"isolated-original-constructor\",\"weapon\":";weaponJson(c.snapshot);std::cout<<'}';}
+    std::cout<<"],\"construction\":{\"returned_actor\":false,\"em_mgr_dispatch_bound\":false,\"player_constructor\":true,\"subobjects\":true,\"scheduler_task\":true,\"weapon_release_complete\":true,\"startUp_executed\":false,\"rolled_back\":true,\"parts\":"<<constructor.parts<<",\"model_infos\":"<<constructor.modelInfos<<",\"motion_slots\":"<<constructor.motionSlots<<",\"registered_motion_slots\":"<<constructor.registeredMotionSlots<<",\"debug_callbacks\":"<<constructor.debugCallbacks<<",\"init1_reached\":"<<(constructor.init1Reached?"true":"false")<<",\"hitboxes\":"<<constructor.hitboxes<<",\"light_flags\":"<<constructor.lightFlags<<",\"blocker\":"<<std::quoted(constructor.blocker)<<"}},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
     for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
     std::cout<<"]}\n";
 }

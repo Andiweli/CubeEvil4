@@ -2,6 +2,11 @@
 #include "re4/port/objects.h"
 #include "re4_object_types.h"
 namespace re4::port {
+struct EffectDataSnapshot {
+    u32 owner{},loads{};std::string sourceHash;
+    std::vector<u32> textureIds,textureFrames,modelIds;
+    u32 estRecords{},sstRecords{},pathRecords{},textureObjects{};
+};
 struct EffectSnapshot {bool configured{};u32 sprites{},generators{},liveSprites{},pendingGenerators{};};
 // Typed lifecycle views of the named fields consumed by the original delete
 // functions. These are never full GC cEsp/cEspgen byte-layout overlays.
@@ -22,6 +27,9 @@ public:
     void configurePools(u32 sprites,u32 generators);
     void clear();
     EffectSnapshot snapshot() const;
+    int loadData(ResourceLease,u32 owner,int multipleOK);
+    int releaseData(u32 owner,int countCheck,int warn);
+    EffectDataSnapshot dataSnapshot(u32 owner) const;
     void deleteSprites(int flag,int kind,void *owner,ModelCpu *model=nullptr);
     void deleteGenerators(int flag,int kind,void *owner);
     void deleteModels(int flag,int kind,void *owner);

@@ -33,7 +33,7 @@ def generate(root, output):
     body=body.replace('cPlBody','PlayerBodyCpu').replace('cModelInfo','ModelInfoView').replace('cModel*','ModelCpu*')
     body=body.replace('u32 nowLhandNo','std::uintptr_t nowLhandNo').replace('u32 oldLhandNo','std::uintptr_t oldLhandNo')
     body=re.sub(r';(?=\s*(?://|\n))','{};',body)
-    body+='    PlayerBodyCpu(ModelCpu* model);\n    ModelCpu* modelOwner() const { return m_pMod; }\n    void setKnife(bool on);\n    void waistSet(f32);\n    void waistMove();\n    void move();\n};'
+    body+='    PlayerBodyCpu(ModelCpu* model);\n    ModelCpu* modelOwner() const { return m_pMod; }\n    void initWepHand(void*);\n    void setKnife(bool on);\n    void waistSet(f32);\n    void waistMove();\n    void move();\n};'
     ph=read('include/player.h')
     actorflag=re.search(r'    enum FLAG \{.*?\n    \};',ph,re.S)[0].replace('enum FLAG','enum PlayerActorFlag')
     maho=ph[ph.index('struct cPlMahoWork {'):ph.index('extern cPlMaho* pMaho;')]
@@ -53,15 +53,16 @@ def generate(root, output):
     base=re.sub(r';(?=\s*(?://|\n))','{};',base).replace('PlayerMotionBaseCpu(){};','PlayerMotionBaseCpu();')+'};'
     base=re.sub(r'^(    )(?!private|public)(.+?\{\};)',r'\1[[maybe_unused]] \2',base,flags=re.M)
     wep=read('include/pl_wep.h');wep=wep[wep.index('class cPlWep {'):wep.index('    f32 getAngle();')]
-    wep=wep.replace('cPlWep','PlayerWeaponCpu').replace('cObjWep*','NativeObject*')
+    wep=wep.replace('cPlWep','PlayerWeaponCpu').replace('cObjWep*','NativeWeapon*')
     wep=re.sub(r';(?=\s*(?://|\n))','{};',wep).replace('PlayerWeaponCpu(){};','PlayerWeaponCpu();')+'};'
     esp=read('include/esp.h')
     effects=[re.search(r'enum '+n+r' \{.*?\n\};',esp,re.S)[0] for n in ['ESP_OWNER','ESP_CORE_KIND']]
     types=['#pragma once','#include "re4/port/model_types.h"','#include <stdexcept>',
            '#include <functional>','namespace re4::port {','struct NativePlayerObject;',flag,enum,slot,shape,body,
-           actorflag,maho,waist,push,base,'struct NativeObject;',wep,*effects,'}']
+           actorflag,maho,waist,push,base,'struct NativeWeapon;',wep,*effects,'}']
     (output/'include/re4_player_types.h').write_text('\n'.join(types)+'\n',encoding='utf-8')
-    cpp=['#include "player_original.h"','namespace re4::port {']
+    cpp=['#include "player_original.h"',re.search(r'^#define PI [^\n]+',read('include/math_sub_decl.h'),re.M)[0],'namespace re4::port {']
+    cpp.append(re.search(r'u16 pl00_mirror\[80\] = \{.*?\n\};',read('src/game/player.cpp'),re.S)[0])
     entries=[]
     def add(path,sig,changes=(),member=True):
         src=read(path)
@@ -70,6 +71,8 @@ def generate(root, output):
         text,line=function(src.replace(sig+' {',sig+'\n{'),sig)
         for old,new in changes:
             allowed=text.count(old)==2 and old=='cPlayer::F_NO_WEP_EFF'
+            allowed |= sig.startswith('void YarareAdd(') and old=='YARARE_INFO*' and text.count(old)==2
+            allowed |= sig=='void cPlayer::init1()' and ((old=='YarareAdd(this,' and text.count(old)==4) or (old=='YAT_FLAG_ON' and text.count(old)==5))
             if not text.count(old) or (text.count(old)!=1 and not old.startswith('PL_ARC_PTR') and not allowed): raise ValueError('Player adaptation not unique: '+old)
             text=text.replace(old,new)
         if member:
@@ -119,6 +122,24 @@ def generate(root, output):
         ('push = new cPlPush(this);','pushOwner = std::make_unique<PlayerPushCpu>(actorModel.get()); push = pushOwner.get();'),
         ('Waist = new cPlWaist;','waistOwner = std::make_unique<PlayerWaistCpu>(); Waist = waistOwner.get();'),
         ('MotBase = new cMotBase;','motionBaseOwner = std::make_unique<PlayerMotionBaseCpu>(); MotBase = motionBaseOwner.get();')])
+    add('src/game/pl_class.cpp','cPlNeck::cPlNeck(cPlayer* p)', [('cPlNeck::cPlNeck(cPlayer* p)','PlayerDomain::NeckCpu::NeckCpu(PlayerDomain* p)')],member=False)
+    add('include/model.h','void SetLightIgnore()', [('void SetLightIgnore()','void ActorModelCpu::StateCpu::SetLightIgnore()'),('LFLG_IGNORE_ON','1')],member=False)
+    add('src/game/at_mod.cpp','void yarareInit0(YARARE_INFO* y, f32 x, f32 yy, f32 z, f32 w, f32 h, s16 no, u16 flags)', [('YARARE_INFO*','DamagePart*')],member=False)
+    for sig in ['void YarareInit(cEm* pEm, f32 x, f32 y, f32 z, f32 r, f32 h, s16 pno, u16 flag)',
+                'void YarareAdd(cEm* pEm, YARARE_INFO* pAt, f32 x, f32 y, f32 z, f32 r, f32 h, s16 pno, u16 flag)']:
+        changes=[('cEm*','ActorModelCpu*')]+([('YARARE_INFO*','DamagePart*')] if 'YARARE_INFO' in sig else [])
+        add('src/game/at_mod.cpp',sig,changes)
+    add('src/game/player.cpp','void cPlayer::init1()',[
+        ('    if (!VALID_PTR(pList))','    if (!VALID_PTR(actorModel->pList))'),('EmMgr.destroy(this);','throw MissingGameConsumer("EmMgr.destroy/complete native actor");'),
+        ('Neck = new cPlNeck(this);','neckOwner = std::make_unique<NeckCpu>(this); Neck = neckOwner.get();'),
+        ('be_flag |=','actorModel->be_flag |='),('ot_type =','actorModel->ot_type ='),('LightInfo.init2','actorModel->LightInfo.init2'),
+        ('State.SetLightIgnore();','actorModel->State.SetLightIgnore();'),('atari.init','actorModel->atari.init'),
+        ('lockOfs.x','actorModel->lockOfs.x'),('lockOfs.y','actorModel->lockOfs.y'),('lockOfs.z','actorModel->lockOfs.z'),('lockParts =','actorModel->lockParts ='),
+        ('YarareInit(this,','YarareInit(actorModel.get(),'),('YarareAdd(this,','YarareAdd(actorModel.get(),'),('YAT_FLAG_ON','1'),
+        ('this->pXFlip =','actorModel->pXFlip ='),('invisible_factor =','actorModel->invisible_factor ='),
+        ('Pl_func_tbl[0] = pl_R0_Move;','Pl_func_tbl[0] = [this](PlayerDomain *p) {pl_R0_Move(p);};'),
+        ('partsWorldCalc();','actorModel->partsWorldCalc();'),('Body->makeSpaeData();','makeBodyShapeData();'),
+        ('Motion.pAttachCam = (ATTACH_CAMERA*) PL_MEM_ALLOC(0x98, 510);','allocateAttachCamera();')])
     add('src/game/pl_leon.cpp','cPlLeon::cPlLeon()',[
         ('cPlLeon::cPlLeon()','void constructCharacter()'),('PlArc* arc;','void* arc;'),('arc = pG->pPlayer;','arc = subArc;'),
         ('(u32) PL_ARC_PTR(arc, 0x1A)','arcEntry(arc, 0x1A)'),('pFsdTbl = pl_fs_tbl;','bindFootShadowTable();')])
@@ -127,6 +148,9 @@ def generate(root, output):
     cpp[-1]=cpp[-1].rsplit('}',1)[0]+'    construction.weaponReleased=true;\n}'
     add('src/game/pl_class.cpp','int cPlayer::endCamera()', [('be_flag |= 2;','actorModel->be_flag |= 2;')])
     add('src/game/pl_wep.cpp','void cPlayer::weaponLoad(int wep_id, int wep_type)')
+    add('src/game/pl_wep.cpp','void cPlayer::weaponInit()',[
+        ('cPlayer::F_CROUCH','F_CROUCH'),
+        *[(name+' =', 'actorModel->'+name+' =') for name in ['r_no_0','r_no_1','r_no_2','r_no_3']]])
     for sig in ['void PlayerInit()','void PlayerLifeReset()']:
         add('src/game/player.cpp',sig,[(sig+'\n{',sig+'\n{\n    trace.push_back("'+sig.split('(')[0].split()[-1]+':original");')])
     for sig in ['void ReleaseWepData()','void InitModule(MODULE_DAT* m)']:
@@ -135,6 +159,8 @@ def generate(root, output):
         add('src/game/pl_class.cpp',sig)
     add('src/game/pl_body.cpp','cPlBody::cPlBody(cModel* model)',
         [('cPlBody::cPlBody(cModel* model)','PlayerBodyCpu::PlayerBodyCpu(ModelCpu* model)')],member=False)
+    add('src/game/pl_body.cpp','void cPlBody::initWepHand(u32 addr)',[
+        ('void cPlBody::initWepHand(u32 addr)','void PlayerBodyCpu::initWepHand(void* addr)')],member=False)
     for sig in ['void cPlBody::waistSet(f32 y)','void cPlBody::waistMove()','void cPlBody::move()']:
         add('src/game/pl_body.cpp',sig,[('cPlBody::','PlayerBodyCpu::')],member=False)
     add('include/pl_body.h','void setKnife(bool on)',

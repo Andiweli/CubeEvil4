@@ -389,6 +389,7 @@ GameRuntime::GameRuntime(std::shared_ptr<const ImportedFiles> files, PlatformGam
     : impl_(std::make_unique<Impl>(this, std::move(files), pads, disc)) {
     if (seconds)
         impl_->original.seconds = std::move(seconds);
+    impl_->player.bindWeaponModules(*this);
 }
 GameRuntime::~GameRuntime() {
     impl_->check(true);

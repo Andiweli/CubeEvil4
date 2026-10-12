@@ -77,7 +77,7 @@ class Sources(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output=Path(folder); generate_subscreen.generate(ROOT,output)
             manifest=json.loads((output/'subscreen-manifest.json').read_text())
-            self.assertEqual(len(manifest['functions']),40)
+            self.assertEqual(len(manifest['functions']),45)
             code=(output/'subscreen_control.cpp').read_text()
             for text in ['SubScreenContext::SubScreenGameInit','SubScreenAramRead();',
                          'InventoryCpu::init','InventoryCpu::search','InventoryCpu::get',

@@ -11,6 +11,7 @@ struct NativeObject : ModelCpu {
     s32 blk{};
     NativeObjectManager *manager{};
     std::optional<ConsumerHandle> modelHandle;
+    std::shared_ptr<const void> codeOwner;
     NativeObject();
     virtual ~NativeObject();
     virtual void move();
@@ -24,10 +25,28 @@ struct NativeThrown final : NativeObject { NativeFreeWepItem work{};void move() 
 struct NativeEffect4 final : NativeObject { NativeObj04Free work{};void move() override; };
 struct NativeEffect5 final : NativeObject { NativeObj05Free work{};void move() override; };
 struct NativeEffect9 final : NativeObject { NativeObj09Free work{};void move() override; };
-struct NativeWeapon final : NativeObject {
+struct PlayerDomain;
+struct WeaponDomain;
+struct NativeWeapon : NativeObject {
     NativeWeapon();
     void initializeWeapon();
     void move() override;
+    virtual void init(ModelCpu*);
+    virtual void setMotion(PlayerDomain*);
+    ModelInfoView *modelInit(void*,void*);
+    void resetMotion();
+    void motionSet(void*,u8,u16,u16,void*);
+    int motionMove();
+    void setAbility(f32,f32,f32,f32);
+    void setParent(ModelCpu*);
+    enum STAT { S_STAY=0,S_READY=1,S_FIRE=2,S_DOWN=3,S_RELOAD=4,S_DROP=5 };
+    void setStat(STAT);
+    f32 bureX{},bureY{},bureSpeedX{},bureSpeedY{};
+    u8 shotFrame[4]{};
+    u16 itemId{};
+    u8 r_no_0{},r_no_1{};
+    std::shared_ptr<WeaponDomain> weaponDomain;
+    std::shared_ptr<const void> parentOwner;
     void *motReset[2]{};
     u8 displayFlags{};
     struct Flags {
@@ -39,6 +58,9 @@ struct NativeWeapon final : NativeObject {
     ModelCpu *m_pParent{};
     u32 m_StopSeId{};
 };
+struct NativeRuger final:NativeWeapon {void init(ModelCpu*) override;void setMotion(PlayerDomain*) override;};
+struct NativeMauser final:NativeWeapon {void init(ModelCpu*) override;void setMotion(PlayerDomain*) override;};
+struct NativeFn57 final:NativeWeapon {void init(ModelCpu*) override;void setMotion(PlayerDomain*) override;};
 struct NativeObjectManager {
     GameplayHeaps &heaps;
     EngineConsumers &models;
@@ -57,6 +79,8 @@ struct NativeObjectManager {
     const char *name="cObjMgr";
     u64 identity{},epoch=1;
     bool configured{};
+    std::function<NativeObject*(NativeObject*,u32)> moduleConstruct;
+    NativeObject *constructModuleObject(NativeObject*,u32);
     NativeObjectManager(GameplayHeaps &,EngineConsumers &,NativeScheduler &);
     ~NativeObjectManager();
     void check(bool quiescent=false) const;

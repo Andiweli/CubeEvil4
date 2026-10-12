@@ -1,0 +1,22 @@
+{
+  "src/game/read.cpp": "0ef5bbee701eebc44a329c65014902ed8bdee425d4164feb514ac3ab15063772",
+  "src/game/dvd.cpp": "c7edd921ecbc59d43c4e34a7b5b4d22baa8bbc70aa922f2715089db730a72bb9",
+  "src/game/objWep.cpp": "5a98986d8cca0ea3e92410a63d1621758485d1461f58c69b4215c34da1e5b169",
+  "src/game/model.cpp": "e8bd5ee322737b65b9dcb9a3fc629a22603d1a22fcc170cdaf8f56a90cbf7a34",
+  "include/pl_wep.h": "61ad2be0ec5e5a2ab70f5954e157e2cfa381e006af8ddbc2a5ae9a0b39383647",
+  "include/wep_mod.h": "48d163e054430e4c07a4a7d9ef648789c6404aab35323a1f951715703580abc8",
+  "include/model.h": "0b5e63ccbc7ae21404527bf100e792804c495bc82f4bd417ef966ab668ac12a2",
+  "include/global.h": "12cf7d5dd385273f44bd5234fe49de62278a1642746d99b59a442c48d132773a",
+  "include/read.h": "c4ae0d746997ba445e72045f965bdd39ad51d37d9218d671e3de6e6461dc7010",
+  "src/wep01/wep01.cpp": "959cab1ee7499daab47f3fa661362ecbb2fc76f80ed8539624e013b2498cb9ed",
+  "src/wep01/objFn57.cpp": "db21853937a98e39d5482af10227d6b07a6f6fea538de79421d52ec5e7c3fbde",
+  "src/wep02/wep02.cpp": "821ed5f66fed0d780345f76ed8b77936e015f080255fb54ef38ad136af783747",
+  "src/wep02/objMauser.cpp": "ec5674f84fa4e98919e175523a6fb496948cb2161f27166b5ba222e4fc00ad90",
+  "src/wep/objRuger.cpp": "9f6c6528a9c3c62411a48c88a68e872e90bf4bb78b4841cedc9e645857cbb4f1",
+  "src/game/item.cpp": "c16fa4d43d96e2e6306e4554800e3d629d702a216afb8924e86b7b08afb6981d",
+  "include/item.h": "133be8f7ddd53e651e13bb70ce0d99d9516dcbaabadbbda42116f2b797a6e7da",
+  "src/game/eff_sys.cpp": "640b3161288ad2d94695f2cb2ca661f41da44ca57fd6915b8d07307c183fbc0b",
+  "include/espgen.h": "fa2d1babb67eac0d91ba942ff203a5f00a60ee57df1e8dc38f5e14c5f6ccc6ed",
+  "include/esp.h": "65f6c99e00dfe6639d7027102b6ddc4c922b93f17fc01c63172ba929704ad509",
+  "include/tpl.h": "a524d9a67851689ab62c6fdb4d3bdadcbafa713732afd685b92e25c002368ed2"
+}

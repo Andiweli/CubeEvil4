@@ -14,6 +14,26 @@ spec.loader.exec_module(generator)
 
 
 class Sources(unittest.TestCase):
+    def test_weapon_and_effect_original_bodies_guard(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'port/tools'))
+        from generate_weapons import generate
+        with tempfile.TemporaryDirectory() as directory:
+            out=Path(directory)/'out';generate(ROOT,out)
+            code=(out/'weapon_control.cpp').read_text();effects=(out/'effect_data_control.cpp').read_text()
+            generate(ROOT,out);self.assertEqual(code,(out/'weapon_control.cpp').read_text())
+            self.assertEqual(effects,(out/'effect_data_control.cpp').read_text())
+            self.assertIn('void PlayerDomain::ReadWepData(u32 no, u32 type)',code)
+            self.assertIn('void WeaponDomain::Wep02_init(PlayerDomain* pl)',code)
+            self.assertIn('void NativeRuger::init(ModelCpu* parent)',code)
+            self.assertIn('int EffectDomain::EspDataLoad(',effects)
+            self.assertIn('sys->ownerCnt[owner]++',effects)
+            self.assertNotIn('(u32) data',code)
+            copy=Path(directory)/'root';hashes=json.loads((ROOT/'port/config/weapon-sources.json').read_text())
+            for relative in [*hashes,'port/config/weapon-sources.json']:
+                target=copy/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/relative,target)
+            target=copy/'src/wep02/wep02.cpp';target.write_text(target.read_text()+'\n// changed source\n')
+            with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):generate(copy,Path(directory)/'bad')
     def test_object_lifecycle_bodies_and_native_stride(self):
         import sys
         sys.path.insert(0,str(ROOT/'port/tools'))
@@ -90,7 +110,7 @@ class Sources(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output=Path(directory)/'output';generate(ROOT,output)
             functions=json.loads((output/'player-manifest.json').read_text())['functions']
-            self.assertEqual(len(functions),53)
+            self.assertEqual(len(functions),61)
             signatures={f['signature'] for f in functions}
             self.assertIn('void PlayerInit()',signatures)
             self.assertIn('void cPlLeon::setModel()',signatures)

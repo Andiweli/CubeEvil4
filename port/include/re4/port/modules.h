@@ -66,6 +66,7 @@ struct NativeModuleInfo {
     std::string coverage;
     std::size_t reservations = 0;
 };
+struct NativeCallToken { std::uint64_t runtime{},epoch{};std::uint32_t module{}; };
 
 class ModuleRuntime final : public NativeModuleRegistry {
   public:
@@ -92,6 +93,9 @@ class ModuleRuntime final : public NativeModuleRegistry {
     void restartId(std::uint32_t);
     NativeModuleInfo info(std::uint32_t) const;
     void invoke(ModuleCallback);   // Reject inactive, missing, foreign and stale callbacks.
+    NativeCallToken nativeCallToken(std::uint32_t) const;
+    void callNative(NativeCallToken,const TaskEntry &);
+    std::shared_ptr<const void> borrowNativeCode(std::uint32_t);
     void resetRoom(std::uint16_t); // Quiesce tasks, release work, rotate callback lifetime.
     ResourceLease roomWorkLease(std::uint16_t) const;
     // Typed native bridge for reviewed original room bodies with resident imports.

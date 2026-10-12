@@ -1,10 +1,13 @@
 #pragma once
 #include "re4/port/consumers.h"
+#include "re4/port/weapons.h"
+#include "re4/port/effects.h"
 #include <memory>
 
 namespace re4::port {
 class GameplayHeaps;
 class ObjectRuntime;class EffectRuntime;
+class WeaponRuntime;class GameRuntime;
 // Constructor prefix only: named native cEm model/damage fields. This is not
 // a cPlayer/cPlLeon, an EM_WORK_SIZE overlay, or a published gameplay actor.
 struct ActorDamageCpu {
@@ -27,7 +30,10 @@ struct DamagePart {
     DamagePart *pList{};
 };
 struct ActorModelCpu : ModelCpu {
+    struct StateCpu {u32 m_Flag{},m_LightFlag{},m_LightNo{};f32 m_LightPow{};void SetLightIgnore();} State;
     ActorDamageCpu dmg;
+    DamagePart hitInfo;
+    Vec lockOfs{};s16 lockParts{};
     s16 hp{},hp_max{};
     ActorModelCpu();
     int initWork();
@@ -37,10 +43,18 @@ struct PlayerInitSnapshot {
     bool weaponSlotEmpty{};
 };
 struct PlayerMotionBinding { u32 motionIndex{}, archiveSlot{}; ResourceLease bytes; };
+struct WeaponMotionRecord {u32 index{},slot{};std::string path,hash;};
 struct LeonConstructionSnapshot {
     bool returnedActor{},playerConstructor{},subobjects{},modelInitialized{},rolledBack{};
     bool schedulerTask{};
     bool weaponReleased{};
+    bool weaponRead{},weaponInitialized{};
+    WeaponReadSnapshot weapon;
+    EffectDataSnapshot weaponEffect;
+    bool init1Reached{};u32 hitboxes{},lightFlags{};
+    u32 weaponObjectId{},weaponItemId{},weaponParts{},weaponMotions{},weaponParentPart{};
+    std::string weaponBinHash,weaponTplHash;
+    std::vector<WeaponMotionRecord> weaponBindings;
     s16 hp{};
     u32 motionSlots{},registeredMotionSlots{},debugCallbacks{};
     u32 parts{},modelInfos{};
@@ -60,8 +74,8 @@ public:
     void clear(); // Quiescent lifetime boundary; no reset of gameplay flags.
     PlayerInitSnapshot snapshot() const;
     const std::vector<std::string> &trace() const;
-    // Native ownership boundary for future original ReadWepData allocations.
-    // No archive loading, REL linking or weapon behavior is claimed here.
+    // Isolated allocation-boundary check; original archive reads and typed
+    // native REL callbacks use the separate shared WeaponRuntime owner.
     void *allocateWeaponData(u32 bytes, bool debugHeap = false);
     ConsumerHandle initializeLeonAssets(ResourceLease playerArchive);
     ConsumerHandle leonModel() const;
@@ -76,6 +90,8 @@ public:
     // a failed attempt does not publish a player or claim a complete actor.
     ConsumerHandle constructLeon(ResourceLease playerArchive);
     LeonConstructionSnapshot constructionSnapshot() const;
+    void bindWeaponModules(GameRuntime &);
+    WeaponRuntime &weapons();
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

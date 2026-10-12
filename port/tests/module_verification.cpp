@@ -129,6 +129,13 @@ std::string verifyModules(const std::string &directory) {
         for (const auto &d : originalModuleDefinitions()) {
             runtime.activateId(d.id);
             auto epoch = runtime.info(d.id).epoch;
+            // Isolated platform ownership test, not an executed weapon move:
+            // object vtables pin native module code independently of tasks.
+            auto call=runtime.nativeCallToken(d.id);auto code=runtime.borrowNativeCode(d.id);
+            int calls=0;runtime.callNative(call,[&]{++calls;});
+            check.test(calls==1,"native typed callback invocation");
+            check.rejects([&]{runtime.deactivateId(d.id);});
+            check.rejects([&]{runtime.stopId(d.id);});code.reset();
             runtime.activateId(d.id);
             check.test(runtime.info(d.id).epoch == epoch &&
                            runtime.info(d.id).phase == ModulePhase::Active,
@@ -142,6 +149,10 @@ std::string verifyModules(const std::string &directory) {
             check.test(runtime.info(d.id).phase == ModulePhase::Active &&
                            runtime.info(d.id).epoch == epoch,
                        "Original stage restart must retain activation identity");
+            runtime.deactivateId(d.id);
+            check.rejects([&]{runtime.callNative(call,[&]{++calls;});});
+            runtime.activateId(d.id);
+            check.rejects([&]{runtime.callNative(call,[&]{++calls;});});
             runtime.deactivateId(d.id);
         }
         const auto a = named("st1_2").fileIndex, b = named("st3_3").fileIndex;

@@ -40,6 +40,7 @@ class SubScreenRuntime final {
     void inventoryRoomInit();
     int itemSlot(const cItem *) const;
     int itemCapacity() const;
+    u16 bulletNum();
     void saveInventory(_ITEM_SAVE_DATA &);
     void loadInventory(const _ITEM_SAVE_DATA &);
     void validateInventory(const _ITEM_SAVE_DATA &) const;

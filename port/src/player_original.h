@@ -3,6 +3,7 @@
 #include "re4_player_types.h"
 #include "re4/port/objects.h"
 #include "re4/port/effects.h"
+#include "weapon_original.h"
 #include <map>
 
 namespace re4::port {
@@ -21,6 +22,17 @@ inline void memclr_asm(ShapeKey *key, std::size_t size) {
     *key=ShapeKey{};
 }
 struct PlayerDomain {
+    struct NeckCpu {
+        PlayerDomain *pl{};ActorModelCpu *m_pLastTarget{};int m_lockCtr{};u16 m_Flag{};u8 m_Mode{},pad_F{};f32 m_NeckY{};void *m_MotR{},*m_MotL{};
+        explicit NeckCpu(PlayerDomain*);
+    };
+    std::unique_ptr<NeckCpu> neckOwner;NeckCpu *Neck{};
+    DamagePart m_Yarare[10];
+    u32 m_Flag{},m_SeId{};u8 m_CmdTimer{},m_EyeMode{};
+    void *m_pEffRoom{},*m_pBoss{};int m_pSatMask{};
+    std::array<std::function<void(PlayerDomain*)>,7> Pl_func_tbl;
+    void YarareInit(ActorModelCpu*,f32,f32,f32,f32,f32,s16,u16);
+    void YarareAdd(ActorModelCpu*,DamagePart*,f32,f32,f32,f32,f32,s16,u16);
     ObjectRuntime &ObjMgr;
     EffectRuntime &effects;
     struct CameraBoundary {
@@ -79,12 +91,15 @@ struct PlayerDomain {
     PlayerMaho *pMaho{};
     bool constructing{};
     LeonConstructionSnapshot construction;
+    std::unique_ptr<WeaponRuntime> nativeWeapons;
+    std::function<void(PlayerDomain*)> WeaponInitFunc;
+    u8 m_Hokan{},m_Frame{}; // Original player.h fields, not native timing substitutes.
     struct ModelInfoFacade {
         PlayerDomain *domain;
         ModelInfoView *create(void *,void *);
     } ModInfoMgr{this};
     struct Log {
-        [[noreturn]] void err(int,int,const char *message) { throw std::runtime_error(message); }
+        template<class... A> [[noreturn]] void err(int,int,const char *message,A...) { throw std::runtime_error(message); }
         std::vector<std::string> messages;
         void mes(int,int,const char *message) { messages.emplace_back(message); }
     } log;
@@ -120,15 +135,19 @@ struct PlayerDomain {
         if(base!=archive.data) throw std::invalid_argument("player archive base owner");return arc(slot);
     }
     int endCamera();
-    [[noreturn]] void EspDataRelease(ESP_OWNER,int,int) { throw MissingGameConsumer("EspDataRelease/live effect owners"); }
+    int EspDataRelease(ESP_OWNER id,int count,int warn) {return effects.releaseData(id,count,warn);}
     void EffectEspDelete(int a,ESP_CORE_KIND b,PlayerDomain* c,int model) {if(model)throw std::invalid_argument("native player effect model selector");effects.deleteSprites(a,b,c);}
     void EffectEspgenDelete(int a,ESP_CORE_KIND b,PlayerDomain* c) {effects.deleteGenerators(a,b,c);}
     void EffectEfmDelete(int a,ESP_CORE_KIND b,PlayerDomain* c) {effects.deleteModels(a,b,c);}
     void weaponLoad(int,int);
-    [[noreturn]] void ReadWepData(int,int) {throw MissingGameConsumer("ReadWepData/owned weapon archive and native WeaponInitFunc module binding");}
-    [[noreturn]] void weaponInit() { throw MissingGameConsumer("cPlayer::weaponInit/WeaponInitFunc"); }
-    [[noreturn]] void init1() { throw MissingGameConsumer("cPlayer::init1/YarareInit/cloth/light/collision setup"); }
-    [[noreturn]] void EspDataLoad(void*,ESP_OWNER,int) { throw MissingGameConsumer("EspDataLoad/native effect data owners"); }
+    void ReadWepData(u32,u32);
+    void weaponInit();
+    void init1();
+    [[noreturn]] void initCloth(){throw MissingGameConsumer("PlClothSetLeon/PenClothSet native cloth owners, joints and collision volumes");}
+    [[noreturn]] void pl_R0_Move(PlayerDomain*){throw MissingGameConsumer("pl_R0_Move/full native player dispatch");}
+    void allocateAttachCamera(){throw MissingGameConsumer("ATTACH_CAMERA/player live camera owner");}
+    [[noreturn]] void makeBodyShapeData(){throw MissingGameConsumer("cPlBody::makeSpaeData/owned native morph data");}
+    int EspDataLoad(void *p,ESP_OWNER id,int multiple) {return effects.loadData(lease(p),id,multiple);}
     [[noreturn]] void startUp() { throw MissingGameConsumer("cPlayer::startUp/full virtual player move dependencies"); }
     [[noreturn]] void bindFootShadowTable() { throw MissingGameConsumer("cPlLeon/pl_fs_tbl foot-shadow consumer"); }
     [[noreturn]] void setPartnerPosition(ModelCpu*,Vec*) { throw MissingGameConsumer("cModel::setPos/model-bound LightInfo.updateMatrix"); }
@@ -138,7 +157,7 @@ struct PlayerDomain {
     void addModel(ModelInfoView *info) { models.model(*modelHandle).addModel(info); }
     int deleteModelInfo(ModelInfoView *info) { return models.model(*modelHandle).deleteModelInfo(info); }
     void setTevScaleGroup(int g) { models.model(*modelHandle).TevScaleGroup=static_cast<u8>(g); }
-    [[noreturn]] void DLL_Unlink(void *) { throw MissingGameConsumer("InitModule/native weapon REL binding"); }
+    void DLL_Unlink(void *p) {if(!nativeWeapons)throw MissingGameConsumer("native weapon services");nativeWeapons->domain()->unlink(p);}
     void Mem_free(void *);
     void Debug_free(void *p) { Mem_free(p); } // Same owned native heap storage, never a GC address.
     void memclr_asm(MODULE_DAT *m,std::size_t bytes) {

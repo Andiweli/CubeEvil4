@@ -15,6 +15,17 @@ get_filename_component(RE4_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 include(cmake/OriginalSources.cmake)
 re4_prepare_original_sources("${RE4_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/original")
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/weapon-sources.json" weapon_manifest)
+string(JSON weapon_count LENGTH "${weapon_manifest}")
+math(EXPR weapon_last "${weapon_count} - 1")
+foreach(index RANGE 0 ${weapon_last})
+    string(JSON weapon_source MEMBER "${weapon_manifest}" ${index})
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RE4_ROOT}/${weapon_source}")
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/weapon-sources.json" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_weapons.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_weapons.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/object-sources.json" object_manifest)
 string(JSON object_count LENGTH "${object_manifest}")
 math(EXPR object_last "${object_count} - 1")
@@ -212,7 +223,9 @@ add_library(re4_game_runtime STATIC src/game_runtime.cpp src/gameplay_heaps.cpp 
     src/id_save.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
     src/lights.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"
     src/player.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/player_control.cpp"
-    src/objects.cpp src/effects.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/object_control.cpp"
+    src/objects.cpp src/effects.cpp src/effect_data.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/object_control.cpp"
+    "${CMAKE_CURRENT_BINARY_DIR}/original/effect_data_control.cpp"
+    src/weapons.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/weapon_control.cpp"
     src/merchant.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/merchant_control.cpp"
     src/collision.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/collision_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/subscreen_control.cpp"
@@ -269,6 +282,10 @@ if(MSVC)
         PROPERTIES COMPILE_OPTIONS "/wd4244")
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/object_control.cpp"
         PROPERTIES COMPILE_OPTIONS "/wd4244")
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/weapon_control.cpp"
+        PROPERTIES COMPILE_OPTIONS "/wd4244;/wd4458;/wd4702")
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/effect_data_control.cpp"
+        PROPERTIES COMPILE_OPTIONS "/wd4244;/wd4267;/wd4702")
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/runtime_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"

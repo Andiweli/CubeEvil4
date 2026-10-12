@@ -6,6 +6,8 @@
 namespace re4::port {
 class GameplayHeaps;
 struct NativeObject;
+struct WeaponDomain;
+struct NativeObjectManager;
 struct ObjectHandle { u64 runtime{},epoch{},generation{};u32 slot{}; };
 struct ObjectSnapshot { u32 capacity{},active{},occupied{},peak{},guid{},pending{};u64 epoch{}; };
 struct ObjectWorkSnapshot { u32 flags{},guid{};u8 id{},kind{};s32 block{};bool model{}; };
@@ -42,7 +44,9 @@ public:
     const std::vector<std::string> &trace() const;
 private:
     friend class EffectRuntime;
+    friend struct WeaponDomain;
     NativeObject *checkedObject(ObjectHandle);
+    NativeObjectManager &originalManager();
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

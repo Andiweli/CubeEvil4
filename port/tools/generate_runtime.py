@@ -64,7 +64,8 @@ def generate(root, output):
         matches = re.findall(r'^\s*((?:u8|u16|u32|s8|s16|s32|f32) ' + name + r'(?:\[\d+\])?);', glob, re.M)
         if len(matches) != 1: raise ValueError('ambiguous scalar field: ' + name)
         types.append('    ' + matches[0] + '{};')
-    types += ['};', '} // namespace re4::port']
+    if not re.search(r'PlArc\* pWep\s*;',glob):raise ValueError('Original GLOBAL_WK weapon pointer changed')
+    types += ['    void *pWep{}; // Native owned weapon body, excluded from the save tail.','};', '} // namespace re4::port']
     (output/'include/re4_runtime_types.h').write_text('\n'.join(types) + '\n', encoding='utf-8')
     bodies = ['// Generated from reviewed sources. Adaptations recorded in runtime-manifest.json.',
               '#include "runtime_original.h"', '#include <cmath>', 'namespace re4::port {']

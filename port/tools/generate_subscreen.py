@@ -62,7 +62,9 @@ def generate(root, output):
                 'void cItemMgr::gameInit()', 'int cItemMgr::set_game(int trial_flag)',
                 'int cItemMgr::arm(cItem* p)', 'u16 cItemMgr::weaponId(cItem* p)',
                 'int cItemMgr::dump(ITEM_ID id)', 'int cItemMgr::dump(cItem* p)', 'void cItemMgr::erase(cItem* p)',
-                'u16 cItemMgr::num(int id, u8 type)']:
+                'u16 cItemMgr::num(int id, u8 type)', 'u16 cItemMgr::num(int id)',
+                'u16 cItemMgr::bulletNum()', 'u16 cItemMgr::bulletNumCurrent()',
+                'u16 cItemMgr::bulletNum(ITEM_ID id)', 'u16 cItemMgr::bulletNum(cItem* p)']:
         changes=[(sig, sig.replace('cItemMgr::', 'InventoryCpu::'))]
         if 'construct' in sig:
             changes.append(('asm volatile("");', '/* Codeless original PPC compiler anchor. */'))

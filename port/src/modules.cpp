@@ -98,6 +98,7 @@ struct ModuleRuntime::Impl {
         std::map<std::pair<std::uint16_t, bool>, std::unique_ptr<ModuleContext>> callContexts;
         std::set<std::uint16_t> initialized;
         std::set<std::uint16_t> savedInitialized;
+        std::shared_ptr<std::uint8_t> nativeOwners;
     };
     EngineLoader &loader;
     const std::thread::id owner = std::this_thread::get_id();
@@ -160,6 +161,8 @@ struct ModuleRuntime::Impl {
         e.context.reset();
     }
     void ensureNotUsed(std::uint32_t id) {
+        if(entry(id).nativeOwners && entry(id).nativeOwners.use_count()!=1)
+            throw std::logic_error("Module still owns live native objects");
         for (const auto &p : entries)
             if (p.first != id && p.second.info.phase != ModulePhase::Inactive &&
                 std::find(p.second.definition.activationDependencies.begin(),
@@ -242,6 +245,7 @@ void ModuleRuntime::activateId(std::uint32_t id) {
         for (auto n : order) {
             auto &e = impl_->entry(n);
             e.state = e.definition.create();
+            e.nativeOwners=std::make_shared<std::uint8_t>(std::uint8_t{});
             if (!e.state)
                 throw std::logic_error("Null native module state");
             started.push_back(n);
@@ -396,6 +400,20 @@ NativeModuleInfo ModuleRuntime::info(std::uint32_t id) const {
     auto info = e.info;
     info.reservations = e.access.allocations.size();
     return info;
+}
+NativeCallToken ModuleRuntime::nativeCallToken(std::uint32_t id) const {
+    impl_->check();const auto &e=impl_->entry(id);
+    if(e.info.phase!=ModulePhase::Active)throw std::logic_error("Inactive native function owner");
+    return {impl_->identity,e.info.epoch,id};
+}
+void ModuleRuntime::callNative(NativeCallToken h,const TaskEntry &entry) {
+    impl_->check();auto &e=impl_->entry(h.module);
+    if(h.runtime!=impl_->identity || h.epoch!=e.info.epoch || e.info.phase!=ModulePhase::Active || !entry)
+        throw std::logic_error("Stale, foreign or inactive native function");
+    impl_->loader.scheduler().callModule(e.token,entry,e.context.get());
+}
+std::shared_ptr<const void> ModuleRuntime::borrowNativeCode(std::uint32_t id) {
+    (void)nativeCallToken(id);return impl_->entry(id).nativeOwners;
 }
 std::optional<RoomCallbacks> ModuleRuntime::room(std::uint16_t id) const {
     impl_->check();

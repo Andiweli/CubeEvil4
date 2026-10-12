@@ -70,7 +70,9 @@ struct InventoryCpu {
     u16 weaponId() { return m_wep_id; }
     u16 weaponId(cItem *);
     u16 num(int,u8);
+    u16 num(int);
     int arm(cItem *);
+    u16 bulletNum();u16 bulletNumCurrent();u16 bulletNum(cItem*);u16 bulletNum(ITEM_ID);
     int dump(ITEM_ID);
     int dump(cItem *);
     void erase(cItem *);

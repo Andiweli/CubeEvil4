@@ -13,6 +13,12 @@ void NativeEffect5::move(){throw MissingGameConsumer("cObj05::move/kaboom consum
 void NativeEffect9::move(){throw MissingGameConsumer("cObj09::move/rigid body consumers");}
 NativeWeapon::NativeWeapon(){initializeWeapon();}
 void NativeWeapon::move(){throw MissingGameConsumer("cObjWep::move/native weapon virtual consumers");}
+void NativeWeapon::init(ModelCpu*){throw MissingGameConsumer("cObjWep::init/native concrete weapon");}
+void NativeWeapon::setMotion(PlayerDomain*){throw MissingGameConsumer("cObjWep::setMotion/native concrete weapon");}
+NativeObject *NativeObjectManager::constructModuleObject(NativeObject *p,u32 id){
+    if(!moduleConstruct)throw MissingGameConsumer("ObjInitFunc/native weapon module registration");
+    return moduleConstruct(p,id);
+}
 void NativeObject::releasePartsList(int){if(!manager)throw std::logic_error("object model owner absent");manager->releaseModel(this);}
 void NativeObject::releaseModelInfo(){if(modelHandle || pModelInfo)throw std::logic_error("object model release incomplete");}
 NativeObjectManager::NativeObjectManager(GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s)
@@ -84,6 +90,7 @@ std::optional<ObjectHandle> ObjectRuntime::createAt(u32 id,u32 slot){auto &m=imp
 void ObjectRuntime::destroy(ObjectHandle h,bool now){auto *p=impl_->resolve(h);if(now)impl_->manager.destroyNow(p);else impl_->manager.destroy(p);}
 void ObjectRuntime::move(ObjectHandle h){auto *p=impl_->resolve(h);if(!p->isAlive())throw std::logic_error("pending object movement");p->move();}
 NativeObject *ObjectRuntime::checkedObject(ObjectHandle h){return impl_->resolve(h);}
+NativeObjectManager &ObjectRuntime::originalManager(){impl_->manager.check();return impl_->manager;}
 void ObjectRuntime::dieCheck(){impl_->manager.check();impl_->manager.dieCheck();}
 void ObjectRuntime::destroyAll(){impl_->manager.check();impl_->manager.destroyAll();}
 ObjectSnapshot ObjectRuntime::snapshot() const {auto &m=impl_->manager;m.check();u32 active=0,occupied=0,pending=0;for(auto *p=m.pAlive;p;p=m.getNext(p))++active;for(auto *p:m.slots){occupied+=!p->isEmpty();pending+=(p->be_flag&0x600)!=0;}return {m.nArray,active,occupied,m.maxAlive,m.Guid,pending,m.epoch};}

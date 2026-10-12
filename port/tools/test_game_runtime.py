@@ -63,6 +63,8 @@ def main():
     digests.update(f['sha256'] for f in packages)
     digests.update(f['sha256'] for f in additional)
     digests.update(f['sha256'] for f in player_files.values())
+    weapon_files=[f for f in manifest['files'] if f['path'] in ['em/wep01.drs','em/wep02.drs','em/wep03.drs']]
+    digests.update(f['sha256'] for f in weapon_files)
     boot_files=[f for f in manifest['files'] if f['path'].lower() in ['etc/core.das','font/common_p.fnt','rel/sscrn.rel'] or re.fullmatch(r'font/(stage|event)\d_j\.fnt',f['path'].lower()) or f['path'].lower().startswith('ss/eng/') or f['path'].lower().startswith('ss/cmn/map_obj')]
     digests.update(f['sha256'] for f in boot_files)
     for digest in digests:
@@ -168,8 +170,40 @@ def main():
         if construction!={'returned_actor':False,'em_mgr_dispatch_bound':False,'player_constructor':True,
             'subobjects':True,'scheduler_task':True,'weapon_release_complete':True,'startUp_executed':False,'rolled_back':True,'parts':119,'model_infos':8,
             'motion_slots':109,'registered_motion_slots':12,'debug_callbacks':11,
-            'blocker':'Original consumer unavailable: ReadWepData/owned weapon archive and native WeaponInitFunc module binding'}:
+            'init1_reached':True,'hitboxes':5,'light_flags':1,
+            'blocker':'Original consumer unavailable: PlClothSetLeon/PenClothSet native cloth owners, joints and collision volumes'}:
             raise ValueError('actual preserved Leon construction prefix/blocker/rollback')
+        weapon_cases=player['weapon_cases']
+        if [(c['equipped_weapon'],c['type']) for c in weapon_cases]!=[(no,kind) for no,kind in [(2,0),(1,0),(3,0),(2,1),(2,0)] for repeat in range(2)]:
+            raise ValueError('original weapon variant/repeated lifecycle coverage')
+        for c in weapon_cases:
+            no,kind=c['equipped_weapon'],c['type'];w=c['weapon'];name={1:'wep01',2:'wep02',3:'wep03'}[no]
+            source=files[(disc,'em/'+name+'.drs')];archive=drs.Drs((data/'blobs'/source['sha256']).read_bytes())
+            # Drs.body_size includes original embedded REL; independent header
+            # and archive indices are read from the immutable imported bytes.
+            body=(data/'blobs'/source['analysis']['body_sha256']).read_bytes()
+            rel=struct.unpack_from('>I',body,4)[0];module=struct.unpack_from('>I',body,rel)[0]
+            model_slot={1:6,2:7 if kind==1 else 6,3:6}[no];bin=archive.entries[model_slot-4][1];tex=archive.entries[1][1]
+            if c['scope']!='isolated-original-constructor' or not w['read'] or not w['initialized'] or [w[k] for k in ['module','mapped_weapon','path','source_sha256','body_sha256','body_bytes','rel_offset']]!=[module,no,source['path'],source['sha256'],source['analysis']['body_sha256'],len(body),rel]:
+                raise ValueError('actual original ReadWepData/native REL prolog identity')
+            if [w[k] for k in ['object_id','item_id','parts','parent_part','bin_sha256','tpl_sha256']]!=[{1:0x32,2:0x21,3:0x27}[no],{1:0x21,2:0x24 if kind==1 else 0x23,3:0x25}[no],bin[25],10,sha(bin),sha(tex)]:
+                raise ValueError('original weapon class/model/texture/parent differs')
+            object_source={1:'src/wep01/objFn57.cpp',2:'src/wep/objRuger.cpp',3:'src/wep02/objMauser.cpp'}[no]
+            from generate_runtime import function
+            cls={1:'cObjFn57',2:'cObjRuger',3:'cObjMauser'}[no]
+            motionbody,_=function((root/object_source).read_text(),f'void {cls}::setMotion(cPlayer* pl)')
+            binding={}
+            for macro,index,slot in re.findall(r'(WEP|PLA)_MOT\(pl, (0x[0-9A-Fa-f]+), (0x[0-9A-Fa-f]+)\)',motionbody):
+                index,slot=int(index,0),int(slot,0);path=source['path'] if macro=='WEP' else 'em/pl00.drs'
+                srcarc=archive if macro=='WEP' else player_drs
+                binding[index]=dict(index=index,slot=slot,path=path,sha256=sha(srcarc.entries[slot-4][1]))
+            if w['motions']!=[binding[i] for i in sorted(binding)]:raise ValueError('original weapon/player motion reference mapping')
+            eff=archive.entries[0][1];offsets=struct.unpack_from('>12I',eff);lists=[]
+            for at in offsets[1:6]:
+                n=struct.unpack_from('>I',eff,at)[0];lists.append([struct.unpack_from('>H',eff,at+4+i*8)[0] for i in range(n)])
+            anms=offsets[7];frames=[struct.unpack_from('>H',eff,anms+struct.unpack_from('>I',eff,anms+4+4*i)[0]+8)[0] for i in range(len(lists[0]))]
+            expected_effect=dict(owner=53 if no==1 else 54,loads=1,sha256=sha(eff),est=len(lists[1]),sst=len(lists[2]),paths=len(lists[3]),tex_objects=sum(frames),texture_ids=sorted(lists[0]),texture_frames=[f for _,f in sorted(zip(lists[0],frames))],model_ids=sorted(lists[4]))
+            if w['effect']!=expected_effect:raise ValueError('original EFF owners, EST/SST/path/texture/model registration differs')
         if not player['gameTask_PlayerInit_complete'] or player['actor_constructed'] or [player[k] for k in ['life','max_life','weapon','weapon_type','flag']]!=[1200,1200,2,0,1] or player['trace']!=['PlayerInit:original','PlayerLifeReset:original','ReleaseWepData:original','InitModule:original']:
             raise ValueError('actual original PlayerInit state/order/scope')
         plfile=player_files[disc];plsource=(data/'blobs'/plfile['sha256']).read_bytes();plarc=drs.Drs(plsource)

@@ -1,9 +1,10 @@
 #include "effect_original.h"
+#include "re4/port/sha256.h"
 namespace re4::port {
 EffectDomain::EffectDomain(GameplayHeaps &h,NativeScheduler &s,ObjectRuntime &o):heaps(h),scheduler(s),ObjMgr(o){}
 EffectDomain::~EffectDomain(){for(u32 i=0;i<system.nEsp;++i)std::destroy_at(system.EspArray+i);}
 void EffectDomain::check(bool quiescent) const {
-    if(owner!=std::this_thread::get_id())throw std::logic_error("effect frame owner");
+    if(frameOwner!=std::this_thread::get_id())throw std::logic_error("effect frame owner");
     if(quiescent && (scheduler.current() || scheduler.allocatedStacks()))throw std::logic_error("effect reset requires quiescent tasks");
     if(!quiescent && !configured)throw MissingGameConsumer("Esp/Espgen native lifecycle pools not allocated");
 }
@@ -19,6 +20,7 @@ void EffectDomain::clear(){
     check(true);
     if(system.ActiveEspNum)throw std::logic_error("effect pool clear with live sprite resources");
     for(u32 i=0;i<nEspgen;++i)if((EspgenArray[i].Be_flg&1) && !(EspgenArray[i].Be_flg&2))throw std::logic_error("effect pool clear with live generator");
+    for(u32 i=0;i<NativeEffectNone;++i)if(system.ownerCnt[i]){EspDataRelease(i,0,0);releaseResourceViews(i);}
     for(u32 i=0;i<system.nEsp;++i)std::destroy_at(system.EspArray+i);
     system={};EspgenArray=nullptr;nEspgen=0;spriteArena={};generatorArena={};configured=false;
 }
@@ -38,7 +40,19 @@ EffectRuntime::EffectRuntime(GameplayHeaps &h,NativeScheduler &s,ObjectRuntime &
 EffectRuntime::~EffectRuntime()=default;
 void EffectRuntime::configurePools(u32 esp,u32 gen){impl_->domain.configure(esp,gen);}
 void EffectRuntime::clear(){impl_->domain.clear();}
-EffectSnapshot EffectRuntime::snapshot() const {auto &d=impl_->domain;if(d.owner!=std::this_thread::get_id())throw std::logic_error("effect frame owner");u32 pending=0;for(u32 i=0;i<d.nEspgen;++i)pending+=(d.EspgenArray[i].Be_flg&2)!=0;return {d.configured,d.system.nEsp,d.nEspgen,d.system.ActiveEspNum,pending};}
+EffectSnapshot EffectRuntime::snapshot() const {auto &d=impl_->domain;if(d.frameOwner!=std::this_thread::get_id())throw std::logic_error("effect frame owner");u32 pending=0;for(u32 i=0;i<d.nEspgen;++i)pending+=(d.EspgenArray[i].Be_flg&2)!=0;return {d.configured,d.system.nEsp,d.nEspgen,d.system.ActiveEspNum,pending};}
+int EffectRuntime::loadData(ResourceLease b,u32 o,int m){return impl_->domain.loadData(b,o,m);}
+int EffectRuntime::releaseData(u32 o,int c,int w){return impl_->domain.releaseData(o,c,w);}
+EffectDataSnapshot EffectRuntime::dataSnapshot(u32 id) const {
+    auto &d=impl_->domain;d.check();if(id>=NativeEffectNone)throw std::out_of_range("effect snapshot owner");
+    EffectDataSnapshot out;out.owner=id;out.loads=d.system.ownerCnt[id];auto &r=d.resources[id];
+    if(r)out.sourceHash=sha256(r->source.data,r->source.size);
+    for(u32 i=0;i<256;++i){auto &t=d.system.Esp_tex_tbl[i];if(t.Owner==id){out.textureIds.push_back(i);out.textureFrames.push_back(t.nTexObj);out.textureObjects+=t.nTexObj;}if(d.system.efmWk[i].owner==id)out.modelIds.push_back(i);}
+    if(d.system.estTbl[id].list)out.estRecords=d.system.estTbl[id].list->num;
+    if(d.system.sstTbl[id].list)out.sstRecords=d.system.sstTbl[id].list->num;
+    if(d.system.pathTbl[id].list)out.pathRecords=d.system.pathTbl[id].list->num;
+    return out;
+}
 void EffectRuntime::deleteSprites(int a,int b,void *c,ModelCpu *m){auto &d=impl_->domain;d.check();d.EffectEspDelete(a,b,c,m);}
 void EffectRuntime::deleteGenerators(int a,int b,void *c){auto &d=impl_->domain;d.check();d.rejectGeneratorDestructors(a,b,c);d.EffectEspgenDelete(a,b,c);}
 void EffectRuntime::deleteModels(int a,int b,void *c){auto &d=impl_->domain;d.check();d.EffectEfmDelete(a,b,c);}

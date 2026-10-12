@@ -72,7 +72,7 @@ def generate(root, output):
         new='place<'+supported[cls]+'>(pObj)' if cls in supported else 'unsupported(pObj,id,"'+cls+'")'
         changes.append((old,new))
     changes += [('HALT();','throw std::out_of_range("original ObjMgr ID > 0x3F");'),
-                ('ObjInitFunc[id](pObj);','unsupported(pObj,id,"ObjInitFunc/native weapon module registration");')]
+                ('ObjInitFunc[id](pObj);','pObj=constructModuleObject(pObj,id);')]
     add('src/game/obj.cpp',sig,changes)
     add('src/game/obj.cpp','int cObjMgr::construct(cObj* pObj, u32 id)',
         [('cObjMgr::construct(cObj*','NativeObjectManager::construct(NativeObject*'),
