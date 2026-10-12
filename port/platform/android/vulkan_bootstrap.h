@@ -12,6 +12,7 @@ public:
     void present(const GraphicsClear &,bool) override;
     std::string report() const;
     void loadScene(GxScene);
+    void updateSceneGeometry(GxScene); // Same topology/textures, fenced native pose upload.
     void presentScene();
     void saveSceneReadback(const std::string &rgbaPath) const;
 private:

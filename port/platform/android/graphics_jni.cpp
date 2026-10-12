@@ -1,17 +1,26 @@
 #include "vulkan_bootstrap.h"
 #include "re4/port/game_runtime.h"
+#include "re4/port/shelf_callbacks.h"
 #include <android/native_window_jni.h>
 #include <android/log.h>
 #include <chrono>
 #include <atomic>
 #include <jni.h>
 #include <map>
+#include <set>
+#include <fstream>
 namespace {
 using namespace re4::port;
 struct Domain {
     std::shared_ptr<VulkanBootstrap> presenter;
     GraphicsState graphics;
     u64 cpuSceneMicros{},gpuSceneMicros{};
+    ControllerInput callbackInput;
+    std::unique_ptr<GameRuntime> callbackGame;
+    std::unique_ptr<ShelfCallbackSession> shelf;
+    std::chrono::steady_clock::time_point shelfTick;
+    std::set<u32> shelfCaptures;
+    bool shelfFirstFrame{};
     explicit Domain(ANativeWindow *w):presenter(std::make_shared<VulkanBootstrap>(w)) {
         graphics.attach(presenter);
         graphics.setCopyClear({18,52,86,120},0x123456);
@@ -37,7 +46,14 @@ extern "C" JNIEXPORT jlong JNICALL Java_org_re4_port_GraphicsBootstrapView_nativ
     } catch(const std::exception &e) { ANativeWindow_release(window); error(env,e); return 0; }
 }
 extern "C" JNIEXPORT void JNICALL Java_org_re4_port_GraphicsBootstrapView_nativeClose(JNIEnv *env,jclass,jlong h) {
-    try { get(h); domains.erase(static_cast<u64>(h)); } catch(const std::exception &e) { error(env,e); }
+    try {
+        auto &d=get(h);
+        if(d.shelf){d.shelf.reset();
+            if(d.callbackGame->engineConsumers().modelCount()||d.callbackGame->loader().scheduler().allocatedStacks())throw std::logic_error("shelf surface retirement retains models/task stacks");
+            __android_log_print(ANDROID_LOG_INFO,"RE4Graphics","Shelf callback owner retired: models=0 stacks=0");d.callbackGame.reset();
+        }
+        domains.erase(static_cast<u64>(h));
+    } catch(const std::exception &e) { error(env,e); }
 }
 extern "C" JNIEXPORT jstring JNICALL Java_org_re4_port_GraphicsBootstrapView_nativeFrame(JNIEnv *env,jclass,jlong h,jboolean black) {
     try { auto &d=get(h); d.graphics.setBlack(black?1:0); d.graphics.present(); auto r=d.presenter->report(); return env->NewStringUTF(r.c_str()); }
@@ -77,8 +93,31 @@ extern "C" JNIEXPORT void JNICALL Java_org_re4_port_GraphicsBootstrapView_native
 extern "C" JNIEXPORT jstring JNICALL Java_org_re4_port_GraphicsBootstrapView_nativeSceneFrame(
     JNIEnv *env,jclass,jlong h,jstring output) {
     try {
-        auto &p=*get(h).presenter;p.presentScene();
-        if(output){auto *raw=env->GetStringUTFChars(output,nullptr);if(!raw)return nullptr;std::string path;try{path=raw;}catch(...){env->ReleaseStringUTFChars(output,raw);throw;}env->ReleaseStringUTFChars(output,raw);p.saveSceneReadback(path);}
-        auto report=p.report();auto &domain=get(h);report.insert(report.size()-1,",\"graphics_domains\":"+std::to_string(domains.size())+",\"cpu_scene_load_us\":"+std::to_string(domain.cpuSceneMicros)+",\"gpu_scene_setup_us\":"+std::to_string(domain.gpuSceneMicros));return env->NewStringUTF(report.c_str());
+        auto &domain=get(h);auto &p=*domain.presenter;
+        if(domain.shelf&&!domain.shelfFirstFrame&&!domain.shelf->finished()&&std::chrono::steady_clock::now()-domain.shelfTick>=std::chrono::nanoseconds(33333333)){
+            domain.shelf->tick();p.updateSceneGeometry(domain.shelf->snapshot());domain.shelfTick=std::chrono::steady_clock::now();
+        }
+        p.presentScene();
+        domain.shelfFirstFrame=false;
+        std::string evidence;
+        if(output){auto *raw=env->GetStringUTFChars(output,nullptr);if(!raw)return nullptr;std::string path;try{path=raw;}catch(...){env->ReleaseStringUTFChars(output,raw);throw;}env->ReleaseStringUTFChars(output,raw);
+            if(domain.shelf){auto tick=domain.shelf->visits();if((tick==0||tick==15||tick==30||tick==31)&&domain.shelfCaptures.insert(tick).second){evidence=path+"-tick"+std::to_string(tick);p.saveSceneReadback(evidence+".rgba");}}
+            else p.saveSceneReadback(path);
+        }
+        auto report=p.report();report.insert(report.size()-1,",\"graphics_domains\":"+std::to_string(domains.size())+",\"cpu_scene_load_us\":"+std::to_string(domain.cpuSceneMicros)+",\"gpu_scene_setup_us\":"+std::to_string(domain.gpuSceneMicros)+(domain.shelf?",\"shelf_callback\":"+domain.shelf->report():""));
+        if(!evidence.empty()){std::ofstream out(evidence+".json");out<<report;if(!out)throw std::runtime_error("cannot save shelf GPU evidence");}
+        return env->NewStringUTF(report.c_str());
     }catch(const std::exception &e){error(env,e);return nullptr;}
+}
+extern "C" JNIEXPORT void JNICALL Java_org_re4_port_GraphicsBootstrapView_nativeLoadShelf(
+    JNIEnv *env,jclass,jlong h,jstring root,jstring catalog,jint room,jint selection) {
+    try {
+        auto string=[&](jstring value){auto *p=env->GetStringUTFChars(value,nullptr);if(!p)throw std::runtime_error("JNI shelf string");std::string r;try{r=p;}catch(...){env->ReleaseStringUTFChars(value,p);throw;}env->ReleaseStringUTFChars(value,p);return r;};
+        if(room<0||room>65535||selection<0||selection>2)throw std::invalid_argument("shelf request range");
+        auto &d=get(h);d.shelf.reset();d.callbackGame.reset();
+        auto files=std::make_shared<ImportedFiles>(string(root),string(catalog));
+        d.callbackGame=std::make_unique<GameRuntime>(files,d.callbackInput,0);d.callbackGame->initialize();
+        d.shelf=std::make_unique<ShelfCallbackSession>(*d.callbackGame,u16(room),u32(selection));
+        d.presenter->loadScene(d.shelf->snapshot());d.shelf->start();d.shelfCaptures.clear();d.shelfFirstFrame=true;d.shelfTick=std::chrono::steady_clock::now();
+    }catch(const std::exception &e){error(env,e);}
 }

@@ -13,12 +13,18 @@ def generate(root, output):
     def add(path,sig,changes=()):
         body,line=function((root/path).read_text(encoding='utf-8'),sig)
         for before,after in changes:
-            if body.count(before)!=1:raise ValueError('Scroll adaptation no longer unique: '+before)
+            expected=2 if sig=='cObj* SmdGetObjPtr(u32 idx)' and before.startswith('DbgFlagChk') else 1
+            if body.count(before)!=expected:raise ValueError('Scroll adaptation count changed: '+before)
             body=body.replace(before,after)
         code.extend([f'#line {line} "{(root/path).as_posix()}"',body])
         records.append(dict(source=path,signature=sig,line=line,adaptations=[a for a,b in changes]))
     for sig in ['int cSmd::getWorkNum()']:
         add('src/game/scroll.cpp',sig)
+    sig='cObj* SmdGetObjPtr(u32 idx)'
+    add('src/game/scroll.cpp',sig,[(sig,'cObj* Domain::SmdGetObjPtr(u32 idx)'),
+        ('DbgFlagChk(pG, DBG_TEST_MODE)','debugTestMode'),
+        ('DbgFlagChk(pG, DBG_EVENT_TOOL)','debugEventTool'),
+        ('(u32) obj < 0x80000000 || (u32) obj > 0x82FFFFFF','!ObjMgr.owns(obj)')])
     add('src/game/model.cpp','inline void cModel::setNoSuspend(int onoff)',[
         ('inline void cModel::','void cObj::')])
     add('src/game/scroll.cpp','cSmdWork* cSmd::getWorkPtr(int id)',[

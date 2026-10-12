@@ -99,6 +99,8 @@ struct Domain {
     cObj *SmdGetGroupNext(cObj*);
     cObj *SmdGetGroupObjPtr2(u32);
     void checkBlockRelease(int);
+    cObj *SmdGetObjPtr(u32);
+    bool debugTestMode=false,debugEventTool=false;
     std::optional<ConsumerHandle> lightParent(u8,u16);
     void MotionSetCore(cObj*,ModelMotion*,void*,void*,int,int,int);
     void storeColor(u8*,u32);

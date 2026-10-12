@@ -489,6 +489,26 @@ VulkanBootstrap::VulkanBootstrap(ANativeWindow *window):impl_(std::make_unique<I
 VulkanBootstrap::~VulkanBootstrap()=default;
 void VulkanBootstrap::present(const GraphicsClear &c,bool b) { impl_->present(c,b); }
 void VulkanBootstrap::loadScene(GxScene s){impl_->loadScene(std::move(s));}
+void VulkanBootstrap::updateSceneGeometry(GxScene s){
+    auto &v=*impl_;if(!v.scene)throw std::logic_error("pose update without GPU scene");
+    auto &old=*v.scene;
+    if(old.indices!=s.indices||old.vertices.size()!=s.vertices.size()||old.draws.size()!=s.draws.size()||old.textures.size()!=s.textures.size()||old.materials.size()!=s.materials.size())throw std::invalid_argument("pose changes GPU topology/resources");
+    if(old.roomHash!=s.roomHash||old.smdHash!=s.smdHash)throw std::invalid_argument("pose changes original room/resource identity");
+    for(std::size_t i=0;i<s.textures.size();++i){auto &a=old.textures[i];auto &b=s.textures[i];
+        if(a.source.owner!=b.source.owner||a.source.data!=b.source.data||a.source.size!=b.source.size||a.format!=b.format||a.wrapS!=b.wrapS||a.wrapT!=b.wrapT||a.minFilter!=b.minFilter||a.magFilter!=b.magFilter||a.bias!=b.bias||a.minLod!=b.minLod||a.maxLod!=b.maxLod||a.levels.size()!=b.levels.size())throw std::invalid_argument("pose changes immutable GPU texture/sampler");
+        for(std::size_t n=0;n<a.levels.size();++n)if(a.levels[n].width!=b.levels[n].width||a.levels[n].height!=b.levels[n].height||a.levels[n].rgba!=b.levels[n].rgba)throw std::invalid_argument("pose changes uploaded GPU mip pixels");
+    }
+    for(std::size_t i=0;i<s.draws.size();++i){auto &a=old.draws[i];auto &b=s.draws[i];
+        if(a.firstIndex!=b.firstIndex||a.indexCount!=b.indexCount||a.textureBase!=b.textureBase||a.textureCount!=b.textureCount||a.blendMode!=b.blendMode||a.cull!=b.cull)throw std::invalid_argument("pose changes GPU draw bindings");
+        if(old.materials[i].textures!=s.materials[i].textures)throw std::invalid_argument("pose changes GPU descriptor bindings");
+    }
+    // presentScene waits its submission fence; still enforce completion here
+    // before touching host-coherent buffers reused by descriptors/commands.
+    ok(v.DeviceWaitIdle(v.device),"vkDeviceWaitIdle/native pose update");
+    std::memcpy(v.vertexBuffer.map,s.vertices.data(),s.vertices.size()*sizeof(GxVertex));
+    for(std::size_t i=0;i<s.materials.size();++i)std::memcpy(static_cast<u8*>(v.materialBuffer.map)+v.materialStride*i,&s.materials[i],sizeof(GxMaterialState));
+    v.scene=std::make_unique<GxScene>(std::move(s));v.sceneReport=v.scene->report();
+}
 void VulkanBootstrap::presentScene(){impl_->presentScene();}
 void VulkanBootstrap::saveSceneReadback(const std::string &path) const {
     if(!impl_->geometryFrames)throw std::logic_error("no completed geometry readback");std::ofstream out(path,std::ios::binary);out.write(static_cast<const char*>(impl_->sceneReadback.map),512*448*4);if(!out)throw std::runtime_error("cannot save GPU RGBA readback");

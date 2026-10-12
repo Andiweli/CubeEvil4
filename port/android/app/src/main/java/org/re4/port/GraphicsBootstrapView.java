@@ -27,7 +27,7 @@ public final class GraphicsBootstrapView extends SurfaceView implements SurfaceH
     private Session session;
     private volatile String report="Vulkan surface not attached";
     private String sceneRoot,sceneCatalog,sceneEvent,sceneModel="",evidenceSession="phase5a";
-    private int sceneRoom=0x120,sceneFrame,sceneCut=-1,debugView;
+    private int sceneRoom=0x120,sceneFrame,sceneCut=-1,debugView,shelfSelection=-1;
     public interface SceneObserver { void accept(String report); }
     private SceneObserver sceneObserver;
     private void configurable(){if(session!=null)throw new IllegalStateException("Configure before attaching surface");}
@@ -43,6 +43,7 @@ public final class GraphicsBootstrapView extends SurfaceView implements SurfaceH
     }
     public void configureEventModel(String name){configurable();if(name==null||!name.matches("[A-Za-z0-9_]{0,11}"))throw new IllegalArgumentException("Original event model name");sceneModel=name;}
     public void configureEventCut(int cut){configurable();if(cut< -1||cut>32767)throw new IllegalArgumentException("Original event cut");sceneCut=cut;}
+    public void configureShelf(int selection){configurable();if(selection<0||selection>2)throw new IllegalArgumentException("Original shelf selection");shelfSelection=selection;}
     private void publish(Session owner,String value){
         main.post(()->{if(session!=owner||owner.closing)return;report=value;if(sceneObserver!=null)sceneObserver.accept(value);});
     }
@@ -54,7 +55,8 @@ public final class GraphicsBootstrapView extends SurfaceView implements SurfaceH
             if(owner.closing)return;
             try{
                 owner.handle=nativeOpen(surface);
-                if(sceneRoot!=null)nativeLoadScene(owner.handle,sceneRoot,sceneCatalog,sceneRoom,sceneEvent,sceneFrame,sceneModel,sceneCut,debugView);
+                if(sceneRoot!=null){if(shelfSelection>=0)nativeLoadShelf(owner.handle,sceneRoot,sceneCatalog,sceneRoom,shelfSelection);
+                    else nativeLoadScene(owner.handle,sceneRoot,sceneCatalog,sceneRoom,sceneEvent,sceneFrame,sceneModel,sceneCut,debugView);}
                 if(!owner.closing){owner.active=true;main.post(()->{if(session==owner&&!owner.closing)Choreographer.getInstance().postFrameCallback(this);});}
             }catch(RuntimeException error){failure(owner,error);}
         });
@@ -71,7 +73,7 @@ public final class GraphicsBootstrapView extends SurfaceView implements SurfaceH
         if(!owner.pending){owner.pending=true;owner.queue.post(()->{
             try{
                 if(!owner.closing){String value=sceneRoot==null?nativeFrame(owner.handle,false):nativeSceneFrame(owner.handle,
-                    owner.frames==2?getContext().getFilesDir()+"/"+evidenceSession+"-gpu.rgba":null);++owner.frames;publish(owner,value);}
+                    shelfSelection>=0?getContext().getFilesDir()+"/"+evidenceSession+"-shelf":owner.frames==2?getContext().getFilesDir()+"/"+evidenceSession+"-gpu.rgba":null);++owner.frames;publish(owner,value);}
             }catch(RuntimeException error){failure(owner,error);}
             finally{main.post(()->owner.pending=false);}
         });}
@@ -95,4 +97,5 @@ public final class GraphicsBootstrapView extends SurfaceView implements SurfaceH
     private static native String nativeOriginalProbe(long handle,String directory);
     private static native void nativeLoadScene(long handle,String root,String catalog,int room,String event,int frame,String model,int cut,int debugView);
     private static native String nativeSceneFrame(long handle,String readback);
+    private static native void nativeLoadShelf(long handle,String root,String catalog,int room,int selection);
 }

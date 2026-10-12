@@ -2,12 +2,21 @@
 #include "re4/port/game_runtime.h"
 #include "re4/port/event_skinning.h"
 #include "re4/port/motion.h"
+#include "re4/port/shelf_callbacks.h"
 #include <fstream>
 #include <iostream>
 #include "gx_verification.h"
 int main(int argc,char **argv) {
     try {
         if(argc==2 && std::string(argv[1])=="self-test")return re4::port::verifyGxAdapters();
+        if(argc==7 && std::string(argv[1])=="shelf") {
+            using namespace re4::port;
+            auto disc=std::stoul(argv[4]),room=std::stoul(argv[5],nullptr,16),selection=std::stoul(argv[6]);
+            if(disc>1||room>65535||selection>2)throw std::invalid_argument("shelf arguments");
+            auto files=std::make_shared<ImportedFiles>(argv[2],argv[3]);ControllerInput input;
+            GameRuntime game(files,input,u8(disc));game.initialize();
+            std::cout<<verifyShelfCallbacks(game,u16(room),u32(selection))<<'\n';return 0;
+        }
         if((argc==4 || argc==6) && std::string(argv[1])=="model") {
             using namespace re4::port;
             auto bytes=[](const char *path){std::ifstream in(path,std::ios::binary|std::ios::ate);auto size=in.tellg();if(!in || size<=0 || size>64*1024*1024)throw std::invalid_argument("skin model fixture size");

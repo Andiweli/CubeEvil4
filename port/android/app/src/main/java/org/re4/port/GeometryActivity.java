@@ -26,6 +26,8 @@ public final class GeometryActivity extends Activity {
         graphics.configureDebugView(debugView);
         String model=getIntent().getStringExtra("model");graphics.configureEventModel(model==null?"":model);
         graphics.configureEventCut(getIntent().getIntExtra("cut",-1));
+        final int shelf=getIntent().getIntExtra("shelf_selection",-1);
+        if(shelf>=0)graphics.configureShelf(shelf);
         String root=getIntent().getStringExtra("root"),catalog=getIntent().getStringExtra("catalog");
         if(root==null || catalog==null)throw new IllegalArgumentException("Private imported root and catalog required");
         int room=getIntent().getIntExtra("room",0x120),frame=getIntent().getIntExtra("frame",0);
@@ -38,7 +40,8 @@ public final class GeometryActivity extends Activity {
             try(FileOutputStream out=openFileOutput(session+"-graphics.json",MODE_PRIVATE)) {
                 JSONObject evidence=new JSONObject(report);
                 JSONObject scene=evidence.getJSONObject("scene");
-                label.setText(String.format(Locale.ROOT,
+                label.setText(shelf>=0?String.format(Locale.ROOT,"DEBUG original shelf callback r%03x / selection %d\nScheduler ticks %d / returned %s / texture-only diagnostic",
+                    room,shelf,evidence.getJSONObject("shelf_callback").getInt("visits"),evidence.getJSONObject("shelf_callback").getBoolean("returned")):String.format(Locale.ROOT,
                     "DEBUG view %d / isolated render: r%03x | frame %d | model %s\nCamera: %s",
                     debugView,room,scene.getInt("frame"),scene.optString("event_model",""),scene.getString("camera")));
                 out.write(evidence.put("evidence_session",session).toString().getBytes(StandardCharsets.UTF_8));
