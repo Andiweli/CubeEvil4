@@ -81,11 +81,14 @@ struct LeonConstructionSnapshot {
     bool startUpEntered{};
     u32 virtualMoves{};
     u32 motionMoves{};
+    u32 actionSelections{},eyeMoves{},actorCollisionChecks{},pendingActions{},actionAttribute{},actionStatus{};
+    bool subScreenEnabled{};
     bool primaryMotion{},neckMotion{};
     f32 sequenceFrame{};
     u16 sequenceFrames{};
     EffectDataSnapshot playerEffect;
     Vec position{},rotation{};
+    Vec startPosition{};
     Vec lightCenter{};
     std::array<f32,12> lightInverse{};
     std::array<u8,4> routines{};

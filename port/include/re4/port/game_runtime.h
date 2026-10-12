@@ -149,6 +149,7 @@ class GameRuntime final {
     const KEY &key() const;
     const JOY &joy(std::uint8_t port = 0) const;
     GameplayHeaps &heaps();
+    u32 configurationFlags() const;
     EngineLoader &loader();
     ModuleRuntime &modules();
     EngineConsumers &engineConsumers();

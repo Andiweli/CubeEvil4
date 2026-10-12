@@ -120,6 +120,7 @@ void SubScreenRuntime::inventoryRoomInit() { impl_->c.check(); impl_->c.ItemMgr.
 int SubScreenRuntime::itemSlot(const cItem *p) const { impl_->c.check(); return impl_->c.ItemMgr.searchAt(const_cast<cItem *>(p)); }
 int SubScreenRuntime::itemCapacity() const { impl_->c.check(); return impl_->c.ItemMgr.m_array_num; }
 u16 SubScreenRuntime::bulletNum(){impl_->c.check();if(!impl_->c.inventoryReady)throw std::logic_error("inventory not ready");return impl_->c.ItemMgr.bulletNum();}
+int SubScreenRuntime::weaponReloadable(){impl_->c.check();if(!impl_->c.inventoryReady)throw std::logic_error("inventory not ready");return impl_->c.ItemMgr.reloadable();}
 void SubScreenRuntime::saveInventory(_ITEM_SAVE_DATA &d) {
     auto &c=impl_->c;c.check();if(!c.inventoryReady)throw std::logic_error("inventory not ready");
     c.ItemMgr.save(&d);

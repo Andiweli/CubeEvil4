@@ -115,6 +115,7 @@ void PlayerRuntime::releaseLeonAssets() {
     // A construction attempt has no published actor/callback borrowers. It
     // must be able to roll back on its original GameTask caller's stack.
     if((d.modelHandle || d.archive.owner) && !d.constructing) impl_->check(true);
+    if(d.actionLifetime){d.actionLifetime.reset();d.ActBtn.init();} // Retire callbacks before actor/model storage.
     if(d.Wep){
         if(d.Wep->m_pWep){d.ObjMgr.destroyNow(d.Wep->m_pWep);d.Wep->m_pWep=nullptr;}
         if(d.Wep->m_pWepHand){d.ObjMgr.destroyNow(d.Wep->m_pWepHand);d.Wep->m_pWepHand=nullptr;}
@@ -210,6 +211,11 @@ ConsumerHandle PlayerRuntime::constructLeon(ResourceLease bytes) {
     d.m_FallVec=d.m_JumpVec=d.m_ActCross=d.m_ActNorm={};d.m_ActAttr=0;
     d.constructing=true;
     try {
+        d.actionLifetime=std::make_shared<const u8>(u8(0));
+        d.ActBtn.init();
+        d.ActBtn.playerActCheck=[&d]{return d.actCheck();};
+        d.ActBtn.playerStatus=[&d]{return d.playerStatus();};
+        d.ActBtn.playerHp=[&d]{if(!d.actorModel)throw std::logic_error("ActBtn player owner retired");return d.actorModel->hp;};
         auto *actor=d.EmMgr->create(0,0);
         if(!actor || !d.modelHandle)throw std::runtime_error("original EmMgr player creation failed");
         d.constructing=false;d.construction.returnedActor=true;
@@ -223,6 +229,8 @@ ConsumerHandle PlayerRuntime::constructLeon(ResourceLease bytes) {
         d.construction.sequenceFrames=d.actorModel->Motion.Seq_frame_num;
         d.construction.position=d.actorModel->pos;d.construction.rotation=d.actorModel->ang;
         d.construction.routines={d.actorModel->r_no_0,d.actorModel->r_no_1,d.actorModel->r_no_2,d.actorModel->r_no_3};
+        d.construction.pendingActions=d.ActBtn.m_num;d.construction.actionAttribute=d.m_ActAttr;
+        d.construction.actionStatus=d.playerStatus();d.construction.subScreenEnabled=StaFlagChk(d.pG,STA_SSCRN_ENABLE)!=0;
         if(d.actorModel->pList && !d.construction.startUpEntered)d.construction.lightCenter=d.actorModel->getPartsPtr(0)->world;
         for(u32 r=0;r<3;++r)for(u32 c=0;c<4;++c)d.construction.lightInverse[r*4+c]=d.actorModel->LightInfo.imat[r][c];
         if(d.nativeWeapons)d.construction.weapon=d.nativeWeapons->snapshot();

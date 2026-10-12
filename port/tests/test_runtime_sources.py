@@ -187,4 +187,27 @@ class Sources(unittest.TestCase):
                 p=copy/source;p.write_text(p.read_text()+'\n// changed original\n')
                 with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):generate(copy,Path(folder)/'bad')
 
+    def test_original_actions_provenance_and_guard(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'port/tools'))
+        from generate_actions import generate
+        with tempfile.TemporaryDirectory() as folder:
+            out=Path(folder)/'out';generate(ROOT,out);code=(out/'actions_control.cpp').read_text()
+            generate(ROOT,out);self.assertEqual(code,(out/'actions_control.cpp').read_text())
+            entries=json.loads((out/'actions-manifest.json').read_text())['functions']
+            signatures={entry['signature'] for entry in entries}
+            for sig in ['int cPlayer::actionSelect()','void cActionButton::move()',
+                        'int cPlPush::catchCheck()','void EmAtCheck(cModel* pMod)',
+                        'SCE_AT_DATA_FIELD_INFO* SceAtCheckFieldInfo(Vec* pos)']:
+                self.assertIn(sig,signatures)
+            self.assertIn('tag = next(w)',code);self.assertIn('std::intptr_t d',code)
+            self.assertNotIn('(tag | 0x80000000)',code);self.assertNotIn('(u32) pMod',code)
+            self.assertNotIn('((cEm*) m)',code);self.assertIn('windowAction(win)',code)
+            self.assertIn('if (!scenarioInitialized)',code)
+            copy=Path(folder)/'root';config='port/config/actions-sources.json';hashes=json.loads((ROOT/config).read_text())
+            for relative in [*hashes,config]:
+                target=copy/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/relative,target)
+            source=copy/'src/game/act_btn.cpp';source.write_text(source.read_text()+'\n// original changed\n')
+            with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):generate(copy,Path(folder)/'bad')
+
 if __name__ == '__main__': unittest.main()

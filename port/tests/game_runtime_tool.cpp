@@ -831,6 +831,15 @@ void messages(int argc,char **argv,bool newGame=false) {
     auto capacities=originalRoomConstants(poolBody);
     game.objects().configure(capacities[1]);game.effects().configurePools(capacities[2],capacities[3]);
     game.player().configureActors(capacities[0]);
+    // Real common scenery prerequisites, still outside the unbound gameRoomInit
+    // body. Do not move Leon to a fabricated floor or disable original debug flags.
+    game.sat().configure(capacities[10]);game.eat().configure(capacities[11]);
+    auto collisionIndex=indexAssetBody(poolBody.data,poolBody.size);
+    for(const auto &entry:collisionIndex.entries){
+        ResourceLease block{poolBody.owner,poolBody.data+entry.offset,entry.size};
+        if(!std::memcmp(entry.tag.data(),"SAT",3))game.sat().create(block);
+        if(!std::memcmp(entry.tag.data(),"EAT",3))game.eat().create(block);
+    }
     const auto playerIndex=indexAssetBody(pl.data,pl.size);
     auto playerSlot=[&](u32 slot){const auto &s=playerIndex.entries.at(slot-4);return ResourceLease{pl.owner,pl.data+s.offset,s.size};};
     // Actual player EFF includes empty TPL/ANM offsets. Exercise original
@@ -884,12 +893,16 @@ void messages(int argc,char **argv,bool newGame=false) {
             try {(void)game.player().constructLeon(pl);} catch(const MissingGameConsumer &e) {actorBlocker=e.what();}
         });
         auto result=game.player().constructionSnapshot();
-        if(actorBlocker!="Original consumer unavailable: cPlayer::actionSelect/ActBtn and live interaction owners")throw std::runtime_error("actual Leon construction blocker: "+actorBlocker);
+        if(actorBlocker!="Original consumer unavailable: PlClothMoveLeon/PenClothMove native simulation owner")throw std::runtime_error("actual Leon construction blocker: "+actorBlocker);
+        check(result.actionSelections==1 && result.eyeMoves==1 && result.actorCollisionChecks==1,"original ActionSelect, eye and live-manager actor collision completed");
+        check(result.subScreenEnabled && result.actionStatus==1,"original action flags and PlGetStatus reflect actual idle routine");
         check(result.clothInitialized && result.bodyInitialized && result.cameraAllocated && result.startUpEntered,"whole original init1 and actual startUp entry");
         check(result.virtualMoves==1 && result.routines==std::array<u8,4>{0,0,1,1},"original native virtual move reaches original idle motion before interaction boundary");
         check(result.motionMoves==1 && result.primaryMotion && result.neckMotion && result.sequenceFrames>0 && result.sequenceFrame==f32(1u%result.sequenceFrames),"original looping idle sequence and owned primary/neck motion executed before rollback");
-        check(result.position.x==game.state().pl_pos.x && result.position.y==game.state().pl_pos.y && result.position.z==game.state().pl_pos.z && result.rotation.y==game.state().pl_ang_y,
-              "original startUp uses current native global player state, not a manufactured room start");
+        check(result.startPosition.x==game.state().pl_pos.x && result.startPosition.y==game.state().pl_pos.y && result.startPosition.z==game.state().pl_pos.z && result.rotation.y==game.state().pl_ang_y,
+              "original startUp uses current native global player state before actual SAT adjustment");
+        auto originalFloor=game.sat().getFloor(result.position,600.f,100000.f);
+        check(originalFloor!=-100000.f && std::fabs(originalFloor-result.position.y)<.001f,"actual original SAT check retains authored floor height");
         for(u32 r=0;r<3;++r){const auto &m=result.lightInverse;auto &v=result.lightCenter;
             check(std::fabs(m[r*4]*v.x+m[r*4+1]*v.y+m[r*4+2]*v.z+m[r*4+3])<.002f,"original inverse light volume maps its actual joint centre to origin");}
         check(result.cloth[0].links.size()==24 && result.cloth[1].links.empty() && result.cloth[2].links.size()==21 && result.cloth[0].volumes==6 && result.cloth[2].volumes==4,"actual costume-zero original jacket/holster/hair work order");
@@ -938,6 +951,29 @@ void messages(int argc,char **argv,bool newGame=false) {
         check(game.objects().snapshot().occupied==0,"constructor cleanup drains original deferred objects");
     }
     const auto constructor=game.player().constructionSnapshot();
+    struct ActionInputCase {const char *name;u64 on;std::array<u8,4> routines;};
+    std::vector<ActionInputCase> actionInputs;
+    input.connect(9100,0);
+    for(const auto &caseInput:std::array<std::pair<const char*,int>,3>{{{"forward",0},{"aim",1},{"knife",2}}}){
+        input.clearHeld();
+        if(!caseInput.second)input.axes(9100,0,-1,0,0,0,0,0,0);
+        else input.axes(9100,0,0,0,0,0,0,caseInput.second==2?1.f:0.f,caseInput.second==1?1.f:0.f);
+        game.tick(); // Actual central PadRead before the scheduler-owned actor constructor.
+        game.player().gameInit();game.state().Speed=originalGameplaySpeed;game.state().weapon_no=2;game.state().weapon_type=0;
+        std::string failure;
+        execute([&]{try{(void)game.player().constructLeon(pl);}catch(const MissingGameConsumer &e){failure=e.what();}});
+        const auto state=game.player().constructionSnapshot();
+        if(failure!="Original consumer unavailable: PlClothMoveLeon/PenClothMove native simulation owner")throw std::runtime_error("actual controller/ActionSelect blocker: "+failure);
+        u32 required=!caseInput.second?1:caseInput.second==1?0x10:0x800;
+        u8 selected=!caseInput.second?1:caseInput.second==1?6:0xb;
+        if(!(game.key().on&required) || state.routines!=std::array<u8,4>{0,selected,0,0}){
+            std::cerr<<"actual action input="<<caseInput.first<<" Key.on="<<game.key().on<<" rnos="<<unsigned(state.routines[0])<<','<<unsigned(state.routines[1])<<','<<unsigned(state.routines[2])<<','<<unsigned(state.routines[3])<<'\n';
+        }
+        check((game.key().on&required)!=0 && state.actionSelections==1 && state.routines==std::array<u8,4>{0,selected,0,0},"original ActionSelect consumes actual central PadRead forward/aim/knife");
+        check(state.eyeMoves==1 && state.actorCollisionChecks==1 && state.rolledBack && !game.engineConsumers().modelCount(),"defined-input original prefix retains collision and safe rollback");
+        actionInputs.push_back({caseInput.first,game.key().on,state.routines});
+    }
+    input.disconnect(9100);game.tick();
     ss.clear();
     game.effects().clear();game.objects().clear();
     for(int round=0;round<2;++round) {
@@ -1040,9 +1076,11 @@ void messages(int argc,char **argv,bool newGame=false) {
     check(game.engineConsumers().modelCount()==0 && game.player().motionBindings().empty(),"GameRuntime reset releases original Leon assets");
     rejects([&]{game.player().initializeLeonAssets({pl.owner,pl.data,15});});
     check(game.engineConsumers().modelCount()==0,"malformed player archive did not publish model");
+    std::cout<<"],\"action_inputs\":[";
+    for(std::size_t i=0;i<actionInputs.size();++i){if(i)std::cout<<',';const auto &a=actionInputs[i];std::cout<<"{\"name\":"<<std::quoted(a.name)<<",\"key_on\":"<<a.on<<",\"routines\":["<<unsigned(a.routines[0])<<','<<unsigned(a.routines[1])<<','<<unsigned(a.routines[2])<<','<<unsigned(a.routines[3])<<"],\"scope\":\"isolated-PadRead-original-ActionSelect-prefix\"}";}
     std::cout<<"],\"weapon_cases\":[";
     for(std::size_t i=0;i<weaponCases.size();++i){if(i)std::cout<<',';auto &c=weaponCases[i];std::cout<<"{\"equipped_weapon\":"<<unsigned(c.no)<<",\"type\":"<<unsigned(c.type)<<",\"scope\":\"isolated-original-constructor\",\"weapon\":";weaponJson(c.snapshot);std::cout<<'}';}
-    std::cout<<"],\"cloth_body\":{\"cloth_initialized\":"<<(constructor.clothInitialized?"true":"false")<<",\"body_initialized\":"<<(constructor.bodyInitialized?"true":"false")<<",\"camera_allocated\":"<<(constructor.cameraAllocated?"true":"false")<<",\"startUp_entered\":"<<(constructor.startUpEntered?"true":"false")<<",\"links\":["<<constructor.cloth[0].links.size()<<","<<constructor.cloth[1].links.size()<<","<<constructor.cloth[2].links.size()<<"],\"volumes\":["<<constructor.cloth[0].volumes<<","<<constructor.cloth[1].volumes<<","<<constructor.cloth[2].volumes<<"],\"length_max_abs_error\":"<<std::setprecision(9)<<clothLengthError<<",\"normal_max_abs_error\":"<<clothNormalError<<std::setprecision(6)<<",\"player_effect_sha256\":"<<std::quoted(constructor.playerEffect.sourceHash)<<",\"simulation_executed\":false},\"construction\":{\"returned_actor\":false,\"em_mgr_dispatch_bound\":true,\"player_constructor\":true,\"subobjects\":true,\"scheduler_task\":true,\"weapon_release_complete\":true,\"virtual_moves\":"<<constructor.virtualMoves<<",\"motion_moves\":"<<constructor.motionMoves<<",\"primary_motion\":"<<(constructor.primaryMotion?"true":"false")<<",\"neck_motion\":"<<(constructor.neckMotion?"true":"false")<<",\"sequence_frames\":"<<constructor.sequenceFrames<<",\"sequence_frame\":"<<constructor.sequenceFrame<<",\"startUp_executed\":false,\"rolled_back\":true,\"parts\":"<<constructor.parts<<",\"model_infos\":"<<constructor.modelInfos<<",\"motion_slots\":"<<constructor.motionSlots<<",\"registered_motion_slots\":"<<constructor.registeredMotionSlots<<",\"debug_callbacks\":"<<constructor.debugCallbacks<<",\"init1_reached\":"<<(constructor.init1Reached?"true":"false")<<",\"hitboxes\":"<<constructor.hitboxes<<",\"light_flags\":"<<constructor.lightFlags<<",\"blocker\":"<<std::quoted(constructor.blocker)<<"}},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
+    std::cout<<"],\"cloth_body\":{\"cloth_initialized\":"<<(constructor.clothInitialized?"true":"false")<<",\"body_initialized\":"<<(constructor.bodyInitialized?"true":"false")<<",\"camera_allocated\":"<<(constructor.cameraAllocated?"true":"false")<<",\"startUp_entered\":"<<(constructor.startUpEntered?"true":"false")<<",\"links\":["<<constructor.cloth[0].links.size()<<","<<constructor.cloth[1].links.size()<<","<<constructor.cloth[2].links.size()<<"],\"volumes\":["<<constructor.cloth[0].volumes<<","<<constructor.cloth[1].volumes<<","<<constructor.cloth[2].volumes<<"],\"length_max_abs_error\":"<<std::setprecision(9)<<clothLengthError<<",\"normal_max_abs_error\":"<<clothNormalError<<std::setprecision(6)<<",\"player_effect_sha256\":"<<std::quoted(constructor.playerEffect.sourceHash)<<",\"simulation_executed\":false},\"construction\":{\"returned_actor\":false,\"em_mgr_dispatch_bound\":true,\"player_constructor\":true,\"subobjects\":true,\"scheduler_task\":true,\"weapon_release_complete\":true,\"virtual_moves\":"<<constructor.virtualMoves<<",\"motion_moves\":"<<constructor.motionMoves<<",\"action_selections\":"<<constructor.actionSelections<<",\"eye_moves\":"<<constructor.eyeMoves<<",\"actor_collision_checks\":"<<constructor.actorCollisionChecks<<",\"pending_actions\":"<<constructor.pendingActions<<",\"action_attribute\":"<<constructor.actionAttribute<<",\"action_status\":"<<constructor.actionStatus<<",\"subscreen_enabled\":"<<(constructor.subScreenEnabled?"true":"false")<<",\"floor_y\":"<<constructor.position.y<<",\"primary_motion\":"<<(constructor.primaryMotion?"true":"false")<<",\"neck_motion\":"<<(constructor.neckMotion?"true":"false")<<",\"sequence_frames\":"<<constructor.sequenceFrames<<",\"sequence_frame\":"<<constructor.sequenceFrame<<",\"startUp_executed\":false,\"rolled_back\":true,\"parts\":"<<constructor.parts<<",\"model_infos\":"<<constructor.modelInfos<<",\"motion_slots\":"<<constructor.motionSlots<<",\"registered_motion_slots\":"<<constructor.registeredMotionSlots<<",\"debug_callbacks\":"<<constructor.debugCallbacks<<",\"init1_reached\":"<<(constructor.init1Reached?"true":"false")<<",\"hitboxes\":"<<constructor.hitboxes<<",\"light_flags\":"<<constructor.lightFlags<<",\"blocker\":"<<std::quoted(constructor.blocker)<<"}},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
     for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
     std::cout<<"]}\n";
 }

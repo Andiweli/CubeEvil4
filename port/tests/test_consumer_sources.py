@@ -77,12 +77,13 @@ class Sources(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output=Path(folder); generate_subscreen.generate(ROOT,output)
             manifest=json.loads((output/'subscreen-manifest.json').read_text())
-            self.assertEqual(len(manifest['functions']),45)
+            self.assertEqual(len(manifest['functions']),48)
             code=(output/'subscreen_control.cpp').read_text()
             for text in ['SubScreenContext::SubScreenGameInit','SubScreenAramRead();',
                          'InventoryCpu::init','InventoryCpu::search','InventoryCpu::get',
                          'int MapManagerCpu::roomInit()', 'void mapAreaFilename(int area, char* name)',
-                         'p->isAlive(m_char)', 'wk->pFreeOffs += size;']:
+                         'p->isAlive(m_char)', 'wk->pFreeOffs += size;',
+                         'InventoryCpu::reloadable()', 'InventoryCpu::WeaponId2BulletId(']:
                 self.assertIn(text,code)
             self.assertNotIn('(void**) &wk->p_module',code)
             self.assertIn('allocateOrders(m_array_num)',code)

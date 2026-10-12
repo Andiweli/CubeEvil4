@@ -41,6 +41,7 @@ class SubScreenRuntime final {
     int itemSlot(const cItem *) const;
     int itemCapacity() const;
     u16 bulletNum();
+    int weaponReloadable(); // Original inventory/weapon query; no synthesized ammo.
     void saveInventory(_ITEM_SAVE_DATA &);
     void loadInventory(const _ITEM_SAVE_DATA &);
     void validateInventory(const _ITEM_SAVE_DATA &) const;

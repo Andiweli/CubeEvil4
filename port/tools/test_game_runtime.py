@@ -166,6 +166,11 @@ def main():
         if actual['merchant_boot']!={'original_complete':True,'friendship':50,'character_bound':False} or actual['game_init']!={'original_complete':True,'next_state':1,'presentation':'isolated_CPU_recording_probe','new_game_inventory_branch':new_game}:
             raise ValueError('original Merchant/gameInit execution scope')
         player=actual['player']
+        inputs=player['action_inputs']
+        if len(inputs)!=3:raise ValueError('defined central PadRead input coverage')
+        for case,(name,mask,routine) in zip(inputs,[('forward',1,1),('aim',0x10,6),('knife',0x800,11)]):
+            if case['name']!=name or not case['key_on']&mask or case['routines']!=[0,routine,0,0] or case['scope']!='isolated-PadRead-original-ActionSelect-prefix':
+                raise ValueError('actual original ActionSelect/controller decision')
         construction=player['construction']
         idle_binding=next(b for b in player['weapon_cases'][-1]['weapon']['motions'] if b['index']==1)
         idle_file=files[(disc,idle_binding['path'])]
@@ -173,15 +178,23 @@ def main():
         idle_sequence=fcv.parse_seq(idle_archive.entries[idle_binding['slot']-4][1])
         idle_count=len(idle_sequence.keys)
         if construction!={'returned_actor':False,'em_mgr_dispatch_bound':True,'player_constructor':True,
-            'subobjects':True,'scheduler_task':True,'weapon_release_complete':True,'virtual_moves':1,'motion_moves':1,'primary_motion':True,'neck_motion':True,'sequence_frames':idle_count,'sequence_frame':1%idle_count,'startUp_executed':False,'rolled_back':True,'parts':119,'model_infos':8,
+            'subobjects':True,'scheduler_task':True,'weapon_release_complete':True,'virtual_moves':1,'motion_moves':1,'action_selections':1,'eye_moves':1,'actor_collision_checks':1,'pending_actions':0,'action_attribute':0,'action_status':1,'subscreen_enabled':True,'floor_y':construction['floor_y'],'primary_motion':True,'neck_motion':True,'sequence_frames':idle_count,'sequence_frame':1%idle_count,'startUp_executed':False,'rolled_back':True,'parts':119,'model_infos':8,
             'motion_slots':109,'registered_motion_slots':12,'debug_callbacks':11,
             'init1_reached':True,'hitboxes':5,'light_flags':1,
-            'blocker':'Original consumer unavailable: cPlayer::actionSelect/ActBtn and live interaction owners'}:
+            'blocker':'Original consumer unavailable: PlClothMoveLeon/PenClothMove native simulation owner'}:
             raise ValueError('actual preserved Leon construction prefix/blocker/rollback')
         proof=player['cloth_body']
         if any(proof[k] is not True for k in ['cloth_initialized','body_initialized','camera_allocated','startUp_entered']) or proof['simulation_executed'] or proof['links']!=[24,0,21] or proof['volumes']!=[6,0,4]:
             raise ValueError('original init1 Cloth/Body/attach-camera execution scope')
         import math
+        from test_collision import parse as collision_parse,oracle as collision_oracle
+        room_file=files[(actual['game_stage_init']['disc_after'],'st1/r120.das')]
+        room_bytes=(data/'blobs'/room_file['analysis']['body_sha256']).read_bytes()
+        sat_entry=next(e for e in room_file['analysis']['entries'] if e['tag']=='SAT')
+        sat_bytes=room_bytes[sat_entry['offset']:sat_entry['offset']+sat_entry['size']]
+        ground=collision_oracle(collision_parse(sat_bytes),[0.,600.,0.],[0.,-100000.,0.],64,0,False)
+        if not ground['attribute'] or not math.isfinite(construction['floor_y']) or abs(construction['floor_y']-ground['point'][1])>.002:
+            raise ValueError('original r120 SAT floor differs from independent triangle reference at original zero start input')
         if not 0<=proof['length_max_abs_error']<=.002 or not 0<=proof['normal_max_abs_error']<=.000005 or not all(math.isfinite(proof[k]) for k in ['length_max_abs_error','normal_max_abs_error']):
             raise ValueError('cloth differs from independent scalar reference')
         player_archive=drs.Drs((data/'blobs'/player_files[disc]['sha256']).read_bytes())
@@ -247,6 +260,7 @@ def main():
         stable=json.loads(json.dumps(stable))
         stable['player']['cloth_body'].pop('length_max_abs_error')
         stable['player']['cloth_body'].pop('normal_max_abs_error')
+        stable['player']['construction'].pop('floor_y') # Separately checked numeric SAT residual, not an ABI-dependent action state.
         return sha(json.dumps(stable,sort_keys=True).encode())
     def verify_lights(actual,disc,bits,expected):
         import struct

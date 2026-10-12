@@ -40,6 +40,7 @@ struct NativeWeapon : NativeObject {
     void move() override;
     virtual void init(ModelCpu*);
     virtual void setMotion(PlayerDomain*);
+    virtual int keyKamae(const KEY &);
     ModelInfoView *modelInit(void*,void*);
     void resetMotion();
     void motionSet(void*,u8,u16,u16,void*);

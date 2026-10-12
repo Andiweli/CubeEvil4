@@ -44,10 +44,10 @@ def generate(root, output):
     waist=ph[ph.index('class cPlWaist {'):ph.index('// Three-way motion blend')].replace('cPlWaist','PlayerWaistCpu')
     waist=waist.replace('Vec m_Ang;','Vec m_Ang{};')
     push=read('include/pl_push.h');push=push[push.index('class cPlPush {'):push.index('    void getWHY(')]
-    push=push.replace('cPlPush','PlayerPushCpu').replace('cPlayer*','ModelCpu*').replace('cEmRack*','void*')
+    push=push.replace('cPlPush','PlayerPushCpu').replace('cPlayer*','ModelCpu*').replace('cEmRack*','NativeEmActor*')
     push=re.sub(r';(?=\s*(?://|\n))','{};',push)
     push=re.sub(r'^(    )(?!private|public)(.+?\{\};)',r'\1[[maybe_unused]] \2',push,flags=re.M)
-    push+='public:\n    PlayerPushCpu(ModelCpu* pl);\n};'
+    push+='public:\n    PlayerPushCpu(ModelCpu* pl);\n    friend struct PlayerDomain;\n};'
     base=read('include/cMotBase.h');base=base[base.index('class cMotBase {'):base.index('    void set(')]
     base=base.replace('cMotBase','PlayerMotionBaseCpu').replace('cModel*','ModelCpu*')
     base=re.sub(r';(?=\s*(?://|\n))','{};',base).replace('PlayerMotionBaseCpu(){};','PlayerMotionBaseCpu();')
@@ -60,7 +60,7 @@ def generate(root, output):
     effects=[re.search(r'enum '+n+r' \{.*?\n\};',esp,re.S)[0] for n in ['ESP_OWNER','ESP_CORE_KIND']]
     types=['#pragma once','#include "re4/port/model_types.h"','#include <stdexcept>',
            '#include <functional>','namespace re4::port {','struct NativePlayerObject;',flag,enum,slot,shape,body,
-           actorflag,maho,waist,push,base,'struct NativeWeapon;',wep,*effects,'}']
+           actorflag,maho,waist,'struct NativeEmActor;',push,base,'struct NativeWeapon;',wep,*effects,'}']
     (output/'include/re4_player_types.h').write_text('\n'.join(types)+'\n',encoding='utf-8')
     cpp=['#include "player_original.h"',re.search(r'^#define PI [^\n]+',read('include/math_sub_decl.h'),re.M)[0],'namespace re4::port {']
     cpp.append(re.search(r'u16 pl00_mirror\[80\] = \{.*?\n\};',read('src/game/player.cpp'),re.S)[0])
@@ -157,7 +157,7 @@ def generate(root, output):
         ('(u32) PL_ARC_PTR(arc, 0x1A)','arcEntry(arc, 0x1A)'),('pFsdTbl = pl_fs_tbl;','bindFootShadowTable();')])
     add('src/game/player.cpp','void cPlayer::startUp()',[
         ('    be_flag |=','    construction.startUpEntered=true;\n    actorModel->be_flag |='),
-        ('ang.y =','actorModel->ang.y ='),('setPos(&pG->pl_pos);','actorModel->setPos(&pG->pl_pos);\n    construction.lightCenter=actorModel->getPartsPtr(0)->world;'),
+        ('ang.y =','actorModel->ang.y ='),('setPos(&pG->pl_pos);','actorModel->setPos(&pG->pl_pos);\n    construction.startPosition=actorModel->pos;\n    construction.lightCenter=actorModel->getPartsPtr(0)->world;'),
         ('matUpdate();','actorModel->matUpdate();'),('setRno(0, 0, 0, 1);','actorModel->setRno(0, 0, 0, 1);')])
     add('src/game/pl_wep.cpp','void cPlayer::weaponRelease()', [('cPlayer::F_NO_WEP_EFF','F_NO_WEP_EFF'),('objCur->id','ObjMgr.id(objCur)')])
     # Completion is recorded only after the full preserved release body returned.

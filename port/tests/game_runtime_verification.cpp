@@ -4,6 +4,8 @@
 #include "light_parent_verification.h"
 #include "../src/cloth_original.h"
 #include "../src/damage_original.h"
+#include "../src/action_original.h"
+#include "../src/player_live_original.h"
 #include "re4/port/game_runtime.h"
 #include "re4/port/sha256.h"
 #include "re4_scheduler_original.h"
@@ -37,6 +39,76 @@ struct Checks {
         test(rejected, why);
     }
 };
+// Isolated adapters supply actor/status and prompt sinks. The manager's work
+// pool, OT traversal, key/status decisions and dispatch are original bodies.
+void actionTests(Checks &c,GameRuntime &game){
+    NativeGameState state;KEY key{};ActionManager actions(state,key,game.loader().scheduler());
+    auto life=std::make_shared<const u8>(u8(0));std::vector<int> calls;
+    actions.playerHp=[] {return s16(100);};actions.playerActCheck=[] {return 1;};actions.playerStatus=[] {return u32(1);};
+    u8 display=255;actions.displayFlag=[&](u8 flag){display=flag;};
+    actions.init();key.on=key.trg=0x80000;
+    const std::intptr_t wide=sizeof(void*)==8?std::intptr_t(std::uint64_t(0x1234567887654321)):std::intptr_t(0x7654321);
+    int argument=17;
+    auto callback=[&](int mark){return ActionCallback{[&,mark](void *a,std::intptr_t d){c.test(a==&argument && d==wide,"typed original action arguments retain native width");calls.push_back(mark);},life,{},{}};};
+    auto offer=[&](int mark,int slot,int flags=ACTCTR_ENFORCE_EXEC|ACTCTR_NO_DISP,int type=ACT_FUNC_NORMAL){actions.set(ACT_CHECK,slot,callback(mark),&argument,flags,DISP_A_NORMAL,type,wide);};
+    offer(1,2);offer(2,2);offer(3,6);actions.move();
+    c.test(calls==std::vector<int>{3} && display==0 && actions.m_num==0,"original reverse OT highest priority and per-frame cleanup");
+    calls.clear();offer(1,2);offer(2,2);actions.move();c.test(calls==std::vector<int>{2},"original same-slot LIFO insertion");
+    calls.clear();actions.playerActCheck=[] {return 0;};offer(1,2);offer(2,6,ACTCTR_NO_DISP);actions.move();
+    c.test(calls==std::vector<int>{1},"original invalid high action falls through OT bucket links");actions.playerActCheck=[] {return 1;};
+    calls.clear();offer(1,2);offer(2,6,ACTCTR_NO_EXEC|ACTCTR_NO_DISP);actions.move();c.test(calls.empty(),"original NO_EXEC terminates selection");
+    offer(1,2,ACTCTR_ENFORCE_EXEC|ACTCTR_EXACT_KEY|ACTCTR_NO_DISP);key.on=key.trg=0xc0000;actions.move();c.test(calls.empty(),"original exact action rejects extra button");
+    key.on=key.trg=0x80000;offer(1,2);actions.playerHp=[] {return s16(0);};actions.move();c.test(calls.empty(),"original dead player action refusal");actions.playerHp=[] {return s16(100);};
+    actions.playerStatus=[] {return u32(0x10);};offer(1,2,ACTCTR_WEP_SET_IGNORE|ACTCTR_NO_DISP|ACTCTR_ENFORCE_EXEC);
+    c.test((state.Status_flg[STA_ACT_DONT_FIRE/32]&(0x80000000u>>(STA_ACT_DONT_FIRE%32)))!=0,"original set marks weapon ignore before move");
+    actions.move();c.test(calls==std::vector<int>{1},"original aiming action WEP_SET_IGNORE");actions.playerStatus=[] {return u32(1);};calls.clear();
+    for(int i=0;i<9;++i)offer(i,2);c.test(actions.m_num==8,"original eight-work pool exhaustion does not grow pool");actions.move();c.test(calls==std::vector<int>{7},"original last available work wins");calls.clear();
+    auto stale=callback(10);offer(4,2);life.reset();c.rejects([&]{actions.move();},"retired action owner never invokes callback");c.test(actions.m_num==0,"exception releases original offered works");c.rejects([&]{stale.invoke(&argument,wide);},"copied stale callback remains invalid after reset");
+    life=std::make_shared<const u8>(u8(1));stale={};
+    auto &scheduler=game.loader().scheduler();int visits=0;
+    actions.set(ACT_CHECK,2,{[&](void *a,std::intptr_t d){c.test(a==&argument && d==wide,"stackful action arguments");++visits;scheduler.sleep(1);++visits;},life,{},{}},&argument,ACTCTR_ENFORCE_EXEC|ACTCTR_NO_DISP,DISP_A_NORMAL,ACT_FUNC_SCE,wide);
+    actions.move();scheduler.runScenarios();c.test(visits==1,"original scenario action suspends with task stack");scheduler.runScenarios();scheduler.runScenarios();c.test(visits==2 && !scheduler.allocatedStacks(),"original scenario action resumes and releases callback");
+    auto cancelledLife=std::make_shared<const u8>(u8(2));std::weak_ptr<const void> observed=cancelledLife;
+    actions.set(ACT_CHECK,2,{[&](void*,std::intptr_t){scheduler.sleep(10);throw std::logic_error("cancelled action resumed");},cancelledLife,{},{}},nullptr,ACTCTR_ENFORCE_EXEC|ACTCTR_NO_DISP,DISP_A_NORMAL,ACT_FUNC_SCE);
+    actions.move();scheduler.runScenarios();scheduler.killScenarios();cancelledLife.reset();c.test(observed.expired() && !scheduler.allocatedStacks(),"action cancellation releases captures without stack-local ownership pins");
+    offer(1,2,ACTCTR_ENFORCE_EXEC);c.rejects([&]{actions.move();},"unbound original prompt renderer is explicit");
+    actions.set(ACT_CHECK,2,callback(5),&argument,ACTCTR_ENFORCE_EXEC|ACTCTR_NO_DISP,DISP_A_NORMAL,ACT_FUNC_SCE_AT,wide);
+    c.rejects([&]{actions.move();},"unbound scenario exec flags are explicit");
+    c.rejects([&]{offer(1,16);},"native action OT slot bounds");
+    ActionManager::ACT_WORK foreign;c.rejects([&]{actions.addWork(2,&foreign);},"foreign action work is rejected without pointer subtraction");
+    auto module=scheduler.createModuleLifetime();auto moduleCallback=callback(12);moduleCallback.module=module;
+    c.rejects([&]{actions.set(ACT_CHECK,2,moduleCallback,nullptr,0,DISP_A_NORMAL,ACT_FUNC_NORMAL);},"unbound direct module callback cannot lose code lifetime");
+    calls.clear();actions.set(ACT_CHECK,2,moduleCallback,&argument,ACTCTR_ENFORCE_EXEC|ACTCTR_NO_DISP,DISP_A_NORMAL,ACT_FUNC_SCE,wide);
+    actions.move();c.test(scheduler.invalidateModule(module),"action scenario task participates in actual module invalidation");scheduler.runScenarios();c.test(calls.empty() && !scheduler.allocatedStacks(),"invalidated module action never invokes retired code");
+    // Original actor kernels, including the donor's authored-face/box boundary
+    // cases; these numeric objects are not gameplay actors or room resources.
+    std::array<ModelCpu,2> models;auto &a=models[0];auto &b=models[1];a.atari.m_height=b.atari.m_height=2;
+    a.atari.m_radius2=b.atari.m_radius2=1;a.atari.m_Pos={0,0,0};b.atari.m_Pos={1,0,0};a.pos=a.atari.m_Pos;b.pos=b.atari.m_Pos;
+    b.atari.m_flag=8;c.test(action_collision::At_em_sphere_sphere_ck(&a,&b)==1 && a.pos.x==-1 && b.pos.x==1,"original sphere priority preserves target and separates player");
+    a.pos=a.atari.m_Pos={0,5,0};b.pos=b.atari.m_Pos={1,0,0};c.test(!action_collision::At_em_sphere_sphere_ck(&a,&b),"original sphere vertical rejection");
+    a.pos=a.atari.m_Pos={0,0,0};b.pos=b.atari.m_Pos={2,0,0};c.test(!action_collision::At_em_sphere_sphere_ck(&a,&b),"original tangent spheres do not collide");
+    Vec box[4]={{1,0,1},{1,0,-1},{-1,0,-1},{-1,0,1}},edge{1,0,0},outside{1.01f,0,0};
+    c.test(action_collision::At_rect_point_ck(box,&edge) && !action_collision::At_rect_point_ck(box,&outside),"original inclusive box edge; no preview safety margin");
+    // Actual resident gameplay callbacks on an explicitly isolated typed work
+    // fixture. This is not a published Leon actor or a room interaction test.
+    u8 pad=0;PlayerDomain player(state,key,pad,game.heaps(),game.engineConsumers(),scheduler,game.objects(),game.effects());
+    player.actorModel=std::make_shared<ActorModelCpu>();player.pPL=player.actorModel.get();player.actorModel->hp=100;
+    player.actionLifetime=life;player.ActBtn.init();player.ActBtn.displayFlag=[](u8){};
+    player.ActBtn.playerHp=[&]{return player.actorModel->hp;};player.ActBtn.playerActCheck=[&]{return player.actCheck();};player.ActBtn.playerStatus=[&]{return player.playerStatus();};
+    const std::array<std::pair<void(PlayerDomain::*)(),u8>,8> callbacks{{{&PlayerDomain::holdOn,9},{&PlayerDomain::fallOn,14},
+        {&PlayerDomain::levelUpOn,7},{&PlayerDomain::levelDownOn,8},{&PlayerDomain::level2UpOn,7},{&PlayerDomain::level2DownOn,8},
+        {&PlayerDomain::fanceOn,12},{&PlayerDomain::jumpFallOn,19}}};
+    for(const auto &cb:callbacks){
+        player.actorModel->setRno(0,0,0,0);player.m_Work0=1;player.m_JumpVec={1,0,0};player.actorModel->ang.y=0;
+        player.ActBtn.set(ACT_CHECK,2,player.actionCallback(cb.first),nullptr,ACTCTR_ENFORCE_EXEC|ACTCTR_NO_DISP,DISP_A_NORMAL,ACT_FUNC_NORMAL);
+        player.ActBtn.move();c.test(player.actorModel->r_no_0==0 && player.actorModel->r_no_1==cb.second,"actual original resident action callback sets original routine");
+    }
+    player.actorModel->setRno(0,0,0,0);player.m_Work0=0;
+    player.ActBtn.set(ACT_CHECK,2,player.actionCallback(&PlayerDomain::fanceOn),nullptr,ACTCTR_ENFORCE_EXEC|ACTCTR_NO_DISP,DISP_A_NORMAL,ACT_FUNC_NORMAL);
+    player.ActBtn.move();c.test(player.actorModel->r_no_3==5 && player.PlFanceFlag==1 && player.actorModel->dmg.m_Timer==10,"actual original fence-down callback flags and damage timer");
+    auto retired=player.actionCallback(&PlayerDomain::holdOn);player.actionLifetime.reset();life.reset();
+    c.rejects([&]{retired.invoke(nullptr,0);},"original callback work cannot outlive its typed actor token");
+}
 // Numeric fixtures exercise original setup/pin and registry bodies. They are
 // isolated adapter tests, not Leon construction or player simulation.
 void clothCameraTests(Checks &c,GameRuntime &game){
@@ -617,6 +689,7 @@ std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<Graph
     clothCameraTests(c,game);
     sphereTests(c,game);
     damageTests(c,game);
+    actionTests(c,game);
     tests::objectTests(c,game);
     tests::lightParentTests(c, game);
     tests::texRenderTests(c, game);

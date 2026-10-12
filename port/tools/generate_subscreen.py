@@ -54,6 +54,7 @@ def generate(root, output):
         add('src/game/sscrn.cpp', sig, changes)
     sig='int cManager<T>::roomInit()'
     add('include/cManager.h', sig, [(sig, 'int MapManagerCpu::roomInit()')])
+    add('src/game/item.cpp','u16 WeaponId2BulletId(ITEM_ID id, int bllt_type)',[('u16 WeaponId2BulletId(ITEM_ID id, int bllt_type)','u16 InventoryCpu::WeaponId2BulletId(ITEM_ID id, int bllt_type)')])
     for sig in ['int cItemMgr::init()', 'void cItemMgr::clear()', 'void cItemMgr::flagclear()',
                 'void cItemMgr::roomInit()', 'cItem* cItemMgr::search(u16 id)',
                 'cItem* cItemMgr::at(int i)', 'int cItemMgr::searchAt(cItem* p)',
@@ -64,7 +65,8 @@ def generate(root, output):
                 'int cItemMgr::dump(ITEM_ID id)', 'int cItemMgr::dump(cItem* p)', 'void cItemMgr::erase(cItem* p)',
                 'u16 cItemMgr::num(int id, u8 type)', 'u16 cItemMgr::num(int id)',
                 'u16 cItemMgr::bulletNum()', 'u16 cItemMgr::bulletNumCurrent()',
-                'u16 cItemMgr::bulletNum(ITEM_ID id)', 'u16 cItemMgr::bulletNum(cItem* p)']:
+                'u16 cItemMgr::bulletNum(ITEM_ID id)', 'u16 cItemMgr::bulletNum(cItem* p)',
+                'int cItemMgr::reloadable()', 'int cItemMgr::reloadable(cItem* p, int flag)']:
         changes=[(sig, sig.replace('cItemMgr::', 'InventoryCpu::'))]
         if 'construct' in sig:
             changes.append(('asm volatile("");', '/* Codeless original PPC compiler anchor. */'))

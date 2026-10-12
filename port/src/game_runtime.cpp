@@ -541,6 +541,7 @@ IdRuntime &GameRuntime::ids() { impl_->check(); return impl_->ids; }
 SaveStateRuntime &GameRuntime::saveState() { impl_->check(); return impl_->saveState; }
 LightRuntime &GameRuntime::lights() { impl_->check(); return impl_->lights; }
 PlayerRuntime &GameRuntime::player() { impl_->check(); return impl_->player; }
+u32 GameRuntime::configurationFlags() const {impl_->check();return impl_->original.system.Config_flg;}
 ObjectRuntime &GameRuntime::objects() { impl_->check(); return impl_->objects; }
 EffectRuntime &GameRuntime::effects() { impl_->check(); return impl_->effects; }
 MerchantRuntime &GameRuntime::merchant() { impl_->check(); return impl_->merchant; }

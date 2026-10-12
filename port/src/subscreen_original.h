@@ -73,6 +73,7 @@ struct InventoryCpu {
     u16 num(int);
     int arm(cItem *);
     u16 bulletNum();u16 bulletNumCurrent();u16 bulletNum(cItem*);u16 bulletNum(ITEM_ID);
+    int reloadable();int reloadable(cItem*,int);
     int dump(ITEM_ID);
     int dump(cItem *);
     void erase(cItem *);
@@ -84,6 +85,7 @@ struct InventoryCpu {
         *p=ItemSaveWork{};
     }
     u16 WeaponId2ChargeNum(ITEM_ID,int);
+    u16 WeaponId2BulletId(ITEM_ID,int);
     int addMoney(int);
     [[noreturn]] void MercSysSetAddTime(int) { throw MissingGameConsumer("MercSysSetAddTime"); }
     [[noreturn]] void MercSysSetBonusTime(int) { throw MissingGameConsumer("MercSysSetBonusTime"); }

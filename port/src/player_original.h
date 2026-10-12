@@ -7,6 +7,7 @@
 #include "cloth_original.h"
 #include "actor_original.h"
 #include "damage_original.h"
+#include "action_original.h"
 #include <map>
 
 namespace re4::port {
@@ -107,6 +108,13 @@ struct PlayerDomain {
     PlayerMaho *pMaho{};
     bool constructing{};
     std::unique_ptr<NativeActorManager> EmMgr;
+    ActionManager ActBtn;
+    std::shared_ptr<const void> actionLifetime;
+    bool scenarioInitialized{}; // Only original SceAtInit may establish a live room field owner.
+    u8 PlFanceFlag{},PlReloadDirect{};
+    Vec PlFancePos{};
+    struct EyeWork {cDelayF direction;int timer{},time{};} eyes;
+    int PlKeyReloadType{}; // Original .bss default; shared input owner, not another controller.
     u8 m_BinoRno{},m_ConDmFlag{};u16 m_ConDmTimer{};
     u32 m_Work0{};f32 m_Fwork0{},m_JumpAdjY{};
     Vec m_FallVec{},m_JumpVec{},m_ActCross{},m_ActNorm{};u32 m_ActAttr{};
@@ -126,7 +134,7 @@ struct PlayerDomain {
     } log;
     Log *pLog=&log;
     PlayerDomain(NativeGameState &g,KEY &key,u8 &pad,GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s,ObjectRuntime &o,EffectRuntime &e)
-        :ObjMgr(o),effects(e),pG(&g),DmgMgr(g,h),cloth(g),system{pad},Key(key),heaps(h),models(m),scheduler(s) {}
+        :ObjMgr(o),effects(e),pG(&g),DmgMgr(g,h),cloth(g),system{pad},Key(key),heaps(h),models(m),scheduler(s),ActBtn(g,key,s) {}
     void PlayerInit();
     void PlayerLifeReset();
     void ReleaseWepData();
@@ -191,8 +199,23 @@ struct PlayerDomain {
     void moveMatCalcBefore();void moveCloth();
     void dmgCheck();void moveBinocular();void subCharLiveCheck();void shadowCtrl();
     void moveEye();void moveEyeNormal();void moveEyeMotion();void seqSeCtrl();void visibleCtrl();void debugMove();
-    int dmMotCk();int actionSelect();void checkCtrl();int keyReload();
-    int joyKamae(){throw MissingGameConsumer("joyKamae/original weapon aiming consumer");}
+    int dmMotCk();int actionSelect();int actionSelectOriginal();void checkCtrl();int keyReload();
+    int joyKamae();int joyLKamae();int actCheck();u32 playerStatus();
+    int actWallCheck(PlayerDomain*);int fanceCheck(PlayerDomain*);int fallCheck(PlayerDomain*);int jumpCheck(PlayerDomain*);u32 upDownCk(PlayerDomain*);
+    int windowCheck(PlayerDomain*,u8*,NativeActionWindow**);int windowStatus(NativeActionWindow*);
+    NativeActionFieldInfo *SceAtCheckFieldInfo(Vec*);
+    int ChkWindow(ModelCpu*,Vec*,Vec*,int,u16*,Vec*,Vec*,NativeActionWindow**);
+    NativeActionField *sceAtSetOtStart(){throw MissingGameConsumer("SceAtInit/native AEV ordering and field owners");}
+    NativeActionField *sceAtGetOtAddr(NativeActionField*){throw MissingGameConsumer("SceAtGetOtAddr/native AEV ordering");}
+    int sceAtHitCheck(NativeActionField*,ModelCpu*,Vec*,Vec*){throw MissingGameConsumer("sceAtHitCheck/native live AEV area work");}
+    int LadderNearCk(Vec*){throw MissingGameConsumer("LadderNearCk/original ladder owners");}
+    int EmRackCk(PlayerDomain*,Vec*,f32){throw MissingGameConsumer("EmRackCk/live original cEmRack work");}
+    ActionCallback windowAction(NativeActionWindow*);
+    void fanceOn();void fallOn();void levelUpOn();void levelDownOn();void level2UpOn();void level2DownOn();void holdOn();void jumpFallOn();
+    ActionCallback actionCallback(void (PlayerDomain::*)());
+    int checkXbutton();int weaponAimKey();int weaponReloadable();u32 configurationFlags() const;const JOY &inputJoy() const;
+    int catchPush(PlayerPushCpu*);void actorCollision(ModelCpu*);void actorCollisionOriginal(ModelCpu*);
+    void moveEyeOriginal();
     void motionSet(void*,void*,void*,void*,int,int);
     void initializeMotionWork(ModelMotion*,void*,void*,int,int,int);
     void dispatchRoutine0();void dispatchRoutine1();

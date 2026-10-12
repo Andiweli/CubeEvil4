@@ -46,11 +46,5 @@ f32 PlayerDomain::SatBoundary::getFloor(Vec *p,int,f32 above,f32 below,int mask)
     if(!player->runtime || !p)throw std::invalid_argument("native player SAT floor");
     return player->runtime->sat().getFloor(*p,above,below,mask);
 }
-int PlayerDomain::actionSelect(){throw MissingGameConsumer("cPlayer::actionSelect/ActBtn and live interaction owners");}
-int PlayerDomain::keyReload(){throw MissingGameConsumer("cPlayer::keyReload/original inventory and reload request");}
-void PlayerDomain::moveEye(){throw MissingGameConsumer("cPlayer::moveEye/original eye motion work");}
-void PlayerDomain::moveEyeNormal(){throw MissingGameConsumer("cPlayer::moveEyeNormal/original eye motion work");}
-void PlayerDomain::moveEyeMotion(){throw MissingGameConsumer("cPlayer::moveEyeMotion/original eye motion work");}
 void PlayerDomain::debugMove(){throw MissingGameConsumer("cPlayer::debugMove/original debug consumers");}
-void playerActorCollision(PlayerDomain*,ModelCpu*){throw MissingGameConsumer("EmAtCheck/live actor-object collision owners");}
 } // namespace re4::port
