@@ -1,4 +1,5 @@
 #include "player_original.h"
+#include "actor_original.h"
 #include "re4/port/sha256.h"
 #include <algorithm>
 
@@ -7,7 +8,7 @@ struct PlayerRuntime::Impl {
     PlayerDomain original;
     const std::thread::id owner=std::this_thread::get_id();
     Impl(NativeGameState &g,KEY &k,u8 &p,GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s,ObjectRuntime &o,EffectRuntime &e)
-        : original(g,k,p,h,m,s,o,e) {}
+        : original(g,k,p,h,m,s,o,e) {original.EmMgr=std::make_unique<NativeActorManager>(original,h,m,s);}
     void check(bool boundary=false) const {
         if(owner!=std::this_thread::get_id()) throw std::logic_error("player frame owner");
         if(boundary && (original.scheduler.current() || original.scheduler.allocatedStacks()))
@@ -47,7 +48,7 @@ ModelInfoView *PlayerDomain::ModelInfoFacade::create(void *bin,void *tpl) {
 PlayerRuntime::PlayerRuntime(NativeGameState &g,KEY &k,u8 &p,GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s,ObjectRuntime &o,EffectRuntime &e)
     :impl_(std::make_unique<Impl>(g,k,p,h,m,s,o,e)) {}
 PlayerRuntime::~PlayerRuntime()=default;
-void PlayerRuntime::bindWeaponModules(GameRuntime &r){impl_->check(true);auto &d=impl_->original;if(d.nativeWeapons)throw std::logic_error("weapon services already bound");d.nativeWeapons=std::make_unique<WeaponRuntime>(r,d);}
+void PlayerRuntime::bindWeaponModules(GameRuntime &r){impl_->check(true);auto &d=impl_->original;if(d.nativeWeapons)throw std::logic_error("weapon services already bound");d.runtime=&r;d.nativeWeapons=std::make_unique<WeaponRuntime>(r,d);}
 WeaponRuntime &PlayerRuntime::weapons(){impl_->check();if(!impl_->original.nativeWeapons)throw MissingGameConsumer("native weapon services");return *impl_->original.nativeWeapons;}
 void PlayerRuntime::gameInit() { impl_->check();impl_->original.PlayerInit(); }
 void PlayerRuntime::lifeReset() { impl_->check();impl_->original.PlayerLifeReset(); }
@@ -128,8 +129,15 @@ void PlayerRuntime::releaseLeonAssets() {
         if(d.constructing)d.models.releaseUnpublishedModel(*d.modelHandle,d.actorModel);
         else d.models.releaseModel(*d.modelHandle);
     }
-    d.modelHandle.reset();d.actorModel.reset();d.archive={};d.archiveIndex={};d.motionTable.fill(nullptr);d.bindings.clear();d.body=PlayerBodyCpu(nullptr);
+    auto *nativeActor=d.actorModel?dynamic_cast<NativeEmActor*>(d.actorModel.get()):nullptr;
+    d.modelHandle.reset();d.actorModel.reset();
+    if(nativeActor){
+        if(d.EmMgr->pAlive==nativeActor){d.EmMgr->destroy(nativeActor);d.EmMgr->dieCheck();d.EmMgr->dieCheck();}
+        else d.EmMgr->rollbackUnpublished(nativeActor);
+    }
+    d.archive={};d.archiveIndex={};d.motionTable.fill(nullptr);d.bindings.clear();d.body=PlayerBodyCpu(nullptr);
     d.attachCameraStorage={};d.cloth.clear();
+    d.CamCtrl.m_QuasiFPS={};
     d.Body=&d.body;d.bodyOwner.reset();d.weaponOwner.reset();d.pushOwner.reset();d.waistOwner.reset();d.motionBaseOwner.reset();d.mahoOwner.reset();d.Neck=nullptr;d.neckOwner.reset();d.Pl_func_tbl={};
     d.actorMotions.clear();d.registeredMotions.clear();d.m_MotTbl=d.motionTable.data();d.m_MotTbl2=nullptr;
     d.Wep=nullptr;d.Push=nullptr;d.Waist=nullptr;d.MotBase=nullptr;d.pMaho=nullptr;d.pPL=nullptr;d.pSUB=nullptr;d.subArc=nullptr;d.constructing=false;
@@ -195,26 +203,33 @@ ConsumerHandle PlayerRuntime::constructLeon(ResourceLease bytes) {
     impl_->check();auto &d=impl_->original;
     if(d.modelHandle || d.archive.owner || d.constructing)throw std::logic_error("Leon construction with live assets");
     if(d.pG->pl_type!=0 || !bytes.owner || !bytes.data)throw std::invalid_argument("Leon construction archive/type");
+    if(!d.EmMgr || !d.EmMgr->nArray)throw MissingGameConsumer("EmMgr.roomInit/CNS actor capacity");
     auto index=indexAssetBody(bytes.data,bytes.size);
     d.construction={};d.construction.schedulerTask=bool(d.scheduler.current());d.archive=bytes;d.archiveIndex=std::move(index);
-    d.actorModel=std::make_shared<ActorModelCpu>();d.constructing=true;
+    d.m_BinoRno=d.m_ConDmFlag=0;d.m_ConDmTimer=0;d.m_Work0=0;d.m_Fwork0=d.m_JumpAdjY=0;
+    d.m_FallVec=d.m_JumpVec=d.m_ActCross=d.m_ActNorm={};d.m_ActAttr=0;
+    d.constructing=true;
     try {
-        d.trace.push_back("cPlayer::cPlayer:original-body/native-owned-fields");d.constructPlayer();
-        d.construction.playerConstructor=true;
-        d.trace.push_back("cPlLeon::cPlLeon:original-body/native-owned-fields");d.constructCharacter();
-        // Success publication is intentionally impossible until the complete
-        // EmMgr type/vtable and every downstream consumer are integrated.
-        throw MissingGameConsumer("EmMgr.construct/full cPlLeon virtual actor publication");
+        auto *actor=d.EmMgr->create(0,0);
+        if(!actor || !d.modelHandle)throw std::runtime_error("original EmMgr player creation failed");
+        d.constructing=false;d.construction.returnedActor=true;
+        return *d.modelHandle;
     } catch(const std::exception &error) {
         d.construction.playerEffect=d.effects.dataSnapshot(EFF_PL00);
+        if(d.actorModel){
+        d.construction.primaryMotion=d.actorModel->Motion.pMot!=nullptr;
+        d.construction.neckMotion=d.actorModel->pMotionB==&d.actorModel->m_SubMot && d.actorModel->m_SubMot.pMot!=nullptr;
+        d.construction.sequenceFrame=d.actorModel->Motion.Seq_frame;
+        d.construction.sequenceFrames=d.actorModel->Motion.Seq_frame_num;
         d.construction.position=d.actorModel->pos;d.construction.rotation=d.actorModel->ang;
         d.construction.routines={d.actorModel->r_no_0,d.actorModel->r_no_1,d.actorModel->r_no_2,d.actorModel->r_no_3};
-        if(d.actorModel->pList)d.construction.lightCenter=d.actorModel->getPartsPtr(0)->world;
+        if(d.actorModel->pList && !d.construction.startUpEntered)d.construction.lightCenter=d.actorModel->getPartsPtr(0)->world;
         for(u32 r=0;r<3;++r)for(u32 c=0;c<4;++c)d.construction.lightInverse[r*4+c]=d.actorModel->LightInfo.imat[r][c];
         if(d.nativeWeapons)d.construction.weapon=d.nativeWeapons->snapshot();
         if(d.nativeWeapons && !d.nativeWeapons->domain()->effectLoads.empty())d.construction.weaponEffect=d.effects.dataSnapshot(d.nativeWeapons->domain()->effectLoads.front());
         d.construction.init1Reached=bool(d.Neck);d.construction.lightFlags=d.actorModel->State.m_LightFlag;
         for(auto *box=&d.actorModel->hitInfo;box && box->flag;box=box->pList)++d.construction.hitboxes;
+        }
         if(d.Wep && d.Wep->m_pWep){auto &w=*d.Wep->m_pWep;d.construction.weaponObjectId=w.id;d.construction.weaponItemId=w.itemId;d.construction.weaponParts=w.nParts;
             if(w.pModelInfo){auto &b=w.pModelInfo->model_addr->source;auto &t=static_cast<TexturePaletteView*>(w.pModelInfo->tpl_addr)->bytes;d.construction.weaponBinHash=sha256(b.data,b.size);d.construction.weaponTplHash=sha256(t.data,t.size);}
             if(w.pList && w.pList->pParent){for(u32 n=0;n<d.actorModel->nParts;++n)if(w.pList->pParent==d.actorModel->getPartsPtr(int(n)))d.construction.weaponParentPart=n;}
@@ -223,7 +238,7 @@ ConsumerHandle PlayerRuntime::constructLeon(ResourceLease bytes) {
                 auto owner=d.nativeWeapons->domain();for(auto &entry:owner->index.entries)if(owner->body.data+entry.offset==motionBytes.data){slot=entry.index+4;path=owner->loaded->identity.path;}
                 if(!slot || path.empty())throw std::logic_error("weapon motion source identity");d.construction.weaponBindings.push_back({n,slot,path,sha256(motionBytes.data,motionBytes.size)});
             }}
-        d.construction.hp=d.actorModel->hp;
+        d.construction.hp=d.actorModel?d.actorModel->hp:0;
         d.construction.motionSlots=u32(d.actorMotions.size());d.construction.registeredMotionSlots=u32(d.registeredMotions.size());
         d.construction.debugCallbacks=d.pMaho?d.pMaho->count():0;
         d.construction.subobjects=d.Wep && d.Body && d.Push && d.Waist && d.MotBase;
@@ -239,5 +254,15 @@ LeonConstructionSnapshot PlayerRuntime::constructionSnapshot() const {impl_->che
 void PlayerRuntime::clear() {
     impl_->check(true);releaseLeonAssets();auto &d=impl_->original;
     d.InitModule(&d.WepReadModule);d.allocations.clear();d.PlKaiou=d.oldWepId=d.m_BbtnCnt=0;d.trace.clear();
+    d.EmMgr->arrayFree();d.EmMgr->roomInit();
+    d.DmgMgr.arrayFree();d.DmgMgr.roomInit();
 }
+void PlayerRuntime::configureActors(u32 n){impl_->check(true);auto &d=impl_->original;if(d.actorModel || d.modelHandle)throw std::logic_error("actor pool resize with live player");d.EmMgr->arrayFree();d.EmMgr->roomInit();d.EmMgr->arrayAlloc(n);d.DmgMgr.arrayFree();d.DmgMgr.roomInit();d.DmgMgr.arrayAlloc(20);}
+void PlayerDomain::move(){
+    if(!actorModel)throw std::logic_error("player virtual move without actor");
+    auto *actor=dynamic_cast<NativePlayerActor*>(actorModel.get());
+    if(!actor || actor->player!=this)throw std::logic_error("native player dynamic type identity");
+    actor->move();
+}
+void PlayerDomain::moveLeonCloth(){throw MissingGameConsumer("PlClothMoveLeon/PenClothMove native simulation owner");}
 } // namespace re4::port

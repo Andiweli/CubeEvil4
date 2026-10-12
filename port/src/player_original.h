@@ -5,6 +5,8 @@
 #include "re4/port/effects.h"
 #include "weapon_original.h"
 #include "cloth_original.h"
+#include "actor_original.h"
+#include "damage_original.h"
 #include <map>
 
 namespace re4::port {
@@ -30,6 +32,10 @@ struct PlayerDomain {
     struct NeckCpu {
         PlayerDomain *pl{};ActorModelCpu *m_pLastTarget{};int m_lockCtr{};u16 m_Flag{};u8 m_Mode{},pad_F{};f32 m_NeckY{};void *m_MotR{},*m_MotL{};
         explicit NeckCpu(PlayerDomain*);
+        void init(void*,void*,int);void move();void motSet(void*,int);void setMode(int);
+        void clear(){m_MotR=nullptr;}
+        NativeEmActor *getTarget();
+        bool ownedMotion(void *p) const {if(!p)return false;(void)pl->lease(p);return true;}
     };
     std::unique_ptr<NeckCpu> neckOwner;NeckCpu *Neck{};
     DamagePart m_Yarare[10];
@@ -42,6 +48,7 @@ struct PlayerDomain {
     EffectRuntime &effects;
     struct CameraBoundary {
         int areaNo{};
+        struct LocationWork {Mtx m_pl_mat{};Vec *m_p_floor_norm{};void setPlayerLocation(Mtx,Vec*);} m_QuasiFPS;
         [[noreturn]] void endScope(){throw MissingGameConsumer("CamCtrl.endScope/live camera");}
         [[noreturn]] void LowerBinocular(){throw MissingGameConsumer("CamCtrl.LowerBinocular/live camera");}
         [[noreturn]] void endPushObject(){throw MissingGameConsumer("CamCtrl.endPushObject/live camera");}
@@ -49,6 +56,8 @@ struct PlayerDomain {
     struct LightBoundary {[[noreturn]] void update(int,int){throw MissingGameConsumer("LightMgr.update/special player camera");}} LightMgr;
     [[noreturn]] void CameraMove(){throw MissingGameConsumer("CameraMove/full player camera");}
     NativeGameState *pG;
+    GameRuntime *runtime{};
+    DamageManager DmgMgr;
     ClothDomain cloth;
     GameplayHeaps::Allocation attachCameraStorage;
     struct System { u8 &pad_type; } system;
@@ -97,6 +106,10 @@ struct PlayerDomain {
     PlayerMotionBaseCpu *MotBase{};
     PlayerMaho *pMaho{};
     bool constructing{};
+    std::unique_ptr<NativeActorManager> EmMgr;
+    u8 m_BinoRno{},m_ConDmFlag{};u16 m_ConDmTimer{};
+    u32 m_Work0{};f32 m_Fwork0{},m_JumpAdjY{};
+    Vec m_FallVec{},m_JumpVec{},m_ActCross{},m_ActNorm{};u32 m_ActAttr{};
     u32 playerEffectLoads{};
     LeonConstructionSnapshot construction;
     std::unique_ptr<WeaponRuntime> nativeWeapons;
@@ -113,7 +126,7 @@ struct PlayerDomain {
     } log;
     Log *pLog=&log;
     PlayerDomain(NativeGameState &g,KEY &key,u8 &pad,GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s,ObjectRuntime &o,EffectRuntime &e)
-        :ObjMgr(o),effects(e),pG(&g),cloth(g),system{pad},Key(key),heaps(h),models(m),scheduler(s) {}
+        :ObjMgr(o),effects(e),pG(&g),DmgMgr(g,h),cloth(g),system{pad},Key(key),heaps(h),models(m),scheduler(s) {}
     void PlayerInit();
     void PlayerLifeReset();
     void ReleaseWepData();
@@ -152,7 +165,7 @@ struct PlayerDomain {
     void weaponInit();
     void init1();
     void initCloth();
-    [[noreturn]] void pl_R0_Move(PlayerDomain*){throw MissingGameConsumer("pl_R0_Move/full native player dispatch");}
+    void pl_R0_Move(PlayerDomain*);void pl_R1_Footwork(PlayerDomain*);
     void allocateAttachCamera();
     void makeBodyShapeData();
     int EspDataLoad(void *p,ESP_OWNER id,int multiple) {
@@ -161,9 +174,33 @@ struct PlayerDomain {
         return result;
     }
     void startUp();
-    [[noreturn]] void move() { throw MissingGameConsumer("cPlayer::move/live virtual actor, DmgMgr, actionSelect, EmAtCheck and camera owners"); }
-    [[noreturn]] void motionMove() { throw MissingGameConsumer("cPlayer::motionMove/live actor owner"); }
-    struct SatBoundary { [[noreturn]] void check(PlayerDomain*,int) { throw MissingGameConsumer("cPlayer::startUp/SAT live actor owner"); } } SatMgr;
+    void move();
+    void moveOriginal();
+    void moveLeonCloth();
+    int checkXbuttonLeon();
+    int motionMove();
+    struct SatBoundary {
+        PlayerDomain *player{};
+        int check(PlayerDomain*,int);
+        int hitCheck(Vec*,Vec*,Vec*,Vec*,int,int);
+        f32 getFloor(Vec*,int,f32,f32,int);
+    } SatMgr{this};
+    ModelPart *getPartsPtr(int n){if(!actorModel || n<0 || n>=actorModel->nParts)throw std::out_of_range("native player part");return actorModel->getPartsPtr(n);}
+    void clearStatus(int id){actorModel->clearStatus(id);}
+    void setRno(int a,int b,int c,int d){actorModel->setRno(a,b,c,d);}
+    void moveMatCalcBefore();void moveCloth();
+    void dmgCheck();void moveBinocular();void subCharLiveCheck();void shadowCtrl();
+    void moveEye();void moveEyeNormal();void moveEyeMotion();void seqSeCtrl();void visibleCtrl();void debugMove();
+    int dmMotCk();int actionSelect();void checkCtrl();int keyReload();
+    int joyKamae(){throw MissingGameConsumer("joyKamae/original weapon aiming consumer");}
+    void motionSet(void*,void*,void*,void*,int,int);
+    void initializeMotionWork(ModelMotion*,void*,void*,int,int,int);
+    void dispatchRoutine0();void dispatchRoutine1();
+    Vec shadowCameraPosition() const {return pG->Camera.param.Campos;}
+    [[noreturn]] int requirePartnerControl(){throw MissingGameConsumer("SubCharCheckCtrl/native partner actor");}
+    [[noreturn]] u32 requirePartnerStatus(){throw MissingGameConsumer("SubCharGetStatus/native partner actor");}
+    [[noreturn]] void requirePartnerCommand(int,int){throw MissingGameConsumer("SubCharCtrl/native partner actor");}
+    [[noreturn]] void setDamage(u8,int,int,int,f32){throw MissingGameConsumer("cPlayer::setDamage/LifeDownSet2 and damage routines");}
     [[noreturn]] void bindFootShadowTable() { throw MissingGameConsumer("cPlLeon/pl_fs_tbl foot-shadow consumer"); }
     [[noreturn]] void setPartnerPosition(ModelCpu*,Vec*) { throw MissingGameConsumer("cModel::setPos/model-bound LightInfo.updateMatrix"); }
     void *arc(u32) const;
@@ -189,7 +226,10 @@ struct PlayerDomain {
 #define SysFlagChk(g,n) ((g)->System_flg & (0x80000000u >> (n)))
 #define StaFlagChk(g,n) ((g)->Status_flg[(n)/32] & (0x80000000u >> ((n)%32)))
 #define StaFlagOff(g,n) ((g)->Status_flg[(n)/32] &= ~(0x80000000u >> ((n)%32)))
+#define StaFlagOn(g,n) ((g)->Status_flg[(n)/32] |= (0x80000000u >> ((n)%32)))
 #define SpfFlagOff(g,n) ((g)->Stop_flg &= ~(0x80000000u >> (n)))
 #define ScfFlagChk(g,n) ((g)->Scenario_flg[(n)/32] & (0x80000000u >> ((n)%32)))
-#define VALID_PTR(p) ((p)!=nullptr)
+#ifndef VALID_PTR
+#define VALID_PTR(p) ((p) != nullptr)
+#endif
 #define HALT() throw std::runtime_error("original Leon model creation HALT")

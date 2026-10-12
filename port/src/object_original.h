@@ -31,8 +31,10 @@ struct NativeEffect4 final : NativeObject { NativeObj04Free work{};void move() o
 struct NativeEffect5 final : NativeObject { NativeObj05Free work{};void move() override; };
 struct NativeEffect9 final : NativeObject { NativeObj09Free work{};void move() override; };
 struct PlayerDomain;
+struct ActorModelCpu;
 struct WeaponDomain;
 struct NativeWeapon : NativeObject {
+    ActorModelCpu *m_SightEm{};
     NativeWeapon();
     void initializeWeapon();
     void move() override;
@@ -62,6 +64,7 @@ struct NativeWeapon : NativeObject {
     static constexpr int F_DISP_0=2,F_DISP_1=3,F_DISP_2=4;
     ModelCpu *m_pParent{};
     u32 m_StopSeId{};
+    void interrupt(){throw MissingGameConsumer("cObjWep::interrupt/original weapon action and sound consumer");}
 };
 struct NativeRuger final:NativeWeapon {void init(ModelCpu*) override;void setMotion(PlayerDomain*) override;};
 struct NativeMauser final:NativeWeapon {void init(ModelCpu*) override;void setMotion(PlayerDomain*) override;};

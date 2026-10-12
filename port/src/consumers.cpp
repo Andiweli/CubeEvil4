@@ -142,6 +142,7 @@ struct EngineConsumers::Model {
     std::unique_ptr<MotionSequenceView> sequence;
     std::unique_ptr<ModelRuntime::Object> initialized;
     std::unique_ptr<MotionAsset> positive,negative;
+    std::vector<std::unique_ptr<MotionAsset>> auxiliary;
     // Destroy/detach before releasing CPU model and immutable motion leases.
     std::unique_ptr<MotionBlend3> blend;
 };
@@ -301,7 +302,15 @@ std::size_t EngineConsumers::modelCount() const {
 void EngineConsumers::initializeMotion(ConsumerHandle h,ResourceLease bytes,int frame,int flags,int hokan) {
     initializeMotion(h,bytes,ResourceLease{},frame,flags,hokan);
 }
-void EngineConsumers::initializeMotion(ConsumerHandle h,ResourceLease bytes,ResourceLease sequence,int frame,int flags,int hokan) {
+void EngineConsumers::initializeAuxMotion(ConsumerHandle h,ActorModelCpu &actor,ResourceLease bytes,int frame,int flags,int hokan){
+    check();validate(h);auto &m=*models_.at(h.index);
+    if(!m.initialized || static_cast<ModelCpu*>(&actor)!=&m.initialized->cpu || frame<0 || flags<0 || hokan<0 || frame>65535 || flags>65535 || hokan>255)throw std::invalid_argument("auxiliary motion owner/parameters");
+    auto &work=actor.m_SubMot;
+    auto asset=std::make_unique<MotionAsset>(bytes,m.initialized->cpu);auto *view=&asset->data;
+    m.auxiliary.push_back(std::move(asset));
+    MotionSetCore(&m.initialized->cpu,&work,view,nullptr,hokan,flags,frame);
+}
+void EngineConsumers::initializeMotion(ConsumerHandle h,ResourceLease bytes,ResourceLease sequence,int frame,int flags,int hokan,bool reset) {
     check(); validate(h);
     auto &m=*models_.at(h.index);
     if(!m.initialized) throw std::logic_error("Motion requires an actually initialized original model");
@@ -317,12 +326,14 @@ void EngineConsumers::initializeMotion(ConsumerHandle h,ResourceLease bytes,Reso
     if(!sequence.owner && (sequence.data || sequence.size)) throw std::invalid_argument("SEQ owner required");
     if(m.initialized->cpu.Motion.pAttachCam && m.initialized->cpu.attachCameraRegistry!=&cameraState)
         throw MissingGameConsumer("MotionSetCore/foreign attached camera registry owner");
+    if(!reset && m.blend)throw MissingGameConsumer("MotionSetCore/active cMot3 owner requires its original blend transition");
     // Publish ownership before the original functions touch any pointer. On failure
     // retain the new asset: the partially initialized original work can reference it.
-    m.blend.reset();m.positive.reset();m.negative.reset();
+    auto priorMotion=std::move(m.motion);auto priorSequence=std::move(m.sequence);
+    auto priorBlend=std::move(m.blend);auto priorPositive=std::move(m.positive);auto priorNegative=std::move(m.negative);
     m.motion=std::move(asset);
     m.sequence=std::move(seq);
-    MotionClear(&m.initialized->cpu,1);
+    if(reset)MotionClear(&m.initialized->cpu,1);
     MotionSetCore(&m.initialized->cpu,&m.initialized->cpu.Motion,&m.motion->data,m.sequence.get(),hokan,flags,frame);
 }
 void EngineConsumers::initializeMotionBlend(ConsumerHandle h,ResourceLease primary,ResourceLease positive,

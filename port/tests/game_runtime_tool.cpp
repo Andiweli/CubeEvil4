@@ -544,6 +544,8 @@ void messages(int argc,char **argv,bool newGame=false) {
         std::this_thread::yield();
     }
     check(blocker=="Original consumer unavailable: gameRoomInit/model/light/player","actual GameTask completes original stage and reaches unbound room setup");
+    const f32 originalGameplaySpeed=game.state().Speed;
+    check(originalGameplaySpeed==1.f,"actual original gameInit gameplay speed for isolated actor inputs");
     check(game.state().Rno0==2 && game.state().SaveKind==-1,"stage's original state transition and save mode");
     const auto stageDisc=game.loader().disc();
     check(std::count(game.trace().begin(),game.trace().end(),"gameStageInit:original-complete")==1,"original stage body completed exactly once");
@@ -828,6 +830,7 @@ void messages(int argc,char **argv,bool newGame=false) {
     ResourceLease poolBody{poolRoom->body,poolRoom->body->data(),static_cast<u32>(poolRoom->body->size())};
     auto capacities=originalRoomConstants(poolBody);
     game.objects().configure(capacities[1]);game.effects().configurePools(capacities[2],capacities[3]);
+    game.player().configureActors(capacities[0]);
     const auto playerIndex=indexAssetBody(pl.data,pl.size);
     auto playerSlot=[&](u32 slot){const auto &s=playerIndex.entries.at(slot-4);return ResourceLease{pl.owner,pl.data+s.offset,s.size};};
     // Actual player EFF includes empty TPL/ANM offsets. Exercise original
@@ -867,6 +870,10 @@ void messages(int argc,char **argv,bool newGame=false) {
         // GameTask proof. Re-enter the original PlayerInit before each real
         // constructor attempt, rather than manufacturing a weapon/cache pair.
         game.player().gameInit();
+        // This diagnostic follows independent reset/asset probes. Restore only
+        // the test tick input measured above from the actual original gameInit;
+        // do not change Rno0 or simulate gameRoomInit/gameMainLoop completion.
+        game.state().Speed=originalGameplaySpeed;
         // Explicit isolated equipped-weapon inputs; not a new-game/save-state
         // mutation in GameTask. Selection/variants are the original functions.
         game.state().weapon_no=equipment.first;game.state().weapon_type=equipment.second;
@@ -877,9 +884,10 @@ void messages(int argc,char **argv,bool newGame=false) {
             try {(void)game.player().constructLeon(pl);} catch(const MissingGameConsumer &e) {actorBlocker=e.what();}
         });
         auto result=game.player().constructionSnapshot();
-        if(actorBlocker!="Original consumer unavailable: cPlayer::move/live virtual actor, DmgMgr, actionSelect, EmAtCheck and camera owners")throw std::runtime_error("actual Leon construction blocker: "+actorBlocker);
+        if(actorBlocker!="Original consumer unavailable: cPlayer::actionSelect/ActBtn and live interaction owners")throw std::runtime_error("actual Leon construction blocker: "+actorBlocker);
         check(result.clothInitialized && result.bodyInitialized && result.cameraAllocated && result.startUpEntered,"whole original init1 and actual startUp entry");
-        check(result.routines==std::array<u8,4>{0,0,0,1},"original startUp routine transition precedes missing virtual move");
+        check(result.virtualMoves==1 && result.routines==std::array<u8,4>{0,0,1,1},"original native virtual move reaches original idle motion before interaction boundary");
+        check(result.motionMoves==1 && result.primaryMotion && result.neckMotion && result.sequenceFrames>0 && result.sequenceFrame==f32(1u%result.sequenceFrames),"original looping idle sequence and owned primary/neck motion executed before rollback");
         check(result.position.x==game.state().pl_pos.x && result.position.y==game.state().pl_pos.y && result.position.z==game.state().pl_pos.z && result.rotation.y==game.state().pl_ang_y,
               "original startUp uses current native global player state, not a manufactured room start");
         for(u32 r=0;r<3;++r){const auto &m=result.lightInverse;auto &v=result.lightCenter;
@@ -1034,7 +1042,7 @@ void messages(int argc,char **argv,bool newGame=false) {
     check(game.engineConsumers().modelCount()==0,"malformed player archive did not publish model");
     std::cout<<"],\"weapon_cases\":[";
     for(std::size_t i=0;i<weaponCases.size();++i){if(i)std::cout<<',';auto &c=weaponCases[i];std::cout<<"{\"equipped_weapon\":"<<unsigned(c.no)<<",\"type\":"<<unsigned(c.type)<<",\"scope\":\"isolated-original-constructor\",\"weapon\":";weaponJson(c.snapshot);std::cout<<'}';}
-    std::cout<<"],\"cloth_body\":{\"cloth_initialized\":"<<(constructor.clothInitialized?"true":"false")<<",\"body_initialized\":"<<(constructor.bodyInitialized?"true":"false")<<",\"camera_allocated\":"<<(constructor.cameraAllocated?"true":"false")<<",\"startUp_entered\":"<<(constructor.startUpEntered?"true":"false")<<",\"links\":["<<constructor.cloth[0].links.size()<<","<<constructor.cloth[1].links.size()<<","<<constructor.cloth[2].links.size()<<"],\"volumes\":["<<constructor.cloth[0].volumes<<","<<constructor.cloth[1].volumes<<","<<constructor.cloth[2].volumes<<"],\"length_max_abs_error\":"<<std::setprecision(9)<<clothLengthError<<",\"normal_max_abs_error\":"<<clothNormalError<<std::setprecision(6)<<",\"player_effect_sha256\":"<<std::quoted(constructor.playerEffect.sourceHash)<<",\"simulation_executed\":false},\"construction\":{\"returned_actor\":false,\"em_mgr_dispatch_bound\":false,\"player_constructor\":true,\"subobjects\":true,\"scheduler_task\":true,\"weapon_release_complete\":true,\"startUp_executed\":false,\"rolled_back\":true,\"parts\":"<<constructor.parts<<",\"model_infos\":"<<constructor.modelInfos<<",\"motion_slots\":"<<constructor.motionSlots<<",\"registered_motion_slots\":"<<constructor.registeredMotionSlots<<",\"debug_callbacks\":"<<constructor.debugCallbacks<<",\"init1_reached\":"<<(constructor.init1Reached?"true":"false")<<",\"hitboxes\":"<<constructor.hitboxes<<",\"light_flags\":"<<constructor.lightFlags<<",\"blocker\":"<<std::quoted(constructor.blocker)<<"}},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
+    std::cout<<"],\"cloth_body\":{\"cloth_initialized\":"<<(constructor.clothInitialized?"true":"false")<<",\"body_initialized\":"<<(constructor.bodyInitialized?"true":"false")<<",\"camera_allocated\":"<<(constructor.cameraAllocated?"true":"false")<<",\"startUp_entered\":"<<(constructor.startUpEntered?"true":"false")<<",\"links\":["<<constructor.cloth[0].links.size()<<","<<constructor.cloth[1].links.size()<<","<<constructor.cloth[2].links.size()<<"],\"volumes\":["<<constructor.cloth[0].volumes<<","<<constructor.cloth[1].volumes<<","<<constructor.cloth[2].volumes<<"],\"length_max_abs_error\":"<<std::setprecision(9)<<clothLengthError<<",\"normal_max_abs_error\":"<<clothNormalError<<std::setprecision(6)<<",\"player_effect_sha256\":"<<std::quoted(constructor.playerEffect.sourceHash)<<",\"simulation_executed\":false},\"construction\":{\"returned_actor\":false,\"em_mgr_dispatch_bound\":true,\"player_constructor\":true,\"subobjects\":true,\"scheduler_task\":true,\"weapon_release_complete\":true,\"virtual_moves\":"<<constructor.virtualMoves<<",\"motion_moves\":"<<constructor.motionMoves<<",\"primary_motion\":"<<(constructor.primaryMotion?"true":"false")<<",\"neck_motion\":"<<(constructor.neckMotion?"true":"false")<<",\"sequence_frames\":"<<constructor.sequenceFrames<<",\"sequence_frame\":"<<constructor.sequenceFrame<<",\"startUp_executed\":false,\"rolled_back\":true,\"parts\":"<<constructor.parts<<",\"model_infos\":"<<constructor.modelInfos<<",\"motion_slots\":"<<constructor.motionSlots<<",\"registered_motion_slots\":"<<constructor.registeredMotionSlots<<",\"debug_callbacks\":"<<constructor.debugCallbacks<<",\"init1_reached\":"<<(constructor.init1Reached?"true":"false")<<",\"hitboxes\":"<<constructor.hitboxes<<",\"light_flags\":"<<constructor.lightFlags<<",\"blocker\":"<<std::quoted(constructor.blocker)<<"}},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
     for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
     std::cout<<"]}\n";
 }

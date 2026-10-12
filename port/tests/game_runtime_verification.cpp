@@ -3,6 +3,7 @@
 #include "object_verification.h"
 #include "light_parent_verification.h"
 #include "../src/cloth_original.h"
+#include "../src/damage_original.h"
 #include "re4/port/game_runtime.h"
 #include "re4/port/sha256.h"
 #include "re4_scheduler_original.h"
@@ -161,6 +162,29 @@ std::shared_ptr<ImportedFiles> fixture(const std::string &directory) {
                 << hash << '\n';
     catalog.close();
     return std::make_shared<ImportedFiles>(directory, (root / "catalog.tsv").u8string());
+}
+// Numeric inputs test the actual original damage volume/list/lifetime bodies.
+// They are not gameplay hits or a substitute for cPlayer damage routines.
+void damageTests(Checks &c,GameRuntime &game){
+    auto baseline=game.heaps().liveBytes();DamageManager manager(game.state(),game.heaps());
+    manager.roomInit();manager.arrayAlloc(3);Vec center{0,10,0},point{4,13,0},from{};
+    c.test(manager.set(DMG_TYPE_FIRE,2,&center,4,3)==1,"original cylinder registration");
+    c.test(manager.hitCheck(&point,&from)==DMG_TYPE_FIRE && from.y==10,"original inclusive cylinder radius/height and native virtual dispatch");
+    point.y=13.01f;c.test(manager.hitCheck(&point,nullptr)==0,"original cylinder upper boundary rejection");
+    point={4.01f,10,0};c.test(manager.hitCheck(&point,nullptr)==0,"original cylinder radial rejection");
+    std::array<Vec,4> quad{{{0,0,0},{0,0,10},{10,0,10},{10,0,0}}};point={7,99,7};
+    c.test(manager.set(DMG_TYPE_FLAME,3,quad.data(),1)==1,"original quad registration");
+    c.test(manager.hitCheck(&point,&from)==DMG_TYPE_FLAME && from.x==5 && from.z==5 && from.y==0,"original quad uses XZ predicate and corner mean; no invented height test");
+    c.test(manager.countActiveWork()==2,"original damage list contains both native dynamic types");
+    manager.move();point=center;c.test(manager.hitCheck(&point,nullptr)==DMG_TYPE_FIRE,"original volume persists before lifetime zero");
+    manager.move();c.test(manager.hitCheck(&point,nullptr)!=DMG_TYPE_FIRE,"original expiration/deferred native destruction");
+    manager.dieCheck();manager.dieCheck();c.test(manager.fastAt(0)->isEmpty(),"expired typed slot is reusable");
+    c.test(manager.set(DMG_TYPE_GRENADE,1,&center,4,3)==1,"original cylinder recreated in retired slot");
+    auto *volume=manager.fastAt(0);c.test(dynamic_cast<DamageCylinder*>(volume)!=nullptr,"fresh native damage dynamic type after reuse");
+    volume->beginEvent(0);point=center;c.test(manager.hitCheck(&point,nullptr)!=DMG_TYPE_GRENADE,"original event callback withdraws damage");
+    DamageVolume foreign;c.rejects([&]{manager.destroy(&foreign);},"foreign damage reference rejected before dereference");
+    manager.move();manager.dieCheck();manager.dieCheck();manager.arrayFree();manager.roomInit();
+    c.test(game.heaps().liveBytes()==baseline,"native damage arena and work lifetimes release fully");
 }
 void inputTests(Checks &c) {
     ControllerInput input;
@@ -592,6 +616,7 @@ std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<Graph
     tests::modelInitializationTests(c, game);
     clothCameraTests(c,game);
     sphereTests(c,game);
+    damageTests(c,game);
     tests::objectTests(c,game);
     tests::lightParentTests(c, game);
     tests::texRenderTests(c, game);

@@ -167,11 +167,16 @@ def main():
             raise ValueError('original Merchant/gameInit execution scope')
         player=actual['player']
         construction=player['construction']
-        if construction!={'returned_actor':False,'em_mgr_dispatch_bound':False,'player_constructor':True,
-            'subobjects':True,'scheduler_task':True,'weapon_release_complete':True,'startUp_executed':False,'rolled_back':True,'parts':119,'model_infos':8,
+        idle_binding=next(b for b in player['weapon_cases'][-1]['weapon']['motions'] if b['index']==1)
+        idle_file=files[(disc,idle_binding['path'])]
+        idle_archive=drs.Drs((data/'blobs'/idle_file['sha256']).read_bytes())
+        idle_sequence=fcv.parse_seq(idle_archive.entries[idle_binding['slot']-4][1])
+        idle_count=len(idle_sequence.keys)
+        if construction!={'returned_actor':False,'em_mgr_dispatch_bound':True,'player_constructor':True,
+            'subobjects':True,'scheduler_task':True,'weapon_release_complete':True,'virtual_moves':1,'motion_moves':1,'primary_motion':True,'neck_motion':True,'sequence_frames':idle_count,'sequence_frame':1%idle_count,'startUp_executed':False,'rolled_back':True,'parts':119,'model_infos':8,
             'motion_slots':109,'registered_motion_slots':12,'debug_callbacks':11,
             'init1_reached':True,'hitboxes':5,'light_flags':1,
-            'blocker':'Original consumer unavailable: cPlayer::move/live virtual actor, DmgMgr, actionSelect, EmAtCheck and camera owners'}:
+            'blocker':'Original consumer unavailable: cPlayer::actionSelect/ActBtn and live interaction owners'}:
             raise ValueError('actual preserved Leon construction prefix/blocker/rollback')
         proof=player['cloth_body']
         if any(proof[k] is not True for k in ['cloth_initialized','body_initialized','camera_allocated','startUp_entered']) or proof['simulation_executed'] or proof['links']!=[24,0,21] or proof['volumes']!=[6,0,4]:

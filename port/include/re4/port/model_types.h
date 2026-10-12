@@ -117,6 +117,7 @@ struct ModelCoord : ModelUnit {
     Mtx mat{}, l_mat{}, prevMat{};
     ModelCoord *pParent{};
     void matCalc();
+    void matUpdate(){matCalc();} // Original cCoord inline, include/model.h:54.
 };
 } // namespace re4::port
 #include "re4_pendulum_types.h"
@@ -173,6 +174,7 @@ struct ModelCpu : ModelPart {
     void setNoSuspend(int);
     int isTrans();
     void updateOldPos();
+    void partsFixAdjust();
     void setPos(Vec*);
     void matUpdate();
     void setRno(int,int,int,int);

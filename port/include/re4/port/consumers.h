@@ -37,6 +37,7 @@ CameraDataView indexCameraData(ResourceLease);
 
 class EngineConsumers;
 struct MotionActorContext;
+struct ActorModelCpu;
 struct EventCpu {
     EngineConsumers *manager{};
     EventPackageView package;
@@ -92,7 +93,8 @@ class EngineConsumers final {
     void setAdaOverrideProvider(std::function<bool()> f) { check(); adaOverride_=std::move(f); }
     bool debugAdaOverride() const { check(); return adaOverride_ && adaOverride_(); }
     void initializeMotion(ConsumerHandle, ResourceLease, int frame=0, int flags=1, int hokan=0);
-    void initializeMotion(ConsumerHandle,ResourceLease motion,ResourceLease sequence,int frame=0,int flags=1,int hokan=0);
+    void initializeMotion(ConsumerHandle,ResourceLease motion,ResourceLease sequence,int frame=0,int flags=1,int hokan=0,bool reset=true);
+    void initializeAuxMotion(ConsumerHandle,ActorModelCpu&,ResourceLease,int frame,int flags,int hokan);
     void initializeMotionBlend(ConsumerHandle,ResourceLease primary,ResourceLease positive,
                                ResourceLease negative,ResourceLease sequence={},u8 hokan=0,
                                int mode=0,u16 flags=1,u16 frame=0);

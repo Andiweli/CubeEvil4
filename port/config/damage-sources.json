@@ -1,0 +1,6 @@
+{
+  "src/game/dmg.cpp": "b61da5ec3d4cfbc30af47d6bc647d995a4a5b6636b14b6b29cfcbd0eb75d72ff",
+  "include/dmg.h": "98f5893354d727a528b6e69aebf90297007d00afadb0c7860bd16ae6e760c303",
+  "include/cManager.h": "f4eb3770d2f5f5f08bbc429b95511f99280c9c274a9104a3d273536f015f501f",
+  "src/game/sub2.cpp": "cbd24b0ebad299886a8c2e43e685b08871d93cdb603eea0b2d920da9e5c62d51"
+}

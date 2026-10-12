@@ -33,6 +33,14 @@ def generate(root, output):
     types = ['#pragma once\n#include "types.h"\n#include <cstddef>\nnamespace re4::port {']
     types.append(re.search(r'typedef struct \{\s*f32 x, y, z;\s*\} Vec;', read('include/vec.h'))[0])
     types.append(re.search(r'typedef struct \{\s*u8 r, g, b, a;\s*\} GXColor;', read('include/gx.h'))[0])
+    cam=read('include/camera.h')
+    for source,native in [('CAMERA_POINT','NativeCameraPoint'),('CAMERA','NativeRuntimeCamera')]:
+        text=re.search(r'struct '+source+r' \{.*?\n\};',cam,re.S)[0]
+        text=text.replace('CAMERA_POINT','NativeCameraPoint').replace('struct CAMERA {','struct NativeRuntimeCamera {')
+        text=re.sub(r'    Mtx (\w+);',r'    f32 \1[3][4];',text)
+        text=re.sub(r'    Mtx44 (\w+);',r'    f32 \1[4][4];',text)
+        text=re.sub(r';(?=\s*(?://|\n))','{};',text)
+        types.append(text)
     for text, name in [(joy, 'PAD_MOTOR'), (joy, 'JOY'), (main, 'KEY')]:
         types.append(re.search(r'struct ' + name + r' \{.*?\n\};', text, re.S)[0])
     for name in ['PADStatus', 'PADClampRegion']:
@@ -65,7 +73,8 @@ def generate(root, output):
         if len(matches) != 1: raise ValueError('ambiguous scalar field: ' + name)
         types.append('    ' + matches[0] + '{};')
     if not re.search(r'PlArc\* pWep\s*;',glob):raise ValueError('Original GLOBAL_WK weapon pointer changed')
-    types += ['    void *pWep{}; // Native owned weapon body, excluded from the save tail.','};', '} // namespace re4::port']
+    types += ['    NativeRuntimeCamera Camera{}; // Original transient camera value; never serialized as a GC overlay.',
+              '    void *pWep{}; // Native owned weapon body, excluded from the save tail.','};', '} // namespace re4::port']
     (output/'include/re4_runtime_types.h').write_text('\n'.join(types) + '\n', encoding='utf-8')
     bodies = ['// Generated from reviewed sources. Adaptations recorded in runtime-manifest.json.',
               '#include "runtime_original.h"', '#include <cmath>', 'namespace re4::port {']

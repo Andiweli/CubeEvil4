@@ -122,6 +122,31 @@ execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/too
     --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/player-sources.json" player_manifest)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/actor-sources.json" actor_manifest)
+string(JSON actor_count LENGTH "${actor_manifest}")
+math(EXPR actor_last "${actor_count} - 1")
+foreach(index RANGE 0 ${actor_last})
+    string(JSON actor_source MEMBER "${actor_manifest}" ${index})
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RE4_ROOT}/${actor_source}")
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/actor-sources.json" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_actors.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_actors.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
+foreach(component damage player-live)
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/${component}-sources.json" component_manifest)
+    string(JSON component_count LENGTH "${component_manifest}")
+    math(EXPR component_last "${component_count} - 1")
+    foreach(index RANGE 0 ${component_last})
+        string(JSON component_source MEMBER "${component_manifest}" ${index})
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RE4_ROOT}/${component_source}")
+    endforeach()
+    string(REPLACE "-" "_" generator "${component}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/config/${component}-sources.json" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_${generator}.py")
+    execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_${generator}.py"
+        --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
+endforeach()
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/cloth-sources.json" cloth_manifest)
 string(JSON cloth_count LENGTH "${cloth_manifest}")
 math(EXPR cloth_last "${cloth_count} - 1")
@@ -233,7 +258,10 @@ add_library(re4_game_runtime STATIC src/game_runtime.cpp src/gameplay_heaps.cpp 
     src/consumers.cpp src/event_resources.cpp src/model_runtime.cpp src/motion.cpp src/tex_render.cpp src/graphics.cpp src/messages.cpp src/subscreen.cpp
     src/id_save.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
     src/lights.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"
-    src/player.cpp src/cloth.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/player_control.cpp"
+    src/player.cpp src/actors.cpp src/cloth.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/player_control.cpp"
+    "${CMAKE_CURRENT_BINARY_DIR}/original/actor_control.cpp"
+    src/damage.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/damage_control.cpp"
+    src/player_live.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/player_live_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/cloth_control.cpp"
     src/objects.cpp src/effects.cpp src/effect_data.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/object_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/effect_data_control.cpp"
@@ -298,6 +326,10 @@ if(MSVC)
         PROPERTIES COMPILE_OPTIONS "/wd4244")
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/object_control.cpp"
         PROPERTIES COMPILE_OPTIONS "/wd4244")
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/actor_control.cpp"
+        PROPERTIES COMPILE_OPTIONS "/wd4244;/wd4702;/wd4458")
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/damage_control.cpp"
+        "${CMAKE_CURRENT_BINARY_DIR}/original/player_live_control.cpp" PROPERTIES COMPILE_OPTIONS "/WX-")
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/weapon_control.cpp"
         PROPERTIES COMPILE_OPTIONS "/wd4244;/wd4458;/wd4702")
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/effect_data_control.cpp"
@@ -314,6 +346,10 @@ if(MSVC)
         "${CMAKE_CURRENT_BINARY_DIR}/original/pad_clamp.cpp" PROPERTIES COMPILE_OPTIONS "/WX-")
 else()
     target_compile_options(re4_game_runtime PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-fast-math -ffp-contract=off)
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/player_live_control.cpp"
+        PROPERTIES COMPILE_OPTIONS "-Wno-unused-variable;-Wno-unused-parameter;-Wno-tautological-constant-out-of-range-compare;-Wno-implicit-fallthrough")
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/damage_control.cpp"
+        PROPERTIES COMPILE_OPTIONS "-Wno-unused-parameter")
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/cloth_control.cpp"
         PROPERTIES COMPILE_OPTIONS "-Wno-sign-compare")
     # Preserve unused parameters/locals of complete original bodies. Native

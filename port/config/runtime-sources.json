@@ -21,5 +21,6 @@
   "include/sscrn.h": "e054d63e0b750ea80a39a9e669965db6501ece9735e14b7df98a3ca1b154dd48",
   "src/game/cloth.cpp": "b2dfb38dc02659616f7f13769f3bd551e6dd238a51150c666605ee0243345098",
   "include/gx.h": "a52ccfce76abbd6cd4c8c0c0be33f8bb32c45cec80e3c1fdecc5fe22d3c50183",
-  "src/game/sce_at.cpp": "449b6d725e3ec5a9c97aa2b29c7fb850e77b1ce48eb830b1827000d993c58e4a"
+  "src/game/sce_at.cpp": "449b6d725e3ec5a9c97aa2b29c7fb850e77b1ce48eb830b1827000d993c58e4a",
+  "include/camera.h": "c68db5a2e86bb9d6a6c9258320e595670f6f1f898a73bfda1b66343fce3c9664"
 }

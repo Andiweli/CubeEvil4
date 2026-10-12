@@ -55,7 +55,7 @@ def generate(root, output):
     base=re.sub(r'^(    )(?!private|public)(.+?\{\};)',r'\1[[maybe_unused]] \2',base,flags=re.M)
     wep=read('include/pl_wep.h');wep=wep[wep.index('class cPlWep {'):wep.index('    f32 getAngle();')]
     wep=wep.replace('cPlWep','PlayerWeaponCpu').replace('cObjWep*','NativeWeapon*')
-    wep=re.sub(r';(?=\s*(?://|\n))','{};',wep).replace('PlayerWeaponCpu(){};','PlayerWeaponCpu();')+'};'
+    wep=re.sub(r';(?=\s*(?://|\n))','{};',wep).replace('PlayerWeaponCpu(){};','PlayerWeaponCpu();')+'    void move();\n};'
     esp=read('include/esp.h')
     effects=[re.search(r'enum '+n+r' \{.*?\n\};',esp,re.S)[0] for n in ['ESP_OWNER','ESP_CORE_KIND']]
     types=['#pragma once','#include "re4/port/model_types.h"','#include <stdexcept>',
@@ -125,7 +125,7 @@ def generate(root, output):
     add('src/game/player.cpp','cPlayer::cPlayer()',[
         ('cPlayer::cPlayer()','void constructPlayer()'),('pPL = this;','pPL = actorModel.get();'),
         ('hp = pG->pl_life;','actorModel->hp = pG->pl_life;'),
-        ('subArc = (PlArc*)0x807EC000;','subArc = const_cast<u8*>(archive.data); // Owned original player archive.'),
+        ('subArc = (PlArc*)0x807EC000;','subArc = const_cast<u8*>(archive.data); actorModel->subArc=subArc; // Owned original player archive.'),
         ('PL_MEM_ALLOC(0x1B4, 373)','allocateMotionTable(0x6D, 373)'),('PL_MEM_ALLOC(0x30, 376)','allocateMotionTable(12, 376)'),
         ('memclr_asm(m_MotTbl, 0x1B4);','clearMotionTable(m_MotTbl, 0x6D);'),('memclr_asm(m_MotTbl2, 0x30);','clearMotionTable(m_MotTbl2, 12);')])
     add('src/game/player.cpp','void cPlayer::init0()',[
@@ -157,7 +157,7 @@ def generate(root, output):
         ('(u32) PL_ARC_PTR(arc, 0x1A)','arcEntry(arc, 0x1A)'),('pFsdTbl = pl_fs_tbl;','bindFootShadowTable();')])
     add('src/game/player.cpp','void cPlayer::startUp()',[
         ('    be_flag |=','    construction.startUpEntered=true;\n    actorModel->be_flag |='),
-        ('ang.y =','actorModel->ang.y ='),('setPos(&pG->pl_pos);','actorModel->setPos(&pG->pl_pos);'),
+        ('ang.y =','actorModel->ang.y ='),('setPos(&pG->pl_pos);','actorModel->setPos(&pG->pl_pos);\n    construction.lightCenter=actorModel->getPartsPtr(0)->world;'),
         ('matUpdate();','actorModel->matUpdate();'),('setRno(0, 0, 0, 1);','actorModel->setRno(0, 0, 0, 1);')])
     add('src/game/pl_wep.cpp','void cPlayer::weaponRelease()', [('cPlayer::F_NO_WEP_EFF','F_NO_WEP_EFF'),('objCur->id','ObjMgr.id(objCur)')])
     # Completion is recorded only after the full preserved release body returned.

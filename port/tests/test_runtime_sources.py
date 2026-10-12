@@ -150,4 +150,41 @@ class Sources(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):generate(copy,Path(directory)/'bad')
 
 
+    def test_live_actor_damage_and_player_bodies_guard(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'port/tools'))
+        from generate_actors import generate as actors
+        from generate_damage import generate as damage
+        from generate_player_live import generate as live
+        for name,generate,filename,source in [('actor',actors,'actor_control.cpp','src/game/em.cpp'),
+                ('damage',damage,'damage_control.cpp','src/game/dmg.cpp'),
+                ('player-live',live,'player_live_control.cpp','src/game/pl_class.cpp')]:
+            with tempfile.TemporaryDirectory() as folder:
+                out=Path(folder)/'out';generate(ROOT,out);code=(out/filename).read_text()
+                generate(ROOT,out);self.assertEqual(code,(out/filename).read_text())
+                self.assertNotIn('(u32)p',code);self.assertNotIn('(u8*)pArray + size',code)
+                if name=='actor':
+                    self.assertIn('NativeLeonActor::move()',code)
+                    self.assertIn('NativeActorManager::construct(',code)
+                    self.assertIn('p=fastAt(i);',code)
+                    self.assertIn('NativePlayerActor::moveMatCalcBefore() {}',code)
+                elif name=='damage':
+                    self.assertIn('created<DamageCylinder>(create(ID_CYLINDER))',code)
+                    self.assertIn('p=fastAt(i); // Refresh',code)
+                else:
+                    self.assertIn('PlayerDomain::moveOriginal()',code)
+                    self.assertIn('PlayerDomain::NeckCpu::motSet(',code)
+                    self.assertIn('ownedMotion(motR)',code)
+                    self.assertNotIn('VALID_PTR2',code)
+                    self.assertIn('playerActorCollision(this,actorModel.get());',code)
+                    tables=(out/'include/re4_player_live_types.h').read_text()
+                    self.assertIn('"pl_R1_Footwork","pl_R1_Walk","pl_R1_Back","pl_R1_Run"',tables)
+                    self.assertIn('"Pl_R0_Damage","Pl_R0_Die","EmScenario","<null>"',tables)
+                copy=Path(folder)/'root';config=f'port/config/{name}-sources.json'
+                hashes=json.loads((ROOT/config).read_text())
+                for relative in [*hashes,config]:
+                    target=copy/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/relative,target)
+                p=copy/source;p.write_text(p.read_text()+'\n// changed original\n')
+                with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):generate(copy,Path(folder)/'bad')
+
 if __name__ == '__main__': unittest.main()

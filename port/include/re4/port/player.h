@@ -8,8 +8,8 @@ namespace re4::port {
 class GameplayHeaps;
 class ObjectRuntime;class EffectRuntime;
 class WeaponRuntime;class GameRuntime;
-// Constructor prefix only: named native cEm model/damage fields. This is not
-// a cPlayer/cPlLeon, an EM_WORK_SIZE overlay, or a published gameplay actor.
+// Named native cEm model/damage fields shared by CPU models and the checked
+// native actor hierarchy. These fields are never an EM_WORK_SIZE wire overlay.
 struct ActorDamageCpu {
     u8 m_Flag{},m_Timer{},m_Wep{},m_Padding03{};
     Vec m_PosFrom{};
@@ -30,6 +30,11 @@ struct DamagePart {
     DamagePart *pList{};
 };
 struct ActorModelCpu : ModelCpu {
+    virtual ~ActorModelCpu()=default; // Original cEm has an empty virtual destructor.
+    u32 status{};
+    u8 emset_no{};
+    void *subArc{},*subArc2{};
+    ModelMotion m_SubMot{}; // Original cEm secondary motion, owned by the native actor.
     struct StateCpu {u32 m_Flag{},m_LightFlag{},m_LightNo{};f32 m_LightPow{};void SetLightIgnore();} State;
     ActorDamageCpu dmg;
     DamagePart hitInfo;
@@ -37,6 +42,7 @@ struct ActorModelCpu : ModelCpu {
     s16 hp{},hp_max{};
     ActorModelCpu();
     int initWork();
+    void setStatus(int);void clearStatus(int);int checkStatus(int);
 };
 struct PlayerInitSnapshot {
     u8 kaiou{}, oldWeaponId{};
@@ -73,6 +79,11 @@ struct LeonConstructionSnapshot {
     bool init1Reached{};u32 hitboxes{},lightFlags{};
     bool clothInitialized{},bodyInitialized{},cameraAllocated{};
     bool startUpEntered{};
+    u32 virtualMoves{};
+    u32 motionMoves{};
+    bool primaryMotion{},neckMotion{};
+    f32 sequenceFrame{};
+    u16 sequenceFrames{};
     EffectDataSnapshot playerEffect;
     Vec position{},rotation{};
     Vec lightCenter{};
@@ -119,6 +130,7 @@ public:
     ConsumerHandle constructLeon(ResourceLease playerArchive);
     LeonConstructionSnapshot constructionSnapshot() const;
     void bindWeaponModules(GameRuntime &);
+    void configureActors(u32 originalRoomCapacity);
     WeaponRuntime &weapons();
 private:
     struct Impl;
