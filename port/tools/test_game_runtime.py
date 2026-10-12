@@ -177,14 +177,22 @@ def main():
         idle_archive=drs.Drs((data/'blobs'/idle_file['sha256']).read_bytes())
         idle_sequence=fcv.parse_seq(idle_archive.entries[idle_binding['slot']-4][1])
         idle_count=len(idle_sequence.keys)
-        if construction!={'returned_actor':False,'em_mgr_dispatch_bound':True,'player_constructor':True,
-            'subobjects':True,'scheduler_task':True,'weapon_release_complete':True,'virtual_moves':1,'motion_moves':1,'action_selections':1,'eye_moves':1,'actor_collision_checks':1,'pending_actions':0,'action_attribute':0,'action_status':1,'subscreen_enabled':True,'floor_y':construction['floor_y'],'primary_motion':True,'neck_motion':True,'sequence_frames':idle_count,'sequence_frame':1%idle_count,'startUp_executed':False,'rolled_back':True,'parts':119,'model_infos':8,
+        if construction!={'returned_actor':True,'em_mgr_dispatch_bound':True,'player_constructor':True,
+            'subobjects':True,'scheduler_task':True,'weapon_release_complete':True,'virtual_moves':1,'motion_moves':3,'action_selections':1,'eye_moves':1,'actor_collision_checks':1,'pending_actions':0,'action_attribute':0,'action_status':1,'subscreen_enabled':True,'floor_y':construction['floor_y'],'primary_motion':True,'neck_motion':True,'sequence_frames':idle_count,'sequence_frame':3%idle_count,'startUp_executed':True,'rolled_back':False,'parts':119,'model_infos':8,
             'motion_slots':109,'registered_motion_slots':12,'debug_callbacks':11,
             'init1_reached':True,'hitboxes':5,'light_flags':1,
-            'blocker':'Original consumer unavailable: PlClothMoveLeon/PenClothMove native simulation owner'}:
+            'cloth_moves':2,'cloth_resets':2,'cloth_volume_builds':2,'cloth_finite':True,'blocker':''}:
             raise ValueError('actual preserved Leon construction prefix/blocker/rollback')
+        ticks=player['runtime_ticks']
+        if ticks['scope']!='isolated-original-native-actor-not-gameRoomInit' or ticks['actors']!=10 or ticks['neutral_completed']!=240 or ticks['neutral_ticks_per_actor']!=24:
+            raise ValueError('actual repeated original actor tick coverage')
+        if ticks['walk_completed']!=2 or ticks['walk_blocker']!='Original consumer unavailable: SndCall/original sound request consumer' or len(ticks['walk_ticks'])!=3:
+            raise ValueError('actual original walk/sound boundary')
+        for i,tick in enumerate(ticks['walk_ticks']):
+            if tick['complete']!=(i<2) or not tick['cloth_finite'] or tick['virtual_moves']!=i+2 or tick['actor_collision_checks']!=i+2 or tick['cloth_moves']!=(i+2)*2 or tick['routines'][1]!=1:
+                raise ValueError('frame-by-frame original Player/Motion/Cloth/collision transitions')
         proof=player['cloth_body']
-        if any(proof[k] is not True for k in ['cloth_initialized','body_initialized','camera_allocated','startUp_entered']) or proof['simulation_executed'] or proof['links']!=[24,0,21] or proof['volumes']!=[6,0,4]:
+        if any(proof[k] is not True for k in ['cloth_initialized','body_initialized','camera_allocated','startUp_entered']) or not proof['simulation_executed'] or proof['links']!=[24,0,21] or proof['volumes']!=[6,0,4]:
             raise ValueError('original init1 Cloth/Body/attach-camera execution scope')
         import math
         from test_collision import parse as collision_parse,oracle as collision_oracle
@@ -260,6 +268,10 @@ def main():
         stable=json.loads(json.dumps(stable))
         stable['player']['cloth_body'].pop('length_max_abs_error')
         stable['player']['cloth_body'].pop('normal_max_abs_error')
+        # Numeric motion/SAT/cloth outputs are checked separately; exact
+        # semantic equality applies to states/counters, not libm rounding.
+        for tick in stable['player']['runtime_ticks']['walk_ticks']:
+            for name in ['position','rotation','cloth_position_sum']:tick.pop(name)
         stable['player']['construction'].pop('floor_y') # Separately checked numeric SAT residual, not an ABI-dependent action state.
         return sha(json.dumps(stable,sort_keys=True).encode())
     def verify_lights(actual,disc,bits,expected):

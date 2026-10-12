@@ -115,6 +115,12 @@ void PlayerRuntime::releaseLeonAssets() {
     // A construction attempt has no published actor/callback borrowers. It
     // must be able to roll back on its original GameTask caller's stack.
     if((d.modelHandle || d.archive.owner) && !d.constructing) impl_->check(true);
+    // A refused release must preserve callbacks, attachments and effect counts.
+    if(d.modelHandle && !d.constructing){
+        std::vector<const std::shared_ptr<const void>*> children;
+        if(d.Wep)for(auto *p:{d.Wep->m_pWep,d.Wep->m_pWepHand})if(p && p->parentOwner)children.push_back(&p->parentOwner);
+        d.models.checkModelRetirement(*d.modelHandle,children);
+    }
     if(d.actionLifetime){d.actionLifetime.reset();d.ActBtn.init();} // Retire callbacks before actor/model storage.
     if(d.Wep){
         if(d.Wep->m_pWep){d.ObjMgr.destroyNow(d.Wep->m_pWep);d.Wep->m_pWep=nullptr;}
@@ -218,10 +224,17 @@ ConsumerHandle PlayerRuntime::constructLeon(ResourceLease bytes) {
         d.ActBtn.playerHp=[&d]{if(!d.actorModel)throw std::logic_error("ActBtn player owner retired");return d.actorModel->hp;};
         auto *actor=d.EmMgr->create(0,0);
         if(!actor || !d.modelHandle)throw std::runtime_error("original EmMgr player creation failed");
-        d.constructing=false;d.construction.returnedActor=true;
+        d.constructing=false;d.construction.returnedActor=true;d.captureConstruction();
         return *d.modelHandle;
     } catch(const std::exception &error) {
+        d.captureConstruction();d.construction.blocker=error.what();
+        d.trace.push_back("Leon construction rollback:native-owner");releaseLeonAssets();d.construction.rolledBack=true;throw;
+    } catch(...) {releaseLeonAssets();d.construction.rolledBack=true;throw;}
+}
+void PlayerDomain::captureConstruction(bool includeResources){auto &d=*this;
         d.construction.playerEffect=d.effects.dataSnapshot(EFF_PL00);
+        d.construction.hitboxes=0;d.construction.modelInfos=0;
+        if(includeResources){d.construction.weaponMotions=0;d.construction.weaponBindings.clear();}
         if(d.actorModel){
         d.construction.primaryMotion=d.actorModel->Motion.pMot!=nullptr;
         d.construction.neckMotion=d.actorModel->pMotionB==&d.actorModel->m_SubMot && d.actorModel->m_SubMot.pMot!=nullptr;
@@ -231,14 +244,21 @@ ConsumerHandle PlayerRuntime::constructLeon(ResourceLease bytes) {
         d.construction.routines={d.actorModel->r_no_0,d.actorModel->r_no_1,d.actorModel->r_no_2,d.actorModel->r_no_3};
         d.construction.pendingActions=d.ActBtn.m_num;d.construction.actionAttribute=d.m_ActAttr;
         d.construction.actionStatus=d.playerStatus();d.construction.subScreenEnabled=StaFlagChk(d.pG,STA_SSCRN_ENABLE)!=0;
-        if(d.actorModel->pList && !d.construction.startUpEntered)d.construction.lightCenter=d.actorModel->getPartsPtr(0)->world;
+        if(d.actorModel->pList){
+            // Observe the centre used by the current original updateMatrix,
+            // after startUp's final matUpdate (the old test observed its prefix).
+            auto &model=*d.actorModel;auto &li=model.LightInfo;
+            Vec offset{li.Offset.x*model.scale.x,li.Offset.y*model.scale.y,li.Offset.z*model.scale.z};
+            RotVector(&offset,&model.ang,&offset);
+            C_VECAdd(&offset,li.PartsNo?&model.getPartsPtr(li.PartsNo-1)->world:&model.pos,&d.construction.lightCenter);
+        }
         for(u32 r=0;r<3;++r)for(u32 c=0;c<4;++c)d.construction.lightInverse[r*4+c]=d.actorModel->LightInfo.imat[r][c];
         if(d.nativeWeapons)d.construction.weapon=d.nativeWeapons->snapshot();
         if(d.nativeWeapons && !d.nativeWeapons->domain()->effectLoads.empty())d.construction.weaponEffect=d.effects.dataSnapshot(d.nativeWeapons->domain()->effectLoads.front());
         d.construction.init1Reached=bool(d.Neck);d.construction.lightFlags=d.actorModel->State.m_LightFlag;
         for(auto *box=&d.actorModel->hitInfo;box && box->flag;box=box->pList)++d.construction.hitboxes;
         }
-        if(d.Wep && d.Wep->m_pWep){auto &w=*d.Wep->m_pWep;d.construction.weaponObjectId=w.id;d.construction.weaponItemId=w.itemId;d.construction.weaponParts=w.nParts;
+        if(includeResources && d.Wep && d.Wep->m_pWep){auto &w=*d.Wep->m_pWep;d.construction.weaponObjectId=w.id;d.construction.weaponItemId=w.itemId;d.construction.weaponParts=w.nParts;
             if(w.pModelInfo){auto &b=w.pModelInfo->model_addr->source;auto &t=static_cast<TexturePaletteView*>(w.pModelInfo->tpl_addr)->bytes;d.construction.weaponBinHash=sha256(b.data,b.size);d.construction.weaponTplHash=sha256(t.data,t.size);}
             if(w.pList && w.pList->pParent){for(u32 n=0;n<d.actorModel->nParts;++n)if(w.pList->pParent==d.actorModel->getPartsPtr(int(n)))d.construction.weaponParentPart=n;}
             for(u32 n=0;n<0x5f;++n)if(d.m_MotTbl[n]){++d.construction.weaponMotions;auto motionBytes=d.lease(d.m_MotTbl[n]);u32 slot=0;std::string path;
@@ -250,15 +270,28 @@ ConsumerHandle PlayerRuntime::constructLeon(ResourceLease bytes) {
         d.construction.motionSlots=u32(d.actorMotions.size());d.construction.registeredMotionSlots=u32(d.registeredMotions.size());
         d.construction.debugCallbacks=d.pMaho?d.pMaho->count():0;
         d.construction.subobjects=d.Wep && d.Body && d.Push && d.Waist && d.MotBase;
-        d.construction.modelInitialized=d.modelHandle.has_value();d.construction.blocker=error.what();
+        d.construction.modelInitialized=d.modelHandle.has_value();
         if(d.modelHandle) {
             auto &cpu=d.models.model(*d.modelHandle);d.construction.parts=cpu.nParts;
             for(auto *info=cpu.pModelInfo;info;info=info->pList)++d.construction.modelInfos;
         }
-        d.trace.push_back("Leon construction rollback:native-owner");releaseLeonAssets();d.construction.rolledBack=true;throw;
-    } catch(...) {releaseLeonAssets();d.construction.rolledBack=true;throw;}
+        d.construction.clothMoves=d.cloth.moves;d.construction.clothResets=d.cloth.resets;d.construction.clothVolumeBuilds=d.cloth.volumeBuilds;
+        d.construction.clothFinite=true;d.construction.clothPositionSum={};
+        if(d.actorModel)for(auto *chain:{&d.cloth.leonHair,&d.cloth.leonJacket,&d.cloth.leonHolster})for(int n=0;n<chain->Num;++n){
+            const auto &pen=d.actorModel->getPartsPtr(chain->pCloth[n])->Pen;
+            for(auto f:{pen.Pos.x,pen.Pos.y,pen.Pos.z,pen.Speed.x,pen.Speed.y,pen.Speed.z})d.construction.clothFinite &= std::isfinite(f);
+            d.construction.clothPositionSum[0]+=pen.Pos.x;d.construction.clothPositionSum[1]+=pen.Pos.y;d.construction.clothPositionSum[2]+=pen.Pos.z;
+        }
 }
 LeonConstructionSnapshot PlayerRuntime::constructionSnapshot() const {impl_->check();return impl_->original.construction;}
+void PlayerRuntime::tick(){
+    impl_->check();auto &d=impl_->original;
+    if(!d.construction.returnedActor || !d.construction.startUpReturned || !d.actorModel || !d.modelHandle)throw std::logic_error("player tick before complete startUp");
+    if(!d.scheduler.current())throw std::logic_error("player tick requires original scheduler caller");
+    // Immutable archive hashes/bindings are captured at construction, never
+    // recomputed every gameplay frame. The observer reads live motion/cloth.
+    try{d.move();d.captureConstruction(false);}catch(const std::exception &e){d.captureConstruction(false);d.construction.blocker=e.what();throw;}
+}
 void PlayerRuntime::clear() {
     impl_->check(true);releaseLeonAssets();auto &d=impl_->original;
     d.InitModule(&d.WepReadModule);d.allocations.clear();d.PlKaiou=d.oldWepId=d.m_BbtnCnt=0;d.trace.clear();
@@ -272,5 +305,9 @@ void PlayerDomain::move(){
     if(!actor || actor->player!=this)throw std::logic_error("native player dynamic type identity");
     actor->move();
 }
-void PlayerDomain::moveLeonCloth(){throw MissingGameConsumer("PlClothMoveLeon/PenClothMove native simulation owner");}
+void PlayerDomain::moveLeonCloth(){
+    if(!actorModel || !modelHandle)throw std::logic_error("Leon cloth/model owner retired");
+    cloth.floor=[this](Vec *p,int id,f32 above,f32 below,int mask){return SatMgr.getFloor(p,id,above,below,mask);};
+    if(pG->pl_costume!=2)cloth.PlClothMoveLeon(actorModel.get(),&cloth.leonHair,&cloth.leonJacket,&cloth.leonHolster);
+}
 } // namespace re4::port

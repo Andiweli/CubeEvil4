@@ -129,6 +129,35 @@ void clothCameraTests(Checks &c,GameRuntime &game){
     info.Num=4;c.rejects([&]{domain.PenClothSet(&model,&info,100);},"cloth count exceeds hierarchy");info.Num=3;
     ClothAtSet volume;volume.P1=3;info.At_num=1;info.pAtset=&volume;
     c.rejects([&]{domain.PenClothSet(&model,&info,100);},"invalid cloth collision volume parent");
+    // Independent scalar oracle for a single gravity/damping step. This is
+    // numeric adapter evidence; the imported pl00 test runs the real chains.
+    ModelCpu one;ModelPart link;one.nParts=1;one.pList=&link;link.pParent=&one;
+    for(int n=0;n<3;++n){one.mat[n][n]=1;link.mat[n][n]=1;}
+    link.Pen.Length=10;link.Pen.Normal={0,-1,0};link.Pen.Offset={0,-10,0};link.Pen.Pos={0,-10,0};
+    const u8 single=0,none=255;ClothInfo step;step.Num=1;step.pCloth=&single;step.pParent=step.pChild=&none;
+    step.Flag=0x15b;step.Gravity=1;step.Rate=.5f;
+    domain.PenClothMove(&one,&step);
+    c.test(link.Pen.Pos.y==-11 && link.Pen.Speed.y==-.5f,"original Move gravity/damping equals independent scalar step");
+    domain.PenClothMove3(&one,&step);
+    c.test(link.Pen.Pos.y==-12.5f && link.Pen.Speed.y==-.75f,"original Move3 keeps accumulated velocity");
+    one.be_flag|=0x00200000;domain.PenClothMove(&one,&step);
+    c.test(link.Pen.Pos.y==-11 && link.Pen.Speed.y==-.5f && domain.resets==1,"original warp resets position and velocity before gravity");
+    domain.PenWindSet(0,.5f,1);
+    c.test(domain.GlobalWind.x==0 && domain.GlobalWind.y==0 && domain.GlobalWind.z==10 && domain.GlobalWindAdd==3.1415927f/3,"original wind units and direction");
+    ClothAtSet sphere;sphere.P1=sphere.P2=0;sphere.R=2;sphere.Weight=.25f;
+    sphere.Ofs1={0,0,0};sphere.Ofs2={0,4,0};
+    auto *scratch=domain.penClothAtMake(&one,&sphere,1);
+    c.test(scratch==&domain.scratch && scratch->num==1 && scratch->pAt==scratch->at.data() && scratch->pAt->Pos.y==3,"original volume interpolation in owned native scratch");
+    Vec endpoint{1,4,0},upper{0,10,0};
+    c.test(domain.penClothAtCk(&endpoint,&upper,scratch)==1 && std::isfinite(endpoint.y),"original cloth sphere projection");
+    c.rejects([&]{domain.penClothAtMake(&one,&sphere,257);},"native scratch rejects capacity overflow before reading source");
+    c.rejects([&]{domain.penClothAtMake(&one,&sphere,-1);},"native scratch rejects negative count");
+    sphere.Type=1;sphere.Ofs1={0,0,0};sphere.Ofs2={0,4,0};
+    scratch=domain.penClothAtMake(&one,&sphere,1);
+    c.test(scratch->pAt->Type==1 && scratch->pAt->Len==4,"original cylinder length from model-space endpoints");
+    Vec local{.25f,2,.5f},world{},restored{};C_MTXMultVec(scratch->pAt->m,&local,&world);C_MTXMultVec(scratch->pAt->im,&world,&restored);
+    c.test(std::fabs(local.x-restored.x)<.0001f && std::fabs(local.y-restored.y)<.0001f && std::fabs(local.z-restored.z)<.0001f,"original cloth cylinder inverse preserves local/world coordinates");
+    domain.clear();c.test(!domain.scratch.pAt && !domain.scratch.num && !domain.moves && !domain.resets,"scratch and counters retire with cloth owner");
     CameraCpu registry;std::array<ModelCpu,4> models;std::array<MotionCamera,5> cameras;
     registry.clearAttachCamera();for(u32 n=0;n<3;++n)registry.registAttachCamera(&cameras[n],&models[n]);
     c.test(registry.m_attach_num==3 && registry.getAttachModel(nullptr)==&models[0] && registry.getAttachCamera(&models[2])==&cameras[2],"original three-slot attach-camera ordering");

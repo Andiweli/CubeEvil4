@@ -159,6 +159,7 @@ def generate(root, output):
         ('    be_flag |=','    construction.startUpEntered=true;\n    actorModel->be_flag |='),
         ('ang.y =','actorModel->ang.y ='),('setPos(&pG->pl_pos);','actorModel->setPos(&pG->pl_pos);\n    construction.startPosition=actorModel->pos;\n    construction.lightCenter=actorModel->getPartsPtr(0)->world;'),
         ('matUpdate();','actorModel->matUpdate();'),('setRno(0, 0, 0, 1);','actorModel->setRno(0, 0, 0, 1);')])
+    cpp[-1]=cpp[-1].rsplit('}',1)[0]+'    construction.startUpReturned=true;\n}'
     add('src/game/pl_wep.cpp','void cPlayer::weaponRelease()', [('cPlayer::F_NO_WEP_EFF','F_NO_WEP_EFF'),('objCur->id','ObjMgr.id(objCur)')])
     # Completion is recorded only after the full preserved release body returned.
     cpp[-1]=cpp[-1].rsplit('}',1)[0]+'    construction.weaponReleased=true;\n}'
@@ -198,6 +199,11 @@ def generate(root, output):
         if 'setRightHand' in sig: changes.append(('int type)','std::intptr_t type)'))
         if 'setLeftHand' in sig: changes.append(('u32 type)','std::uintptr_t type)'))
         add('src/game/pl_leon.cpp',sig,changes)
+    shadow=read('src/game/foot_shadow_tbl.cpp')
+    shadow=re.search(r'FOOTSHADOW_DATA pl_fsd_dat\[6\] = \{.*?\n\};',shadow,re.S)[0]
+    shadow=shadow.replace('FOOTSHADOW_DATA','ActorModelCpu::FootShadowData')
+    cpp.extend([shadow,'ActorModelCpu::FootShadowTable pl_fs_tbl = {6, pl_fsd_dat};',
+        'void PlayerDomain::bindFootShadowTable(){if(!actorModel)throw std::logic_error("foot shadow model owner"); for(const auto &e:pl_fsd_dat)if(e.joint>=actorModel->nParts)throw std::out_of_range("foot shadow joint");actorModel->pFsdTbl=&pl_fs_tbl;}'])
     cpp.append('}')
     (output/'player_control.cpp').write_text('\n\n'.join(cpp)+'\n',encoding='utf-8')
     (output/'player-manifest.json').write_text(json.dumps(dict(sources=hashes,functions=entries,

@@ -9,5 +9,8 @@
   "src/game/pl_wep.cpp": "502d86967a6b9946a01e05a4eea39c4eba37e85fbf83031578b580f126cb98ee",
   "src/game/cam_qfps.cpp": "e72989b3cf12b7501b8425b3abd5e26ae39df5267d5d5492320c2f6966cc04f0",
   "src/game/pl_leon.cpp": "cb6e6a1245b0eaab6faaec6e0c0b1deeb8102f501dde2140576d262cfa92c024",
-  "src/game/sub2.cpp": "cbd24b0ebad299886a8c2e43e685b08871d93cdb603eea0b2d920da9e5c62d51"
+  "src/game/sub2.cpp": "cbd24b0ebad299886a8c2e43e685b08871d93cdb603eea0b2d920da9e5c62d51",
+  "src/game/pl_debug.cpp": "2b2c778d231ce6cfbd7504b7aa40416b4efc8e79e1fae7fc9d549e98a2b9c757",
+  "src/game/em_sub.cpp": "4432d99064d0cbfc309da9cb6d93ad436204a721002a2d73f9152fa4225246b2",
+  "src/game/Espgen42.cpp": "c326d73315f84e4afc43e4dd9ee571431b7cdcc6bd9c5ae3919336f331c8127e"
 }

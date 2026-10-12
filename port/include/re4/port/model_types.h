@@ -65,6 +65,8 @@ struct TexturePaletteView {
 };
 struct ModelBoundingBox { Vec offset{}, size{}; };
 struct ShapeData;
+struct ModelFootShadowData {u8 joint{},div{},flag{},color{};f32 size{};};
+struct ModelFootShadowTable {u32 nTbl{};ModelFootShadowData *dat{};};
 struct ShapeKey { f32 rate{}; ShapeData *data{}; };
 struct ModelInfoView : ModelUnit {
     ModelInfoView();
@@ -145,6 +147,7 @@ struct ModelCpu : ModelPart {
     ActorCollisionInfo atari;
     Vec nativeFloorNormal{}; // Stable copy of the borrowed SAT normal, never serialized.
     void *pCldShMd{}, *pPath{}, *pTexChg{};
+    ModelFootShadowTable *pFsdTbl{}; // include/model.h:521, native pointer width.
     u32 Shd_color{}, inscreen_pos{};
     u8 invisible_trg{}, invisible_old{}, invisible_mode{}, invisible_busy{}, invisible_timer{};
     f32 invisible_factor{}, invisible_factor2{};

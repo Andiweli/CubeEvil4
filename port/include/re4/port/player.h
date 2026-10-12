@@ -40,6 +40,8 @@ struct ActorModelCpu : ModelCpu {
     DamagePart hitInfo;
     Vec lockOfs{};s16 lockParts{};
     s16 hp{},hp_max{};
+    using FootShadowData=ModelFootShadowData;
+    using FootShadowTable=ModelFootShadowTable;
     ActorModelCpu();
     int initWork();
     void setStatus(int);void clearStatus(int);int checkStatus(int);
@@ -79,6 +81,9 @@ struct LeonConstructionSnapshot {
     bool init1Reached{};u32 hitboxes{},lightFlags{};
     bool clothInitialized{},bodyInitialized{},cameraAllocated{};
     bool startUpEntered{};
+    bool startUpReturned{};
+    u32 clothMoves{},clothResets{},clothVolumeBuilds{};
+    bool clothFinite{};std::array<f32,3> clothPositionSum{};
     u32 virtualMoves{};
     u32 motionMoves{};
     u32 actionSelections{},eyeMoves{},actorCollisionChecks{},pendingActions{},actionAttribute{},actionStatus{};
@@ -132,6 +137,9 @@ public:
     // a failed attempt does not publish a player or claim a complete actor.
     ConsumerHandle constructLeon(ResourceLease playerArchive);
     LeonConstructionSnapshot constructionSnapshot() const;
+    // Original virtual Player move on the existing scheduler's main thread.
+    // No synthetic input, movement, frame advance or GameTask transition.
+    void tick();
     void bindWeaponModules(GameRuntime &);
     void configureActors(u32 originalRoomCapacity);
     WeaponRuntime &weapons();

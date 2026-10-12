@@ -1,5 +1,10 @@
 # Hybrid H1: Originale Action-Auswahl – geprüfter Teilstand
 
+Historischer Stand. Die Fortsetzung
+[Originale Cloth- und Player-Laufzeit](hybrid-h1-cloth-status.md) weist jetzt
+die erfolgreiche Rückkehr von `startUp` und neutrale Originalticks nach;
+der aktive Walk-Pfad bleibt am Original-Soundverbraucher unvollständig.
+
 Ausgangsstand: `7de4a23c098219a8b2061085e4cff80ca55953d5`, Branch
 `android-port`, Prüfung am 12. Oktober 2026. **H1 bleibt offen.**
 

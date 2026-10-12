@@ -24,5 +24,7 @@
   "src/game/at_mod.cpp": "7bfcabee8162aa814a332236f9414788b5bfea28beb6537baf858ad5f167e382",
   "include/pl_cloth.h": "da6bda6a3d94cdabbe9244fc2beb9ddbcedc8cc5926b07a8e9ecd3b3fce4d914",
   "src/game/pl_cloth.cpp": "03111fe6b8e1b731ae002fa70a310d47a6965ea30702a722071231da96d84154",
-  "src/game/sub2.cpp": "cbd24b0ebad299886a8c2e43e685b08871d93cdb603eea0b2d920da9e5c62d51"
+  "src/game/sub2.cpp": "cbd24b0ebad299886a8c2e43e685b08871d93cdb603eea0b2d920da9e5c62d51",
+  "include/foot_shadow.h": "fa90f5b5ff3f6209522889a7a2661c9d80b0d0dd3400a00d9948f73b3c6cd138",
+  "src/game/foot_shadow_tbl.cpp": "e4ea207815b55765b1b5d37b9d8760312f8b0e797130a290b48c87c20d73ea10"
 }

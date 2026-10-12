@@ -174,6 +174,8 @@ struct PlayerDomain {
     void init1();
     void initCloth();
     void pl_R0_Move(PlayerDomain*);void pl_R1_Footwork(PlayerDomain*);
+    void pl_R1_Walk(PlayerDomain*);void pl_R1_Back(PlayerDomain*);
+    static constexpr f32 SPEED_WALK_TURN=0.0418879f; // src/game/pl_class.cpp:1753
     void allocateAttachCamera();
     void makeBodyShapeData();
     int EspDataLoad(void *p,ESP_OWNER id,int multiple) {
@@ -185,6 +187,13 @@ struct PlayerDomain {
     void move();
     void moveOriginal();
     void moveLeonCloth();
+    void captureConstruction(bool includeResources=true);
+    int GetWaterHeight(Vec*,f32*);
+    int scr_hit_check{},sat_make_test{},local_coord_test{};u8 PlDbFlag{};
+    void scrHitCheck(PlayerDomain*);void satMakeTest(PlayerDomain*);void localCoordTest(PlayerDomain*);
+    void emSearch();void EmYarareDisp(PlayerDomain*);
+    template<class... A> [[noreturn]] void DrawOba(A...){throw MissingGameConsumer("DrawOba/native debug presentation");}
+    template<class... A> [[noreturn]] void Draw_pos(A...){throw MissingGameConsumer("Draw_pos/native debug presentation");}
     int checkXbuttonLeon();
     int motionMove();
     struct SatBoundary {
@@ -224,7 +233,7 @@ struct PlayerDomain {
     [[noreturn]] u32 requirePartnerStatus(){throw MissingGameConsumer("SubCharGetStatus/native partner actor");}
     [[noreturn]] void requirePartnerCommand(int,int){throw MissingGameConsumer("SubCharCtrl/native partner actor");}
     [[noreturn]] void setDamage(u8,int,int,int,f32){throw MissingGameConsumer("cPlayer::setDamage/LifeDownSet2 and damage routines");}
-    [[noreturn]] void bindFootShadowTable() { throw MissingGameConsumer("cPlLeon/pl_fs_tbl foot-shadow consumer"); }
+    void bindFootShadowTable();
     [[noreturn]] void setPartnerPosition(ModelCpu*,Vec*) { throw MissingGameConsumer("cModel::setPos/model-bound LightInfo.updateMatrix"); }
     void *arc(u32) const;
     ResourceLease lease(void *) const;

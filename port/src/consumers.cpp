@@ -256,9 +256,9 @@ void EngineConsumers::configureModelPools(u32 infos,u32 parts) {
     if(!infos || parts<2) throw std::invalid_argument("native model pool capacity");
     modelRuntime_=std::make_unique<ModelRuntime>(infos,parts);
 }
-void EngineConsumers::checkModelReferences(ConsumerHandle h) const {
+void EngineConsumers::checkModelReferences(ConsumerHandle h,std::size_t retiringBorrows) const {
     check(); validate(h);
-    if(models_.at(h.index)->borrowers.use_count()!=1)
+    if(std::size_t(models_.at(h.index)->borrowers.use_count())!=1+retiringBorrows)
         throw std::logic_error("model release while light/manager pointers are borrowed");
     for(const auto &e:events_) {
         const auto &owned=*models_.at(h.index);const auto &cpu=owned.initialized?owned.initialized->cpu:owned.cpu;
@@ -271,6 +271,17 @@ void EngineConsumers::checkModelRelease(ConsumerHandle h) const {
     checkModelReferences(h);
     if(domain_ && (domain_->current() || domain_->allocatedStacks()))
         throw std::logic_error("model release requires quiescent task borrowers");
+}
+void EngineConsumers::checkModelRetirement(ConsumerHandle h,const std::vector<const std::shared_ptr<const void>*> &owned) const {
+    check();validate(h);const auto &token=models_.at(h.index)->borrowers;
+    std::vector<const std::shared_ptr<const void>*> seen;
+    for(auto *p:owned){
+        if(!p || !*p || p->owner_before(token) || token.owner_before(*p) || std::find(seen.begin(),seen.end(),p)!=seen.end())
+            throw std::logic_error("model retirement has a foreign/duplicate child borrower");
+        seen.push_back(p);
+    }
+    checkModelReferences(h,seen.size());
+    if(domain_ && (domain_->current() || domain_->allocatedStacks()))throw std::logic_error("model retirement requires quiescent tasks");
 }
 void EngineConsumers::releaseUnpublishedModel(ConsumerHandle h,const std::shared_ptr<ModelCpu> &owner) {
     checkModelReferences(h);

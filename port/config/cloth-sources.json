@@ -3,5 +3,6 @@
   "include/pendulum.h": "e63b9f21c075b624345a6c30e0840200021fc6bf0671a697acb115601d568525",
   "include/pl_cloth.h": "da6bda6a3d94cdabbe9244fc2beb9ddbcedc8cc5926b07a8e9ecd3b3fce4d914",
   "src/game/pendulum.cpp": "0bcad8b8ef39f1ee040d14f52b23a15ba1625f9d9aefbe56c2b5caeb4eac6ca8",
-  "src/game/pl_cloth.cpp": "03111fe6b8e1b731ae002fa70a310d47a6965ea30702a722071231da96d84154"
+  "src/game/pl_cloth.cpp": "03111fe6b8e1b731ae002fa70a310d47a6965ea30702a722071231da96d84154",
+  "src/game/sub2.cpp": "cbd24b0ebad299886a8c2e43e685b08871d93cdb603eea0b2d920da9e5c62d51"
 }

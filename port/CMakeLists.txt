@@ -332,7 +332,7 @@ if(MSVC)
     # Original PenClothSet compares its u32 iterator with signed Num; the
     # adapter validates Num before entry. Keep the original loops intact.
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/cloth_control.cpp"
-        PROPERTIES COMPILE_OPTIONS "/wd4018")
+        PROPERTIES COMPILE_OPTIONS "/wd4018;/wd4702")
     # Original cAtariInfo intentionally narrows its public int arguments into
     # 16-bit fields. Keep those bodies intact; native adapters remain /WX.
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/collision_control.cpp"

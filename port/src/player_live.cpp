@@ -17,6 +17,8 @@ void PlayerDomain::dispatchRoutine0(){
 }
 void PlayerDomain::dispatchRoutine1(){
     if(actorModel->r_no_1==0){pl_R1_Footwork(this);return;}
+    if(actorModel->r_no_1==1){pl_R1_Walk(this);return;}
+    if(actorModel->r_no_1==2){pl_R1_Back(this);return;}
     if(actorModel->r_no_1>=std::size(OriginalPlayerMoveNames))throw std::out_of_range("original Pl_func_move_tbl routine index");
     throw MissingGameConsumer(std::string(OriginalPlayerMoveNames[actorModel->r_no_1])+"/original movement routine binding");
 }
@@ -46,5 +48,4 @@ f32 PlayerDomain::SatBoundary::getFloor(Vec *p,int,f32 above,f32 below,int mask)
     if(!player->runtime || !p)throw std::invalid_argument("native player SAT floor");
     return player->runtime->sat().getFloor(*p,above,below,mask);
 }
-void PlayerDomain::debugMove(){throw MissingGameConsumer("cPlayer::debugMove/original debug consumers");}
 } // namespace re4::port

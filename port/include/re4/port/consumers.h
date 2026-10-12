@@ -122,6 +122,9 @@ class EngineConsumers final {
     // native model/parts pointer. No pointer is serialized or narrowed to u32.
     std::shared_ptr<const void> borrowModel(ConsumerHandle);
     void checkModelRelease(ConsumerHandle) const;
+    // Preflight only: caller will destroy these exclusively owned children
+    // before normal releaseModel. External borrowers remain a hard error.
+    void checkModelRetirement(ConsumerHandle,const std::vector<const std::shared_ptr<const void>*> &) const;
     void releaseModel(ConsumerHandle); // Frame-owner boundary; borrowers must be quiescent.
     std::size_t modelCount() const;
     void bindMessage(int type, ResourceLease, u32 language = 1);
@@ -150,7 +153,7 @@ class EngineConsumers final {
     void releaseUnpublishedModel(ConsumerHandle,const std::shared_ptr<ModelCpu>&);
     // Object manager owns the stable native slot and has already validated it.
     void releaseObjectModel(ConsumerHandle,ModelCpu &);
-    void checkModelReferences(ConsumerHandle) const;
+    void checkModelReferences(ConsumerHandle,std::size_t retiringBorrows=0) const;
     struct Model;
     struct Message;
     struct Control {

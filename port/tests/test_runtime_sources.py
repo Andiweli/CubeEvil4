@@ -137,7 +137,14 @@ class Sources(unittest.TestCase):
             out=Path(directory)/'out';generate(ROOT,out)
             code=(out/'cloth_control.cpp').read_text();generate(ROOT,out)
             self.assertEqual(code,(out/'cloth_control.cpp').read_text())
-            self.assertEqual(len(json.loads((out/'cloth-manifest.json').read_text())['functions']),7)
+            self.assertEqual(len(json.loads((out/'cloth-manifest.json').read_text())['functions']),21)
+            for name in ['PenClothMove','PenClothMove3','PenClothReset','penClothAtMake',
+                         'penClothAtCk','penClothAtCkBorder','penClothAtCkParallel','PlClothMoveLeon','PenWindSet']:
+                self.assertIn('ClothDomain::'+name+'(',code)
+            self.assertIn('wk = &scratch;',code)
+            self.assertIn('pl->be_flag &= ~0x00E00000;',code)
+            self.assertNotIn('asm("r',code)
+            self.assertNotIn('wk->pAt - 1',code)
             self.assertIn('ClothDomain::PenClothSet(',code)
             self.assertIn('w->Length_l = ikDistance(&w->Pos, &p->Pen.Pos) * 0.5f;',code)
             self.assertIn('w->Flag &= ~1;',code)

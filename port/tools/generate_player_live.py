@@ -52,6 +52,38 @@ def generate(root,out):
     changes=[]
     for expr in sorted(set(re.findall(r'PL_ARC_PTR\(pG->pPlayer, [^)]*\)',body))):changes.append((expr,'arc('+expr.split(', ')[1][:-1]+')'))
     add('src/game/player.cpp',sig,'void PlayerDomain::pl_R1_Footwork(PlayerDomain* pEm)',changes)
+    for name in ['pl_R1_Walk','pl_R1_Back']:
+        sig=f'void {name}(cPlayer* pEm)';body,_=function(player_source,sig)
+        changes=[('cPlayer::SPEED_WALK_TURN','SPEED_WALK_TURN')]
+        if name=='pl_R1_Walk':
+            changes.extend([('MotionData* data;','ResourceLease data;'),
+                ('(MotionData*) pEm->m_MotTbl[6]','lease(pEm->m_MotTbl[6])'),
+                ('(MotionData*) PL_ARC_PTR(pG->pPlayer, 0x38)','lease(arc(0x38))'),
+                ('data->maxFrame','motionBE16(data.data)')])
+        for expr in sorted(set(re.findall(r'PL_ARC_PTR\(pG->pPlayer, [^)]*\)',body))):
+            if name=='pl_R1_Walk' and expr=='PL_ARC_PTR(pG->pPlayer, 0x38)':continue
+            changes.append((expr,'arc('+expr.split(', ')[1][:-1]+')'))
+        add('src/game/player.cpp',sig,f'void PlayerDomain::{name}(PlayerDomain* pEm)',changes)
+    add('src/game/pl_debug.cpp','void cPlayer::debugMove()','void PlayerDomain::debugMove()')
+    add('src/game/pl_debug.cpp','void cPlayer::emSearch()','void PlayerDomain::emSearch()',[
+        ('EmMgr.','EmMgr->'),('cEm*','NativeEmActor*'),('GetDistance3','ikDistance')])
+    # Preserve verified source guards for currently inactive debug consumers.
+    # Enabled paths fail explicitly and cannot masquerade as completed draws.
+    for name,guard,path,signature in [
+        ('scrHitCheck','scr_hit_check','src/game/pl_debug.cpp','void scrHitCheck(cPlayer* pEm)'),
+        ('satMakeTest','sat_make_test','src/game/pl_debug.cpp','void satMakeTest(cPlayer* pEm)'),
+        ('localCoordTest','local_coord_test','src/game/pl_debug.cpp','void localCoordTest(cPlayer* pEm)'),
+        ('EmYarareDisp','DbgFlagChk(pG, DBG_YARARE_DISP)','src/game/em_sub.cpp','void EmYarareDisp(cEm* pEm)')]:
+        original,line=function((root/path).read_text(),signature)
+        if guard not in original:raise ValueError('Original debug guard changed: '+name)
+        cpp.append(f'#line {line} "{(root/path).as_posix()}"\nvoid PlayerDomain::{name}(PlayerDomain*) {{ if ({guard}) throw MissingGameConsumer("{name}/enabled original debug consumer"); }}')
+        entries.append(dict(source=path,signature=signature,line=line,coverage='Original disabled guard only; enabled consumer throws'))
+    original,line=function((root/'src/game/Espgen42.cpp').read_text(),'int GetWaterHeight(Vec* pos, f32* Ret)')
+    prefix=original.split('    if (g_bNoWater == 1)')[0]
+    cpp.append(f'#line {line} "{(root/"src/game/Espgen42.cpp").as_posix()}"\n'+prefix.replace('int GetWaterHeight','int PlayerDomain::GetWaterHeight')+
+        '    throw MissingGameConsumer("GetWaterHeight/live original water generator registry");\n}')
+    entries.append(dict(source='src/game/Espgen42.cpp',signature='int GetWaterHeight(Vec* pos, f32* Ret)',line=line,
+        coverage='Original STA_WATER_ALIVE early return; live generator owner explicitly unavailable'))
     add('src/game/model.cpp','void cModel::partsFixAdjust()','void ModelCpu::partsFixAdjust()',[
         ('cParts*','ModelPart*')],member=False)
     add('src/game/motion.cpp','void PartsWorldPosCalc(cModel* pMod)','void PartsWorldPosCalc(ModelCpu* pMod)',[

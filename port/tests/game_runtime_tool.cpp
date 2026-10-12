@@ -506,7 +506,7 @@ void messages(int argc,char **argv,bool newGame=false) {
     ControllerInput input; GameRuntime game(files,input,static_cast<u8>(disc)); game.initialize();
     auto &m=game.messages(); auto &scheduler=game.loader().scheduler();
     int checks=0;
-    auto check=[&](bool yes,const char *why){ ++checks; if(!yes) throw std::runtime_error(why); };
+    auto check=[&](bool yes,const char *why){ ++checks; if(!yes){std::cerr<<"original runtime verification failed: "<<why<<'\n';throw std::runtime_error(why);} };
     auto rejects=[&](const TaskEntry &call){ bool no=false; try{call();}catch(const std::exception &){no=true;} check(no,"invalid message input was accepted"); };
     auto execute=[&](const TaskEntry &call){
         bool done=false; auto task=scheduler.exec(1,[&]{call();done=true;scheduler.exit();});
@@ -868,7 +868,7 @@ void messages(int argc,char **argv,bool newGame=false) {
         rejects([&]{game.objects().snapshot(object);});
     }
     // Actual preserved construction sequence in the existing player runtime,
-    // using the imported pl00 owner. Expected failure is NOT actor success.
+    // using the imported pl00 owner. This is isolated scheduler/actor execution, not gameRoomInit.
     ss.initializeInventory();
     execute([&]{ss.gameInit();});
     ss.inventoryRoomInit();
@@ -893,12 +893,12 @@ void messages(int argc,char **argv,bool newGame=false) {
             try {(void)game.player().constructLeon(pl);} catch(const MissingGameConsumer &e) {actorBlocker=e.what();}
         });
         auto result=game.player().constructionSnapshot();
-        if(actorBlocker!="Original consumer unavailable: PlClothMoveLeon/PenClothMove native simulation owner")throw std::runtime_error("actual Leon construction blocker: "+actorBlocker);
+        if(!actorBlocker.empty())throw std::runtime_error("actual Leon construction blocker: "+actorBlocker);
         check(result.actionSelections==1 && result.eyeMoves==1 && result.actorCollisionChecks==1,"original ActionSelect, eye and live-manager actor collision completed");
         check(result.subScreenEnabled && result.actionStatus==1,"original action flags and PlGetStatus reflect actual idle routine");
         check(result.clothInitialized && result.bodyInitialized && result.cameraAllocated && result.startUpEntered,"whole original init1 and actual startUp entry");
         check(result.virtualMoves==1 && result.routines==std::array<u8,4>{0,0,1,1},"original native virtual move reaches original idle motion before interaction boundary");
-        check(result.motionMoves==1 && result.primaryMotion && result.neckMotion && result.sequenceFrames>0 && result.sequenceFrame==f32(1u%result.sequenceFrames),"original looping idle sequence and owned primary/neck motion executed before rollback");
+        check(result.motionMoves==3 && result.primaryMotion && result.neckMotion && result.sequenceFrames>0 && result.sequenceFrame==f32(3u%result.sequenceFrames),"original looping idle sequence and owned primary/neck motion executed before rollback");
         check(result.startPosition.x==game.state().pl_pos.x && result.startPosition.y==game.state().pl_pos.y && result.startPosition.z==game.state().pl_pos.z && result.rotation.y==game.state().pl_ang_y,
               "original startUp uses current native global player state before actual SAT adjustment");
         auto originalFloor=game.sat().getFloor(result.position,600.f,100000.f);
@@ -931,7 +931,25 @@ void messages(int argc,char **argv,bool newGame=false) {
             check(shape.maxFrame==257 && shape.tableCount==2 && shape.offsets==std::array<u32,2>{24,56} && shape.shapeIds==std::array<u16,2>{0,1} && shape.keyCounts==std::array<u16,2>{2,2},"original Body SPAE header, indices and offsets");
             check(shape.frames==std::array<s32,4>{0,256,0,256} && shape.values==std::array<f32,4>{1,0,0,1} && shape.left==std::array<f32,4>{} && shape.right==std::array<f32,4>{},"original complementary face-morph curves");
         }
-        check(result.playerEffect.loads==1 && !result.playerEffect.sourceHash.empty() && !game.effects().dataSnapshot(result.playerEffect.owner).loads,"original pl00 effect load balanced on startUp failure");
+        check(result.playerEffect.loads==1 && !result.playerEffect.sourceHash.empty() && game.effects().dataSnapshot(result.playerEffect.owner).loads==1,"original pl00 effect live after full startUp");
+        check(result.startUpReturned && result.returnedActor && result.clothFinite && result.clothMoves==2 && result.clothResets==2 && result.clothVolumeBuilds==2,"actual startUp returned through original cloth simulation");
+        auto startSequence=result.sequenceFrame;
+        auto borrowedModel=game.engineConsumers().borrowModel(game.player().leonModel());
+        rejects([&]{game.engineConsumers().checkModelRetirement(game.player().leonModel(),{&borrowedModel,&borrowedModel});});
+        std::shared_ptr<const void> unrelated=std::make_shared<const u8>(1);
+        rejects([&]{game.engineConsumers().checkModelRetirement(game.player().leonModel(),{&unrelated});});
+        rejects([&]{game.player().releaseLeonAssets();});
+        check(game.player().weapons().snapshot().loaded && game.effects().dataSnapshot(result.playerEffect.owner).loads==1,"refused borrowed-actor release preserves weapon/model/effect owners");
+        borrowedModel.reset();
+        for(int tick=0;tick<24;++tick){
+            execute([&]{game.player().tick();});
+            const auto state=game.player().constructionSnapshot();
+            check(state.virtualMoves==u32(tick+2) && state.motionMoves==u32(tick+4) && state.clothMoves==u32((tick+2)*2) && state.clothResets==2,"successive virtual Player/Motion/Cloth ticks preserve owner/reset sequence");
+            check(state.clothFinite && state.actorCollisionChecks==u32(tick+2) && state.actionSelections==u32(tick+2),"original collision and action consumers run on every Player tick");
+            check(state.sequenceFrame==std::fmod(startSequence+f32(tick+1),f32(state.sequenceFrames)),"original idle sequence advances over actual Player ticks");
+        }
+        game.player().releaseLeonAssets();
+        check(!game.effects().dataSnapshot(result.playerEffect.owner).loads,"completed actor teardown balances original player effect");
         check(result.init1Reached && result.hitboxes==5 && result.lightFlags==1,"original Neck/light/atari/Yarare init1 prefix");
         check(result.weaponRead && result.weaponInitialized && result.weapon.loaded && result.weapon.initBound && result.weapon.moveBound && result.weapon.initialized,"actual ReadWepData, native prolog and original virtual weapon initialization");
         check(result.weaponEffect.loads==1 && !result.weaponEffect.sourceHash.empty() && result.weaponEffect.estRecords>0,"actual original weapon EspDataLoad registration");
@@ -940,8 +958,8 @@ void messages(int argc,char **argv,bool newGame=false) {
         weaponCases.push_back({equipment.first,equipment.second,result});
         check(result.weaponReleased && game.objects().snapshot().active==1 && (game.objects().snapshot(thrown).flags&0x200),"original weaponRelease iterates live shared objects and defers thrown item destruction");
         check(game.objects().snapshot(retained).flags==0x21,"original weaponRelease retains unrelated object");
-        check(!result.returnedActor && result.playerConstructor && result.subobjects && result.modelInitialized && result.rolledBack && result.schedulerTask,
-              "preserved player/subwork/model construction ran; failed actor was not published");
+        check(result.returnedActor && result.startUpReturned && result.playerConstructor && result.subobjects && result.modelInitialized && !result.rolledBack && result.schedulerTask,
+              "actual original player construction/startUp published native actor");
         check(result.hp==game.state().pl_life && result.motionSlots==0x6D && result.registeredMotionSlots==12 && result.debugCallbacks==11,
               "original player life/table lengths/debug registrations");
         check(result.parts==119 && result.modelInfos==8,"constructor uses the original complete pl00 hierarchy and attachments");
@@ -950,7 +968,8 @@ void messages(int argc,char **argv,bool newGame=false) {
         game.objects().destroy(retained,true);game.objects().dieCheck();game.objects().dieCheck();
         check(game.objects().snapshot().occupied==0,"constructor cleanup drains original deferred objects");
     }
-    const auto constructor=game.player().constructionSnapshot();
+    auto constructor=game.player().constructionSnapshot();
+    constructor=weaponCases.back().snapshot;
     struct ActionInputCase {const char *name;u64 on;std::array<u8,4> routines;};
     std::vector<ActionInputCase> actionInputs;
     input.connect(9100,0);
@@ -963,16 +982,37 @@ void messages(int argc,char **argv,bool newGame=false) {
         std::string failure;
         execute([&]{try{(void)game.player().constructLeon(pl);}catch(const MissingGameConsumer &e){failure=e.what();}});
         const auto state=game.player().constructionSnapshot();
-        if(failure!="Original consumer unavailable: PlClothMoveLeon/PenClothMove native simulation owner")throw std::runtime_error("actual controller/ActionSelect blocker: "+failure);
+        if(!failure.empty())throw std::runtime_error("actual controller/ActionSelect blocker: "+failure);
         u32 required=!caseInput.second?1:caseInput.second==1?0x10:0x800;
         u8 selected=!caseInput.second?1:caseInput.second==1?6:0xb;
         if(!(game.key().on&required) || state.routines!=std::array<u8,4>{0,selected,0,0}){
             std::cerr<<"actual action input="<<caseInput.first<<" Key.on="<<game.key().on<<" rnos="<<unsigned(state.routines[0])<<','<<unsigned(state.routines[1])<<','<<unsigned(state.routines[2])<<','<<unsigned(state.routines[3])<<'\n';
         }
         check((game.key().on&required)!=0 && state.actionSelections==1 && state.routines==std::array<u8,4>{0,selected,0,0},"original ActionSelect consumes actual central PadRead forward/aim/knife");
-        check(state.eyeMoves==1 && state.actorCollisionChecks==1 && state.rolledBack && !game.engineConsumers().modelCount(),"defined-input original prefix retains collision and safe rollback");
+        check(state.eyeMoves==1 && state.actorCollisionChecks==1 && state.startUpReturned && state.returnedActor && state.clothFinite,"defined-input original prefix retains collision and safe rollback");
         actionInputs.push_back({caseInput.first,game.key().on,state.routines});
+        game.player().releaseLeonAssets();
     }
+    input.clearHeld();game.tick();game.player().gameInit();game.state().Speed=originalGameplaySpeed;game.state().weapon_no=2;game.state().weapon_type=0;
+    execute([&]{(void)game.player().constructLeon(pl);});
+    const auto walkingStart=game.player().constructionSnapshot();
+    std::vector<LeonConstructionSnapshot> walkTicks;std::string walkBlocker;
+    input.axes(9100,0,-1,0,0,0,0,0,0);
+    for(int tick=0;tick<12;++tick){
+        game.tick();
+        execute([&]{try{game.player().tick();}catch(const MissingGameConsumer &e){walkBlocker=e.what();}});
+        walkTicks.push_back(game.player().constructionSnapshot());
+        if(!walkBlocker.empty())break;
+    }
+    std::cerr<<"H1 forward ticks="<<walkTicks.size()<<" blocker="<<walkBlocker<<" position="<<walkTicks.back().position.x<<','<<walkTicks.back().position.y<<','<<walkTicks.back().position.z<<" start="<<walkingStart.position.x<<','<<walkingStart.position.y<<','<<walkingStart.position.z<<'\n';
+    check(walkTicks.size()==3 && walkBlocker=="Original consumer unavailable: SndCall/original sound request consumer","original walking SEQ reaches explicit live sound boundary on third attempted tick");
+    check(walkTicks[0].blocker.empty() && walkTicks[1].blocker.empty() && walkTicks[1].routines[1]==1 && walkTicks[1].clothFinite,"first two input-driven ticks actually complete with original walk dispatch");
+    check(std::fabs(walkTicks.back().position.x-walkingStart.position.x)+std::fabs(walkTicks.back().position.z-walkingStart.position.z)>1,"original walk root motion changes position before the explicit sound boundary; third tick is incomplete");
+    for(const auto &tick:walkTicks){
+        auto floor=game.sat().getFloor(tick.position,600.f,100000.f);
+        check(std::fabs(tick.position.y-floor)<.002f && tick.clothFinite,"actual input-driven collision and cloth keep floor contact/finite work");
+    }
+    game.player().releaseLeonAssets();
     input.disconnect(9100);game.tick();
     ss.clear();
     game.effects().clear();game.objects().clear();
@@ -1080,7 +1120,11 @@ void messages(int argc,char **argv,bool newGame=false) {
     for(std::size_t i=0;i<actionInputs.size();++i){if(i)std::cout<<',';const auto &a=actionInputs[i];std::cout<<"{\"name\":"<<std::quoted(a.name)<<",\"key_on\":"<<a.on<<",\"routines\":["<<unsigned(a.routines[0])<<','<<unsigned(a.routines[1])<<','<<unsigned(a.routines[2])<<','<<unsigned(a.routines[3])<<"],\"scope\":\"isolated-PadRead-original-ActionSelect-prefix\"}";}
     std::cout<<"],\"weapon_cases\":[";
     for(std::size_t i=0;i<weaponCases.size();++i){if(i)std::cout<<',';auto &c=weaponCases[i];std::cout<<"{\"equipped_weapon\":"<<unsigned(c.no)<<",\"type\":"<<unsigned(c.type)<<",\"scope\":\"isolated-original-constructor\",\"weapon\":";weaponJson(c.snapshot);std::cout<<'}';}
-    std::cout<<"],\"cloth_body\":{\"cloth_initialized\":"<<(constructor.clothInitialized?"true":"false")<<",\"body_initialized\":"<<(constructor.bodyInitialized?"true":"false")<<",\"camera_allocated\":"<<(constructor.cameraAllocated?"true":"false")<<",\"startUp_entered\":"<<(constructor.startUpEntered?"true":"false")<<",\"links\":["<<constructor.cloth[0].links.size()<<","<<constructor.cloth[1].links.size()<<","<<constructor.cloth[2].links.size()<<"],\"volumes\":["<<constructor.cloth[0].volumes<<","<<constructor.cloth[1].volumes<<","<<constructor.cloth[2].volumes<<"],\"length_max_abs_error\":"<<std::setprecision(9)<<clothLengthError<<",\"normal_max_abs_error\":"<<clothNormalError<<std::setprecision(6)<<",\"player_effect_sha256\":"<<std::quoted(constructor.playerEffect.sourceHash)<<",\"simulation_executed\":false},\"construction\":{\"returned_actor\":false,\"em_mgr_dispatch_bound\":true,\"player_constructor\":true,\"subobjects\":true,\"scheduler_task\":true,\"weapon_release_complete\":true,\"virtual_moves\":"<<constructor.virtualMoves<<",\"motion_moves\":"<<constructor.motionMoves<<",\"action_selections\":"<<constructor.actionSelections<<",\"eye_moves\":"<<constructor.eyeMoves<<",\"actor_collision_checks\":"<<constructor.actorCollisionChecks<<",\"pending_actions\":"<<constructor.pendingActions<<",\"action_attribute\":"<<constructor.actionAttribute<<",\"action_status\":"<<constructor.actionStatus<<",\"subscreen_enabled\":"<<(constructor.subScreenEnabled?"true":"false")<<",\"floor_y\":"<<constructor.position.y<<",\"primary_motion\":"<<(constructor.primaryMotion?"true":"false")<<",\"neck_motion\":"<<(constructor.neckMotion?"true":"false")<<",\"sequence_frames\":"<<constructor.sequenceFrames<<",\"sequence_frame\":"<<constructor.sequenceFrame<<",\"startUp_executed\":false,\"rolled_back\":true,\"parts\":"<<constructor.parts<<",\"model_infos\":"<<constructor.modelInfos<<",\"motion_slots\":"<<constructor.motionSlots<<",\"registered_motion_slots\":"<<constructor.registeredMotionSlots<<",\"debug_callbacks\":"<<constructor.debugCallbacks<<",\"init1_reached\":"<<(constructor.init1Reached?"true":"false")<<",\"hitboxes\":"<<constructor.hitboxes<<",\"light_flags\":"<<constructor.lightFlags<<",\"blocker\":"<<std::quoted(constructor.blocker)<<"}},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
+    std::cout<<"],\"runtime_ticks\":{\"scope\":\"isolated-original-native-actor-not-gameRoomInit\",\"actors\":10,\"neutral_ticks_per_actor\":24,\"neutral_completed\":240,\"walk_completed\":2,\"walk_blocker\":"<<std::quoted(walkBlocker)<<",\"walk_ticks\":[";
+    for(std::size_t i=0;i<walkTicks.size();++i){const auto &t=walkTicks[i];if(i)std::cout<<',';
+        std::cout<<"{\"position\":["<<t.position.x<<','<<t.position.y<<','<<t.position.z<<"],\"rotation\":["<<t.rotation.x<<','<<t.rotation.y<<','<<t.rotation.z<<"],\"routines\":["<<unsigned(t.routines[0])<<','<<unsigned(t.routines[1])<<','<<unsigned(t.routines[2])<<','<<unsigned(t.routines[3])<<"],\"sequence_frame\":"<<t.sequenceFrame<<",\"virtual_moves\":"<<t.virtualMoves<<",\"motion_moves\":"<<t.motionMoves<<",\"cloth_moves\":"<<t.clothMoves<<",\"cloth_finite\":"<<(t.clothFinite?"true":"false")<<",\"cloth_position_sum\":["<<t.clothPositionSum[0]<<','<<t.clothPositionSum[1]<<','<<t.clothPositionSum[2]<<"],\"actor_collision_checks\":"<<t.actorCollisionChecks<<",\"complete\":"<<(t.blocker.empty()?"true":"false")<<'}';
+    }
+    std::cout<<"]},\"cloth_body\":{\"cloth_initialized\":"<<(constructor.clothInitialized?"true":"false")<<",\"body_initialized\":"<<(constructor.bodyInitialized?"true":"false")<<",\"camera_allocated\":"<<(constructor.cameraAllocated?"true":"false")<<",\"startUp_entered\":"<<(constructor.startUpEntered?"true":"false")<<",\"links\":["<<constructor.cloth[0].links.size()<<","<<constructor.cloth[1].links.size()<<","<<constructor.cloth[2].links.size()<<"],\"volumes\":["<<constructor.cloth[0].volumes<<","<<constructor.cloth[1].volumes<<","<<constructor.cloth[2].volumes<<"],\"length_max_abs_error\":"<<std::setprecision(9)<<clothLengthError<<",\"normal_max_abs_error\":"<<clothNormalError<<std::setprecision(6)<<",\"player_effect_sha256\":"<<std::quoted(constructor.playerEffect.sourceHash)<<",\"simulation_executed\":true},\"construction\":{\"returned_actor\":true,\"em_mgr_dispatch_bound\":true,\"player_constructor\":true,\"subobjects\":true,\"scheduler_task\":true,\"weapon_release_complete\":true,\"virtual_moves\":"<<constructor.virtualMoves<<",\"motion_moves\":"<<constructor.motionMoves<<",\"action_selections\":"<<constructor.actionSelections<<",\"eye_moves\":"<<constructor.eyeMoves<<",\"actor_collision_checks\":"<<constructor.actorCollisionChecks<<",\"pending_actions\":"<<constructor.pendingActions<<",\"action_attribute\":"<<constructor.actionAttribute<<",\"action_status\":"<<constructor.actionStatus<<",\"subscreen_enabled\":"<<(constructor.subScreenEnabled?"true":"false")<<",\"floor_y\":"<<constructor.position.y<<",\"primary_motion\":"<<(constructor.primaryMotion?"true":"false")<<",\"neck_motion\":"<<(constructor.neckMotion?"true":"false")<<",\"sequence_frames\":"<<constructor.sequenceFrames<<",\"sequence_frame\":"<<constructor.sequenceFrame<<",\"startUp_executed\":true,\"rolled_back\":false,\"parts\":"<<constructor.parts<<",\"model_infos\":"<<constructor.modelInfos<<",\"motion_slots\":"<<constructor.motionSlots<<",\"registered_motion_slots\":"<<constructor.registeredMotionSlots<<",\"debug_callbacks\":"<<constructor.debugCallbacks<<",\"init1_reached\":"<<(constructor.init1Reached?"true":"false")<<",\"hitboxes\":"<<constructor.hitboxes<<",\"light_flags\":"<<constructor.lightFlags<<",\"cloth_moves\":"<<constructor.clothMoves<<",\"cloth_resets\":"<<constructor.clothResets<<",\"cloth_volume_builds\":"<<constructor.clothVolumeBuilds<<",\"cloth_finite\":"<<(constructor.clothFinite?"true":"false")<<",\"blocker\":"<<std::quoted(constructor.blocker)<<"}},\"merchant_boot\":{\"original_complete\":true,\"friendship\":"<<int(merchant.data.friendship)<<",\"character_bound\":false},\"game_init\":{\"original_complete\":true,\"next_state\":1,\"presentation\":\"isolated_CPU_recording_probe\",\"new_game_inventory_branch\":"<<(newGame?"true":"false")<<"},\"game_stage_init\":{\"original_complete\":true,\"next_state\":2,\"save_kind\":-1,\"disc_after\":"<<int(stageDisc)<<"},\"native_layout\":{\"ID_UNIT\":"<<sizeof(ID_UNIT)<<",\"SAVE_DATA_HEAD\":"<<sizeof(SAVE_DATA_HEAD)<<"},\"blocker\":"<<std::quoted(blocker)<<",\"repeated_init_released\":true,\"checks\":"<<checks<<",\"trace\":[";
     for(std::size_t i=0;i<trace.size();++i){if(i)std::cout<<',';std::cout<<std::quoted(trace[i]);}
     std::cout<<"]}\n";
 }
