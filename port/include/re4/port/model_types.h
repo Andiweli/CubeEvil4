@@ -8,6 +8,8 @@ namespace re4::port {
 using Mtx = f32[3][4];
 using MtxPtr = f32 (*)[4];
 struct LightCpu;
+struct ModelCpu;
+struct CameraCpu;
 struct ModelLightInfo {
     Mtx imat{};
     LightCpu *pLight[8]{};
@@ -20,6 +22,7 @@ struct ModelLightInfo {
     ModelLightInfo();
     int init2(int,int,const Vec*,const Vec*,int);
     u32 getLightNum();
+    void updateMatrix(ModelCpu*);
     u8 getType() const {return Flag&3;}
 };
 // Native counterparts of the named original fields; never wire-layout overlays.
@@ -115,7 +118,11 @@ struct ModelCoord : ModelUnit {
     ModelCoord *pParent{};
     void matCalc();
 };
+} // namespace re4::port
+#include "re4_pendulum_types.h"
+namespace re4::port {
 struct ModelPart : ModelCoord {
+    PendulumState Pen;
     ModelPart *pList{};
     Mtx lt_inv_mat{};
     Vec inv_offset{};
@@ -147,6 +154,7 @@ struct ModelCpu : ModelPart {
     ModelInfoManager *mm{};
     ModelPartsManager *pm{};
     bool systemInvisible{};
+    CameraCpu *attachCameraRegistry{}; // Native borrower, removed before model destruction.
     ModelInfoView *modelInit(void *, void *); // Original int address return becomes typed pointer.
     int initJoint(void *);
     void releaseJoint();
@@ -165,5 +173,8 @@ struct ModelCpu : ModelPart {
     void setNoSuspend(int);
     int isTrans();
     void updateOldPos();
+    void setPos(Vec*);
+    void matUpdate();
+    void setRno(int,int,int,int);
 };
 } // namespace re4::port

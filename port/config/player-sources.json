@@ -23,5 +23,6 @@
   "include/math_sub_decl.h": "f31dd5683a52e11bfde1fc1556270201486850d4a9c9fc01dd91a250d5d9cec1",
   "src/game/at_mod.cpp": "7bfcabee8162aa814a332236f9414788b5bfea28beb6537baf858ad5f167e382",
   "include/pl_cloth.h": "da6bda6a3d94cdabbe9244fc2beb9ddbcedc8cc5926b07a8e9ecd3b3fce4d914",
-  "src/game/pl_cloth.cpp": "03111fe6b8e1b731ae002fa70a310d47a6965ea30702a722071231da96d84154"
+  "src/game/pl_cloth.cpp": "03111fe6b8e1b731ae002fa70a310d47a6965ea30702a722071231da96d84154",
+  "src/game/sub2.cpp": "cbd24b0ebad299886a8c2e43e685b08871d93cdb603eea0b2d920da9e5c62d51"
 }

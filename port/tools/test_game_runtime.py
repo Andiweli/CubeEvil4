@@ -171,8 +171,16 @@ def main():
             'subobjects':True,'scheduler_task':True,'weapon_release_complete':True,'startUp_executed':False,'rolled_back':True,'parts':119,'model_infos':8,
             'motion_slots':109,'registered_motion_slots':12,'debug_callbacks':11,
             'init1_reached':True,'hitboxes':5,'light_flags':1,
-            'blocker':'Original consumer unavailable: PlClothSetLeon/PenClothSet native cloth owners, joints and collision volumes'}:
+            'blocker':'Original consumer unavailable: cPlayer::move/live virtual actor, DmgMgr, actionSelect, EmAtCheck and camera owners'}:
             raise ValueError('actual preserved Leon construction prefix/blocker/rollback')
+        proof=player['cloth_body']
+        if any(proof[k] is not True for k in ['cloth_initialized','body_initialized','camera_allocated','startUp_entered']) or proof['simulation_executed'] or proof['links']!=[24,0,21] or proof['volumes']!=[6,0,4]:
+            raise ValueError('original init1 Cloth/Body/attach-camera execution scope')
+        import math
+        if not 0<=proof['length_max_abs_error']<=.002 or not 0<=proof['normal_max_abs_error']<=.000005 or not all(math.isfinite(proof[k]) for k in ['length_max_abs_error','normal_max_abs_error']):
+            raise ValueError('cloth differs from independent scalar reference')
+        player_archive=drs.Drs((data/'blobs'/player_files[disc]['sha256']).read_bytes())
+        if proof['player_effect_sha256']!=sha(player_archive.entries[0x1a-4][1]):raise ValueError('original pl00 effect resource identity')
         weapon_cases=player['weapon_cases']
         if [(c['equipped_weapon'],c['type']) for c in weapon_cases]!=[(no,kind) for no,kind in [(2,0),(1,0),(3,0),(2,1),(2,0)] for repeat in range(2)]:
             raise ValueError('original weapon variant/repeated lifecycle coverage')
@@ -229,6 +237,11 @@ def main():
             if record['sequence_initializations']!=expected_sequences:
                 raise ValueError('actual original MotionSetCore SEQ state differs from independent FCV/SEQ parser')
         stable={k:v for k,v in actual.items() if k not in ['pointer_bits','native_layout']}
+        # Numeric reference residuals are separately bounded above; semantic
+        # parity must not require compiler-dependent sqrt rounding equality.
+        stable=json.loads(json.dumps(stable))
+        stable['player']['cloth_body'].pop('length_max_abs_error')
+        stable['player']['cloth_body'].pop('normal_max_abs_error')
         return sha(json.dumps(stable,sort_keys=True).encode())
     def verify_lights(actual,disc,bits,expected):
         import struct

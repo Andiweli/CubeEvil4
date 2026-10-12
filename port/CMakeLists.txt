@@ -122,6 +122,17 @@ execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/too
     --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/player-sources.json" player_manifest)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/cloth-sources.json" cloth_manifest)
+string(JSON cloth_count LENGTH "${cloth_manifest}")
+math(EXPR cloth_last "${cloth_count} - 1")
+foreach(index RANGE 0 ${cloth_last})
+    string(JSON cloth_source MEMBER "${cloth_manifest}" ${index})
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RE4_ROOT}/${cloth_source}")
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/cloth-sources.json" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_cloth.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_cloth.py"
+    --root "${RE4_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/original" COMMAND_ERROR_IS_FATAL ANY)
 string(JSON player_count LENGTH "${player_manifest}")
 math(EXPR player_last "${player_count} - 1")
 foreach(index RANGE 0 ${player_last})
@@ -222,7 +233,8 @@ add_library(re4_game_runtime STATIC src/game_runtime.cpp src/gameplay_heaps.cpp 
     src/consumers.cpp src/event_resources.cpp src/model_runtime.cpp src/motion.cpp src/tex_render.cpp src/graphics.cpp src/messages.cpp src/subscreen.cpp
     src/id_save.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/id_save_control.cpp"
     src/lights.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/light_control.cpp"
-    src/player.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/player_control.cpp"
+    src/player.cpp src/cloth.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/player_control.cpp"
+    "${CMAKE_CURRENT_BINARY_DIR}/original/cloth_control.cpp"
     src/objects.cpp src/effects.cpp src/effect_data.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/object_control.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/original/effect_data_control.cpp"
     src/weapons.cpp "${CMAKE_CURRENT_BINARY_DIR}/original/weapon_control.cpp"
@@ -276,6 +288,10 @@ target_link_libraries(re4_game_verification PUBLIC re4_game_runtime)
 set_target_properties(re4_game_verification PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
     target_compile_options(re4_game_runtime PRIVATE /W4 /WX /fp:strict)
+    # Original PenClothSet compares its u32 iterator with signed Num; the
+    # adapter validates Num before entry. Keep the original loops intact.
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/cloth_control.cpp"
+        PROPERTIES COMPILE_OPTIONS "/wd4018")
     # Original cAtariInfo intentionally narrows its public int arguments into
     # 16-bit fields. Keep those bodies intact; native adapters remain /WX.
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/collision_control.cpp"
@@ -298,6 +314,8 @@ if(MSVC)
         "${CMAKE_CURRENT_BINARY_DIR}/original/pad_clamp.cpp" PROPERTIES COMPILE_OPTIONS "/WX-")
 else()
     target_compile_options(re4_game_runtime PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-fast-math -ffp-contract=off)
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/cloth_control.cpp"
+        PROPERTIES COMPILE_OPTIONS "-Wno-sign-compare")
     # Preserve unused parameters/locals of complete original bodies. Native
     # adapter files still compile with the full warning/error policy.
     set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/original/merchant_control.cpp"

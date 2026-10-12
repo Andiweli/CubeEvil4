@@ -6,6 +6,11 @@
 #include <new>
 
 namespace re4::port {
+void RotVector(Vec*,Vec*,Vec*);
+void RotMatrix(Mtx,Vec*);
+void TransMatrix(Mtx,Vec*);
+void C_VECAdd(const Vec*,const Vec*,Vec*);
+u32 C_MTXInverse(const Mtx,Mtx);
 struct NativeObjectManager;
 struct NativeObject : ModelCpu {
     s32 blk{};

@@ -23,6 +23,7 @@ def generate(root, output):
         body,line=function(source,signature)
         for before, after in changes:
             count=2 if signature=='void InverseKinematics(cModel* pEm, int arm_flag)' and before=='SatMgr.getFloor(&target, 0, 500.0f, 100000.0f, 0)' else 1
+            if signature=='void cModel::setPos(Vec* newPos)' and before=='PSVECAdd':count=3
             if body.count(before)!=count: raise ValueError('consumer adaptation occurrence count changed: '+before)
             body=body.replace(before,after)
         if path=='src/game/event.cpp':
@@ -36,6 +37,13 @@ def generate(root, output):
                 'inline int cModel::isTrans()', 'void cModel::updateOldPos()',
                 'inline cParts* cModel::getPartsPtr(int idx)']:
         add('src/game/model.cpp',sig,[(sig,sig.replace('inline ','').replace('cModel::','ModelCpu::').replace('cParts*','ModelPart*'))])
+    add('src/game/model.cpp','void cModel::setPos(Vec* newPos)',[
+        ('cModel::','ModelCpu::'),('cParts*','ModelPart*'),('PSVECSubtract','C_VECSubtract'),
+        ('PSVECAdd','C_VECAdd'),('PSVECMag','C_VECMag')])
+    add('src/game/model.cpp','void cModel::matUpdate()',[
+        ('cModel::','ModelCpu::'),('cCoord::matUpdate();','ModelCoord::matCalc();')])
+    add('include/model.h','void setRno(int r0, int r1, int r2, int r3)',[
+        ('void setRno','void ModelCpu::setRno')])
     add('include/model.h','cCoord() : cUnit(1)', [('cCoord() : cUnit(1)','ModelCoord::ModelCoord()')])
     add('src/game/model.cpp','cModel::cModel()', [('cModel::cModel()','ModelCpu::ModelCpu()'),
         ('memclr_asm(&Motion, 0xD0);','Motion = {}; // Native pointer fields, never a 0xD0 byte overlay.')])
@@ -268,6 +276,16 @@ def generate(root, output):
     for sig in ['int CameraControl::CurrentAreaNo()', 'int CameraControl::CurrentCameraNo()',
                 'void CameraControl::Disable()', 'void CameraControl::AreaCheckOnOff(int sw)']:
         add('src/game/cam_ctrl.cpp',sig,[(sig,sig.replace('CameraControl::','CameraCpu::'))])
+    cpp.append('struct AttachLog { template<class... A> [[noreturn]] void err(int,int,const char *m,A...) { throw std::overflow_error(m); } }; static AttachLog attachLog;')
+    for sig in ['void CameraControl::clearAttachCamera()',
+                'void CameraControl::registAttachCamera(ATTACH_CAMERA* p_attach, cModel* p_model)',
+                'void CameraControl::deleteAttachCamera(ATTACH_CAMERA* p_attach, cModel* p_model)',
+                'cModel* CameraControl::getAttachModel(cModel* p_model)',
+                'ATTACH_CAMERA* CameraControl::getAttachCamera(cModel* p_model)']:
+        changes=[(sig,sig.replace('CameraControl::','CameraCpu::').replace('ATTACH_CAMERA','MotionCamera').replace('cModel*','ModelCpu*'))]
+        if 'registAttach' in sig:changes.append(('pLog->err','attachLog.err'))
+        # No type names in the clear body.
+        add('src/game/cam_ctrl.cpp',sig,[(a,b) for a,b in changes if a in function((root/'src/game/cam_ctrl.cpp').read_text(),sig)[0]])
     enums=(root/'include/event.h').read_text()
     cpp.insert(2,re.search(r'enum EvtStatusFlag \{.*?\n\};',enums,re.S)[0])
     cpp.append('} // namespace re4::port')

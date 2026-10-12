@@ -35,8 +35,9 @@ void requireNoActiveIk(ModelCpu *m,int) {
 u32 moveModelMotion(ModelCpu &m,f32 speed,const MotionActorContext *actor) {
     if(!m.Motion.pMot || !m.Motion.Joint_num)throw std::invalid_argument("MotionMove requires nonempty original FCV");
     if(!std::isfinite(speed) || speed<0 || speed>16)throw std::invalid_argument("motion frame speed");
-    if(m.Motion.pAttachCam || (m.pMotionB && m.pMotionB->pAttachCam))
-        throw MissingGameConsumer("MotionMove attached camera");
+    if((m.Motion.pAttachCam && m.Motion.pAttachCam->type) ||
+       (m.pMotionB && m.pMotionB->pAttachCam && m.pMotionB->pAttachCam->type))
+        throw MissingGameConsumer("MotionMove active attached camera presentation");
     if(m.Motion.Hokan_cnt>m.Motion.Hokan_frame)
         throw std::invalid_argument("MotionMove invalid Hokan count");
     bool ik=false;

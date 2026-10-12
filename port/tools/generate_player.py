@@ -33,7 +33,7 @@ def generate(root, output):
     body=body.replace('cPlBody','PlayerBodyCpu').replace('cModelInfo','ModelInfoView').replace('cModel*','ModelCpu*')
     body=body.replace('u32 nowLhandNo','std::uintptr_t nowLhandNo').replace('u32 oldLhandNo','std::uintptr_t oldLhandNo')
     body=re.sub(r';(?=\s*(?://|\n))','{};',body)
-    body+='    PlayerBodyCpu(ModelCpu* model);\n    ModelCpu* modelOwner() const { return m_pMod; }\n    void initWepHand(void*);\n    void setKnife(bool on);\n    void waistSet(f32);\n    void waistMove();\n    void move();\n};'
+    body+='    PlayerBodyCpu(ModelCpu* model);\n    ModelCpu* modelOwner() const { return m_pMod; }\n    void makeSpaeData();\n    void initWepHand(void*);\n    void setKnife(bool on);\n    void waistSet(f32);\n    void waistMove();\n    void move();\n};'
     ph=read('include/player.h')
     actorflag=re.search(r'    enum FLAG \{.*?\n    \};',ph,re.S)[0].replace('enum FLAG','enum PlayerActorFlag')
     maho=ph[ph.index('struct cPlMahoWork {'):ph.index('extern cPlMaho* pMaho;')]
@@ -50,7 +50,8 @@ def generate(root, output):
     push+='public:\n    PlayerPushCpu(ModelCpu* pl);\n};'
     base=read('include/cMotBase.h');base=base[base.index('class cMotBase {'):base.index('    void set(')]
     base=base.replace('cMotBase','PlayerMotionBaseCpu').replace('cModel*','ModelCpu*')
-    base=re.sub(r';(?=\s*(?://|\n))','{};',base).replace('PlayerMotionBaseCpu(){};','PlayerMotionBaseCpu();')+'};'
+    base=re.sub(r';(?=\s*(?://|\n))','{};',base).replace('PlayerMotionBaseCpu(){};','PlayerMotionBaseCpu();')
+    base+='    void set(ModelCpu*,MotionDataView*,Vec*,Vec*,u8);\n    void set(ModelCpu*,Vec*,Vec*,u8);\n    void adjust();\n    void move();\n    u8 counter() const { return cnt; }\n    ModelCpu *modelOwner() const { return pMod; }\n};'
     base=re.sub(r'^(    )(?!private|public)(.+?\{\};)',r'\1[[maybe_unused]] \2',base,flags=re.M)
     wep=read('include/pl_wep.h');wep=wep[wep.index('class cPlWep {'):wep.index('    f32 getAngle();')]
     wep=wep.replace('cPlWep','PlayerWeaponCpu').replace('cObjWep*','NativeWeapon*')
@@ -73,6 +74,8 @@ def generate(root, output):
             allowed=text.count(old)==2 and old=='cPlayer::F_NO_WEP_EFF'
             allowed |= sig.startswith('void YarareAdd(') and old=='YARARE_INFO*' and text.count(old)==2
             allowed |= sig=='void cPlayer::init1()' and ((old=='YarareAdd(this,' and text.count(old)==4) or (old=='YAT_FLAG_ON' and text.count(old)==5))
+            allowed |= sig=='void cPlayer::startUp()' and old=='matUpdate();' and text.count(old)==2
+            allowed |= sig=='void cMotBase::move()' and old=='PSVECAdd' and text.count(old)==3
             if not text.count(old) or (text.count(old)!=1 and not old.startswith('PL_ARC_PTR') and not allowed): raise ValueError('Player adaptation not unique: '+old)
             text=text.replace(old,new)
         if member:
@@ -95,6 +98,15 @@ def generate(root, output):
     add('src/game/pl_class.cpp','cPlWaist::cPlWaist()', [('cPlWaist::cPlWaist()','PlayerWaistCpu::PlayerWaistCpu()')],member=False)
     add('src/game/pl_class.cpp','f32 cPlWaist::set(f32 dir, f32 rate)', [('cPlWaist::','PlayerWaistCpu::')],member=False)
     add('src/game/cMotBase.cpp','cMotBase::cMotBase()', [('cMotBase::cMotBase()','PlayerMotionBaseCpu::PlayerMotionBaseCpu()')],member=False)
+    for sig in ['void cMotBase::set(cModel* m, MotionData* data, Vec* p, Vec* r, u8 c)',
+                'void cMotBase::set(cModel* pMod0, Vec* pos0, Vec* ang0, u8 hokan0)',
+                'void cMotBase::adjust()', 'void cMotBase::move()']:
+        text,_=function(read('src/game/cMotBase.cpp'),sig)
+        changes=[('cMotBase::','PlayerMotionBaseCpu::')]
+        for old,new in [('cModel*','ModelCpu*'),('MotionData*','MotionDataView*'),('PSVECSubtract','C_VECSubtract'),('PSVECAdd','C_VECAdd'),('PSVECScale','motionVecScale'),('PSMTXMultVecSR','motionMultVecSR')]:
+            if old in text:changes.append((old,new))
+        add('src/game/cMotBase.cpp',sig,changes,member=False)
+    add('src/game/sub2.cpp','f32 Muku2(f32 src_dir, f32 dst_dir, f32 add)',member=False)
     add('include/pl_push.h','cPlPush(cPlayer* pl)', [('cPlPush(cPlayer* pl)','PlayerPushCpu::PlayerPushCpu(ModelCpu* pl)')],member=False)
     for sig in ['cPlMaho::cPlMaho()','void cPlMaho::reset()','void cPlMaho::regist(const char* code, void (*func)())']:
         changes=[('cPlMaho::','PlayerMaho::')]
@@ -143,6 +155,10 @@ def generate(root, output):
     add('src/game/pl_leon.cpp','cPlLeon::cPlLeon()',[
         ('cPlLeon::cPlLeon()','void constructCharacter()'),('PlArc* arc;','void* arc;'),('arc = pG->pPlayer;','arc = subArc;'),
         ('(u32) PL_ARC_PTR(arc, 0x1A)','arcEntry(arc, 0x1A)'),('pFsdTbl = pl_fs_tbl;','bindFootShadowTable();')])
+    add('src/game/player.cpp','void cPlayer::startUp()',[
+        ('    be_flag |=','    construction.startUpEntered=true;\n    actorModel->be_flag |='),
+        ('ang.y =','actorModel->ang.y ='),('setPos(&pG->pl_pos);','actorModel->setPos(&pG->pl_pos);'),
+        ('matUpdate();','actorModel->matUpdate();'),('setRno(0, 0, 0, 1);','actorModel->setRno(0, 0, 0, 1);')])
     add('src/game/pl_wep.cpp','void cPlayer::weaponRelease()', [('cPlayer::F_NO_WEP_EFF','F_NO_WEP_EFF'),('objCur->id','ObjMgr.id(objCur)')])
     # Completion is recorded only after the full preserved release body returned.
     cpp[-1]=cpp[-1].rsplit('}',1)[0]+'    construction.weaponReleased=true;\n}'
@@ -161,6 +177,7 @@ def generate(root, output):
         [('cPlBody::cPlBody(cModel* model)','PlayerBodyCpu::PlayerBodyCpu(ModelCpu* model)')],member=False)
     add('src/game/pl_body.cpp','void cPlBody::initWepHand(u32 addr)',[
         ('void cPlBody::initWepHand(u32 addr)','void PlayerBodyCpu::initWepHand(void* addr)')],member=False)
+    add('src/game/pl_body.cpp','void cPlBody::makeSpaeData()', [('cPlBody::','PlayerBodyCpu::')],member=False)
     for sig in ['void cPlBody::waistSet(f32 y)','void cPlBody::waistMove()','void cPlBody::move()']:
         add('src/game/pl_body.cpp',sig,[('cPlBody::','PlayerBodyCpu::')],member=False)
     add('include/pl_body.h','void setKnife(bool on)',

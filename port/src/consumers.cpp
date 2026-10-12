@@ -289,6 +289,7 @@ ConsumerHandle EngineConsumers::initializeModel(ResourceLease bin,ResourceLease 
     if(!modelRuntime_) throw std::logic_error("original room model pool counts are required");
     auto model=std::make_unique<Model>(); model->name=std::move(name);
     model->initialized=modelRuntime_->initialize(bin,tpl,invisible,kindId,initialFlags,std::move(originalOwner));
+    model->initialized->cpu.attachCameraRegistry=&cameraState;
     auto id=next_++;
     if(!id) throw std::overflow_error("consumer handles exhausted");
     models_.emplace(id,std::move(model)); return {identity_,epoch_,id};
@@ -314,8 +315,8 @@ void EngineConsumers::initializeMotion(ConsumerHandle h,ResourceLease bytes,Reso
     // Original MotionSetCore clamps an excessive requested start frame. Preserve
     // that behavior; only the stored data references are validated here.
     if(!sequence.owner && (sequence.data || sequence.size)) throw std::invalid_argument("SEQ owner required");
-    if(m.initialized->cpu.Motion.pAttachCam)
-        throw MissingGameConsumer("MotionSetCore/attached camera owner not integrated");
+    if(m.initialized->cpu.Motion.pAttachCam && m.initialized->cpu.attachCameraRegistry!=&cameraState)
+        throw MissingGameConsumer("MotionSetCore/foreign attached camera registry owner");
     // Publish ownership before the original functions touch any pointer. On failure
     // retain the new asset: the partially initialized original work can reference it.
     m.blend.reset();m.positive.reset();m.negative.reset();

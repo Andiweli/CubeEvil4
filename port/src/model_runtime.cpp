@@ -120,6 +120,11 @@ ModelRuntime::~ModelRuntime() = default;
 ModelRuntime::Object::Object(std::shared_ptr<ModelCpu> m)
     :owner(m?std::move(m):std::make_shared<ModelCpu>()),cpu(*owner) {}
 ModelRuntime::Object::~Object() {
+    if(cpu.attachCameraRegistry){
+        auto *camera=cpu.attachCameraRegistry->getAttachCamera(&cpu);
+        if(camera)cpu.attachCameraRegistry->deleteAttachCamera(camera,&cpu);
+        cpu.attachCameraRegistry=nullptr;
+    }
     if(cpu.pm) cpu.releaseJoint();
     if(cpu.mm) cpu.releaseModelInfo();
     cpu.pm=nullptr;cpu.mm=nullptr;

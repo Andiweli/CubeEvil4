@@ -2,6 +2,7 @@
 #include "model_verification.h"
 #include "object_verification.h"
 #include "light_parent_verification.h"
+#include "../src/cloth_original.h"
 #include "re4/port/game_runtime.h"
 #include "re4/port/sha256.h"
 #include "re4_scheduler_original.h"
@@ -35,6 +36,36 @@ struct Checks {
         test(rejected, why);
     }
 };
+// Numeric fixtures exercise original setup/pin and registry bodies. They are
+// isolated adapter tests, not Leon construction or player simulation.
+void clothCameraTests(Checks &c,GameRuntime &game){
+    ModelCpu model;std::array<ModelPart,3> parts;
+    model.nParts=3;model.pList=parts.data();
+    for(u32 n=0;n<3;++n){parts[n].world={0,-10.f*f32(n),0};parts[n].pList=n<2?&parts[n+1]:nullptr;}
+    std::array<u8,3> ids{0,1,2},parents{255,0,1},children{1,2,255};
+    ClothInfo info;info.Num=3;info.pCloth=ids.data();info.pParent=parents.data();info.pChild=children.data();
+    ClothDomain domain(game.state());domain.PenClothSet(&model,&info,100);
+    c.test(parts[0].Pen.Length==10 && parts[1].Pen.Length==10 && parts[2].Pen.Length==10 && parts[2].Pen.Pos.y==-30,"original chain setup and inherited tail");
+    Vec pinned{2,3,4};domain.PenClothFixSet(&model,&info,1,&pinned);
+    c.test(parts[1].Pen.Flag==1 && parts[1].Pen.Fix_pos.y==3,"original cloth pin transition");domain.PenClothFixClear(&model,&info,1);
+    c.test(parts[1].Pen.Flag==0 && parts[1].Pen.Fix_pos.y==3,"original cloth unpin preserves stored position");
+    c.rejects([&]{domain.PenClothFixClear(&model,&info,-1);},"negative cloth pin index");
+    children[1]=3;parts[0].motParts.flags=0;
+    c.rejects([&]{domain.PenClothSet(&model,&info,100);},"invalid cloth child rejected before original loop");
+    c.test(parts[0].motParts.flags==0,"invalid link leaves original joint flags unchanged");children[1]=2;
+    info.Num=4;c.rejects([&]{domain.PenClothSet(&model,&info,100);},"cloth count exceeds hierarchy");info.Num=3;
+    ClothAtSet volume;volume.P1=3;info.At_num=1;info.pAtset=&volume;
+    c.rejects([&]{domain.PenClothSet(&model,&info,100);},"invalid cloth collision volume parent");
+    CameraCpu registry;std::array<ModelCpu,4> models;std::array<MotionCamera,5> cameras;
+    registry.clearAttachCamera();for(u32 n=0;n<3;++n)registry.registAttachCamera(&cameras[n],&models[n]);
+    c.test(registry.m_attach_num==3 && registry.getAttachModel(nullptr)==&models[0] && registry.getAttachCamera(&models[2])==&cameras[2],"original three-slot attach-camera ordering");
+    registry.registAttachCamera(&cameras[3],&models[0]);registry.deleteAttachCamera(&cameras[0],&models[0]);
+    c.test(registry.m_attach_num==3 && registry.getAttachCamera(&models[0])==&cameras[3],"original replacement and mismatched-camera deletion");
+    c.rejects([&]{registry.registAttachCamera(&cameras[4],&models[3]);},"original full attach-camera table rejects fourth model");
+    registry.deleteAttachCamera(&cameras[3],&models[0]);registry.registAttachCamera(&cameras[4],&models[3]);
+    c.test(registry.m_attach_num==3 && !registry.getAttachModel(&models[0]) && registry.getAttachCamera(nullptr)==&cameras[4],"original registry slot reuse without stale model");
+    registry.clearAttachCamera();c.test(!registry.m_attach_num && !registry.getAttachModel(nullptr) && !registry.getAttachCamera(nullptr),"original attach registry reset");
+}
 // Numeric adapter fixture: original triangle/block kernels run on checked BE
 // storage. This geometry is solely a collision test, never a room resource.
 void sphereTests(Checks &c,GameRuntime &game) {
@@ -559,6 +590,7 @@ std::string verifyGameRuntime(const std::string &directory,std::shared_ptr<Graph
     c.test(scheduler.allocatedStacks() == 0, "all stack owners released on reset");
     tests::consumerTests(c, game);
     tests::modelInitializationTests(c, game);
+    clothCameraTests(c,game);
     sphereTests(c,game);
     tests::objectTests(c,game);
     tests::lightParentTests(c, game);

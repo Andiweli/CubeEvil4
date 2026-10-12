@@ -118,11 +118,18 @@ void PlayerRuntime::releaseLeonAssets() {
         if(d.Wep->m_pWep){d.ObjMgr.destroyNow(d.Wep->m_pWep);d.Wep->m_pWep=nullptr;}
         if(d.Wep->m_pWepHand){d.ObjMgr.destroyNow(d.Wep->m_pWepHand);d.Wep->m_pWepHand=nullptr;}
     }
+    while(d.playerEffectLoads){d.effects.releaseData(EFF_PL00,1,0);--d.playerEffectLoads;}
     if(d.modelHandle) {
+        if(d.attachCameraStorage && d.actorModel && d.actorModel->Motion.pAttachCam){
+            if(d.actorModel->Motion.pAttachCam!=d.attachCameraStorage.data)throw std::logic_error("player attach-camera ownership mismatch");
+            if(d.actorModel->attachCameraRegistry)d.actorModel->attachCameraRegistry->deleteAttachCamera(d.actorModel->Motion.pAttachCam,d.actorModel.get());
+            std::destroy_at(d.actorModel->Motion.pAttachCam);d.actorModel->Motion.pAttachCam=nullptr;
+        }
         if(d.constructing)d.models.releaseUnpublishedModel(*d.modelHandle,d.actorModel);
         else d.models.releaseModel(*d.modelHandle);
     }
     d.modelHandle.reset();d.actorModel.reset();d.archive={};d.archiveIndex={};d.motionTable.fill(nullptr);d.bindings.clear();d.body=PlayerBodyCpu(nullptr);
+    d.attachCameraStorage={};d.cloth.clear();
     d.Body=&d.body;d.bodyOwner.reset();d.weaponOwner.reset();d.pushOwner.reset();d.waistOwner.reset();d.motionBaseOwner.reset();d.mahoOwner.reset();d.Neck=nullptr;d.neckOwner.reset();d.Pl_func_tbl={};
     d.actorMotions.clear();d.registeredMotions.clear();d.m_MotTbl=d.motionTable.data();d.m_MotTbl2=nullptr;
     d.Wep=nullptr;d.Push=nullptr;d.Waist=nullptr;d.MotBase=nullptr;d.pMaho=nullptr;d.pPL=nullptr;d.pSUB=nullptr;d.subArc=nullptr;d.constructing=false;
@@ -130,6 +137,39 @@ void PlayerRuntime::releaseLeonAssets() {
     if(d.WepReadModule.pData || d.WepReadModule.pDll || d.WepReadModule.ctrl_flag.get())d.InitModule(&d.WepReadModule);
     if(d.nativeWeapons)d.nativeWeapons->clear();
     d.WeaponInitFunc={};
+}
+void PlayerDomain::allocateAttachCamera(){
+    requireConstructionOwner();if(attachCameraStorage || actorModel->Motion.pAttachCam)throw std::logic_error("duplicate original attach-camera allocation");
+    attachCameraStorage=heaps.allocate(sizeof(MotionCamera),13,false);
+    actorModel->Motion.pAttachCam=new(attachCameraStorage.data) MotionCamera{};
+    construction.cameraAllocated=true;
+}
+void PlayerDomain::initCloth(){
+    requireConstructionOwner();cloth.initialize(actorModel.get());
+    const ClothInfo *chains[]={&cloth.leonHair,&cloth.leonJacket,&cloth.leonHolster};
+    for(u32 n=0;n<3;++n){
+        const auto &c=*chains[n];auto &out=construction.cloth[n];
+        out.flags=c.Flag;out.volumes=u32(c.At_num);out.gravity=c.Gravity;out.rate=c.Rate;out.stretchy=c.Stretchy;out.moveRate=c.Move_rate;
+        for(int i=0;i<c.Num;++i){
+            if(c.pCloth[i]==255)continue;
+            auto *part=actorModel->getPartsPtr(c.pCloth[i]);const auto &p=part->Pen;ClothLinkSnapshot link;
+            link.refs={c.pCloth[i],c.pParent[i],c.pChild[i],c.pLeft?c.pLeft[i]:u8(255),c.pRight?c.pRight[i]:u8(255),c.pUpLeft?c.pUpLeft[i]:u8(255),c.pUpRight?c.pUpRight[i]:u8(255)};
+            link.jointWorld=part->world;if(c.pChild[i]!=255)link.childWorld=actorModel->getPartsPtr(c.pChild[i])->world;
+            link.offset=p.Offset;link.normal=p.Normal;link.position=p.Pos;link.speed=p.Speed;link.length=p.Length;
+            link.neighborLengths={p.Length_l,p.Length_r,p.Length_lu,p.Length_ru};link.motionFlags=part->motParts.flags;
+            out.links.push_back(link);
+        }
+    }
+    construction.clothInitialized=true;
+}
+void PlayerDomain::makeBodyShapeData(){
+    requireConstructionOwner();Body->makeSpaeData();
+    for(u32 i=0;i<2;++i){auto &from=Body->pl_shape_data[i];auto &out=construction.body[i];
+        out.maxFrame=from.head.max_frame;out.tableCount=from.head.tbl_num;
+        for(u32 t=0;t<2;++t){out.offsets[t]=from.tbl[t].offset;out.shapeIds[t]=from.tbl[t].shape_id;out.keyCounts[t]=from.tbl[t].key_num;}
+        for(u32 t=0;t<4;++t){out.frames[t]=from.mot[t].frame;out.values[t]=from.mot[t].value;out.right[t]=from.mot[t].r_value;out.left[t]=from.mot[t].l_value;}
+    }
+    construction.bodyInitialized=true;
 }
 void *PlayerDomain::allocateMotionTable(u32 count,int line) {
     requireConstructionOwner();
@@ -166,6 +206,11 @@ ConsumerHandle PlayerRuntime::constructLeon(ResourceLease bytes) {
         // EmMgr type/vtable and every downstream consumer are integrated.
         throw MissingGameConsumer("EmMgr.construct/full cPlLeon virtual actor publication");
     } catch(const std::exception &error) {
+        d.construction.playerEffect=d.effects.dataSnapshot(EFF_PL00);
+        d.construction.position=d.actorModel->pos;d.construction.rotation=d.actorModel->ang;
+        d.construction.routines={d.actorModel->r_no_0,d.actorModel->r_no_1,d.actorModel->r_no_2,d.actorModel->r_no_3};
+        if(d.actorModel->pList)d.construction.lightCenter=d.actorModel->getPartsPtr(0)->world;
+        for(u32 r=0;r<3;++r)for(u32 c=0;c<4;++c)d.construction.lightInverse[r*4+c]=d.actorModel->LightInfo.imat[r][c];
         if(d.nativeWeapons)d.construction.weapon=d.nativeWeapons->snapshot();
         if(d.nativeWeapons && !d.nativeWeapons->domain()->effectLoads.empty())d.construction.weaponEffect=d.effects.dataSnapshot(d.nativeWeapons->domain()->effectLoads.front());
         d.construction.init1Reached=bool(d.Neck);d.construction.lightFlags=d.actorModel->State.m_LightFlag;

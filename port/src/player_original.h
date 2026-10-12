@@ -4,6 +4,7 @@
 #include "re4/port/objects.h"
 #include "re4/port/effects.h"
 #include "weapon_original.h"
+#include "cloth_original.h"
 #include <map>
 
 namespace re4::port {
@@ -12,6 +13,10 @@ using cModel = ModelCpu;
 using cParts = ModelPart;
 using cPlBody = PlayerBodyCpu;
 using cObj = NativeObject;
+void MotionGetSpeed(ModelCpu*,ModelMotion*,int,Vec*,Vec*);
+void motionVecScale(const Vec*,Vec*,f32);
+f32 Muku2(f32,f32,f32);
+inline constexpr f32 PI=3.1415927f,PI2=6.2831855f;
 void ShapeEnd(void *);
 void SetOriginalShape(ModelInfoView *);
 [[noreturn]] inline int ShapeSet(void *, int, void *, int) {
@@ -44,6 +49,8 @@ struct PlayerDomain {
     struct LightBoundary {[[noreturn]] void update(int,int){throw MissingGameConsumer("LightMgr.update/special player camera");}} LightMgr;
     [[noreturn]] void CameraMove(){throw MissingGameConsumer("CameraMove/full player camera");}
     NativeGameState *pG;
+    ClothDomain cloth;
+    GameplayHeaps::Allocation attachCameraStorage;
     struct System { u8 &pad_type; } system;
     System *pSys=&system;
     KEY &Key;
@@ -90,6 +97,7 @@ struct PlayerDomain {
     PlayerMotionBaseCpu *MotBase{};
     PlayerMaho *pMaho{};
     bool constructing{};
+    u32 playerEffectLoads{};
     LeonConstructionSnapshot construction;
     std::unique_ptr<WeaponRuntime> nativeWeapons;
     std::function<void(PlayerDomain*)> WeaponInitFunc;
@@ -105,7 +113,7 @@ struct PlayerDomain {
     } log;
     Log *pLog=&log;
     PlayerDomain(NativeGameState &g,KEY &key,u8 &pad,GameplayHeaps &h,EngineConsumers &m,NativeScheduler &s,ObjectRuntime &o,EffectRuntime &e)
-        :ObjMgr(o),effects(e),pG(&g),system{pad},Key(key),heaps(h),models(m),scheduler(s) {}
+        :ObjMgr(o),effects(e),pG(&g),cloth(g),system{pad},Key(key),heaps(h),models(m),scheduler(s) {}
     void PlayerInit();
     void PlayerLifeReset();
     void ReleaseWepData();
@@ -143,12 +151,19 @@ struct PlayerDomain {
     void ReadWepData(u32,u32);
     void weaponInit();
     void init1();
-    [[noreturn]] void initCloth(){throw MissingGameConsumer("PlClothSetLeon/PenClothSet native cloth owners, joints and collision volumes");}
+    void initCloth();
     [[noreturn]] void pl_R0_Move(PlayerDomain*){throw MissingGameConsumer("pl_R0_Move/full native player dispatch");}
-    void allocateAttachCamera(){throw MissingGameConsumer("ATTACH_CAMERA/player live camera owner");}
-    [[noreturn]] void makeBodyShapeData(){throw MissingGameConsumer("cPlBody::makeSpaeData/owned native morph data");}
-    int EspDataLoad(void *p,ESP_OWNER id,int multiple) {return effects.loadData(lease(p),id,multiple);}
-    [[noreturn]] void startUp() { throw MissingGameConsumer("cPlayer::startUp/full virtual player move dependencies"); }
+    void allocateAttachCamera();
+    void makeBodyShapeData();
+    int EspDataLoad(void *p,ESP_OWNER id,int multiple) {
+        int result=effects.loadData(lease(p),id,multiple);
+        if(result && id==EFF_PL00)++playerEffectLoads;
+        return result;
+    }
+    void startUp();
+    [[noreturn]] void move() { throw MissingGameConsumer("cPlayer::move/live virtual actor, DmgMgr, actionSelect, EmAtCheck and camera owners"); }
+    [[noreturn]] void motionMove() { throw MissingGameConsumer("cPlayer::motionMove/live actor owner"); }
+    struct SatBoundary { [[noreturn]] void check(PlayerDomain*,int) { throw MissingGameConsumer("cPlayer::startUp/SAT live actor owner"); } } SatMgr;
     [[noreturn]] void bindFootShadowTable() { throw MissingGameConsumer("cPlLeon/pl_fs_tbl foot-shadow consumer"); }
     [[noreturn]] void setPartnerPosition(ModelCpu*,Vec*) { throw MissingGameConsumer("cModel::setPos/model-bound LightInfo.updateMatrix"); }
     void *arc(u32) const;

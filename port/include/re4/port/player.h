@@ -44,6 +44,25 @@ struct PlayerInitSnapshot {
 };
 struct PlayerMotionBinding { u32 motionIndex{}, archiveSlot{}; ResourceLease bytes; };
 struct WeaponMotionRecord {u32 index{},slot{};std::string path,hash;};
+struct ClothLinkSnapshot {
+    std::array<u8,7> refs{}; // part, parent, child, left, right, upper-left, upper-right.
+    Vec jointWorld{},childWorld{},offset{},normal{},position{},speed{};
+    f32 length{};
+    std::array<f32,4> neighborLengths{};
+    u32 motionFlags{};
+};
+struct ClothChainSnapshot {
+    u32 flags{},volumes{};
+    f32 gravity{},rate{},stretchy{},moveRate{};
+    std::vector<ClothLinkSnapshot> links;
+};
+struct BodyShapeSnapshot {
+    u32 maxFrame{},tableCount{};
+    std::array<u32,2> offsets{};
+    std::array<u16,2> shapeIds{},keyCounts{};
+    std::array<s32,4> frames{};
+    std::array<f32,4> values{},right{},left{};
+};
 struct LeonConstructionSnapshot {
     bool returnedActor{},playerConstructor{},subobjects{},modelInitialized{},rolledBack{};
     bool schedulerTask{};
@@ -52,6 +71,15 @@ struct LeonConstructionSnapshot {
     WeaponReadSnapshot weapon;
     EffectDataSnapshot weaponEffect;
     bool init1Reached{};u32 hitboxes{},lightFlags{};
+    bool clothInitialized{},bodyInitialized{},cameraAllocated{};
+    bool startUpEntered{};
+    EffectDataSnapshot playerEffect;
+    Vec position{},rotation{};
+    Vec lightCenter{};
+    std::array<f32,12> lightInverse{};
+    std::array<u8,4> routines{};
+    std::array<ClothChainSnapshot,3> cloth;
+    std::array<BodyShapeSnapshot,2> body;
     u32 weaponObjectId{},weaponItemId{},weaponParts{},weaponMotions{},weaponParentPart{};
     std::string weaponBinHash,weaponTplHash;
     std::vector<WeaponMotionRecord> weaponBindings;

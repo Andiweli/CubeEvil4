@@ -110,7 +110,7 @@ class Sources(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output=Path(directory)/'output';generate(ROOT,output)
             functions=json.loads((output/'player-manifest.json').read_text())['functions']
-            self.assertEqual(len(functions),61)
+            self.assertEqual(len(functions),68)
             signatures={f['signature'] for f in functions}
             self.assertIn('void PlayerInit()',signatures)
             self.assertIn('void cPlLeon::setModel()',signatures)
@@ -118,6 +118,9 @@ class Sources(unittest.TestCase):
             self.assertIn('cPlLeon::cPlLeon()',signatures)
             self.assertIn('cPlayer::cPlayer()',signatures)
             self.assertIn('void cPlayer::weaponRelease()',signatures)
+            self.assertIn('void cPlBody::makeSpaeData()',signatures)
+            self.assertIn('void cPlayer::startUp()',signatures)
+            self.assertIn('void cMotBase::move()',signatures)
             copy=Path(directory)/'root'
             hashes=json.loads((ROOT/'port/config/player-sources.json').read_text())
             for relative in [*hashes,'port/config/player-sources.json']:
@@ -125,6 +128,26 @@ class Sources(unittest.TestCase):
             p=copy/'src/game/player.cpp';p.write_text(p.read_text().replace('1200);','1201);'))
             with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):
                 generate(copy,Path(directory)/'bad-output')
+
+    def test_cloth_original_bodies_tables_and_guard(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'port/tools'))
+        from generate_cloth import generate
+        with tempfile.TemporaryDirectory() as directory:
+            out=Path(directory)/'out';generate(ROOT,out)
+            code=(out/'cloth_control.cpp').read_text();generate(ROOT,out)
+            self.assertEqual(code,(out/'cloth_control.cpp').read_text())
+            self.assertEqual(len(json.loads((out/'cloth-manifest.json').read_text())['functions']),7)
+            self.assertIn('ClothDomain::PenClothSet(',code)
+            self.assertIn('w->Length_l = ikDistance(&w->Pos, &p->Pen.Pos) * 0.5f;',code)
+            self.assertIn('w->Flag &= ~1;',code)
+            self.assertIn('ClothAtSet leonJacketAt[6]',code)
+            self.assertNotIn('0xE0000000',code)
+            copy=Path(directory)/'root';hashes=json.loads((ROOT/'port/config/cloth-sources.json').read_text())
+            for relative in [*hashes,'port/config/cloth-sources.json']:
+                target=copy/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/relative,target)
+            target=copy/'src/game/pendulum.cpp';target.write_text(target.read_text()+'\n// changed source\n')
+            with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):generate(copy,Path(directory)/'bad')
 
 
 if __name__ == '__main__': unittest.main()

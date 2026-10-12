@@ -54,10 +54,11 @@ def generate(root, output):
                 'static ObjectLog objectLog;static ObjectLog* pLog=&objectLog;'])
     for sig in ['cLightInfo::cLightInfo()',
                 'int cLightInfo::init2(int type, int partsNo, const Vec* pOffset, const Vec* pSize, int mask)',
-                'u32 cLightInfo::getLightNum()']:
+                'u32 cLightInfo::getLightNum()', 'void cLightInfo::updateMatrix(cModel* pMod)']:
         changes=[('cLightInfo::','ModelLightInfo::')]
         if sig.startswith('cLightInfo::'):changes.append(('ModelLightInfo::cLightInfo()','ModelLightInfo::ModelLightInfo()'))
         if 'init2' in sig:changes += [('!VALID_PTR(pOffset) || !VALID_PTR(pSize)','!pOffset || !pSize'),('SQRTF(','std::sqrt(')]
+        if 'updateMatrix' in sig:changes += [('cModel*','ModelCpu*'),('PSVECAdd','C_VECAdd'),('PSMTXInverse','C_MTXInverse')]
         add('src/game/lightInfo.cpp',sig,changes)
     add('src/game/objWep.cpp','cObjWep::cObjWep()', [('cObjWep::cObjWep()','void NativeWeapon::initializeWeapon()')])
     # Selected classes have implicit original constructors: cObj's constructor

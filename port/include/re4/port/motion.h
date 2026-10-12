@@ -52,7 +52,8 @@ public:
     void move(f32);
 };
 // Actual MotionMove chain. Active IK requires the caller's typed original actor
-// status/collision view; attached cameras still fail before mutation.
+// status/collision view; active attached cameras still fail before mutation.
+// Allocated cameras with type zero follow the original inactive branch.
 // The original sequence advances by speed, independently of display cadence.
 u32 moveModelMotion(ModelCpu &,f32 speed=1.f,const MotionActorContext *actor=nullptr);
 int motionCrossedFrame(ModelCpu &,f32 frame);

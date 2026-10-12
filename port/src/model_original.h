@@ -23,6 +23,9 @@ void C_MTXScale(Mtx, f32, f32, f32);
 void C_MTXRotRad(Mtx, char, f32);
 void C_MTXRotTrig(Mtx, char, f32, f32);
 void C_MTXMultVec(const Mtx, const Vec *, Vec *);
+void C_VECAdd(const Vec*,const Vec*,Vec*);
+void C_VECSubtract(const Vec*,const Vec*,Vec*);
+f32 C_VECMag(const Vec*);
 
 // Native storage/lifetime adapter, with original cManager allocation/list bodies.
 template <class T> class ModelPool {

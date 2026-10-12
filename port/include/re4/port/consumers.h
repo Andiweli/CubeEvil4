@@ -70,10 +70,18 @@ struct CameraCpu {
     s8 areaNo{}, cameraNo{};
     u8 r0{};
     u32 m_system_flag{};
+    u32 m_attach_num{};
+    ModelCpu *m_p_model[3]{},*m_p_attach_model_old{};
+    MotionCamera *m_p_attach[3]{};
     int CurrentAreaNo();
     int CurrentCameraNo();
     void Disable();
     void AreaCheckOnOff(int);
+    void clearAttachCamera();
+    void registAttachCamera(MotionCamera*,ModelCpu*);
+    void deleteAttachCamera(MotionCamera*,ModelCpu*);
+    ModelCpu *getAttachModel(ModelCpu*);
+    MotionCamera *getAttachCamera(ModelCpu*);
 };
 
 // Room ownership, checked references and original CPU consumers on the frame owner.

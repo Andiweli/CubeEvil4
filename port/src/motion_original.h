@@ -29,8 +29,8 @@ f32 C_VECSquareMag(const Vec*);
 inline constexpr Vec vecZero{0,0,0};
 inline void memclr_asm(void *p,std::size_t n) { std::memset(p,0,n); }
 struct MotionCameraBoundary {
-    [[noreturn]] void registAttachCamera(ATTACH_CAMERA*,cModel*) { throw MissingGameConsumer("MotionSetCore/CameraControl::registAttachCamera"); }
-    [[noreturn]] void deleteAttachCamera(ATTACH_CAMERA*,cModel*) { throw MissingGameConsumer("MotionSetCore/CameraControl::deleteAttachCamera"); }
+    void registAttachCamera(ATTACH_CAMERA *c,cModel *m) { if(!m->attachCameraRegistry)throw MissingGameConsumer("MotionSetCore/CameraControl attach registry owner");m->attachCameraRegistry->registAttachCamera(c,m); }
+    void deleteAttachCamera(ATTACH_CAMERA *c,cModel *m) { if(!m->attachCameraRegistry)throw MissingGameConsumer("MotionSetCore/CameraControl attach registry owner");m->attachCameraRegistry->deleteAttachCamera(c,m); }
 };
 inline MotionCameraBoundary CamCtrl;
 struct Quaternion { f32 x{},y{},z{},w{}; };
