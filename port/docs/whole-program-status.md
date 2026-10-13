@@ -14,8 +14,9 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 ## Bauen und prüfen
 
 ```sh
-# einmalig (Cloud): Compiler für 32-bit-Linux und ARM32
-apt-get install -y g++-multilib g++-arm-linux-gnueabihf
+# Compiler für 32-bit-Linux und ARM32 installiert in der Cloud das Startskript
+# .claude/hooks/session-start.sh automatisch (g++-multilib geht nicht: Ubuntu
+# verweigert es neben dem ARM-Cross-Compiler, deshalb nur die lib32-Pakete)
 port/tools/whole_build.sh          # baut i686 und armhf, ~1 Minute
 ```
 

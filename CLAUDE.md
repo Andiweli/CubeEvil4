@@ -45,7 +45,8 @@ Dann ausführen, Absturzstelle finden, beheben, wiederholen.
 ## Testen
 
 - **Cloud (Linux):** 32-bit-Host-Build mit `-m32` (gleiche Zeigerbreite wie
-  ARM32). Falls nötig zuerst `apt-get install -y g++-multilib`.
+  ARM32). Die Compiler installiert das Startskript
+  `.claude/hooks/session-start.sh` automatisch bei jeder Cloud-Sitzung.
   Spiellogik, Laden und Abstürze werden hier geprüft. Disc-Daten gibt es in der
   Cloud nicht. Tests, die sie brauchen, laufen lokal.
 - **Lokal (Windows-PC + Retroid Pocket Flip 2 per ADB):** Gerätetests nur über

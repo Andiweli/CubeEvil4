@@ -5,8 +5,8 @@
 #   port/tools/whole_build.sh            # i686 and armhf
 #   port/tools/whole_build.sh i686       # one target
 #
-# Needs clang, cmake, ninja, python3; i686 needs g++-multilib, armhf needs
-# g++-arm-linux-gnueabihf (apt-get install -y g++-multilib g++-arm-linux-gnueabihf).
+# Needs clang, cmake, ninja, python3, the lib32 C/C++ libraries and
+# g++-arm-linux-gnueabihf; .claude/hooks/session-start.sh installs them.
 set -u
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 targets=("$@")
