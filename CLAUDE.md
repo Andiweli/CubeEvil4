@@ -8,6 +8,10 @@
   wurde (mit Ergebnis), was als Nächstes kommt.
 - Vor jeder Grundsatzentscheidung (Architektur, Regeln dieser Datei ändern)
   nachfragen. Kleine technische Entscheidungen selbst treffen.
+- Am Ende jedes Meilensteins den fertigen Startprompt für den nächsten
+  Meilenstein als Codeblock zum Kopieren ausgeben. Er nennt den Branch, die
+  empfohlene Intelligenzstufe und ob die Arbeit in der Cloud oder lokal auf dem
+  Windows-PC (mit Retroid/Disc-Daten) laufen muss.
 
 ## Ziel und Strategie (verbindlich)
 
