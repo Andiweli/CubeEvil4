@@ -7,7 +7,9 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
-#elif defined(__ANDROID__)
+#elif defined(__ANDROID__) || (defined(__linux__) && (defined(__arm__) || defined(__aarch64__)))
+// Android, and the Linux ARM test builds of the whole-program port (run under
+// qemu), share the Boost.Context assembly.
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cerrno>
@@ -16,6 +18,14 @@
 struct Transfer { void* context; void* data; };
 extern "C" Transfer jump_fcontext(void* to, void* data);
 extern "C" void* make_fcontext(void* stackTop, std::size_t size, void (*entry)(Transfer));
+#elif defined(__linux__)
+// Linux x86 test builds of the whole-program port: glibc ucontext.
+#define RE4_UCONTEXT 1
+#include <sys/mman.h>
+#include <ucontext.h>
+#include <unistd.h>
+#include <cerrno>
+#include <cstdint>
 #else
 #error "A tested stack context backend is required for this platform"
 #endif
@@ -52,12 +62,22 @@ struct StackContext::Impl {
     std::fenv_t callerFloatingPoint{};
     void* mapping = MAP_FAILED;
     std::size_t mappingBytes = 0;
+#ifdef RE4_UCONTEXT
+    ucontext_t self_{};
+    ucontext_t callerContext{};
+    static void start(unsigned low, unsigned high) {
+        auto* self = reinterpret_cast<Impl*>((static_cast<std::uintptr_t>(high) << 16 << 16) | low);
+        self->entry(self->argument);
+        std::terminate();
+    }
+#else
     static void start(Transfer transfer) {
         auto* self = static_cast<Impl*>(transfer.data);
         self->caller = transfer.context;
         self->entry(self->argument);
         std::terminate();
     }
+#endif
 #endif
     Impl(std::size_t bytes, Entry function, void* arg) : entry(function), argument(arg) {
         if (!entry || bytes < 64 * 1024 || bytes > 16 * 1024 * 1024)
@@ -82,7 +102,18 @@ struct StackContext::Impl {
             mapping = MAP_FAILED;
             throw std::system_error(error, std::generic_category(), "mprotect stack");
         }
+#ifdef RE4_UCONTEXT
+        if (getcontext(&self_) != 0) throw std::system_error(errno, std::generic_category(), "getcontext");
+        self_.uc_stack.ss_sp = bottom;
+        self_.uc_stack.ss_size = usable;
+        self_.uc_link = nullptr;
+        const auto self = reinterpret_cast<std::uintptr_t>(this);
+        makecontext(&self_, reinterpret_cast<void (*)()>(start), 2, static_cast<unsigned>(self),
+                    static_cast<unsigned>(self >> 16 >> 16));
+        context = &self_;
+#else
         context = make_fcontext(bottom + usable, usable, start);
+#endif
 #endif
     }
     ~Impl() {
@@ -103,7 +134,11 @@ void StackContext::resume() {
 #else
     std::fegetenv(&impl_->callerFloatingPoint);
     std::fesetenv(&impl_->floatingPoint);
+#ifdef RE4_UCONTEXT
+    swapcontext(&impl_->callerContext, &impl_->self_);
+#else
     impl_->context = jump_fcontext(impl_->context, impl_.get()).context;
+#endif
 #endif
 }
 void StackContext::yield() {
@@ -112,7 +147,11 @@ void StackContext::yield() {
 #else
     std::fegetenv(&impl_->floatingPoint);
     std::fesetenv(&impl_->callerFloatingPoint);
+#ifdef RE4_UCONTEXT
+    swapcontext(&impl_->self_, &impl_->callerContext);
+#else
     impl_->caller = jump_fcontext(impl_->caller, impl_.get()).context;
+#endif
 #endif
 }
 } // namespace re4::port::detail

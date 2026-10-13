@@ -1,0 +1,25 @@
+--- a/src/game/main.cpp
++++ b/src/game/main.cpp
+@@ -110,6 +110,7 @@
+ s8 system_vcnt;
+ 
+ static void systemScreenInit();
++extern "C" void re4_wait_interrupt();  /* port: runtime/vi.cpp */
+ 
+ // Program entry: systemStartInit, then on every soft reset restores the reset-keep block (pRK),
+ // starts the title task and runs the frame loop until systemResetCheck sees the next soft reset.
+@@ -198,10 +199,12 @@
+             DC.check();
+             Block.checkCondition();
+             ProcessTickGet(3, "DRAW REMAIN");
+-            while (vsync_cnt < GetSystemVcnt() - 1) {}
++            /* port: the vsync interrupt that advances vsync_cnt is delivered
++               while the CPU waits (runtime/vi.cpp). */
++            while (vsync_cnt < GetSystemVcnt() - 1) { re4_wait_interrupt(); }
+             Render_swap();
+             PPCSync();
+-            while (vsync_cnt < GetSystemVcnt()) {}
++            while (vsync_cnt < GetSystemVcnt()) { re4_wait_interrupt(); }
+             vsync_cnt = 0;
+             systemVSyncPost();
+             SysFlagOff(pG, SYS_RENDER_END);

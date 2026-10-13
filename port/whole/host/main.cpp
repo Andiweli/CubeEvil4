@@ -116,7 +116,8 @@ int main(int argc, char** argv)
         _exit(re4_runtime_tests() ? 1 : 0);
     }
     re4_log("starting re4_game_main");
-    int ret = re4_game_main();
+    // The game runs as the boot thread of the Dolphin OS thread emulation.
+    int ret = re4_os_run(re4_game_main);
     re4_log("re4_game_main returned %d", ret);
     _exit(ret);
 }

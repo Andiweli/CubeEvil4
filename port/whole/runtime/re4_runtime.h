@@ -67,6 +67,20 @@ const char* re4_data_dir(void);
 /* Disc number in the virtual drive (0/1), -1 when no disc folder was found. */
 int re4_dvd_inserted_disc(void);
 
+/* Dolphin OS threads (os_thread.cpp). re4_os_run runs `entry` as the boot
+ * thread and dispatches every OSThread until it returns. */
+int re4_os_run(int (*entry)(void));
+int re4_os_in_dispatcher(void);
+void re4_os_exit_current(void* val);
+void re4_os_interrupt_begin(void);
+void re4_os_interrupt_end(void);
+
+/* Interrupts (vi.cpp). re4_interrupt_point delivers the retraces that are due
+ * (cheap when none is); re4_os_idle / re4_wait_interrupt wait for the next one. */
+int re4_interrupt_point(void);
+void re4_os_idle(void);
+void re4_wait_interrupt(void);
+
 #ifdef __cplusplus
 }
 #endif

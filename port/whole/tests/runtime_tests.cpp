@@ -6,6 +6,8 @@
 //   dvd    the DVD API over a synthetic two-disc folder written to a temp dir
 //   yz2    the game's yz2 set-up (yz2code.cpp) plus yz2Decode_Decode on the
 //          synthetic fixtures of port/tests/yz2_fixtures.h
+//   tasks  the game's own task scheduler (scheduler.cpp: TaskExec, TaskSleep,
+//          TaskExit, iTaskExec) on the OS thread emulation, plus VI retraces
 #include "re4_runtime.h"
 #include "re4/port/sha256.h"
 #include "yz2_fixtures.h"
@@ -367,12 +369,120 @@ static void testYz2()
     report("yz2", ok);
 }
 
+// --- task scheduler and VI ----------------------------------------------------
+
+// The game's scheduler (src/game/scheduler.cpp) and heap set-up, in libre4_main.
+struct TaskFunc {  // port/whole/include/re4_task_func.h: one pointer
+    void* p;
+};
+struct TASK;
+void SystemMemInit();
+void TaskSchedulerInit();
+TASK* TaskExec(int level, TaskFunc func, void* arg);
+TASK* iTaskExec(TaskFunc func);
+void TaskScheduler();
+void iTaskScheduler();
+void TaskSleep(int frames);
+void TaskExit();
+void iTaskExit();
+unsigned char TaskStatus(int level);
+
+extern "C" {
+void OSInit(void);
+typedef void (*VIRetraceCallback)(unsigned);
+VIRetraceCallback VISetPostRetraceCallback(VIRetraceCallback cb);
+void VIWaitForRetrace(void);
+unsigned VIGetRetraceCount(void);
+}
+
+namespace {
+
+char gTrace[128];
+int gTraceLen;
+unsigned gLastRetrace;
+int gRetraceCalls;
+
+void trace(char c)
+{
+    if (gTraceLen < (int) sizeof(gTrace) - 1) {
+        gTrace[gTraceLen++] = c;
+    }
+}
+
+void taskA(int)
+{
+    for (;;) {
+        trace('A');
+        TaskSleep(1);
+    }
+}
+
+void taskB(int)
+{
+    for (int i = 0; i < 3; i++) {
+        trace('B');
+        TaskSleep(2);
+    }
+    TaskExit();
+}
+
+void taskIsr(int)
+{
+    trace('C');
+    iTaskExit();
+}
+
+void onRetrace(unsigned count)
+{
+    gLastRetrace = count;
+    gRetraceCalls++;
+}
+
+int taskTestMain()
+{
+    OSInit();
+    SystemMemInit();
+    TaskSchedulerInit();
+    TaskExec(1, TaskFunc{(void*) taskA}, 0);
+    TaskExec(3, TaskFunc{(void*) taskB}, 0);
+    iTaskExec(TaskFunc{(void*) taskIsr});
+    for (int frame = 0; frame < 8; frame++) {
+        trace('|');
+        TaskScheduler();
+        iTaskScheduler();
+    }
+    VISetPostRetraceCallback(onRetrace);
+    unsigned before = VIGetRetraceCount();
+    for (int i = 0; i < 3; i++) {
+        VIWaitForRetrace();
+    }
+    return (int) (VIGetRetraceCount() - before);
+}
+
+}  // namespace
+
+static void testTasks()
+{
+    bool ok = true;
+    int retraces = re4_os_run(taskTestMain);
+    // Task A sleeps one frame, B two frames and exits after its third turn,
+    // the background (ISR) task runs once, in the frame it was started.
+    CHECK(strcmp(gTrace, "|ABC|A|AB|A|AB|A|A|A") == 0);
+    if (strcmp(gTrace, "|ABC|A|AB|A|AB|A|A|A") != 0) {
+        re4_log("  trace: %s", gTrace);
+    }
+    CHECK(TaskStatus(3) == 0 && TaskStatus(1) != 0);
+    CHECK(retraces == 3 && gRetraceCalls == 3 && gLastRetrace == VIGetRetraceCount());
+    report("tasks", ok);
+}
+
 int re4_runtime_tests()
 {
     gFailures = 0;
     testLink();
     testDvd();
     testYz2();
+    testTasks();
     re4_log("runtime-test: %d failed", gFailures);
     return gFailures;
 }

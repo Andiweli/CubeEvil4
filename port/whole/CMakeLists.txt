@@ -78,18 +78,41 @@ add_library(re4_main_obj OBJECT ${RE4_MAIN_UNITS})
 target_link_libraries(re4_main_obj PRIVATE re4_game_flags)
 string(APPEND RE4_LINK_OBJECTS "main=$<TARGET_OBJECTS:re4_main_obj>\n")
 
-add_library(re4_runtime_obj OBJECT
+# Platform layer (libre4_platform): Dolphin OS/DVD/ARAM/VI replacements, the
+# module loader and the reused native code of the earlier port. A library of
+# its own, so its C++ allocations (and those of the C++ runtime) never reach the
+# game's operator new, which serves the game heaps.
+add_library(re4_platform_obj OBJECT
     runtime/aram.cpp
     runtime/dolphin_os.cpp
     runtime/dvd.cpp
-    runtime/game_heap.cpp
     runtime/log.cpp
     runtime/mem1.cpp
     runtime/module_loader.cpp
     runtime/os_link.cpp
+    runtime/os_thread.cpp
+    runtime/vi.cpp
+    "${RE4_ROOT}/port/src/stack_context.cpp")
+target_include_directories(re4_platform_obj PUBLIC runtime PRIVATE "${RE4_ROOT}/port/src")
+target_compile_features(re4_platform_obj PRIVATE cxx_std_17)
+if(RE4_ARCH STREQUAL "armv7")
+    # Stack switching: the Boost.Context assembly of the Android build
+    # (port/third_party/boost_context, see port/cmake/ContextSources.cmake).
+    set(RE4_FCONTEXT
+        "${RE4_ROOT}/port/third_party/boost_context/make_arm_aapcs_elf_gas.S"
+        "${RE4_ROOT}/port/third_party/boost_context/jump_arm_aapcs_elf_gas.S")
+    set_source_files_properties(${RE4_FCONTEXT} PROPERTIES COMPILE_OPTIONS "-marm;-U__SOFTFP__")
+    target_sources(re4_platform_obj PRIVATE ${RE4_FCONTEXT})
+endif()
+string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_platform_obj>\n")
+
+# Toolchain-runtime replacements that belong to the game code (libre4_main):
+# the SN constructor lists, GCC 2.95 allocation names, the game heap for modules.
+add_library(re4_glue_obj OBJECT
+    runtime/game_heap.cpp
     runtime/sn_runtime.cpp)
-target_include_directories(re4_runtime_obj PUBLIC runtime)
-target_compile_features(re4_runtime_obj PRIVATE cxx_std_17)
+target_include_directories(re4_glue_obj PRIVATE runtime)
+string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_glue_obj>\n")
 
 # Portable C parts of the Dolphin SDK (src/lib), compiled unchanged: the heap
 # allocator, whose descriptors the game reads directly (main_mem.cpp).
@@ -103,8 +126,7 @@ target_include_directories(re4_sdk_obj BEFORE PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include" "${RE4_TREE}/include" "${RE4_TREE}/src/lib")
 target_compile_definitions(re4_sdk_obj PRIVATE SDK_REVISION=1 NDEBUG=1)
 target_compile_options(re4_sdk_obj PRIVATE -std=gnu99 -fno-strict-aliasing -fwrapv -w)
-string(APPEND RE4_LINK_OBJECTS
-    "runtime=$<TARGET_OBJECTS:re4_runtime_obj>;$<TARGET_OBJECTS:re4_sdk_obj>\n")
+string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_sdk_obj>\n")
 
 # Reviewed native code of the earlier port, reused unchanged: the yz2 decode
 # loop (port/src/yz2_kernel.cpp) behind yz2Decode_Decode. Its yz2_structs.inc
@@ -154,9 +176,9 @@ endforeach()
 set(RE4_GEN "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/link_objects.txt" CONTENT "${RE4_LINK_OBJECTS}")
 set(RE4_GEN_FILES "${RE4_GEN}/stubs.cpp" "${RE4_GEN}/modules.cpp" "${RE4_GEN}/link_report.json")
-set(RE4_OBJ_DEPS re4_main_obj re4_runtime_obj re4_sdk_obj re4_reuse_obj
-    "$<TARGET_OBJECTS:re4_main_obj>" "$<TARGET_OBJECTS:re4_runtime_obj>"
-    "$<TARGET_OBJECTS:re4_sdk_obj>" "$<TARGET_OBJECTS:re4_reuse_obj>")
+set(RE4_OBJ_DEPS re4_main_obj re4_platform_obj re4_glue_obj re4_sdk_obj re4_reuse_obj
+    "$<TARGET_OBJECTS:re4_main_obj>" "$<TARGET_OBJECTS:re4_platform_obj>"
+    "$<TARGET_OBJECTS:re4_glue_obj>" "$<TARGET_OBJECTS:re4_sdk_obj>" "$<TARGET_OBJECTS:re4_reuse_obj>")
 foreach(mod IN LISTS RE4_MODULES)
     list(APPEND RE4_GEN_FILES "${RE4_GEN}/imports/${mod}.cpp" "${RE4_GEN}/imports/${mod}.S")
     list(APPEND RE4_OBJ_DEPS re4_mod_${mod}_obj "$<TARGET_OBJECTS:re4_mod_${mod}_obj>")
@@ -183,23 +205,31 @@ if(RE4_ARCH STREQUAL "i686" OR RE4_ARCH STREQUAL "armv7")  # size_t = unsigned i
     set(RE4_GAME_HEAP_WRAP -Wl,--wrap=_Znwj -Wl,--wrap=_Znaj -Wl,--wrap=_ZdlPv -Wl,--wrap=_ZdaPv)
 endif()
 
+# --- libre4_platform ----------------------------------------------------------------
+add_library(re4_platform SHARED
+    $<TARGET_OBJECTS:re4_platform_obj>
+    $<TARGET_OBJECTS:re4_sdk_obj>
+    $<TARGET_OBJECTS:re4_reuse_obj>
+    "${RE4_GEN}/modules.cpp")
+add_dependencies(re4_platform re4_link_plan)
+target_include_directories(re4_platform PRIVATE runtime)
+target_link_options(re4_platform PRIVATE ${RE4_LINK_FLAGS})
+target_link_libraries(re4_platform PRIVATE ${CMAKE_DL_LIBS} m)
+if(ANDROID)
+    target_link_libraries(re4_platform PRIVATE log)
+endif()
+
 # --- libre4_main ------------------------------------------------------------------
 add_library(re4_main SHARED
     $<TARGET_OBJECTS:re4_main_obj>
-    $<TARGET_OBJECTS:re4_runtime_obj>
-    $<TARGET_OBJECTS:re4_sdk_obj>
-    $<TARGET_OBJECTS:re4_reuse_obj>
-    "${RE4_GEN}/stubs.cpp"
-    "${RE4_GEN}/modules.cpp")
+    $<TARGET_OBJECTS:re4_glue_obj>
+    "${RE4_GEN}/stubs.cpp")
 add_dependencies(re4_main re4_link_plan)
 target_include_directories(re4_main PRIVATE runtime)
 target_link_options(re4_main PRIVATE ${RE4_LINK_FLAGS}
     "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/runtime/libre4_main.ver")
 set_property(TARGET re4_main APPEND PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/libre4_main.ver")
-target_link_libraries(re4_main PRIVATE ${CMAKE_DL_LIBS} m)
-if(ANDROID)
-    target_link_libraries(re4_main PRIVATE log)
-endif()
+target_link_libraries(re4_main PUBLIC re4_platform PRIVATE m)
 
 # --- one library per REL module ---------------------------------------------------
 foreach(mod IN LISTS RE4_MODULES)
