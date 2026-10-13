@@ -67,6 +67,10 @@ const char* re4_data_dir(void);
 /* Disc number in the virtual drive (0/1), -1 when no disc folder was found. */
 int re4_dvd_inserted_disc(void);
 
+/* Byte order (byte_order.cpp): in-place swaps of big-endian disc data. */
+void re4_swap32_words(void* p, unsigned bytes);
+void re4_swap16_words(void* p, unsigned bytes);
+
 /* Dolphin OS threads (os_thread.cpp). re4_os_run runs `entry` as the boot
  * thread and dispatches every OSThread until it returns. */
 int re4_os_run(int (*entry)(void));

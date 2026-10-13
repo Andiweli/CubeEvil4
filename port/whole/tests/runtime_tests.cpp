@@ -6,6 +6,8 @@
 //   dvd    the DVD API over a synthetic two-disc folder written to a temp dir
 //   yz2    the game's yz2 set-up (yz2code.cpp) plus yz2Decode_Decode on the
 //          synthetic fixtures of port/tests/yz2_fixtures.h
+//   dvdq   the game's own DVD queue (dvd.cpp) reading a synthetic headered file:
+//          big-endian part table (patch 0013), parts into the game heap
 //   math   PS*/C_* matrix and vector functions (SDK C versions)
 //   tasks  the game's own task scheduler (scheduler.cpp: TaskExec, TaskSleep,
 //          TaskExit, iTaskExec) on the OS thread emulation, plus VI retraces
@@ -477,6 +479,104 @@ static void testTasks()
     report("tasks", ok);
 }
 
+// --- the game's DVD queue ------------------------------------------------------
+
+extern "C" void OSInit(void);
+void SystemMemInit();
+
+struct DVD_READINFO {  // include/dvd.h; the name is part of the C++ symbols
+    unsigned start_addr[2][32];
+    unsigned read_size[2][32];
+    unsigned mram_readsize;
+    unsigned aram_readsize;
+};
+struct cDvd {  // the members used here (include/dvd.h); the object is the game's
+    void Init();
+    int ReadCheck(int id, DVD_READINFO* info);
+};
+extern cDvd Dvd;
+int DvdReadN(const char* name, void* dst, int a, int b, int c, int mode, const char* file, int line);
+
+namespace {
+
+std::string gQueueDir;
+bool gQueueOk;
+
+int dvdQueueMain()
+{
+    bool ok = true;
+    OSInit();
+    SystemMemInit();
+    Dvd.Init();
+    // mode: 0x8000 part table at the file start, 0x4 destination from the
+    // current heap, 0x1 synchronous (as the boot code reads its tables)
+    int req = DvdReadN("hdr.dat", 0, 0, 0, 0, 0x8000 | 0x4 | 0x1, __FILE__, __LINE__);
+    DVD_READINFO info;
+    memset(&info, 0, sizeof(info));
+    CHECK(req >= 0 && Dvd.ReadCheck(req, &info) == 1);
+    const unsigned char* a = (const unsigned char*) (unsigned long) info.start_addr[0][0];
+    const unsigned char* b = (const unsigned char*) (unsigned long) info.start_addr[0][1];
+    CHECK(info.read_size[0][0] == 0x40 && info.read_size[0][1] == 0x20 && info.mram_readsize == 0x60);
+    CHECK(re4_in_mem1(a) && b == a + 0x40);
+    bool data = re4_in_mem1(a);
+    for (int i = 0; data && i < 0x40; i++) {
+        data = a[i] == (unsigned char) (0xA0 + i);
+    }
+    for (int i = 0; data && i < 0x20; i++) {
+        data = b[i] == (unsigned char) (0x10 + i);
+    }
+    CHECK(data);
+    gQueueOk = ok;
+    return 0;
+}
+
+}  // namespace
+
+static void testDvdQueue()
+{
+    bool ok = true;
+    char tmpl[] = "/tmp/re4-dvdq-test-XXXXXX";
+    const char* root = mkdtemp(tmpl);
+    CHECK(root != 0);
+    if (!root) {
+        report("dvdq", false);
+        return;
+    }
+    gQueueDir = root;
+    // hdr.dat: 0x400-byte part table (entry 0 unused, two MRAM parts, end),
+    // then the parts; every table field a big-endian word as on the disc.
+    std::vector<unsigned char> file(0x460, 0);
+    unsigned char* t = &file[0];
+    putBe32(t + 0x20 + 0x00, 0);       // part 1: TRANS_MRAM
+    putBe32(t + 0x20 + 0x04, 0x40);    // size
+    putBe32(t + 0x20 + 0x0C, 0x400);   // offset in the file
+    putBe32(t + 0x40 + 0x00, 0);       // part 2: TRANS_MRAM
+    putBe32(t + 0x40 + 0x04, 0x20);
+    putBe32(t + 0x40 + 0x0C, 0x440);
+    putBe32(t + 0x60, 0xFFFFFFFF);     // TRANS_EOF
+    for (int i = 0; i < 0x40; i++) {
+        file[0x400 + i] = (unsigned char) (0xA0 + i);
+    }
+    for (int i = 0; i < 0x20; i++) {
+        file[0x440 + i] = (unsigned char) (0x10 + i);
+    }
+    std::vector<FstEntry> fst = {{false, "hdr.dat", 0x1000, (unsigned) file.size()}};
+    std::vector<unsigned char> f = buildFst(fst);
+    unsigned char boot[0x40] = "G4BE08";
+    CHECK(makeDirs(gQueueDir + "/disc0/sys") && makeDirs(gQueueDir + "/disc0/files"));
+    CHECK(writeFile(gQueueDir + "/disc0/sys/fst.bin", f.data(), f.size()));
+    CHECK(writeFile(gQueueDir + "/disc0/sys/boot.bin", boot, sizeof(boot)));
+    CHECK(writeFile(gQueueDir + "/disc0/files/hdr.dat", file.data(), file.size()));
+    char saved[1024];
+    snprintf(saved, sizeof(saved), "%s", re4_data_dir());
+    re4_set_data_dir(root);
+    re4_os_run(dvdQueueMain);
+    re4_set_data_dir(saved);
+    std::string cmd = "rm -rf '" + gQueueDir + "'";
+    CHECK(system(cmd.c_str()) == 0);
+    report("dvdq", ok && gQueueOk);
+}
+
 // --- matrix math ----------------------------------------------------------------
 
 typedef float TMtx[3][4];
@@ -542,6 +642,7 @@ int re4_runtime_tests()
     testLink();
     testDvd();
     testYz2();
+    testDvdQueue();
     testMath();
     testTasks();
     re4_log("runtime-test: %d failed", gFailures);

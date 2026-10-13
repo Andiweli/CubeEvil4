@@ -84,11 +84,13 @@ string(APPEND RE4_LINK_OBJECTS "main=$<TARGET_OBJECTS:re4_main_obj>\n")
 # game's operator new, which serves the game heaps.
 add_library(re4_platform_obj OBJECT
     runtime/aram.cpp
+    runtime/byte_order.cpp
     runtime/dolphin_os.cpp
     runtime/dvd.cpp
     runtime/log.cpp
     runtime/mem1.cpp
     runtime/module_loader.cpp
+    runtime/newlib_ctype.c
     runtime/os_link.cpp
     runtime/os_thread.cpp
     runtime/vi.cpp

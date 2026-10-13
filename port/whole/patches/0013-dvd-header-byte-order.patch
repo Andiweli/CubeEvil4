@@ -1,0 +1,21 @@
+--- a/src/game/dvd.cpp
++++ b/src/game/dvd.cpp
+@@ -319,6 +319,8 @@
+ };
+ extern DvdSndStrWork Snd_str_work[4];   // game/snd_ram.cpp SND_STR Snd_str_work[SND_STR_MAX], seen through the view struct above
+ 
++extern "C" void re4_swap32_words(void* p, u32 bytes);  /* port: runtime/byte_order.cpp */
++
+ #define DVD_BUFF ((void*) 0x80350000)
+ #define DVD_BUFF2 ((void*) 0x80360000)
+ 
+@@ -520,6 +522,9 @@
+             m_Rno0 = 3;
+             break;
+         }
++        /* port: the part table comes from disc in big-endian order; every
++           DvdHeader field is a 32-bit word. */
++        re4_swap32_words(&header_buff[m_NestDepth << 10], 0x400);
+         if (CkFlag(0x6) && m_NestDepth == 0) {
+             m_Rno1++;
+         } else {
