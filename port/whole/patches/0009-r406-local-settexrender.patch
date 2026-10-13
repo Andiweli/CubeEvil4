@@ -1,0 +1,20 @@
+--- a/src/st4/r406.cpp
++++ b/src/st4/r406.cpp
+@@ -70,7 +70,7 @@
+ static void r406_checkEmSet2();
+ static void r406_checkEmSet3();
+ static void r406_checkEmSet4();
+-void setTexRender();
++static void setTexRender();  /* port: r405.cpp in the same module has its own */
+ 
+ // Room init (the mine, Assignment Ada): the water render target; Ada's (pl_type 2) or Leon's room
+ // motions; water hit effects; the enemy waves — wave 1 on the item (Room_flg bit 0), waves 2/3 on
+@@ -358,7 +358,7 @@
+ }
+ 
+ // The water surface: a render target blended into the water object.
+-void setTexRender()
++static void setTexRender()
+ {
+     cObj* obj;
+     u8* tbl = r406_texTbl;

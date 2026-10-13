@@ -1,0 +1,20 @@
+--- a/src/t_sce/t_block.cpp
++++ b/src/t_sce/t_block.cpp
+@@ -110,7 +110,7 @@
+ 
+ void tBlockInit_base();
+ void tBlockInit();
+-void set_filename();
++static void set_filename();  /* port: t_sce_at.cpp in the same module has its own */
+ static void tBlockExit();
+ static void tBlockMainMenu();
+ static void tBlockConnect();
+@@ -280,7 +280,7 @@
+ }
+ 
+ // Server (d:) and local (x:) paths of the room's r<room>.blk.
+-void set_filename()
++static void set_filename()
+ {
+     sprintf(pW->path, "d:\\bio4\\room\\st%1x\\r%03x\\r%03x.blk", pG->stage_no, pG->room_id, pG->room_id);
+     sprintf(pW->pathX, "x:\\soft\\room\\st%1x\\r%03x\\r%03x.blk", pG->stage_no, pG->room_id, pG->room_id);

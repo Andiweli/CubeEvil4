@@ -13,6 +13,10 @@
 
 Ziel: das komplette Originalspiel nativ auf Android, mit dem Originalcode aus `src/`.
 
+**Endprodukt:** ein Android-Studio-Projekt (Android Studio 2025, Gradle/AGP 8.13),
+das der Projektinhaber öffnet, baut und auf den Retroid installiert. Grundlage ist
+`port/android/`; der Ganzprogramm-Build (`port/whole/`) wird dort eingebunden.
+
 **Ganzprogramm-Ansatz:** Der gesamte Spielcode (`src/` außer `src/lib/`) wird
 auf einmal kompiliert. Ersetzt wird nur die Plattformschicht
 (GX, VI, OS, DVD, PAD, AX, CARD, ARAM, CRI-Video). Nicht mehr Funktion für
@@ -62,8 +66,8 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
 
 1. ✅ Probelauf Ganzprogramm-Kompilierung (`port/docs/whole-program-probe.md`)
 2. ✅ Alle 600 Spieldateien kompilieren für ARM32 und 32-bit-Linux fehlerfrei
-3. Linken: Stub-Generator für alle fehlenden SDK/CRI-Funktionen, lauffähiges
-   32-bit-Linux-Programm
+3. ✅ Linken: Stub-Generator für alle fehlenden SDK/CRI-Funktionen, lauffähiges
+   32-bit-Linux-Programm, jedes REL-Modul als eigene Bibliothek
 4. Booten mit echten Disc-Daten bis `gameRoomInit` (vorhandene Datei/Yz2/Scheduler nutzen)
 5. Erster Raum (r100): Spielschleife läuft ohne Absturz, noch ohne Bild
 6. Grafik: GX → Vulkan (vorhandenen Renderer anbinden), Titelbild und r100 sichtbar

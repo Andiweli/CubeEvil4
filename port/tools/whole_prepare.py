@@ -6,11 +6,13 @@ rewrites listed in port/docs/whole-program-status.md, then applies the
 reviewed patches in port/whole/patches/. The originals are never touched, so
 the GameCube build keeps matching.
 
-Writes <out>/sources.txt with every game translation unit to compile.
+Writes <out>/modules.json: the units of main.dol and of every REL module.
 
 Usage: whole_prepare.py --out DIR
 """
 import argparse
+import importlib.util
+import json
 import re
 import shutil
 import subprocess
@@ -19,6 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PATCHES = ROOT / "port" / "whole" / "patches"
+VERSION = "G4BE08"
 
 # asm volatile -> asm, so the asm(...) macro in re4_whole_prelude.h drops it.
 ASM_VOLATILE = re.compile(r"\b(asm|__asm__|__asm)\s+(volatile|__volatile__)\b")
@@ -102,11 +105,33 @@ def mirror(src: Path, dst: Path) -> None:
             shutil.copyfile(path, out)
 
 
-def game_sources(tree: Path) -> list:
-    """Every C++ unit outside src/lib. The C units in src/game are the SN/newlib
-    C runtime (printf, strcpy, malloc...), which the platform C library replaces."""
-    return sorted(p.relative_to(tree).as_posix() for p in (tree / "src").rglob("*.cpp")
-                  if p.relative_to(tree / "src").parts[0] != "lib")
+def load_config(name: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / "config" / VERSION / f"{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def module_plan() -> dict:
+    """The original link layout: the game units of main.dol and, per REL module,
+    its units in link order with the module's defines (as configure.py builds
+    them). The C units of main.dol are the SN/newlib C runtime (printf,
+    strcpy, malloc...), which the platform C library replaces."""
+    objects = load_config("objects")
+    modules = load_config("modules")
+    config_yml = (ROOT / "config" / VERSION / "config.yml").read_text()
+    names = re.findall(r"^\s+name:\s*(\S+)\s*$", config_yml, re.M)
+    main_units = [f"src/{u}" for u in objects.UNITS if u.startswith("game/") and u.endswith(".cpp")]
+    plan = {"main": main_units, "modules": {}}
+    for name in names:
+        rel = json.loads((ROOT / "config" / VERSION / "modules" / name / "rel.json").read_text())
+        units = modules.UNITS.get(name, [(f"{name}/{name}.cpp", None)])
+        sources = [f"src/{extra[0] if extra and extra[0] else unit}" for unit, _first, *extra in units]
+        # GCC-only -f flags (-fno-implement-inlines) have no clang equivalent and only
+        # decide where inline bodies are emitted; the -D flags change the code.
+        defines = [f"REL_MODULE={name}"] + [f[2:] for f in modules.CFLAGS.get(name, []) if f.startswith("-D")]
+        plan["modules"][name] = {"id": rel["module_id"], "sources": sources, "defines": defines}
+    return plan
 
 
 def apply_patches(tree: Path) -> None:
@@ -117,14 +142,46 @@ def apply_patches(tree: Path) -> None:
             sys.exit(f"patch failed: {patch.name}\n{proc.stdout}{proc.stderr}")
 
 
+def sync(staging: Path, tree: Path) -> None:
+    """Copy changed files only, so an unchanged source keeps its timestamp and
+    is not recompiled after every CMake configure."""
+    wanted = set()
+    for path in staging.rglob("*"):
+        if path.is_dir():
+            continue
+        rel = path.relative_to(staging)
+        wanted.add(rel)
+        dst = tree / rel
+        data = path.read_bytes()
+        if not dst.exists() or dst.read_bytes() != data:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.write_bytes(data)
+    for path in tree.rglob("*"):
+        if path.is_file() and path.relative_to(tree) not in wanted:
+            path.unlink()
+
+
 def prepare(out: Path) -> Path:
     tree = out / "tree"
-    if tree.exists():
-        shutil.rmtree(tree)
-    mirror(ROOT / "src", tree / "src")
-    mirror(ROOT / "include", tree / "include")
-    apply_patches(tree)
-    (out / "sources.txt").write_text("\n".join(game_sources(tree)) + "\n")
+    staging = out / "staging"
+    if staging.exists():
+        shutil.rmtree(staging)
+    mirror(ROOT / "src", staging / "src")
+    mirror(ROOT / "include", staging / "include")
+    apply_patches(staging)
+    sync(staging, tree)
+    shutil.rmtree(staging)
+    plan = module_plan()
+    listed = set(plan["main"]) | {s for m in plan["modules"].values() for s in m["sources"]}
+    on_disk = {p.relative_to(tree).as_posix() for p in (tree / "src").rglob("*.cpp")
+               if p.relative_to(tree / "src").parts[0] != "lib"}
+    if listed - on_disk or on_disk - listed:
+        sys.exit(f"module plan and sources disagree: missing {sorted(listed - on_disk)[:5]}, "
+                 f"unassigned {sorted(on_disk - listed)[:5]}")
+    text = json.dumps(plan, indent=1) + "\n"
+    target = out / "modules.json"
+    if not target.exists() or target.read_text() != text:
+        target.write_text(text)
     return tree
 
 

@@ -1,0 +1,12 @@
+--- a/src/game/main.cpp
++++ b/src/game/main.cpp
+@@ -113,7 +113,8 @@
+ 
+ // Program entry: systemStartInit, then on every soft reset restores the reset-keep block (pRK),
+ // starts the title task and runs the frame loop until systemResetCheck sees the next soft reset.
+-int main()
++/* port: entry called by the platform launcher (Linux host, Android activity) */
++extern "C" int re4_game_main()
+ {
+     int i;
+     int j;

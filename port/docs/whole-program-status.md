@@ -9,60 +9,90 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 |---|---|
 | M1 Probelauf | ✅ 13.10.2026 (`whole-program-probe.md`) |
 | M2 Alle Spieldateien kompilieren (ARM32 + 32-bit-Linux) | ✅ 13.10.2026 |
-| M3 Linken, lauffähiges 32-bit-Linux-Programm | offen, nächster Schritt |
+| M3 Linken, lauffähiges 32-bit-Linux-Programm, Module als eigene Bibliotheken | ✅ 13.10.2026 |
+| M4 Booten mit echten Disc-Daten bis `gameRoomInit` | offen, nächster Schritt |
 
 ## Bauen und prüfen
 
 ```sh
-# Compiler für 32-bit-Linux und ARM32 installiert in der Cloud das Startskript
-# .claude/hooks/session-start.sh automatisch (g++-multilib geht nicht: Ubuntu
-# verweigert es neben dem ARM-Cross-Compiler, deshalb nur die lib32-Pakete)
-port/tools/whole_build.sh          # baut i686 und armhf, ~1 Minute
+# Werkzeuge (lib32-Bibliotheken, ARM32-Cross-Compiler, qemu-user) installiert
+# in der Cloud das Startskript .claude/hooks/session-start.sh automatisch.
+# g++-multilib geht nicht: Ubuntu verweigert es neben dem ARM-Cross-Compiler.
+port/tools/whole_build.sh          # baut und prüft i686 und armhf, ~1,5 Minuten
 ```
 
-Das Skript meldet je Ziel die fehlerhaften Dateien und danach die
-Link-Vorschau (`port/tools/whole_symbols.py`). Rückgabewert 0 heißt: alle
-Dateien kompiliert.
+Je Ziel: Build, dann `re4_host --self-test` (Weiterleitungen zwischen Modulen
+geben Argumente korrekt weiter) und `re4_host --check-modules` (alle Module
+laden, alle Querverweise lösen sich auf). armhf läuft dabei unter `qemu-arm`.
+Rückgabewert 0 heißt: alles bestanden.
 
-**M2-Nachweis (13.10.2026):**
+**M3-Nachweis (13.10.2026), frischer Build:**
 
 ```
-i686: 0 failed units, 0 distinct errors
-armhf: 0 failed units, 0 distinct errors
-objects: 600
+i686: 0 failed build steps, 0 distinct errors
+  link plan: 363 function stubs, 9 data stubs, 893 cross-module calls, 1 cross-module data imports (private copies)
+  re4_host --self-test: exit 0 | self-test: trampolines ok (code 0)
+  re4_host --check-modules: exit 0 | check-modules: 114 modules, 0 failed to load, 0 unresolved imports, 363 stubs
+armhf: 0 failed build steps, 0 distinct errors
+  (gleiche Zeilen, ausgeführt unter qemu-arm)
 ```
 
-Alle 600 Spiel-Übersetzungseinheiten kompilieren mit clang 18 für
-`i686-linux-gnu` und `arm-linux-gnueabihf` (armv7) zu Objektdateien.
-Das Android-NDK ist in der Cloud nicht erreichbar, weil `dl.google.com`
-von der Netzwerkregel gesperrt ist. Den NDK-Build (`armeabi-v7a`) prüft
-deshalb der lokale Windows-PC. Der Compiler ist derselbe (clang), nur die
-C-Bibliothek ist eine andere (Bionic statt glibc).
+Alle Bibliotheken linken mit `-Wl,--no-undefined`: Kein Symbol bleibt offen.
 
-**Nicht getestet:** Der GameCube-Matching-Build (`ninja` im Hauptverzeichnis)
-wurde hier nicht ausgeführt, weil Disc-Images und Original-Compiler fehlen.
-`src/` und `include/` sind unverändert (`git status` zeigt dort keine
-Änderungen), deshalb kann er nicht betroffen sein.
+**Spielstart (`re4_host` ohne Option), i686 und armhf gleich:** Der
+Originalcode läuft in `re4_game_main` → `systemStartInit` und ruft 28
+SDK-Funktionen auf (OSInit, VIInit, DVD-, CARD-, Arena- und Heap-Funktionen),
+die alle als Platzhalter antworten. Dann stürzt er in `SystemMemInit` →
+`mem_alloc` ab, weil der Platzhalter `OSAllocFromHeap` 0 liefert und die
+Fehlermeldung über das noch fehlende `pLog` läuft. Das ist der erwartete erste
+Absturz und der Einstieg in M4.
+
+**Nicht getestet:**
+- Der GameCube-Matching-Build (`ninja` im Hauptverzeichnis). Disc-Images und
+  Original-Compiler fehlen hier. `src/` und `include/` sind unverändert.
+- Der Android-NDK-Build. `dl.google.com` ist von der Netzwerkregel der Cloud
+  gesperrt. Geprüft wurde mit clang für `arm-linux-gnueabihf` (glibc statt
+  Bionic). Der NDK-Build kommt mit der Einbindung in das Android-Studio-Projekt.
 
 ## Aufbau
 
+| Ergebnis | Inhalt |
+|---|---|
+| `libre4_main.so` | Spielcode von `main.dol` (295 Dateien), Plattform-Laufzeit, erzeugte Platzhalter |
+| `modules/libre4_<modul>.so` | eine Bibliothek je Original-REL-Modul (114) |
+| `re4_host` | Linux-Startprogramm (`--self-test`, `--check-modules`, sonst Spielstart) |
+
 | Pfad | Inhalt |
 |---|---|
-| `port/whole/CMakeLists.txt` | Build aller Spieldateien als eine Objektbibliothek `re4_game` |
-| `port/whole/cmake/linux-*.cmake` | Toolchains i686 (Cloud-Test) und armhf (ARM32-Kompilierprüfung) |
+| `port/whole/CMakeLists.txt` | Build: Objektbibliothek je Modul, Link-Plan, Bibliotheken, Startprogramm |
+| `port/whole/cmake/linux-*.cmake` | Toolchains i686 (Cloud-Test) und armhf (ARM32, Test unter qemu-arm) |
 | `port/whole/include/` | Ersatz-Header: `types.h`, `dolphin/types.h`, Prelude, `re4_task_func.h` |
 | `port/whole/patches/` | Geprüfte Einzelkorrekturen, angewendet auf die Kopie |
-| `port/tools/whole_prepare.py` | Kopiert `src/` + `include/`, schreibt mechanisch um, wendet Patches an |
+| `port/whole/runtime/` | Plattform-Laufzeit: Log, Modul-Lader, SN-Toolchain-Ersatz, Modul-CRT |
+| `port/whole/host/main.cpp` | Linux-Startprogramm mit Absturz-Backtrace |
+| `port/whole/tests/` | Selbsttest der Modul-Weiterleitungen |
+| `port/tools/whole_prepare.py` | Kopie von `src/` + `include/`, Umschreibungen, Patches, Modulplan `modules.json` |
+| `port/tools/whole_link_plan.py` | Probe-Link, erzeugt Platzhalter, Modultabelle und Weiterleitungen |
 | `port/tools/whole_make_patch.py` | Erzeugt einen Patch gegen die umgeschriebene Fassung |
-| `port/tools/whole_symbols.py` | Link-Vorschau: fehlende und doppelte Symbole |
-| `port/tools/whole_build.sh` | Ein Befehl für Bauen und Bericht |
+| `port/tools/whole_build.sh` | Ein Befehl für Bauen und alle Prüfungen |
 
 Die Original-Quellen werden nie verändert. `whole_prepare.py` legt bei jedem
-CMake-Lauf eine Kopie unter `port/build/whole-*/prepared/tree` an.
+CMake-Lauf eine Kopie unter `port/build/whole-*/prepared/tree` an. Geänderte
+Dateien werden nur bei echten Änderungen neu geschrieben, damit nicht alles neu
+kompiliert wird.
 
-Übersetzt werden alle `.cpp` unter `src/` außer `src/lib/`. Die 58 `.c`-Dateien
-in `src/game` (`printf.c`, `strcpy.c`, `sn_malloc.c` …) sind die SN/newlib-
-C-Laufzeit. Sie entfallen, weil die Plattform-C-Bibliothek sie ersetzt.
+Die Zuordnung der Dateien folgt dem Original-Link (`configure.py`):
+`config/G4BE08/objects.py` liefert die 295 Spieldateien von `main.dol`,
+`config/G4BE08/modules.py` und `config.yml` die 114 Module mit ihren Dateien
+in Link-Reihenfolge. Insgesamt werden 703 Übersetzungseinheiten gebaut, weil
+gemeinsame Dateien (z. B. `em_wrap.cpp`, `st2.cpp`) wie im Original in jedes
+Modul einzeln kompiliert werden. Jedes Modul bekommt `-DREL_MODULE=<modul>`
+und seine `-D`-Schalter aus `modules.py` (`TOOLS_ARRAY` …). Der GCC-Schalter
+`-fno-implement-inlines` hat bei clang keine Entsprechung und entfällt.
+
+Die 58 `.c`-Dateien in `src/game` (`printf.c`, `strcpy.c`, `sn_malloc.c` …)
+sind die SN/newlib-C-Laufzeit. Sie entfallen, weil die Plattform-C-Bibliothek
+sie ersetzt.
 
 ## Mechanische Umschreibungen (`whole_prepare.py`, Prelude)
 
@@ -93,39 +123,69 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0004 `esp0a.cpp` | Rückruf-Cast für `AddOtWorldPos` |
 | 0005 `db_light.cpp` | `DrawTileV`: Alias setzte PPC-Strukturübergabe per Referenz voraus, jetzt Wrapper |
 | 0006 `r222.cpp`, 0007 `r224.cpp` | Konstante aus Top-Level-asm (`.rodata`-Wort) als `static const f32` |
+| 0008 `main.cpp` | `main()` heißt `extern "C" re4_game_main()`; das Startprogramm (Linux, Android) ruft es auf |
+| 0009 `r406.cpp`, 0010 `t_block.cpp` | Hilfsfunktion `static`: im selben Modul hat eine zweite Datei eine gleichnamige (laut Original-Symboltabelle zwei Kopien) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen.
 
-## Ausgangslage für M3 (Linken)
+## Linken und Module (M3)
 
-Link-Vorschau des i686-Builds (`whole_symbols.py`):
+**Module als eigene Bibliotheken** (Entscheidung des Projektinhabers,
+13.10.2026). Jedes Modul wird mit `RTLD_LOCAL` geladen und mit `-Bsymbolic`
+gelinkt. So behält es wie auf der GameCube seine eigenen Kopien doppelter
+Dateien (286 Symbole sind in mehreren Modulen definiert). Modul-IDs aus
+`rel.json` stehen in der erzeugten Tabelle `kRe4Modules`.
 
-| Fehlende Symbole | Anzahl | Woher sie kommen müssen |
-|---|---|---|
-| Nintendo-SDK | 335 | Plattformschicht: GX 98, OS 55, AX 28, AXFX 21, DVD 18, CARD 17, PSMTX 16, MIX 11, PSVEC 10, VI 10, PPC 9, SYN 8, PAD 7, Rest ≤ 5 |
-| C-Bibliothek | 39 | wird automatisch gelinkt |
-| Spielcode | 20 | prüfen (siehe unten) |
-| CRI-Middleware | 16 | ADX (Audio) und Sofdec (Video), Code in `src/lib/` |
-| SN-Toolchain | 16 | `__builtin_new/delete`, `_ctors/_dtors`, `PC*`-Host-I/O, `memset_asm`, `memclr_asm`, `yz2Decode_Decode` (vorhandene Übersetzung in `port/src/yz2_kernel.cpp`) |
-| C++-Laufzeit | 13 | wird automatisch gelinkt |
+**Aufrufe zwischen Modulen:** 24 Module rufen zusammen 893 Funktionen in
+Nachbarmodulen auf. Das betrifft vor allem die Stufenmodule `st1_*`, `st2_*`
+und `st3_*`, die gegenseitig ihre Räume registrieren, die Debug-Werkzeuge
+(`Tools`, `t_*`) und einzelne Gegner/Waffen (`em27`, `em3e`, `wep17`). Diese
+Abhängigkeiten sind zyklisch. Die GameCube löste sie beim Linken jedes Moduls
+nach. ELF-Bibliotheken können Zyklen nicht vorab auflösen (Android kennt kein
+„lazy binding“). Deshalb bekommt jedes Modul erzeugte Weiterleitungen
+(`generated/imports/<modul>.S`, Assembler für i686 und armv7). Sie suchen das
+Ziel beim ersten Aufruf in den geladenen Modulen und springen mit unveränderten
+Argumenten weiter. Für ARM64 (M12) braucht es eine dritte Assembler-Vorlage.
 
-**Fehlende Spielsymbole (20)**, jeweils einzeln zu klären: `Em32_fs_tbl`,
-`EmCatchSubSet`, `QuakeKill`, `SceAtSys`, `ScrIdRefTbl`, `ScrObjIdNum`,
-`ToolArrayPush`, `ToolEmArraySet`, `ToolWorkPop`, `_ctype_`,
-`cDbgWindow::Init`, `cManager<cObj>::destroyNow`, `cModel::getPartsPtr`,
-`cModel::isTrans`, `cModel::move`, `cModel::setNoSuspend`,
-`cPlayer::subCharLiveCheck`, `fontTMtx`, `g_EspToolSeqHedAddr`,
-`setRoomEtcBreakDisp`. Vermutlich sind es Inline-Funktionen ohne Körper im
-Header, `static`-Variablen, die eine andere Datei per Alias anspricht, oder
-Symbole aus `src/lib`.
+**Einzige Datenreferenz zwischen Modulen:** `Tools` liest `DbgFileList` aus
+`t_event`. Das Debug-Werkzeug bekommt eine eigene, leere Kopie. Das ist nur
+für das Debug-Menü relevant.
 
-**Doppelt definierte Symbole: 286.** Im Original lagen die 114 REL-Module
-getrennt im Speicher, jedes durfte eigene Kopien haben (z. B. `em_wrap.cpp`
-in drei Varianten, `db_light*.cpp` viermal, `t_prim.cpp` zweimal). Ein
-einziges Programm erlaubt jeden Namen nur einmal. Mögliche Lösungen für M3:
-Module als einzelne Shared Libraries laden (kommt dem Original am nächsten)
-oder Doppelte pro Modul umbenennen. Diese Entscheidung zu Beginn von M3 treffen.
+**Platzhalter (`generated/stubs.cpp`):** Ein Probe-Link aller Objekte gegen
+die C/C++-Laufzeit des Zielsystems ermittelt, was niemand liefert. Funktionen
+schreiben beim ersten Aufruf `stub called: <Name>` ins Log und geben 0 zurück.
+Datenobjekte sind genullt; Größe aus `config/G4BE08/symbols.txt`, sonst 4 KB.
+
+| Platzhalter | Anzahl |
+|---|---|
+| Funktionen: GX 97, OS 54, AX 28, AXFX 21, DVD 18, CARD 17, PSMTX 16, mwPly 12, MIX 11, PSVEC 10, VI 10, PPC 9, SYN 8, PAD 7, PC-Host-I/O 7, C_MTX 5, DC 5, ADX 4, Rest ≤ 3 | 363 |
+| Daten: `Em32_fs_tbl`, `GXWGFifo`, `SceAtSys`, `ScrIdRefTbl`, `ScrObjIdNum`, `__OSCurrHeap`, `_ctype_`, `fontTMtx`, `g_EspToolSeqHedAddr` | 9 |
+
+**Echter Ersatz statt Platzhalter** (`runtime/sn_runtime.cpp`): `_ctors`/`_dtors`
+(leer, weil der ELF-Lader Konstruktoren selbst ausführt), `__builtin_new`/
+`__builtin_delete` (GCC-2.95-Namen von `operator new/delete`),
+`memset_asm`/`memclr_asm`.
+
+## Offene Punkte für M4 und später
+
+- **Speicher:** `OSInitAlloc`, `OSCreateHeap`, `OSAllocFromHeap`,
+  `OSGetArenaLo/Hi` brauchen eine echte Umsetzung. Möglichkeit: der portable
+  C-Code des SDK aus `src/lib` (OSAlloc) plus eine Arena aus `malloc`.
+- **Modul-Laden:** `OSLink`/`OSUnlink` sind noch Platzhalter. Umsetzung: ID aus
+  dem REL-Kopf lesen (big-endian), `re4_module_load(re4_module_name(id))`,
+  `_prolog`/`_epilog` per `dlsym` in den Kopf eintragen.
+- **Spielfunktionen ohne Definition** (Platzhalter, die 0 liefern):
+  `EmCatchSubSet`, `setRoomEtcBreakDisp`, `QuakeKill`, `cDbgWindow::Init`,
+  `cModel::isTrans`, `cPlayer::subCharLiveCheck`, dazu die Daten `Em32_fs_tbl`,
+  `SceAtSys`, `ScrIdRefTbl`, `ScrObjIdNum`, `fontTMtx`, `g_EspToolSeqHedAddr`.
+  Jeweils klären, wo das Original sie definiert (Inline-Funktion, `static` in
+  einer anderen Datei, `src/lib`).
+- **`_ctype_`:** newlib-Zeichentabelle, die `include/newlib_local.h` direkt
+  liest. Als genullter Platzhalter liefert z. B. `isupper` immer „nein“. Echte
+  Tabelle nachrüsten, falls Spielcode `newlib_local.h` benutzt.
+- **`yz2Decode_Decode`:** Platzhalter. Die vorhandene Übersetzung in
+  `port/src/yz2_kernel.cpp` anbinden.
 
 ## Bekannte Risiken für die Laufzeit (M4/M5)
 
