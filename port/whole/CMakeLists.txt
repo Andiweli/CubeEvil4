@@ -302,11 +302,19 @@ set_target_properties(re4test_rel PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_C
     OUTPUT_NAME re4_re4test_rel)
 
 # --- Linux launcher -----------------------------------------------------------------
+# re4_host (host/loader.c) keeps the address range below 0x83000000 free, then
+# loads libre4_host.so (the launcher and the runtime tests) and with it the
+# game libraries, which therefore lie above 0x80000000 as on Android.
 if(NOT ANDROID)
-    add_executable(re4_host host/main.cpp tests/runtime_tests.cpp "${RE4_ROOT}/port/src/sha256.cpp")
-    target_include_directories(re4_host PRIVATE runtime "${RE4_ROOT}/port/include" "${RE4_ROOT}/port/tests")
-    target_compile_features(re4_host PRIVATE cxx_std_17)
-    add_dependencies(re4_host re4test_rel re4test_caller re4test_target)
+    add_library(re4_hostlib SHARED host/main.cpp tests/runtime_tests.cpp "${RE4_ROOT}/port/src/sha256.cpp")
+    target_include_directories(re4_hostlib PRIVATE runtime "${RE4_ROOT}/port/include" "${RE4_ROOT}/port/tests")
+    target_compile_features(re4_hostlib PRIVATE cxx_std_17)
+    add_dependencies(re4_hostlib re4test_rel re4test_caller re4test_target)
+    target_link_options(re4_hostlib PRIVATE -fuse-ld=lld)
+    target_link_libraries(re4_hostlib PRIVATE re4_main ${CMAKE_DL_LIBS})
+    set_target_properties(re4_hostlib PROPERTIES OUTPUT_NAME re4_host)
+    add_executable(re4_host host/loader.c)
+    add_dependencies(re4_host re4_hostlib)
     target_link_options(re4_host PRIVATE -fuse-ld=lld)
-    target_link_libraries(re4_host PRIVATE re4_main ${CMAKE_DL_LIBS})
+    target_link_libraries(re4_host PRIVATE ${CMAKE_DL_LIBS})
 endif()

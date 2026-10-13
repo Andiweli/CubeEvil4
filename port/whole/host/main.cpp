@@ -1,4 +1,6 @@
-// Linux launcher for the whole-program port (32-bit host test build).
+// Linux launcher for the whole-program port (32-bit host test build),
+// libre4_host.so: the loader re4_host (host/loader.c) keeps the low address
+// range free and calls re4_host_main.
 //
 //   re4_host                  run the game (re4_game_main)
 //   re4_host --check-modules  load all REL module libraries and resolve every
@@ -89,7 +91,7 @@ static int selfTest()
     return result;
 }
 
-int main(int argc, char** argv)
+extern "C" __attribute__((visibility("default"))) int re4_host_main(int argc, char** argv)
 {
     char exe[PATH_MAX];
     ssize_t len = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
@@ -128,6 +130,8 @@ int main(int argc, char** argv)
     if (argc > 1 && strcmp(argv[1], "--runtime-test") == 0) {
         _exit(re4_runtime_tests() ? 1 : 0);
     }
+    // The game tests bit 31 of addresses of its own data (as on the GameCube).
+    re4_check_game_address("libre4_main", (const void*) &re4_game_main);
     re4_log("starting re4_game_main");
     // The game runs as the boot thread of the Dolphin OS thread emulation.
     int ret = re4_os_run(re4_game_main);

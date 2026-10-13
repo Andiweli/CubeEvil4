@@ -83,6 +83,9 @@ extern "C" void* re4_module_load(const char* name)
         re4_log("module %s: %s", name, dlerror());
         return 0;
     }
+    if (void* prolog = dlsym(handle, "_prolog")) {  // REL modules (module_crt.cpp)
+        re4_check_game_address(path, prolog);
+    }
     gLoaded[gLoadedCount].name = strdup(name);
     gLoaded[gLoadedCount].handle = handle;
     gLoadedCount++;

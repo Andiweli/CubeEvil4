@@ -59,6 +59,9 @@ int re4_game_main(void);
 /* Reserves MEM1 and writes the boot globals; 0 when the range is taken. */
 int re4_mem1_init(void);
 int re4_in_mem1(const void* p);
+/* Game libraries must lie at 0x80000000 and above: the game tells its data
+ * from offsets and table links by bit 31. Logs and aborts otherwise. */
+void re4_check_game_address(const char* what, const void* addr);
 
 /* Folder with the extracted disc files (dvd.cpp): <dir>/disc0, <dir>/disc1,
  * each with sys/fst.bin, sys/boot.bin and files/. Set by the launcher. */

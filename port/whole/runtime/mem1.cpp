@@ -9,6 +9,7 @@
 // all of this keeps working unchanged.
 #include "re4_runtime.h"
 
+#include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -34,8 +35,10 @@ extern "C" int re4_mem1_init(void)
         return 1;
     }
     void* want = (void*) (unsigned long) RE4_MEM1_BASE;
-    void* p = mmap(want, RE4_MEM1_SIZE, PROT_READ | PROT_WRITE,
-                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+    // The Linux loader (host/loader.c) holds the range with an inaccessible
+    // placeholder of its own; then MEM1 replaces it.
+    int fixed = getenv("RE4_MEM1_PLACEHOLDER") ? MAP_FIXED : MAP_FIXED_NOREPLACE;
+    void* p = mmap(want, RE4_MEM1_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | fixed, -1, 0);
     if (p != want) {
         // Old kernels ignore MAP_FIXED_NOREPLACE and treat the address as a hint.
         re4_log("MEM1: cannot reserve 0x%08x..0x%08x (got %p)", RE4_MEM1_BASE,
@@ -64,6 +67,20 @@ extern "C" int re4_mem1_init(void)
     put32(RE4_MEM1_BASE + 0xFC, 486000000);                       // core clock
     re4_log("MEM1: 0x%08x..0x%08x reserved", RE4_MEM1_BASE, RE4_MEM1_BASE + RE4_MEM1_SIZE);
     return 1;
+}
+
+extern "C" void re4_check_game_address(const char* what, const void* addr)
+{
+    Dl_info info;
+    const void* base = addr;
+    if (dladdr(addr, &info) && info.dli_fbase) {
+        base = info.dli_fbase;
+    }
+    if ((unsigned long) base < RE4_MEM1_BASE) {
+        re4_log("%s loaded at %p, below 0x%08x: unsupported, the game tests bit 31 of its own addresses",
+                what, base, RE4_MEM1_BASE);
+        abort();
+    }
 }
 
 extern "C" int re4_in_mem1(const void* p)
