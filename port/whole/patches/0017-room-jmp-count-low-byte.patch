@@ -1,0 +1,13 @@
+--- a/src/game/room_jmp.cpp
++++ b/src/game/room_jmp.cpp
+@@ -104,7 +104,9 @@
+     if (ofs == 0) {
+         return 0;
+     }
+-    return *((s8*) p + ofs + 3);
++    /* port: the low byte of the u32 room count (host order after the
++       Formatumwandler); the original read it at its big-endian offset 3. */
++    return (s8) *(u32*) ((u8*) p + ofs);
+ }
+ 
+ // Number of jump points of `room`: consecutive records with the same room number.

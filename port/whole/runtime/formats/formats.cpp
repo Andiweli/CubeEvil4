@@ -169,7 +169,11 @@ const Rule kRules[] = {
     { "*.tpl", convertTpl, "texture palette" },
     { "st*/r*.das", packed, "room archive (Yz2)" },
     { "*.das", convertArchive, "archive" },
+    { "*.drs", convertArchive, "archive" },
+    { "ss/*.dat", convertArchive, "archive (screens)" },
     { "debug/*.txt", text, "text" },
+    { "rel/*.rel", text, "REL module (OSLink converts its header)" },
+    { "debug/roominfo.dat", convertRoomInfo, "room jump table" },
 };
 
 // Logs a file once (hash table of names already reported).
@@ -257,10 +261,14 @@ extern "C" void re4_formats_part_loaded(const char* rawName, int nest, int index
     }
 }
 
-// Room archives are the only Yz2 user (read.cpp decodeData).
+// Room archives are the only Yz2 user (read.cpp decodeData); they unpack to
+// an archive with a table of contents.
 extern "C" void re4_formats_unpacked(void* dst, unsigned size)
 {
-    char label[96];
+    static char label[96];
     snprintf(label, sizeof(label), "%s (unpacked)", g_packedName[0] ? g_packedName : "yz2 stream");
-    re4_log("formats: %s: %u bytes, no converter yet", label, size);
+    Blob b = blob(dst, size, label);
+    Part part = { label, 0, 0, TRANS_MRAM, 0, 0 };
+    convertArchive(b, part);
+    re4_log("formats: %s: archive, %u bytes%s", label, size, b.ok ? "" : " (incomplete)");
 }

@@ -85,6 +85,7 @@ string(APPEND RE4_LINK_OBJECTS "main=$<TARGET_OBJECTS:re4_main_obj>\n")
 add_library(re4_platform_obj OBJECT
     runtime/aram.cpp
     runtime/byte_order.cpp
+    runtime/card.cpp
     runtime/dolphin_os.cpp
     runtime/dvd.cpp
     runtime/log.cpp
@@ -93,6 +94,7 @@ add_library(re4_platform_obj OBJECT
     runtime/newlib_ctype.c
     runtime/os_link.cpp
     runtime/os_thread.cpp
+    runtime/pad.cpp
     runtime/vi.cpp
     "${RE4_ROOT}/port/src/stack_context.cpp")
 target_include_directories(re4_platform_obj PUBLIC runtime PRIVATE "${RE4_ROOT}/port/src")
@@ -116,6 +118,9 @@ add_library(re4_formats_obj OBJECT
     runtime/tex_palette.cpp
     runtime/formats/formats.cpp
     runtime/formats/formats_arc.cpp
+    runtime/formats/formats_dbg.cpp
+    runtime/formats/formats_eff.cpp
+    runtime/formats/formats_id.cpp
     runtime/formats/formats_mes.cpp
     runtime/formats/formats_snd.cpp
     runtime/formats/formats_tex.cpp)

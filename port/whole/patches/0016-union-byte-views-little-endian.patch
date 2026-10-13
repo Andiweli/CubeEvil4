@@ -1,0 +1,357 @@
+--- a/include/esp.h
++++ b/include/esp.h
+@@ -11,6 +11,20 @@
+     u32 xCC;           // 0xCC
+     u32 xD0;           // 0xD0
+ };
++/* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++   game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++struct EspGenPrmH {
++    u16 xCE;
++    u16 xCC;
++    u16 xD2;
++    u16 xD0;
++};
++struct EspGenPrmB {
++    u8 xCF, xCE, xCD, xCC;
++    u8 xD3, xD2, xD1, xD0;
++};
++#else
+ struct EspGenPrmH {
+     u16 xCC;           // 0xCC
+     u16 xCE;           // 0xCE
+@@ -21,6 +35,7 @@
+     u8 xCC, xCD, xCE, xCF;  // 0xCC
+     u8 xD0, xD1, xD2, xD3;  // 0xD0
+ };
++#endif
+ union EspGenPrm {
+     EspGenPrmW w;
+     EspGenPrmH h;
+@@ -125,10 +140,19 @@
+     s16 Cy;            // 0x06 sprite height / centre y
+     union {
+         u16 Frames;    // 0x08 number of patterns
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            u8 x9;
++            u8 x8;
++        };
++#else
+         struct {
+             u8 x8;
+             u8 x9;     // 0x09 low byte of Frames
+         };
++#endif
+     };
+     u8 Xn;             // 0x0A
+     u8 Loop;           // 0x0B bits 0-1: loop mode
+@@ -472,12 +496,23 @@
+     u8 owner;             // 0x03 ESP_OWNER
+     union {
+         u32 Call_no;        // 0x04
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            u8 x7;
++            u8 x6;
++            u8 x5;
++            u8 x4;
++        } b;
++#else
+         struct {
+             u8 x4;     // 0x04
+             u8 x5;     // 0x05
+             u8 x6;     // 0x06
+             u8 x7;     // 0x07
+         } b;
++#endif
+     };
+     void* Core_pEm;          // 0x08
+ };
+--- a/include/espgen.h
++++ b/include/espgen.h
+@@ -33,10 +33,19 @@
+     struct {
+         union {
+             u16 no;    // 0x00 room number range key
++            /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++               game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++            struct {
++                u8 id;
++                u8 x0;
++            } b;
++#else
+             struct {
+                 u8 x0;
+                 u8 id; // 0x01 display flag bit (GetSstDispFlag)
+             } b;
++#endif
+         };
+         u16 type;      // 0x02
+         u32 Flg;        // 0x04  (PS2 ESP_ID_WK.Flg)
+--- a/include/room_jmp.h
++++ b/include/room_jmp.h
+@@ -13,10 +13,19 @@
+     u16 flag;      // 0x00  bit 0: pos/angle valid
+     union {
+         u16 roomNo;  // 0x02  stage << 8 | room
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            u8 room;
++            u8 stage;
++        };
++#else
+         struct {
+             u8 stage;  // 0x02
+             u8 room;   // 0x03
+         };
++#endif
+     };
+     Vec pos;        // 0x04
+     f32 angle;      // 0x10
+--- a/include/global.h
++++ b/include/global.h
+@@ -101,10 +101,19 @@
+     u32 DblBufIdx;        // 0x24  double-buffer index into cModelInfo::pPosBuf/pNrmBuf (mirror)
+     union {
+         u16 RoomNo_next;     // 0x28  room id (stage << 8 | room) being entered (snd: room BGM / door tables)
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            u8 Room_next;
++            u8 Stage_next;
++        };
++#else
+         struct {
+             u8 Stage_next; // 0x28  (sce_at sceAtFunc_door stores the door destination byte by byte)
+             u8 Room_next;  // 0x29
+         };
++#endif
+     };
+     u8 Part_next;         // 0x2A  spawn point in the next room (room_jmp CRoomInfo::setNextPos clears it)
+     u8 pad_2B;
+@@ -161,19 +170,37 @@
+     u32 peseta;            // 0x4F98  money (ss_shop buy/sell, item pickups; PlSelect swaps it with peseta_bak)
+     union {
+         u16 room_id;       // 0x4F9C  stage << 8 | room as one halfword (obj14: room 004 test)
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            u8 room_no;
++            u8 stage_no;
++        };
++#else
+         struct {
+             u8 stage_no;   // 0x4F9C
+             u8 room_no;    // 0x4F9D
+         };
++#endif
+     };
+     u8 Part;       // 0x4F9E  spawn point in the current room (copied to Part_old / next_point)
+     u8 JumpPoint;  // 0x4F9F  room jump point (title/room_jmp debug jump; room scripts branch on 1/2)
+     union {
+         u16 room_id_prev;  // 0x4FA0  room_id of the previous room (room_jmp CRoomInfo::setNextPos)
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            u8 room_prev;
++            u8 stage_prev;
++        };
++#else
+         struct {
+             u8 stage_prev; // 0x4FA0  stage the current room data was loaded for (stage.cpp)
+             u8 room_prev;  // 0x4FA1
+         };
++#endif
+     };
+     u8 Part_old;              // 0x4FA2  copy of x4F9E (room_jmp)
+     s8 em_list_no;          // 0x4FA3  enemy list currently loaded (stage.cpp), -1 = none
+--- a/include/model.h
++++ b/include/model.h
+@@ -83,12 +83,23 @@
+ struct ModelDataHead {
+     union {
+         u32 x0;      // 0x00
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            u8 x3;
++            u8 x2;
++            u8 parentNo;
++            u8 partsNo;
++        };
++#else
+         struct {
+             u8 partsNo;   // 0x00  parts the model hangs on when it is not skinned (trans commonModelTrans)
+             u8 parentNo;  // 0x01  parts record (model.cpp setPartsParent): parent parts index, 0xFF = the model
+             u8 x2;
+             u8 x3;
+         };
++#endif
+     };
+     Vec center;      // 0x04  (examine copies it into parts 0's position); parts record: parts position
+ };
+--- a/include/light.h
++++ b/include/light.h
+@@ -155,10 +155,19 @@
+     u8 Priority;            // 0x2B
+     union {
+         u32 ParentNo;  // 0x2C  parts no << 16 | parent no
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            u16 no;
++            u16 partsNo;
++        } parent;
++#else
+         struct {
+             u16 partsNo;   // 0x2C
+             u16 no;        // 0x2E
+         } parent;
++#endif
+     };
+     u16 HitRadius;           // 0x30  hit adjust radius
+     u16 Dummy82;       // 0x32  (PS2 cLight Dummy82)
+--- a/include/etc_model.h
++++ b/include/etc_model.h
+@@ -123,10 +123,19 @@
+     u16 id;          // 0x00  ETCMODEL_ID (EtcModelSet switch, 0x00..0x67)
+     union {
+         u16 no;      // 0x02  g_EtcTbl slot (< 0x40)
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            u8 type;
++            u8 pad_2;
++        };
++#else
+         struct {
+             u8 pad_2;
+             u8 type; // 0x03  low byte of `no`: the etc number the Set* functions take (WindowData row)
+         };
++#endif
+     };
+     u8 pad_4[0x10 - 0x4];
+     Vec ang;         // 0x10
+--- a/include/sscrn.h
++++ b/include/sscrn.h
+@@ -149,12 +149,23 @@
+     OSModuleHeader* p_module;  // 0x344  linked sub screen DLL
+     union {
+         u32 save;             // 0x348  SscrnDataSave/Load word
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            u8 x34B;
++            u8 map_mark;
++            u8 x349;
++            u8 map_mode;
++        };
++#else
+         struct {
+             u8 map_mode;      // 0x348  one bit per map display mode (ss_map mapModeCheck/Change; SubScreenGameInit clears it)
+             u8 x349;
+             u8 map_mark;
+             u8 x34B;
+         };
++#endif
+     };
+     u32 debug_menu;           // 0x34C  Sscrn debug menu: bit0 open, bit4 debug disp, bit5 memory disp, bit6 reveil
+     s32 debugMode;            // 0x350  pG->debug_mode while open
+--- a/include/mes.h
++++ b/include/mes.h
+@@ -104,10 +104,19 @@
+     // PS2 has m_line_gap private; public here because r20e, r224 and r307 read the low byte (lineSpace) through getWork().
+     union {
+         u16 m_line_gap;      // 0x76
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            s8 lineSpace;
++            u8 lineH_hi;
++        };
++#else
+         struct {
+             u8 lineH_hi;    // 0x76
+             s8 lineSpace;   // 0x77  (embox emBoxAction: prompt y = 336 - fontH - lineSpace - 1)
+         };
++#endif
+     };
+ private:
+     u16 m_char_gap;      // 0x78
+--- a/include/room_data.h
++++ b/include/room_data.h
+@@ -35,10 +35,19 @@
+ struct ROOM_SAVE_DATA {
+     union {
+         u16 RoomNo;    // 0x00  stage << 8 | room
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            u8 Room;
++            u8 Stage;
++        };
++#else
+         struct {
+             u8 Stage;  // 0x00
+             u8 Room;   // 0x01
+         };
++#endif
+     };
+     u8 passed_flg;         // 0x02  bit (0x80 >> n): checkPassed/setPassed
+     u8 _padding;           // 0x03
+--- a/include/item.h
++++ b/include/item.h
+@@ -14,7 +14,13 @@
+     union {
+         u16 lv;    // 0x06  weapon tune levels, one nibble each: fire << 12 | mag << 8 | speed << 4 | ex (merchant)
+                    //       weapon parts (type 9): 1 = attached; files (type 0xA): lv8[0] = countFiles()
++        /* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++           game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        Re4BeBytes2 lv8;  // lv8[0] high byte, lv8[1] low byte, as on the GameCube
++#else
+         u8 lv8[2]; // 0x06  the same two bytes
++#endif
+     };
+     u16 bullet;    // 0x08  top 3 bits: weapon slot attribute (sscrn: pG->bullet_type), low 13: bullets loaded
+                    //       weapon parts (type 9): slot index of the weapon it is attached to (0xFFFF = none)
+--- a/include/snd_drv.h
++++ b/include/snd_drv.h
+@@ -507,10 +507,19 @@
+ };
+ 
+ // Random number state (Snd_rnd): the word and its two bytes.
++/* port: byte view of a big-endian word; words are in host order (Formatumwandler,
++   game variables), so on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++typedef union {
++    s16 w;
++    Re4BeBytes2 b;  // b[0] high byte, b[1] low byte, as on the GameCube
++} SND_RND;
++#else
+ typedef union {
+     s16 w;
+     u8 b[2];
+ } SND_RND;
++#endif
+ 
+ // Low-pass filter table entry (Snd_lpf_tbl[24]).
+ typedef struct {

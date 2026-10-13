@@ -81,6 +81,14 @@ def local_data_alias(line: str, text: str):
     return f"{m.group(1)}static {t}& {m['name']} = *({t}*) &{m['target']};{line[m.end():]}"
 
 
+# The room number halfword read through the address of its first byte
+# (G_ROOM_ID, RsfCheck(*(u16*) &pG->stage_no, ...)): on little-endian hosts
+# patch 0016 puts stage_no at the other end of pG->room_id, so the address is
+# taken of the halfword itself (the same address on the GameCube).
+ROOM_ID_ADDR = re.compile(r"\(\s*u16\s*\*\s*\)\s*&\s*pG->(stage_no|stage_prev)\b")
+ROOM_ID_WORD = {"stage_no": "room_id", "stage_prev": "room_id_prev"}
+
+
 def rewrite(text: str) -> str:
     original = text
     text = "\n".join(local_data_alias(line, original) or line if "asm" in line else line
@@ -89,6 +97,8 @@ def rewrite(text: str) -> str:
                      for line in text.split("\n"))
     text = ASM_VOLATILE.sub(r"\1", text)
     text = OPERATOR_SIZE.sub(r"\1__SIZE_TYPE__", text)
+    if "pG->stage_" in text:
+        text = ROOM_ID_ADDR.sub(lambda m: f"(u16*) &pG->{ROOM_ID_WORD[m.group(1)]}", text)
     return text
 
 

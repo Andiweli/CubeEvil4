@@ -35,3 +35,19 @@ inline void* re4_memchr(const void* s, int c, size_t n) { return (void*)memchr(s
 #define strrchr re4_strrchr
 #define strpbrk re4_strpbrk
 #define memchr re4_memchr
+
+#ifdef __cplusplus
+/* Two bytes of a big-endian halfword as an array view (u8 v[2] in a union
+ * with the halfword, patch 0016): index 0 is the high byte, 1 the low byte,
+ * as the original code expects, whatever the host byte order. */
+struct Re4BeBytes2 {
+    unsigned char v[2];
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    unsigned char& operator[](int i) { return v[1 - i]; }
+    const unsigned char& operator[](int i) const { return v[1 - i]; }
+#else
+    unsigned char& operator[](int i) { return v[i]; }
+    const unsigned char& operator[](int i) const { return v[i]; }
+#endif
+};
+#endif

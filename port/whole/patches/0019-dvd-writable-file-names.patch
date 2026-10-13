@@ -1,0 +1,15 @@
+--- a/src/game/dvd.cpp
++++ b/src/game/dvd.cpp
+@@ -1142,6 +1142,12 @@
+     u32 fst;
+ 
+     ADXGC_SetupDvdFs(0);
++    /* port: the GameCube kept string literals in writable RAM, and read.cpp
++       renames table entries in place (SET_DRS_NAME: .das -> .drs). Every name
++       gets a writable copy (malloc: outside the game heaps). */
++    for (u32 i = 0; i < sizeof(FileTbl) / sizeof(FileTbl[0]); i++) {
++        FileTbl[i].name = strdup(FileTbl[i].name);
++    }
+     FileTblExistCheck();
+     memclr_asm(this, sizeof(cDvd));
+     memclr_asm(&Aram, sizeof(cAram));

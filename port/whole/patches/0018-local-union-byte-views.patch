@@ -1,0 +1,70 @@
+--- a/src/game/motion.cpp
++++ b/src/game/motion.cpp
+@@ -1360,6 +1360,19 @@
+ }
+ 
+ // Byte-wise big-endian reads of the key data (the streams are unaligned).
++/* port: byte views of big-endian data; on little-endian hosts the bytes run the
++   other way (the key streams stay big-endian, the work halfword is host order). */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++typedef union {
++    f32 f;
++    struct {
++        u8 b3;
++        u8 b2;
++        u8 b1;
++        u8 b0;
++    } b;
++} FccF32;
++#else
+ typedef union {
+     f32 f;
+     struct {
+@@ -1369,7 +1382,17 @@
+         u8 b3;
+     } b;
+ } FccF32;
+-
++#endif
++
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++typedef union {
++    s16 s;
++    struct {
++        u8 lo;
++        u8 hi;
++    } b;
++} FccS16;
++#else
+ typedef union {
+     s16 s;
+     struct {
+@@ -1377,6 +1400,7 @@
+         u8 lo;
+     } b;
+ } FccS16;
++#endif
+ 
+ #define FCC_F32(dst, i)      \
+     cf.b.b0 = d[(i)];        \
+--- a/src/st1/r117.cpp
++++ b/src/st1/r117.cpp
+@@ -50,10 +50,18 @@
+ struct R117Work {
+     union {
+         u16 stepMode;     // 0x00  step + mode as one halfword (LightMechanism clears both)
++        /* port: byte view of the halfword; on little-endian hosts the bytes run the other way. */
++#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
++        struct {
++            u8 mode;
++            u8 step;
++        };
++#else
+         struct {
+             u8 step;      // 0x00  r117_lightMechTbl index
+             u8 mode;      // 0x01  LightMechanismMove state
+         };
++#endif
+     };
+     s8 sel;               // 0x02  selected light (0..2)
+     s8 cur[3];            // 0x03  current quarter turn of each light

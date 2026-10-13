@@ -22,6 +22,10 @@ struct TagRule {
 const TagRule kTags[] = {
     { "TPL", convertTpl },
     { "MDT", convertMdt },
+    { "UWF", convertIdLayout },
+    { "EFF", convertEffect },
+    { "TEX", convertTexSet },
+    { "VIB", convertVibration },
 };
 
 // Logs an unknown tag once.

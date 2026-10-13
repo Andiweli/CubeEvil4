@@ -72,6 +72,17 @@ void convertFont(Blob& b, const Part& part);
 u32 headerWords(Blob& b, u32 from);  // offset table ends at the first block
 void convertMdt(Blob& b, const Part& part);
 
+// formats_id.cpp
+void convertIdLayout(Blob& b, const Part& part);  // UWF
+
+// formats_eff.cpp
+void convertEffect(Blob& b, const Part& part);     // EFF
+void convertTexSet(Blob& b, const Part& part);     // TEX
+void convertVibration(Blob& b, const Part& part);  // VIB
+
+// formats_dbg.cpp
+void convertRoomInfo(Blob& b, const Part& part);  // debug/roomInfo.dat
+
 // formats_arc.cpp
 bool looksLikeArchive(Blob& b);
 void convertArchive(Blob& b, const Part& part);
