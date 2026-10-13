@@ -115,11 +115,16 @@ target_include_directories(re4_glue_obj PRIVATE runtime)
 string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_glue_obj>\n")
 
 # Portable C parts of the Dolphin SDK (src/lib), compiled unchanged: the heap
-# allocator, whose descriptors the game reads directly (main_mem.cpp).
+# allocator, whose descriptors the game reads directly (main_mem.cpp), and the
+# C_* reference versions of the matrix/vector math (whole_prepare.py extracts
+# them into prepared/sdk_c; runtime/mtx_ps.c maps the PS* names to them).
 set(RE4_SDK_UNITS OSAlloc OSArena)
-set(RE4_SDK_SOURCES "")
+set(RE4_SDK_SOURCES runtime/mtx_ps.c)
 foreach(unit IN LISTS RE4_SDK_UNITS)
     list(APPEND RE4_SDK_SOURCES "${RE4_TREE}/src/lib/${unit}.c")
+endforeach()
+foreach(unit mtx mtxvec mtx44 mtx44vec vec quat)
+    list(APPEND RE4_SDK_SOURCES "${RE4_PREPARED}/sdk_c/${unit}.c")
 endforeach()
 add_library(re4_sdk_obj OBJECT ${RE4_SDK_SOURCES})
 target_include_directories(re4_sdk_obj BEFORE PRIVATE

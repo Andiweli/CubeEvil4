@@ -8,9 +8,11 @@
 #   re4_host --self-test       cross-module trampolines pass arguments intact
 #   re4_host --check-modules   every module loads, every cross-module import resolves
 #   re4_host --runtime-test    OSLink, DVD folder and yz2 work without disc data
-# armhf runs under qemu-arm when it is installed. Needs clang, lld, cmake, ninja,
-# python3, the lib32 C/C++ libraries, g++-arm-linux-gnueabihf and qemu-user;
-# .claude/hooks/session-start.sh installs them in cloud sessions.
+# armhf runs under qemu-arm when it is installed. Finally the disc folder tool
+# is tested (port/tools/test_whole_disc_folder.py, synthetic images). Needs
+# clang, lld, cmake, ninja, python3, the lib32 C/C++ libraries,
+# g++-arm-linux-gnueabihf and qemu-user: sudo port/tools/whole_setup_linux.sh
+# (cloud sessions run it through .claude/hooks/session-start.sh).
 set -u
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 targets=("$@")
@@ -46,4 +48,10 @@ for t in "${targets[@]}"; do
         [ "$code" -ne 0 ] && status=1
     done
 done
+if python3 "$root/port/tools/test_whole_disc_folder.py" > "$root/port/build/disc-folder-test.log" 2>&1; then
+    echo "disc folder tool: ok"
+else
+    echo "disc folder tool: FAILED (log: port/build/disc-folder-test.log)"
+    status=1
+fi
 exit $status

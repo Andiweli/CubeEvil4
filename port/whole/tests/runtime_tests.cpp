@@ -6,6 +6,7 @@
 //   dvd    the DVD API over a synthetic two-disc folder written to a temp dir
 //   yz2    the game's yz2 set-up (yz2code.cpp) plus yz2Decode_Decode on the
 //          synthetic fixtures of port/tests/yz2_fixtures.h
+//   math   PS*/C_* matrix and vector functions (SDK C versions)
 //   tasks  the game's own task scheduler (scheduler.cpp: TaskExec, TaskSleep,
 //          TaskExit, iTaskExec) on the OS thread emulation, plus VI retraces
 #include "re4_runtime.h"
@@ -476,12 +477,72 @@ static void testTasks()
     report("tasks", ok);
 }
 
+// --- matrix math ----------------------------------------------------------------
+
+typedef float TMtx[3][4];
+struct TVec {
+    float x, y, z;
+};
+extern "C" {
+void PSMTXIdentity(TMtx m);
+void PSMTXRotRad(TMtx m, char axis, float rad);
+void PSMTXTrans(TMtx m, float x, float y, float z);
+void PSMTXConcat(const TMtx a, const TMtx b, TMtx ab);
+unsigned long PSMTXInverse(const TMtx src, TMtx inv);
+void PSMTXMultVec(const TMtx m, const TVec* src, TVec* dst);
+void PSMTXReorder(const TMtx src, float dest[4][3]);
+void PSMTXROMultVecArray(const float m[4][3], const TVec* src, TVec* dst, unsigned long count);
+void PSVECNormalize(const TVec* src, TVec* dst);
+float PSVECDotProduct(const TVec* a, const TVec* b);
+void PSVECCrossProduct(const TVec* a, const TVec* b, TVec* axb);
+}
+
+static bool near(float a, float b)
+{
+    return a - b < 1e-5f && b - a < 1e-5f;
+}
+
+static void testMath()
+{
+    bool ok = true;
+    TMtx rot, trans, m, inv, id;
+    PSMTXRotRad(rot, 'y', 3.14159265f / 2);
+    PSMTXTrans(trans, 10, 20, 30);
+    PSMTXConcat(trans, rot, m);  // rotate, then translate
+    TVec x = {1, 0, 0}, r;
+    PSMTXMultVec(m, &x, &r);
+    CHECK(near(r.x, 10) && near(r.y, 20) && near(r.z, 29));  // +x turns to -z about y
+    CHECK(PSMTXInverse(m, inv) == 1);
+    PSMTXConcat(m, inv, id);
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 4; j++) {
+            CHECK(near(id[i][j], i == j ? 1.0f : 0.0f));
+        }
+    }
+    float ro[4][3];
+    PSMTXReorder(m, ro);
+    TVec v[2] = {{1, 2, 3}, {-4, 5, 0.5f}}, a[2], b;
+    PSMTXROMultVecArray(ro, v, a, 2);
+    for (int i = 0; i < 2; i++) {
+        PSMTXMultVec(m, &v[i], &b);
+        CHECK(near(a[i].x, b.x) && near(a[i].y, b.y) && near(a[i].z, b.z));
+    }
+    TVec n, y = {0, 3, 4}, c;
+    PSVECNormalize(&y, &n);
+    CHECK(near(n.y, 0.6f) && near(n.z, 0.8f));
+    TVec e1 = {1, 0, 0}, e2 = {0, 1, 0};
+    PSVECCrossProduct(&e1, &e2, &c);
+    CHECK(near(c.z, 1) && near(PSVECDotProduct(&e1, &e2), 0));
+    report("math", ok);
+}
+
 int re4_runtime_tests()
 {
     gFailures = 0;
     testLink();
     testDvd();
     testYz2();
+    testMath();
     testTasks();
     re4_log("runtime-test: %d failed", gFailures);
     return gFailures;
