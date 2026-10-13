@@ -32,9 +32,10 @@ Dann ausführen, Absturzstelle finden, beheben, wiederholen.
 
 - `src/` und `include/` nicht verändern. Der GameCube-Build (`ninja`) muss
   weiterhin die SHA1-Prüfsummen treffen. Anpassungen für den Port laufen als
-  mechanische Umschreibungen beim Bauen (wie in `port/tools/probe_full_compile.py`)
-  oder als Ersatz-Header in `port/`. Jede neue Umschreibungsregel wird in
-  `port/docs/whole-program-probe.md` bzw. dem Nachfolgedokument eingetragen.
+  mechanische Umschreibungen beim Bauen (`port/tools/whole_prepare.py`),
+  als Ersatz-Header (`port/whole/include/`) oder als kleine geprüfte Patches
+  (`port/whole/patches/`). Jede neue Regel und jeder Patch wird in
+  `port/docs/whole-program-status.md` eingetragen.
 - Port-Code liegt in `port/`. Bewährte Teile weiterverwenden: Scheduler
   (`port/src/scheduler.cpp`, `stack_context.cpp`), Datei-I/O, Yz2,
   Vulkan-Renderer, Android-App (`port/android/`), ADB-Skripte.
@@ -54,12 +55,12 @@ Dann ausführen, Absturzstelle finden, beheben, wiederholen.
 
 ## Meilensteine
 
-Fortschritt und Ergebnisse stehen in `port/docs/whole-program-status.md`
-(anlegen, sobald M2 beginnt). Jede Sitzung liest diese Datei zuerst und
-aktualisiert sie am Ende.
+Fortschritt und Ergebnisse stehen in `port/docs/whole-program-status.md`.
+Jede Sitzung liest diese Datei zuerst und aktualisiert sie am Ende.
+Bauen und prüfen: `port/tools/whole_build.sh`.
 
 1. ✅ Probelauf Ganzprogramm-Kompilierung (`port/docs/whole-program-probe.md`)
-2. Alle 658 Spieldateien kompilieren für ARM32 und 32-bit-Linux fehlerfrei
+2. ✅ Alle 600 Spieldateien kompilieren für ARM32 und 32-bit-Linux fehlerfrei
 3. Linken: Stub-Generator für alle fehlenden SDK/CRI-Funktionen, lauffähiges
    32-bit-Linux-Programm
 4. Booten mit echten Disc-Daten bis `gameRoomInit` (vorhandene Datei/Yz2/Scheduler nutzen)

@@ -1,5 +1,9 @@
 # Probelauf: gesamten Spielcode auf einmal kompilieren
 
+> Abgeschlossen. Das Probeskript wurde in M2 durch den echten Build ersetzt
+> (`port/tools/whole_build.sh`, Stand in `whole-program-status.md`). Die
+> Pfade unten beziehen sich auf den damaligen Stand (Commit `8ac157c`).
+
 Stand: 13.10.2026, Branch `claude/re4-gamecube-android-port-97hbjj`
 (enthält `android-port` bis `6f18a34`).
 

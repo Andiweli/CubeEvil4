@@ -1,13 +1,13 @@
 #ifndef _DOLPHIN_TYPES_H_
 #define _DOLPHIN_TYPES_H_
-/* Probe replacement for include/dolphin/types.h with exact widths. */
+/* Port replacement for include/dolphin/types.h: exact widths, platform C library. */
 #include <types.h>
 typedef char *Ptr;
 #define FALSE 0
 #define TRUE 1
 #define AT_ADDRESS(addr)
 #define ATTRIBUTE_ALIGN(num) __attribute__((aligned(num)))
-#define INT_MAX 2147483647
+#include <limits.h>
 #ifndef NULL
 #define NULL 0
 #endif

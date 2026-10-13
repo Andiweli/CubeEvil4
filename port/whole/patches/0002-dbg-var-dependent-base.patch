@@ -1,0 +1,43 @@
+--- a/include/dbg_var.h
++++ b/include/dbg_var.h
+@@ -72,10 +72,10 @@
+ template <class T>
+ cVarLoop<T>::cVarLoop(const T& lo, const T& hi, const T& v)
+ {
+-    init(lo, hi);
+-    val = v;
+-    val = limitUpper(0);
+-    val = limitLower(0);
++    this->init(lo, hi);
++    this->val = v;
++    this->val = limitUpper(0);
++    this->val = limitLower(0);
+ }
+ 
+ template <class T>
+@@ -83,9 +83,9 @@
+ {
+     // `range` before `v` (limitLower declares them the other way round): the declaration order
+     // decides the load / compare schedule of the entry block.
+-    int range = upper - lower + 1;
+-    int v = val + d;
+-    while (v > upper) {
++    int range = this->upper - this->lower + 1;
++    int v = this->val + d;
++    while (v > this->upper) {
+         v -= range;
+     }
+     return v;
+@@ -94,9 +94,9 @@
+ template <class T>
+ int cVarLoop<T>::limitLower(int d)
+ {
+-    int v = val + d;
+-    int range = upper - lower + 1;
+-    while (v < lower) {
++    int v = this->val + d;
++    int range = this->upper - this->lower + 1;
++    while (v < this->lower) {
+         v += range;
+     }
+     return v;

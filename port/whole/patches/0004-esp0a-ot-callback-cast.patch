@@ -1,0 +1,11 @@
+--- a/src/game/esp0a.cpp
++++ b/src/game/esp0a.cpp
+@@ -122,7 +122,7 @@
+                     } else {
+                         wpos = e->m_Pos;
+                     }
+-                    AddOtWorldPos(e, Esp0a_Trans2, &wpos, ot, 0.0f);
++                    AddOtWorldPos(e, (void (*)(void*)) Esp0a_Trans2, &wpos, ot, 0.0f);
+                 }
+                 if (!base->CommonMove()) {
+                     break;

@@ -1,0 +1,12 @@
+--- a/src/tools/db_light.cpp
++++ b/src/tools/db_light.cpp
+@@ -301,7 +301,8 @@
+ // by invisible reference, so the caller copies it into a keep-0 stack temp (calls.c) that every call of
+ // the statement sequence reuses and passes its address in r7 -- the editColor shape. The real DrawTile
+ // takes a pointer (mangled P7GXColor); an inlined by-value wrapper allocates one keep-1 temp per call.
+-void DrawTileV(int x, int y, int w, int h, GXColor color) __asm("_Z8DrawTileiiiiP7GXColor");
++/* port: the alias relied on PPC passing structs by reference; call through a wrapper */
++static inline void DrawTileV(int x, int y, int w, int h, GXColor color) { DrawTile(x, y, w, h, &color); }
+ int LitLoadWork(cDbLit* lit, int no);
+ int LitSaveWork(cDbLit* lit, int no);
+ int editColor(int x, int y, GXColor* col);

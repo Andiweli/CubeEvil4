@@ -1,0 +1,11 @@
+--- a/include/scheduler.h
++++ b/include/scheduler.h
+@@ -73,7 +73,7 @@
+ void TaskExit();
+ void TaskSuspend(int level);
+ void TaskSignal(int level);
+-typedef void* TaskFunc;
++#include <re4_task_func.h> /* port: was typedef void* TaskFunc */
+ void TaskSchedulerInit();
+ void TaskAllClear();
+ u32 GetStackSize(int level);

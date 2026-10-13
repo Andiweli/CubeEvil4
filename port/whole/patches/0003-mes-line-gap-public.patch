@@ -1,0 +1,11 @@
+--- a/include/mes.h
++++ b/include/mes.h
+@@ -100,7 +100,7 @@
+     s8 m_lines;            // 0x72
+     u8 x73;
+     u16 m_number_width;           // 0x74  width added by numbers/tables (code0a)
+-private:
++public:  /* port: GCC 2.95 did not enforce this; r20e, r224 and r307 read lineSpace */
+     // PS2 has m_line_gap private; public here because r20e, r224 and r307 read the low byte (lineSpace) through getWork().
+     union {
+         u16 m_line_gap;      // 0x76

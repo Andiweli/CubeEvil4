@@ -1,0 +1,13 @@
+--- a/src/st2/r224.cpp
++++ b/src/st2/r224.cpp
+@@ -368,8 +368,8 @@
+ // `lfs acc` depend on the store (target: `lfs f30,acc` last). The dead `if (spd == 1.85f) up = 0;`
+ // is a 4th ref for the hoisted 1.85 constant so it ranks above zero in global-alloc (f27 vs f26;
+ // zero has no REG_EQUIV doubling, the pool constant has).
+-asm(".section \".rodata\"\n\t.align 2\nr224_zero:\n\t.long 0\n\t.section \".text\"");
+-extern const f32 r224_zero;
++/* port: was a top-level asm .rodata word 0 */
++static const f32 r224_zero = 0.0f;
+ static const f32& r224_zero_v = *(const f32*) &r224_zero;
+ 
+ // The lever handle (smd 0x3F) slides between reva_low and reva_high with acceleration reva_acc and its SE.
