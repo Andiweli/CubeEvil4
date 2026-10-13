@@ -11,7 +11,8 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M2 Alle Spieldateien kompilieren (ARM32 + 32-bit-Linux) | ✅ 13.10.2026 |
 | M3 Linken, lauffähiges 32-bit-Linux-Programm, Module als eigene Bibliotheken | ✅ 13.10.2026 |
 | M4 Teil A: Plattformschicht ohne Disc-Daten (Cloud) | ✅ 13.10.2026 |
-| M4 Teil B: Booten mit echten Disc-Daten bis `gameRoomInit` (lokal, WSL2) | offen, nächster Schritt |
+| M4 Teil B: Booten mit echten Disc-Daten bis `gameRoomInit` (lokal, WSL2) | ✅ 13.10.2026 (i686 und armhf unter qemu) |
+| M5 Erster Raum: Spielschleife ohne Absturz | offen, nächster Schritt |
 
 ## Bauen und prüfen
 
@@ -34,6 +35,60 @@ Je Ziel: Build, dann drei Prüfungen von `re4_host` (armhf unter `qemu-arm`):
 
 Danach einmal `port/tools/test_whole_disc_folder.py` (Disc-Ordner-Werkzeug mit
 synthetischen Disc-Abbildern). Rückgabewert 0 heißt: alles bestanden.
+
+`re4_host` ist seit M4 Teil B ein kleiner Vorlader (`host/loader.c`): Er hält
+den Adressbereich unter `0x83000000` frei und lädt dann `libre4_host.so`
+(Startprogramm und Laufzeittests, `host/main.cpp`) mit den Spielbibliotheken,
+die deshalb oberhalb von `0x80000000` liegen wie auf Android (siehe
+„Adressen der Spielbibliotheken“).
+
+## M4 Teil B: Booten mit Disc-Daten (lokal, WSL2)
+
+```sh
+# einmal: Disc-Ordner außerhalb des Repositorys (Abbilder werden nur gelesen)
+port/tools/whole_disc_folder.py --disc ".../RE4_2004-11-25_Disc1.gcm" \
+    --disc ".../RE4_2004-11-25_Disc2.gcm" --out ~/re4-data
+port/tools/whole_disc_folder.py --check ~/re4-data
+# Spielstart mit Test-Tastenfolge (Speicherkarten-Dialog, Titel, Menüs)
+RE4_PAD_SCRIPT="UP@100-3000/60 A@115-3000/60 START@130-3000/60" \
+    port/build/whole-i686/re4_host --data ~/re4-data
+# armhf: QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf qemu-arm port/build/whole-armhf/re4_host ...
+```
+
+Disc-Ordner (13.10.2026): Disc 1 1154 Dateien, Disc 2 1090 Dateien, 0 Probleme.
+
+**Nachweis (13.10.2026), i686 und armhf (qemu-arm) gleich:** Der Originalcode
+läuft mit echten Disc-Daten durch `systemStartInit` (Ton-Tabellen, Schrift,
+Größentabelle), `systemRestartInit` (`debug/roomInfo.dat`), `Title_task`
+(Kernarchiv `etc/core.das` mit Tonbank, `SS/eng/option.dat`, Speicherkarten-
+Prüfung „keine Karte“ → „ohne Speichern fortfahren“, `SS/eng/title.dat`,
+Titel und Titelmenü), das Debug-Startmenü (`titleExit`, Raum r120 = Stufe 1,
+Raum 0x20), `GameTask` → `gameInit` → `gameStageInit` (`rel/st1_0.rel` per
+OSLink, `etc/emleon00.esl`) bis in **`gameRoomInit`**: `ReadPlayerData` lädt
+`em/pl00.drs` mit Tonbank, `ReadAreaData` lädt `st1/r120.das`, der Yz2-Kern
+entpackt 6 086 688 Byte, der Formatumwandler wandelt das Raumarchiv um. Danach
+stürzt `ModInfoMgr.arrayAlloc` ab, weil die Raum-Zähler (`CNS`) noch
+big-endian sind: Das ist der Einstieg in M5. Letzte Logzeilen:
+
+```
+[re4] OSReport: DVD: Read File: em/pl00.drs
+[re4] formats: em/pl00.drs part 0.0: archive
+[re4] OSReport: DVD: Read File: st1/r120.das
+[re4] formats: st1/r120.das part 0.0: room archive (Yz2)
+[re4] formats: st1/r120.das (unpacked): archive, 6086688 bytes
+[re4] fatal signal 11 ... cModInfoMgr::memClear <- cManager<cModelInfo>::arrayAlloc <- gameRoomInit
+```
+
+`port/tools/whole_build.sh` am Ende der Sitzung (13.10.2026): i686 und armhf
+je 0 fehlgeschlagene Schritte, 0 Fehler; `--self-test`, `--check-modules`
+(114 Module, 0 offene Querverweise, 209 Platzhalter, alle Module oberhalb von
+`0x80000000`) und `--runtime-test` (alle sechs Teile) bestanden, Disc-Ordner-
+Werkzeug ok.
+
+Die Tastenfolge drückt alle 60 Bilder OBEN, 15 Bilder später A, 15 Bilder
+später START. OBEN+A wählt im Speicherkarten-Dialog „ohne Speichern
+fortfahren“ (A allein wählt „erneut prüfen“). Die Bildnummer, ab der der
+Dialog bereit ist, schwankt zwischen Läufen; die Wiederholung fängt das ab.
 
 **M4-Teil-A-Nachweis (13.10.2026), frischer Build, 1:26 min:**
 
@@ -64,13 +119,14 @@ DVD-Warteschlange `bgm/bio4str.hed` an die feste GameCube-Adresse `0x80370000`:
 Die Kette Disc-Abbild → Ordner → `DVD*` → Spiel funktioniert.
 
 **Nicht getestet:**
-- Alles mit echten Disc-Daten (Teil B).
-- Der GameCube-Matching-Build (`ninja` im Hauptverzeichnis). Disc-Images und
-  Original-Compiler fehlen hier. `src/` und `include/` sind unverändert.
-- Der Android-NDK-Build. `dl.google.com` ist von der Netzwerkregel der Cloud
-  gesperrt. Geprüft wurde mit clang für `arm-linux-gnueabihf` (glibc statt
-  Bionic). Insbesondere ungeprüft: ob eine Android-App den Adressbereich
-  `0x80000000–0x83000000` reservieren kann (siehe Risiken).
+- Der GameCube-Matching-Build (`ninja` im Hauptverzeichnis). Original-Compiler
+  fehlen in WSL2. `src/` und `include/` sind unverändert.
+- Der Android-NDK-Build und das Reservieren von MEM1 in einer echten
+  Port-App. Gemessen ist nur, dass der Bereich in einem 32-bit-App-Prozess frei
+  ist (siehe „Adressbereich auf dem Retroid“).
+- Spielinhalte jenseits von `gameRoomInit` (M5) und alles, was erst ein Bild
+  zeigt (M6): Umgewandelte Texturköpfe, Effekte und Layouts sind nur so weit
+  geprüft, wie der Spielcode sie beim Booten liest.
 
 ## Aufbau
 
@@ -79,7 +135,7 @@ Die Kette Disc-Abbild → Ordner → `DVD*` → Spiel funktioniert.
 | `libre4_platform.so` | Plattformschicht: MEM1, Dolphin-OS-Ersatz (Arena, Heap aus dem SDK, Threads, Zeit), DVD über Ordner, ARAM, VI, OSLink/Modul-Lader, Yz2-Kern, SDK-Mathematik |
 | `libre4_main.so` | Spielcode von `main.dol` (295 Dateien), SN-Toolchain-Ersatz, erzeugte Platzhalter |
 | `modules/libre4_<modul>.so` | eine Bibliothek je Original-REL-Modul (114) |
-| `re4_host` | Linux-Startprogramm (`--self-test`, `--check-modules`, `--runtime-test`, sonst Spielstart; `--data DIR`) |
+| `re4_host` + `libre4_host.so` | Linux-Vorlader (`host/loader.c`) und Startprogramm (`host/main.cpp`: `--self-test`, `--check-modules`, `--runtime-test`, sonst Spielstart; `--data DIR`; `kill -USR1 <pid>` gibt einen Backtrace der laufenden Stelle aus) |
 
 Warum zwei Bibliotheken: Der Spielcode ersetzt `operator new/delete` durch
 seine Heaps (`main_mem.cpp`). Die Version-Script-Datei
@@ -96,7 +152,8 @@ weiter `malloc` und berühren die Spiel-Heaps nie, auch nicht vor
 | `port/whole/include/` | Ersatz-Header: `types.h`, `dolphin/types.h`, Prelude, `re4_task_func.h`, `fake_tgmath.h` |
 | `port/whole/patches/` | Geprüfte Einzelkorrekturen, angewendet auf die Kopie |
 | `port/whole/runtime/` | Plattformschicht (Tabelle unten), SN-Toolchain-Ersatz, Modul-CRT |
-| `port/whole/host/main.cpp` | Linux-Startprogramm mit Absturz-Backtrace |
+| `port/whole/runtime/formats/` | Formatumwandler: Disc-Daten in Host-Reihenfolge (siehe unten) |
+| `port/whole/host/` | Linux-Vorlader `loader.c` und Startprogramm `main.cpp` mit Absturz-Backtrace |
 | `port/whole/tests/` | Selbsttest der Modul-Weiterleitungen, Laufzeittests, Test-REL-Modul |
 | `port/tools/whole_prepare.py` | Kopie von `src/` + `include/`, Umschreibungen, Patches, SDK-C-Auszug, Modulplan `modules.json` |
 | `port/tools/whole_link_plan.py` | Probe-Link, erzeugt Platzhalter, Modultabelle und Weiterleitungen |
@@ -137,6 +194,8 @@ sie ersetzt.
 | System-C-Header werden vor allen Spielheadern eingebunden | ältere Eigen-Deklarationen (`memcpy` in `joy.h`) sind danach verträglich |
 | `types.h`: auf ILP32 bleiben `s32/u32` = `long` wie im Original | gleiche C++-Namen für `u32` und `unsigned long` (sonst 90 Scheinfehler beim Linken) |
 | `TaskFunc`: Klasse statt `void*` (`re4_task_func.h`, gleiche Größe) | GCC 2.95 wandelte Funktionszeiger still in `void*` um, modernes C++ nicht |
+| `(u16*) &pG->stage_no` → `(u16*) &pG->room_id`, `stage_prev` → `room_id_prev` (`ROOM_ID_ADDR`) | `G_ROOM_ID` und `RsfCheck(*(u16*) &pG->stage_no, …)` lesen die Raumnummer über die Adresse ihres ersten Bytes; auf little-endian liegt `stage_no` nach Patch 0016 am anderen Ende (auf der GameCube dieselbe Adresse) |
+| Prelude: `Re4BeBytes2` | Byte-Array-Sicht `b[0]` = hohes, `b[1]` = niedriges Byte eines Halbworts, unabhängig von der Host-Reihenfolge (Patch 0016: `cItem::lv8`, `SND_RND::b`) |
 
 Compiler-Schalter: `-std=gnu++11 -Wno-c++11-narrowing -fdelayed-template-parsing
 -fno-strict-aliasing -ffp-contract=off -fwrapv -w`. C++11 wird gebraucht,
@@ -159,6 +218,10 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0013 `dvd.cpp` | Die 1-KB-Teiletabelle (`DvdHeader`, nur 32-bit-Felder) wird direkt nach dem Lesen in Host-Byte-Reihenfolge gedreht |
 | 0014 elf Dateien | Module rufen/lesen `static`-Symbole von `main.dol` beim Namen (der SN-REL-Linker löste sie auf): `EmCatchSubSet`, `QuakeKill`, `setRoomEtcBreakDisp`, `Em32_fs_tbl`, `SceAtSys`, `ScrIdRefTbl`, `ScrObjIdNum`, `fontTMtx`, `g_EspToolSeqHedAddr` werden nicht-statisch; `cModel::isTrans`, `cPlayer::subCharLiveCheck` ohne `inline`; `cDbgWindow::Init` wird in `db_toolbase.cpp` erzwungen ausgegeben |
 | 0015 `dvd.cpp` | Ruft `re4_formats_part_loaded` (Formatumwandler) am Ende jedes fertig gelesenen Dateiteils der Lade-Warteschlange (`cDvdQueue::readMain`) |
+| 0016 elf Header | Byte-Sichten in Unions für little-endian umgedreht (`#if __BYTE_ORDER__`): `EspGenPrm` (h/b), `cAnm::Frames`, `cEffectCore::Call_no` (esp.h), `SstList::no` (espgen.h), `CRoomInfo::roomNo` (room_jmp.h), `RoomNo_next`/`room_id`/`room_id_prev` (global.h), Teile-Wort (model.h), `ParentNo` (light.h), `no`/`type` (etc_model.h), `save` (sscrn.h), `m_line_gap` (mes.h), `ROOM_SAVE_DATA::RoomNo` (room_data.h); Array-Sichten über `Re4BeBytes2`: `cItem::lv8` (item.h), `SND_RND::b` (snd_drv.h) |
+| 0017 `room_jmp.cpp` | `getIndexNum` liest das niedrige Byte des u32-Raumzählers über seinen Wert statt über Offset 3 |
+| 0018 `motion.cpp`, `r117.cpp` | Lokale Unions: `FccF32`/`FccS16` setzen Floats aus big-endian Byteströmen zusammen (Bytereihenfolge für little-endian umgedreht), `R117Work::stepMode` |
+| 0019 `dvd.cpp` | `cDvd::Init` kopiert alle `FileTbl`-Namen in beschreibbaren Speicher (`strdup`): `read.cpp` benennt Einträge an Ort und Stelle um (`SET_DRS_NAME`: `.das` → `.drs`), auf der GameCube lagen Stringliterale in beschreibbarem RAM |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -205,10 +268,10 @@ die C/C++-Laufzeit des Zielsystems ermittelt, was niemand liefert. Funktionen
 schreiben beim ersten Aufruf `stub called: <Name>` ins Log und geben 0 zurück.
 Datenobjekte sind genullt; Größe aus `config/G4BE08/symbols.txt`, sonst 4 KB.
 
-| Platzhalter | M3 | M4 Teil A |
-|---|---|---|
-| Funktionen | 363 | 234: GX 97 (M6), AX/AXFX/AXART/MIX/SYN/SEQ/AI/ADX 77 (M8), CARD 17 (M10), mwPly 12 (M9), PAD 7 (M7), PPC-Leistungszähler 8, SN-PC-Host-I/O 7 (nur Entwicklerkonsole), OS 8 (IPL-Schrift `OSInitFont`/`OSGetFontEncode`/`OSGetFontTexture`, Stoppuhren, `OSResetSystem`), `TEXGet` |
-| Daten | 9 | 1: `GXWGFifo` (GX-Schreib-FIFO, `mes.cpp` schreibt Eckpunkte direkt hinein; M6) |
+| Platzhalter | M3 | M4 Teil A | M4 Teil B |
+|---|---|---|---|
+| Funktionen | 363 | 234: GX 97 (M6), AX/AXFX/AXART/MIX/SYN/SEQ/AI/ADX 77 (M8), CARD 17 (M10), mwPly 12 (M9), PAD 7 (M7), PPC-Leistungszähler 8, SN-PC-Host-I/O 7 (nur Entwicklerkonsole), OS 8 (IPL-Schrift `OSInitFont`/`OSGetFontEncode`/`OSGetFontTexture`, Stoppuhren, `OSResetSystem`), `TEXGet` | 209: wie Teil A ohne CARD, PAD und `TEXGet` (ersetzt durch `card.cpp`, `pad.cpp`, `tex_palette.cpp`) |
+| Daten | 9 | 1: `GXWGFifo` (GX-Schreib-FIFO, `mes.cpp` schreibt Eckpunkte direkt hinein; M6) | 1: unverändert |
 
 **Echter Ersatz statt Platzhalter** (`runtime/sn_runtime.cpp`): `_ctors`/`_dtors`
 (leer, weil der ELF-Lader Konstruktoren selbst ausführt), `__builtin_new`/
@@ -243,6 +306,10 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `mtx_ps.c` + `sdk_c/` | Matrix-/Vektor-/Quaternion-Mathematik (C-Fassungen des SDK) |
 | `byte_order.cpp` | Byte-Tausch-Helfer für Format-Umwandler |
 | `newlib_ctype.c` | newlib-Zeichentabelle `_ctype_` |
+| `card.cpp` (M4 B) | Speicherkarte: beide Schächte leer, jeder `CARD*`-Aufruf liefert `CARD_RESULT_NOCARD` (wie das SDK bei leerem Schacht); das Spiel zeigt „keine Speicherkarte“ und läuft ohne Speichern weiter. Echtes Speichern: M10 |
+| `pad.cpp` (M4 B) | Controller: Kanal 0 angeschlossen, Kanäle 1–3 leer (ein zweiter Controller ließe den Titel die Logos überspringen). Tasten aus der Testfolge `RE4_PAD_SCRIPT` (`TASTEN@BILD` drückt 3 Bilder lang, `TASTEN@VON-BIS/ALLE` wiederholt; Tasten `A B X Y Z L R START UP DOWN LEFT RIGHT`, mit `+` verbunden; Bild = Zahl der `PADRead`-Aufrufe). Echte Eingabe: M7 |
+| `tex_palette.cpp` (M4 B) | `TEXGet` des SDK (`src/lib/texPalette.c` braucht sonst den SDK-Dateicache) |
+| `mem1.cpp` (M4 B) | zusätzlich `re4_check_game_address`: bricht mit Logmeldung ab, wenn `libre4_main` oder ein Modul unter `0x80000000` geladen wurde |
 
 **Disc-Ordner** (`re4_host --data DIR`, sonst `$RE4_DATA_DIR`, sonst
 `<re4_host>/data`): `DIR/disc0` und `DIR/disc1` mit `sys/boot.bin`,
@@ -268,30 +335,165 @@ Beim Entladen eines Moduls lösen die Weiterleitungen der anderen neu auf.
 Bekannte Abweichung: Lädt das Spiel dasselbe Modul zweimal gleichzeitig, teilen
 sich beide eine Bibliothek (Logmeldung).
 
-## Offene Punkte für Teil B und später
+## Formatumwandler (M4 Teil B)
 
-- **Big-endian-Daten (Kern von Teil B).** Der Originalcode liest alle
-  Disc-Daten direkt als Strukturen (`*(u32*)(data + 4)` für den REL-Versatz in
-  Archiven, `pDll->bssSize` vor `OSLink`, Schriften, Nachrichten, Tabellen,
-  Modelle …). Clang kennt kein `scalar_storage_order`, und Android ist
-  little-endian; jedes Format muss daher beim Laden in Host-Reihenfolge
-  gedreht werden, Feld für Feld nach seiner Struktur. Erledigt: DVD-Teiletabelle
-  (Patch 0013), REL-Kopf (in `OSLink`, für eingebettete RELs muss der Kopf vor
-  dem Lesen von `bssSize` gedreht werden, z. B. mit `re4_rel_header_to_host`).
-  Erste Kandidaten auf dem Bootpfad: `Font/common_p.fnt` (`setupFont`),
-  `etc/sizetbl.dat`, `bgm/*.hed`, `bgm/bgmtbl.dat`, `etc/memcard.das`,
-  `etc/moji8.tpl`, `debug/roomInfo.dat`, Nachrichtendateien. Wissen über die
-  Formate: die Strukturen im Originalcode, `tools/motion/*.py`, die Leser des
-  alten Ports (`port/src/*_original.h`, `asset_index.cpp`) und dessen Import
-  (`original_import/formats.py`).
-- **Adressbereich auf Android:** prüfen, ob eine 32-bit-App
-  `0x80000000–0x83000000` reservieren kann (ART legt seinen Heap bei
-  `0x70000000+` an). Schnelltest ohne Port: `/proc/<pid>/maps` einer laufenden
-  armeabi-v7a-App (z. B. der alten Port-App) ansehen. Falls belegt: Alternative
-  entscheiden (Projektinhaber), z. B. MEM1 an anderer Adresse plus Patches für
-  die festen Adressen und Zeigerprüfungen.
+**Entscheidung des Projektinhabers (13.10.2026): Umwandlung einmal beim
+Laden, an einer zentralen Stelle.** Disc-Daten sind big-endian, der
+Originalcode liest sie als Strukturen. Jede Datei wird deshalb unmittelbar
+nach dem Laden Feld für Feld in Host-Reihenfolge gedreht:
+
+- `re4_formats_part_loaded` (Patch 0015): am Ende jedes fertig gelesenen
+  Dateiteils der Lade-Warteschlange (`cDvdQueue::readMain`), mit Dateiname,
+  Verschachtelungstiefe, Teilnummer, `DvdHeader` (Typ, Größe) und Adresse
+  (MRAM oder ARAM-Puffer). Nur die Tondaten-Streams (`snd_str*.cpp`) lesen
+  an der Warteschlange vorbei (Audio, M8).
+- `re4_formats_unpacked` (`yz2_decode.cpp`): nach dem Yz2-Entpacken. Einziger
+  Nutzer ist `ReadAreaData`, das Ergebnis ist ein Raumarchiv.
+- Auswahl: zuerst nach `DvdHeader`-Typ (Typ 1 Tonbank, Typ 2 Tonproben), dann
+  nach Dateiname (`fnmatch`), in Archiven nach dem 3-Zeichen-Kürzel jedes
+  Eintrags. Unbekanntes wird einmal geloggt
+  (`formats: … no converter, left big-endian`) und bleibt unverändert.
+- Die Umwandler werden mit den Schaltern und Headern des Spielcodes
+  übersetzt (`re4_formats_obj`, Teil von `libre4_platform`): Feldlisten und
+  Größen kommen aus den Originalstrukturen (`RE4_SWAP(blob, base, T, feld)`,
+  `static_assert` auf die Strukturgrößen). Jeder Zugriff wird gegen die
+  Blockgröße geprüft; passt eine Struktur nicht, bricht der Umwandler mit
+  Logmeldung ab, statt fremden Speicher zu verändern. Gemeinsam genutzte
+  Unterstrukturen werden nur einmal gedreht (`Seen`).
+- Big-endian bleibt, was nur Grafik- oder Tonhardware liest: Texel und
+  CLUT-Einträge von TPLs, Display-Listen, Tonproben. Darum kümmern sich
+  Renderer (M6) und Audio (M8).
+
+| Datei / Kürzel | Format (Quelle im Originalcode) | Umwandler |
+|---|---|---|
+| `bgm/bio4str.hed` | Stream-Blöcke: Offsets, `SND_RIT`, `SND_SHD` (snd_sub3.cpp) | `formats_snd.cpp` |
+| `bgm/bio4midi.hed` | u32-Offsets der BGM-Dateien | `convertWords` |
+| `bgm/doorse.hed` | `SndDoorTbl`, u32-Tabelle, u16-Zähler (snd.cpp) | `formats_snd.cpp` |
+| `bgm/bgmtbl.dat` | `SndBgmTbl`, `SndBgmRoom`, u16-Raumliste | `formats_snd.cpp` |
+| Teiltyp 1 (Tonbank) | Kopf, ISS-Block, `SND_SIT`, Wavetable (`WTFILEHEADER`, `WTREGION`, `WTART`, `WTSAMPLE`, `WTADPCM`), Sequenz-Tabelle (Sequenzen selbst sind Byteströme) | `formats_snd.cpp` |
+| `etc/sizetbl.dat` | Zähler + Name/Größe (das Spiel liest es nicht) | `formats.cpp` |
+| `*.tpl`, `TPL` | `TEXPalette`, `TEXDescriptor`, `TEXHeader`, `CLUTHeader` (tpl.h) | `formats_tex.cpp` |
+| `font/*.fnt` | Kopf (TPL-Offset, Breitentabelle in Bytes) + TPL (mes.cpp) | `formats_tex.cpp` |
+| `MDT` | Sprachblöcke `MesTblBlock` + u16-Nachrichtencodes (mes.cpp) | `formats_mes.cpp` |
+| `*.das`, `*.drs`, `ss/*.dat`, entpackte Räume | Archiv: Zähler, REL-Offset, Offsets, Kürzel; eingebettetes REL bekommt `re4_rel_header_to_host` (read.cpp `GetDataExt`) | `formats_arc.cpp` |
+| `UWF` | `ID_FILE_HEADER`, `ID_DATA_V1/V2`, B-Spline `FUNC_PATH_PTR`, `HERMITE_1_PTR` (id_sys.cpp) | `formats_id.cpp` |
+| `EFF` | `ESP_EFF_HEADER` (Version 0xB): Id-Listen, TPL- und `cAnm`-Tabellen, `cEspSeqHead` + `cEspSeqTbl`, Pfade (`Path`), `EffEfmEnt` (eff_sys.cpp) | `formats_eff.cpp` (Effektmodelle, -motionen, Shape-Köpfe noch nicht) |
+| `TEX` | `TexData` (Version 3), Id-Liste, TPLs, `cAnm` (texture.cpp) | `formats_eff.cpp` |
+| `VIB` | `VibDataTbl`, `VIB_INFO`, `VIB_DATA` (pad.cpp) | `formats_eff.cpp` |
+| `debug/roominfo.dat` | Stufen-Offsets, `CRoomInfo` (room_jmp.h) | `formats_dbg.cpp` |
+| `rel/*.rel` | REL-Kopf | `OSLink` (`re4_rel_header_to_host`) |
+| `debug/*.txt` | Text | nichts zu tun |
+
+**Noch ohne Umwandler** (beim Booten bis `gameRoomInit` gesehen): Archiv-
+Kürzel `BIN` (Modelle, aber auch andere Formate unter derselben Endung, z. B.
+der Lichtpfad `CORE_LIGHT_PATH`), `LIT`, `CAM`, `SAT`, `SEQ`, `FCV`, `FNT`,
+Raumdaten `SMD`, `SHD`, `CNS`, `EAT`, `SMX`, `FSE` und weitere, `etc/*.esl`,
+Effektmodelle in `EFF`. „Error: Can't calc Inverse Matrix !“ im Titel kommt
+vermutlich aus einem dieser noch big-endian Blöcke.
+
+## Byte-Sichten (Endian-abhängiger Spielcode)
+
+Unabhängig von den Disc-Daten liest der Spielcode an manchen Stellen einzelne
+Bytes eines größeren Feldes. Auf der GameCube liegt das höchstwertige Byte
+vorn, auf ARM/x86 hinten.
+
+- **Unions** mit Byte-Struktur über einem u16/u32 (z. B. `room_id` =
+  `stage_no << 8 | room_no`): Patch 0016/0018 dreht die Byte-Reihenfolge der
+  Struktur auf little-endian um. Beide Sichten stimmen dann beim Lesen und
+  Schreiben, für umgewandelte Disc-Daten wie für Spielvariablen. Gefunden mit
+  einem Suchskript über alle Unions in `include/` und `src/` (20 Treffer,
+  `gx.h` ist der GX-FIFO und bleibt, `cModelInfo::colorWord` siehe offene
+  Punkte).
+- **Lesen über Byte-Offsets** (`*((s8*) p + ofs + 3)`): einzeln per Patch
+  (0017).
+- **Wort-Zugriffe auf Byte-Strukturen** (`*(u32*) &farbe = 0xFF`): noch offen,
+  siehe offene Punkte.
+
+## Adressen der Spielbibliotheken
+
+**Entscheidung des Projektinhabers (13.10.2026): natürliche Lage + Prüfung.**
+Das Spiel unterscheidet an manchen Stellen über Bit 31 einer Adresse eigene
+Daten von Offsets und Listenverweisen; so speichern die Zeichenlisten
+(`libgpu.cpp` `ClearOTagR`/`DrawOTag`) Verweise mit gelöschtem Bit 31. Die
+Listen selbst sind feste Variablen (`MainOt`, `ActBtn`, `SceSys` …) und
+liegen in den Bibliotheken. Auf Android liegen die Bibliotheken einer 32-bit-App
+bei `0xC0000000` und höher (gemessen, siehe unten), unter i686-Linux bei
+`0xF7…`, unter qemu-arm bei `0x40…` (dort stürzte `DrawOTag` ab).
+
+- Der Linux-Vorlader `re4_host` (`host/loader.c`) belegt vor dem Laden jede
+  freie Lücke unter `0x83000000` mit einer unzugänglichen Reservierung
+  (`PROT_NONE`, `MAP_NORESERVE`); die Bibliotheken landen darüber, auch unter
+  qemu-arm (`libre4_host.so` bei `0x83018000`). Den MEM1-Teil übernimmt
+  `re4_mem1_init` (Umgebungsvariable `RE4_MEM1_PLACEHOLDER`).
+- `re4_check_game_address` prüft `libre4_main` (vor dem Spielstart) und jedes
+  Modul (nach `dlopen`) und bricht unterhalb von `0x80000000` mit Logmeldung
+  ab. Auf Android muss der JNI-Start dieselbe Prüfung für `libre4_main`
+  aufrufen.
+- Prüfungen auf den MEM1-Bereich `0x80000000–0x82FFFFFF`, die feste
+  Variablen treffen, bleiben Einzelfälle (bisher keiner).
+
+## Adressbereich auf dem Retroid (gemessen 13.10.2026)
+
+Retroid Pocket Flip 2, Android 13, Kernel 4.19 aarch64, `ro.zygote=zygote64_32`,
+ABIs `arm64-v8a,armeabi-v7a,armeabi`. Die alte Port-App `org.re4.port` ist als
+arm64 installiert. Gemessen wurde deshalb ein echter 32-bit-App-Prozess aus
+dem 32-bit-Zygote: `am instrument --abi armeabi-v7a -e debug true
+org.re4.port.test/androidx.test.runner.AndroidJUnitRunner` startet
+`org.re4.port` als `app_process32` und lässt ihn auf den Debugger warten;
+`run-as org.re4.port` liest `/proc/<pid>/maps`; danach `am force-stop
+org.re4.port`. Alles unter der ADB-Sperre (`Retroid-Adb-Exclusive.ps1`), nur
+eigene Pakete, Seriennummer `dbdcacc`.
+
+| Probe | Abbildungen | Überlappung mit `0x80000000–0x83000000` | Freie Lücke um `0x80000000` | Bibliotheken |
+|---|---|---|---|---|
+| 1 (PID 18115) | 2150 | keine | `0x7532A000–0xC3B25000` (1255 MB) | `0xD1D25000–0xF07E2000` |
+| 2 (PID 18233) | 2151 | keine | gleich | gleich |
+| 3 (PID 18289) | 2150 | keine | gleich | gleich |
+
+Weitere Belegung: ART-Hauptbereich `0x12C00000–0x32C00000`, Boot-Image um
+`0x70D06000–0x7532A000`, Stack `0xFF3F4000`. Ergebnis: **MEM1 an der
+Originaladresse ist in einer 32-bit-App frei**, und die Bibliotheken liegen
+oberhalb von `0x80000000`. Die drei Proben stammen aus demselben Zygote-Start
+(gleiche Zufallsverteilung); nach einem Geräteneustart verschiebt sich die
+Lage, die Lücke von 1,2 GB lässt aber viel Spielraum. Ungeprüft: das
+tatsächliche `mmap` in einer Port-App (M6/M11, sobald der NDK-Build läuft).
+Der Platz sollte früh reserviert werden (beim Laden von `libre4_platform`).
+
+## Offene Punkte für M5 und später
+
+- **Raumdaten und weitere Formate (Kern von M5):** `CNS`, `SMD`, `SMX`,
+  `SHD`, `EAT`, `FSE`, `LIT`, `SAT`, `CAM`, `BIN` (Modelle; Kürzel ist die
+  Dateiendung und deckt mehrere Formate ab, Erkennung am Kopf), `SEQ`/`FCV`
+  (Motionen: `motion.cpp` liest die Schlüsselströme der Layouts 0–2 byteweise
+  big-endian über `FccF32`/`FccS16`, Layout 3 direkt als `s16`; diese Ströme
+  dürfen nur dort gedreht werden, wo direkt gelesen wird), `FNT`, `etc/*.esl`,
+  Effektmodelle in `EFF`. Wissen: Originalstrukturen, `tools/motion/*.py`,
+  `port/src/*_original.h`, `original_import/formats.py`.
+- **Wort-Zugriffe auf Byte-Strukturen** (rund 45 Stellen): Farben werden als
+  u32 geschrieben (`*(u32*) &col.start = 0xFF` = schwarz, deckend; `fade.h`,
+  `game.cpp`, `event.cpp`, `sscrn.cpp`, Raum-Module `r21d`, `r300`, `r311`,
+  `r31c`, `r117` …) oder geprüft (`light.cpp`: `*(u32*) &l->DispCol &
+  0xFFFFFF00`). Auf little-endian landen die Bytes vertauscht (falsche Farben).
+  Kritisch für M5: `include/em.h:168` setzt die vier Zustandsbytes `r_no_0..3`
+  eines Gegners über ein u32. Ebenfalls: `snd_iss2.cpp`/`snd_str2.cpp` lesen
+  die AX-Adresspaare Hi/Lo als ein u32 (M8). Vorschlag: mit dem Compiler
+  (clang-AST) alle Casts von `&`Byte-Aggregat nach `u32*`/`u16*` finden und an
+  genau diesen Stellen einen big-endian Zugriffstyp einsetzen (mechanisch,
+  Liste prüfbar). Typ-Wortspiele zwischen gleich großen Skalaren (`rnd.cpp`
+  Float-Bits) bleiben unverändert. `cModelInfo::colorWord` schreibt nur
+  `0xFFFFFFFF`; der Maskenvergleich in `t_scroll.cpp` (Debug-Werkzeug) bleibt
+  falsch, bis diese Regel greift.
+- **Von der CPU gebaute Display-Listen** (`EspInit`: `*(u16*) d = 4`) sind
+  Host-Reihenfolge, Display-Listen von der Disc big-endian: der GX-Ersatz (M6)
+  muss beide kennen.
+- **Feste Variablen als DVD-Ziel:** `etc/emleon00.esl` wird in einen Puffer in
+  `libre4_main` gelesen (`0xF7…`); DVD und Umwandler kommen damit zurecht,
+  MEM1-Bereichsprüfungen darauf wären ein Einzelfall.
 - **IPL-Schrift:** `OSInitFont` braucht die Schrift aus dem IPL-ROM (nicht auf
   der Disc), nur für die Fehlerbildschirme. Platzhalter liefert 0.
+- **Platzhalter (209 Funktionen):** GX 97 (M6), AX/AXFX/AXART/MIX/SYN/SEQ/AI/ADX
+  77 (M8), mwPly 12 (M9), PPC-Leistungszähler 8, SN-PC-Host-I/O 7,
+  OS 8 (IPL-Schrift, Stoppuhren, `OSResetSystem`). CARD und PAD sind ersetzt.
 - **Weitere Leerlauf-Schleifen** auf Interrupt-Zähler wie in `main.cpp` können
   auftauchen; dort ebenfalls `re4_wait_interrupt()` einsetzen.
 - **Hintergrund-Task (iTask):** läuft ohne Unterbrechung bis zum Ende. Für
@@ -299,7 +501,9 @@ sich beide eine Bibliothek (Logmeldung).
   (z. B. den Yz2-Kern über seinen Checkpoint) einbauen.
 - **Android-Einbindung:** `libre4_platform`, `libre4_main` und die Module in
   das Android-Studio-Projekt; `_ctype_` kollidiert dort mit Bionics
-  gleichnamigem Zeiger (prüfen, nur Debug-Werkzeug `t_movie` liest ihn).
+  gleichnamigem Zeiger (prüfen, nur Debug-Werkzeug `t_movie` liest ihn). Der
+  JNI-Start ruft `re4_check_game_address` für `libre4_main` und reserviert
+  MEM1 früh.
 
 ## Bekannte Risiken für die Laufzeit (M4/M5)
 
@@ -312,3 +516,9 @@ sich beide eine Bibliothek (Logmeldung).
   Spiel-Heap), der Boot-Thread 8 MB.
 - Lesen von Disc ist sofort fertig: Code, der auf einen späteren Abschluss
   wartet oder den Fortschritt misst, verhält sich anders als mit Laufwerk.
+- Der Formatumwandler kennt Formate nur so weit, wie der Spielcode sie beim
+  Booten las. Ein falsch gedrehtes Feld fällt erst auf, wenn es gelesen wird;
+  bei Abstürzen zuerst die `formats:`-Logzeilen der betroffenen Datei prüfen.
+- Unions mit Byte-Sichten in Dateien, die das Suchskript nicht erfasst
+  (benannte Strukturtypen als Union-Mitglieder), können fehlen; `EspGenPrm`
+  wurde von Hand gefunden.

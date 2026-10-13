@@ -72,8 +72,8 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
 2. ✅ Alle 600 Spieldateien kompilieren für ARM32 und 32-bit-Linux fehlerfrei
 3. ✅ Linken: Stub-Generator für alle fehlenden SDK/CRI-Funktionen, lauffähiges
    32-bit-Linux-Programm, jedes REL-Modul als eigene Bibliothek
-4. Booten mit echten Disc-Daten bis `gameRoomInit` (vorhandene Datei/Yz2/Scheduler nutzen)
-   — Teil A ✅ (Cloud: Plattformschicht ohne Disc-Daten), Teil B offen (lokal mit Disc-Daten)
+4. ✅ Booten mit echten Disc-Daten bis `gameRoomInit` (vorhandene Datei/Yz2/Scheduler nutzen)
+   — Teil A ✅ (Cloud: Plattformschicht ohne Disc-Daten), Teil B ✅ (lokal mit Disc-Daten, i686 und armhf/qemu)
 5. Erster Raum (r100): Spielschleife läuft ohne Absturz, noch ohne Bild
 6. Grafik: GX → Vulkan (vorhandenen Renderer anbinden), Titelbild und r100 sichtbar
 7. Steuerung (Retroid-Tasten, später Touch)
