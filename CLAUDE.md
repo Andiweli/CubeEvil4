@@ -73,6 +73,7 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
 3. ✅ Linken: Stub-Generator für alle fehlenden SDK/CRI-Funktionen, lauffähiges
    32-bit-Linux-Programm, jedes REL-Modul als eigene Bibliothek
 4. Booten mit echten Disc-Daten bis `gameRoomInit` (vorhandene Datei/Yz2/Scheduler nutzen)
+   — Teil A ✅ (Cloud: Plattformschicht ohne Disc-Daten), Teil B offen (lokal mit Disc-Daten)
 5. Erster Raum (r100): Spielschleife läuft ohne Absturz, noch ohne Bild
 6. Grafik: GX → Vulkan (vorhandenen Renderer anbinden), Titelbild und r100 sichtbar
 7. Steuerung (Retroid-Tasten, später Touch)
