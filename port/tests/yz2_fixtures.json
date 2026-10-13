@@ -1,0 +1,26 @@
+{
+  "reference": "tools/motion/yz2.py",
+  "fixtures": [
+    {
+      "name": "literals",
+      "input_bytes": 366,
+      "output_bytes": 256,
+      "input_sha256": "69de7e1ee997266375f8643e9f5c68e1670a578c5146b0b06090d525f50da447",
+      "output_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880"
+    },
+    {
+      "name": "matches",
+      "input_bytes": 57,
+      "output_bytes": 26,
+      "input_sha256": "4efbae7b11b3074aec4843c2e65ce1c921f394e04c3954fdcebeba2edeb6c423",
+      "output_sha256": "06f469c97c14e84c74853bb96aa79305eb4f6635291bf1202c4fdadb82706204"
+    },
+    {
+      "name": "adaptive",
+      "input_bytes": 2749,
+      "output_bytes": 70002,
+      "input_sha256": "7651bc9fae4985cbe03e442451ac3d91b718fbce8cd8c87bfff6c1f554d7984d",
+      "output_sha256": "9b4b7f1dbab3c2b32e8761be77968d129e9859f5b38c08c524e4850bf2ee228b"
+    }
+  ]
+}

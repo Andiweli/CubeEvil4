@@ -1,0 +1,6 @@
+if(NOT DEFINED RE4_ROOT)
+    message(FATAL_ERROR "RE4_ROOT is required")
+endif()
+include("${CMAKE_CURRENT_LIST_DIR}/../cmake/OriginalSources.cmake")
+re4_verify_original_sources("${RE4_ROOT}")
+message(STATUS "Original source fingerprints verified")

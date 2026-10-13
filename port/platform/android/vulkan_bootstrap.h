@@ -1,0 +1,22 @@
+#pragma once
+#include "re4/port/graphics.h"
+#include "re4/port/gx_scene.h"
+#include <android/native_window.h>
+#include <string>
+namespace re4::port {
+// API 1.0 clear/present subset, loaded only when an Android surface is attached.
+class VulkanBootstrap final : public GraphicsPresenter {
+public:
+    explicit VulkanBootstrap(ANativeWindow *);
+    ~VulkanBootstrap() override;
+    void present(const GraphicsClear &,bool) override;
+    std::string report() const;
+    void loadScene(GxScene);
+    void updateSceneGeometry(GxScene); // Same topology/textures, fenced native pose upload.
+    void presentScene();
+    void saveSceneReadback(const std::string &rgbaPath) const;
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
+} // namespace re4::port

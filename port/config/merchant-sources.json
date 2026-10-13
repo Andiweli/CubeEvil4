@@ -1,0 +1,4 @@
+{
+  "include/merchant.h": "70f151530a55d0e5696f8fdecbbf3f482bcc85c945a5a852a286122c52dfb81e",
+  "src/game/merchant.cpp": "37cd95fb0dcc44f36031d721e10bda3180565ba2b951eb28fbd6978b378027d1"
+}

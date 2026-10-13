@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 22, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "host",
+      "displayName": "Host tests (Ninja; compiler available in environment)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/host",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "RE4_BUILD_TESTS": "ON" }
+    }
+  ],
+  "buildPresets": [ { "name": "host", "configurePreset": "host" } ],
+  "testPresets": [
+    { "name": "host", "configurePreset": "host", "output": { "outputOnFailure": true } }
+  ]
+}

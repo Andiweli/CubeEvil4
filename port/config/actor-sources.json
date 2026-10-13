@@ -1,0 +1,7 @@
+{
+  "src/game/em.cpp": "e3472ff022d0eb8da349d8b5d31f13bb5af9f86f8cf2051f3e38d7622ce871dd",
+  "include/em.h": "3917beb327210f0e8bc4f626704a7b77d442707f229a3ccfee00f2c1df71a781",
+  "src/game/pl_leon.cpp": "cb6e6a1245b0eaab6faaec6e0c0b1deeb8102f501dde2140576d262cfa92c024",
+  "include/player.h": "86e9e2f9b32bdf86a5d7136f92ae0dc8be6a1ce9897c6fc478a410377fce2b9f",
+  "include/cManager.h": "f4eb3770d2f5f5f08bbc429b95511f99280c9c274a9104a3d273536f015f501f"
+}

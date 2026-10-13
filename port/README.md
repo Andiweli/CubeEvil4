@@ -1,0 +1,334 @@
+# RE4 native foundation
+
+The Phase-5b partial runtime now executes original gameInit and gameStageInit
+through GameTask to Rno0=2, including the actual new-game inventory/difficulty
+branch, stage font ownership, imported-disc selection and aggregate save.
+Ordinary aggregate load and GameLoad are verified separately. GameTask stops
+at the entirely unported gameRoomInit body. The CLI proof uses a labelled CPU
+VI observer, not a GPU gameplay frame. Original MotionMove,
+SEQ, leg/heel/toe IK and animation-frame crossing run on persistent native models;
+seven real pl00 motion pairs are exercised over multiple ticks. Original SAT/EAT
+segment/floor algorithms use checked immutable BE resources. Actor construction,
+weapon logic, sphere push-out, live shoulder camera and Event::Run remain open.
+See the [current Phase-5b progress report](docs/phase5b-scene-status.md) for
+tests and exact limits, and the [preceding report](docs/phase5b-runtime-status.md)
+for the existing motion/collision integration.
+
+The current Phase-5a continuation preserves original CNS-sized model pools through
+light/OT capture and executes original model-bound light transforms. r100, r102
+and r119 produce dual-ABI Vulkan texture diagnostics using original EVD cameras.
+These explicitly labelled debug frames do not prove the live Leon startup or
+shoulder camera. Event lighting now follows the original Lit packet reference;
+separate GPU light/fog views record brightness and the remaining live actor/SAT
+boundary. See the [ownership and lighting report](docs/phase5a-scene-ownership-light-diagnostics.md).
+
+The preceding Phase-5a continuation executes original grouped SMD and block
+registration on Windows x86/x64 and Android ARM32/ARM64. All 310 r100 models
+and their five blocks are created, decoded and released; r102 and r119 verify
+the same shared path. This is a CPU registration/geometry milestone. r100 GPU
+submission still stops at its real model-bound player light; original gameplay
+player startup and the dependent shoulder camera remain unintegrated. See the
+[r100 progress report and exact remaining dependencies](docs/phase5a-r100-status.md).
+
+The preceding Phase-5a continuation executes complete original shaderSetup,
+specular/bump, weight and FK-motion bodies with native GX/PPC adapters.
+The shared Vulkan path draws Leon's registered body and attachments in r120
+and r119 on Android ARM32/ARM64; Windows x86/x64 verifies the same source data
+and material states. This is an isolated rendering proof with neutral morphs,
+not complete event playback or visually verified gameplay. The requested r100
+start-camera test remains blocked by player/light/shoulder-camera consumers. See the
+[material report and reproducible tests](docs/phase5a-material-status.md) and
+the preceding [skinning report](docs/phase5a-skinning-status.md).
+The phase descriptions below record preceding integration milestones.
+
+Strategy A: compile original RE4 code with a separate native compatibility layer.
+This directory contains the verified build foundation, stackful scheduler,
+background/file/Yz2 runtime, Phase-3c original MRAM/ARAM resource controller and
+Phase-4a native module runtime. It is not a
+playable game. Native tests load privately supplied GameCube data; the APK
+bundles no assets. No rooms, actors, events or renderer are manually recreated.
+The original `src/`, `include/`, configurations and master history are unchanged.
+
+Phase 3c adds original data-controller state transitions, bounded asynchronous
+CPU-backed ARAM, native reservations/leases and verified immutable LRU caches.
+Data readiness is distinct from model creation. See
+[Phase-3c evidence and limits](docs/phase3c-status.md) and
+[Phase-4 module/model/input boundaries](docs/phase4-boundaries.md).
+
+Phase 4a generates metadata for all 114 configured original modules and 122 room
+callback pairs. Fourteen partial stage components execute original registration
+and dispatch code. The complete small `R10dInit/Main` and `R328Init/Main` bodies
+run natively; their original mains are empty. Other room functions remain absent,
+including `R120Init/Main` and `R100Init/Main`. Typed snapshots, retained MRAM work,
+paused stacks and checked callback lifetimes replace unsafe PPC BSS copying.
+See [Phase-4a evidence, complete file list and limits](docs/phase4a-status.md).
+
+## Layout
+
+- `CMakeLists.txt`: shared host/Android build.
+- `compat/include/types.h`: exact-width original primitive names on both ABIs.
+- `cmake/OriginalSources.cmake`: reviewed source fingerprints and verbatim extraction.
+- `include/re4/port/`: byte-order helpers, verification API and future boundaries.
+- `src/verification.cpp`, `tests/`: the shared checks and source-identity tests.
+- `src/scheduler.cpp`, `src/stack_context.cpp`: native task policy and real stacks.
+- `src/async_file.cpp`: single owned-buffer I/O worker and native read pump.
+- `src/yz2.cpp`, `src/yz2_kernel.cpp`: owned Yz2 jobs and PPC decoder translation.
+- `cmake/Yz2Sources.cmake`: explicit adaptations of original C setup.
+- `tools/generate_modules.py`, `config/module-sources.json`: source-guarded
+  module/room catalog and partial original stage components.
+- `src/modules.cpp`, `src/module_rel_index.cpp`: native lifetimes, typed state
+  and bounded original REL metadata validation.
+- `third_party/boost_context/`: pinned, licensed ARM context assembly.
+- `platform/android/`: JNI diagnostics bridge.
+- `android/`: pinned Gradle project, verification Activity and device tests.
+- `scripts/`: checked build/test commands for Windows.
+- `docs/`: decisions, graphics requirements and recorded verification status.
+
+## Code actually reused
+
+`src/game/rnd.cpp` is compiled directly, unchanged: `RndInit`, `Rnd`, `fRand0_1`,
+`fRand1_1`, `fRandSeed0_1`, `fRandSeed1_1`. `include/flag.h` and `rnd.h` are copied
+unchanged into the build directory. Only `FlagBitChk` is exercised; the writing
+flag macros still truncate native pointers and are intentionally unsupported.
+
+`hermite(f32*, f32*, f32)` and `IPOW(f32, int)` are extracted from
+`src/game/math_sub.cpp` at configure time, preserving the complete definitions
+and source locations. Their expressions are not reimplemented. The extractor
+is deliberately restricted to these reviewed functions. Source fingerprints
+normalize CRLF to LF so Linux and Windows checkouts agree. Changing an approved
+source causes configuration to fail until its fingerprint is explicitly reviewed.
+
+Phase 2 also extracts `GetStackSize`, `TaskSuspend`, `TaskSignal`, `TaskStatus`,
+`SetTaskModelPtr`, `SceSleep`, `SceExit`, `cSceSys::checkCTaskRange` and the six
+TASK kind accessors verbatim. These use native control metadata and actual stack
+transfers, not pretend Dolphin threads. `TaskSchedulerMain`'s policy and scenario
+OT ordering are adapted in `NativeScheduler`; their entire engine units are not
+claimed compiled. See [Phase-2 evidence and limits](docs/phase2-status.md).
+
+Phase 2b compiles original Yz2DecodeSet/Yz2DecodeExec setup with explicit ABI,
+per-instance state, bounds and checkpoint adaptations. The PPC kernel is
+translated separately and checked against the existing Python reference using
+synthetic fixtures. iTask adapters drive slot 4 at the frame tail; filesystem
+I/O uses one private-buffer worker. DvdReadProc is compiled verbatim as an
+explicitly isolated adapter test. Full cDvd/decodeData/room loading remains open.
+See [Phase-2b report](docs/phase2b-status.md).
+
+Only selected original headers are exposed. The legacy include tree must not
+shadow Bionic, the host CRT or the modern C++ standard library. Original RNG
+type-punning is built with strict-aliasing optimization disabled on GCC/Clang;
+fast-math and implicit FMA contraction are disabled. These tests do not establish
+general PowerPC floating-point equivalence.
+
+## Prerequisites and pinned Android toolchain
+
+| Component | Version |
+| --- | --- |
+| Gradle wrapper | 8.13 |
+| Android Gradle Plugin | 8.13.2 |
+| JDK | 17 recommended; Gradle 8.13 also supports 21 used locally |
+| Android SDK platform / build tools | 35 / 35.0.0 |
+| Android NDK | 28.2.13676358 (r28c) |
+| SDK CMake / Ninja | 4.1.2 / 1.12.1 |
+| Native standard | C++17 |
+| Configure-time Python | 3.9 or newer; no extra packages |
+| Android minimum API | 21 |
+| Packaged native ABIs | armeabi-v7a AND arm64-v8a |
+
+Install missing SDK components with Android Studio's SDK Manager. The build
+script does not install packages or accept licenses automatically. Set
+`ANDROID_HOME` and `JAVA_HOME` or pass paths explicitly. The ordinary Java on
+PATH may differ from the configured build JDK.
+
+The official Gradle 8.13 distribution SHA-256 is pinned in wrapper properties;
+the wrapper JAR SHA-256 is
+`81a82aaea5abcc8ff68b3dfcb58b3c3c429378efd98e7433460610fecd7ae45f`.
+Sources: [AGP compatibility](https://developer.android.com/build/releases/agp-8-13-0-release-notes),
+[Gradle checksums](https://gradle.org/release-checksums/).
+Tool versions are pinned for repeatable inputs; byte-for-byte APK reproducibility
+across machines is not claimed (debug signing and packaging metadata can differ).
+
+## Host build and tests
+
+On a host with a working compiler and Ninja:
+
+```sh
+cd port
+cmake --preset host
+cmake --build --preset host
+ctest --preset host
+./build/host/re4_core_tests
+```
+
+On Windows, initialize an x64 or x86 Visual Studio Developer Command Prompt
+before using Ninja. This checkout has NTFS case sensitivity enabled; Ninja
+avoids MSBuild's observed path-lowercasing problems. From the repository root:
+
+```powershell
+.\port\scripts\test-host.ps1
+```
+
+Do not force a 64-bit pointer layout: 32-bit hosts are also permitted when their
+compiler/toolchain is installed. The shared types always keep `u32` at 4 bytes.
+The current host context backend supports Windows x86/x64. ASan/UBSan are
+unavailable until verified fiber hooks exist; the sanitizer option fails
+explicitly. Python 3.9+ is required to generate the original module catalog.
+Pass `-DPython3_EXECUTABLE=/path/to/python` if discovery selects the wrong runtime.
+CTest also checks the independent Yz2
+fixtures; alternatively run `python port/tools/generate_yz2_fixtures.py --check`.
+
+## Android build
+
+From the repository root on Windows:
+
+```powershell
+.\port\scripts\build-android.ps1 -SdkRoot 'C:\path\to\Android\Sdk' -JavaHome 'C:\path\to\jdk' -Python 'C:\path\to\python.exe'
+```
+
+The script first builds native test executables and the JNI library for **both**
+ABIs. It then builds the debug APK, instrumentation APK and Android lint report.
+`-NativeOnly` needs neither Java nor Gradle. `-Offline` applies to Gradle and only
+works when all dependencies are already cached. No hard-coded local paths are
+stored in tracked files. The optional `-Python` path is passed to both standalone
+CMake and Gradle's CMake invocation (`-Pre4.python` for a direct Gradle build).
+
+On another host, configure each ABI with the NDK toolchain directly:
+
+```sh
+cmake -S port -B port/build/android-arm64-v8a -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/28.2.13676358/build/cmake/android.toolchain.cmake" \
+  -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-21 \
+  -DANDROID_STL=c++_static -DCMAKE_BUILD_TYPE=Release
+cmake --build port/build/android-arm64-v8a
+# Repeat in a different build directory with -DANDROID_ABI=armeabi-v7a.
+cd port/android
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
+```
+
+On Unix checkouts where the wrapper is not executable, use `sh ./gradlew`.
+Outputs: `port/build/android-<abi>/re4_core_tests`,
+`port/build/android-<abi>/libre4_port_jni.so`, and
+`port/android/app/build/outputs/apk/debug/app-debug.apk`.
+
+## Actual device execution
+
+Cross-compilation is not device execution. The same suite can run as a standalone
+NDK executable, as the Activity's JNI diagnostics, or as instrumented tests.
+
+```powershell
+.\port\scripts\test-device.ps1 -Adb 'C:\path\to\adb.exe' -Serial 'device-serial' -Repeat 3
+.\port\scripts\test-app-device.ps1 -Adb 'C:\path\to\adb.exe' -Serial 'device-serial'
+```
+
+The standalone script requires a device that supports both requested ABIs;
+unsupported ABIs fail explicitly, never count as passes. For a device with only
+one ABI, select it explicitly and record the missing ABI separately. It records
+device/version, binary hash, actual pointer width and compares seven scheduler,
+background and decoder traces across repetitions and ABIs.
+The app script installs the default dual-ABI APK with `adb install --abi`, checks
+`primaryCpuAbi` and passes an expected pointer width to the nineteen JUnit tests.
+It fails on missing/unsupported ABI or a failed instrumentation result even
+when adb returns zero. It leaves the last requested ABI installed (default ARM64).
+
+For JNI/instrumentation validation, build/install each ABI separately:
+
+```sh
+cd port/android
+./gradlew -Pre4.testAbi=arm64-v8a :app:connectedDebugAndroidTest
+./gradlew -Pre4.testAbi=armeabi-v7a :app:connectedDebugAndroidTest
+```
+
+`re4.testAbi` restricts a test build only; the default APK contains both ABIs.
+Use `ANDROID_SERIAL` when more than one device is connected. A dual-ABI APK
+normally executes ARM64 on a dual-ABI device, so that alone does not test ARM32.
+
+## What the checks prove
+
+Five foundation groups cover primitive widths/native addresses, fixed RNG byte and
+float vectors, 32-bit seed overflow, replay/ranges, original top-bit flag
+numbering, exact Hermite/power cases and bounded unaligned big-endian decoding.
+CTest also checks source identity and deliberately changes a build-directory
+copies to prove rejection of changed RNG, scheduler, scenario and TASK methods.
+Four scheduler groups prove nested stack retention, exact sleep visits, main/OT
+ordering, counted suspend/signal, chain/exit, cancellation, generation handles,
+module quiescence and FP state. Android additionally pins d8-d15 in two tasks
+over 64 yields each. Main callback return without TaskExit/TaskChain fails
+explicitly; scenario callback return removes its OT entry, as in the original.
+Slot 4 uses its explicit bounded background API and retained stacks. New
+callbacks must provide checkpoints; arbitrary uninstrumented busy loops cannot
+be safely preempted. ASan/UBSan require context-switch hooks and are unavailable.
+Supported host context backends are Windows x86/x64; no unverified Unix host
+fallback is claimed. RNG vectors are derived from the source recurrence;
+they are not independently captured GameCube traces. Existing GameCube data and
+a reference run are still needed for broader differential validation.
+
+See [runtime boundaries](docs/runtime-boundaries.md),
+[ABI assessment](docs/abi-strategy.md),
+[graphics requirements](docs/graphics-settings.md) and
+[recorded Phase-1 results](docs/phase1-status.md) and
+[Phase-2 report](docs/phase2-status.md) and
+[Phase-2b report](docs/phase2b-status.md).
+## Phase 3b: native original-data loading
+
+The original DVD queue control, `ReadAreaData`, MRAM data units and block-file
+registration now connect to the existing stackful scheduler, private import
+catalog, actual file worker and Yz2 decoder. See
+[the complete Phase 3b report](docs/phase3b-status.md) for reproducible real-room
+tests, the Android Choreographer bridge, and the explicit ARAM/audio/module
+boundaries. `re4_loader_tool` distinguishes isolated synthetic adapter checks
+from actual engine loads of private original assets. No assets are bundled.
+
+## Phase 4b: shared runtime and controllers
+
+`re4_game_runtime` joins the existing loader, stackful tasks, native modules and
+owned gameplay heaps. Reviewed original scalar initialization, `StageSet`,
+scenario orchestration and `PadRead` bodies execute on both host and Android ABIs.
+Android InputManager/Activity events pass through one native pad domain per
+controller loop; a configured game domain uses the same original input path.
+Physical Retroid input is recorded separately from synthetic JNI adapter tests.
+
+`re4_game_tool self-test <fixture-directory>` runs the native runtime checks.
+`port/tools/test_game_runtime.py` checks private real archive/block/ESL loads,
+and `summarize_game_runtime.py` compares four-ABI and physical-capture evidence.
+The original `GameTask` and complete r120 event remain explicitly blocked by
+shared camera/model/message/event consumers. Initialized-room stage changes
+also require the original room teardown before a heap can be reused safely.
+See [the complete Phase 4b report](docs/phase4b-status.md) for exact coverage,
+reproduction commands, measured device inputs and remaining dependencies.
+
+## Phase 4c: shared CPU consumers and room retirement (partial)
+
+`re4_game_runtime` now owns checked native model-joint, message-table, camera-state
+and event-callback consumers. Frame-boundary room retirement quiesces owned and
+borrowed task stacks before releasing callbacks, consumer storage and module work.
+Stop/restart retains sleeping stacks; reset/release/unload invalidates stale
+references. The original controller and PadRead path remains shared and unchanged.
+
+Source-guarded original methods run on Windows x86/x64 and Android ARM32/ARM64.
+The expanded runtime suite has 634 checks. Private original-data tests load both
+r120 EVD packages through the existing engine loader, verify 37 BIN joint
+hierarchies and English MDT tables, and execute the original cancel callbacks.
+Source-guarded `cModInfoMgr::create`, `cModel::modelInit`, joint/pool/matrix/bounds
+bodies now initialize all 37 r120 BIN occurrences plus six pairs in other
+rooms. The formerly missing ev000e textures resolve through original pl00
+archive bindings. Original SetBin/SetEvd, SetMod/GetMod and SetPartsSub bodies
+retain event references and sparse attachments. A CPU binding adapter supplies
+SetOm body models; complete Obj18 creation and Event::Run remain open.
+Original MotionClear/SetCore/IKInit/Hermite execute on event motions and all 66
+pl00 FCV entries (one has no joints). SEQ binding and MotionMove remain open.
+`tools/summarize_consumers.py` compares measured results across all four ABIs.
+
+Original `TexRenderInit` completes CPU manager/buffer setup and the separately
+invoked `R120Init` returns. Original `R120Event` resumes after `SceSleep` and,
+with the Android Vulkan presenter, executes systemVISetBlack and reaches the
+missing Sofdec movie consumer. Headless runs stop at the explicit VI dependency.
+`GameTask` executes original `gameInit/ClothInit/GXSetCopyClear` and stops at
+`cMes.gameInit`. A real clear-only Android Vulkan surface verifies color/depth
+readback and presentation; it implements no GX primitive drawing or XFB copy.
+GPU copy/drawing, complete player/actor initialization, camera decisions, full
+Event::init/Run/packet playback and the r100 transition remain open.
+The diagnostic route does not claim a playable game. See the
+[event/pl00/motion/Vulkan continuation report](docs/phase4c-event-status.md) for
+the complete current file list, source anchors, four-ABI measurements and commands.
+The [model/TexRender report](docs/phase4c-model-status.md) records the preceding
+milestone, including the model initialization design.
+The [earlier Phase 4c report](docs/phase4c-status.md) records the preceding milestone.

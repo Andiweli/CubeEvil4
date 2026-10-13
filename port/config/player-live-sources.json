@@ -1,0 +1,16 @@
+{
+  "src/game/player.cpp": "de2e83daa2974f9d9eb269e4596a6887d5aed9302a9215e462f1b7e67e8beba3",
+  "src/game/pl_class.cpp": "1ab9c84393322136c114c551c5572683808fa5892f8e9e1a9592a88baf05c434",
+  "include/player.h": "86e9e2f9b32bdf86a5d7136f92ae0dc8be6a1ce9897c6fc478a410377fce2b9f",
+  "include/em.h": "3917beb327210f0e8bc4f626704a7b77d442707f229a3ccfee00f2c1df71a781",
+  "src/game/model.cpp": "e8bd5ee322737b65b9dcb9a3fc629a22603d1a22fcc170cdaf8f56a90cbf7a34",
+  "src/game/motion.cpp": "4a0948e99997872b4fe1f26e5a2e43ee0dbaabcd8eb0e41d55e648618de00e96",
+  "src/game/shape.cpp": "82fd6f035ed2219db20094dc019625b3c6e687255e50e2142cd0a8c90172a0d9",
+  "src/game/pl_wep.cpp": "502d86967a6b9946a01e05a4eea39c4eba37e85fbf83031578b580f126cb98ee",
+  "src/game/cam_qfps.cpp": "e72989b3cf12b7501b8425b3abd5e26ae39df5267d5d5492320c2f6966cc04f0",
+  "src/game/pl_leon.cpp": "cb6e6a1245b0eaab6faaec6e0c0b1deeb8102f501dde2140576d262cfa92c024",
+  "src/game/sub2.cpp": "cbd24b0ebad299886a8c2e43e685b08871d93cdb603eea0b2d920da9e5c62d51",
+  "src/game/pl_debug.cpp": "2b2c778d231ce6cfbd7504b7aa40416b4efc8e79e1fae7fc9d549e98a2b9c757",
+  "src/game/em_sub.cpp": "4432d99064d0cbfc309da9cb6d93ad436204a721002a2d73f9152fa4225246b2",
+  "src/game/Espgen42.cpp": "c326d73315f84e4afc43e4dd9ee571431b7cdcc6bd9c5ae3919336f331c8127e"
+}

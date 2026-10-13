@@ -1,0 +1,150 @@
+#pragma once
+#include "re4/port/consumers.h"
+#include "re4/port/weapons.h"
+#include "re4/port/effects.h"
+#include <memory>
+
+namespace re4::port {
+class GameplayHeaps;
+class ObjectRuntime;class EffectRuntime;
+class WeaponRuntime;class GameRuntime;
+// Named native cEm model/damage fields shared by CPU models and the checked
+// native actor hierarchy. These fields are never an EM_WORK_SIZE wire overlay.
+struct ActorDamageCpu {
+    u8 m_Flag{},m_Timer{},m_Wep{},m_Padding03{};
+    Vec m_PosFrom{};
+    f32 m_Dist{};
+    struct DamagePart *m_pDamageYarare{};
+    ActorDamageCpu();
+    void clear();
+    void set(int,int,u8,Vec*,f32,DamagePart*);
+    void set(int,int);
+    void move();
+};
+struct DamagePart {
+    Vec offset{},cross{};
+    f32 radius{},height{},extent{};
+    u16 flag{};
+    s16 parts_no{};
+    f32 len{},c_dis{};
+    DamagePart *pList{};
+};
+struct ActorModelCpu : ModelCpu {
+    virtual ~ActorModelCpu()=default; // Original cEm has an empty virtual destructor.
+    u32 status{};
+    u8 emset_no{};
+    void *subArc{},*subArc2{};
+    ModelMotion m_SubMot{}; // Original cEm secondary motion, owned by the native actor.
+    struct StateCpu {u32 m_Flag{},m_LightFlag{},m_LightNo{};f32 m_LightPow{};void SetLightIgnore();} State;
+    ActorDamageCpu dmg;
+    DamagePart hitInfo;
+    Vec lockOfs{};s16 lockParts{};
+    s16 hp{},hp_max{};
+    using FootShadowData=ModelFootShadowData;
+    using FootShadowTable=ModelFootShadowTable;
+    ActorModelCpu();
+    int initWork();
+    void setStatus(int);void clearStatus(int);int checkStatus(int);
+};
+struct PlayerInitSnapshot {
+    u8 kaiou{}, oldWeaponId{};
+    bool weaponSlotEmpty{};
+};
+struct PlayerMotionBinding { u32 motionIndex{}, archiveSlot{}; ResourceLease bytes; };
+struct WeaponMotionRecord {u32 index{},slot{};std::string path,hash;};
+struct ClothLinkSnapshot {
+    std::array<u8,7> refs{}; // part, parent, child, left, right, upper-left, upper-right.
+    Vec jointWorld{},childWorld{},offset{},normal{},position{},speed{};
+    f32 length{};
+    std::array<f32,4> neighborLengths{};
+    u32 motionFlags{};
+};
+struct ClothChainSnapshot {
+    u32 flags{},volumes{};
+    f32 gravity{},rate{},stretchy{},moveRate{};
+    std::vector<ClothLinkSnapshot> links;
+};
+struct BodyShapeSnapshot {
+    u32 maxFrame{},tableCount{};
+    std::array<u32,2> offsets{};
+    std::array<u16,2> shapeIds{},keyCounts{};
+    std::array<s32,4> frames{};
+    std::array<f32,4> values{},right{},left{};
+};
+struct LeonConstructionSnapshot {
+    bool returnedActor{},playerConstructor{},subobjects{},modelInitialized{},rolledBack{};
+    bool schedulerTask{};
+    bool weaponReleased{};
+    bool weaponRead{},weaponInitialized{};
+    WeaponReadSnapshot weapon;
+    EffectDataSnapshot weaponEffect;
+    bool init1Reached{};u32 hitboxes{},lightFlags{};
+    bool clothInitialized{},bodyInitialized{},cameraAllocated{};
+    bool startUpEntered{};
+    bool startUpReturned{};
+    u32 clothMoves{},clothResets{},clothVolumeBuilds{};
+    bool clothFinite{};std::array<f32,3> clothPositionSum{};
+    u32 virtualMoves{};
+    u32 motionMoves{};
+    u32 actionSelections{},eyeMoves{},actorCollisionChecks{},pendingActions{},actionAttribute{},actionStatus{};
+    bool subScreenEnabled{};
+    bool primaryMotion{},neckMotion{};
+    f32 sequenceFrame{};
+    u16 sequenceFrames{};
+    EffectDataSnapshot playerEffect;
+    Vec position{},rotation{};
+    Vec startPosition{};
+    Vec lightCenter{};
+    std::array<f32,12> lightInverse{};
+    std::array<u8,4> routines{};
+    std::array<ClothChainSnapshot,3> cloth;
+    std::array<BodyShapeSnapshot,2> body;
+    u32 weaponObjectId{},weaponItemId{},weaponParts{},weaponMotions{},weaponParentPart{};
+    std::string weaponBinHash,weaponTplHash;
+    std::vector<WeaponMotionRecord> weaponBindings;
+    s16 hp{};
+    u32 motionSlots{},registeredMotionSlots{},debugCallbacks{};
+    u32 parts{},modelInfos{};
+    std::string blocker;
+};
+// PlayerInit is the original global-state reset, not cPlLeon construction.
+// The asset entry runs original Leon model/motion helpers on an owned CPU model;
+// it does not publish pPL or bypass weapon/collision/startUp dependencies.
+class PlayerRuntime final {
+public:
+    PlayerRuntime(NativeGameState &, KEY &, u8 &padType, GameplayHeaps &,
+                  EngineConsumers &, NativeScheduler &,ObjectRuntime &,EffectRuntime &);
+    ~PlayerRuntime();
+    void gameInit();
+    void lifeReset();
+    void keyConfig(); // Explicit original actor consumer of the existing central KEY.
+    void clear(); // Quiescent lifetime boundary; no reset of gameplay flags.
+    PlayerInitSnapshot snapshot() const;
+    const std::vector<std::string> &trace() const;
+    // Isolated allocation-boundary check; original archive reads and typed
+    // native REL callbacks use the separate shared WeaponRuntime owner.
+    void *allocateWeaponData(u32 bytes, bool debugHeap = false);
+    ConsumerHandle initializeLeonAssets(ResourceLease playerArchive);
+    ConsumerHandle leonModel() const;
+    const std::vector<PlayerMotionBinding> &motionBindings() const;
+    std::vector<ModelInfoView *> leonModelInfos() const;
+    ModelInfoView *knife() const;
+    ModelInfoView *face() const;
+    void setHands(std::intptr_t right, std::uintptr_t left);
+    void applyWaist(f32 radians); // Original cPlBody::waistSet/move, not a gameplay decision.
+    void releaseLeonAssets();
+    // Executes the preserved construction sequence. Missing consumers throw;
+    // a failed attempt does not publish a player or claim a complete actor.
+    ConsumerHandle constructLeon(ResourceLease playerArchive);
+    LeonConstructionSnapshot constructionSnapshot() const;
+    // Original virtual Player move on the existing scheduler's main thread.
+    // No synthetic input, movement, frame advance or GameTask transition.
+    void tick();
+    void bindWeaponModules(GameRuntime &);
+    void configureActors(u32 originalRoomCapacity);
+    WeaponRuntime &weapons();
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
+} // namespace re4::port

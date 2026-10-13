@@ -1,0 +1,16 @@
+build/
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/app/build/
+android/app/.cxx/
+android/app/.externalNativeBuild/
+CMakeUserPresets.json
+*.user
+
+# Original/private import data must never be tracked or packaged here.
+*.gcm
+*.iso
+*.das
+*.drs
+import-data/

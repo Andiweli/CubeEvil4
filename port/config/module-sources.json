@@ -1,0 +1,11 @@
+{
+  "src/game/roomdata.cpp": "d0487cb744a4aa8416361be418a278ca48551aa3bd3fa28067499c788295bff5",
+  "include/room_data.h": "aff7a573d293b0aff1afa8f060fec0b4150caddd3f68d0f1a66fe8baa2d8858d",
+  "src/st1/st1.cpp": "6c4aaf836964c8b22148b1a7b1b48ae1087cd86eb54aa73e3f9381c5606dc6bb",
+  "src/st2/st2.cpp": "9cec5a759088d4c631944080be54377aff2e7f611cb919d4e6e7437da7b3d77e",
+  "src/st3/st3.cpp": "14fd864af46000a0eb1f949317c005edcdfb4af936b042e3a9b20bfc6fc008b0",
+  "src/st4/st4.cpp": "408d0dc54a1878a02e4707e7bfb2e1c7a54996fafe960c9a604d13cfa8ad01aa",
+  "src/st1/r10d.cpp": "ccbdf478d44d961e14141a0069a55bd34a17c611ee834df96c363b7d6d510c14",
+  "src/st3/r328.cpp": "692b4dc6ad87038946b99b00bf721396cad71da2331b68a67b8271d3169609c1",
+  "src/st1/r120.cpp": "4e17b11a3653c6c36d1aa92b8a5139bd0ed2ebe712a43d09c6dad5c099017b19"
+}
