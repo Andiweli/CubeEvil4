@@ -7,6 +7,8 @@
 //   re4_host --runtime-test   OSLink, DVD and yz2 checks without disc data
 //                             (tests/runtime_tests.cpp)
 //
+// kill -USR1 <pid> prints a backtrace of the running context (hang search).
+//
 // Module libraries are looked up in <directory of re4_host>/modules. The
 // extracted disc files are read from --data DIR, else $RE4_DATA_DIR, else
 // <directory of re4_host>/data (layout: port/whole/runtime/dvd.cpp).
@@ -31,6 +33,16 @@ static void crashHandler(int sig)
     fprintf(stderr, "[re4] fatal signal %d (%s), backtrace:\n", sig, strsignal(sig));
     backtrace_symbols_fd(frames, n, 2);
     _exit(128 + sig);
+}
+
+// SIGUSR1 (kill -USR1 <pid>): backtrace of the running context without
+// stopping, to find out where the game waits or loops.
+static void traceHandler(int sig)
+{
+    void* frames[64];
+    int n = backtrace(frames, 64);
+    fprintf(stderr, "[re4] signal %d (%s), backtrace of the running context:\n", sig, strsignal(sig));
+    backtrace_symbols_fd(frames, n, 2);
 }
 
 static int checkModules()
@@ -103,6 +115,7 @@ int main(int argc, char** argv)
     signal(SIGILL, crashHandler);
     signal(SIGFPE, crashHandler);
     signal(SIGABRT, crashHandler);
+    signal(SIGUSR1, traceHandler);
 
     // _exit: the game never ends on the GameCube, so its static destructors
     // (EventMgr, ...) were never meant to run.

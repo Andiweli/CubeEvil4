@@ -1,0 +1,22 @@
+--- a/src/game/dvd.cpp
++++ b/src/game/dvd.cpp
+@@ -332,6 +332,9 @@
+ };
+ 
+ 
++/* port: runtime/formats converts every completed part to host byte order. */
++extern "C" void re4_formats_part_loaded(const char* name, int nest, int index, const void* part, u32 addr);
++
+ DVD_REQ_WORK DvdReqWork;
+ cDvd Dvd;
+ cAram Aram;
+@@ -764,6 +767,9 @@
+         m_Offset += m_DivReadSize;
+         m_TransAddr += m_DivReadSize;
+         if (m_LeftSize <= 0) {
++            /* port: the part is complete in MRAM/ARAM (it starts `size` bytes
++               below m_TransAddr); disc data is big-endian. */
++            re4_formats_part_loaded(m_Name, m_NestDepth, m_FileIdx[m_NestDepth], *ph, m_TransAddr - (*ph)->size);
+             switch ((*ph)->type) {
+             case 2:
+                 SndBlkInit((*ph)->sndType, (*ph)->sndArg, (*ph)->sndNo);

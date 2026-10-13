@@ -53,4 +53,5 @@ extern "C" void yz2Decode_Decode(void* ctx, void* dst, u32 size, void* in)
     }
     game->src = const_cast<u8*>(ev.src);
     game->free = ev.free;
+    re4_formats_unpacked(dst, size);
 }

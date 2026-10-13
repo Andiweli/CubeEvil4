@@ -108,6 +108,21 @@ if(RE4_ARCH STREQUAL "armv7")
 endif()
 string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_platform_obj>\n")
 
+# Formatumwandler (runtime/formats): disc data to host byte order. Part of the
+# platform library, but compiled with the game's flags and headers so the
+# converters use the original structure definitions. Small SDK replacements
+# that need the game's structures sit here too.
+add_library(re4_formats_obj OBJECT
+    runtime/tex_palette.cpp
+    runtime/formats/formats.cpp
+    runtime/formats/formats_arc.cpp
+    runtime/formats/formats_mes.cpp
+    runtime/formats/formats_snd.cpp
+    runtime/formats/formats_tex.cpp)
+target_link_libraries(re4_formats_obj PRIVATE re4_game_flags)
+target_include_directories(re4_formats_obj PRIVATE runtime runtime/formats)
+string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_formats_obj>\n")
+
 # Toolchain-runtime replacements that belong to the game code (libre4_main):
 # the SN constructor lists, GCC 2.95 allocation names, the game heap for modules.
 add_library(re4_glue_obj OBJECT
@@ -183,8 +198,8 @@ endforeach()
 set(RE4_GEN "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/link_objects.txt" CONTENT "${RE4_LINK_OBJECTS}")
 set(RE4_GEN_FILES "${RE4_GEN}/stubs.cpp" "${RE4_GEN}/modules.cpp" "${RE4_GEN}/link_report.json")
-set(RE4_OBJ_DEPS re4_main_obj re4_platform_obj re4_glue_obj re4_sdk_obj re4_reuse_obj
-    "$<TARGET_OBJECTS:re4_main_obj>" "$<TARGET_OBJECTS:re4_platform_obj>"
+set(RE4_OBJ_DEPS re4_main_obj re4_platform_obj re4_formats_obj re4_glue_obj re4_sdk_obj re4_reuse_obj
+    "$<TARGET_OBJECTS:re4_main_obj>" "$<TARGET_OBJECTS:re4_platform_obj>" "$<TARGET_OBJECTS:re4_formats_obj>"
     "$<TARGET_OBJECTS:re4_glue_obj>" "$<TARGET_OBJECTS:re4_sdk_obj>" "$<TARGET_OBJECTS:re4_reuse_obj>")
 foreach(mod IN LISTS RE4_MODULES)
     list(APPEND RE4_GEN_FILES "${RE4_GEN}/imports/${mod}.cpp" "${RE4_GEN}/imports/${mod}.S")
@@ -215,6 +230,7 @@ endif()
 # --- libre4_platform ----------------------------------------------------------------
 add_library(re4_platform SHARED
     $<TARGET_OBJECTS:re4_platform_obj>
+    $<TARGET_OBJECTS:re4_formats_obj>
     $<TARGET_OBJECTS:re4_sdk_obj>
     $<TARGET_OBJECTS:re4_reuse_obj>
     "${RE4_GEN}/modules.cpp")

@@ -71,6 +71,16 @@ int re4_dvd_inserted_disc(void);
 void re4_swap32_words(void* p, unsigned bytes);
 void re4_swap16_words(void* p, unsigned bytes);
 
+/* Formatumwandler (formats/): converts disc data to host byte order once per
+ * load. Called by the game's DVD queue for every completed part (patch 0015;
+ * `part` is its DvdHeader, `addr` the MRAM or ARAM address) and by the Yz2
+ * decoder for every unpacked stream. */
+void re4_formats_part_loaded(const char* name, int nest, int index, const void* part, unsigned addr);
+void re4_formats_unpacked(void* dst, unsigned size);
+
+/* ARAM contents (aram.cpp), 16 MB. */
+unsigned char* re4_aram(void);
+
 /* Dolphin OS threads (os_thread.cpp). re4_os_run runs `entry` as the boot
  * thread and dispatches every OSThread until it returns. */
 int re4_os_run(int (*entry)(void));

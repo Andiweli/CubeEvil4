@@ -1,0 +1,119 @@
+// Formatumwandler: archives with a table of contents (src/game/read.cpp
+// GetDataExt, card.cpp CardArc): u32 count, u32 offset of an embedded REL
+// module (0 = none), two pad words, u32 offset of every entry, then a 4-byte
+// tag per entry ("TPL", "MDT", "BIN" ...). Each entry is converted by its tag.
+#include "formats.h"
+
+#include "re4_runtime.h"
+
+#include <string.h>
+
+using namespace re4fmt;
+
+namespace re4fmt {
+
+namespace {
+
+struct TagRule {
+    const char* tag;
+    Converter convert;
+};
+
+const TagRule kTags[] = {
+    { "TPL", convertTpl },
+    { "MDT", convertMdt },
+};
+
+// Logs an unknown tag once.
+void reportTag(const char* tag, const char* where)
+{
+    static char seen[256][4];
+    static u32 n;
+    for (u32 i = 0; i < n; i++) {
+        if (memcmp(seen[i], tag, 4) == 0) {
+            return;
+        }
+    }
+    if (n < 256) {
+        memcpy(seen[n++], tag, 4);
+    }
+    re4_log("formats: archive entry \"%.4s\" (first in %s): no converter, left big-endian", tag, where);
+}
+
+}  // namespace
+
+bool looksLikeArchive(Blob& b)
+{
+    if (b.size < 0x20) {
+        return false;
+    }
+    u32 count = be32(b, 0);
+    u32 rel = be32(b, 4);
+    if (count == 0 || count > 0x1000 || 0x10 + count * 8 > b.size || be32(b, 8) || be32(b, 12)) {
+        return false;
+    }
+    if (rel != 0 && (rel > b.size || rel % 32)) {
+        return false;
+    }
+    u32 first = be32(b, 0x10);
+    return first >= 0x10 + count * 8 && first <= b.size;
+}
+
+void convertArchive(Blob& b, const Part& part)
+{
+    if (!looksLikeArchive(b)) {
+        fits(b, 0, 0xFFFFFFFFu, "archive header");
+        return;
+    }
+    u32 count = be32(b, 0);
+    u32 rel = be32(b, 4);
+    u32 end = rel ? rel : b.size;
+    u32 offs[0x1000];
+    for (u32 i = 0; i < count; i++) {
+        offs[i] = be32(b, 0x10 + i * 4);
+    }
+    swap32(b, 0, 4 + count);
+    Seen seen;
+    for (u32 i = 0; i < count && b.ok; i++) {
+        u32 o = offs[i];
+        if (!seen.first(o)) {
+            continue;  // two entries share their data
+        }
+        u32 stop = end;
+        for (u32 k = 0; k < count; k++) {
+            if (offs[k] > o && offs[k] < stop) {
+                stop = offs[k];
+            }
+        }
+        if (o > stop || !fits(b, o, stop - o, "archive entry")) {
+            return;
+        }
+        if (stop == o) {
+            continue;
+        }
+        char tag[5];
+        memcpy(tag, b.data + 0x10 + count * 4 + i * 4, 4);
+        tag[4] = 0;
+        char label[160];
+        snprintf(label, sizeof(label), "%s #%u %s", b.name, (unsigned) i, tag);
+        Blob e = blob(b.data + o, stop - o, label);
+        Converter conv = 0;
+        for (const TagRule& t : kTags) {
+            if (strcmp(t.tag, tag) == 0) {
+                conv = t.convert;
+            }
+        }
+        if (conv) {
+            conv(e, part);
+        } else {
+            reportTag(tag, b.name);
+        }
+    }
+    // The embedded REL module: OSLink converts its header too, but the game
+    // reads bssSize before linking (read.cpp).
+    if (rel != 0 && b.ok) {
+        re4_rel_header_to_host(b.data + rel);
+    }
+}
+
+}  // namespace re4fmt
