@@ -52,6 +52,7 @@ target_compile_options(re4_game_flags INTERFACE
     -fno-strict-aliasing
     -ffp-contract=off
     -fwrapv
+    -fno-strict-return
     -w
     -Wno-address-of-temporary
     -ferror-limit=0)
@@ -78,12 +79,30 @@ target_link_libraries(re4_main_obj PRIVATE re4_game_flags)
 string(APPEND RE4_LINK_OBJECTS "main=$<TARGET_OBJECTS:re4_main_obj>\n")
 
 add_library(re4_runtime_obj OBJECT
+    runtime/aram.cpp
+    runtime/dolphin_os.cpp
+    runtime/dvd.cpp
     runtime/log.cpp
+    runtime/mem1.cpp
     runtime/module_loader.cpp
     runtime/sn_runtime.cpp)
 target_include_directories(re4_runtime_obj PUBLIC runtime)
 target_compile_features(re4_runtime_obj PRIVATE cxx_std_17)
-string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_runtime_obj>\n")
+
+# Portable C parts of the Dolphin SDK (src/lib), compiled unchanged: the heap
+# allocator, whose descriptors the game reads directly (main_mem.cpp).
+set(RE4_SDK_UNITS OSAlloc OSArena)
+set(RE4_SDK_SOURCES "")
+foreach(unit IN LISTS RE4_SDK_UNITS)
+    list(APPEND RE4_SDK_SOURCES "${RE4_TREE}/src/lib/${unit}.c")
+endforeach()
+add_library(re4_sdk_obj OBJECT ${RE4_SDK_SOURCES})
+target_include_directories(re4_sdk_obj BEFORE PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include" "${RE4_TREE}/include" "${RE4_TREE}/src/lib")
+target_compile_definitions(re4_sdk_obj PRIVATE SDK_REVISION=1 NDEBUG=1)
+target_compile_options(re4_sdk_obj PRIVATE -std=gnu99 -fno-strict-aliasing -fwrapv -w)
+string(APPEND RE4_LINK_OBJECTS
+    "runtime=$<TARGET_OBJECTS:re4_runtime_obj>;$<TARGET_OBJECTS:re4_sdk_obj>\n")
 
 set(RE4_MODULES "")
 math(EXPR last_module "${RE4_MODULE_COUNT} - 1")
@@ -108,8 +127,9 @@ endforeach()
 set(RE4_GEN "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/link_objects.txt" CONTENT "${RE4_LINK_OBJECTS}")
 set(RE4_GEN_FILES "${RE4_GEN}/stubs.cpp" "${RE4_GEN}/modules.cpp" "${RE4_GEN}/link_report.json")
-set(RE4_OBJ_DEPS re4_main_obj re4_runtime_obj
-    "$<TARGET_OBJECTS:re4_main_obj>" "$<TARGET_OBJECTS:re4_runtime_obj>")
+set(RE4_OBJ_DEPS re4_main_obj re4_runtime_obj re4_sdk_obj
+    "$<TARGET_OBJECTS:re4_main_obj>" "$<TARGET_OBJECTS:re4_runtime_obj>"
+    "$<TARGET_OBJECTS:re4_sdk_obj>")
 foreach(mod IN LISTS RE4_MODULES)
     list(APPEND RE4_GEN_FILES "${RE4_GEN}/imports/${mod}.cpp" "${RE4_GEN}/imports/${mod}.S")
     list(APPEND RE4_OBJ_DEPS re4_mod_${mod}_obj "$<TARGET_OBJECTS:re4_mod_${mod}_obj>")
@@ -137,6 +157,7 @@ set(RE4_LINK_FLAGS -fuse-ld=lld -Wl,--no-undefined)
 add_library(re4_main SHARED
     $<TARGET_OBJECTS:re4_main_obj>
     $<TARGET_OBJECTS:re4_runtime_obj>
+    $<TARGET_OBJECTS:re4_sdk_obj>
     "${RE4_GEN}/stubs.cpp"
     "${RE4_GEN}/modules.cpp")
 add_dependencies(re4_main re4_link_plan)

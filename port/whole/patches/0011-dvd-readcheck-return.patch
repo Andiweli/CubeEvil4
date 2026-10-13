@@ -1,0 +1,24 @@
+--- a/src/game/dvd.cpp
++++ b/src/game/dvd.cpp
+@@ -1457,8 +1457,11 @@
+ int cDvd::ReadCheck(int id, int* mram_size, int* aram_size, void** addr)
+ {
+     DVD_READINFO info;
+-
+-    if (readCheckMain(id, &info) == 1) {
++    /* port: the original has no return statement; GCC 2.95 left readCheckMain's
++       result in r3, which callers test (< 0 = failed). */
++    int ret = readCheckMain(id, &info);
++
++    if (ret == 1) {
+         if (mram_size) {
+             *mram_size = info.mram_readsize;
+         }
+@@ -1469,6 +1472,7 @@
+             *addr = (void*) info.start_addr[0][0];
+         }
+     }
++    return ret;
+ }
+ 
+ // Poll variant used by read.cpp that also fills a DVD_READINFO.

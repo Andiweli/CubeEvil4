@@ -1,0 +1,591 @@
+// Disc access (Dolphin DVD API) over a folder of extracted disc files.
+//
+// Layout of the data folder (what Dolphin's "Extract Entire Disc" writes, or
+// port/tools/whole_disc_folder.py), one folder per disc:
+//
+//   <data>/disc0/sys/boot.bin   disc header (DVDDiskID in its first 32 bytes)
+//   <data>/disc0/sys/fst.bin    file system table, big-endian as on the disc
+//   <data>/disc0/files/...      the files
+//   <data>/disc1/...            second disc
+//
+// A folder with sys/ and files/ directly inside is accepted as disc 0 alone.
+//
+// As on the GameCube, the FST of the inserted disc is copied to the top of MEM1
+// (DVDGetFSTLocation) and the disc id to 0x80000000. Entry numbers are FST
+// indices. Reads complete immediately: the callback runs before
+// DVDReadAsyncPrio returns, which the game's queue (dvd.cpp) handles like a
+// very fast drive.
+#include "re4_runtime.h"
+
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <dirent.h>
+
+namespace {
+
+typedef unsigned u32;
+typedef int s32;
+
+struct DVDDiskID {
+    char gameName[4];
+    char company[2];
+    unsigned char diskNumber;
+    unsigned char gameVersion;
+    unsigned char streaming;
+    unsigned char streamingBufSize;
+    unsigned char padding[22];
+};
+
+struct DVDCommandBlock;
+typedef void (*DVDCBCallback)(s32 result, DVDCommandBlock* block);
+struct DVDCommandBlock {
+    DVDCommandBlock* next;
+    DVDCommandBlock* prev;
+    u32 command;
+    s32 state;
+    u32 offset;
+    u32 length;
+    void* addr;
+    u32 currTransferSize;
+    u32 transferredSize;
+    DVDDiskID* id;
+    DVDCBCallback callback;
+    void* userData;
+};
+
+struct DVDFileInfo;
+typedef void (*DVDCallback)(s32 result, DVDFileInfo* fileInfo);
+struct DVDFileInfo {
+    DVDCommandBlock cb;
+    u32 startAddr;
+    u32 length;
+    DVDCallback callback;
+};
+
+struct DVDDir {
+    u32 entryNum;
+    u32 location;
+    u32 next;
+};
+
+struct DVDDirEntry {
+    u32 entryNum;
+    int isDir;
+    char* name;
+};
+
+static_assert(sizeof(DVDDiskID) == 0x20, "DVDDiskID layout");
+static_assert(sizeof(DVDCommandBlock) == 0x30, "DVDCommandBlock layout on ILP32");
+static_assert(sizeof(DVDFileInfo) == 0x3C, "DVDFileInfo layout on ILP32");
+
+const int kStateEnd = 0;
+const int kStateBusy = 1;
+const int kCommandRead = 1;
+const int kCommandChangeDisk = 3;
+
+char gDataDir[1024] = "data";
+
+struct Disc {
+    bool loaded;
+    char root[1100];          // folder holding sys/ and files/
+    unsigned char id[0x20];   // first 32 bytes of boot.bin
+    unsigned char* fst;       // big-endian FST, host copy
+    u32 fstSize;
+    u32 count;                // FST entries
+    u32* parent;              // per entry: parent directory index
+};
+
+Disc gDiscs[2];
+int gCurrent = -1;
+
+u32 be32(const unsigned char* p)
+{
+    return (u32) p[0] << 24 | (u32) p[1] << 16 | (u32) p[2] << 8 | p[3];
+}
+
+bool isDir(const Disc& d, u32 i)
+{
+    return d.fst[i * 12] != 0;
+}
+
+const char* entryName(const Disc& d, u32 i)
+{
+    return (const char*) d.fst + d.count * 12 + (be32(d.fst + i * 12) & 0xFFFFFF);
+}
+
+u32 word(const Disc& d, u32 i, int k)
+{
+    return be32(d.fst + i * 12 + k * 4);
+}
+
+unsigned char* readWhole(const char* path, u32* size)
+{
+    FILE* f = fopen(path, "rb");
+    if (!f) {
+        return 0;
+    }
+    fseek(f, 0, SEEK_END);
+    long n = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    unsigned char* buf = (unsigned char*) malloc(n > 0 ? n : 1);
+    if (n < 0 || fread(buf, 1, n, f) != (size_t) n) {
+        free(buf);
+        fclose(f);
+        return 0;
+    }
+    fclose(f);
+    *size = (u32) n;
+    return buf;
+}
+
+// opendir rather than stat: the i686 test sysroot lacks the kernel headers
+// <sys/stat.h> pulls in.
+bool isDirectory(const char* path)
+{
+    DIR* dir = opendir(path);
+    if (dir) {
+        closedir(dir);
+    }
+    return dir != 0;
+}
+
+// Validates the FST (bounds of names, directory ranges) and records parents.
+bool parseFst(Disc& d)
+{
+    if (d.fstSize < 12 || d.fst[0] != 1) {
+        return false;
+    }
+    d.count = word(d, 0, 2);
+    if (d.count == 0 || d.count > d.fstSize / 12) {
+        return false;
+    }
+    u32 namesSize = d.fstSize - d.count * 12;
+    d.parent = (u32*) calloc(d.count, sizeof(u32));
+    // Directory ranges nest: walk with an explicit stack of open directories.
+    u32 stack[64];
+    int depth = 0;
+    stack[0] = 0;
+    for (u32 i = 1; i < d.count; i++) {
+        while (depth > 0 && i >= word(d, stack[depth], 2)) {
+            depth--;
+        }
+        if ((be32(d.fst + i * 12) & 0xFFFFFF) >= namesSize) {
+            return false;
+        }
+        d.parent[i] = stack[depth];
+        if (isDir(d, i)) {
+            u32 end = word(d, i, 2);
+            if (end <= i || end > d.count || depth == 63) {
+                return false;
+            }
+            stack[++depth] = i;
+        }
+    }
+    return true;
+}
+
+bool loadDisc(int no)
+{
+    Disc& d = gDiscs[no];
+    if (d.loaded) {
+        return true;
+    }
+    char path[1200];
+    snprintf(d.root, sizeof(d.root), "%s/disc%d", gDataDir, no);
+    if (!isDirectory(d.root)) {
+        if (no != 0) {
+            return false;
+        }
+        snprintf(d.root, sizeof(d.root), "%s", gDataDir);
+    }
+    snprintf(path, sizeof(path), "%s/sys/fst.bin", d.root);
+    d.fst = readWhole(path, &d.fstSize);
+    if (!d.fst) {
+        return false;
+    }
+    if (!parseFst(d)) {
+        re4_log("DVD: %s is not a valid file system table", path);
+        free(d.fst);
+        free(d.parent);
+        d.fst = 0;
+        d.parent = 0;
+        return false;
+    }
+    u32 bootSize = 0;
+    snprintf(path, sizeof(path), "%s/sys/boot.bin", d.root);
+    unsigned char* boot = readWhole(path, &bootSize);
+    memset(d.id, 0, sizeof(d.id));
+    if (boot && bootSize >= sizeof(d.id)) {
+        memcpy(d.id, boot, sizeof(d.id));
+    } else {
+        // No header: assume the US release, disc `no`.
+        memcpy(d.id, "G4BE08", 6);
+        d.id[6] = (unsigned char) no;
+    }
+    free(boot);
+    d.loaded = true;
+    re4_log("DVD: disc %d: %s, %u FST entries", no, d.root, d.count);
+    return true;
+}
+
+// Makes disc `no` the inserted one: disc id at 0x80000000, FST at the top of MEM1.
+bool insertDisc(int no)
+{
+    if (!loadDisc(no)) {
+        return false;
+    }
+    Disc& d = gDiscs[no];
+    gCurrent = no;
+    if (!re4_mem1_init()) {
+        return true;
+    }
+    memcpy((void*) (unsigned long) RE4_MEM1_BASE, d.id, sizeof(d.id));
+    u32 top = RE4_MEM1_BASE + RE4_MEM1_RETAIL_SIZE;
+    u32 fstAddr = (top - d.fstSize) & ~31u;
+    if (d.fstSize > RE4_MEM1_FST_MAX) {
+        re4_log("DVD: FST of disc %d is %u bytes, overlaps the game heap", no, d.fstSize);
+    }
+    memcpy((void*) (unsigned long) fstAddr, d.fst, d.fstSize);
+    *(volatile u32*) (unsigned long) (RE4_MEM1_BASE + 0x38) = fstAddr;
+    *(volatile u32*) (unsigned long) (RE4_MEM1_BASE + 0x3C) = d.fstSize;
+    return true;
+}
+
+Disc* current()
+{
+    if (gCurrent < 0) {
+        insertDisc(0);
+    }
+    return gCurrent >= 0 ? &gDiscs[gCurrent] : 0;
+}
+
+// Full path of entry i below files/.
+void entryPath(const Disc& d, u32 i, char* out, size_t outSize)
+{
+    u32 chain[64];
+    int n = 0;
+    for (u32 e = i; e != 0 && n < 64; e = d.parent[e]) {
+        chain[n++] = e;
+    }
+    size_t len = (size_t) snprintf(out, outSize, "%s/files", d.root);
+    while (n > 0 && len < outSize) {
+        len += (size_t) snprintf(out + len, outSize - len, "/%s", entryName(d, chain[--n]));
+    }
+}
+
+bool sameName(const char* a, size_t alen, const char* b)
+{
+    size_t i = 0;
+    for (; i < alen && b[i]; i++) {
+        if (tolower((unsigned char) a[i]) != tolower((unsigned char) b[i])) {
+            return false;
+        }
+    }
+    return i == alen && b[i] == 0;
+}
+
+// DVDConvertPathToEntrynum: '/'-separated, case-insensitive, from the root
+// (the game never changes the current directory); "." and ".." allowed.
+s32 lookup(const Disc& d, const char* path)
+{
+    u32 dir = 0;
+    const char* p = path;
+    while (*p) {
+        while (*p == '/') {
+            p++;
+        }
+        if (!*p) {
+            break;
+        }
+        const char* end = p;
+        while (*end && *end != '/') {
+            end++;
+        }
+        size_t len = (size_t) (end - p);
+        if (len == 1 && p[0] == '.') {
+            p = end;
+            continue;
+        }
+        if (len == 2 && p[0] == '.' && p[1] == '.') {
+            dir = d.parent[dir];
+            p = end;
+            continue;
+        }
+        u32 found = 0;
+        for (u32 i = dir + 1; i < word(d, dir, 2);) {
+            if (sameName(p, len, entryName(d, i))) {
+                found = i;
+                break;
+            }
+            i = isDir(d, i) ? word(d, i, 2) : i + 1;
+        }
+        if (!found) {
+            return -1;
+        }
+        if (*end && !isDir(d, found)) {
+            return -1;
+        }
+        dir = found;
+        p = end;
+    }
+    return (s32) dir;
+}
+
+s32 entryForStart(const Disc& d, u32 startAddr, u32 length)
+{
+    for (u32 i = 1; i < d.count; i++) {
+        if (!isDir(d, i) && word(d, i, 1) == startAddr && word(d, i, 2) == length) {
+            return (s32) i;
+        }
+    }
+    return -1;
+}
+
+// Reads `length` bytes at `offset` of the file; beyond its end the drive
+// would return the next sectors of the disc, the port returns zeros.
+s32 readFile(DVDFileInfo* fi, void* dst, s32 length, s32 offset)
+{
+    Disc* d = current();
+    if (!d || length < 0 || offset < 0) {
+        return -1;
+    }
+    s32 entry = entryForStart(*d, fi->startAddr, fi->length);
+    if (entry < 0) {
+        return -1;
+    }
+    char path[2048];
+    entryPath(*d, (u32) entry, path, sizeof(path));
+    FILE* f = fopen(path, "rb");
+    if (!f) {
+        re4_log("DVD: cannot open %s", path);
+        return -1;
+    }
+    size_t got = 0;
+    if (fseek(f, offset, SEEK_SET) == 0) {
+        got = fread(dst, 1, (size_t) length, f);
+    }
+    fclose(f);
+    if (got < (size_t) length) {
+        memset((char*) dst + got, 0, (size_t) length - got);
+    }
+    return length;
+}
+
+}  // namespace
+
+extern "C" {
+
+void re4_set_data_dir(const char* dir)
+{
+    snprintf(gDataDir, sizeof(gDataDir), "%s", dir);
+    for (Disc& d : gDiscs) {
+        free(d.fst);
+        free(d.parent);
+        memset(&d, 0, sizeof(d));
+    }
+    gCurrent = -1;
+}
+
+const char* re4_data_dir(void)
+{
+    return gDataDir;
+}
+
+int re4_dvd_inserted_disc(void)
+{
+    return current() ? gCurrent : -1;
+}
+
+s32 DVDConvertPathToEntrynum(const char* path)
+{
+    Disc* d = current();
+    return d ? lookup(*d, path) : -1;
+}
+
+int DVDFastOpen(s32 entrynum, DVDFileInfo* fi)
+{
+    Disc* d = current();
+    if (!d || entrynum <= 0 || (u32) entrynum >= d->count || isDir(*d, (u32) entrynum)) {
+        return 0;
+    }
+    fi->startAddr = word(*d, (u32) entrynum, 1);
+    fi->length = word(*d, (u32) entrynum, 2);
+    fi->callback = 0;
+    fi->cb.state = kStateEnd;
+    fi->cb.transferredSize = 0;
+    return 1;
+}
+
+int DVDOpen(const char* path, DVDFileInfo* fi)
+{
+    s32 entry = DVDConvertPathToEntrynum(path);
+    if (entry < 0) {
+        re4_log("DVD: DVDOpen: %s not on disc", path);
+        return 0;
+    }
+    return DVDFastOpen(entry, fi);
+}
+
+int DVDClose(DVDFileInfo* fi)
+{
+    (void) fi;
+    return 1;
+}
+
+int DVDReadAsyncPrio(DVDFileInfo* fi, void* addr, s32 length, s32 offset, DVDCallback callback, s32 prio)
+{
+    (void) prio;
+    fi->cb.command = kCommandRead;
+    fi->cb.addr = addr;
+    fi->cb.length = (u32) length;
+    fi->cb.offset = (u32) offset;
+    fi->callback = callback;
+    fi->cb.state = kStateBusy;
+    s32 result = readFile(fi, addr, length, offset);
+    fi->cb.transferredSize = result > 0 ? (u32) result : 0;
+    fi->cb.state = result < 0 ? -1 : kStateEnd;
+    if (callback) {
+        callback(result, fi);
+    }
+    return 1;
+}
+
+int DVDReadAsync(DVDFileInfo* fi, void* addr, s32 length, s32 offset, DVDCallback callback)
+{
+    return DVDReadAsyncPrio(fi, addr, length, offset, callback, 2);
+}
+
+s32 DVDReadPrio(DVDFileInfo* fi, void* addr, s32 length, s32 offset, s32 prio)
+{
+    (void) prio;
+    s32 result = readFile(fi, addr, length, offset);
+    fi->cb.transferredSize = result > 0 ? (u32) result : 0;
+    fi->cb.state = result < 0 ? -1 : kStateEnd;
+    return result;
+}
+
+s32 DVDGetCommandBlockStatus(const DVDCommandBlock* block)
+{
+    return block->state == kStateBusy ? kStateBusy : block->state < 0 ? -1 : kStateEnd;
+}
+
+s32 DVDGetDriveStatus(void)
+{
+    return kStateEnd;
+}
+
+u32 DVDGetTransferredSize(DVDFileInfo* fi)
+{
+    return fi->cb.transferredSize;
+}
+
+int DVDCancelAsync(DVDCommandBlock* block, DVDCBCallback callback)
+{
+    if (callback) {
+        callback(0, block);
+    }
+    return 1;
+}
+
+s32 DVDCancelAll(void)
+{
+    return 0;
+}
+
+DVDDiskID* DVDGetCurrentDiskID(void)
+{
+    current();
+    re4_mem1_init();
+    return (DVDDiskID*) (unsigned long) RE4_MEM1_BASE;
+}
+
+void* DVDGetFSTLocation(void)
+{
+    current();
+    re4_mem1_init();
+    return (void*) (unsigned long) *(volatile u32*) (unsigned long) (RE4_MEM1_BASE + 0x38);
+}
+
+int DVDCompareDiskID(const DVDDiskID* a, const DVDDiskID* b)
+{
+    if (memcmp(a->gameName, b->gameName, 4) != 0 || memcmp(a->company, b->company, 2) != 0) {
+        return 0;
+    }
+    if (a->diskNumber != 0xFF && b->diskNumber != 0xFF && a->diskNumber != b->diskNumber) {
+        return 0;
+    }
+    if (a->gameVersion != 0xFF && b->gameVersion != 0xFF && a->gameVersion != b->gameVersion) {
+        return 0;
+    }
+    return 1;
+}
+
+DVDDiskID* DVDGenerateDiskID(DVDDiskID* id, const char* game, const char* company, unsigned char diskNo,
+                             unsigned char version)
+{
+    memset(id, 0, sizeof(*id));
+    if (game) {
+        memcpy(id->gameName, game, 4);
+    }
+    if (company) {
+        memcpy(id->company, company, 2);
+    }
+    id->diskNumber = diskNo;
+    id->gameVersion = version;
+    return id;
+}
+
+// The disc swap of the two-disc game: the folder of the requested disc
+// becomes the inserted one.
+int DVDChangeDiskAsync(DVDCommandBlock* block, DVDDiskID* id, DVDCBCallback callback)
+{
+    int no = id->diskNumber == 0xFF ? 0 : id->diskNumber;
+    block->command = kCommandChangeDisk;
+    block->id = id;
+    bool ok = no < 2 && insertDisc(no);
+    if (!ok) {
+        re4_log("DVD: disc %d requested, but %s/disc%d is missing", no + 1, gDataDir, no);
+    }
+    block->state = ok ? kStateEnd : -1;
+    if (callback) {
+        callback(ok ? 0 : -1, block);
+    }
+    return 1;
+}
+
+int DVDOpenDir(const char* path, DVDDir* dir)
+{
+    Disc* d = current();
+    s32 entry = d ? lookup(*d, path) : -1;
+    if (entry < 0 || !isDir(*d, (u32) entry)) {
+        return 0;
+    }
+    dir->entryNum = (u32) entry;
+    dir->location = (u32) entry + 1;
+    dir->next = word(*d, (u32) entry, 2);
+    return 1;
+}
+
+int DVDReadDir(DVDDir* dir, DVDDirEntry* out)
+{
+    Disc* d = current();
+    if (!d || dir->location <= dir->entryNum || dir->location >= dir->next) {
+        return 0;
+    }
+    u32 i = dir->location;
+    out->entryNum = i;
+    out->isDir = isDir(*d, i);
+    out->name = (char*) entryName(*d, i);
+    dir->location = out->isDir ? word(*d, i, 2) : i + 1;
+    return 1;
+}
+
+int DVDCloseDir(DVDDir* dir)
+{
+    (void) dir;
+    return 1;
+}
+
+}  // extern "C"

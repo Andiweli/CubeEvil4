@@ -5,7 +5,9 @@
 //                             cross-module import, then exit
 //   re4_host --self-test      call through a generated cross-module trampoline
 //
-// Module libraries are looked up in <directory of re4_host>/modules.
+// Module libraries are looked up in <directory of re4_host>/modules. The
+// extracted disc files are read from --data DIR, else $RE4_DATA_DIR, else
+// <directory of re4_host>/data (layout: port/whole/runtime/dvd.cpp).
 #include "re4_runtime.h"
 
 #include <dlfcn.h>
@@ -14,6 +16,7 @@
 #include <limits.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -77,8 +80,19 @@ int main(int argc, char** argv)
     if (len > 0) {
         exe[len] = 0;
         char dir[PATH_MAX + 16];
-        snprintf(dir, sizeof(dir), "%s/modules", dirname(exe));
+        const char* exeDir = dirname(exe);
+        snprintf(dir, sizeof(dir), "%s/modules", exeDir);
         re4_set_module_dir(dir);
+        snprintf(dir, sizeof(dir), "%s/data", exeDir);
+        re4_set_data_dir(dir);
+    }
+    if (const char* env = getenv("RE4_DATA_DIR")) {
+        re4_set_data_dir(env);
+    }
+    if (argc > 2 && strcmp(argv[1], "--data") == 0) {
+        re4_set_data_dir(argv[2]);
+        argc -= 2;
+        argv += 2;
     }
     signal(SIGSEGV, crashHandler);
     signal(SIGBUS, crashHandler);

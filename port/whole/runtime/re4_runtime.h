@@ -35,6 +35,31 @@ void* re4_resolve_import(const char* importer, const char* symbol);
 /* The game's entry point (src/game/main.cpp, renamed by patch 0008). */
 int re4_game_main(void);
 
+/* GameCube main RAM at its original address (mem1.cpp). 48 MB like a
+ * development console; the game itself assumes the 24 MB retail map. */
+#define RE4_MEM1_BASE 0x80000000u
+#define RE4_MEM1_SIZE 0x03000000u
+#define RE4_MEM1_RETAIL_SIZE 0x01800000u
+/* OSGetArenaLo at boot: end of main.dol in the original (SystemMemInit halts
+ * above 0x8034FFFF). The DOL itself lives in libre4_main.so. */
+#define RE4_MEM1_ARENA_LO 0x80300000u
+/* The disc's file system table sits at the top of retail memory, above the
+ * game's last heap (0x817F4000), as the IPL places it. */
+#define RE4_MEM1_FST_ADDR 0x817F4000u
+#define RE4_MEM1_FST_MAX 0x0000C000u
+/* Retail console: the development paths (SN host file I/O) stay off. */
+#define RE4_CONSOLE_TYPE 0x00000003u
+/* Reserves MEM1 and writes the boot globals; 0 when the range is taken. */
+int re4_mem1_init(void);
+int re4_in_mem1(const void* p);
+
+/* Folder with the extracted disc files (dvd.cpp): <dir>/disc0, <dir>/disc1,
+ * each with sys/fst.bin, sys/boot.bin and files/. Set by the launcher. */
+void re4_set_data_dir(const char* dir);
+const char* re4_data_dir(void);
+/* Disc number in the virtual drive (0/1), -1 when no disc folder was found. */
+int re4_dvd_inserted_disc(void);
+
 #ifdef __cplusplus
 }
 #endif
