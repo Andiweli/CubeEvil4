@@ -4,6 +4,8 @@
 //   re4_host --check-modules  load all REL module libraries and resolve every
 //                             cross-module import, then exit
 //   re4_host --self-test      call through a generated cross-module trampoline
+//   re4_host --runtime-test   OSLink, DVD and yz2 checks without disc data
+//                             (tests/runtime_tests.cpp)
 //
 // Module libraries are looked up in <directory of re4_host>/modules. The
 // extracted disc files are read from --data DIR, else $RE4_DATA_DIR, else
@@ -19,6 +21,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+int re4_runtime_tests();
 
 static void crashHandler(int sig)
 {
@@ -107,6 +111,9 @@ int main(int argc, char** argv)
     }
     if (argc > 1 && strcmp(argv[1], "--self-test") == 0) {
         _exit(selfTest());
+    }
+    if (argc > 1 && strcmp(argv[1], "--runtime-test") == 0) {
+        _exit(re4_runtime_tests() ? 1 : 0);
     }
     re4_log("starting re4_game_main");
     int ret = re4_game_main();

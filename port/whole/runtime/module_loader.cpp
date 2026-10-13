@@ -36,11 +36,29 @@ extern "C" void re4_set_module_dir(const char* dir)
     snprintf(gModuleDir, sizeof(gModuleDir), "%s", dir);
 }
 
+// Modules added at run time (re4_host --runtime-test registers its test REL).
+Re4ModuleEntry gExtraModules[8];
+int gExtraCount;
+
+extern "C" void re4_module_register(unsigned id, const char* name)
+{
+    if (gExtraCount < (int) (sizeof(gExtraModules) / sizeof(gExtraModules[0]))) {
+        gExtraModules[gExtraCount].id = id;
+        gExtraModules[gExtraCount].name = name;
+        gExtraCount++;
+    }
+}
+
 extern "C" const char* re4_module_name(unsigned id)
 {
     for (const Re4ModuleEntry* e = kRe4Modules; e->name; e++) {
         if (e->id == id) {
             return e->name;
+        }
+    }
+    for (int i = 0; i < gExtraCount; i++) {
+        if (gExtraModules[i].id == id) {
+            return gExtraModules[i].name;
         }
     }
     return 0;
@@ -71,6 +89,11 @@ extern "C" void* re4_module_load(const char* name)
     return handle;
 }
 
+extern "C" int re4_module_is_loaded(const char* name)
+{
+    return findLoaded(name) >= 0;
+}
+
 extern "C" void re4_module_unload(const char* name)
 {
     int i = findLoaded(name);
@@ -79,7 +102,18 @@ extern "C" void re4_module_unload(const char* name)
     }
     dlclose(gLoaded[i].handle);
     free((void*) gLoaded[i].name);
-    gLoaded[i] = gLoaded[--gLoadedCount];
+    // Keep load order: the newest module wins in re4_try_resolve_import.
+    memmove(&gLoaded[i], &gLoaded[i + 1], (gLoadedCount - i - 1) * sizeof(gLoaded[0]));
+    gLoadedCount--;
+    // Trampolines of the other modules may still point into the unloaded one;
+    // they resolve again on their next call.
+    for (int k = 0; k < gLoadedCount; k++) {
+        char fn[160];
+        snprintf(fn, sizeof(fn), "re4_module_reset_imports_%s", gLoaded[k].name);
+        if (void (*reset)() = (void (*)()) dlsym(gLoaded[k].handle, fn)) {
+            reset();
+        }
+    }
 }
 
 extern "C" void* re4_try_resolve_import(const char* symbol)

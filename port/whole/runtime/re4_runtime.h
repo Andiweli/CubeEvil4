@@ -25,8 +25,15 @@ extern const Re4ModuleEntry kRe4Modules[];
 void re4_set_module_dir(const char* dir);
 /* Loads a module library (idempotent); returns 0 on failure. */
 void* re4_module_load(const char* name);
+/* Unloads a module library; trampolines of the others into it resolve again. */
 void re4_module_unload(const char* name);
+int re4_module_is_loaded(const char* name);
+/* OSLink support (os_link.cpp): converts a big-endian REL header from disc to
+ * host byte order in place. 1 = converted, 0 = was host order, -1 = no REL. */
+int re4_rel_header_to_host(void* rel);
 const char* re4_module_name(unsigned id);
+/* Adds a module id outside the original table (tests). */
+void re4_module_register(unsigned id, const char* name);
 /* Finds an exported function of a loaded module. */
 void* re4_try_resolve_import(const char* symbol);
 /* Like re4_try_resolve_import, but logs and aborts when nothing provides it. */

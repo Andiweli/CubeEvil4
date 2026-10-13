@@ -1,0 +1,9 @@
+/* Exports of libre4_main. The game's operator new/delete (main_mem.cpp, the
+   game heap) stay local: exported, they would replace the process-wide
+   operators of the C++ runtime and the platform code. Game code inside the
+   library binds to them directly, the module libraries through
+   runtime/game_heap.cpp (--wrap). */
+{
+    global: *;
+    local: _Znwj; _Znaj; _ZdlPv; _ZdaPv;
+};

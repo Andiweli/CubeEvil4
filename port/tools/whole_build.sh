@@ -7,6 +7,7 @@
 # Per target: build (libre4_main.so, 114 module libraries, re4_host), then
 #   re4_host --self-test       cross-module trampolines pass arguments intact
 #   re4_host --check-modules   every module loads, every cross-module import resolves
+#   re4_host --runtime-test    OSLink, DVD folder and yz2 work without disc data
 # armhf runs under qemu-arm when it is installed. Needs clang, lld, cmake, ninja,
 # python3, the lib32 C/C++ libraries, g++-arm-linux-gnueabihf and qemu-user;
 # .claude/hooks/session-start.sh installs them in cloud sessions.
@@ -38,10 +39,10 @@ for t in "${targets[@]}"; do
         fi
         run=(env QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf qemu-arm)
     fi
-    for check in --self-test --check-modules; do
+    for check in --self-test --check-modules --runtime-test; do
         out=$(cd "$build" && timeout 300 "${run[@]}" ./re4_host "$check" 2>&1)
         code=$?
-        echo "  re4_host $check: exit $code | $(echo "$out" | grep -E 'self-test:|check-modules:' | sed 's/^\[re4\] //')"
+        echo "  re4_host $check: exit $code | $(echo "$out" | grep -E 'self-test:|check-modules:|runtime-test' | tr '\n' ' ' | sed 's/\[re4\] //g')"
         [ "$code" -ne 0 ] && status=1
     done
 done

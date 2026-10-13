@@ -82,9 +82,11 @@ add_library(re4_runtime_obj OBJECT
     runtime/aram.cpp
     runtime/dolphin_os.cpp
     runtime/dvd.cpp
+    runtime/game_heap.cpp
     runtime/log.cpp
     runtime/mem1.cpp
     runtime/module_loader.cpp
+    runtime/os_link.cpp
     runtime/sn_runtime.cpp)
 target_include_directories(re4_runtime_obj PUBLIC runtime)
 target_compile_features(re4_runtime_obj PRIVATE cxx_std_17)
@@ -103,6 +105,31 @@ target_compile_definitions(re4_sdk_obj PRIVATE SDK_REVISION=1 NDEBUG=1)
 target_compile_options(re4_sdk_obj PRIVATE -std=gnu99 -fno-strict-aliasing -fwrapv -w)
 string(APPEND RE4_LINK_OBJECTS
     "runtime=$<TARGET_OBJECTS:re4_runtime_obj>;$<TARGET_OBJECTS:re4_sdk_obj>\n")
+
+# Reviewed native code of the earlier port, reused unchanged: the yz2 decode
+# loop (port/src/yz2_kernel.cpp) behind yz2Decode_Decode. Its yz2_structs.inc
+# holds the original structs of src/game/yz2code.cpp plus the kernel's bounds
+# and statistics members, extracted as port/cmake/Yz2Sources.cmake does.
+file(READ "${RE4_ROOT}/src/game/yz2code.cpp" yz2_source)
+string(REPLACE "\r\n" "\n" yz2_source "${yz2_source}")
+string(FIND "${yz2_source}" "struct Yz2InEv {" yz2_start)
+string(FIND "${yz2_source}" "// Parses the yz2 header" yz2_end)
+math(EXPR yz2_count "${yz2_end} - ${yz2_start}")
+string(SUBSTRING "${yz2_source}" ${yz2_start} ${yz2_count} yz2_structs)
+string(REPLACE "static Yz2InEv in_ev;" "" yz2_structs "${yz2_structs}")
+string(REPLACE "u32 size1;    // 0x10  second hex field of the header string"
+    "u32 size1;    // Original scalar; following members are native adapter state.\n    const u8* srcEnd;\n    u8* workEnd;\n    Yz2Checkpoint checkpoint;\n    Yz2Statistics* statistics;"
+    yz2_structs "${yz2_structs}")
+file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/reuse/yz2_structs.inc" CONTENT
+    "// Original field definitions (src/game/yz2code.cpp) plus the kernel's state.\n${yz2_structs}" @ONLY)
+add_library(re4_reuse_obj OBJECT
+    "${RE4_ROOT}/port/src/yz2_kernel.cpp"
+    runtime/yz2_decode.cpp)
+target_include_directories(re4_reuse_obj PRIVATE
+    "${CMAKE_CURRENT_BINARY_DIR}/reuse" "${RE4_ROOT}/port/src" "${RE4_ROOT}/port/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include" runtime)
+target_compile_features(re4_reuse_obj PRIVATE cxx_std_17)
+string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_reuse_obj>\n")
 
 set(RE4_MODULES "")
 math(EXPR last_module "${RE4_MODULE_COUNT} - 1")
@@ -127,9 +154,9 @@ endforeach()
 set(RE4_GEN "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/link_objects.txt" CONTENT "${RE4_LINK_OBJECTS}")
 set(RE4_GEN_FILES "${RE4_GEN}/stubs.cpp" "${RE4_GEN}/modules.cpp" "${RE4_GEN}/link_report.json")
-set(RE4_OBJ_DEPS re4_main_obj re4_runtime_obj re4_sdk_obj
+set(RE4_OBJ_DEPS re4_main_obj re4_runtime_obj re4_sdk_obj re4_reuse_obj
     "$<TARGET_OBJECTS:re4_main_obj>" "$<TARGET_OBJECTS:re4_runtime_obj>"
-    "$<TARGET_OBJECTS:re4_sdk_obj>")
+    "$<TARGET_OBJECTS:re4_sdk_obj>" "$<TARGET_OBJECTS:re4_reuse_obj>")
 foreach(mod IN LISTS RE4_MODULES)
     list(APPEND RE4_GEN_FILES "${RE4_GEN}/imports/${mod}.cpp" "${RE4_GEN}/imports/${mod}.S")
     list(APPEND RE4_OBJ_DEPS re4_mod_${mod}_obj "$<TARGET_OBJECTS:re4_mod_${mod}_obj>")
@@ -152,17 +179,23 @@ add_custom_command(
 add_custom_target(re4_link_plan DEPENDS "${RE4_GEN}/link_plan.stamp")
 
 set(RE4_LINK_FLAGS -fuse-ld=lld -Wl,--no-undefined)
+if(RE4_ARCH STREQUAL "i686" OR RE4_ARCH STREQUAL "armv7")  # size_t = unsigned int ('j')
+    set(RE4_GAME_HEAP_WRAP -Wl,--wrap=_Znwj -Wl,--wrap=_Znaj -Wl,--wrap=_ZdlPv -Wl,--wrap=_ZdaPv)
+endif()
 
 # --- libre4_main ------------------------------------------------------------------
 add_library(re4_main SHARED
     $<TARGET_OBJECTS:re4_main_obj>
     $<TARGET_OBJECTS:re4_runtime_obj>
     $<TARGET_OBJECTS:re4_sdk_obj>
+    $<TARGET_OBJECTS:re4_reuse_obj>
     "${RE4_GEN}/stubs.cpp"
     "${RE4_GEN}/modules.cpp")
 add_dependencies(re4_main re4_link_plan)
 target_include_directories(re4_main PRIVATE runtime)
-target_link_options(re4_main PRIVATE ${RE4_LINK_FLAGS})
+target_link_options(re4_main PRIVATE ${RE4_LINK_FLAGS}
+    "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/runtime/libre4_main.ver")
+set_property(TARGET re4_main APPEND PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/libre4_main.ver")
 target_link_libraries(re4_main PRIVATE ${CMAKE_DL_LIBS} m)
 if(ANDROID)
     target_link_libraries(re4_main PRIVATE log)
@@ -177,8 +210,9 @@ foreach(mod IN LISTS RE4_MODULES)
         "${RE4_GEN}/imports/${mod}.S")
     add_dependencies(re4_${mod} re4_link_plan)
     target_include_directories(re4_${mod} PRIVATE runtime)
-    # -Bsymbolic: a module's references bind to its own copies of duplicated units
-    target_link_options(re4_${mod} PRIVATE ${RE4_LINK_FLAGS} -Wl,-Bsymbolic)
+    # -Bsymbolic: a module's references bind to its own copies of duplicated units.
+    # --wrap: `new`/`delete` of game code use the game heap (runtime/game_heap.cpp).
+    target_link_options(re4_${mod} PRIVATE ${RE4_LINK_FLAGS} -Wl,-Bsymbolic ${RE4_GAME_HEAP_WRAP})
     target_link_libraries(re4_${mod} PRIVATE re4_main)
     set_target_properties(re4_${mod} PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/modules")
@@ -202,10 +236,19 @@ foreach(t re4test_target re4test_caller)
         OUTPUT_NAME re4_${t})
 endforeach()
 
+# --- runtime tests without disc data (re4_host --runtime-test) -------------------------
+add_library(re4test_rel SHARED tests/rel_module.cpp runtime/module_crt.cpp)
+target_link_options(re4test_rel PRIVATE ${RE4_LINK_FLAGS} -Wl,-Bsymbolic)
+target_link_libraries(re4test_rel PRIVATE re4_main)
+set_target_properties(re4test_rel PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/modules"
+    OUTPUT_NAME re4_re4test_rel)
+
 # --- Linux launcher -----------------------------------------------------------------
 if(NOT ANDROID)
-    add_executable(re4_host host/main.cpp)
-    target_include_directories(re4_host PRIVATE runtime)
+    add_executable(re4_host host/main.cpp tests/runtime_tests.cpp "${RE4_ROOT}/port/src/sha256.cpp")
+    target_include_directories(re4_host PRIVATE runtime "${RE4_ROOT}/port/include" "${RE4_ROOT}/port/tests")
+    target_compile_features(re4_host PRIVATE cxx_std_17)
+    add_dependencies(re4_host re4test_rel re4test_caller re4test_target)
     target_link_options(re4_host PRIVATE -fuse-ld=lld)
     target_link_libraries(re4_host PRIVATE re4_main ${CMAKE_DL_LIBS})
 endif()

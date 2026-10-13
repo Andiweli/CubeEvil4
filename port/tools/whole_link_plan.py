@@ -183,6 +183,14 @@ def imports_source(module: str, funcs: list, datas: list) -> str:
               "    return gImportSlots[k];",
               "}",
               "",
+              "// Forgets resolved targets; the loader calls it when a sibling module is unloaded.",
+              f"extern \"C\" void re4_module_reset_imports_{module}()",
+              "{",
+              f"    for (int k = 0; k < {max(len(funcs), 1)}; k++) {{",
+              "        gImportSlots[k] = 0;",
+              "    }",
+              "}",
+              "",
               "// Resolves every import now; used by re4_host --check-modules.",
               f"extern \"C\" int re4_module_check_imports_{module}()",
               "{",
@@ -209,7 +217,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--plan", type=Path, required=True, help="modules.json from whole_prepare.py")
     ap.add_argument("--objects", type=Path, required=True,
-                    help="text file: lines '<target>=<obj1>;<obj2>;...' (main, runtime, <module>...)")
+                    help="text file: lines '<target>=<obj1>;<obj2>;...' (main, runtime, <module>...); "
+                         "a target may repeat")
     ap.add_argument("--arch", required=True, choices=["i686", "armv7"])
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("cxx", nargs=argparse.REMAINDER, help="-- compiler and target flags for the trial link")
@@ -228,7 +237,7 @@ def main() -> int:
     for line in args.objects.read_text().splitlines():
         if "=" in line:
             name, objs = line.split("=", 1)
-            groups[name] = [o for o in objs.split(";") if o]
+            groups.setdefault(name, []).extend(o for o in objs.split(";") if o)
     main_objs = groups["main"] + groups.get("runtime", [])
     modules = {m: groups[m] for m in plan["modules"]}
 
