@@ -722,6 +722,26 @@ Blick nach oben, Absturz beim Erreichen des Hauses. Ursachen und Korrekturen:
   Test zeichnet jetzt ohne Zeitfortschritt; die Prüfungen für starre Teile
   bewegen sichtbar (nach oben).
 
+### Dritter PC-Lauf (14.10.2026, nach der Kamera-Korrektur)
+
+- **Android-Kern baute nicht:** `formats_event.cpp` nutzte `std::vector`; die
+  Datei wird mit den Spiel-Schaltern und der Prelude übersetzt, und die
+  libc++ des NDK verträgt sie nicht (`__libcpp_allocate` …), libstdc++ der
+  Linux-Builds schon. Jetzt einfacher C-Speicher. Neu im Cloud-Build:
+  `whole_libcxx_check.py` übersetzt alle Laufzeitdateien zusätzlich gegen
+  libc++ (fand den Fehler nachträglich, 150 Dateien ok); `whole_setup_linux.sh`
+  installiert `libc++-dev`.
+- **PC-Prüfung: Absturz in `CameraQuasiFPS::setAreaData` beim Raumaufbau:**
+  Der Kamera-Umwandler brach bei r100 ab („camera keys at 0x818c3400 …
+  conversion stopped“): ein Schnitt hat in `pFrame` einen veralteten Zeiger
+  des Kamera-Werkzeugs (derselbe Wert steht in einem unbenutzten `pVer` mit
+  0 Punkten; der alte Umwandler übersprang ihn darum zufällig über die
+  gemeinsame „schon gesehen“-Liste). Bildzeiten liest das Spiel nur bei
+  Kamerafahrten (Id 6/7, `HermiteExport`); jetzt nur dort umgewandelt, und ein
+  Feld außerhalb des Blocks wird gemeldet und übersprungen statt die ganze
+  Umwandlung zu stoppen. Test `core-test camera` nachgebaut wie r100 (fällt
+  mit dem vorigen Umwandler mit genau der Meldung aus dem Lauf durch).
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich

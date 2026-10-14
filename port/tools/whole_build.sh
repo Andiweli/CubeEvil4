@@ -16,8 +16,10 @@
 #   re4_format_compare         the Formatumwandler against the app's checked
 #                              big-endian readers (synthetic samples, then the
 #                              same as a disc folder: test_whole_format_compare.py)
-# armhf runs under qemu-arm when it is installed. Finally the disc folder tool
-# is tested (port/tools/test_whole_disc_folder.py, synthetic images). Needs
+# armhf runs under qemu-arm when it is installed. Then the port's runtime files
+# are compiled against libc++, the NDK's C++ library (whole_libcxx_check.py:
+# what only the Android build would notice), and the disc folder tool is
+# tested (port/tools/test_whole_disc_folder.py, synthetic images). Needs
 # clang, lld, cmake, ninja, python3, the lib32 C/C++ libraries,
 # g++-arm-linux-gnueabihf and qemu-user: sudo port/tools/whole_setup_linux.sh
 # (cloud sessions run it through .claude/hooks/session-start.sh).
@@ -34,7 +36,8 @@ for t in "${targets[@]}"; do
     log="$root/port/build/$name.log"
     mkdir -p "$root/port/build"
     cmake -S "$root/port/whole" -B "$build" -G Ninja \
-        -DCMAKE_TOOLCHAIN_FILE="$root/port/whole/cmake/linux-$t.cmake" -DRE4_OPT_LEVEL="${RE4_OPT:-}" > "$log" 2>&1 &&
+        -DCMAKE_TOOLCHAIN_FILE="$root/port/whole/cmake/linux-$t.cmake" -DRE4_OPT_LEVEL="${RE4_OPT:-}" \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON > "$log" 2>&1 &&
         ninja -C "$build" -k 0 ${RE4_JOBS:+-j "$RE4_JOBS"} >> "$log" 2>&1
     failed=$(grep -c '^FAILED' "$log")
     errors=$(grep -E ': error:|fatal error:|ld.lld: error' "$log" | sort -u | wc -l)
@@ -70,6 +73,10 @@ for t in "${targets[@]}"; do
     echo "  re4_format_compare --data (synthetic disc folder): exit $code | $(echo "$out" | tail -1)"
     [ "$code" -ne 0 ] && { echo "$out" | sed 's/^/    /'; status=1; }
 done
+first="$root/port/build/whole-${targets[0]}${RE4_OPT:+-O$RE4_OPT}"
+if [ -f "$first/compile_commands.json" ]; then
+    python3 "$root/port/tools/whole_libcxx_check.py" "$first" || status=1
+fi
 if python3 "$root/port/tools/test_whole_disc_folder.py" > "$root/port/build/disc-folder-test.log" 2>&1; then
     echo "disc folder tool: ok"
 else

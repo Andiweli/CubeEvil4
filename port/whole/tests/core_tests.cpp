@@ -445,9 +445,11 @@ float getf32(const unsigned char* p)
     return f;
 }
 
-// A room camera (CAM in an archive) with one shoulder camera cut (Id 8,
-// CameraQuasiFPS::setAreaData): nPoint 12, but the game reads 24 positions
-// (near and far points) and 12 targets, rolls and angles.
+// A room camera (CAM in an archive) as r100 has them: a shoulder camera cut
+// (Id 8, CameraQuasiFPS::setAreaData) with nPoint 12, of which the game reads
+// 24 positions (near and far points) and 12 targets, rolls and angles, and a
+// pFrame the camera tool left pointing outside the file (Id 8 never reads it);
+// then a motion cut (Id 6, HermiteExport: frame times and nPoint keys).
 void testCamera()
 {
     bool ok = true;
@@ -458,55 +460,73 @@ void testCamera()
     memcpy(arc + 0x14, "CAM\0", 4);
     unsigned char* cam = arc + 0x20;
     memcpy(cam, "B404", 4);
-    cam[4] = 1;  // cuts
+    cam[4] = 2;  // cuts
     cam[5] = 1;  // areas
     put32be(cam + 0x10 + 8, 0x20);   // CUT_INFO: area
     put32be(cam + 0x10 + 12, 0x50);  //           cut
     cam[0x20] = 1;                    // AREA_DATA
     putf32be(cam + 0x20 + 0x20, 2000.0f);
     put32be(cam + 0x20 + 0x28, 1);    // one vertex
-    put32be(cam + 0x20 + 0x2C, 0x84);
-    putf32be(cam + 0x84, 7.0f);
-    unsigned char* c = cam + 0x50;    // CAMERA_DATA
+    put32be(cam + 0x20 + 0x2C, 0xB8);
+    putf32be(cam + 0xB8, 7.0f);
+    unsigned char* c = cam + 0x50;    // CAMERA_DATA 0: shoulder camera
     c[0] = 1;
-    c[2] = 8;      // Id: shoulder camera
-    c[3] = 0x30;   // Attr
+    c[2] = 8;
+    c[3] = 0x30;
     putf32be(c + 0x08, 1000.0f);  // offset.y
-    put32be(c + 0x10, 0x90);      // pFrame
+    put32be(c + 0x10, 0x818C3400u);  // pFrame: a stale pointer, never read
     putf32be(c + 0x14, 0.25f);    // floor_ratio
     put32be(c + 0x20, 12);        // nPoint
-    put32be(c + 0x24, 0xA8);      // pCampos: 24
-    put32be(c + 0x28, 0x1C8);     // pTarget: 12
-    put32be(c + 0x2C, 0x258);     // pRoll: 12
-    put32be(c + 0x30, 0x288);     // pFovy: 12
-    for (int k = 0; k < 12; k++) {
-        cam[0x90 + k * 2] = 0;
-        cam[0x90 + k * 2 + 1] = (unsigned char) (k * 10);
-    }
+    put32be(c + 0x24, 0xC4);      // pCampos: 24
+    put32be(c + 0x28, 0x1E4);     // pTarget: 12
+    put32be(c + 0x2C, 0x274);     // pRoll: 12
+    put32be(c + 0x30, 0x2A4);     // pFovy: 12
     for (int k = 0; k < 24; k++) {
-        putf32be(cam + 0xA8 + k * 12 + 0, (float) k);
-        putf32be(cam + 0xA8 + k * 12 + 4, 1000.0f + k);
-        putf32be(cam + 0xA8 + k * 12 + 8, -2000.0f - k);
+        putf32be(cam + 0xC4 + k * 12 + 0, (float) k);
+        putf32be(cam + 0xC4 + k * 12 + 4, 1000.0f + k);
+        putf32be(cam + 0xC4 + k * 12 + 8, -2000.0f - k);
     }
     for (int k = 0; k < 12; k++) {
-        putf32be(cam + 0x1C8 + k * 12 + 4, 1500.0f + k);
-        putf32be(cam + 0x258 + k * 4, 0.5f);
-        putf32be(cam + 0x288 + k * 4, 50.0f);
+        putf32be(cam + 0x1E4 + k * 12 + 4, 1500.0f + k);
+        putf32be(cam + 0x274 + k * 4, 0.5f);
+        putf32be(cam + 0x2A4 + k * 4, 50.0f);
     }
-    put32be(cam + 0x2B8, 0xDEADBEEFu);  // after the arrays: not touched
-    Header h = { 0, 0x2E0, 0, 0, 0, 0, 0, 0 };
+    unsigned char* m = cam + 0x84;    // CAMERA_DATA 1: motion cut, two keys
+    m[0] = 1;
+    m[1] = 1;
+    m[2] = 6;
+    put32be(m + 0x10, 0x2D4);     // pFrame
+    put32be(m + 0x20, 2);
+    put32be(m + 0x24, 0x2D8);
+    put32be(m + 0x28, 0x2F0);
+    put32be(m + 0x2C, 0x308);
+    put32be(m + 0x30, 0x310);
+    put16be(cam + 0x2D4, 0);
+    put16be(cam + 0x2D6, 30);
+    for (int k = 0; k < 2; k++) {
+        putf32be(cam + 0x2D8 + k * 12, 300.0f + k);
+        putf32be(cam + 0x2F0 + k * 12 + 4, 400.0f + k);
+        putf32be(cam + 0x308 + k * 4, 0.25f);
+        putf32be(cam + 0x310 + k * 4, 45.0f);
+    }
+    put32be(cam + 0x318, 0xDEADBEEFu);  // after the arrays: not touched
+    Header h = { 0, 0x340, 0, 0, 0, 0, 0, 0 };
     re4_formats_part_loaded("em/cam.das", 0, 0, &h, 0x82300000u);
-    CHECK(memcmp(cam, "B404", 4) == 0 && get32(cam + 0x50 + 0x20) == 12 && get32(cam + 0x50 + 0x24) == 0xA8);
-    CHECK(get16(cam + 0x90 + 11 * 2) == 110 && getf32(cam + 0x84) == 7.0f);
+    CHECK(memcmp(cam, "B404", 4) == 0 && get32(cam + 0x50 + 0x20) == 12 && get32(cam + 0x50 + 0x24) == 0xC4);
+    CHECK(get32(cam + 0x50 + 0x10) == 0x818C3400u && getf32(cam + 0xB8) == 7.0f);
     for (int k = 0; k < 24; k++) {
-        CHECK(getf32(cam + 0xA8 + k * 12) == (float) k && getf32(cam + 0xA8 + k * 12 + 4) == 1000.0f + k &&
-              getf32(cam + 0xA8 + k * 12 + 8) == -2000.0f - k);
+        CHECK(getf32(cam + 0xC4 + k * 12) == (float) k && getf32(cam + 0xC4 + k * 12 + 4) == 1000.0f + k &&
+              getf32(cam + 0xC4 + k * 12 + 8) == -2000.0f - k);
     }
     for (int k = 0; k < 12; k++) {
-        CHECK(getf32(cam + 0x1C8 + k * 12 + 4) == 1500.0f + k && getf32(cam + 0x258 + k * 4) == 0.5f &&
-              getf32(cam + 0x288 + k * 4) == 50.0f);
+        CHECK(getf32(cam + 0x1E4 + k * 12 + 4) == 1500.0f + k && getf32(cam + 0x274 + k * 4) == 0.5f &&
+              getf32(cam + 0x2A4 + k * 4) == 50.0f);
     }
-    CHECK(cam[0x2B8] == 0xDE && cam[0x2BB] == 0xEF);
+    // the motion cut after it is converted completely, frame times included
+    CHECK(get16(cam + 0x2D4) == 0 && get16(cam + 0x2D6) == 30);
+    CHECK(getf32(cam + 0x2D8 + 12) == 301.0f && getf32(cam + 0x2F0 + 12 + 4) == 401.0f &&
+          getf32(cam + 0x308 + 4) == 0.25f && getf32(cam + 0x310 + 4) == 45.0f);
+    CHECK(cam[0x318] == 0xDE && cam[0x31B] == 0xEF);
     report("camera", ok);
 }
 

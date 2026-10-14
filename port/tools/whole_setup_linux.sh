@@ -18,8 +18,9 @@ android=0
 [ "${1:-}" = "--android" ] && android=1
 
 need=()
+# libc++-dev: whole_libcxx_check.py (the NDK's C++ library, checked in the Linux build)
 for pkg in libc6-dev-i386 lib32gcc-13-dev lib32stdc++-13-dev g++-arm-linux-gnueabihf qemu-user python3 \
-    libgles-dev libegl-dev libegl-mesa0 libgl1-mesa-dri; do
+    libgles-dev libegl-dev libegl-mesa0 libgl1-mesa-dri libc++-dev libc++abi-dev; do
   dpkg -s "$pkg" >/dev/null 2>&1 || need+=("$pkg")
 done
 command -v git >/dev/null 2>&1 || need+=(git)

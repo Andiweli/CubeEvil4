@@ -14,8 +14,8 @@
 #include "event.h"
 #include "re4_runtime.h"
 
+#include <stdlib.h>
 #include <string.h>
-#include <vector>
 
 using namespace re4fmt;
 
@@ -35,43 +35,64 @@ namespace re4fmt {
 namespace {
 
 // The key arrays of the cuts: every 16-bit unit is swapped once, however many
-// cuts share (or overlap in) an array.
+// cuts share (or overlap in) an array. Plain C memory: this file is compiled
+// with the game's flags and prelude, which the NDK's libc++ headers do not
+// take (std::vector broke the Android build).
 struct CamArrays {
     Blob& b;
     u32 base;
-    std::vector<u8> done;  // per 16-bit unit from `base`
+    u8* done;  // per 16-bit unit from `base`
+    u32 units;
+    unsigned outside;
 
-    CamArrays(Blob& blob, u32 from) : b(blob), base(from), done((blob.size - from) / 2 + 1, 0) {}
-    bool fresh(u32 off, u32 bytes)
+    CamArrays(Blob& blob, u32 from) : b(blob), base(from), outside(0)
+    {
+        units = blob.size > from ? (blob.size - from) / 2 + 1 : 1;
+        done = (u8*) calloc(units, 1);
+    }
+    ~CamArrays() { free(done); }
+    // An array the game reads lies in the block; one that points elsewhere (a
+    // stale pointer the camera tool left in a field that cut never uses) is
+    // left as it is and reported, the rest of the block is still converted.
+    bool fresh(u32 off, u32 bytes, unsigned cutNo, const char* what)
     {
         // offset 0 (relocated to the header by calcAddr): the version text
         // must stay as it is, the game reads those bytes as they are
-        if (off < base + sizeof(CAM_FILE_HEADER) || !fits(b, off, bytes, "camera keys")) {
+        if (!done || off < base + sizeof(CAM_FILE_HEADER) || off > b.size || bytes > b.size - off) {
+            if (done && off >= base + sizeof(CAM_FILE_HEADER) && outside++ < 4) {
+                re4_log("formats: %s: cut %u: %s at 0x%x outside the %u-byte block, left as it is", b.name, cutNo,
+                        what, (unsigned) off, (unsigned) b.size);
+            }
             return false;
         }
+        u32 u = (off - base) / 2;
         for (u32 i = 0; i < bytes / 2; i++) {
-            if (done[(off - base) / 2 + i]) {
+            if (u + i >= units || done[u + i]) {
                 return false;
             }
         }
         for (u32 i = 0; i < bytes / 2; i++) {
-            done[(off - base) / 2 + i] = 1;
+            done[u + i] = 1;
         }
         return true;
     }
-    void words(u32 off, u32 count)
+    void words(u32 off, u32 count, unsigned cutNo, const char* what)
     {
         for (u32 i = 0; i < count && b.ok; i++) {
-            if (fresh(off + i * 4, 4)) {
+            if (fresh(off + i * 4, 4, cutNo, what)) {
                 swap32(b, off + i * 4);
+            } else if (off + i * 4 >= b.size) {
+                break;  // reported once
             }
         }
     }
-    void halves(u32 off, u32 count)
+    void halves(u32 off, u32 count, unsigned cutNo, const char* what)
     {
         for (u32 i = 0; i < count && b.ok; i++) {
-            if (fresh(off + i * 2, 2)) {
+            if (fresh(off + i * 2, 2, cutNo, what)) {
                 swap16(b, off + i * 2);
+            } else if (off + i * 2 >= b.size) {
+                break;
             }
         }
     }
@@ -129,7 +150,9 @@ void convertCameraAt(Blob& b, u32 base)
     // fixed, pan, rail and motion cuts (cam_ctrl.cpp), but a shoulder camera
     // cut (Id 8, CameraQuasiFPS::setAreaData) always reads 24 positions
     // (near and far point of 4 x 3 sites) and 12 targets, rolls and angles
-    // once nPoint is not 0, whatever nPoint says.
+    // once nPoint is not 0, whatever nPoint says. The frame times only for the
+    // motion cuts (Id 6, 7: HermiteExport); the other cuts never read pFrame,
+    // and r100 has cuts whose pFrame points outside the file.
     CamArrays keys(b, base);
     for (u32 i = 0; i < nCut && b.ok; i++) {
         typedef CAMERA_DATA C;
@@ -155,11 +178,13 @@ void convertCameraAt(Blob& b, u32 base)
             nPos = 24;
             nKey = 12;
         }
-        keys.halves(base + frame, n);
-        keys.words(base + pos, nPos * 3);
-        keys.words(base + target, nKey * 3);
-        keys.words(base + roll, nKey);
-        keys.words(base + fovy, nKey);
+        if (id == 6 || id == 7) {
+            keys.halves(base + frame, n, i, "frame times");
+        }
+        keys.words(base + pos, nPos * 3, i, "positions");
+        keys.words(base + target, nKey * 3, i, "targets");
+        keys.words(base + roll, nKey, i, "rolls");
+        keys.words(base + fovy, nKey, i, "angles");
     }
     for (u32 i = 0; i < nLerp; i++) {
         RE4_SWAP(b, lerp + i * sizeof(LERP_DATA), LERP_DATA, InterFrame);
