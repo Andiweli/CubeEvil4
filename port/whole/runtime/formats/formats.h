@@ -86,6 +86,7 @@ void convertRoomInfo(Blob& b, const Part& part);  // debug/roomInfo.dat
 // formats_arc.cpp
 bool looksLikeArchive(Blob& b);
 void convertArchive(Blob& b, const Part& part);
+void convertCodecArchive(Blob& b, const Part& part);  // op/opNN.das: archive at +0x400
 
 // formats.cpp: a file inside a container, chosen by its name's extension
 void convertNamedFile(Blob& b, const Part& part, const char* name);

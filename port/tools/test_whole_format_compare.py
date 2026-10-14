@@ -31,7 +31,7 @@ def yz2_file(data: bytes) -> bytes:
     return header + bytes(((len(header) + 32) & ~31) - len(header)) + stream + bytes(4)
 
 
-EXPECTED = ["st1/r100.das", "etc/emleon00.esl", "debug/roominfo.dat", "Evd/r100s03.evd", "em/pl00.drs"]
+EXPECTED = ["st1/r100.das", "etc/emleon00.esl", "debug/roominfo.dat", "Evd/r100s03.evd", "em/pl00.drs", "op/op01.das"]
 
 
 def main() -> int:

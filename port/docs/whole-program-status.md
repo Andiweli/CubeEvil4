@@ -13,8 +13,8 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M4 Teil A: Plattformschicht ohne Disc-Daten (Cloud) | ✅ 13.10.2026 |
 | M4 Teil B: Booten mit echten Disc-Daten bis `gameRoomInit` (lokal, WSL2) | ✅ 13.10.2026 (i686 und armhf unter qemu) |
 | M4.5 Kern korrekt machen: C-Ersatz für Assembler, Byte-Aggregate, `__FILE__`-Länge | ✅ 14.10.2026 (Cloud, i686 und armhf) |
-| M5 Erster Raum r100 | ⏳ Umwandler, Vergleich mit den App-Lesern, Abdeckungs-Log, Zustands-Trace ✅ 14.10.2026 (Cloud); zwei lokale Läufe bis `R100Init` (Hänger und Absturz behoben, siehe unten); 10 000 Bilder ab der Hauptschleife **noch nicht erreicht**, lokal: `port/scripts/test-r100-core.ps1` |
-| K2 „Kern in die App“ | offen (Startprompt am Ende der Sitzung vom 14.10.2026) |
+| M5 Erster Raum r100 | ✅ 14.10.2026: lokal mit Disc-Daten (i686 in WSL2) 10 000 Bilder ab der Hauptschleife ohne Absturz, Abdeckung ohne „nein“, Formatvergleich 152 Dateien ohne Fehler. armhf mit Disc-Daten nicht gelaufen (`-Arm`, optional) |
+| K2 „Kern in die App“ (M6) | offen (Startprompt am Ende der Sitzung vom 14.10.2026, nach dem dritten lokalen Lauf erneuert) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -328,6 +328,30 @@ Mit der SMD-Korrektur kam der Kern über `gameRoomInit` hinaus bis
   Eintrag; nächster Bericht zeigt es). Abdeckung im Lauf: 27 Zugriffe, kein
   „nein“.
 
+### Dritter lokaler Lauf: M5 erreicht (14.10.2026, i686 in WSL2)
+
+Stand 1c4f551. Bericht „ALLES OK“:
+- **Spiellauf:** Hauptschleife in Bild 621 erreicht (Raum r100), danach
+  10 000 Bilder in Spielschritt 3 ohne Absturz (25 s mit `RE4_VI_FAST`).
+  Letzte Trace-Zeile: Spieler an (-99682, -484, -1340), 18 lebende Gegner
+  (Ids 0x41/0x43/0x46, HP 1000). Tasten gab es nach dem Laden keine, der
+  Spieler steht also; ob die Gegner sich wie im Original verhalten, ist nicht
+  geprüft (erst mit Bild, M6).
+- **Abdeckung:** 31 GetDataExt-Zugriffe, kein „nein“.
+- **Formatvergleich:** 152 Dateien, 4 226 888 Werte gleich, 0 Fehler; die
+  leeren Einträge waren die Ursache aller Abweichungen des zweiten Laufs.
+- **Danach behoben (Cloud):** `op/opNN.das` (Funkgespräche, `ss_term.cpp`
+  `opArc`) enthält das Archiv erst 0x400 Byte nach dem Anfang des Teils;
+  eigener Umwandler `convertCodecArchive`, im Formatvergleich als
+  „Funkarchiv“ (synthetisch mit Gegenprobe; mit echten Daten noch nicht
+  gelaufen).
+- **Offen, für r100 ohne Folgen:** FCV-Einträge, die auch der App-Leser
+  ablehnt und bei denen der Umwandler abbricht (`wep09/10/21/24/31/32/47`
+  #16/#28, `pl14` #8; `EVD-FCV: Key budget/Channel offset/Key order`);
+  Archiv-Kürzel ohne Umwandler: `FNT` (ss_cmmn.dat), `PTH` (em36), `DMY`
+  (em2f), `DRA` (r100). Werden wichtig, sobald diese Waffen, Gegner oder
+  Menüs laufen.
+
 ### Lokale Prüfung mit Disc-Daten (`port/scripts/test-r100-core.ps1`)
 
 Windows-PowerShell-Skript, startet in WSL2 `port/tools/whole_r100_check.sh`:
@@ -611,6 +635,7 @@ nach dem Laden Feld für Feld in Host-Reihenfolge gedreht:
 | `*.tpl`, `TPL` | `TEXPalette`, `TEXDescriptor`, `TEXHeader`, `CLUTHeader` (tpl.h) | `formats_tex.cpp` |
 | `font/*.fnt` | Kopf (TPL-Offset, Breitentabelle in Bytes) + TPL (mes.cpp) | `formats_tex.cpp` |
 | `MDT` | Sprachblöcke `MesTblBlock` + u16-Nachrichtencodes (mes.cpp) | `formats_mes.cpp` |
+| `op/op*.das` | Funkgespräche: Archiv bei +0x400 im Teil (ss_term.cpp `opArc`) | `formats_arc.cpp` `convertCodecArchive` |
 | `*.das`, `*.drs`, `ss/*.dat`, entpackte Räume | Archiv: Zähler, REL-Offset, Offsets, Kürzel; eingebettetes REL bekommt `re4_rel_header_to_host` (read.cpp `GetDataExt`). Ein Eintrag mit demselben Offset wie ein späterer ist leer, die Daten gehören dem letzten | `formats_arc.cpp` |
 | `UWF` | `ID_FILE_HEADER`, `ID_DATA_V1/V2`, B-Spline `FUNC_PATH_PTR`, `HERMITE_1_PTR` (id_sys.cpp) | `formats_id.cpp` |
 | `EFF` | `ESP_EFF_HEADER` (Version 0xB): Id-Listen, TPL- und `cAnm`-Tabellen, `cEspSeqHead` + `cEspSeqTbl`, Pfade (`Path`), `EffEfmEnt` (eff_sys.cpp) | `formats_eff.cpp` (Effektmodelle, -motionen, Shape-Köpfe noch nicht) |
@@ -713,8 +738,8 @@ Der Platz sollte früh reserviert werden (beim Laden von `libre4_platform`).
 - **M5 abschließen (lokal):** `port/scripts/test-r100-core.ps1` mit den
   Disc-Daten; Ziel: Formatvergleich ohne Abweichung, 10 000 Bilder ohne
   Absturz, Abdeckung für r100 ohne „nein“. Abweichungen und Abstürze aus dem
-  Bericht beheben. Stand nach dem zweiten Lauf: Absturz in `Em12Set` und
-  leere Archiv-Einträge behoben, dritter Lauf steht aus.
+  Bericht beheben. **Erreicht im dritten Lauf** (siehe oben); armhf mit
+  Disc-Daten (`-Arm`, qemu) steht noch aus.
 - **Null-Füllung durch C++11:** `whole_value_init.py` findet jede
   Konstruktion, die noch mit Nullen füllt (mit und ohne Platzierung, auch
   Member-Initialisierer `x()`). Nach Änderungen an `whole_prepare.py` oder

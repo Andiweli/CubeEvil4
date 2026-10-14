@@ -331,6 +331,7 @@ const Rule kRules[] = {
     { "st*/r*_*.dat", convertArchive, "room block archive" },
     { "etc/*.esl", convertEmList, "enemy list" },
     { "*.evd", convertEvd, "event" },
+    { "op/op*.das", convertCodecArchive, "codec messages (archive at +0x400)" },
     { "*.das", convertArchive, "archive" },
     { "*.drs", convertArchive, "archive" },
     { "ss/*.dat", convertArchive, "archive (screens)" },

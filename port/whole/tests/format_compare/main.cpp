@@ -7,7 +7,7 @@
 //                                         the disc files: room archives of the
 //                                         rooms (St1/r100.das), etc/*.esl,
 //                                         debug/roominfo.dat, the rooms' events
-//                                         (*/r100*.evd), etc/core.das, em/*.drs
+//                                         (*/r100*.evd), etc/core.das, em/*.drs, op/*.das
 //   re4_format_compare --write-samples DIR
 //                                         the synthetic samples as a disc folder
 //                                         (the room archive unpacked as
@@ -41,7 +41,7 @@ using namespace re4cmp;
 
 namespace {
 
-enum Kind { kArchive, kEsl, kEvd, kRoomInfo };
+enum Kind { kArchive, kCodec, kEsl, kEvd, kRoomInfo };
 
 struct Input {
     std::string label;
@@ -71,6 +71,8 @@ const char* kindName(Kind k)
     switch (k) {
     case kArchive:
         return "Archiv";
+    case kCodec:
+        return "Funkarchiv";
     case kEsl:
         return "Gegnerliste";
     case kEvd:
@@ -95,6 +97,9 @@ Result compare(const Input& in)
         case kArchive:
             appArchive(in.bytes, app);
             break;
+        case kCodec:
+            appArchive(Bytes(in.bytes.begin() + 0x400, in.bytes.end()), app);
+            break;
         case kEsl:
             appEsl(in.bytes, app);
             break;
@@ -114,6 +119,9 @@ Result compare(const Input& in)
     switch (in.kind) {
     case kArchive:
         ok = re4cmp_game_archive(in.bytes.data(), unsigned(in.bytes.size()), in.label.c_str(), &facts);
+        break;
+    case kCodec:
+        ok = re4cmp_game_codec(in.bytes.data(), unsigned(in.bytes.size()), in.label.c_str(), &facts);
         break;
     case kEsl:
         ok = re4cmp_game_esl(in.bytes.data(), unsigned(in.bytes.size()), in.label.c_str(), &facts);
@@ -886,13 +894,22 @@ std::vector<Input> discInputs(const std::string& dir)
             containers.push_back(em + "/" + name);
         }
     }
-    for (const auto& path : containers) {
-        Input i{ path.substr(files.size() + 1), kArchive, {}, "", false };
+    // codec messages (ss_term.cpp opArc): the archive starts 0x400 bytes into the part
+    std::string op = findPath(files, "op");
+    std::size_t codecFrom = containers.size();
+    for (const auto& name : listDir(op)) {
+        if (endsWithNoCase(name, ".das")) {
+            containers.push_back(op + "/" + name);
+        }
+    }
+    for (std::size_t c = 0; c < containers.size(); c++) {
+        const std::string& path = containers[c];
+        Input i{ path.substr(files.size() + 1), c >= codecFrom ? kCodec : kArchive, {}, "", false };
         Bytes file;
         if (!readFile(path, file)) {
             i.error = "nicht lesbar";
-        } else {
-            drsBody(file, i.bytes, i.error);
+        } else if (drsBody(file, i.bytes, i.error) && c >= codecFrom && i.bytes.size() <= 0x420) {
+            i.error = "Funkarchiv zu kurz";
         }
         in.push_back(i);
     }
@@ -931,6 +948,11 @@ int writeSamples(const std::string& dir)
         case kArchive:
             ok = writeFile(files + "st1/r100.arc", in.bytes) && ok;
             ok = writeFile(files + "em/pl00.drs", makeDrs(in.bytes)) && ok;
+            {
+                Bytes codec(0x400, 0);  // op/opNN.das: the archive 0x400 into the part
+                codec.insert(codec.end(), in.bytes.begin(), in.bytes.end());
+                ok = writeFile(files + "op/op01.das", makeDrs(codec)) && ok;
+            }
             break;
         case kEsl:
             ok = writeFile(files + "etc/emleon00.esl", in.bytes) && ok;
@@ -940,6 +962,8 @@ int writeSamples(const std::string& dir)
             break;
         case kRoomInfo:
             ok = writeFile(files + "debug/roominfo.dat", in.bytes) && ok;
+            break;
+        case kCodec:
             break;
         }
     }

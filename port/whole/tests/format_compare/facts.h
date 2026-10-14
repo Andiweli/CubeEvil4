@@ -24,6 +24,7 @@ struct Re4Facts {
 // (port/whole/runtime/formats) and reports the fields through the original
 // structure definitions. Returns 0 when the input was not accepted.
 int re4cmp_game_archive(const unsigned char* data, unsigned size, const char* name, struct Re4Facts* out);
+int re4cmp_game_codec(const unsigned char* data, unsigned size, const char* name, struct Re4Facts* out);
 int re4cmp_game_esl(const unsigned char* data, unsigned size, const char* name, struct Re4Facts* out);
 int re4cmp_game_evd(const unsigned char* data, unsigned size, const char* name, struct Re4Facts* out);
 int re4cmp_game_roominfo(const unsigned char* data, unsigned size, const char* name, struct Re4Facts* out);

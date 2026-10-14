@@ -166,4 +166,16 @@ void convertArchive(Blob& b, const Part& part)
     }
 }
 
+// Codec messages (ss_term.cpp opArc): an archive 0x400 bytes into the file;
+// the game reads nothing before it.
+void convertCodecArchive(Blob& b, const Part& part)
+{
+    if (!fits(b, 0x400, 0x20, "codec archive")) {
+        return;
+    }
+    Blob arc = blob(b.data + 0x400, b.size - 0x400, b.name);
+    convertArchive(arc, part);
+    b.ok = arc.ok;
+}
+
 }  // namespace re4fmt

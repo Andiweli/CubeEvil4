@@ -883,6 +883,13 @@ void entryFacts(const Re4Out& o, const char* tag, const View& e)
 
 }  // namespace
 
+namespace {
+
+// The facts of a converted archive at `data`.
+void archiveFacts(u8* data, u32 size, Re4Facts* out);
+
+}  // namespace
+
 extern "C" int re4cmp_game_archive(const unsigned char* data, unsigned size, const char* name, Re4Facts* out)
 {
     Copy c(data, size);
@@ -892,15 +899,47 @@ extern "C" int re4cmp_game_archive(const unsigned char* data, unsigned size, con
         return 0;
     }
     convertArchive(b, part);
+    archiveFacts(c.data, size, out);
+    return 1;
+}
+
+// op/opNN.das: the whole part through the codec converter, the archive read at +0x400
+extern "C" int re4cmp_game_codec(const unsigned char* data, unsigned size, const char* name, Re4Facts* out)
+{
+    Copy c(data, size);
+    Blob b = blob(c.data, size, name);
+    Part part = { name, 0, 0, 0, 0, 0 };
+    if (size <= 0x420) {
+        return 0;
+    }
+    Blob arc = blob(c.data + 0x400, size - 0x400, name);
+    if (!looksLikeArchive(arc)) {
+        return 0;
+    }
+    u32 count = be32(arc, 0);
+    convertCodecArchive(b, part);
+    u32 host = 0;
+    memcpy(&host, c.data + 0x400, 4);
+    if (!b.ok || host != count) {
+        return 0;  // the archive was not converted: its offsets are still big-endian
+    }
+    archiveFacts(c.data + 0x400, size - 0x400, out);
+    return 1;
+}
+
+namespace {
+
+void archiveFacts(u8* data, u32 size, Re4Facts* out)
+{
     Re4Out o = re4cmp_out(out);
-    View v = { c.data, size };
+    View v = { data, size };
     u32 count = v.w(0);
     u32 rel = v.w(4);
     u32 end = rel ? rel : size;
     o.u(count, "arc.count");
     u32 occurrence[4096];
     for (u32 i = 0; i < count; i++) {
-        const u8* tag = c.data + 0x10 + count * 4 + i * 4;
+        const u8* tag = data + 0x10 + count * 4 + i * 4;
         char key[4];
         tagKey(key, tag);
         u32 ofs = v.w(0x10 + i * 4);
@@ -908,7 +947,7 @@ extern "C" int re4cmp_game_archive(const unsigned char* data, unsigned size, con
         o.u(ofs, "arc.%u.offset", (unsigned) i);
         occurrence[i] = 0;
         for (u32 k = 0; k < i; k++) {
-            if (memcmp(c.data + 0x10 + count * 4 + k * 4, tag, 3) == 0) {
+            if (memcmp(data + 0x10 + count * 4 + k * 4, tag, 3) == 0) {
                 occurrence[i]++;
             }
         }
@@ -926,7 +965,7 @@ extern "C" int re4cmp_game_archive(const unsigned char* data, unsigned size, con
             empty = v.w(0x10 + k * 4) == ofs;
         }
         char noted[5] = { 0 };
-        int status = entryStatus(c.data + ofs, noted);
+        int status = entryStatus(data + ofs, noted);
         for (u32 k = 0; k < 4; k++) {
             noted[k] = noted[k] >= 0x20 && noted[k] < 0x7F ? noted[k] : 0;
         }
@@ -947,11 +986,12 @@ extern "C" int re4cmp_game_archive(const unsigned char* data, unsigned size, con
         if (status == kEntryIncomplete) {
             e.u(1, kIncomplete);
         }
-        View ev = { c.data + ofs, stop > ofs ? stop - ofs : 0 };
+        View ev = { data + ofs, stop > ofs ? stop - ofs : 0 };
         entryFacts(e, key, ev);
     }
-    return 1;
 }
+
+}  // namespace
 
 extern "C" int re4cmp_game_esl(const unsigned char* data, unsigned size, const char* name, Re4Facts* out)
 {
