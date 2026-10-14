@@ -90,10 +90,12 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
    32-bit-Linux-Programm, jedes REL-Modul als eigene Bibliothek
 4. ✅ Booten mit echten Disc-Daten bis `gameRoomInit` (vorhandene Datei/Yz2/Scheduler nutzen)
    — Teil A ✅ (Cloud: Plattformschicht ohne Disc-Daten), Teil B ✅ (lokal mit Disc-Daten, i686 und armhf/qemu)
-4.5 ✅/⏳ Kern korrekt machen: C-Ersatz für Assembler-Funktionen, Byte-Aggregate,
+4.5 ✅ Kern korrekt machen: C-Ersatz für Assembler-Funktionen, Byte-Aggregate,
    `__FILE__`-Länge (Stand in der Status-Datei)
-5. Erster Raum (r100): Spielschleife läuft ohne Absturz, noch ohne Bild
-   (Formatumwandler für die Raumdaten, Abdeckungs-Log, Zustands-Trace)
+5. ⏳ Erster Raum (r100): Spielschleife läuft ohne Absturz, noch ohne Bild
+   (Formatumwandler für die Raumdaten ✅, Vergleich mit den App-Lesern ✅,
+   Abdeckungs-Log ✅, Zustands-Trace ✅; offen: Lauf mit Disc-Daten, lokal mit
+   `port/scripts/test-r100-core.ps1`)
 6. K2 „Kern in die App“: ARM32-Build von RE4-Android-Decomp mit den
    Kern-Bibliotheken, Zustandsbrücke zum GLES3-Renderer der App,
    Titelbild und r100 sichtbar

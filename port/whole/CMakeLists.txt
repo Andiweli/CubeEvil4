@@ -22,6 +22,12 @@ endif()
 # long build path overflowed it. Game units become "src/game/x.cpp" (the more
 # specific prefix of the prepared tree wins), port code "port/whole/...".
 add_compile_options("-fmacro-prefix-map=${RE4_ROOT}/=")
+if(NOT ANDROID)
+    # 64-bit file interfaces for the 32-bit Linux test builds: readdir and
+    # stat fail (EOVERFLOW) on file systems with 64-bit inode numbers (WSL's
+    # Windows drives, qemu-arm on a 64-bit host) without them.
+    add_compile_definitions(_FILE_OFFSET_BITS=64)
+endif()
 if(RE4_ARCH STREQUAL "i686")
     # Single-precision float arithmetic in SSE registers, as on ARM (VFP) and
     # the GameCube: x87 keeps excess precision between operations, so float

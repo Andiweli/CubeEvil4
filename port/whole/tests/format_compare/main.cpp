@@ -8,6 +8,11 @@
 //                                         rooms (St1/r100.das), etc/*.esl,
 //                                         debug/roominfo.dat, the rooms' events
 //                                         (*/r100*.evd), etc/core.das, em/*.drs
+//   re4_format_compare --write-samples DIR
+//                                         the synthetic samples as a disc folder
+//                                         (the room archive unpacked as
+//                                         st1/r100.arc; port/tools/
+//                                         test_whole_format_compare.py packs it)
 //
 // For every file both sides report the fields they read (facts.h): the app
 // side with its readers on the big-endian bytes (app_side.cpp), the game side
@@ -42,6 +47,7 @@ struct Input {
     Kind kind;
     Bytes bytes;
     std::string error;  // the file could not be prepared (missing, container)
+    bool required;      // a missing room archive fails the comparison
 };
 
 struct Result {
@@ -669,10 +675,11 @@ std::vector<Input> syntheticInputs()
                                  { "BIN", makeBin(true, false, true) },
                                  { "BIN", makeBin(false, true, false) },
                                  { "FCV", makeCurve(30) } }),
-                   "" });
-    in.push_back({ "synthetisch: Gegnerliste", kEsl, makeEsl(), "" });
-    in.push_back({ "synthetisch: Ereignis", kEvd, makeEvd(), "" });
-    in.push_back({ "synthetisch: Raumsprungtabelle", kRoomInfo, makeRoomInfo(), "" });
+                   "",
+                   true });
+    in.push_back({ "synthetisch: Gegnerliste", kEsl, makeEsl(), "", true });
+    in.push_back({ "synthetisch: Ereignis", kEvd, makeEvd(), "", true });
+    in.push_back({ "synthetisch: Raumsprungtabelle", kRoomInfo, makeRoomInfo(), "", true });
     return in;
 }
 
@@ -812,14 +819,14 @@ std::vector<Input> discInputs(const std::string& dir)
     std::vector<Input> in;
     std::string files = filesFolder(dir);
     if (files.empty()) {
-        in.push_back({ dir, kArchive, {}, "kein Ordner disc0/files, disc1/files oder files gefunden" });
+        in.push_back({ dir, kArchive, {}, "kein Ordner disc0/files, disc1/files oder files gefunden", true });
         return in;
     }
     for (const auto& room : g_rooms) {
         unsigned id = unsigned(std::strtoul(room.c_str() + 1, nullptr, 16));
         std::string rel = "st" + std::to_string(id >> 8) + "/" + room + ".das";
         std::string path = findPath(files, rel);
-        Input i{ rel, kArchive, {}, "" };
+        Input i{ rel, kArchive, {}, "", true };
         Bytes file;
         if (path.empty() || !readFile(path, file)) {
             i.error = "Datei fehlt";
@@ -834,7 +841,7 @@ std::vector<Input> discInputs(const std::string& dir)
     }
     for (const auto& name : listDir(findPath(files, "etc"))) {
         if (endsWithNoCase(name, ".esl")) {
-            Input i{ "etc/" + name, kEsl, {}, "" };
+            Input i{ "etc/" + name, kEsl, {}, "", false };
             if (!readFile(findPath(files, "etc/" + name), i.bytes)) {
                 i.error = "nicht lesbar";
             }
@@ -842,7 +849,7 @@ std::vector<Input> discInputs(const std::string& dir)
         }
     }
     {
-        Input i{ "debug/roominfo.dat", kRoomInfo, {}, "" };
+        Input i{ "debug/roominfo.dat", kRoomInfo, {}, "", false };
         std::string path = findPath(files, "debug/roominfo.dat");
         if (path.empty() || !readFile(path, i.bytes)) {
             i.error = "Datei fehlt";
@@ -852,7 +859,7 @@ std::vector<Input> discInputs(const std::string& dir)
     std::vector<std::string> evds;
     collect(files, "", 0, evds, wantEvd);
     for (const auto& rel : evds) {
-        Input i{ rel, kEvd, {}, "" };
+        Input i{ rel, kEvd, {}, "", false };
         if (!readFile(files + "/" + rel, i.bytes)) {
             i.error = "nicht lesbar";
         }
@@ -869,7 +876,7 @@ std::vector<Input> discInputs(const std::string& dir)
         }
     }
     for (const auto& path : containers) {
-        Input i{ path.substr(files.size() + 1), kArchive, {}, "" };
+        Input i{ path.substr(files.size() + 1), kArchive, {}, "", false };
         Bytes file;
         if (!readFile(path, file)) {
             i.error = "nicht lesbar";
@@ -881,11 +888,60 @@ std::vector<Input> discInputs(const std::string& dir)
     return in;
 }
 
+bool writeFile(const std::string& path, const Bytes& bytes)
+{
+    for (std::size_t i = 1; i < path.size(); i++) {
+        if (path[i] == '/') {
+            mkdir(path.substr(0, i).c_str(), 0755);
+        }
+    }
+    std::ofstream f(path, std::ios::binary);
+    f.write(reinterpret_cast<const char*>(bytes.data()), std::streamsize(bytes.size()));
+    return bool(f);
+}
+
+// A DVD container with one part: the archive at 0x400 (RoomArchive::LoadDrs).
+Bytes makeDrs(const Bytes& archive)
+{
+    Be d;
+    d.zeros(0x400);
+    d.put32(0x24, std::uint32_t(archive.size()));
+    d.put32(0x2C, 0x400);
+    d.append(archive);
+    return d.b;
+}
+
+int writeSamples(const std::string& dir)
+{
+    std::string files = dir + "/disc0/files/";
+    bool ok = true;
+    for (const auto& in : syntheticInputs()) {
+        switch (in.kind) {
+        case kArchive:
+            ok = writeFile(files + "st1/r100.arc", in.bytes) && ok;
+            ok = writeFile(files + "em/pl00.drs", makeDrs(in.bytes)) && ok;
+            break;
+        case kEsl:
+            ok = writeFile(files + "etc/emleon00.esl", in.bytes) && ok;
+            break;
+        case kEvd:
+            ok = writeFile(files + "Evd/r100s03.evd", in.bytes) && ok;
+            break;
+        case kRoomInfo:
+            ok = writeFile(files + "debug/roominfo.dat", in.bytes) && ok;
+            break;
+        }
+    }
+    std::printf("%s: %s\n", dir.c_str(), ok ? "samples written" : "write failed");
+    return ok ? 0 : 1;
+}
+
 int usage()
 {
     std::fprintf(stderr,
                  "usage: re4_format_compare                      synthetic samples\n"
-                 "       re4_format_compare --data DIR [--room r100 ...] [-v]\n");
+                 "       re4_format_compare --data DIR [--room r100 ...] [-v]\n"
+                 "       re4_format_compare --write-samples DIR\n");
     return 2;
 }
 
@@ -902,6 +958,8 @@ int main(int argc, char** argv)
             g_rooms.push_back(argv[++i]);
         } else if (std::strcmp(argv[i], "-v") == 0) {
             verbose = true;
+        } else if (std::strcmp(argv[i], "--write-samples") == 0 && i + 1 < argc) {
+            return writeSamples(argv[i + 1]);
         } else {
             return usage();
         }
@@ -923,7 +981,7 @@ int main(int argc, char** argv)
         if (!in.error.empty()) {
             std::printf("  FEHLT    %s: %s\n", in.label.c_str(), in.error.c_str());
             notComparable++;
-            if (synthetic) {
+            if (synthetic || in.required) {
                 failed++;
             }
             continue;
@@ -934,7 +992,7 @@ int main(int argc, char** argv)
             std::printf("  N/V      %s (%s): App-Leser lehnt die Datei ab: %s\n", in.label.c_str(), kindName(in.kind),
                         r.appError.c_str());
             notComparable++;
-            if (synthetic) {
+            if (synthetic || in.required) {
                 failed++;
             }
             continue;

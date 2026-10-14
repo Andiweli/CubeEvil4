@@ -12,6 +12,7 @@ need=()
 for pkg in libc6-dev-i386 lib32gcc-13-dev lib32stdc++-13-dev g++-arm-linux-gnueabihf qemu-user python3; do
   dpkg -s "$pkg" >/dev/null 2>&1 || need+=("$pkg")
 done
+command -v git >/dev/null 2>&1 || need+=(git)
 command -v clang >/dev/null 2>&1 || need+=(clang)
 command -v ld.lld >/dev/null 2>&1 || need+=(lld)
 command -v cmake >/dev/null 2>&1 || need+=(cmake)

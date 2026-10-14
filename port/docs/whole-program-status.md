@@ -12,7 +12,17 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M3 Linken, lauffähiges 32-bit-Linux-Programm, Module als eigene Bibliotheken | ✅ 13.10.2026 |
 | M4 Teil A: Plattformschicht ohne Disc-Daten (Cloud) | ✅ 13.10.2026 |
 | M4 Teil B: Booten mit echten Disc-Daten bis `gameRoomInit` (lokal, WSL2) | ✅ 13.10.2026 (i686 und armhf unter qemu) |
-| M5 Erster Raum: Spielschleife ohne Absturz | offen, nächster Schritt |
+| M4.5 Kern korrekt machen: C-Ersatz für Assembler, Byte-Aggregate, `__FILE__`-Länge | ✅ 14.10.2026 (Cloud, i686 und armhf) |
+| M5 Erster Raum r100 | ⏳ Umwandler, Vergleich mit den App-Lesern, Abdeckungs-Log, Zustands-Trace ✅ 14.10.2026 (Cloud); Lauf mit Disc-Daten (10 000 Bilder, Abdeckung ohne „nein“) **noch nicht gelaufen**, lokal: `port/scripts/test-r100-core.ps1` |
+| K2 „Kern in die App“ | offen (Startprompt am Ende der Sitzung vom 14.10.2026) |
+
+**Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
+RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
+Kernmodus läuft vorerst als armeabi-v7a (ARM32); der bestehende ARM64-Modus der
+App bleibt parallel. Die App bleibt Hülle (Disc-Import, GLES3-Grafik,
+Controller, Tonausgabe, Menü); die Spiellogik kommt im Kernmodus aus dem
+Originalcode, die eigenen Spielmodule der App werden dort nicht mehr
+erweitert.
 
 ## Bauen und prüfen
 
@@ -22,16 +32,19 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 # Startskript .claude/hooks/session-start.sh es automatisch auf; lokal in WSL2
 # (Ubuntu 24.04) einmal von Hand. g++-multilib geht nicht: Ubuntu verweigert es
 # neben dem ARM-Cross-Compiler.
-port/tools/whole_build.sh          # baut und prüft i686 und armhf, ~1,5 Minuten
+port/tools/whole_build.sh          # baut und prüft i686 und armhf
+RE4_JOBS=4 port/tools/whole_build.sh   # höchstens 4 Compiler gleichzeitig (Speicher)
 ```
 
-Je Ziel: Build, dann drei Prüfungen von `re4_host` (armhf unter `qemu-arm`):
+Je Ziel: Build, dann drei Prüfungen von `re4_host` und der Formatvergleich
+(armhf unter `qemu-arm`):
 
 | Prüfung | Inhalt |
 |---|---|
 | `--self-test` | Weiterleitungen zwischen Modulen geben Argumente korrekt weiter |
 | `--check-modules` | alle 114 Module laden, alle Querverweise lösen sich auf |
-| `--runtime-test` | Plattformschicht ohne Disc-Daten (`port/whole/tests/runtime_tests.cpp`): `link` OSLink/OSUnlink mit synthetischem big-endian REL-Kopf und Testmodul; `dvd` DVD-API über einen synthetischen Zwei-Disc-Ordner; `yz2` Yz2 des Spiels + Kern mit den Testdaten `port/tests/yz2_fixtures.h`; `dvdq` die DVD-Warteschlange des Spiels liest eine synthetische mehrteilige Datei in den Spiel-Heap; `math` PS*/C_*-Matrixfunktionen; `tasks` der Task-Scheduler des Spiels (`TaskExec`, `TaskSleep`, `TaskExit`, `iTaskExec`) auf der Thread-Emulation, dazu VI-Retraces |
+| `--runtime-test` | Plattformschicht ohne Disc-Daten (`port/whole/tests/runtime_tests.cpp`): `link` OSLink/OSUnlink mit synthetischem big-endian REL-Kopf und Testmodul; `dvd` DVD-API über einen synthetischen Zwei-Disc-Ordner; `yz2` Yz2 des Spiels + Kern mit den Testdaten `port/tests/yz2_fixtures.h`; `dvdq` die DVD-Warteschlange des Spiels liest eine synthetische mehrteilige Datei in den Spiel-Heap; `math` PS*/C_*-Matrixfunktionen, die C-Fassungen der Gekko-Assembler-Funktionen (Tabelle mit Bitmustern aus einem Python-Modell der Paired-Single-Befehle), Skinning `CalcSk1` mit GQR-Quantisierung, `EmRoutineSetW`, die big-endian Sichten, die Länge von `__FILE__`; `trace` Zustands-Trace, GetDataExt-Abdeckung, Ende des Test-Tastenskripts; `tasks` der Task-Scheduler des Spiels (`TaskExec`, `TaskSleep`, `TaskExit`, `iTaskExec`) auf der Thread-Emulation, dazu VI-Retraces |
+| `re4_format_compare` | Formatumwandler gegen die geprüften big-endian Leser der App, mit synthetischen Beispielen jedes verglichenen Formats; danach `port/tools/test_whole_format_compare.py`: dieselben Beispiele als Disc-Ordner (Raumdatei Yz2-gepackt, `.drs`-Container), Modus `--data` (siehe „Formatvergleich mit der App“) |
 
 Danach einmal `port/tools/test_whole_disc_folder.py` (Disc-Ordner-Werkzeug mit
 synthetischen Disc-Abbildern). Rückgabewert 0 heißt: alles bestanden.
@@ -125,8 +138,135 @@ Die Kette Disc-Abbild → Ordner → `DVD*` → Spiel funktioniert.
   Port-App. Gemessen ist nur, dass der Bereich in einem 32-bit-App-Prozess frei
   ist (siehe „Adressbereich auf dem Retroid“).
 - Spielinhalte jenseits von `gameRoomInit` (M5) und alles, was erst ein Bild
-  zeigt (M6): Umgewandelte Texturköpfe, Effekte und Layouts sind nur so weit
+  zeigt (K2): Umgewandelte Texturköpfe, Effekte und Layouts sind nur so weit
   geprüft, wie der Spielcode sie beim Booten liest.
+- Stand 14.10.2026 ausdrücklich ungetestet: der Lauf in r100 mit echten
+  Disc-Daten (10 000 Bilder), das Abdeckungs-Log mit echten Daten, der
+  Formatvergleich mit echten Disc-Dateien, `test-r100-core.ps1` unter echtem
+  Windows/WSL (nur PowerShell 7 unter Linux mit nachgebautem `wsl.exe`), die
+  ARM32-Ausführung auf echter Hardware (nur qemu-arm).
+
+## M4.5: Kern korrekt machen (14.10.2026, Cloud)
+
+**Assembler mit echten Befehlen** (Inline-`asm` entfällt sonst ersatzlos,
+Prelude): jetzt C-Fassungen als Patches, und `whole_prepare.py` bricht ab,
+sobald ein `asm` mit echten Befehlen ohne Ersatz entfallen würde
+(`port/tools/whole_asm_check.py`, läuft bei jedem `cmake`). Bestandsaufnahme
+nach den Patches: 195 Barrieren (`asm("")`, ohne Wirkung), 17 mit Befehlen (alle
+ersetzt), 146 Sprungmarken/Kommentare, 155 Abschnitts-/Layout-Direktiven.
+Leere `asm`-Kopien mit gebundenen Operanden (`asm("" : "=r"(x) : "0"(y))`)
+sind echte Wertzuweisungen und werden zu `x = y` umgeschrieben.
+
+| Funktion | Ersatz | Abweichung von der GameCube |
+|---|---|---|
+| `fabsf` (math_sub.h) | `re4_fabsf` (re4_ppc.h): Vorzeichenbit löschen | keine |
+| `SQRTF` | `sqrtf` | Original: `frsqrte`-Schätzung + ein Newton-Schritt; Ergebnis kann in den letzten Bits abweichen (wie Bewegungs-Hilfswerkzeug und App) |
+| `SINF`/`COSF` | Reihe der Paired-Single-Fassung in C (`PsSeries`), `ps_madd` als `fmaf` | bitgleich zum Python-Modell der Gekko-Befehle (`math`-Test, 24 Zeilen) |
+| `LIMIT_ANGLE` | Schleife in C, jeder Schritt auf float gerundet | NaN/unendlich: Original hängt, der Port gibt den Wert zurück und loggt einmal |
+| `PSQ_L/ST`-Makros (shape, trans, Espgen42, espgen45, dbmodule, pendulum) | `re4_psq_*` (re4_ppc.h): GQR-Skalierung, Sättigung, Abschneiden zur Null | keine (u8/s8/u16/s16, feste GQR2–5) |
+| `CalcSk1_x`/`CalcSk1_x2` (trans.cpp, Skinning) | `Sk1Loop` in C mit GQR6 aus `setupGQR6` (Shift je Modell, Normalen 2^-14, s8 2^-6) | Locked Cache `0xE0000000` → Puffer `re4_locked_cache` (16 KB) |
+| `dbg_tool.h` `li %0,0` | `z = 0` | keine |
+
+**Byte-Aggregate** (`*(u32*) &bytes`): `port/tools/whole_byte_views.py`
+findet mit `clang-query` alle Casts von der Adresse eines Byte-Aggregats auf
+einen breiteren Zeiger (Schattenbaum ohne `#line`, sonst stimmen die Orte
+nicht). 85 Stellen geprüft, Liste mit Entscheidung je Stelle:
+`port/whole/byte_views.json`. 74 werden zu big-endian Sichten (`RE4_BE(T, E,
+p)`, Prelude: Lesen/Schreiben/Verbundzuweisung in GameCube-Byte-Reihenfolge),
+5 lesen einen Teil eines größeren Feldes (`RE4_BE_AT`), 4 bleiben (gleiche
+Bedeutung auf beiden Plattformen), 2 per Patch: `EmRoutineSetW` (em.h, Patch
+0023, setzt `r_no_0..3` byteweise) und das Spiegel-Bit in `pl_sub.cpp` (Patch
+0024). `whole_prepare.py` setzt die Sichten anhand der Liste ein und bricht ab,
+wenn eine Stelle nicht mehr gefunden wird.
+
+**`__FILE__`:** `-fmacro-prefix-map` kürzt Pfade auf `src/game/x.cpp`
+(`DvdReadN` kopiert `__FILE__` in 48 Byte). Geprüft mit dem Build in einem
+langen Verzeichnispfad (`math`-Test prüft die Länge).
+
+**i686:** `-msse2 -mfpmath=sse`, damit float-Ergebnisse wie auf ARM bitgleich
+sind (x87 rechnet mit höherer Genauigkeit). Linux-Testbuilds seit 14.10.2026
+mit `_FILE_OFFSET_BITS=64` (readdir/stat scheitern sonst an 64-bit-Inodes, z. B.
+Windows-Laufwerke in WSL und qemu-arm).
+
+## M5: Erster Raum r100
+
+### Formatumwandler, Abdeckung, Trace (14.10.2026, Cloud)
+
+Neue Umwandler (Tabelle unter „Formatumwandler“): Raumtabellen, Modelle,
+Motionen, Lichter, Kameras, Ereignisse, Kollision, Gegnerlisten. Dazu:
+
+- **Abdeckungs-Log** (Patch 0025): Jeder `GetDataExt`-Zugriff meldet Kürzel,
+  Archiv und „umgewandelt ja/nein“ (`nein (kein Umwandler)`, `nein
+  (unvollständig)`, `nein (unbekannter Eintrag)`), je Eintrag einmal;
+  `RE4_COVERAGE_LOG=DATEI` schreibt zusätzlich tabgetrennt Archiv, Kürzel,
+  Nummer, Adresse, Status.
+- **Zustands-Trace** (`runtime/state_trace.cpp`, `RE4_TRACE=DATEI`): eine
+  JSON-Zeile je Bild: `frame`, `Rno0` (Spielschritt), `room`, `pl`
+  (Spielerposition), `rsf` (Raum-Speicherwort), `em` (lebende Gegner: Slot,
+  Id, `r_no_0..3`, HP, Position).
+- **Debug-Start** (Patch 0026, `RE4_START_ROOM=0x100`): wählt den Raum im
+  originalen Debug-Startmenü vor; das Titelmenü steht dann auf „Neues Spiel“,
+  so dass ein Test-Tastenskript nur START/A drücken muss.
+- **Laufsteuerung:** `RE4_PAD_UNTIL_ROOM=1` beendet das Tastenskript, sobald
+  der erste Raum lädt (Spielschritt 2); `RE4_STOP_AFTER=N` beendet den Lauf
+  nach N Bildern ab dem ersten Bild der Hauptschleife (Schritt 3) mit
+  Rückgabewert 0 und der Logzeile `run: stopped after …`.
+
+### Formatvergleich mit der App (`re4_format_compare`)
+
+Beide Seiten lesen dieselben big-endian Bytes:
+- App-Seite (`tests/format_compare/app_side.cpp`, C++17 wie die App): die
+  geprüften Leser `archive.cpp`, `smd.cpp` (mit `gx_stream.cpp`), `smx.cpp`,
+  `sat.cpp`, `room_flow.cpp` (AEV und Raumsprungtabelle), `enemy_spawn.cpp`,
+  `event_data.cpp` (EVD und Kurven), `model_skin.cpp`, `room_lighting.cpp` (LIT
+  und Kamerabereiche aus CAM).
+- Kern-Seite (`game_side.cpp`, Schalter und Header des Spielcodes): eine Kopie
+  wird mit dem Formatumwandler gedreht und über die Originalstrukturen
+  gelesen.
+Jedes Feld wird als Schlüssel/Wert verglichen (Floats als Bitmuster, lange
+Felder als Anzahl + Hash + die ersten 48 Einträge einzeln). Teile, die der
+App-Leser ablehnt, erscheinen als „nicht vergleichbar“ mit seiner Meldung.
+
+Synthetische Beispiele (Cloud, i686 und armhf): Raumarchiv mit SMD (mit BIN
+und TPL), SMX (Typen 1, 2, 0), SAT, EAT (zwei Dateien), AEV (Tür, Leiter,
+Schreibmaschine), LIT (Spot mit Schatten, Typ 4), CAM (B404), zwei BIN
+(cWeightExt mit 256 Gewichten / cWeight, s8/s16-Normalen, farbig/nicht),
+FCV; Gegnerliste; EVD (Kamera-, Positions-, Blenden-, Dummykamera-, Effekt-
+und Endpaket, Kurven- und LIT-Anhang); Raumsprungtabelle: 5126 Werte gleich.
+Gegenprobe: sechs absichtlich eingebaute Umwandlerfehler (SMX `TexV`, SAT
+`m_Status`, ESL `rot`, AEV `pExitParam`, CAM `Height`, LIT `Intensity`)
+wurden alle als Abweichung gemeldet.
+
+**Gefundener Fehler:** Die Teile-Datensätze der Modelle (`ModelDataHead`)
+blieben big-endian; ihr Wort `x0` ist durch Patch 0016 eine Byte-Sicht für
+Host-Wörter (`partsNo`, `parentNo`). Jetzt wird der ganze Datensatz
+wortweise gedreht (`formats_model.cpp`).
+
+Mit Disc-Daten: `re4_format_compare --data ORDNER [--room r100]` vergleicht
+`st1/r100.das` (über den Yz2-Entpacker der App), `etc/*.esl`,
+`debug/roominfo.dat`, die Ereignisse `*/r100*.evd`, `etc/core.das` und
+`em/*.drs`. **Noch nicht mit echten Daten gelaufen.**
+
+**Ohne Vergleich mit einem App-Leser** (nur Strukturgrößen per
+`static_assert` und die Läufe): CNS, ETS, EMI, SAR, EAR, FSE, ESE, DSE, STB,
+BLK, RTP, ITA, SHD, ETM, ITM, EVS, SEQ, TPL, EFF/TEX/VIB, MDT, UWF, Ton.
+
+### Lokale Prüfung mit Disc-Daten (`port/scripts/test-r100-core.ps1`)
+
+Windows-PowerShell-Skript, startet in WSL2 `port/tools/whole_r100_check.sh`:
+Werkzeuge einrichten (`whole_setup_linux.sh`), Quelltext nach `~/re4-kern`
+klonen (Stand des Windows-Checkouts), `whole_build.sh i686` (mit `-Arm` auch
+armhf), Formatvergleich mit den Disc-Dateien, dann das Spiel vom Titelbild:
+`RE4_VI_FAST=1 RE4_START_ROOM=0x100 RE4_PAD_UNTIL_ROOM=1
+RE4_PAD_SCRIPT="START@60-60000/20 A@70-60000/20" RE4_STOP_AFTER=10000` mit
+Trace und Abdeckungs-Log, Zeitlimit 1 h (armhf 4 h). Bericht
+`Desktop\RE4-Kern-Pruefung\bericht.txt`: Ergebnis (OK/Absturz/Zeitlimit),
+erreichte Hauptschleife, Abdeckung mit allen „nein“-Zeilen, Umwandler-
+Meldungen, aufgerufene Platzhalter, letzte Trace-Zeile. Disc-Daten als
+Disc-Abbilder (.iso/.gcm, werden einmal nach `~/re4-kern/disc` entpackt),
+Dolphin-Extraktion, Port-Ordner oder App-Import-Ordner. In der Cloud nur mit
+einem künstlichen Disc-Ordner und einem nachgebauten `wsl.exe` unter
+PowerShell 7 durchgespielt.
 
 ## Aufbau
 
@@ -222,6 +362,13 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0017 `room_jmp.cpp` | `getIndexNum` liest das niedrige Byte des u32-Raumzählers über seinen Wert statt über Offset 3 |
 | 0018 `motion.cpp`, `r117.cpp` | Lokale Unions: `FccF32`/`FccS16` setzen Floats aus big-endian Byteströmen zusammen (Bytereihenfolge für little-endian umgedreht), `R117Work::stepMode` |
 | 0019 `dvd.cpp` | `cDvd::Init` kopiert alle `FileTbl`-Namen in beschreibbaren Speicher (`strdup`): `read.cpp` benennt Einträge an Ort und Stelle um (`SET_DRS_NAME`: `.das` → `.drs`), auf der GameCube lagen Stringliterale in beschreibbarem RAM |
+| 0020 `math_sub.h`, `math_sub.cpp` | C-Fassungen von `fabsf`, `SQRTF`, `SINF`, `COSF`, `LIMIT_ANGLE` (siehe M4.5) |
+| 0021 `trans.cpp`, `shape.cpp`, `dbmodule.cpp`, `Espgen42.cpp`, `espgen45.cpp`, `pendulum.cpp` | Paired-Single-Laden/Speichern mit GQR-Quantisierung und Skinning `CalcSk1_x/x2` in C, Locked Cache als Host-Puffer |
+| 0022 `dbg_tool.h` | `asm("li %0,0")` → `z = 0` |
+| 0023 `em.h` | `EmRoutineSetW` setzt die vier Zustandsbytes einzeln statt über ein u32 |
+| 0024 `pl_sub.cpp` | Bit 0x40 im ersten Byte von `cMotBase::pMod` (ungecachter Spiegel der GameCube) entfällt; auf little-endian träfe es ein anderes Objekt |
+| 0025 `read.cpp` | `GetDataExt` meldet jeden Fund an `re4_formats_get_data` (Abdeckungs-Log) |
+| 0026 `title.cpp` | Debug-Start: `RE4_START_ROOM` wählt den Raum im Debug-Startmenü vor, Titelmenü auf „Neues Spiel“ |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -381,15 +528,24 @@ nach dem Laden Feld für Feld in Host-Reihenfolge gedreht:
 | `TEX` | `TexData` (Version 3), Id-Liste, TPLs, `cAnm` (texture.cpp) | `formats_eff.cpp` |
 | `VIB` | `VibDataTbl`, `VIB_INFO`, `VIB_DATA` (pad.cpp) | `formats_eff.cpp` |
 | `debug/roominfo.dat` | Stufen-Offsets, `CRoomInfo` (room_jmp.h) | `formats_dbg.cpp` |
+| `BIN` | Modell `cModelData` (Versionen 0x20010801/0x20030817/0x20030818): Kopf, Teile-Datensätze, Positionen/Normalen/Texturkoordinaten (Host), Gewichte `cWeightExt`, Primitiv-Köpfe, Shape-, Blend-, Flip-Tabellen; Display-Listen und Farben bleiben big-endian. Im Kernarchiv auch der Lichtpfad (lightPath.cpp) | `formats_model.cpp` |
+| `FCV`, Kurven in EVD/ETM | `MotionData`: Zähler und Bildnummern Host, Schlüsselwerte bleiben big-endian (`FccF32`/`FccS16`, Patch 0018) | `formats_model.cpp` |
+| `SEQ` | Sequenztabelle | `formats_model.cpp` |
+| `LIT` | `cLit`, `cLightEnv`, `cLightWork` mit Spot-Block und Bewegungsdaten je Id (light01..10) | `formats_lit.cpp` |
+| `CAM` | `CAM_FILE_HEADER` B402–B404: `CUT_INFO`, `AREA_DATA` + Eckpunkte, `CAMERA_DATA` + Schlüssel, `LERP_DATA` (B400/B401 bleiben big-endian, Log) | `formats_event.cpp` |
+| `EVD`, `event/evd/*.evd`, `EVS` | `EvtHeader`, Pakete mit Zahlenparametern je Typ, Anhänge nach Verwendung im Paket (Kamera/Motion/Shape-Kurven, LIT, Nebel, Fokus, EFF, MDT, Modelle, Texturen) oder Endung | `formats_event.cpp` |
+| `SMD`, `SMX`, `SHD`, `ETM`, `ITM` | Streumodelle mit BIN/TPL/Motion-Tabellen, Objektparameter (Typen 1/2 mit Feldliste), Schatten, Etc-Archiv (benannte Dateien), Item-Modelle | `formats_scene.cpp` |
+| `SAT`, `EAT` | `cSatFile`/`cSatHeader`, Vektoren, `SAT_POLY`, Blockkette | `formats_scene.cpp` |
+| `CNS`, `ETS`, `EMI`, `SAR`, `EAR`, `FSE`, `ESE`, `DSE`, `STB`, `BLK`, `RTP`, `OSD`, `AEV`, `ITA`, `etc/*.esl` | Raumtabellen aus gameRoomInit/ReadAreaData (Quelle je Format im Kopf von `formats_room.cpp`) | `formats_room.cpp` |
+| Effektmodelle in `EFF` | BIN/TPL/Motion der Effekte | `formats_eff.cpp` |
 | `rel/*.rel` | REL-Kopf | `OSLink` (`re4_rel_header_to_host`) |
 | `debug/*.txt` | Text | nichts zu tun |
 
-**Noch ohne Umwandler** (beim Booten bis `gameRoomInit` gesehen): Archiv-
-Kürzel `BIN` (Modelle, aber auch andere Formate unter derselben Endung, z. B.
-der Lichtpfad `CORE_LIGHT_PATH`), `LIT`, `CAM`, `SAT`, `SEQ`, `FCV`, `FNT`,
-Raumdaten `SMD`, `SHD`, `CNS`, `EAT`, `SMX`, `FSE` und weitere, `etc/*.esl`,
-Effektmodelle in `EFF`. „Error: Can't calc Inverse Matrix !“ im Titel kommt
-vermutlich aus einem dieser noch big-endian Blöcke.
+Bekannte Lücken (werden beim ersten Auftreten geloggt): SMX-Objekttypen
+außer 1 und 2 mit nicht leerem Arbeitsbereich, Bereichstypen ohne
+Nutzlast-Feldliste (`area type N … payload has no field list`), Kameradateien
+B400/B401. Ob „Error: Can't calc Inverse Matrix !“ im Titel verschwunden ist,
+zeigt erst der nächste Lauf mit Disc-Daten.
 
 ## Byte-Sichten (Endian-abhängiger Spielcode)
 
@@ -406,8 +562,12 @@ vorn, auf ARM/x86 hinten.
   Punkte).
 - **Lesen über Byte-Offsets** (`*((s8*) p + ofs + 3)`): einzeln per Patch
   (0017).
-- **Wort-Zugriffe auf Byte-Strukturen** (`*(u32*) &farbe = 0xFF`): noch offen,
-  siehe offene Punkte.
+- **Wort-Zugriffe auf Byte-Strukturen** (`*(u32*) &farbe = 0xFF`): seit M4.5
+  über `byte_views.json` (85 Stellen, siehe „M4.5“).
+- **Byte-Sichten in Disc-Strukturen** muss der Umwandler als Wort drehen
+  (Patch 0016 legt sie für Host-Wörter aus): `ModelDataHead::x0` (gefunden
+  vom Formatvergleich), `CRoomInfo::roomNo`, `ETS_DATA::no`, `SstList::no`,
+  `EspGenPrm`, `cAnm::Frames` sind so umgesetzt.
 
 ## Adressen der Spielbibliotheken
 
@@ -461,28 +621,16 @@ Der Platz sollte früh reserviert werden (beim Laden von `libre4_platform`).
 
 ## Offene Punkte für M5 und später
 
-- **Raumdaten und weitere Formate (Kern von M5):** `CNS`, `SMD`, `SMX`,
-  `SHD`, `EAT`, `FSE`, `LIT`, `SAT`, `CAM`, `BIN` (Modelle; Kürzel ist die
-  Dateiendung und deckt mehrere Formate ab, Erkennung am Kopf), `SEQ`/`FCV`
-  (Motionen: `motion.cpp` liest die Schlüsselströme der Layouts 0–2 byteweise
-  big-endian über `FccF32`/`FccS16`, Layout 3 direkt als `s16`; diese Ströme
-  dürfen nur dort gedreht werden, wo direkt gelesen wird), `FNT`, `etc/*.esl`,
-  Effektmodelle in `EFF`. Wissen: Originalstrukturen, `tools/motion/*.py`,
-  `port/src/*_original.h`, `original_import/formats.py`.
-- **Wort-Zugriffe auf Byte-Strukturen** (rund 45 Stellen): Farben werden als
-  u32 geschrieben (`*(u32*) &col.start = 0xFF` = schwarz, deckend; `fade.h`,
-  `game.cpp`, `event.cpp`, `sscrn.cpp`, Raum-Module `r21d`, `r300`, `r311`,
-  `r31c`, `r117` …) oder geprüft (`light.cpp`: `*(u32*) &l->DispCol &
-  0xFFFFFF00`). Auf little-endian landen die Bytes vertauscht (falsche Farben).
-  Kritisch für M5: `include/em.h:168` setzt die vier Zustandsbytes `r_no_0..3`
-  eines Gegners über ein u32. Ebenfalls: `snd_iss2.cpp`/`snd_str2.cpp` lesen
-  die AX-Adresspaare Hi/Lo als ein u32 (M8). Vorschlag: mit dem Compiler
-  (clang-AST) alle Casts von `&`Byte-Aggregat nach `u32*`/`u16*` finden und an
-  genau diesen Stellen einen big-endian Zugriffstyp einsetzen (mechanisch,
-  Liste prüfbar). Typ-Wortspiele zwischen gleich großen Skalaren (`rnd.cpp`
-  Float-Bits) bleiben unverändert. `cModelInfo::colorWord` schreibt nur
-  `0xFFFFFFFF`; der Maskenvergleich in `t_scroll.cpp` (Debug-Werkzeug) bleibt
-  falsch, bis diese Regel greift.
+- **M5 abschließen (lokal):** `port/scripts/test-r100-core.ps1` mit den
+  Disc-Daten; Ziel: Formatvergleich ohne Abweichung, 10 000 Bilder ohne
+  Absturz, Abdeckung für r100 ohne „nein“. Abweichungen und Abstürze aus dem
+  Bericht beheben.
+- **Formate ohne App-Leser im Vergleich** (Liste unter „Formatvergleich mit
+  der App“): bei Auffälligkeiten im Lauf weitere Leser der App heranziehen
+  (`room_blocks.cpp` BLK, `room_shadows.cpp` SHD, `sound_footsteps.cpp` FSE,
+  `sound_ambient.cpp` ESE, `room_area_effects.cpp` EAR, `room_items.cpp` ITA/ITM).
+- **SQRTF** weicht in den letzten Bits ab (siehe M4.5); falls Kollision oder
+  Kamera sichtbar anders reagieren, die `frsqrte`-Tabelle nachbilden.
 - **Von der CPU gebaute Display-Listen** (`EspInit`: `*(u16*) d = 4`) sind
   Host-Reihenfolge, Display-Listen von der Disc big-endian: der GX-Ersatz (M6)
   muss beide kennen.
