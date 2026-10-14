@@ -167,6 +167,7 @@ StaticScene BuildStaticScene(const Smd &s, int placement, const Smd *common) {
       draw.authored = true;
       draw.cullMode = 0;
       draw.object = static_cast<unsigned>(i);
+      draw.smdIndex = static_cast<int>(i);
       draw.sortCenter = lightCenter;
       draw.lightSize = lightSize;
       draw.lightVolume=lightVolume;

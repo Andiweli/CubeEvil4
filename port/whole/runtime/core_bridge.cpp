@@ -13,7 +13,10 @@
 //     position (cParts::lt_inv_mat is the translation by minus it; the skin
 //     palette is mat * lt_inv_mat),
 //   - each cModelInfo's BIN and TPL with their disc source from the format
-//     converter's notes, so the app loads the same data from the disc.
+//     converter's notes, so the app loads the same data from the disc,
+//   - for scenery the SMD work it shows (patch 0029: scroll.cpp setObj calls
+//     re4_scroll_placed), so the app's room scene follows the game: hidden,
+//     moved, or (made by a room script) not in the SMD at all.
 // Every pointer is checked against MEM1 / the game libraries first: the
 // snapshot may be taken in any state, also while a room is being built.
 #include "types.h"
@@ -47,6 +50,30 @@ bool inMem1(const void* p)
     return a >= 0x80000000ul && a < 0x83000000ul;
 }
 
+// The SMD work of each scroll object, per ObjMgr slot. A slot a later object
+// reuses is told apart by its block and its model data.
+struct ScrollNote {
+    const void* obj;
+    const void* bin;
+    s16 blk;
+    u16 index;
+};
+const u32 kScrollSlots = 4096;
+ScrollNote gScroll[kScrollSlots];
+
+// The ObjMgr slot of `obj`, or kScrollSlots.
+u32 objSlot(const void* obj)
+{
+    unsigned long arr = (unsigned long) ObjMgr.pArray;
+    unsigned long a = (unsigned long) obj;
+    u32 stride = ObjMgr.size;
+    if (!live((const void*) arr) || stride == 0 || a < arr || (a - arr) % stride) {
+        return kScrollSlots;
+    }
+    unsigned long slot = (a - arr) / stride;
+    return slot < ObjMgr.nArray && slot < kScrollSlots ? (u32) slot : kScrollSlots;
+}
+
 void copy34(float* out, const Mtx m)
 {
     for (int r = 0; r < 3; r++) {
@@ -56,7 +83,7 @@ void copy34(float* out, const Mtx m)
     }
 }
 
-void captureModel(Re4CoreSnapshot* s, cModel* m, u8 manager)
+void captureModel(Re4CoreSnapshot* s, cModel* m, u8 manager, u32 slot)
 {
     if (s->nModels >= RE4_CORE_MAX_MODELS) {
         s->droppedModels++;
@@ -70,6 +97,16 @@ void captureModel(Re4CoreSnapshot* s, cModel* m, u8 manager)
     out.id = m->id;
     out.type = m->type;
     copy34(out.matrix, m->mat);
+    out.scrollIndex = RE4_CORE_NO_SCROLL;
+    out.scrollBlock = -1;
+    if (manager == 1 && m->id == cObjMgr::ID_SCROLL && slot < kScrollSlots) {
+        const ScrollNote& n = gScroll[slot];
+        if (n.obj == m && n.blk == ((cObj*) m)->blk && inMem1(m->pModelInfo) &&
+            n.bin == m->pModelInfo->model_addr) {
+            out.scrollIndex = n.index;
+            out.scrollBlock = n.blk;
+        }
+    }
     out.firstMatrix = s->nParts;
     u32 n = m->nParts;
     cParts* p = m->pList;
@@ -130,11 +167,27 @@ void captureManager(Re4CoreSnapshot* s, Mgr& mgr, u8 manager)
         if ((m->be_flag & 0x201) != 1 || m->nParts == 0) {
             continue;
         }
-        captureModel(s, m, manager);
+        captureModel(s, m, manager, manager == 1 ? i : kScrollSlots);
     }
 }
 
 }  // namespace
+
+// Patch 0029 (scroll.cpp setObj): scroll object `obj` shows work `index` of
+// the room's SMD (blk -1) or of scroll block `blk`.
+extern "C" void re4_scroll_placed(void* obj, int blk, int index)
+{
+    u32 slot = objSlot(obj);
+    if (slot >= kScrollSlots || index < 0 || index >= 0xFFFF) {
+        return;
+    }
+    cModel* m = (cModel*) obj;
+    ScrollNote& n = gScroll[slot];
+    n.obj = obj;
+    n.bin = inMem1(m->pModelInfo) ? (const void*) m->pModelInfo->model_addr : 0;
+    n.blk = (s16) blk;
+    n.index = (u16) index;
+}
 
 extern "C" void re4_bridge_capture(Re4CoreSnapshot* s)
 {

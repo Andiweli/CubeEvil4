@@ -35,6 +35,7 @@ struct CoreFrame {
   std::array<float, 3> eye{}, target{};
   float roll{}, fovy{};
   std::uint32_t screen{};  // RE4_CORE_SCREEN_*
+  std::uint32_t droppedModels{};  // models beyond the snapshot's budget
   std::vector<Re4CoreModel> models;
   std::vector<Re4CoreModelInfo> infos;  // Re4CoreModel::firstInfo / nInfos
   std::vector<Re4CorePart> parts;
@@ -53,9 +54,11 @@ class RoomArchive;
 std::vector<std::uint8_t> ReadCoreSource(const std::string &gameRoot, int disc,
                                          const Re4CoreSource &source,
                                          const RoomArchive *packed = nullptr);
-// Models the app draws itself: the room's scenery objects (ObjMgr id 2,
-// cObjScr: the SMD models of the room and its blocks, part of the static
-// room scene).
+// Scenery made from an SMD work (ObjMgr id 2, cObjScr, with its work): the
+// room scene holds it when the work is static (one rigid part, no motion);
+// the room scene then follows the core's state of it (hidden, moved).
+// Scenery a room script made (SetObjSmd, r100's police car) and animated or
+// skinned works are drawn like the other models.
 bool CoreModelIsScenery(const Re4CoreModel &model);
 // Diagnostics (core_snapshot_render): log where each drawn model info lands
 // in the world (CPU-skinned bounds) and the pose of its parts.
@@ -93,6 +96,9 @@ class CoreScene {
   void drawActors(const CoreFrame &frame, const float *camera,
                   const std::array<float, 3> &center, float scale,
                   bool normalView);
+  // the core's scroll objects onto the room scene's SMD works
+  void updateScenery(const CoreFrame &frame);
+  bool roomSceneHolds(const Re4CoreModel &model) const;
 
   std::string gameRoot_;
   mutable std::mutex lock_;
@@ -120,6 +126,19 @@ class CoreScene {
   bool titleTried_{};
   std::string roomError_;
   unsigned drawnModels_{}, missingModels_{}, sceneryModels_{};
+  // SMD works of the room scene, [block + 1][work] (block -1: the room's SMD):
+  // placement matrix, held by the room scene, the core's state this frame
+  struct ScrollWork {
+    std::array<float, 12> placement{};
+    bool inScene{};
+    std::uint32_t seen = ~0u;  // scrollFrame_ when the core reported it
+    bool shown{}, moved{};
+    std::array<float, 12> delta{};
+  };
+  std::vector<std::vector<ScrollWork>> scroll_;
+  std::uint32_t scrollFrame_{};
+  bool scrollMapped_{};  // the core named SMD works this frame
+  unsigned hiddenScenery_{}, movedScenery_{};
 };
 
 }  // namespace re4

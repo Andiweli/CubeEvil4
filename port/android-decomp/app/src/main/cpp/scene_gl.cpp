@@ -840,6 +840,7 @@ void DrawSceneGl(int w, int h, float horizontal, float vertical, float zoom,
         if(object) delta = *object;
         else if(probe && probe->ladders)
           if(const auto ladder=probe->ladders->delta(draw.roomObjectSlot)) delta=*ladder;
+        if(probe && probe->coreScenery && draw.smdIndex>=0 && !probe->coreScenery(draw,delta))return;
       }
       const auto litPosition=TransformPoint(delta,draw.sortCenter);
       auto lightVolume=draw.lightVolume;lightVolume.center=TransformPoint(delta,lightVolume.center);

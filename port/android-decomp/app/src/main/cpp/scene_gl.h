@@ -37,6 +37,10 @@ struct SceneProbe {
   // Core mode (core_scene.cpp): the game core's models, drawn in the actor
   // pass with the frame's camera matrix, world center/scale and normal view.
   std::function<void(const float *,const std::array<float,3> &,float,bool)> extraActors;
+  // Core mode: the game core's state of the scroll object behind a room
+  // scene draw (SceneDraw::roomBlock / smdIndex): false hides the draw, the
+  // matrix (identity on entry) moves it.
+  std::function<bool(const SceneDraw &, Matrix34 &)> coreScenery;
   // Core mode: the room camera (roomCamera) keeps the screen's aspect ratio;
   // other script cameras keep the original 4:3 frame.
   bool screenAspect{};

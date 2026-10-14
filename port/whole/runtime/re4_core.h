@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define RE4_CORE_API_VERSION 5
+#define RE4_CORE_API_VERSION 6
 
 enum Re4CoreState {
     RE4_CORE_IDLE = 0,     /* not started */
@@ -75,7 +75,7 @@ typedef struct Re4CoreModelInfo {
 
 /* All infos of all models, in the game's list order (cModel::pModelInfo):
  * Leon alone has nine (body, costume, knife, face, head, hair, hands ...). */
-#define RE4_CORE_MAX_INFOS 1024
+#define RE4_CORE_MAX_INFOS 2048
 
 /* A drawable model of the game (cModel): every live work of the enemy and
  * object managers, the player included. */
@@ -88,9 +88,17 @@ typedef struct Re4CoreModel {
     uint16_t firstMatrix;  /* into Re4CoreSnapshot::parts */
     uint16_t nParts;
     uint16_t firstInfo;    /* into Re4CoreSnapshot::infos */
+    /* Scenery (ObjMgr id 2, cObjScr) made from an SMD work: which one,
+     * scrollIndex = the work's index in the SMD, scrollBlock = -1 the room's
+     * SMD, 0.. that scroll block's (cObj::blk). RE4_CORE_NO_SCROLL: not an SMD
+     * work (an other model, or scenery a room script made, like r100's police
+     * car: SetObjSmd). */
+    uint16_t scrollIndex;
+    int16_t scrollBlock;
     uint16_t reserved;
     float matrix[12];      /* cModel::mat, row-major 3x4 (world placement) */
 } Re4CoreModel;
+#define RE4_CORE_NO_SCROLL 0xFFFF
 
 /* Pose of one cParts: world matrix and bind position (the translation that
  * cParts::lt_inv_mat removes: palette = mat * lt_inv_mat). */
@@ -99,7 +107,7 @@ typedef struct Re4CorePart {
     float bind[3];
 } Re4CorePart;
 
-#define RE4_CORE_MAX_MODELS 256
+#define RE4_CORE_MAX_MODELS 1024
 
 /* Re4CoreSnapshot::screen */
 #define RE4_CORE_SCREEN_SUB 1       /* a sub screen is open (inventory, map, radio ...): drawn by
@@ -107,7 +115,7 @@ typedef struct Re4CorePart {
                                        (CamCtrl) instead of the sub screen's own */
 #define RE4_CORE_SCREEN_EVENT 2     /* an event (cutscene) runs */
 #define RE4_CORE_SCREEN_DEBUGCAM 4  /* the debug camera (pad 2) is on */
-#define RE4_CORE_MAX_PARTS 4096
+#define RE4_CORE_MAX_PARTS 8192
 
 typedef struct Re4CoreSnapshot {
     uint32_t apiVersion;   /* RE4_CORE_API_VERSION */

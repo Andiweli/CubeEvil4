@@ -13,6 +13,10 @@
 //   - nested sources (innerOffset: a BIN inside another entry) and sources in
 //     the Yz2-packed room archive (read from the decoded room file) are drawn;
 //     the room's scenery objects (ObjMgr id 2) are left to the room scene
+//   - scenery (ObjMgr id 2): an SMD work the room scene holds is left to it,
+//     and the room scene follows the core's state of it (hidden: gone, moved:
+//     moves along); scenery a room script made (no SMD work, r100's police
+//     car) is drawn like the other models
 //   - before the first room (step 0) the title path runs (no title data here:
 //     black) and no room is wanted
 //   - in the room (step 3) the room is built from the prepared file, the
@@ -23,6 +27,8 @@
 #include "core_scene.h"
 
 #include "archive.h"
+#include "scene.h"
+#include "smd.h"
 
 #include "../../whole/tests/format_compare/samples.h"
 
@@ -53,6 +59,9 @@ void writeFile(const std::string &path, const std::vector<std::uint8_t> &bytes) 
 }
 
 const int kWidth = 320, kHeight = 180;
+// no time passes between the test's frames: the room's own animations (sky,
+// water, texture scroll at 30 Hz) would change every other picture
+const double kStill = 0;
 
 std::vector<unsigned char> pixels() {
   std::vector<unsigned char> result(kWidth * kHeight * 4);
@@ -175,6 +184,14 @@ int main() {
               "packed source from the decoded room archive");
     }
 
+    // the placement of the room SMD's floor (work 0)
+    std::array<float, 12> floorPlacement{};
+    {
+      const auto decoded = re4::RoomArchive::Load(roomPath);
+      const re4::Smd smd(decoded.copy(0));
+      floorPlacement = re4::PlacementMatrix(smd.placements.at(0));
+    }
+
     context();
     re4::CoreSceneLogBounds = true;  // the diagnostics run along (stderr)
     re4::CoreScene scene(root);
@@ -186,7 +203,7 @@ int main() {
     frame.frame = 10;
     frame.disc = 0;
     frame.room = 0x120;
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     require(scene.wantedRoom() == -1, "no room wanted on the title");
     const auto title = pixels();
     require(title[0] == 0 && title[1] == 0 && title[2] == 0, "title without data is black");
@@ -215,7 +232,7 @@ int main() {
     frame.infos = {info};
     frame.parts.assign(2, Re4CorePart{});
     for (auto &p : frame.parts) p.matrix[0] = p.matrix[5] = p.matrix[10] = 1;
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     require(scene.wantedRoom() == 0x100, "the room is wanted");
     scene.roomPrepared(0x100, roomPath, "");
 
@@ -224,14 +241,14 @@ int main() {
       frame.eye = {3000 * side, 900, -600};
       frame.target = {0, 700, -600};
       frame.models[0].beFlag = 1 | 2 | 4;
-      scene.draw(frame, kWidth, kHeight, 1 / 60.);
+      scene.draw(frame, kWidth, kHeight, kStill);
       const auto status = scene.status();
       std::fprintf(stderr, "status: %s\n", status.c_str());
       require(status.find("room loaded") != std::string::npos, "room built");
       require(status.find("drawn 1, missing 0") != std::string::npos, "model drawn");
       const auto with = pixels();
       frame.models[0].beFlag = 1;  // alive, not drawn
-      scene.draw(frame, kWidth, kHeight, 1 / 60.);
+      scene.draw(frame, kWidth, kHeight, kStill);
       require(scene.status().find("drawn 0, missing 0") != std::string::npos, "hidden model skipped");
       const auto without = pixels();
       best = std::max(best, changes(with, without));
@@ -242,10 +259,10 @@ int main() {
     // the core's part matrices pose the model: lifting both parts moves it
     frame.eye = {-3000, 900, -600};
     frame.models[0].beFlag = 1 | 2 | 4;
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     const auto rest = pixels();
     for (auto &p : frame.parts) p.matrix[7] = 400;
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     const auto lifted = pixels();
     for (auto &p : frame.parts) p.matrix[7] = 0;
     std::fprintf(stderr, "pose change pixels: %u\n", changes(rest, lifted));
@@ -257,27 +274,36 @@ int main() {
     std::memset(&frame.infos[0].bin, 0, sizeof(Re4CoreSource));
     frame.infos[0].bin.entry = -1;
     frame.infos[0].binAddress = 0x82FF0000u;
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     require(scene.status().find("drawn 0, missing 1") != std::string::npos, "unknown source missing");
 
     // nested and packed sources are drawn; scenery is left to the room scene
     frame.eye = {-3000, 900, -600};
     frame.infos[0].bin = inner;
     setSource(frame.infos[0].tpl, "em/em98.drs", 0x400, unsigned(archive2.size()), 1);
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     std::fprintf(stderr, "status: %s\n", scene.status().c_str());
     require(scene.status().find("drawn 1, missing 0") != std::string::npos, "nested source drawn");
     setSource(frame.infos[0].bin, "st1/r100.das", 0xFFFFFFFFu, 0, 2);
     setSource(frame.infos[0].tpl, "st1/r100.das", 0xFFFFFFFFu, 0, 3);
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     require(scene.status().find("drawn 1, missing 0") != std::string::npos, "packed room source drawn");
     frame.models[0].manager = 1;
     frame.models[0].id = 2;
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    frame.models[0].scrollBlock = -1;
+    frame.models[0].scrollIndex = 0;  // the room SMD's floor, where the room scene has it
+    const auto savedMatrix = frame.models[0];
+    std::copy(floorPlacement.begin(), floorPlacement.end(), frame.models[0].matrix);
+    scene.draw(frame, kWidth, kHeight, kStill);
     require(scene.status().find("drawn 0, missing 0, scenery 1") != std::string::npos, "scenery left to the room");
+    std::copy(savedMatrix.matrix, savedMatrix.matrix + 12, frame.models[0].matrix);
+    frame.models[0].scrollIndex = RE4_CORE_NO_SCROLL;  // a room script's scenery (SetObjSmd)
+    scene.draw(frame, kWidth, kHeight, kStill);
+    std::fprintf(stderr, "status: %s\n", scene.status().c_str());
+    require(scene.status().find("drawn 1, missing 0, scenery 0") != std::string::npos, "script scenery drawn");
     frame.models[0].manager = 0;
     frame.screen = RE4_CORE_SCREEN_SUB;
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     require(scene.status().find("MENU OPEN") != std::string::npos, "open sub screen reported");
 
     // an event model: data at an offset of the event file
@@ -291,16 +317,16 @@ int main() {
     frame.models[0].address = 0x82002000u;
     frame.infos[0].binAddress = 0x82100100u;
     frame.infos[0].tplAddress = 0x82100100u + tplOffset - 0x100;
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     require(scene.status().find("drawn 1, missing 0") != std::string::npos, "event file model drawn");
     // the core loses the source (memory swapped out): the same data is still drawn
     std::memset(&frame.infos[0].bin, 0, sizeof(Re4CoreSource));
     std::memset(&frame.infos[0].tpl, 0, sizeof(Re4CoreSource));
     frame.infos[0].bin.entry = frame.infos[0].tpl.entry = -1;
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     require(scene.status().find("drawn 1, missing 0") != std::string::npos, "last known source kept");
     frame.infos[0].binAddress += 0x20;  // other data: not the remembered source
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     require(scene.status().find("drawn 0, missing 1") != std::string::npos, "other data not mistaken");
 
     // the infos as the game draws them
@@ -310,7 +336,7 @@ int main() {
     frame.infos[0].bin = bin;
     frame.infos[0].tpl = tpl;
     frame.infos[0].flags = 0;  // hidden by the game
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     require(scene.status().find("drawn 0, missing 0") != std::string::npos, "hidden info not drawn");
     frame.infos[0].flags = 8;
     // a rigid model (one part, no weights) hung on part 1: it follows part 1, not part 0
@@ -320,25 +346,27 @@ int main() {
     frame.infos[0].rigidPart = 1;
     frame.eye = {0, 6000, -3000};
     frame.target = {0, 0, 0};
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     require(scene.status().find("drawn 1, missing 0") != std::string::npos, "rigid info drawn");
     const auto rigidRest = pixels();
     frame.parts[0].matrix[3] = 1500;  // part 0 moves: the rigid model stays
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     const auto rootMoved = pixels();
     frame.parts[0].matrix[3] = 0;
-    frame.parts[1].matrix[3] = 1500;  // part 1 moves: the rigid model goes with it
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    // part 1 moves: the rigid model (a plane like the floor) goes with it, up
+    // towards the camera
+    frame.parts[1].matrix[7] = 1000;
+    scene.draw(frame, kWidth, kHeight, kStill);
     const auto partMoved = pixels();
-    frame.parts[1].matrix[3] = 0;
+    frame.parts[1].matrix[7] = 0;
     std::fprintf(stderr, "rigid: root moved %u, its part moved %u pixels\n", changes(rigidRest, rootMoved),
                  changes(rigidRest, partMoved));
     require(changes(rigidRest, rootMoved) == 0 && changes(rigidRest, partMoved) > 20, "rigid info on its part");
     // the info's own matrix moves it as well
-    frame.infos[0].matrix[3] = 1500;
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    frame.infos[0].matrix[7] = 1000;
+    scene.draw(frame, kWidth, kHeight, kStill);
     require(changes(rigidRest, pixels()) > 20, "info matrix applied");
-    frame.infos[0].matrix[3] = 0;
+    frame.infos[0].matrix[7] = 0;
     // every info of every model (Leon has nine: the hair is the sixth), the
     // models' infos side by side in one list
     frame.infos.assign(9, frame.infos[0]);
@@ -347,12 +375,58 @@ int main() {
     frame.models[1].address = 0x82004000u;
     frame.models[1].firstInfo = 8;
     frame.models[1].nInfos = 1;
-    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    scene.draw(frame, kWidth, kHeight, kStill);
     std::fprintf(stderr, "status: %s\n", scene.status().c_str());
     require(scene.status().find("drawn 10, missing 0") != std::string::npos, "all infos of all models drawn");
     frame.models.resize(1);
     frame.infos.resize(1);
     frame.models[0].nInfos = 1;
+
+    // the room scene follows the core's scroll objects: the floor (SMD work 0)
+    {
+      const auto saved = frame;
+      const auto &placement = floorPlacement;
+      Re4CoreModel floor{};
+      floor.address = 0x82005000u;
+      floor.beFlag = 1 | 2 | 4;
+      floor.manager = 1;
+      floor.id = 2;
+      floor.nParts = 1;
+      floor.scrollBlock = -1;
+      floor.scrollIndex = 0;
+      std::copy(placement.begin(), placement.end(), floor.matrix);
+      frame.models = {floor};
+      frame.infos.clear();
+      frame.parts.assign(1, Re4CorePart{});
+      frame.eye = {0, 6000, -3000};
+      frame.target = {0, 0, 0};
+      scene.draw(frame, kWidth, kHeight, kStill);
+      std::fprintf(stderr, "status: %s\n", scene.status().c_str());
+      require(scene.status().find("scenery 1, hidden 0, moved 0") != std::string::npos, "floor where it was built");
+      const auto shown = pixels();
+      frame.models[0].beFlag = 1 | 4;  // the game hides it
+      scene.draw(frame, kWidth, kHeight, kStill);
+      const auto hidden = pixels();
+      require(scene.status().find("hidden 1") != std::string::npos, "hidden floor counted");
+      frame.models[0].beFlag = 1 | 2 | 4;
+      frame.models[0].matrix[7] += 1000;  // a script moves it (up: it covers more of the marker at the feet)
+      scene.draw(frame, kWidth, kHeight, kStill);
+      const auto moved = pixels();
+      require(scene.status().find("moved 1") != std::string::npos, "moved floor counted");
+      // the core names no SMD work the scene holds (another, unused work): the
+      // scene stays as it was built (a work the core lacks while it names
+      // others, like a scroll block not loaded, is hidden; the sample SMD has
+      // only one work)
+      frame.models[0].matrix[7] -= 1000;
+      frame.models[0].scrollIndex = 1;
+      scene.draw(frame, kWidth, kHeight, kStill);
+      const auto absent = pixels();
+      std::fprintf(stderr, "scenery: hidden %u, moved %u, absent %u pixels changed\n", changes(shown, hidden),
+                   changes(shown, moved), changes(shown, absent));
+      require(changes(shown, hidden) > 20 && changes(shown, moved) > 20 && changes(shown, absent) == 0,
+              "room scene follows the core's scroll objects");
+      frame = saved;
+    }
 
     std::string cleanup = "rm -rf '" + root + "'";
     if (std::system(cleanup.c_str()) != 0) std::fprintf(stderr, "cleanup failed\n");

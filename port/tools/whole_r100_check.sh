@@ -371,9 +371,11 @@ import re
 def summary(last):
     models = last["models"]
     drawn = [m for m in models if m["drawn"]]
-    # the room's scenery objects (cObjScr, ObjMgr id 2): the app draws them with the room scene
-    scenery = [m for m in drawn if m["mgr"] == 1 and m["id"] == "0x02"]
-    drawn = [m for m in drawn if not (m["mgr"] == 1 and m["id"] == "0x02")]
+    # the room's scenery objects made from SMD works (cObjScr, ObjMgr id 2, "smd" = block and
+    # work): the app draws them with the room scene; scenery a room script made (SetObjSmd, like
+    # r100's police car) is drawn like the other models
+    scenery = [m for m in drawn if m["mgr"] == 1 and m["id"] == "0x02" and "smd" in m]
+    drawn = [m for m in drawn if not (m["mgr"] == 1 and m["id"] == "0x02" and "smd" in m)]
     def found(src):
         return bool(src) and not src.startswith("?")
     def known(m):
@@ -387,6 +389,20 @@ def summary(last):
           + ("; Untermenü offen (Kamera = Weltkamera)" if screen & 1 else "") + ("; Ereignis läuft" if screen & 2 else "")
           + (f"; {last['dropped']} Figuren über der Obergrenze" if last.get("dropped") else "")
           + (f"; {last['droppedInfos']} Modellteile über der Obergrenze" if last.get("droppedInfos") else ""))
+    # scenery per SMD (room -1, scroll blocks 0..): shown and hidden works
+    blocks = {}
+    for m in models:
+        if m["mgr"] == 1 and m["id"] == "0x02" and "smd" in m:
+            b = blocks.setdefault(m["smd"][0], [0, 0])
+            b[0 if m["drawn"] else 1] += 1
+    if blocks:
+        print("  Raumkulisse nach SMD: " + ", ".join(
+            f"{'Raum' if k < 0 else f'Block {k}'} {v[0]} sichtbar" + (f" / {v[1]} versteckt" if v[1] else "")
+            for k, v in sorted(blocks.items())))
+    script = [m for m in models if m["mgr"] == 1 and m["id"] == "0x02" and "smd" not in m]
+    if script:
+        print(f"  Kulisse aus Raumskripten (nicht im SMD, z. B. das Polizeiauto): {len(script)}, "
+              f"davon {sum(1 for m in script if m['drawn'])} sichtbar")
     def plain(src):
         # unknown sources carry their address: leave it out when grouping
         return re.sub(r"0x[0-9a-f]{6,8}|\+0x[0-9a-f]+", "…", src or "?")

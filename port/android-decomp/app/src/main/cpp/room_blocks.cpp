@@ -84,6 +84,8 @@ RoomBlockLayer BuildRoomBlocks(const RoomArchive &room, const Smx *smx,
     if (!smd || block.find("SMD", 1))
       throw std::runtime_error("r100: Block does not contain the original SMD");
     auto parsed = std::make_unique<Smd>(block.copy(smd - block.entries().data()));
+    out.placements.emplace_back();
+    for (const auto &w : parsed->placements) out.placements.back().push_back(PlacementMatrix(w));
     const auto need = parsed->commonRequirements();
     required.bins = std::max(required.bins, need.bins);
     required.palettes = std::max(required.palettes, need.palettes);

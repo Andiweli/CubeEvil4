@@ -17,6 +17,9 @@ struct RoomBlockLayer {
   struct Area {DoorArea volume;unsigned priority{};int number=-1;};
   std::vector<Area> areas;
   std::vector<std::uint32_t> visibleSets;
+  // Per block: the placement matrix of each SMD work (core mode compares the
+  // game's scroll objects with them).
+  std::vector<std::vector<Matrix34>> placements;
   int selectedArea=-1;
   std::uint32_t visibleMask(const CollisionVec &feet);
   std::string describe() const;

@@ -52,6 +52,7 @@ void CopyCoreFrame(const Re4CoreSnapshot &s, CoreFrame &out) {
   out.roll = s.cameraRoll;
   out.fovy = s.cameraFovy;
   out.screen = s.screen;
+  out.droppedModels = s.droppedModels;
   const auto models = std::min<unsigned>(s.nModels, RE4_CORE_MAX_MODELS);
   const auto infos = std::min<unsigned>(s.nInfos, RE4_CORE_MAX_INFOS);
   const auto parts = std::min<unsigned>(s.nParts, RE4_CORE_MAX_PARTS);
@@ -185,7 +186,9 @@ std::vector<std::uint8_t> ReadCoreSource(const std::string &gameRoot, int disc,
   return entryFrom(RoomArchive(std::move(bytes)), source);
 }
 
-bool CoreModelIsScenery(const Re4CoreModel &model) { return model.manager == 1 && model.id == 2; }
+bool CoreModelIsScenery(const Re4CoreModel &model) {
+  return model.manager == 1 && model.id == 2 && model.scrollIndex != RE4_CORE_NO_SCROLL;
+}
 
 bool CoreSceneLogBounds = false;
 
@@ -318,7 +321,7 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
     if ((m.beFlag & 6) != 6 || m.nParts == 0 ||
         std::size_t(m.firstMatrix) + m.nParts > frame.parts.size())
       continue;
-    if (CoreModelIsScenery(m)) {  // part of the room scene
+    if (CoreModelIsScenery(m) && roomSceneHolds(m)) {  // part of the room scene
       ++scenery;
       continue;
     }
@@ -416,6 +419,36 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
   sceneryModels_ = scenery;
 }
 
+bool CoreScene::roomSceneHolds(const Re4CoreModel &m) const {
+  const auto b = std::size_t(m.scrollBlock + 1);
+  return m.scrollBlock >= -1 && b < scroll_.size() && m.scrollIndex < scroll_[b].size() &&
+         scroll_[b][m.scrollIndex].inScene;
+}
+
+void CoreScene::updateScenery(const CoreFrame &frame) {
+  ++scrollFrame_;
+  scrollMapped_ = false;
+  hiddenScenery_ = movedScenery_ = 0;
+  static const std::array<float, 12> identity{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+  for (const auto &m : frame.models) {
+    if (!CoreModelIsScenery(m) || !roomSceneHolds(m)) continue;
+    auto &w = scroll_[std::size_t(m.scrollBlock + 1)][m.scrollIndex];
+    scrollMapped_ = true;
+    w.seen = scrollFrame_;
+    w.shown = (m.beFlag & 6) == 6;
+    // the game's matrix against the placement the scene was built with: a
+    // script moved it (a door, a falling bridge part ...)
+    const auto delta = multiply(toMatrix(m.matrix), inverse(w.placement));
+    bool moved = false;
+    for (int k = 0; k < 12; ++k)
+      moved = moved || std::fabs(delta[k] - identity[k]) > (k % 4 == 3 ? 1.f : 1e-3f);
+    w.moved = moved;
+    w.delta = moved ? delta : identity;
+    hiddenScenery_ += !w.shown;
+    movedScenery_ += w.shown && moved;
+  }
+}
+
 void CoreScene::buildRoom(std::uint16_t id, const std::string &path) {
   if (!coreLoaded_) {
     coreLoaded_ = true;
@@ -452,12 +485,33 @@ void CoreScene::buildRoom(std::uint16_t id, const std::string &path) {
       CORE_LOG("room %03x environment: %s", unsigned(id), e.what());
     }
   }
+  // the SMD works (room, then the scroll blocks) and which the scene holds
+  scroll_.assign(1, {});
+  for (const auto &w : smd.placements) {
+    ScrollWork work;
+    work.placement = PlacementMatrix(w);
+    scroll_[0].push_back(work);
+  }
   if (id == 0x100) {
     try {
-      AppendStaticSceneLayer(scene, BuildRoomBlocks(arc, smx.get(), path, id).mesh);
+      auto blocks = BuildRoomBlocks(arc, smx.get(), path, id);
+      AppendStaticSceneLayer(scene, blocks.mesh);
+      for (const auto &placements : blocks.placements) {
+        scroll_.emplace_back();
+        for (const auto &m : placements) {
+          ScrollWork work;
+          work.placement = m;
+          scroll_.back().push_back(work);
+        }
+      }
     } catch (const std::exception &e) {
       CORE_LOG("room %03x blocks: %s", unsigned(id), e.what());
     }
+  }
+  for (const auto &d : scene.draws) {
+    const auto b = std::size_t(d.roomBlock + 1);
+    if (d.smdIndex >= 0 && b < scroll_.size() && std::size_t(d.smdIndex) < scroll_[b].size())
+      scroll_[b][std::size_t(d.smdIndex)].inScene = true;
   }
   DestroySceneGl();
   CreateSceneGl(scene);
@@ -585,6 +639,20 @@ void CoreScene::draw(const CoreFrame &frame, int width, int height, double secon
     probe.hidePlayer = true;
     probe.extraActors = [&](const float *matrix, const std::array<float, 3> &center, float scale,
                             bool normalView) { drawActors(frame, matrix, center, scale, normalView); };
+    // the room scene's SMD works as the core has them: a work the core does
+    // not have (a scroll block not loaded) or hides is not drawn, a moved one
+    // follows the game; while the core names no work at all (or dropped
+    // models from the snapshot) the scene stays as it was built
+    updateScenery(frame);
+    if (scrollMapped_ && frame.droppedModels == 0)
+      probe.coreScenery = [this](const SceneDraw &d, Matrix34 &delta) {
+        const auto b = std::size_t(d.roomBlock + 1);
+        if (b >= scroll_.size() || std::size_t(d.smdIndex) >= scroll_[b].size()) return true;
+        const auto &w = scroll_[b][std::size_t(d.smdIndex)];
+        if (w.seen != scrollFrame_ || !w.shown) return false;
+        if (w.moved) delta = w.delta;
+        return true;
+      };
     DrawSceneGl(width, height, 0, 0, 0, false, &probe, nullptr, seconds);
   } else if (!frame.valid || frame.step[0] < 2) {
     drawTitle(width, height);
@@ -595,13 +663,13 @@ void CoreScene::draw(const CoreFrame &frame, int width, int height, double secon
   }
   char text[320];
   std::snprintf(text, sizeof(text),
-                "frame %u  step %u/%u  room r%03x  disc %d%s%s\nmodels %zu (drawn %u, missing %u, scenery %u)  "
-                "room %s%s%s",
+                "frame %u  step %u/%u  room r%03x  disc %d%s%s\nmodels %zu (drawn %u, missing %u, scenery %u, "
+                "hidden %u, moved %u)  room %s%s%s",
                 unsigned(frame.frame), unsigned(frame.step[0]), unsigned(frame.step[1]),
                 unsigned(frame.room), frame.disc + 1,
                 (frame.screen & RE4_CORE_SCREEN_EVENT) ? "  event" : "",
                 (frame.screen & RE4_CORE_SCREEN_SUB) ? "  MENU OPEN (not drawn yet)" : "",
-                frame.models.size(), drawnModels_, missingModels_, sceneryModels_,
+                frame.models.size(), drawnModels_, missingModels_, sceneryModels_, hiddenScenery_, movedScenery_,
                 inRoom ? "loaded" : room_ ? "other" : "none",
                 roomError_.empty() ? "" : " - ", roomError_.c_str());
   std::lock_guard<std::mutex> lock(lock_);

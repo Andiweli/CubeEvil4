@@ -15,6 +15,7 @@
 #include "re4_runtime.h"
 
 #include <string.h>
+#include <vector>
 
 using namespace re4fmt;
 
@@ -30,6 +31,53 @@ static_assert(offsetof(EvtPacket, mod) == 0x10, "EvtPacket layout");
 namespace re4fmt {
 
 // ---- CAM ----------------------------------------------------------------------
+
+namespace {
+
+// The key arrays of the cuts: every 16-bit unit is swapped once, however many
+// cuts share (or overlap in) an array.
+struct CamArrays {
+    Blob& b;
+    u32 base;
+    std::vector<u8> done;  // per 16-bit unit from `base`
+
+    CamArrays(Blob& blob, u32 from) : b(blob), base(from), done((blob.size - from) / 2 + 1, 0) {}
+    bool fresh(u32 off, u32 bytes)
+    {
+        // offset 0 (relocated to the header by calcAddr): the version text
+        // must stay as it is, the game reads those bytes as they are
+        if (off < base + sizeof(CAM_FILE_HEADER) || !fits(b, off, bytes, "camera keys")) {
+            return false;
+        }
+        for (u32 i = 0; i < bytes / 2; i++) {
+            if (done[(off - base) / 2 + i]) {
+                return false;
+            }
+        }
+        for (u32 i = 0; i < bytes / 2; i++) {
+            done[(off - base) / 2 + i] = 1;
+        }
+        return true;
+    }
+    void words(u32 off, u32 count)
+    {
+        for (u32 i = 0; i < count && b.ok; i++) {
+            if (fresh(off + i * 4, 4)) {
+                swap32(b, off + i * 4);
+            }
+        }
+    }
+    void halves(u32 off, u32 count)
+    {
+        for (u32 i = 0; i < count && b.ok; i++) {
+            if (fresh(off + i * 2, 2)) {
+                swap16(b, off + i * 2);
+            }
+        }
+    }
+};
+
+}  // namespace
 
 void convertCameraAt(Blob& b, u32 base)
 {
@@ -77,6 +125,12 @@ void convertCameraAt(Blob& b, u32 base)
             swap32(b, base + ver, n * 3);
         }
     }
+    // The key arrays, as many entries as the game reads: nPoint keys for the
+    // fixed, pan, rail and motion cuts (cam_ctrl.cpp), but a shoulder camera
+    // cut (Id 8, CameraQuasiFPS::setAreaData) always reads 24 positions
+    // (near and far point of 4 x 3 sites) and 12 targets, rolls and angles
+    // once nPoint is not 0, whatever nPoint says.
+    CamArrays keys(b, base);
     for (u32 i = 0; i < nCut && b.ok; i++) {
         typedef CAMERA_DATA C;
         u32 o = cut + i * sizeof(C);
@@ -86,26 +140,26 @@ void convertCameraAt(Blob& b, u32 base)
         u32 target = be32(b, o + offsetof(C, pTarget));
         u32 roll = be32(b, o + offsetof(C, pRoll));
         u32 fovy = be32(b, o + offsetof(C, pFovy));
+        s8 id = (s8) b.data[o + offsetof(C, Id)];
         swap32(b, o + offsetof(C, offset), 3);
         RE4_SWAP(b, o, C, pFrame);
         RE4_SWAP(b, o, C, floor_ratio);
         RE4_SWAP(b, o, C, nPoint);
         swap32(b, o + offsetof(C, pCampos), 4);
-        if (seen.first(base + frame)) {
-            swap16(b, base + frame, n);
+        if (n > 0x1000) {
+            fits(b, o, 0xFFFFFFFFu, "camera key count");
+            continue;
         }
-        if (seen.first(base + pos)) {
-            swap32(b, base + pos, n * 3);
+        u32 nPos = n, nKey = n;
+        if (id == 8 && n != 0) {
+            nPos = 24;
+            nKey = 12;
         }
-        if (seen.first(base + target)) {
-            swap32(b, base + target, n * 3);
-        }
-        if (seen.first(base + roll)) {
-            swap32(b, base + roll, n);
-        }
-        if (seen.first(base + fovy)) {
-            swap32(b, base + fovy, n);
-        }
+        keys.halves(base + frame, n);
+        keys.words(base + pos, nPos * 3);
+        keys.words(base + target, nKey * 3);
+        keys.words(base + roll, nKey);
+        keys.words(base + fovy, nKey);
     }
     for (u32 i = 0; i < nLerp; i++) {
         RE4_SWAP(b, lerp + i * sizeof(LERP_DATA), LERP_DATA, InterFrame);

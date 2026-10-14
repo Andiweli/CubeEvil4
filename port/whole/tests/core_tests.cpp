@@ -22,6 +22,8 @@
 
 extern "C" void re4probe_core_setup(void* mem, void* bin, void* tpl);
 extern "C" void re4probe_core_restore(void);
+extern "C" void re4probe_scroll_setup(void* mem, void* bin, void* other);
+extern "C" void re4probe_scroll_restore(void);
 
 namespace {
 
@@ -321,6 +323,19 @@ void testBridge()
           mi[0].tpl.entry == 1 && mi[0].tpl.fileOffset == 0x400);
     CHECK(mi[8].flags == 0x48 && mi[8].rigidPart == -1 && mi[8].binAddress == 0x82000020u &&
           strcmp(mi[8].tpl.file, "em/em99.drs") == 0);
+    // scenery: which SMD work each scroll object shows (patch 0029)
+    memset(arc + 0x4000, 0, 0x2000);
+    re4probe_scroll_setup(arc + 0x4000, arc + 0x20, arc + 0x40);
+    re4_bridge_capture(&gSnap);
+    re4probe_scroll_restore();
+    CHECK(gSnap.nModels == 3);
+    if (gSnap.nModels == 3) {
+        CHECK(gSnap.models[0].manager == 1 && gSnap.models[0].id == 2 && gSnap.models[0].scrollIndex == 5 &&
+              gSnap.models[0].scrollBlock == -1);
+        CHECK(gSnap.models[1].scrollIndex == RE4_CORE_NO_SCROLL);  // a room script's scenery
+        CHECK(gSnap.models[2].scrollIndex == RE4_CORE_NO_SCROLL);  // the slot holds other data now
+        CHECK(near(gSnap.models[1].matrix[3], 10.0f));
+    }
     report("bridge", ok);
 }
 
@@ -385,6 +400,85 @@ void testSound()
           get16(list + 8) == 7);
     CHECK(blk[0xDA] == 0xBE && blk[0xDB] == 0xEF);
     report("sound", ok);
+}
+
+void putf32be(unsigned char* p, float f)
+{
+    unsigned v;
+    memcpy(&v, &f, 4);
+    put32be(p, v);
+}
+
+float getf32(const unsigned char* p)
+{
+    float f;
+    memcpy(&f, p, 4);
+    return f;
+}
+
+// A room camera (CAM in an archive) with one shoulder camera cut (Id 8,
+// CameraQuasiFPS::setAreaData): nPoint 12, but the game reads 24 positions
+// (near and far points) and 12 targets, rolls and angles.
+void testCamera()
+{
+    bool ok = true;
+    unsigned char* arc = (unsigned char*) (unsigned long) 0x82300000u;
+    memset(arc, 0, 0x400);
+    put32be(arc + 0x00, 1);
+    put32be(arc + 0x10, 0x20);
+    memcpy(arc + 0x14, "CAM\0", 4);
+    unsigned char* cam = arc + 0x20;
+    memcpy(cam, "B404", 4);
+    cam[4] = 1;  // cuts
+    cam[5] = 1;  // areas
+    put32be(cam + 0x10 + 8, 0x20);   // CUT_INFO: area
+    put32be(cam + 0x10 + 12, 0x50);  //           cut
+    cam[0x20] = 1;                    // AREA_DATA
+    putf32be(cam + 0x20 + 0x20, 2000.0f);
+    put32be(cam + 0x20 + 0x28, 1);    // one vertex
+    put32be(cam + 0x20 + 0x2C, 0x84);
+    putf32be(cam + 0x84, 7.0f);
+    unsigned char* c = cam + 0x50;    // CAMERA_DATA
+    c[0] = 1;
+    c[2] = 8;      // Id: shoulder camera
+    c[3] = 0x30;   // Attr
+    putf32be(c + 0x08, 1000.0f);  // offset.y
+    put32be(c + 0x10, 0x90);      // pFrame
+    putf32be(c + 0x14, 0.25f);    // floor_ratio
+    put32be(c + 0x20, 12);        // nPoint
+    put32be(c + 0x24, 0xA8);      // pCampos: 24
+    put32be(c + 0x28, 0x1C8);     // pTarget: 12
+    put32be(c + 0x2C, 0x258);     // pRoll: 12
+    put32be(c + 0x30, 0x288);     // pFovy: 12
+    for (int k = 0; k < 12; k++) {
+        cam[0x90 + k * 2] = 0;
+        cam[0x90 + k * 2 + 1] = (unsigned char) (k * 10);
+    }
+    for (int k = 0; k < 24; k++) {
+        putf32be(cam + 0xA8 + k * 12 + 0, (float) k);
+        putf32be(cam + 0xA8 + k * 12 + 4, 1000.0f + k);
+        putf32be(cam + 0xA8 + k * 12 + 8, -2000.0f - k);
+    }
+    for (int k = 0; k < 12; k++) {
+        putf32be(cam + 0x1C8 + k * 12 + 4, 1500.0f + k);
+        putf32be(cam + 0x258 + k * 4, 0.5f);
+        putf32be(cam + 0x288 + k * 4, 50.0f);
+    }
+    put32be(cam + 0x2B8, 0xDEADBEEFu);  // after the arrays: not touched
+    Header h = { 0, 0x2E0, 0, 0, 0, 0, 0, 0 };
+    re4_formats_part_loaded("em/cam.das", 0, 0, &h, 0x82300000u);
+    CHECK(memcmp(cam, "B404", 4) == 0 && get32(cam + 0x50 + 0x20) == 12 && get32(cam + 0x50 + 0x24) == 0xA8);
+    CHECK(get16(cam + 0x90 + 11 * 2) == 110 && getf32(cam + 0x84) == 7.0f);
+    for (int k = 0; k < 24; k++) {
+        CHECK(getf32(cam + 0xA8 + k * 12) == (float) k && getf32(cam + 0xA8 + k * 12 + 4) == 1000.0f + k &&
+              getf32(cam + 0xA8 + k * 12 + 8) == -2000.0f - k);
+    }
+    for (int k = 0; k < 12; k++) {
+        CHECK(getf32(cam + 0x1C8 + k * 12 + 4) == 1500.0f + k && getf32(cam + 0x258 + k * 4) == 0.5f &&
+              getf32(cam + 0x288 + k * 4) == 50.0f);
+    }
+    CHECK(cam[0x2B8] == 0xDE && cam[0x2BB] == 0xEF);
+    report("camera", ok);
 }
 
 struct PadStatus {  // PADStatus
@@ -461,6 +555,7 @@ int re4_core_tests()
     testBridge();
     testThread();
     testSound();
+    testCamera();
     re4_log("core-test: %d failed", gFailures);
     return gFailures;
 }

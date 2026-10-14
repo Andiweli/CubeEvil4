@@ -7,11 +7,14 @@
 #include "em.h"
 #include "global.h"
 #include "model.h"
+#include "obj.h"
 
 #include <string.h>
 
 extern GLOBAL_WK* pG;
 extern cEmMgr EmMgr;
+extern cObjMgr ObjMgr;
+extern "C" void re4_scroll_placed(void* obj, int blk, int index);
 
 namespace {
 
@@ -118,6 +121,61 @@ extern "C" void re4probe_core_restore(void)
     pG->Camera.param = gSavedCamera;
 }
 
+// Scenery in ObjMgr (cObjScr, id 2), for the bridge's SMD works (patch 0029):
+// slot 0 is work 5 of the room's SMD, slot 1 a room script's scenery (never
+// placed from an SMD), slot 2 was work 7 of scroll block 3 but now holds other
+// model data (the slot was reused). `mem`: zeroed MEM1 memory, 0x2000 bytes.
+static cObj* gSavedObjArray;
+static u32 gSavedObjCount;
+static u32 gSavedObjSize;
+static u32 gSavedEmCount;
+
+extern "C" void re4probe_scroll_setup(void* mem, void* bin, void* other)
+{
+    u8* base = (u8*) mem;
+    const u32 stride = 0x500;
+    cParts* parts = (cParts*) (base + 3 * stride);
+    cModelInfo* info = (cModelInfo*) (base + 3 * stride + 0x200);
+    gSavedObjArray = ObjMgr.pArray;
+    gSavedObjCount = ObjMgr.nArray;
+    gSavedObjSize = ObjMgr.size;
+    gSavedEmCount = EmMgr.nArray;
+    ObjMgr.pArray = (cObj*) base;
+    ObjMgr.nArray = 3;
+    ObjMgr.size = stride;
+    EmMgr.nArray = 0;
+    setMatrix(parts->mat, 0.0f, 0.0f, 0.0f);
+    info->model_addr = (cModelData*) bin;
+    info->tpl_addr = bin;
+    info->be_flag = 8;
+    for (int i = 0; i < 3; i++) {
+        cObj* o = (cObj*) (base + i * stride);
+        o->be_flag = 1 | 2 | 4;
+        o->id = cObjMgr::ID_SCROLL;
+        o->nParts = 1;
+        o->pList = parts;
+        o->pModelInfo = info;
+        o->blk = i == 2 ? 3 : -1;
+        setMatrix(o->mat, 10.0f * i, 0.0f, 0.0f);
+    }
+    re4_scroll_placed(base, -1, 5);
+    re4_scroll_placed(base + 2 * stride, 3, 7);
+    // slot 2 reused: another model there now
+    cModelInfo* info2 = (cModelInfo*) (base + 3 * stride + 0x600);
+    *info2 = *info;
+    info2->model_addr = (cModelData*) other;
+    ((cObj*) (base + 2 * stride))->pModelInfo = info2;
+}
+
+extern "C" void re4probe_scroll_restore(void)
+{
+    ObjMgr.pArray = gSavedObjArray;
+    ObjMgr.nArray = gSavedObjCount;
+    ObjMgr.size = gSavedObjSize;
+    EmMgr.nArray = gSavedEmCount;
+}
+
+static_assert(sizeof(cObj) <= 0x500, "the fake scenery works overlap");
 static_assert(sizeof(cEm) <= 0x2000, "the fake enemy work overlaps its parts");
 static_assert(2 * sizeof(cParts) <= 0x1000, "the fake parts overlap the model info");
 static_assert(sizeof(cModelInfo) <= 0x400 && sizeof(cModelData) <= 0x100, "the fake infos overlap");

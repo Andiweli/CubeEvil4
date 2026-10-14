@@ -53,6 +53,9 @@ struct SceneDraw {
   int roomItemIndex = -1;
   int roomPickupIndex = -1; // Independently owned waiting-type0 ITA record.
   int roomBlock=-1; // cObj::blk; ARAM-cached scroll blocks stay hidden.
+  // Index of the SMD work (in the room's SMD or, with roomBlock, the block's)
+  // this draw shows: the game core's scroll object (core mode); -1 none.
+  int smdIndex=-1;
   int roomItemId = -1; // Real ITM variant selected when a random box breaks.
   int destructionMesh = -1; // Authored cEmBox fragment mesh, runtime transform.
   std::array<float, 3> sortCenter{};

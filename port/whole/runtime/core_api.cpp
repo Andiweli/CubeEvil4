@@ -117,9 +117,13 @@ void dumpHook(unsigned frame)
             (unsigned) s->nParts, (unsigned) s->droppedModels, (unsigned) s->droppedInfos);
     for (unsigned i = 0; i < s->nModels; i++) {
         const Re4CoreModel& m = s->models[i];
-        fprintf(f, "%s{\"mgr\":%u,\"id\":\"0x%02x\",\"type\":%u,\"drawn\":%d,\"parts\":%u,\"pos\":[%.1f,%.1f,%.1f],\"infos\":[",
+        fprintf(f, "%s{\"mgr\":%u,\"id\":\"0x%02x\",\"type\":%u,\"drawn\":%d,\"parts\":%u,\"pos\":[%.1f,%.1f,%.1f],",
                 i ? "," : "", (unsigned) m.manager, (unsigned) m.id, (unsigned) m.type, (m.beFlag & 6) == 6,
                 (unsigned) m.nParts, m.matrix[3], m.matrix[7], m.matrix[11]);
+        if (m.scrollIndex != RE4_CORE_NO_SCROLL) {
+            fprintf(f, "\"smd\":[%d,%u],", (int) m.scrollBlock, (unsigned) m.scrollIndex);
+        }
+        fprintf(f, "\"infos\":[");
         for (unsigned k = 0; k < m.nInfos && m.firstInfo + k < s->nInfos; k++) {
             const Re4CoreModelInfo& mi = s->infos[m.firstInfo + k];
             fprintf(f, "%s{\"bin\":", k ? "," : "");
