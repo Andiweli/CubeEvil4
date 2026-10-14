@@ -30,6 +30,10 @@ Vorher den Branch aktualisieren:
 .\port\scripts\test-r100-core.ps1 -DataDir 'D:\RE4\Disc'
 
 .EXAMPLE
+powershell -ExecutionPolicy Bypass -File .\port\scripts\test-r100-core.ps1 -DataDir 'D:\RE4\Disc'
+Falls Windows das Ausfuehren von Skripten sperrt.
+
+.EXAMPLE
 .\port\scripts\test-r100-core.ps1 -DataDir 'D:\RE4\Disc' -Arm
 Zusaetzlich der ARM32-Build unter qemu (wie auf dem Retroid, aber langsam).
 #>
@@ -54,6 +58,7 @@ if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
 if (-not (Test-Path -LiteralPath $DataDir)) { throw "Ordner mit den Disc-Daten nicht gefunden: $DataDir" }
 if ($Room -notmatch '^[0-5][0-9A-Fa-f]{2}$') { throw "Raum als drei Hex-Ziffern angeben, z. B. 100 (nicht: $Room)" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+Remove-Item -LiteralPath (Join-Path $OutDir 'bericht.txt') -ErrorAction SilentlyContinue
 
 $wslBase = @()
 if ($Distro) { $wslBase = @('-d', $Distro) }
