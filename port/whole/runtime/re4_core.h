@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define RE4_CORE_API_VERSION 1
+#define RE4_CORE_API_VERSION 2
 
 enum Re4CoreState {
     RE4_CORE_IDLE = 0,     /* not started */
@@ -83,7 +83,7 @@ typedef struct Re4CorePart {
     float bind[3];
 } Re4CorePart;
 
-#define RE4_CORE_MAX_MODELS 128
+#define RE4_CORE_MAX_MODELS 256
 #define RE4_CORE_MAX_PARTS 4096
 
 typedef struct Re4CoreSnapshot {

@@ -30,6 +30,10 @@ bild-*.png, kern-build.log, apk-build.log. Bitte bericht.txt und die Bilder schi
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File .\port\scripts\test-core-app.ps1
 
+Gradle braucht Java 17 bis 23. Das Skript nimmt JAVA_HOME, wenn es passt, sonst
+das Java von Android Studio (jbr) oder ein JDK 17/21 unter C:\Program Files;
+-JavaHome gibt den Ordner fest vor. JAVA_HOME wird nur fuer diesen Lauf gesetzt.
+
 .EXAMPLE
 .\port\scripts\test-core-app.ps1 -SkipCore -Seconds 180
 Nur APK bauen und testen (Kern-Bibliotheken liegen schon in der App), 3 Minuten.
@@ -44,7 +48,8 @@ param(
     [switch]$SkipApk,
     [switch]$SkipDevice,
     [switch]$SkipSetup,
-    [string]$Distro = ''
+    [string]$Distro = '',
+    [string]$JavaHome = ''
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -65,15 +70,38 @@ function Invoke-Logged([string]$LogFile, [scriptblock]$Command) {
     $old = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        & $Command 2>&1 | ForEach-Object { $line = "$_"; Write-Host $line; $line } |
-            Set-Content -LiteralPath $LogFile -Encoding UTF8
+        & $Command 2>&1 | ForEach-Object {
+            # stderr lines arrive as error records; their text is the message
+            $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { "$_" }
+            # leading CR: wsl.exe can leave the console without automatic
+            # carriage return (lines would drift to the right)
+            Write-Host ("`r" + $line)
+            $line
+        } | Set-Content -LiteralPath $LogFile -Encoding UTF8
         return $LASTEXITCODE
     } finally { $ErrorActionPreference = $old }
 }
-function Say-Tail([string]$LogFile, [int]$Lines) {
+# the end of a log into the report (already shown on the screen)
+function Add-ReportTail([string]$LogFile, [int]$Lines) {
     if (Test-Path -LiteralPath $LogFile) {
-        Get-Content -LiteralPath $LogFile -Encoding UTF8 | Select-Object -Last $Lines | ForEach-Object { Say "   $_" }
+        Get-Content -LiteralPath $LogFile -Encoding UTF8 | Select-Object -Last $Lines |
+            ForEach-Object { Add-Content -LiteralPath $report -Value "   $_" -Encoding UTF8 }
     }
+}
+# major version of the JDK in a folder, 0 when there is none
+function Get-JavaMajor([string]$Folder) {
+    if (-not $Folder) { return 0 }
+    $java = Join-Path $Folder 'bin\java.exe'
+    if (-not (Test-Path -LiteralPath $java)) { return 0 }
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $text = (& $java -version 2>&1 | ForEach-Object { "$_" }) -join ' ' } finally { $ErrorActionPreference = $old }
+    if ($text -match 'version "(\d+)(\.(\d+))?') {
+        $major = [int]$Matches[1]
+        if ($major -eq 1 -and $Matches[3]) { $major = [int]$Matches[3] }  # 1.8 = 8
+        return $major
+    }
+    return 0
 }
 Say "RE4 Kernmodus-Test  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 Say "Repository: $repo"
@@ -100,7 +128,7 @@ if (-not $SkipCore) {
         wsl.exe @wslBase --exec bash "$repoWsl/port/tools/whole_build_android.sh" --source $repoWsl `
             --into "$repoWsl/port/android-decomp/app"
     }
-    Say-Tail $coreLog 30
+    Add-ReportTail $coreLog 30
     if ($code -ne 0) { throw 'Kern-Build fehlgeschlagen (Einzelheiten oben und in kern-build.log).' }
 }
 $libs = Join-Path $app 'app\src\core\jniLibs\armeabi-v7a'
@@ -112,24 +140,47 @@ Say "Kern-Bibliotheken: $((Get-ChildItem -LiteralPath $libs -Filter '*.so').Coun
 # ---- 2. the APK of the core flavor (Windows, Gradle) --------------------------------------
 $apk = Join-Path $app 'app\build\outputs\apk\core\debug\app-core-debug.apk'
 if (-not $SkipApk) {
-    if (-not $env:JAVA_HOME) {
-        foreach ($jbr in @("$env:ProgramFiles\Android\Android Studio\jbr", "$env:LOCALAPPDATA\Programs\Android Studio\jbr")) {
-            if (Test-Path -LiteralPath (Join-Path $jbr 'bin\java.exe')) { $env:JAVA_HOME = $jbr; break }
+    Say '2. APK bauen (gradlew :app:assembleCoreDebug) ...'
+    # Gradle 8.11 with the Android plugin 8.9: Java 17 to 23
+    $candidates = @()
+    if ($JavaHome) { $candidates += $JavaHome }
+    else {
+        if ($env:JAVA_HOME) { $candidates += $env:JAVA_HOME }
+        foreach ($base in @($env:ProgramFiles, $env:LOCALAPPDATA, (Join-Path $env:LOCALAPPDATA 'Programs'))) {
+            if (-not $base) { continue }
+            foreach ($studio in @(Get-ChildItem -Path (Join-Path $base 'Android') -Filter 'Android Studio*' -Directory -ErrorAction SilentlyContinue) +
+                                @(Get-ChildItem -Path $base -Filter 'Android Studio*' -Directory -ErrorAction SilentlyContinue)) {
+                $candidates += (Join-Path $studio.FullName 'jbr')
+            }
+        }
+        foreach ($vendor in @('Eclipse Adoptium', 'Java', 'Microsoft', 'Zulu', 'Amazon Corretto')) {
+            $candidates += @(Get-ChildItem -Path (Join-Path $env:ProgramFiles $vendor) -Directory -ErrorAction SilentlyContinue |
+                Sort-Object Name -Descending | ForEach-Object { $_.FullName })
         }
     }
+    $jdk = $null
+    foreach ($c in $candidates) {
+        $major = Get-JavaMajor $c
+        if ($major -ge 17 -and $major -le 23) { $jdk = $c; break }
+    }
+    if (-not $jdk) {
+        $seen = ($candidates | ForEach-Object { "$_ (Java $(Get-JavaMajor $_))" }) -join '; '
+        throw "Kein Java 17 bis 23 gefunden (Gradle braucht es). Gefunden: $seen. Abhilfe: Android Studio installieren oder -JavaHome 'Ordner eines JDK 17' angeben."
+    }
+    $env:JAVA_HOME = $jdk
+    Say "   Java fuer Gradle: $jdk (Java $(Get-JavaMajor $jdk))"
     $localProps = Join-Path $app 'local.properties'
     if (-not (Test-Path -LiteralPath $localProps)) {
         $sdk = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
         if (-not (Test-Path -LiteralPath $sdk)) { throw 'Android-SDK nicht gefunden: einmal das Projekt in Android Studio oeffnen.' }
         "sdk.dir=$($sdk -replace '\\', '\\\\')" | Set-Content -LiteralPath $localProps -Encoding ASCII
     }
-    Say '2. APK bauen (gradlew :app:assembleCoreDebug) ...'
     $gradleLog = Join-Path $OutDir 'apk-build.log'
     Push-Location $app
     try {
         $code = Invoke-Logged $gradleLog { .\gradlew.bat ':app:assembleCoreDebug' }
     } finally { Pop-Location }
-    Say-Tail $gradleLog 25
+    Add-ReportTail $gradleLog 25
     if ($code -ne 0) { throw 'APK-Build fehlgeschlagen (Einzelheiten oben und in apk-build.log).' }
 }
 if (-not (Test-Path -LiteralPath $apk)) { throw "APK fehlt: $apk" }

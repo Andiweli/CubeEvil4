@@ -415,22 +415,23 @@ PowerShell 7 durchgespielt.
    Zurück fragt „End the game?“ und beendet den Prozess (der Kern lässt sich
    im selben Prozess nicht neu starten).
 
-**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 1, reines C, gleiche
+**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 2, reines C, gleiche
 Struktur-Größe auf 32 und 64 bit): `re4_core_reserve`, `re4_core_start`,
 `re4_core_state` (idle/running/ended/failed), `re4_core_message`,
 `re4_core_pad`, `re4_core_acquire`/`re4_core_release`, `re4_core_log_tail`
 (letzte 24 Log-Zeilen für das Overlay), für Tests `re4_core_start_entry`.
 Umgesetzt in `runtime/core_api.cpp` (in `libre4_main`).
 
-**Schnappschuss** (`Re4CoreSnapshot`, 323 644 Byte): Spielschritt
+**Schnappschuss** (`Re4CoreSnapshot`, 401 468 Byte auf 32 und 64 bit): Spielschritt
 `Rno0..3`, Raum, Disc, Kamera aus `pG->Camera` (Augpunkt, Ziel, Rollwinkel,
-Öffnungswinkel), bis 128 Modelle aus `EmMgr` (Gegner) und `ObjMgr` (Objekte):
+Öffnungswinkel), bis 256 Modelle aus `EmMgr` (Gegner) und `ObjMgr` (Objekte):
 lebend (`be_flag & 0x201 == 1`), Zeichen-Bits `2|4`, Weltmatrix, je Teil die
 Weltmatrix `cParts::mat` und die Bindung (−`lt_inv_mat`-Verschiebung), bis
 4096 Teile. Für jede Modell-Info (`pModelInfo`) die Herkunft der BIN- und
 TPL-Daten auf der Disc (Datei, Archiv-Offset, Eintrag): Die Formatumwandler
 merken sich beim Laden jedes Archiv und jeden Eintrag
-(`re4_formats_locate`). Yz2-gepackte Archive (Raumdateien) haben keinen
+(`re4_formats_locate`; bis 1024 Archive und 65 536 Einträge, vorher 64
+Archive: r100 lädt mehr, ältere Herkunftsangaben gingen verloren). Yz2-gepackte Archive (Raumdateien) haben keinen
 Datei-Offset; die App lädt Raummodelle über ihren Raumlader.
 
 **Zeichnen** (`app/src/main/cpp/core_scene.cpp`, `CoreScene`): bis zum ersten
@@ -486,6 +487,33 @@ die `re4_core_*`-Exporte. Kopiert nach `app/src/core/jniLibs/armeabi-v7a/`
 **Nicht in der Cloud geprüft** (kein Android-NDK/SDK erreichbar,
 `dl.google.com` gesperrt): NDK-Build des Kerns, Gradle-/APK-Build,
 Gerätelauf, Bilder mit echten Disc-Daten.
+
+### Erster lokaler Lauf (14.10.2026, WSL2 + Windows)
+
+- `test-r100-core.ps1`: ALLES OK (Formatvergleich 155 Dateien ohne Fehler,
+  10 000 Bilder ohne Absturz, Abdeckung ohne „nein“, 5 Bilder gezeichnet).
+  Befunde zur Brücke: Kamera die ganze Zeit `(0, 0, 2000) → (0, 0, 0)`,
+  Winkel 50 (nicht die Spielkamera); 128 Figuren = Obergrenze erreicht;
+  112 von 126 sichtbaren Figuren ohne Disc-Herkunft (die Herkunftsliste hielt
+  nur 64 Archive). App-Bilder: „drawn 16, missing 120“.
+- `test-core-app.ps1`: NDK r28c geladen, Kern für armeabi-v7a gebaut
+  (0 Fehler, 114 Module, 209 Platzhalter wie Linux, 117 Bibliotheken,
+  21 MB). APK-Bau scheiterte: `JAVA_HOME` zeigte auf Java 11, Gradle braucht
+  17–23.
+- Behoben danach (Cloud): Das Skript sucht ein passendes JDK (JAVA_HOME,
+  Android Studio `jbr`, JDKs unter `C:\Program Files`, `-JavaHome`) und setzt
+  es nur für den Lauf; Ausgabe ohne „RemoteException“-Zeilen und ohne
+  Treppeneffekt. Herkunftsliste 1024 Archive (Test `core-test bridge` mit
+  101 Archiven), Obergrenze 256 Figuren (API-Version 2). Der Zustands-Trace
+  schreibt jetzt pro Bild die Kamera mit ihren Schaltern (`cam`: Auge, Ziel,
+  Winkel, `sw` = C STA_CAMERA, D Debug-Kamera, S SPF_CAMERA, E Ereignis,
+  U Untermenü, X Sonderkamera, `r0` Zustand von CamCtrl, `ctrl` Auge von
+  `CamCtrl.camera`); der Bericht zeigt den Kamera-Verlauf. Unbekannte
+  Modell-Herkünfte stehen im Brücken-Protokoll mit ihrem Ort
+  (`re4_formats_describe`: in welchem Archiv, oder in keinem).
+- Ursache der Kamera noch offen: `CameraMove` übernimmt `CamCtrl.camera` nur
+  mit STA_CAMERA und ohne Debug-Kamera (DBG_DBG_CAM, schaltet sich bei
+  Tasten an Controller 2 ein); der nächste Lauf zeigt, welcher Fall vorliegt.
 
 ### Lokale Prüfungen für K2
 

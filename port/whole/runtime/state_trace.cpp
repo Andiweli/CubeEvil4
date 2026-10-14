@@ -23,6 +23,7 @@
 #include "em.h"
 #include "global.h"
 #include "player.h"
+#include "cam_ctrl.h"
 #include "room_data.h"
 
 #include <stdio.h>
@@ -73,6 +74,23 @@ void trace(unsigned n)
     u8* save = g->Rno0 >= 2 ? (u8*) RoomData.getRoomSavePtr(room) : 0;
     if (live(save)) {
         fprintf(f, ",\"rsf\":[\"0x%08lx\"]", (unsigned long) *(u32*) (save + 4));
+    }
+    // the camera the game draws with (pG->Camera, which CameraMove fills from
+    // CamCtrl.camera when STA_CAMERA is on and the debug camera is off) and
+    // the switches that decide it: C STA_CAMERA, D DBG_DBG_CAM, S SPF_CAMERA,
+    // E STA_EVENT, U STA_SUB_SCRN, X extra (boss/event) camera
+    {
+        const CAMERA_POINT& c = g->Camera.param;
+        fprintf(f, ",\"cam\":{\"eye\":");
+        vec(f, c.Campos);
+        fprintf(f, ",\"at\":");
+        vec(f, c.Target);
+        fprintf(f, ",\"fov\":%.2f,\"sw\":\"%s%s%s%s%s%s\",\"r0\":%u,\"ctrl\":", (double) c.Fovy,
+                StaFlagChk(g, STA_CAMERA) ? "C" : "", DbgFlagChk(g, DBG_DBG_CAM) ? "D" : "",
+                SpfFlagChk(g, SPF_CAMERA) ? "S" : "", StaFlagChk(g, STA_EVENT) ? "E" : "",
+                StaFlagChk(g, STA_SUB_SCRN) ? "U" : "", CamCtrl.m_pExtraCamera ? "X" : "", (unsigned) CamCtrl.r0);
+        vec(f, CamCtrl.camera.param.Campos);
+        fprintf(f, "}");
     }
     fprintf(f, ",\"em\":[");
     cEm* arr = EmMgr.pArray;

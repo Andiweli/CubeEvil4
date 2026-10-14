@@ -325,6 +325,32 @@ run_game() {
         enemies=$(echo "$last" | grep -o '"slot"' | wc -l)
         say "Zustands-Trace: $lines Bilder; im letzten Bild $enemies Gegner"
         say "  letzte Zeile: $(echo "$last" | cut -c1-600)"
+        # the camera over the run: every change of its switches, and every 2500 frames
+        python3 - "$trace" <<'PY' | tee -a "$report"
+import json, sys
+def v(a):
+    return "(" + ", ".join(f"{x:.0f}" for x in a) + ")"
+prev, out = None, []
+for line in open(sys.argv[1]):
+    try:
+        r = json.loads(line)
+    except ValueError:
+        continue
+    c = r.get("cam")
+    if not c:
+        continue
+    key = (r["Rno0"], r["room"], c["sw"], c["r0"])
+    if key != prev or r["frame"] % 2500 == 0:
+        out.append(f"  Bild {r['frame']:6d} Schritt {r['Rno0']} Raum {r['room']} Schalter [{c['sw']}] r0 {c['r0']}: "
+                   f"Auge {v(c['eye'])} Ziel {v(c['at'])} Winkel {c['fov']:.0f}, CamCtrl-Auge {v(c['ctrl'])}"
+                   + (f", Leon {v(r['pl'])}" if "pl" in r else ""))
+        prev = key
+print("Kamera-Verlauf (Schalter: C Kamera an, D Debug-Kamera, S Kamera gestoppt, E Ereignis, U Untermenü, X Sonderkamera):")
+for l in out[:40]:
+    print(l)
+if len(out) > 40:
+    print(f"  ... {len(out) - 40} weitere Wechsel")
+PY
         gzip -f "$trace"
     fi
     # core bridge (what the app would draw): models and their disc sources
@@ -337,20 +363,32 @@ inroom = [r for r in rows if r["Rno0"] == 3 and r["room"] == room]
 last = inroom[-1] if inroom else rows[-1]
 models = last["models"]
 drawn = [m for m in models if m["drawn"]]
+def found(src):
+    return bool(src) and not src.startswith("?")
 def known(m):
-    return m["infos"] and all(i["bin"] and i["tpl"] for i in m["infos"])
+    return m["infos"] and all(found(i["bin"]) and found(i["tpl"]) for i in m["infos"])
 unknown = [m for m in drawn if not known(m)]
 print(f"Brücke zur App (Bild {last['frame']}, Schritt {last['Rno0']}, Raum {last['room']}): "
       f"{len(models)} Figuren, davon {len(drawn)} sichtbar, {len(drawn) - len(unknown)} mit bekannter "
-      f"Modell-Herkunft auf der Disc; {last['parts']} Körperteile; Kamera {last['camera']}")
-seen = set()
+      f"Modell-Herkunft auf der Disc; {last['parts']} Körperteile; Kamera {last['camera']}"
+      + (f"; {last['dropped']} Figuren über der Obergrenze" if last.get("dropped") else ""))
+import re
+def plain(src):
+    # unknown sources carry their address: leave it out when grouping
+    return re.sub(r"0x[0-9a-f]{6,8}|\+0x[0-9a-f]+", "…", src or "?")
+seen, lines = {}, []
 for m in drawn:
-    key = (m["mgr"], m["id"], json.dumps(m["infos"]))
-    if key in seen:
-        continue
-    seen.add(key)
     srcs = "; ".join(f"BIN {i['bin'] or '?'} TPL {i['tpl'] or '?'}" for i in m["infos"]) or "kein Modell"
-    print(f"  {'Gegner' if m['mgr'] == 0 else 'Objekt'} {m['id']} Typ {m['type']}, {m['parts']} Teile: {srcs}")
+    key = (m["mgr"], m["id"], m["parts"], plain(srcs))
+    if key in seen:
+        seen[key] += 1
+        continue
+    seen[key] = 1
+    lines.append((key, f"  {'Gegner' if m['mgr'] == 0 else 'Objekt'} {m['id']} Typ {m['type']}, {m['parts']} Teile: {srcs}"))
+for key, text in lines[:40]:
+    print(text + (f"  (×{seen[key]})" if seen[key] > 1 else ""))
+if len(lines) > 40:
+    print(f"  ... {len(lines) - 40} weitere Arten")
 if unknown:
     print(f"  Hinweis: {len(unknown)} sichtbare Figuren ohne bekannte Herkunft (die App kann sie noch nicht zeichnen)")
 PY

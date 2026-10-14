@@ -185,6 +185,7 @@ struct EntryNote {
     int status;
     const void* archive;  // noteArchive address, 0 = not in an archive
     int entry;
+    int archiveSlot;      // index in g_archives (checked against archive), -1 none
 };
 
 struct ArchiveNote {
@@ -195,10 +196,30 @@ struct ArchiveNote {
     u32 fileOfs;
 };
 
-const u32 kNotes = 8192;
+// r100 alone loads well over 64 archives (enemies, player, weapons, room):
+// the bridge to the app looks every drawn model up here (re4_formats_locate)
+const u32 kNotes = 65536;
+const u32 kArchives = 1024;
 EntryNote g_notes[kNotes];
-ArchiveNote g_archives[64];
+ArchiveNote g_archives[kArchives];
 u32 g_nextArchive;
+u32 g_lastArchive;  // the archive noted last (its entries follow it)
+
+int archiveSlot(const void* archive)
+{
+    if (!archive) {
+        return -1;
+    }
+    if (g_archives[g_lastArchive].addr == archive) {
+        return (int) g_lastArchive;
+    }
+    for (u32 i = 0; i < kArchives; i++) {
+        if (g_archives[i].addr == archive) {
+            return (int) i;
+        }
+    }
+    return -1;
+}
 
 u32 slotOf(const void* addr)
 {
@@ -221,6 +242,7 @@ void noteEntry(const void* addr, const char* tag, int status, const void* archiv
             e.status = status;
             e.archive = archive;
             e.entry = entry;
+            e.archiveSlot = archiveSlot(archive);
             return;
         }
     }
@@ -247,14 +269,15 @@ int entryStatus(const void* addr, char* tag)
 void noteArchive(const void* addr, unsigned size, const char* name, const Part& part)
 {
     ArchiveNote* a = 0;
-    for (u32 i = 0; i < 64 && !a; i++) {
+    for (u32 i = 0; i < kArchives && !a; i++) {
         if (g_archives[i].addr == addr) {
             a = &g_archives[i];
         }
     }
     if (!a) {
-        a = &g_archives[g_nextArchive++ % 64];
+        a = &g_archives[g_nextArchive++ % kArchives];
     }
+    g_lastArchive = (u32) (a - g_archives);
     a->addr = addr;
     a->size = size;
     snprintf(a->name, sizeof(a->name), "%s", name);
@@ -300,10 +323,9 @@ extern "C" void re4_formats_get_data(const void* arc, const char* tag, int no, c
         }
     }
     const char* name = "?";
-    for (u32 i = 0; i < 64; i++) {
-        if (g_archives[i].addr == arc) {
-            name = g_archives[i].name;
-        }
+    int slot = archiveSlot(arc);
+    if (slot >= 0) {
+        name = g_archives[slot].name;
     }
     re4_log("coverage: GetDataExt %.3s #%d in %s -> %p: umgewandelt %s", tag, no, name, entry, status);
     if (const char* path = getenv("RE4_COVERAGE_LOG")) {
@@ -469,17 +491,51 @@ extern "C" int re4_formats_locate(const void* addr, Re4CoreSource* out)
         if (e.addr != addr) {
             continue;
         }
-        for (u32 k = 0; k < 64; k++) {
-            const ArchiveNote& a = g_archives[k];
-            if (a.addr && a.addr == e.archive) {
-                snprintf(out->file, sizeof(out->file), "%s", a.file);
-                out->fileOffset = a.fileOfs;
-                out->archiveSize = a.size;
-                out->entry = e.entry;
-                return out->file[0] != 0 && e.entry >= 0;
-            }
+        // the archive may have been replaced since (its slot reused)
+        if (e.archiveSlot < 0 || g_archives[e.archiveSlot].addr != e.archive) {
+            return 0;
         }
-        return 0;
+        const ArchiveNote& a = g_archives[e.archiveSlot];
+        snprintf(out->file, sizeof(out->file), "%s", a.file);
+        out->fileOffset = a.fileOfs;
+        out->archiveSize = a.size;
+        out->entry = e.entry;
+        return out->file[0] != 0 && e.entry >= 0;
     }
     return 0;
+}
+
+// For the reports: where an address lies that re4_formats_locate does not
+// know -- inside a noted archive (no entry starts there) or nowhere.
+extern "C" int re4_formats_describe(const void* addr, char* out, int size)
+{
+    if (!out || size <= 0) {
+        return 0;
+    }
+    out[0] = 0;
+    if (!addr) {
+        return snprintf(out, size, "null");
+    }
+    u32 s = slotOf(addr);
+    for (u32 i = 0; i < kNotes; i++) {
+        const EntryNote& e = g_notes[(s + i) % kNotes];
+        if (e.addr == 0) {
+            break;
+        }
+        if (e.addr == addr) {
+            const bool current = e.archiveSlot >= 0 && g_archives[e.archiveSlot].addr == e.archive;
+            return snprintf(out, size, "%p entry #%d %.4s of %s", addr, e.entry, e.tag,
+                            current ? g_archives[e.archiveSlot].name : "a replaced archive");
+        }
+    }
+    const char* a = (const char*) addr;
+    for (u32 k = 0; k < kArchives; k++) {
+        const ArchiveNote& n = g_archives[k];
+        const char* base = (const char*) n.addr;
+        if (base && a >= base && a < base + n.size) {
+            return snprintf(out, size, "%p inside %s at +0x%x (no entry starts there)", addr, n.name,
+                            (unsigned) (a - base));
+        }
+    }
+    return snprintf(out, size, "%p not in a noted archive", addr);
 }

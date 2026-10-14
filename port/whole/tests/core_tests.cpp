@@ -58,6 +58,8 @@ bool near(float a, float b)
     return fabsf(a - b) < 1e-4f;
 }
 
+extern "C" int re4_formats_describe(const void* addr, char* out, int size);
+
 Re4CoreSnapshot gSnap;
 
 void testBridge()
@@ -79,6 +81,27 @@ void testBridge()
     CHECK(strcmp(src.file, "em/em99.drs") == 0 && src.fileOffset == 0x400 && src.archiveSize == 0x60 &&
           src.entry == 1);
     CHECK(!re4_formats_locate(arc + 0x44, &src) && src.entry == -1 && src.file[0] == 0);
+    // r100 loads far more archives than the first note table held (64): the
+    // first one must still be found after 100 more
+    for (unsigned k = 0; k < 100; k++) {
+        unsigned char* more = (unsigned char*) (unsigned long) (0x82100000u + k * 0x100);
+        memset(more, 0, 0x100);
+        put32be(more + 0x00, 1);
+        put32be(more + 0x10, 0x20);
+        memcpy(more + 0x14, "XBN\0", 4);
+        char name[32];
+        snprintf(name, sizeof(name), "em/t%02u.drs", k);
+        Header hk = { 0, 0x40, 0, 0x400, 0, 0, 0, 0 };
+        re4_formats_part_loaded(name, 0, 0, &hk, 0x82100000u + k * 0x100);
+    }
+    CHECK(re4_formats_locate(arc + 0x40, &src) && strcmp(src.file, "em/em99.drs") == 0 && src.entry == 1);
+    CHECK(re4_formats_locate((unsigned char*) (unsigned long) 0x82106320u, &src) &&
+          strcmp(src.file, "em/t99.drs") == 0 && src.entry == 0);
+    char where[160];
+    re4_formats_describe(arc + 0x44, where, sizeof(where));
+    CHECK(strstr(where, "inside") && strstr(where, "+0x44"));
+    re4_formats_describe((void*) (unsigned long) 0x82F00000u, where, sizeof(where));
+    CHECK(strstr(where, "not in a noted archive") != 0);
 
     re4probe_core_setup(arc + 0x1000, arc + 0x20, arc + 0x40);
     re4_bridge_capture(&gSnap);

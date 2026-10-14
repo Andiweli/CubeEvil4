@@ -84,12 +84,17 @@ void* gameThread(void*)
 FILE* gDump;
 Re4CoreSnapshot gDumpSnap;
 
-void dumpSource(FILE* f, const Re4CoreSource& s)
+// unknown sources as "?<where the address lies>" (formats.cpp)
+extern "C" int re4_formats_describe(const void* addr, char* out, int size);
+
+void dumpSource(FILE* f, const Re4CoreSource& s, uint32_t address)
 {
     if (s.file[0]) {
         fprintf(f, "\"%s@0x%x#%d\"", s.file, (unsigned) s.fileOffset, (int) s.entry);
     } else {
-        fprintf(f, "null");
+        char where[160];
+        re4_formats_describe((const void*) (uintptr_t) address, where, sizeof(where));
+        fprintf(f, "\"?%s\"", where);
     }
 }
 
@@ -112,9 +117,9 @@ void dumpHook(unsigned frame)
                 (unsigned) m.nParts, m.matrix[3], m.matrix[7], m.matrix[11]);
         for (unsigned k = 0; k < m.nInfos; k++) {
             fprintf(f, "%s{\"bin\":", k ? "," : "");
-            dumpSource(f, m.infos[k].bin);
+            dumpSource(f, m.infos[k].bin, m.infos[k].binAddress);
             fprintf(f, ",\"tpl\":");
-            dumpSource(f, m.infos[k].tpl);
+            dumpSource(f, m.infos[k].tpl, m.infos[k].tplAddress);
             fprintf(f, "}");
         }
         fprintf(f, "]}");
