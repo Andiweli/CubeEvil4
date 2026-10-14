@@ -82,7 +82,8 @@ std::string sourceKey(const Re4CoreSource &s) {
   return text;
 }
 
-bool known(const Re4CoreSource &s) { return s.file[0] && s.entry >= 0; }
+// entry -2: data of a file without entries (an EVD), innerOffset bytes into it
+bool known(const Re4CoreSource &s) { return s.file[0] && (s.entry >= 0 || s.entry == -2); }
 
 const char *kTitleVertex = R"(#version 300 es
 layout(location=0) in vec2 position;
@@ -167,6 +168,14 @@ std::vector<std::uint8_t> ReadCoreSource(const std::string &gameRoot, int disc,
   if (source.archiveSize < 0x20 || source.archiveSize > 64u * 1024 * 1024)
     throw std::runtime_error("Core: archive size");
   std::ifstream in(path, std::ios::binary);
+  if (source.entry == -2) {  // file data at an offset (event file)
+    if (source.innerOffset >= source.archiveSize) throw std::runtime_error("Core: offset outside the file part");
+    std::vector<std::uint8_t> bytes(source.archiveSize - source.innerOffset);
+    in.seekg(std::streamoff(source.fileOffset) + source.innerOffset);
+    if (!in.read(reinterpret_cast<char *>(bytes.data()), std::streamsize(bytes.size())))
+      throw std::runtime_error(std::string("Core: data outside the file: ") + source.file);
+    return bytes;
+  }
   std::vector<std::uint8_t> bytes(source.archiveSize);
   in.seekg(source.fileOffset);
   if (!in.read(reinterpret_cast<char *>(bytes.data()), std::streamsize(bytes.size())))
@@ -222,9 +231,7 @@ std::string CoreScene::status() const {
   return status_;
 }
 
-CoreScene::Actor *CoreScene::actorFor(const Re4CoreModel &model, unsigned info,
-                                      int disc) {
-  const auto &mi = model.infos[info];
+CoreScene::Actor *CoreScene::actorFor(const Re4CoreModelInfo &mi, int disc) {
   if (!known(mi.bin) || !known(mi.tpl)) return nullptr;
   const auto key = sourceKey(mi.bin) + "|" + sourceKey(mi.tpl);
   auto &slot = actors_[key];
@@ -280,7 +287,18 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
     }
     const std::array<float, 3> light{pose[0][3], pose[0][7] + 800, pose[0][11]};
     for (unsigned k = 0; k < m.nInfos; ++k) {
-      Actor *a = actorFor(m, k, frame.disc);
+      // the core cannot always name the source (a sub screen swaps memory
+      // out for a while): the last source seen for the same data stays valid
+      Re4CoreModelInfo mi = m.infos[k];
+      const auto memoryKey = (std::uint64_t(m.address) << 3) | k;
+      auto &remembered = knownSources_[memoryKey];
+      if (known(mi.bin) && known(mi.tpl)) {
+        remembered = mi;
+      } else if (remembered.binAddress == mi.binAddress && remembered.tplAddress == mi.tplAddress &&
+                 known(remembered.bin) && known(remembered.tpl)) {
+        mi = remembered;
+      }
+      Actor *a = actorFor(mi, frame.disc);
       if (!a || a->joints > m.nParts || m.nParts > 128) {
         ++missing;
         continue;
@@ -341,6 +359,7 @@ void CoreScene::buildRoom(std::uint16_t id, const std::string &path) {
   DestroySceneGl();
   CreateSceneGl(scene);
   room_ = std::move(state);
+  knownSources_.clear();
   char name[32];
   std::snprintf(name, sizeof(name), "st%x/r%03x.das", unsigned(id >> 8), unsigned(id));
   roomArchiveName_ = name;

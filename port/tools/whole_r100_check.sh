@@ -173,7 +173,7 @@ if [ -x "$cmp" ]; then
     tee -a "$report" < "$run/formatvergleich.txt"
     # converter messages: what was left undone or left as it is
     notes=$(grep -h "formats:" "$run/formatvergleich.log" |
-        grep -E "no converter|incomplete|outside|left |no field list|blocks in its chain|more than|unknown|overlaps|dropped" |
+        grep -E "no converter|incomplete|outside|left |no field list|blocks in its chain|more than|unknown" |
         sed 's/^\[re4\] //' | sort | uniq -c | sort -rn)
     if [ -n "$notes" ]; then
         say "Umwandler-Meldungen beim Vergleich ($(echo "$notes" | grep -c .) verschiedene):"
@@ -306,7 +306,7 @@ run_game() {
     fi
     # converter messages that point at something left undone
     local msgs
-    msgs=$(grep -h "formats:" "$log" | grep -E "no converter|incomplete|outside|left big-endian|left as|no field list|blocks in its chain|more than|overlaps|dropped" |
+    msgs=$(grep -h "formats:" "$log" | grep -E "no converter|incomplete|outside|left big-endian|left as|no field list|blocks in its chain|more than|overlaps|suspended|back again" |
         sed 's/^\[re4\] //' | sort | uniq -c | sort -rn)
     if [ -n "$msgs" ]; then
         say "Umwandler-Meldungen:"
@@ -445,6 +445,15 @@ render_pictures() {
     "$tool_build/core_snapshot_render" "$approot" "$pics" "$snaps"/*.bin 2> "$run/bild-werkzeug-lauf.log" |
         sed 's/^/  /' | tee -a "$report"
     rm -f "$pics"/room-*.dat
+    # which models the app could load from the disc, and why not
+    local loaded failed
+    loaded=$(grep -c "^\[RE4Core\] model .*: [0-9]* joints$" "$run/bild-werkzeug-lauf.log" 2> /dev/null)
+    failed=$(grep -h "^\[RE4Core\] model " "$run/bild-werkzeug-lauf.log" 2> /dev/null | grep -v ": [0-9]* joints$" |
+        sed 's/^\[RE4Core\] //' | sort | uniq -c | sort -rn)
+    say "  Modelle der App geladen: ${loaded:-0}; nicht ladbar: $(echo -n "$failed" | grep -c .)"
+    [ -n "$failed" ] && echo "$failed" | head -25 | sed 's/^/    /' | tee -a "$report"
+    grep -h "^\[RE4Core\] room " "$run/bild-werkzeug-lauf.log" 2> /dev/null | sort -u | head -5 | sed 's/^\[RE4Core\] /  /' |
+        tee -a "$report"
     rm -rf "$approot"  # links to the disc folder: not copied with the report
     # PPM -> PNG (python's zlib), for viewing on Windows
     python3 - "$pics" <<'PY'

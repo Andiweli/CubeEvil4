@@ -157,6 +157,38 @@ void testBridge()
         CHECK(strstr(where, "no entry starts there") != 0);
         re4_formats_describe(big + 0x54, where, sizeof(where));
         CHECK(strstr(where, "overwritten by a later load") != 0);
+        // an event file (EVD): its models are found by their offset in the file
+        // (entry -2); a sub screen swapping the memory out suspends the note
+        // until the data is back
+        unsigned char* evd = (unsigned char*) (unsigned long) 0x8210A000u;
+        memset(evd, 0, 0x200);
+        memcpy(evd, "event", 5);
+        memcpy(evd + 0x20, "r100", 4);
+        memcpy(evd + 0x28, "s00", 3);
+        put32be(evd + 0x40, 0x50);  // packets (none)
+        put32be(evd + 0x4C, 0x50);  // bin table (no entries)
+        Header he = { 0, 0x200, 0, 0x400, 0, 0, 0, 0 };
+        re4_formats_part_loaded("Evd/r100s00.evd", 0, 0, &he, 0x8210A000u);
+        CHECK(re4_formats_locate(evd + 0x123, &src) && strcmp(src.file, "evd/r100s00.evd") == 0 &&
+              src.entry == -2 && src.innerOffset == 0x123 && src.fileOffset == 0x400 && src.archiveSize == 0x200);
+        unsigned char saved[0x40];
+        memcpy(saved, evd, sizeof(saved));
+        memset(evd, 0x77, sizeof(saved));  // swapped out
+        unsigned char* trigger = (unsigned char*) (unsigned long) 0x8210C000u;
+        memset(trigger, 0, 0x40);
+        put32be(trigger + 0x00, 1);
+        put32be(trigger + 0x10, 0x20);
+        memcpy(trigger + 0x14, "XBN\0", 4);
+        Header ht = { 0, 0x40, 0, 0x400, 0, 0, 0, 0 };
+        re4_formats_part_loaded("em/trigger.drs", 0, 0, &ht, 0x8210C000u);
+        CHECK(!re4_formats_locate(evd + 0x123, &src));
+        memcpy(evd, saved, sizeof(saved));  // back again
+        memset(trigger, 0, 0x40);
+        put32be(trigger + 0x00, 1);
+        put32be(trigger + 0x10, 0x20);
+        memcpy(trigger + 0x14, "XBN\0", 4);
+        re4_formats_part_loaded("em/trigger2.drs", 0, 0, &ht, 0x8210C000u);
+        CHECK(re4_formats_locate(evd + 0x123, &src) && src.entry == -2 && src.innerOffset == 0x123);
         // motion curves (FCV): a joint the game reads is converted, an unused
         // joint whose offset points into the header is left alone (weapon
         // motions have such joints) and does not stop the conversion

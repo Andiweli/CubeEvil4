@@ -6,6 +6,8 @@
 //     a decoded room archive (SMD with a rigid floor + LIT)
 //   - the path of a core source is found case-insensitively; a Yz2-packed
 //     source is refused with a message
+//   - event-file sources (entry -2: data at an offset of the file), and the
+//     last known source of a model when the core loses it for a while
 //   - nested sources (innerOffset: a BIN inside another entry) and sources in
 //     the Yz2-packed room archive (read from the decoded room file) are drawn;
 //     the room's scenery objects (ObjMgr id 2) are left to the room scene
@@ -122,6 +124,19 @@ int main() {
     }
     const auto archive2 = makeArchive({{"SMD", nested}, {"TPL", makeTpl()}});
     writeFile(root + "/disc1/files/em/em98.drs", makeDrs(archive2));
+    // an event file: a container part at 0x400 holding the BIN at +0x100 and the TPL after it
+    Bytes eventPart(0x100, 0);
+    const auto eventBin = makeBin(true, false, true);
+    const auto eventTpl = makeTpl();
+    eventPart.insert(eventPart.end(), eventBin.begin(), eventBin.end());
+    const auto tplOffset = unsigned(eventPart.size());
+    eventPart.insert(eventPart.end(), eventTpl.begin(), eventTpl.end());
+    {
+      Bytes file(0x400, 0);
+      file.insert(file.end(), eventPart.begin(), eventPart.end());
+      mkdir((root + "/disc1/files/Evd").c_str(), 0755);
+      writeFile(root + "/disc1/files/Evd/r100s00.evd", file);
+    }
     // the decoded room archive also holds a model (entries 2 and 3)
     const std::string roomPath = root + "/room.arc";
     writeFile(roomPath, makeArchive({{"SMD", makeSmd(makeRigidBin())}, {"LIT", makeLit()},
@@ -225,10 +240,12 @@ int main() {
     std::fprintf(stderr, "pose change pixels: %u\n", changes(rest, lifted));
     require(changes(rest, lifted) > 20, "the part matrices move the model");
 
-    // a model without a known source is counted as missing
+    // a model without a known source is counted as missing (other data than
+    // the source remembered for it)
     frame.models[0].beFlag = 1 | 2 | 4;
     std::memset(&frame.models[0].infos[0].bin, 0, sizeof(Re4CoreSource));
     frame.models[0].infos[0].bin.entry = -1;
+    frame.models[0].infos[0].binAddress = 0x82FF0000u;
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
     require(scene.status().find("drawn 0, missing 1") != std::string::npos, "unknown source missing");
 
@@ -251,6 +268,29 @@ int main() {
     frame.screen = RE4_CORE_SCREEN_SUB;
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
     require(scene.status().find("MENU OPEN") != std::string::npos, "open sub screen reported");
+
+    // an event model: data at an offset of the event file
+    frame.screen = 0;
+    setSource(frame.models[0].infos[0].bin, "evd/r100s00.evd", 0x400, unsigned(eventPart.size()), -2);
+    frame.models[0].infos[0].bin.innerOffset = 0x100;
+    setSource(frame.models[0].infos[0].tpl, "evd/r100s00.evd", 0x400, unsigned(eventPart.size()), -2);
+    frame.models[0].infos[0].tpl.innerOffset = tplOffset;
+    require(re4::ReadCoreSource(root, 0, frame.models[0].infos[0].bin).size() == eventPart.size() - 0x100,
+            "event file data from its offset");
+    frame.models[0].address = 0x82002000u;
+    frame.models[0].infos[0].binAddress = 0x82100100u;
+    frame.models[0].infos[0].tplAddress = 0x82100100u + tplOffset - 0x100;
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    require(scene.status().find("drawn 1, missing 0") != std::string::npos, "event file model drawn");
+    // the core loses the source (memory swapped out): the same data is still drawn
+    std::memset(&frame.models[0].infos[0].bin, 0, sizeof(Re4CoreSource));
+    std::memset(&frame.models[0].infos[0].tpl, 0, sizeof(Re4CoreSource));
+    frame.models[0].infos[0].bin.entry = frame.models[0].infos[0].tpl.entry = -1;
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    require(scene.status().find("drawn 1, missing 0") != std::string::npos, "last known source kept");
+    frame.models[0].infos[0].binAddress += 0x20;  // other data: not the remembered source
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    require(scene.status().find("drawn 0, missing 1") != std::string::npos, "other data not mistaken");
 
     std::string cleanup = "rm -rf '" + root + "'";
     if (std::system(cleanup.c_str()) != 0) std::fprintf(stderr, "cleanup failed\n");

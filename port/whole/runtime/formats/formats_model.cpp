@@ -249,52 +249,89 @@ void convertMotionAt(Blob& b, u32 base)
     swap32(b, table, 1 + n);
     // Every joint whose three curves lie in the data area is converted (the
     // camera motions, cam_motion.cpp, read joints by number, whatever their
-    // kind). A joint whose offset points elsewhere (into the header, past the
-    // block) is left as it is: an error only if MotionMoveCore reads its kind
-    // (low byte 1 / 0x40 null position / rotation, 2 or 0x30 rotation, 4
-    // position, 8 scale); otherwise the game never reads it (weapon motions
-    // have such joints).
+    // kind). A joint whose curves do not fit is left as it is (the axes that
+    // fit converted); the converter has a gap only if the game reads such a
+    // joint with data the entry holds. Not a gap:
+    //   - kinds MotionMoveCore never reads (low byte not 1 / 0x40 null
+    //     position / rotation, 2 or 0x30 rotation, 4 position, 8 scale),
+    //   - camera joints (channel 6 / 7): read only for a model with an
+    //     attached camera; weapon motions point them past their entry,
+    //   - the joint with the last curves when the entry ends inside them (the
+    //     original data is shorter, a 32-byte FCV in pl14.drs).
     u32 dataStart = table - base + 4 + n * 4;
-    Seen seen;
-    for (u32 i = 0; i < n && b.ok; i++) {
-        if (!seen.first(offs[i])) {
-            continue;
+    u32 lastStart = 0;
+    for (u32 i = 0; i < n; i++) {
+        if (offs[i] > lastStart && offs[i] < b.size - base) {
+            lastStart = offs[i];
         }
-        u32 kind = kinds[i] & 0xFF;
-        bool read = kind == 1 || kind == 0x40 || (kind & (2 | 4 | 8 | 0x30)) != 0;
+    }
+    // the three axes of joint i inside the data area: how many fit
+    struct Walk {
+        u32 at[3], count[3];
+        int axes;
+        bool inside;
+    };
+    auto walk = [&](u32 i) {
+        Walk w = {};
         u32 key = fccKeySize(kinds[i] >> 12);
-        // walk the three axes first: convert only a joint that fits
         u32 p = base + offs[i];
-        u32 axisAt[3], counts[3];
-        bool fits = key != 0 && offs[i] >= dataStart && offs[i] < b.size - base;
-        for (int axis = 0; axis < 3 && fits; axis++) {
+        w.inside = key != 0 && offs[i] >= dataStart && offs[i] < b.size - base;
+        for (int axis = 0; axis < 3 && w.inside; axis++) {
             if (p + 2 > b.size) {
-                fits = false;
                 break;
             }
             u32 count = ((u32) b.data[p] << 8) | b.data[p + 1];
             u32 len = 2 + count * 2 + count * key;
             if (len > b.size - p) {
-                fits = false;
                 break;
             }
-            axisAt[axis] = p;
-            counts[axis] = count;
+            w.at[axis] = p;
+            w.count[axis] = count;
+            w.axes++;
             p += len;
         }
-        if (!fits) {
-            re4_log("formats: %s: MotionData at 0x%x (%u joints): joint %u kind 0x%04x (key layout %u, %u bytes per "
-                    "key), curves at +0x%x outside the data area 0x%x..0x%x, left as they are%s",
-                    b.name, (unsigned) base, (unsigned) n, (unsigned) i, (unsigned) kinds[i],
-                    (unsigned) (kinds[i] >> 12), (unsigned) key, (unsigned) offs[i], (unsigned) dataStart,
-                    (unsigned) (b.size - base), read ? " (the game reads this kind)" : " (a kind the game never reads)");
-            if (read) {
-                b.ok = false;  // a real gap in the converter
+        return w;
+    };
+    // pass 1: every joint that fits (curves shared by several joints once)
+    Seen seen;
+    bool fitted[256];
+    for (u32 i = 0; i < n; i++) {
+        Walk w = walk(i);
+        fitted[i] = w.axes == 3;
+        if (fitted[i] && seen.first(offs[i])) {
+            for (int axis = 0; axis < 3; axis++) {
+                swap16(b, w.at[axis], 1 + w.count[axis]);
             }
+        }
+    }
+    // pass 2: the others, unless their curves belong to a joint that fitted
+    for (u32 i = 0; i < n && b.ok; i++) {
+        if (fitted[i] || !seen.first(offs[i])) {
             continue;
         }
-        for (int axis = 0; axis < 3; axis++) {
-            swap16(b, axisAt[axis], 1 + counts[axis]);
+        Walk w = walk(i);
+        u32 kind = kinds[i] & 0xFF;
+        u32 channel = (kinds[i] >> 8) & 0xF;
+        bool read = kind == 1 || kind == 0x40 || (kind & (2 | 4 | 8 | 0x30)) != 0;
+        bool camera = channel == 6 || channel == 7;
+        bool truncated = w.inside && offs[i] == lastStart && w.axes > 0;
+        if (truncated && read && !camera) {
+            for (int axis = 0; axis < w.axes; axis++) {
+                swap16(b, w.at[axis], 1 + w.count[axis]);
+            }
+        }
+        const char* why = !read      ? "a kind the game never reads"
+                          : camera   ? "a camera joint (read only with an attached camera)"
+                          : truncated ? "the entry ends inside its last curves (original data; the axes inside "
+                                        "converted)"
+                                      : "the game reads this kind";
+        re4_log("formats: %s: MotionData at 0x%x (%u joints): joint %u kind 0x%04x (key layout %u, %u bytes per "
+                "key), curves at +0x%x, %d of 3 axes inside the data area 0x%x..0x%x, left as they are: %s",
+                b.name, (unsigned) base, (unsigned) n, (unsigned) i, (unsigned) kinds[i],
+                (unsigned) (kinds[i] >> 12), (unsigned) fccKeySize(kinds[i] >> 12), (unsigned) offs[i], w.axes,
+                (unsigned) dataStart, (unsigned) (b.size - base), why);
+        if (read && !camera && !truncated) {
+            b.ok = false;  // a real gap in the converter
         }
     }
 }

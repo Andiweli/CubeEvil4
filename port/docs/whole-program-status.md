@@ -439,9 +439,15 @@ Raumblock-Datei), meldet die Brücke den umgebenden Eintrag und `innerOffset`.
 Angaben zu Archiven, über die später anderes geladen wurde, verfallen: lädt
 das Spiel ein neues Archiv über einen Teil eines älteren, wird nur dieser
 Teil gesperrt (über den Kopf oder denselben Bereich: das ganze ältere);
-Daten ohne eigene Notiz erkennt eine Prüfsumme der Eintragsnamen. Jede
-Überlappung steht im Log („formats: archive … overlaps …“, im Bericht unter
-den Umwandler-Meldungen). Yz2-gepackte Archive (Raumdateien) haben keinen
+Daten ohne eigene Notiz erkennt eine Prüfsumme der Eintragsnamen; stimmt
+sie nicht, ruhen die Angaben nur, bis die Daten wieder da sind (ein
+Untermenü lagert Teile von MEM1 vorübergehend nach ARAM aus,
+`SubScreenAramRead`). Die App merkt sich je Modell die letzte bekannte
+Herkunft und zeichnet es so auch während solcher Pausen. Ereignis-Dateien
+(`Evd/*.evd`) werden als Ganzes gemerkt: Modelle darin haben `entry = -2`,
+`innerOffset` = Position in der Datei. Jede Überlappung und jede Pause steht
+im Log („formats: archive … overlaps …“, „… suspended“, im Bericht unter den
+Umwandler-Meldungen). Yz2-gepackte Archive (Raumdateien) haben keinen
 Datei-Offset (`0xFFFFFFFF`); solche Modelle (Gegenstände, Tiere des Raums)
 liest die App aus der entpackten Raumdatei, die sie für den Raum ohnehin
 vorbereitet. Die Raumkulisse (`cObjScr`, ObjMgr-Kennung 2: die SMD-Modelle
@@ -567,6 +573,29 @@ Gerätelauf, Bilder mit echten Disc-Daten.
   `MotionMoveCore` diese Gelenkart liest (Kamerafahrten lesen nach Nummer,
   daher werden alle passenden Gelenke weiter umgewandelt). Test mit einem
   unbenutzten Gelenk, das in den Kopf zeigt.
+
+### Vierter lokaler Lauf mit Bildern (14.10.2026, WSL2)
+
+- Erste Bilder der Brücke mit Disc-Daten: Raum r100 mit Brücke, Bäumen,
+  Himmel und Nebel wie im Spiel; Leon mit Funkgerät am Ohr (Bilder 2500 bis
+  10 000: der Funkspruch wartet auf eine Taste, das Funk-Menü selbst ist 2D
+  und fehlt); Bild 651: Anfangsszene, zwei Polizisten auf der Brücke von
+  hinten. Fehler: Leons Haare/Oberkopf fehlen, den Polizisten fehlen die
+  Köpfe (nur die Mützen).
+- Ursachen aus dem Bericht: Die Köpfe kommen aus den Ereignis-Dateien
+  (`Evd/r100s00.evd`), die der Umwandler nicht als Herkunft merkte (jetzt
+  `entry -2`). Nach dem Öffnen des Funk-Menüs meldeten r100.das und em12.drs
+  „entry names changed“: Das Spiel lagert diesen Speicher vorübergehend aus;
+  die Angaben wurden verworfen statt nur pausiert (jetzt Pause plus
+  Gedächtnis der App). Leons Haare: Ursache offen; der Bericht zeigt jetzt im
+  Abschnitt 4, welche Modelle die App nicht laden konnte und warum.
+- FCV: Die 8 Fehler sind Kamera-Gelenke (Kanal 6) in Waffen-Animationen,
+  deren Daten hinter ihrem Eintrag liegen (wep09/10/21/24/31/32/47), und ein
+  32-Byte-FCV in pl14.drs, das mitten in seiner einzigen Kurve endet. Beides
+  liegt an den Original-Daten, nicht am Umwandler: Kamera-Gelenke liest das
+  Spiel nur mit angehängter Kamera, und was in den Eintrag passt, wird
+  umgewandelt. Die Meldung nennt jetzt den Grund, gezählt als Fehler wird nur
+  ein gelesenes Gelenk mit Daten im Eintrag.
 
 ### Lokale Prüfungen für K2
 

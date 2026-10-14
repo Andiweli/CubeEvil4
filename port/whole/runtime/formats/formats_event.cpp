@@ -336,6 +336,16 @@ void convertEvd(Blob& b, const Part&)
     convertEvdAt(b, 0, b.size);
 }
 
+void convertEvdFile(Blob& b, const Part& part)
+{
+    convertEvdAt(b, 0, b.size);
+    // event models (EvpTpSetOm / SetParts) point into the file: the bridge
+    // finds them by their offset (re4_formats_locate, entry -2)
+    if (b.size >= 0x50 && memcmp(b.data, "event", 5) == 0) {
+        noteArchive(b.data, b.size, b.name, part, 0, 0, true);
+    }
+}
+
 // EVS: s32 count, u32 table offset; {u32 offset, u32} per event.
 void convertEvs(Blob& b, const Part&)
 {

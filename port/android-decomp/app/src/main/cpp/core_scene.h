@@ -83,7 +83,7 @@ class CoreScene {
  private:
   struct Actor;
   struct RoomState;
-  Actor *actorFor(const Re4CoreModel &model, unsigned info, int disc);
+  Actor *actorFor(const Re4CoreModelInfo &info, int disc);
   void buildRoom(std::uint16_t room, const std::string &path);
   void drawTitle(int width, int height);
   void drawActors(const CoreFrame &frame, const float *camera,
@@ -103,6 +103,9 @@ class CoreScene {
   std::unique_ptr<RoomArchive> roomArchive_;  // decoded archive of room_ (packed model sources)
   std::string roomArchiveName_;               // its name on the disc, e.g. "st1/r100.das"
   std::map<std::string, std::unique_ptr<Actor>> actors_;
+  // last known disc source per (model, info): the core loses some while a
+  // sub screen has memory swapped out
+  std::map<std::uint64_t, Re4CoreModelInfo> knownSources_;
   std::vector<std::uint8_t> coreEff_;
   bool coreLoaded_{};
   unsigned titleTexture_{}, titleProgram_{}, titleVao_{}, titleVbo_{};

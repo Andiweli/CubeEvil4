@@ -135,6 +135,7 @@ void convertCameraAt(Blob& b, u32 base);
 void convertCamera(Blob& b, const Part& part);       // CAM
 void convertEvdAt(Blob& b, u32 base, u32 end);
 void convertEvd(Blob& b, const Part& part);          // EVD, event/evd/*.evd
+void convertEvdFile(Blob& b, const Part& part);      // a top-level .evd: also noted for the bridge
 void convertEvs(Blob& b, const Part& part);          // EVS
 
 // Coverage (formats.cpp): what each archive entry became, for the
@@ -146,8 +147,9 @@ void noteEntry(const void* addr, const char* tag, int status, const void* archiv
 // An archive of `size` bytes from files/<part.name>, part.fileOfs bytes into
 // the file (0xFFFFFFFF: Yz2-packed, the archive is the unpacked file).
 // offs/count: the entry start offsets (re4_formats_locate finds nested data by them)
+// plain: a file without an entry table (EVD); its data is found by offset
 void noteArchive(const void* addr, unsigned size, const char* name, const Part& part, const u32* offs = 0,
-                 u32 count = 0);
+                 u32 count = 0, bool plain = false);
 int containingEntry(const void* addr, int* slot, u32* inner);
 // what noteEntry recorded (0 = nothing); tag, if given, receives its tag (4 chars)
 int entryStatus(const void* addr, char* tag = 0);

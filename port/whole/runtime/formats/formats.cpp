@@ -201,6 +201,8 @@ struct ArchiveNote {
     u32 sig;          // hash of the entry count and tags: memory reused without a new note?
     u32 holeLo[4], holeHi[4];  // parts later loads overwrote (offsets in the archive)
     u32 nHoles;
+    bool plain;       // a file without entry table (an EVD): data found by offset (entry -2)
+    bool suspended;   // signature differs right now (memory swapped out, sub screen)
 };
 
 // r100 alone loads well over 64 archives (enemies, player, weapons, room):
@@ -235,17 +237,24 @@ void forget(ArchiveNote& a)
     memset(&a, 0, sizeof(a));
 }
 
-// The game never rewrites an archive's entry count and tags; other data
-// loaded over the archive (without a note of its own) changes them.
+// The game never rewrites an archive's entry count and tags (an EVD's tag
+// and names); other data over the archive (without a note of its own)
+// changes them.
 u32 signature(const ArchiveNote& a)
 {
     const u8* p = (const u8*) a.addr;
+    u32 h = 2166136261u;
+    if (a.plain) {
+        for (u32 i = 0; i < 0x34 && i < a.size; i++) {
+            h = (h ^ p[i]) * 16777619u;
+        }
+        return h;
+    }
     u32 n = a.nOffs;
     u32 len = 0x10 + n * 8;
     if (len > a.size) {
         len = a.size;
     }
-    u32 h = 2166136261u;
     for (u32 i = 0; i < 4 && i < len; i++) {
         h = (h ^ p[i]) * 16777619u;
     }
@@ -255,20 +264,26 @@ u32 signature(const ArchiveNote& a)
     return h;
 }
 
+// The data is there right now. A sub screen swaps parts of MEM1 out to ARAM
+// and back (SubScreenAramRead): the note stays, lookups wait until the
+// archive is back.
 bool intact(ArchiveNote& a)
 {
-    if (a.gen && signature(a) != a.sig) {
+    if (!a.gen) {
+        return false;
+    }
+    bool same = signature(a) == a.sig;
+    if (same == a.suspended) {
         static u32 reported;
         if (reported < 40) {
             reported++;
-            re4_log("formats: archive %s (0x%08lx..0x%08lx): its entry names changed (memory reused without a "
-                    "load the converter saw), its notes are dropped",
-                    a.name, (unsigned long) a.addr, (unsigned long) a.addr + a.size);
+            re4_log("formats: archive %s (0x%08lx..0x%08lx): %s", a.name, (unsigned long) a.addr,
+                    (unsigned long) a.addr + a.size,
+                    same ? "back again, notes valid" : "other data there now (swapped out?), notes suspended");
         }
-        forget(a);
-        return false;
+        a.suspended = !same;
     }
-    return a.gen != 0;
+    return same;
 }
 
 bool inHole(const ArchiveNote& a, u32 rel)
@@ -340,7 +355,8 @@ int entryStatus(const void* addr, char* tag)
     return 0;
 }
 
-void noteArchive(const void* addr, unsigned size, const char* name, const Part& part, const u32* offs, u32 count)
+void noteArchive(const void* addr, unsigned size, const char* name, const Part& part, const u32* offs, u32 count,
+                 bool plain)
 {
     // memory reused: the part of an older archive this one covers is stale
     // now. The same range again (a reload) or its header covered: the whole
@@ -386,6 +402,7 @@ void noteArchive(const void* addr, unsigned size, const char* name, const Part& 
     snprintf(a->name, sizeof(a->name), "%s", name);
     snprintf(a->file, sizeof(a->file), "%s", part.name ? part.name : "");
     a->fileOfs = part.fileOfs;
+    a->plain = plain;
     if (offs && count) {
         a->offs = (u32*) malloc(count * sizeof(u32));
         if (a->offs) {
@@ -407,7 +424,7 @@ int containingEntry(const void* addr, int* slot, u32* inner)
     for (u32 k = 0; k < kArchives; k++) {
         ArchiveNote& a = g_archives[k];
         const char* base = (const char*) a.addr;
-        if (a.gen && a.offs && p >= base && p < base + a.size && !inHole(a, (u32) (p - base)) &&
+        if (a.gen && (a.offs || a.plain) && p >= base && p < base + a.size && !inHole(a, (u32) (p - base)) &&
             (found < 0 || a.size < g_archives[found].size) && intact(a)) {
             found = (int) k;
         }
@@ -417,6 +434,11 @@ int containingEntry(const void* addr, int* slot, u32* inner)
     }
     const ArchiveNote& a = g_archives[found];
     u32 rel = (u32) (p - (const char*) a.addr);
+    if (a.plain) {
+        *slot = found;
+        *inner = rel;
+        return -2;  // data of the file itself
+    }
     int best = -1;
     for (u32 i = 0; i < a.nOffs; i++) {
         if (a.offs[i] <= rel && (best < 0 || a.offs[i] >= a.offs[best])) {
@@ -510,7 +532,7 @@ const Rule kRules[] = {
     { "st*/r*.das", packed, "room archive (Yz2)" },
     { "st*/r*_*.dat", convertArchive, "room block archive" },
     { "etc/*.esl", convertEmList, "enemy list" },
-    { "*.evd", convertEvd, "event" },
+    { "*.evd", convertEvdFile, "event" },
     { "op/op*.das", convertCodecArchive, "codec messages (archive at +0x400)" },
     { "*.das", convertArchive, "archive" },
     { "*.drs", convertArchive, "archive" },
@@ -659,12 +681,13 @@ extern "C" int re4_formats_locate(const void* addr, Re4CoreSource* out)
                 break;
             }
         }
-        // else nested inside an entry (a BIN in an SMD, a model in a block file)
+        // else nested inside an entry (a BIN in an SMD, a model in a block
+        // file) or inside a file without entries (an EVD: entry -2)
         if (c.entry < 0) {
             c.entry = containingEntry(addr, &c.slot, &c.inner);
         }
     }
-    if (c.entry < 0 || c.slot < 0 || !g_archives[c.slot].gen) {
+    if ((c.entry < 0 && c.entry != -2) || c.slot < 0 || !g_archives[c.slot].gen) {
         return 0;
     }
     const ArchiveNote& a = g_archives[c.slot];
