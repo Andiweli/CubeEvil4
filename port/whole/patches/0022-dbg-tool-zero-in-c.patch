@@ -1,0 +1,11 @@
+--- a/include/dbg_tool.h
++++ b/include/dbg_tool.h
+@@ -299,7 +299,7 @@
+     do { } while (0); // COMPILER-DIFF: #13 (sched region split)
+     {
+         cDbgButton* z;
+-        asm("li %0,0" : "=r"(z) : "m"(m_wx)); // COMPILER-DIFF: #13 (asm-emitted zero, reload-placed li)
++        z = 0; /* port: was asm("li %0,0") */ // COMPILER-DIFF: #13 (asm-emitted zero, reload-placed li)
+         m_pEndBut = m_pStartBut = m_pCurrentBut = z;
+     }
+     AddButton(1, 2, " [OK] ", 0, 0, 0, 0);

@@ -1,0 +1,185 @@
+--- a/include/math_sub.h
++++ b/include/math_sub.h
+@@ -15,9 +15,8 @@
+ // scheduling barrier (loads after it are not hoisted above it).
+ static inline f32 fabsf(f32 x)
+ {
+-    f32 r;
+-    asm("fabs %0,%1" : "=f"(r) : "f"(x));
+-    return r;
++    /* port: C version of the fabs (re4_ppc.h) */
++    return re4_fabsf(x);
+ }
+ 
+ // Column `c` of a matrix read into a Vec.
+--- a/src/game/math_sub.cpp
++++ b/src/game/math_sub.cpp
+@@ -662,15 +662,13 @@
+     if (x <= 0.00001f) {
+         return 0.0f;
+     }
+-    asm("frsqrte 2, %1\n\t"
+-        "fmuls 3, 2, 2\n\t"
+-        "fmuls 4, 2, %2\n\t"
+-        "fnmsubs 3, 3, %1, %3\n\t"
+-        "fmuls 2, 3, 4\n\t"
+-        "fmuls %0, %1, 2"
+-        : "=f"(r)
+-        : "f"(x), "f"(half), "f"(three)
+-        : "fr2", "fr3", "fr4");
++    /* port: the original is frsqrte (Gekko's table estimate of 1/sqrt) plus one Newton step,
++       x * (e * half * (three - e * e * x)). The estimate is replaced by the exact square root,
++       as in the motion helper (tools/motion) and the app (port/android-decomp): the result
++       can differ from the GameCube in the last bits. */
++    (void) half;
++    (void) three;
++    r = sqrtf(x);
+     return r;
+ }
+ 
+@@ -712,40 +710,37 @@
+ f32 powx[2] = {1.0f, 1.0f};
+ f32 sum[2] = {0.0f, 0.0f};
+ 
++/* port: C version of the paired-single series of SINF/COSF. Lane 0 sums the odd, lane 1 the
++   even powers: f3 = powx, f4 = sum, f2 = (powx[0] * x, x * x); five times
++   f3 = f2 * f3.ps1 (ps_muls1), f4 = f3 * Coeff[2i..2i+1] + f4 (ps_madd, fused); the result is
++   lane 0 + lane 1 (ps_sum0). Every product and sum is rounded to single precision as on Gekko. */
++static f32 PsSeries(f32 x)
++{
++    f32 p0 = powx[0];
++    f32 p1 = powx[1];
++    f32 s0 = sum[0];
++    f32 s1 = sum[1];
++    f32 a0 = p0 * x;
++    f32 a1 = x * x;
++    int i;
++
++    for (i = 0; i < 5; i++) {
++        f32 t = p1;
++        p0 = a0 * t;
++        p1 = a1 * t;
++        s0 = fmaf(p0, Coeff[i * 2], s0);
++        s1 = fmaf(p1, Coeff[i * 2 + 1], s1);
++    }
++    return s0 + s1;
++}
++
+ // sin(x) by a paired-single Taylor series after wrapping x into [-PI, PI).
+ f32 SINF(f32 x)
+ {
+     f32 r;
+ 
+     x = LIMIT_ANGLE(x);
+-    asm(
+-        "lis 9, Coeff@ha\n\t"
+-        "li 10, powx@sda21\n\t"
+-        "addi 9, 9, Coeff@l\n\t"
+-        "li 11, sum@sda21\n\t"
+-        "psq_l 3, 0(10), 0, 0\n\t"
+-        "psq_l 4, 0(11), 0, 0\n\t"
+-        "ps_merge00 2, 3, %1\n\t"
+-        "ps_muls0 2, 2, %1\n\t"
+-        "psq_l 5, 0(9), 0, 0\n\t"
+-        "ps_muls1 3, 2, 3\n\t"
+-        "ps_madd 4, 3, 5, 4\n\t"
+-        "psq_l 5, 8(9), 0, 0\n\t"
+-        "ps_muls1 3, 2, 3\n\t"
+-        "ps_madd 4, 3, 5, 4\n\t"
+-        "psq_l 5, 16(9), 0, 0\n\t"
+-        "ps_muls1 3, 2, 3\n\t"
+-        "ps_madd 4, 3, 5, 4\n\t"
+-        "psq_l 5, 24(9), 0, 0\n\t"
+-        "ps_muls1 3, 2, 3\n\t"
+-        "ps_madd 4, 3, 5, 4\n\t"
+-        "psq_l 5, 32(9), 0, 0\n\t"
+-        "ps_muls1 3, 2, 3\n\t"
+-        "ps_madd 4, 3, 5, 4\n\t"
+-        "ps_sum0 %0, 4, 4, 4"
+-        : "=f"(r)
+-        : "f"(x)
+-        : "r9", "r10", "r11", "fr2", "fr3", "fr4", "fr5");
++    r = PsSeries(x); /* port: C version of the paired-single asm */
+     return r;
+ }
+ 
+@@ -755,34 +750,7 @@
+     f32 r;
+ 
+     x = LIMIT_ANGLE(x + 1.5707964f);
+-    asm(
+-        "lis 9, Coeff@ha\n\t"
+-        "li 10, powx@sda21\n\t"
+-        "addi 9, 9, Coeff@l\n\t"
+-        "li 11, sum@sda21\n\t"
+-        "psq_l 3, 0(10), 0, 0\n\t"
+-        "psq_l 4, 0(11), 0, 0\n\t"
+-        "ps_merge00 2, 3, %1\n\t"
+-        "ps_muls0 2, 2, %1\n\t"
+-        "psq_l 5, 0(9), 0, 0\n\t"
+-        "ps_muls1 3, 2, 3\n\t"
+-        "ps_madd 4, 3, 5, 4\n\t"
+-        "psq_l 5, 8(9), 0, 0\n\t"
+-        "ps_muls1 3, 2, 3\n\t"
+-        "ps_madd 4, 3, 5, 4\n\t"
+-        "psq_l 5, 16(9), 0, 0\n\t"
+-        "ps_muls1 3, 2, 3\n\t"
+-        "ps_madd 4, 3, 5, 4\n\t"
+-        "psq_l 5, 24(9), 0, 0\n\t"
+-        "ps_muls1 3, 2, 3\n\t"
+-        "ps_madd 4, 3, 5, 4\n\t"
+-        "psq_l 5, 32(9), 0, 0\n\t"
+-        "ps_muls1 3, 2, 3\n\t"
+-        "ps_madd 4, 3, 5, 4\n\t"
+-        "ps_sum0 %0, 4, 4, 4"
+-        : "=f"(r)
+-        : "f"(x)
+-        : "r9", "r10", "r11", "fr2", "fr3", "fr4", "fr5");
++    r = PsSeries(x); /* port: C version of the paired-single asm */
+     return r;
+ }
+ 
+@@ -793,23 +761,25 @@
+     f32 max = PI;
+     f32 step = PI2;
+ 
+-    asm("fcmpu 0, %0, %2\n\t"
+-        "blt 1f\n"
+-        "0:\n\t"
+-        "fsubs %0, %0, %3\n\t"
+-        "fcmpu 0, %0, %2\n\t"
+-        "bge 0b\n\t"
+-        "b 2f\n"
+-        "1:\n\t"
+-        "fcmpu 0, %0, %1\n\t"
+-        "bge 2f\n"
+-        "3:\n\t"
+-        "fadds %0, %0, %3\n\t"
+-        "fcmpu 0, %0, %1\n\t"
+-        "blt 3b\n"
+-        "2:"
+-        : "+f"(x)
+-        : "f"(min), "f"(max), "f"(step)
+-        : "cr0");
++    /* port: C version of the fcmpu/fsubs/fadds loop, each step rounded to single precision.
++       On the GameCube a NaN or infinite angle never leaves the loop; here it is returned
++       unchanged and logged once. */
++    if (!(x - x == 0.0f)) {
++        static int reported;
++        if (!reported) {
++            reported = 1;
++            re4_log("LIMIT_ANGLE: angle %f is not finite (the GameCube would hang here)", (double) x);
++        }
++        return x;
++    }
++    if (x >= max) {
++        do {
++            x = x - step;
++        } while (x >= max);
++    } else if (x < min) {
++        do {
++            x = x + step;
++        } while (x < min);
++    }
+     return x;
+ }

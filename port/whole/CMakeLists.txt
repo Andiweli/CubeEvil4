@@ -17,6 +17,17 @@ elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(armv7.*|arm)$")
 else()
     message(FATAL_ERROR "unsupported processor ${CMAKE_SYSTEM_PROCESSOR}: the port is ILP32 for now (milestone 12 adds ARM64)")
 endif()
+# __FILE__ without the checkout and build directory: DvdReadN copies it into
+# the 48-byte DVD_REQ_WORK::reqfile (include/dvd.h, src/game/dvd.cpp), so a
+# long build path overflowed it. Game units become "src/game/x.cpp" (the more
+# specific prefix of the prepared tree wins), port code "port/whole/...".
+add_compile_options("-fmacro-prefix-map=${RE4_ROOT}/=")
+if(RE4_ARCH STREQUAL "i686")
+    # Single-precision float arithmetic in SSE registers, as on ARM (VFP) and
+    # the GameCube: x87 keeps excess precision between operations, so float
+    # results (and the bit-exact math tests) would differ from the device.
+    add_compile_options(-msse2 -mfpmath=sse)
+endif()
 
 # --- prepared original sources -------------------------------------------------
 set(RE4_PREPARED "${CMAKE_CURRENT_BINARY_DIR}/prepared")
@@ -31,7 +42,8 @@ file(GLOB_RECURSE RE4_PREPARE_INPUTS CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/patches/*.patch"
     "${RE4_ROOT}/config/G4BE08/*.py" "${RE4_ROOT}/config/G4BE08/config.yml")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${RE4_ROOT}/port/tools/whole_prepare.py" ${RE4_PREPARE_INPUTS})
+    "${RE4_ROOT}/port/tools/whole_prepare.py" "${RE4_ROOT}/port/tools/whole_asm_check.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/byte_views.json" ${RE4_PREPARE_INPUTS})
 
 file(READ "${RE4_PREPARED}/modules.json" RE4_PLAN)
 string(JSON RE4_MAIN_COUNT LENGTH "${RE4_PLAN}" main)
@@ -45,6 +57,7 @@ target_include_directories(re4_game_flags BEFORE INTERFACE
     "${RE4_TREE}/include"
     "${RE4_TREE}/src")  # overlay units include shared units as "wep/..." or "tools/..."
 target_compile_options(re4_game_flags INTERFACE
+    "-fmacro-prefix-map=${RE4_TREE}/="
     -include "${CMAKE_CURRENT_SOURCE_DIR}/include/re4_whole_prelude.h"
     -std=gnu++11
     -Wno-c++11-narrowing
@@ -306,8 +319,13 @@ set_target_properties(re4test_rel PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_C
 # loads libre4_host.so (the launcher and the runtime tests) and with it the
 # game libraries, which therefore lie above 0x80000000 as on Android.
 if(NOT ANDROID)
-    add_library(re4_hostlib SHARED host/main.cpp tests/runtime_tests.cpp "${RE4_ROOT}/port/src/sha256.cpp")
-    target_include_directories(re4_hostlib PRIVATE runtime "${RE4_ROOT}/port/include" "${RE4_ROOT}/port/tests")
+    # tests/game_probe.cpp: checks that need the game's flags and headers
+    add_library(re4_probe_obj OBJECT tests/game_probe.cpp)
+    target_link_libraries(re4_probe_obj PRIVATE re4_game_flags)
+    add_library(re4_hostlib SHARED host/main.cpp tests/runtime_tests.cpp "${RE4_ROOT}/port/src/sha256.cpp"
+        $<TARGET_OBJECTS:re4_probe_obj>)
+    target_include_directories(re4_hostlib PRIVATE runtime "${RE4_ROOT}/port/include" "${RE4_ROOT}/port/tests"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include")
     target_compile_features(re4_hostlib PRIVATE cxx_std_17)
     add_dependencies(re4_hostlib re4test_rel re4test_caller re4test_target)
     target_link_options(re4_hostlib PRIVATE -fuse-ld=lld)

@@ -1,0 +1,93 @@
+// Compiled with the game's flags and headers (re4_game_flags) for the runtime
+// test "math": checks of what only exists inside game units -- the inline
+// fabsf of math_sub.h, the EmRoutineSetW macro of em.h (patch 0023), the
+// big-endian views of re4_whole_prelude.h and the length of __FILE__.
+#include "types.h"
+#include "math_sub.h"
+#include "em.h"
+#include "dolphin/gx/GXStruct.h"
+
+struct ProbeRoutine {  // the four routine bytes of cModel (r_no_0..3)
+    u8 r_no_0;
+    u8 r_no_1;
+    u8 r_no_2;
+    u8 r_no_3;
+};
+
+struct ProbeAxAddr {  // the AX address pair the sound driver reads as one word
+    u16 currentAddressHi;
+    u16 currentAddressLo;
+};
+
+extern "C" float re4probe_fabsf(float x)
+{
+    return fabsf(x);
+}
+
+extern "C" void re4probe_routine(unsigned char out[4])
+{
+    ProbeRoutine r = {9, 9, 9, 9};
+    ProbeRoutine* em = &r;
+    EmRoutineSetW(em, 1, 0x2E, 3, 4);
+    out[0] = r.r_no_0;
+    out[1] = r.r_no_1;
+    out[2] = r.r_no_2;
+    out[3] = r.r_no_3;
+}
+
+// Returns a bit mask of failed checks (0 = all passed).
+extern "C" int re4probe_byte_views(void)
+{
+    int failed = 0;
+    GXColor c = {0, 0, 0, 0};
+    // fade.h: `*(u32*) &col.start = 0xFF` is black with full alpha on the GameCube
+    RE4_BE(u32, 1, &c) = 0xFF;
+    if (c.r != 0 || c.g != 0 || c.b != 0 || c.a != 0xFF) {
+        failed |= 1;
+    }
+    RE4_BE(u32, 1, &c) = 0x11223344;
+    if (c.r != 0x11 || c.g != 0x22 || c.b != 0x33 || c.a != 0x44 || RE4_BE(u32, 1, &c) != 0x11223344) {
+        failed |= 2;
+    }
+    // light.cpp: `(*(u32*) &l->DispCol & 0xFFFFFF00) == 0` tests r, g, b
+    c.r = c.g = c.b = 0;
+    if ((RE4_BE(u32, 1, &c) & 0xFFFFFF00) != 0) {
+        failed |= 4;
+    }
+    // event.cpp: the EVD tag "event" read as a word
+    char tag[8] = {'e', 'v', 'e', 'n', 't', 0, 0, 0};
+    if (RE4_BE(u32, 1, tag) != 0x6576656E) {
+        failed |= 8;
+    }
+    // snd_iss2.cpp: the AX Hi/Lo halfwords as one address
+    ProbeAxAddr a = {0x0012, 0x3456};
+    if (RE4_BE(u32, 2, &a.currentAddressHi) != 0x00123456) {
+        failed |= 16;
+    }
+    // copy through two views keeps the bytes; compound assignment
+    GXColor d = {1, 2, 3, 4};
+    RE4_BE(u32, 1, &c) = RE4_BE(u32, 1, &d);
+    RE4_BE(u32, 1, &c) |= 0xFF;
+    if (c.r != 1 || c.g != 2 || c.b != 3 || c.a != 0xFF) {
+        failed |= 32;
+    }
+    // motion.cpp: an s16 in a big-endian byte stream
+    u8 stream[2] = {0xFF, 0x38};
+    if ((s16) RE4_BE(s16, 1, stream) != -200) {
+        failed |= 64;
+    }
+    // parts counted from the most significant end of a host value
+    s16 parts = 0x0107;
+    int fno = 0x00020005;
+    f32 one = 1.0f;
+    if (RE4_BE_AT(u8, &parts, 1) != 7 || RE4_BE_AT(u8, &parts, 0) != 1 || RE4_BE_AT(u16, &fno, 1) != 5 ||
+        RE4_BE_AT(s8, &fno, 3) != 5 || RE4_BE_AT(u8, &one, 0) != 0x3F || RE4_BE_AT(u8, &one, 1) != 0x80) {
+        failed |= 128;
+    }
+    return failed;
+}
+
+extern "C" const char* re4probe_file(void)
+{
+    return __FILE__;
+}

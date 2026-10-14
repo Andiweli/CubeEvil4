@@ -18,6 +18,11 @@
 #define MAP_FIXED_NOREPLACE 0x100000
 #endif
 
+// The GameCube's locked data cache (0xE0000000 there), see re4_ppc.h.
+extern "C" {
+__attribute__((aligned(32))) unsigned char re4_locked_cache[0x4000];
+}
+
 namespace {
 
 bool gMapped;

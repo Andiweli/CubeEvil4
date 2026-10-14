@@ -1,0 +1,1198 @@
+[
+ {
+  "file": "include/fade.h",
+  "line": 59,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "include/fade.h:59"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "include/fade.h",
+  "line": 61,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "include/fade.h:61"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "include/fade.h",
+  "line": 65,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "include/fade.h:65"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "include/fade.h",
+  "line": 67,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "include/fade.h:67"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "include/fade.h",
+  "line": 86,
+  "text": "(u32*) &c.c0",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "include/fade.h:86"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "include/fade.h",
+  "line": 87,
+  "text": "(u32*) &c.c1",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "include/fade.h:87"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/Tools/t_rck.cpp",
+  "line": 1193,
+  "text": "(u32*) &l",
+  "use": "deref",
+  "type": "u32",
+  "element": null,
+  "object": "RTP_LINE",
+  "sites": [
+   "src/Tools/t_rck.cpp:1193"
+  ],
+  "action": "keep",
+  "reason": "copies 4 raw bytes (RTP_LINE) from the data as they are: byte order neutral"
+ },
+ {
+  "file": "src/Tools/t_vib.cpp",
+  "line": 1223,
+  "text": "(u32*) &c",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/Tools/t_vib.cpp:1223"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/Tools/t_vib.cpp",
+  "line": 1259,
+  "text": "(u32*) &c",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/Tools/t_vib.cpp:1259"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/em10/em10.cpp",
+  "line": 2129,
+  "text": "(u8*) &part->parts_no",
+  "use": "index",
+  "type": "u8",
+  "element": 2,
+  "object": "s16",
+  "sites": [
+   "src/em10/em10.cpp:2129"
+  ],
+  "action": "be_part",
+  "reason": "element of a s16 counted from its most significant end, as on the GameCube"
+ },
+ {
+  "file": "include/em.h",
+  "line": 168,
+  "text": "(u32*) &(em)->r_no_0",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "u8",
+  "sites": [
+   "src/em10/em10.cpp:11383",
+   "src/em10/em10.cpp:11636",
+   "src/em10/em10.cpp:11638",
+   "src/em10/em10.cpp:11799",
+   "src/em10/em10.cpp:11802"
+  ],
+  "action": "patch",
+  "reason": "patch 0023: EmRoutineSetW as four byte stores"
+ },
+ {
+  "file": "src/game/cam_ctrl.cpp",
+  "line": 47,
+  "text": "(u8*) &tmp",
+  "use": "index",
+  "type": "u8",
+  "element": 4,
+  "object": "f32",
+  "sites": [
+   "src/game/cam_ctrl.cpp:151",
+   "src/game/cam_ctrl.cpp:163",
+   "src/game/cam_ctrl.cpp:164"
+  ],
+  "action": "be_part",
+  "reason": "element of a f32 counted from its most significant end, as on the GameCube"
+ },
+ {
+  "file": "src/game/dbmodule.cpp",
+  "line": 371,
+  "text": "(u32*) &c",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/dbmodule.cpp:371"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/dbmodule.cpp",
+  "line": 399,
+  "text": "(u32*) &c",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/dbmodule.cpp:399"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/dbmodule.cpp",
+  "line": 428,
+  "text": "(u32*) &c",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/dbmodule.cpp:428"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/dbmodule.cpp",
+  "line": 480,
+  "text": "(u32*) &c",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/dbmodule.cpp:480"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/eff_sys.cpp",
+  "line": 1028,
+  "text": "(u32*) &sys->Final_col",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/eff_sys.cpp:1028"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/event.cpp",
+  "line": 1797,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/event.cpp:1797"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/event.cpp",
+  "line": 1799,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/event.cpp:1799"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/event.cpp",
+  "line": 1801,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/event.cpp:1801"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/event.cpp",
+  "line": 1802,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/event.cpp:1802"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/event.cpp",
+  "line": 2528,
+  "text": "(u32*) hdr->tag",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "char[8]",
+  "sites": [
+   "src/game/event.cpp:2528"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/event.cpp",
+  "line": 2708,
+  "text": "(u32*) hdr->tag",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "char[8]",
+  "sites": [
+   "src/game/event.cpp:2708"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/game.cpp",
+  "line": 105,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/game.cpp:105"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/game.cpp",
+  "line": 107,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/game.cpp:107"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/game.cpp",
+  "line": 110,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/game.cpp:110"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/game.cpp",
+  "line": 112,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/game.cpp:112"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/game.cpp",
+  "line": 719,
+  "text": "(u32*)&pG->Rno0",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "u8",
+  "sites": [
+   "src/game/game.cpp:719"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/game.cpp",
+  "line": 1029,
+  "text": "(u32*)&pG->Rno0",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "u8",
+  "sites": [
+   "src/game/game.cpp:1029"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/id_sys.cpp",
+  "line": 821,
+  "text": "(u32*) u->col1",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "u8[4]",
+  "sites": [
+   "src/game/id_sys.cpp:821"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/light.cpp",
+  "line": 521,
+  "text": "(u32*) &l->DispCol",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/light.cpp:521"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/light.cpp",
+  "line": 567,
+  "text": "(u32*) &l->DispCol",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/light.cpp:567"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/motion.cpp",
+  "line": 1470,
+  "text": "(s16*) &d[i * 6]",
+  "use": "deref",
+  "type": "s16",
+  "element": 1,
+  "object": "u8",
+  "sites": [
+   "src/game/motion.cpp:1470"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/motion.cpp",
+  "line": 1471,
+  "text": "(s16*) &d[j * 6]",
+  "use": "deref",
+  "type": "s16",
+  "element": 1,
+  "object": "u8",
+  "sites": [
+   "src/game/motion.cpp:1471"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/motion.cpp",
+  "line": 1472,
+  "text": "(s16*) &d[i * 6 + 4]",
+  "use": "deref",
+  "type": "s16",
+  "element": 1,
+  "object": "u8",
+  "sites": [
+   "src/game/motion.cpp:1472"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/motion.cpp",
+  "line": 1473,
+  "text": "(s16*) &d[j * 6 + 2]",
+  "use": "deref",
+  "type": "s16",
+  "element": 1,
+  "object": "u8",
+  "sites": [
+   "src/game/motion.cpp:1473"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/pl_npc.cpp",
+  "line": 3203,
+  "text": "(u32*) &pAnotherRoute",
+  "use": "deref",
+  "type": "u32",
+  "element": null,
+  "object": "struct EmiEntry *",
+  "sites": [
+   "src/game/pl_npc.cpp:3203"
+  ],
+  "action": "keep",
+  "reason": "pointer zeroed through u32: same size, neutral"
+ },
+ {
+  "file": "src/game/pl_sub.cpp",
+  "line": 370,
+  "text": "(u8*) &sub->m_MotBase",
+  "use": "deref",
+  "type": "u8",
+  "element": null,
+  "object": "cMotBase",
+  "sites": [
+   "src/game/pl_sub.cpp:370"
+  ],
+  "action": "patch",
+  "reason": "patch 0024: sets bit 30 of cMotBase::pMod (on the GameCube the uncached mirror of the same memory); no effect on the port"
+ },
+ {
+  "file": "src/game/sce_com.cpp",
+  "line": 843,
+  "text": "(u32*) &c0",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/sce_com.cpp:843"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/sce_com.cpp",
+  "line": 844,
+  "text": "(u32*) &c1",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/sce_com.cpp:844"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/sce_sys.cpp",
+  "line": 581,
+  "text": "(u32*) &end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/sce_sys.cpp:581"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/sce_sys.cpp",
+  "line": 582,
+  "text": "(u32*) &start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/sce_sys.cpp:582"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/scroll.cpp",
+  "line": 319,
+  "text": "(u32*) mi->color",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "u8[4]",
+  "sites": [
+   "src/game/scroll.cpp:319"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/scroll.cpp",
+  "line": 326,
+  "text": "(u32*) mi->color2",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "u8[4]",
+  "sites": [
+   "src/game/scroll.cpp:326"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/snd_iss2.cpp",
+  "line": 149,
+  "text": "(u32*) &axv->ax_voice->pb.addr.currentAddressHi",
+  "use": "deref",
+  "type": "u32",
+  "element": 2,
+  "object": "u16",
+  "sites": [
+   "src/game/snd_iss2.cpp:149"
+  ],
+  "action": "be",
+  "reason": "word over two u16 fields (AX address Hi/Lo): Hi in the high half"
+ },
+ {
+  "file": "src/game/snd_iss2.cpp",
+  "line": 150,
+  "text": "(u32*) &axv->ax_voice->pb.addr.endAddressHi",
+  "use": "deref",
+  "type": "u32",
+  "element": 2,
+  "object": "u16",
+  "sites": [
+   "src/game/snd_iss2.cpp:150"
+  ],
+  "action": "be",
+  "reason": "word over two u16 fields (AX address Hi/Lo): Hi in the high half"
+ },
+ {
+  "file": "src/game/snd_str2.cpp",
+  "line": 164,
+  "text": "(u32*) &str->ax_voice_l->pb.addr.currentAddressHi",
+  "use": "deref",
+  "type": "u32",
+  "element": 2,
+  "object": "u16",
+  "sites": [
+   "src/game/snd_str2.cpp:164"
+  ],
+  "action": "be",
+  "reason": "word over two u16 fields (AX address Hi/Lo): Hi in the high half"
+ },
+ {
+  "file": "src/game/sofdec.cpp",
+  "line": 463,
+  "text": "(u16*) &m_ap_obj.frm.fno",
+  "use": "index",
+  "type": "u16",
+  "element": 4,
+  "object": "int",
+  "sites": [
+   "src/game/sofdec.cpp:463"
+  ],
+  "action": "be_part",
+  "reason": "element of a int counted from its most significant end, as on the GameCube"
+ },
+ {
+  "file": "src/game/sscrn.cpp",
+  "line": 580,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/sscrn.cpp:580"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/game/sscrn.cpp",
+  "line": 581,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/game/sscrn.cpp:581"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/st1/r108.cpp",
+  "line": 315,
+  "text": "(f32*) &r108_dial",
+  "use": "deref",
+  "type": "f32",
+  "element": null,
+  "object": "cObj *",
+  "sites": [
+   "src/st1/r108.cpp:315"
+  ],
+  "action": "keep",
+  "reason": "pointer bits compared as f32: same size, neutral"
+ },
+ {
+  "file": "src/st1/r117.cpp",
+  "line": 105,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/st1/r117.cpp:105"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/st1/r117.cpp",
+  "line": 106,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/st1/r117.cpp:106"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/st2/r21d.cpp",
+  "line": 144,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/st2/r21d.cpp:144"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/st2/r21d.cpp",
+  "line": 146,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/st2/r21d.cpp:146"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/st2/r21d.cpp",
+  "line": 149,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/st2/r21d.cpp:149"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/st2/r21d.cpp",
+  "line": 151,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/st2/r21d.cpp:151"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/st3/r300.cpp",
+  "line": 718,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/st3/r300.cpp:718"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/st3/r300.cpp",
+  "line": 719,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/st3/r300.cpp:719"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/st3/r311.cpp",
+  "line": 70,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/st3/r311.cpp:70"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/st3/r311.cpp",
+  "line": 71,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/st3/r311.cpp:71"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/st3/r31c.cpp",
+  "line": 1456,
+  "text": "(u32*) &col.start",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/st3/r31c.cpp:1456"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/st3/r31c.cpp",
+  "line": 1457,
+  "text": "(u32*) &col.end",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/st3/r31c.cpp:1457"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_camera/t_camera.cpp",
+  "line": 2941,
+  "text": "(u16*) &pTc->cdatNum",
+  "use": "deref",
+  "type": "u16",
+  "element": 1,
+  "object": "s8",
+  "sites": [
+   "src/t_camera/t_camera.cpp:2941"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_camera/t_camera_data.cpp",
+  "line": 77,
+  "text": "(u16*) &pTc->cdatNum",
+  "use": "deref",
+  "type": "u16",
+  "element": 1,
+  "object": "s8",
+  "sites": [
+   "src/t_camera/t_camera_data.cpp:77"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_camera/t_camera_data.cpp",
+  "line": 195,
+  "text": "(u32*) &r->pAdat",
+  "use": "deref",
+  "type": "u32",
+  "element": null,
+  "object": "AREA_DATA *",
+  "sites": [
+   "src/t_camera/t_camera_data.cpp:195"
+  ],
+  "action": "keep",
+  "reason": "pointer field stored as u32 offset: same size, neutral"
+ },
+ {
+  "file": "src/t_esp/db_port.cpp",
+  "line": 1063,
+  "text": "(u32*) &col",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/t_esp/db_port.cpp:1063"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_esp/db_port.cpp",
+  "line": 2185,
+  "text": "(s8*) &c->parNo",
+  "use": "index",
+  "type": "s8",
+  "element": 4,
+  "object": "int",
+  "sites": [
+   "src/t_esp/db_port.cpp:2185"
+  ],
+  "action": "be_part",
+  "reason": "element of a int counted from its most significant end, as on the GameCube"
+ },
+ {
+  "file": "src/t_esp/db_port.cpp",
+  "line": 2185,
+  "text": "(s8*) &c->parPtNo",
+  "use": "index",
+  "type": "s8",
+  "element": 4,
+  "object": "int",
+  "sites": [
+   "src/t_esp/db_port.cpp:2185"
+  ],
+  "action": "be_part",
+  "reason": "element of a int counted from its most significant end, as on the GameCube"
+ },
+ {
+  "file": "src/t_id/t_id.cpp",
+  "line": 1780,
+  "text": "(u32*) &c0",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/t_id/t_id.cpp:1780"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_id/t_id.cpp",
+  "line": 1782,
+  "text": "(u32*) &c1",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/t_id/t_id.cpp:1782"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_light/t_scroll.cpp",
+  "line": 1270,
+  "text": "(u32*) info->color2",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "u8[4]",
+  "sites": [
+   "src/t_light/t_scroll.cpp:1270"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_light/t_scroll.cpp",
+  "line": 1659,
+  "text": "(u32*) rec->color",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "u8[4]",
+  "sites": [
+   "src/t_light/t_scroll.cpp:1659"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_light/t_scroll.cpp",
+  "line": 1661,
+  "text": "(u32*) rec->color2",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "u8[4]",
+  "sites": [
+   "src/t_light/t_scroll.cpp:1661"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_light/t_scroll.cpp",
+  "line": 1661,
+  "text": "(u32*) obj->pModelInfo->color2",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "u8[4]",
+  "sites": [
+   "src/t_light/t_scroll.cpp:1661"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_light/t_scroll.cpp",
+  "line": 1967,
+  "text": "(u32*) obj->pModelInfo->color2",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "u8[4]",
+  "sites": [
+   "src/t_light/t_scroll.cpp:1967"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_movie/t_snd_vol.cpp",
+  "line": 321,
+  "text": "(u32*) &gray",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/t_movie/t_snd_vol.cpp:321"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_movie/t_snd_vol.cpp",
+  "line": 839,
+  "text": "(u32*) &col",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/t_movie/t_snd_vol.cpp:839"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_movie/t_snd_vol.cpp",
+  "line": 1005,
+  "text": "(u32*) &col",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/t_movie/t_snd_vol.cpp:1005"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_movie/t_snd_vol.cpp",
+  "line": 1007,
+  "text": "(u32*) &col",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/t_movie/t_snd_vol.cpp:1007"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_movie/t_snd_vol.cpp",
+  "line": 1018,
+  "text": "(u32*) &col",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/t_movie/t_snd_vol.cpp:1018"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/t_movie/t_snd_vol.cpp",
+  "line": 1035,
+  "text": "(u32*) &col",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/t_movie/t_snd_vol.cpp:1035"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/tools/db_light.cpp",
+  "line": 1534,
+  "text": "(u32*) &cur->Col",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/tools/db_light.cpp:1534"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/tools/db_light.cpp",
+  "line": 3728,
+  "text": "(u32*) &off0",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "GXColor",
+  "sites": [
+   "src/tools/db_light.cpp:3728"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ },
+ {
+  "file": "src/tools/db_light.cpp",
+  "line": 5491,
+  "text": "(u32*) &l->enable",
+  "use": "deref",
+  "type": "u32",
+  "element": 1,
+  "object": "u8",
+  "sites": [
+   "src/tools/db_light.cpp:5491"
+  ],
+  "action": "be",
+  "reason": "word over byte fields: bytes in GameCube order"
+ }
+]

@@ -1,0 +1,14 @@
+--- a/include/em.h
++++ b/include/em.h
+@@ -164,8 +164,10 @@
+ // The routine bytes written all at once, in the single stw the original emits at some sites (four
+ // separate byte stores do not reproduce it). A macro, not an inline: an inline defined here would
+ // create entities in every unit that includes em.h, which renumbers their static locals.
++/* port: four byte stores. The word store puts r0 into the lowest-addressed byte only on a
++   big-endian CPU; on ARM/x86 r_no_0..3 would receive r3..r0. */
+ #define EmRoutineSetW(em, r0, r1, r2, r3) \
+-    (*(u32*) &(em)->r_no_0 = ((u32) (r0) << 24) | ((u32) (r1) << 16) | ((u32) (r2) << 8) | (u32) (r3))
++    ((em)->r_no_0 = (u8) (r0), (em)->r_no_1 = (u8) (r1), (em)->r_no_2 = (u8) (r2), (em)->r_no_3 = (u8) (r3))
+ 
+ // Enemy manager (game/em.cpp). The construct id selects the class: 0 player, 1..0xE / others a
+ // read-table enemy (EmInitFunc), 0x40.. the object enemies (cEmObj, cEmDoor, ...), 0xFF a plain cEm.

@@ -1,0 +1,252 @@
+--- a/src/game/trans.cpp
++++ b/src/game/trans.cpp
+@@ -84,10 +84,11 @@
+ #define PTR_INVALID2(p) ((u32) (p) - 0x80000000 > 0x02FFFFFF)
+ 
+ // u8 -> f32 through GQR2 straight from memory: the compiler only emits psq_l from a stack slot.
+-#define PSQ_L_U8(p) ({ f32 f_; asm("psq_l %0,0(%1),1,2" : "=f"(f_) : "b"(p) : "memory"); f_; })
++/* port: C versions of the psq_l (re4_ppc.h) */
++#define PSQ_L_U8(p) re4_psq_l_u8(p)
+ // Loads straight into the named variable so the asm output shares the variable's (global) register
+ // (espgen42/45 too; asm stays in the unit so asmcheck.py counts it).
+-#define PSQ_L_U8_TO(dst, p) asm("psq_l %0,0(%1),1,2" : "=f"(dst) : "b"(p) : "memory")
++#define PSQ_L_U8_TO(dst, p) ((dst) = re4_psq_l_u8(p))
+ 
+ // Bit test as 0 / 1 (matching helper).
+ static inline int isBit(u32 f, u32 b)
+@@ -844,7 +845,7 @@
+             m[2][3] += *s++ * rate;
+             cnt++;
+         }
+-        PSMTXReorder(m, (f32(*)[3]) (0xE0000000 + i * 0x30));
++        PSMTXReorder(m, (f32(*)[3]) (RE4_LC_BASE + i * 0x30)); /* port: locked cache (re4_ppc.h) */
+     }
+ #undef w
+     return cnt;
+@@ -896,7 +897,7 @@
+             m[2][3] += *s++ * rate;
+             cnt++;
+         }
+-        PSMTXReorder(m, (f32(*)[3]) (0xE0000000 + i * 0x30));
++        PSMTXReorder(m, (f32(*)[3]) (RE4_LC_BASE + i * 0x30)); /* port: locked cache (re4_ppc.h) */
+     }
+ #undef w
+     return cnt;
+@@ -2480,83 +2481,93 @@
+     GXSetViewport(0.0f, 0.0f, h, one, (f32) n, one);
+ }
+ 
++/* port: GQR6, the quantisation register of the skinning loops (setupGQR6). */
++static u32 sGqr6;
++
++/* port: C version of the paired-single skinning loops below. Per vertex: the palette matrix
++   (ROMtx, 12 floats, in the locked cache at index * 0x30) times the dequantised input
++   (x, y, z) * 2^-load scale, three fused multiply-adds per row starting from the
++   translation (ps_madds0/ps_madds1/ps_madds0), then quantised: times 2^store scale, clamped,
++   truncated. The scales come from GQR6. The hardware loop runs 2^32 times for n == 0 and
++   reads the matrix index of the vertex after the last; neither is reproduced. */
++static void Sk1Loop(void* dst, const void* src, u32 n, int bytes)
++{
++    u32 gqr = sGqr6;
++    f32 ld = ldexpf(1.0f, -re4_gqr_scale(gqr >> 24));
++    f32 st = ldexpf(1.0f, re4_gqr_scale(gqr >> 8));
++    u32 type = bytes ? 6 : 7;
++    u32 i;
++
++    if (((gqr >> 16) & 7) != type || (gqr & 7) != type) {
++        static int reported;
++        if (!reported) {
++            reported = 1;
++            re4_log("CalcSk1: GQR6 %08lx does not match the vertex type", (unsigned long) gqr);
++        }
++    }
++    for (i = 0; i < n; i++) {
++        f32 v[3];
++        f32 r[3];
++        u32 idx;
++        int k;
++        const f32* m;
++
++        if (bytes) {
++            const s8* in = (const s8*) src + i * 4;
++            v[0] = (f32) in[0] * ld;
++            v[1] = (f32) in[1] * ld;
++            v[2] = (f32) in[2] * ld;
++            idx = (u8) in[3];
++        } else {
++            const s16* in = (const s16*) src + i * 4;
++            v[0] = (f32) in[0] * ld;
++            v[1] = (f32) in[1] * ld;
++            v[2] = (f32) in[2] * ld;
++            idx = (u32) (s32) in[3];
++        }
++        if (idx >= RE4_LOCKED_CACHE_SIZE / 0x30) {
++            static int bad;
++            if (!bad) {
++                bad = 1;
++                re4_log("CalcSk1: matrix index %ld outside the locked cache", (long) (s32) idx);
++            }
++            continue;
++        }
++        m = (const f32*) (RE4_LC_BASE + idx * 0x30);
++        for (k = 0; k < 3; k++) {
++            r[k] = fmaf(m[6 + k], v[2], fmaf(m[3 + k], v[1], fmaf(m[k], v[0], m[9 + k])));
++        }
++        if (bytes) {
++            s8* out = (s8*) dst + i * 3;
++            for (k = 0; k < 3; k++) {
++                out[k] = (s8) re4_quantize(r[k] * st, -128.0f, 127.0f);
++            }
++        } else {
++            s16* out = (s16*) dst + i * 3;
++            for (k = 0; k < 3; k++) {
++                out[k] = (s16) re4_quantize(r[k] * st, -32768.0f, 32767.0f);
++            }
++        }
++    }
++}
++
+ // Skin `n` vertices (s16 x/y/z + s16 matrix index, 8 bytes) from src into dst (s16 x/y/z, 6 bytes)
+ // with the matrix palette in locked cache (0xE0000000, ROMtx 0x30 each). GQR6 holds the fixed point scale.
+ void CalcSk1_x(void* dst, void* src, u32 n)
+ {
+-    asm(
+-        "lha 9, 6(4)\n"
+-        "subi 3, 3, 6\n"
+-        "li 0, 0\n"
+-        "subi 4, 4, 8\n"
+-        "mulli 9, 9, 0x30\n"
+-        "addis 9, 9, 0xE000\n"
+-        "mtctr 5\n"
+-        "1:\n"
+-        "psq_l 0, 0(9), 0, 0\n"
+-        "psq_l 1, 8(9), 1, 0\n"
+-        "psq_l 2, 0xc(9), 0, 0\n"
+-        "psq_l 3, 0x14(9), 1, 0\n"
+-        "psq_l 4, 0x18(9), 0, 0\n"
+-        "psq_l 5, 0x20(9), 1, 0\n"
+-        "psq_l 6, 0x24(9), 0, 0\n"
+-        "psq_l 7, 0x2c(9), 1, 0\n"
+-        "psq_lu 8, 8(4), 0, 6\n"
+-        "psq_l 9, 4(4), 1, 6\n"
+-        "ps_madds0 12, 0, 8, 6\n"
+-        "ps_madds0 13, 1, 8, 7\n"
+-        "ps_madds1 12, 2, 8, 12\n"
+-        "ps_madds1 13, 3, 8, 13\n"
+-        "ps_madds0 12, 4, 9, 12\n"
+-        "ps_madds0 13, 5, 9, 13\n"
+-        "psq_stu 12, 6(3), 0, 6\n"
+-        "psq_st 13, 4(3), 1, 6\n"
+-        "lha 9, 0xe(4)\n"
+-        "mulli 9, 9, 0x30\n"
+-        "addis 9, 9, 0xE000\n"
+-        "bdnz 1b\n");
++    Sk1Loop(dst, src, n, 0); /* port: C version of the paired-single asm */
+ }
+ 
+ // Same for s8 normals (s8 x/y/z + u8 matrix index, 4 bytes) into s8 x/y/z (3 bytes).
+ void CalcSk1_x2(void* dst, void* src, u32 n)
+ {
+-    asm(
+-        "lbz 9, 3(4)\n"
+-        "subi 3, 3, 3\n"
+-        "li 0, 0\n"
+-        "subi 4, 4, 4\n"
+-        "mulli 9, 9, 0x30\n"
+-        "addis 9, 9, 0xE000\n"
+-        "mtctr 5\n"
+-        "1:\n"
+-        "psq_l 0, 0(9), 0, 0\n"
+-        "psq_l 1, 8(9), 1, 0\n"
+-        "psq_l 2, 0xc(9), 0, 0\n"
+-        "psq_l 3, 0x14(9), 1, 0\n"
+-        "psq_l 4, 0x18(9), 0, 0\n"
+-        "psq_l 5, 0x20(9), 1, 0\n"
+-        "psq_l 6, 0x24(9), 0, 0\n"
+-        "psq_l 7, 0x2c(9), 1, 0\n"
+-        "psq_lu 8, 4(4), 0, 6\n"
+-        "psq_l 9, 2(4), 1, 6\n"
+-        "ps_madds0 12, 0, 8, 6\n"
+-        "ps_madds0 13, 1, 8, 7\n"
+-        "ps_madds1 12, 2, 8, 12\n"
+-        "ps_madds1 13, 3, 8, 13\n"
+-        "ps_madds0 12, 4, 9, 12\n"
+-        "ps_madds0 13, 5, 9, 13\n"
+-        "psq_stu 12, 3(3), 0, 6\n"
+-        "psq_st 13, 2(3), 1, 6\n"
+-        "lbz 9, 7(4)\n"
+-        "mulli 9, 9, 0x30\n"
+-        "addis 9, 9, 0xE000\n"
+-        "bdnz 1b\n");
++    Sk1Loop(dst, src, n, 1); /* port: C version of the paired-single asm */
+ }
+ 
+ // Sets GQR6 (the paired-single quantisation register the skinning loads use).
+ void setupGQR6(u32 v)
+ {
+-    asm("mtspr 918, %0" : : "r"(v));
++    sGqr6 = v; /* port: was mtspr 918 */
+ }
+ 
+ // Relocate a TPL whose texture headers also carry a CLUT (thermo palette).
+--- a/src/game/shape.cpp
++++ b/src/game/shape.cpp
+@@ -175,8 +175,9 @@
+ };
+ 
+ // Apply the shape `data` at `rate` to the vertex buffer `dst` (8-byte vertices, s16 xyz).
+-#define PSQ_L_S16(p) ({ f32 f_; asm("psq_l %0,0(%1),1,5" : "=f"(f_) : "b"(p)); f_; })
+-#define PSQ_ST_S16(f, p) asm("psq_st %0,0(%1),1,5" : : "f"(f), "b"(p) : "memory")
++/* port: C versions of the psq_l / psq_st (re4_ppc.h) */
++#define PSQ_L_S16(p) re4_psq_l_s16(p)
++#define PSQ_ST_S16(f, p) re4_psq_st_s16((f), (p))
+ 
+ // Applies shape `data` at frame `rate` to the vertex buffer `dst`: for every channel flagged 4 the
+ // Hermite weight (percent / 100, x1.37 with shapeFlags bit3) scales that channel's delta list
+--- a/src/game/dbmodule.cpp
++++ b/src/game/dbmodule.cpp
+@@ -820,7 +820,8 @@
+ 
+ // `psq_l f,0(p),1,qr5` straight from the vertex pointer: inline asm in the original (the compiler
+ // always converts an s16 through a stack slot).
+-#define PSQ_L_S16(p) ({ f32 f_; asm("psq_l %0,0(%1),1,5" : "=f"(f_) : "b"(p)); f_; })
++/* port: C version of the psq_l (re4_ppc.h) */
++#define PSQ_L_S16(p) re4_psq_l_s16(p)
+ 
+ 
+ 
+--- a/src/game/Espgen42.cpp
++++ b/src/game/Espgen42.cpp
+@@ -445,7 +445,8 @@
+ // u8 to f32 through GQR2 from a stack byte. The volatile asm is a scheduling barrier that orders the
+ // address adds and neighbour loads as in the target's loop A. The same definition is in trans.cpp,
+ // and the asm stays in this unit so asmcheck.py counts it.
+-#define PSQ_L_U8_TO(dst, p) asm("psq_l %0,0(%1),1,2" : "=f"(dst) : "b"(p) : "memory")
++/* port: C version of the psq_l (re4_ppc.h) */
++#define PSQ_L_U8_TO(dst, p) ((dst) = re4_psq_l_u8(p))
+ 
+ // Step 0, every frame: the wave simulation, which also sets Status_flg[0] 0x200 (water present).
+ // Mode 1 is a cheaper single-pass variant, and in the effect tool the B button drops the surface.
+--- a/src/game/espgen45.cpp
++++ b/src/game/espgen45.cpp
+@@ -74,7 +74,8 @@
+ // u8 to f32 through GQR2 from a stack byte, since the compiler only emits psq_l from its own fpmem slot.
+ // The volatile asm is also the scheduling barrier that gives the target's order in loop A. Same definition
+ // as trans.cpp, kept in this unit so asmcheck.py counts it.
+-#define PSQ_L_U8_TO(dst, p) asm("psq_l %0,0(%1),1,2" : "=f"(dst) : "b"(p) : "memory")
++/* port: C version of the psq_l (re4_ppc.h) */
++#define PSQ_L_U8_TO(dst, p) ((dst) = re4_psq_l_u8(p))
+ 
+ // Bump texture (I8, 8x4 tiles) index of grid point (x, y). x/8 before y/4 (the two signed divisions are
+ // separate blocks, so their order is the source order) and `(y / 4) << 5`: with `* 32` fold would
+--- a/src/game/pendulum.cpp
++++ b/src/game/pendulum.cpp
+@@ -1157,7 +1157,7 @@
+     if (at == 0 || n == 0 || m == 0) {
+         return 0;
+     }
+-    wk = (PenAtWork*) 0xE0000000;
++    wk = (PenAtWork*) RE4_LC_BASE; /* port: locked cache (re4_ppc.h) */
+     a = wk->at;
+     wk->num = n;
+     wk->pAt = a;

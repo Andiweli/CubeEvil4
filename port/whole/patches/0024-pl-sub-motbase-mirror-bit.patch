@@ -1,0 +1,14 @@
+--- a/src/game/pl_sub.cpp
++++ b/src/game/pl_sub.cpp
+@@ -367,7 +367,10 @@
+         sub->pEmCatch = em;
+     } else {
+         sub->m_MotTbl2[0] = (void*)ft;
+-        *(u8*) &sub->m_MotBase |= 0x40;
++        /* port: the original sets 0x40 in the first byte of cMotBase::pMod, the high byte on the
++           GameCube: 0x80xxxxxx becomes 0xC0xxxxxx, the uncached mirror of the same memory. On a
++           little-endian host the same store would change the low byte (another object). The port
++           has no uncached mirror and the pointer reaches the same data either way: no store. */
+         sub->r_no_0 = 4;
+         sub->r_no_1 = 0;
+         sub->r_no_2 = 0;

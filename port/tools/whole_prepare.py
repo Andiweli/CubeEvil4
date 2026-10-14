@@ -19,8 +19,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import whole_asm_check  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[2]
 PATCHES = ROOT / "port" / "whole" / "patches"
+OVERLAY = ROOT / "port" / "whole" / "include"
 VERSION = "G4BE08"
 
 # asm volatile -> asm, so the asm(...) macro in re4_whole_prelude.h drops it.
@@ -90,6 +94,7 @@ ROOM_ID_WORD = {"stage_no": "room_id", "stage_prev": "room_id_prev"}
 
 
 def rewrite(text: str) -> str:
+    text = whole_asm_check.rewrite_copies(text)
     original = text
     text = "\n".join(local_data_alias(line, original) or line if "asm" in line else line
                      for line in text.split("\n"))
@@ -100,6 +105,46 @@ def rewrite(text: str) -> str:
     if "pG->stage_" in text:
         text = ROOM_ID_ADDR.sub(lambda m: f"(u16*) &pG->{ROOM_ID_WORD[m.group(1)]}", text)
     return text
+
+
+# Word accesses to byte fields (port/tools/whole_byte_views.py, reviewed list
+# port/whole/byte_views.json): `*(T*) x` -> RE4_BE(T, E, x) and
+# `((T*) x)[i]` -> RE4_BE_AT(T, x, i) (re4_whole_prelude.h). Applied after
+# the patches; a listed site that is not found exactly once stops the build.
+BYTE_VIEWS = ROOT / "port" / "whole" / "byte_views.json"
+CAST_PREFIX = re.compile(r"^\(\s*[\w ]+\*\s*\)\s*(?P<operand>.+)$")
+
+
+def apply_byte_views(tree: Path) -> int:
+    entries = json.loads(BYTE_VIEWS.read_text())
+    texts = {}
+    done = 0
+    for e in entries:
+        if e["action"] not in ("be", "be_part"):
+            continue
+        path = tree / e["file"]
+        if path not in texts:
+            texts[path] = path.read_text(encoding="utf-8", errors="surrogateescape").split("\n")
+        lines = texts[path]
+        operand = CAST_PREFIX.match(e["text"]).group("operand")
+        if e["action"] == "be":
+            pattern = re.compile(r"\*\s*" + re.escape(e["text"]))
+            replace = lambda m: f"RE4_BE({e['type']}, {e['element']}, {operand})"
+        else:
+            pattern = re.compile(r"\(\s*" + re.escape(e["text"]) + r"\s*\)\s*\[(?P<i>[^\]]+)\]")
+            replace = lambda m: f"RE4_BE_AT({e['type']}, {operand}, {m.group('i')})"
+        # the recorded line, or near it (patches move lines)
+        order = sorted(range(max(0, e["line"] - 40), min(len(lines), e["line"] + 40)),
+                       key=lambda i: abs(i - (e["line"] - 1)))
+        hits = [i for i in order if len(pattern.findall(lines[i])) == 1]
+        if not hits:
+            sys.exit(f"byte view {e['file']}:{e['line']} `{e['text']}` not found: "
+                     "rerun port/tools/whole_byte_views.py and review port/whole/byte_views.json")
+        lines[hits[0]] = pattern.sub(replace, lines[hits[0]], count=1)
+        done += 1
+    for path, lines in texts.items():
+        path.write_text("\n".join(lines), encoding="utf-8", errors="surrogateescape")
+    return done
 
 
 def mirror(src: Path, dst: Path) -> None:
@@ -216,10 +261,16 @@ def prepare(out: Path) -> Path:
     mirror(ROOT / "src", staging / "src")
     mirror(ROOT / "include", staging / "include")
     apply_patches(staging)
+    views = apply_byte_views(staging)
+    plan = module_plan()
+    # Every dropped inline asm with real instructions needs a C replacement.
+    found, problems = whole_asm_check.check(staging, whole_asm_check.plan_units(plan), OVERLAY)
+    if problems:
+        sys.exit("inline asm check failed (port/tools/whole_asm_check.py):\n  " + "\n  ".join(problems))
+    print(f"whole_prepare: asm {whole_asm_check.summary(found)}; {views} byte views")
     sync(staging, tree)
     shutil.rmtree(staging)
     write_sdk_c_only(out)
-    plan = module_plan()
     listed = set(plan["main"]) | {s for m in plan["modules"].values() for s in m["sources"]}
     on_disk = {p.relative_to(tree).as_posix() for p in (tree / "src").rglob("*.cpp")
                if p.relative_to(tree / "src").parts[0] != "lib"}

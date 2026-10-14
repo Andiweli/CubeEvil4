@@ -8,14 +8,21 @@
 //          synthetic fixtures of port/tests/yz2_fixtures.h
 //   dvdq   the game's own DVD queue (dvd.cpp) reading a synthetic headered file:
 //          big-endian part table (patch 0013), parts into the game heap
-//   math   PS*/C_* matrix and vector functions (SDK C versions)
+//   math   PS*/C_* matrix and vector functions (SDK C versions); the C
+//          versions of the game's Gekko asm (patches 0020-0022: fabsf, SQRTF,
+//          SINF, COSF, LIMIT_ANGLE bit-exact against an exact oracle,
+//          quantised loads/stores, the CalcSk1 skinning loops with GQR6);
+//          EmRoutineSetW (patch 0023), the big-endian views and the length
+//          of __FILE__ (tests/game_probe.cpp, compiled as game code)
 //   tasks  the game's own task scheduler (scheduler.cpp: TaskExec, TaskSleep,
 //          TaskExit, iTaskExec) on the OS thread emulation, plus VI retraces
 #include "re4_runtime.h"
+#include "re4_ppc.h"
 #include "re4/port/sha256.h"
 #include "yz2_fixtures.h"
 
 #include <dlfcn.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -602,6 +609,183 @@ static bool near(float a, float b)
     return a - b < 1e-5f && b - a < 1e-5f;
 }
 
+// --- C versions of the Gekko asm (patches 0020-0024) -------------------------
+
+float SQRTF(float x);
+float SINF(float x);
+float COSF(float x);
+float LIMIT_ANGLE(float x);
+void CalcSk1_x(void* dst, void* src, unsigned long n);
+void CalcSk1_x2(void* dst, void* src, unsigned long n);
+void setupGQR6(unsigned long v);
+extern "C" {
+float re4probe_fabsf(float x);
+void re4probe_routine(unsigned char out[4]);
+int re4probe_byte_views(void);
+const char* re4probe_file(void);
+}
+
+static unsigned bitsOf(float f)
+{
+    unsigned u;
+    memcpy(&u, &f, sizeof u);
+    return u;
+}
+
+static float floatOf(unsigned u)
+{
+    float f;
+    memcpy(&f, &u, sizeof f);
+    return f;
+}
+
+// x, SINF(x), COSF(x), LIMIT_ANGLE(x) as f32 bits. Computed by an exact
+// oracle (Python fractions: every ps_muls/fsubs/fadds rounded once to single,
+// every ps_madd fused, as on Gekko), independent of the C code under test.
+static const unsigned kTrig[][4] = {
+    {0x00000000, 0x00000000, 0x3F80011F, 0x00000000},
+    {0x3F000000, 0x3EF57765, 0x3F60B4FF, 0x3F000000},
+    {0xBF000000, 0xBEF57747, 0x3F60A971, 0xBF000000},
+    {0x3F800000, 0x3F576AC6, 0x3F0A772E, 0x3F800000},
+    {0xBF800000, 0xBF576AAA, 0x3F0A5153, 0xBF800000},
+    {0x3FC90FDB, 0x3F80011F, 0xB89D63A0, 0x3FC90FDB},
+    {0xBFC90FDB, 0xBF800009, 0x00000000, 0xBFC90FDB},
+    {0x40000000, 0x3F68D169, 0xBED510F2, 0x40000000},
+    {0x40400000, 0x3E123DCD, 0xBF7D7049, 0x40400000},
+    {0x40490FDB, 0xB89D63A0, 0xBF800009, 0xC0490FDB},
+    {0xC0490FDB, 0xB89D63A0, 0xBF800009, 0xC0490FDB},
+    {0x404CCCCD, 0xBD6F41D6, 0xBF7F904F, 0xC04552E9},
+    {0xC04CCCCD, 0x3D77F588, 0xBF7F9058, 0x404552E9},
+    {0x40800000, 0xBF41BE73, 0xBF275532, 0xC0121FB6},
+    {0x40C90FDB, 0x00000000, 0x3F80011F, 0x00000000},
+    {0x40F00000, 0x3F70212A, 0x3EB1F83E, 0x3F9BC094},
+    {0xC0F00000, 0xBF7020CA, 0x3EB17A50, 0xBF9BC094},
+    {0x41200000, 0xBF0B4548, 0xBF56CD6F, 0xC0243F6C},
+    {0xC1440000, 0x3E9F4B29, 0x3F735275, 0x3EA1FB60},
+    {0x42C80000, 0xBF01A1B9, 0x3F5CC0BA, 0xBF07EDF0},
+    {0x3A83126F, 0x3A831278, 0x3F80011C, 0x3A83126F},
+    {0xC0300000, 0xBEC36897, 0xBF6C9F1C, 0xC0300000},
+    {0x3AA3D70A, 0x3AA3D714, 0x3F800119, 0x3AA3D70A},
+    {0x41F80000, 0xBECEDE51, 0x3F6A2CCD, 0xBED4F4A0},
+};
+
+static bool testGekkoMath()
+{
+    bool ok = true;
+    // fabsf (math_sub.h inline, compiled as game code): sign bit only
+    CHECK(bitsOf(re4probe_fabsf(-2.5f)) == bitsOf(2.5f) && bitsOf(re4probe_fabsf(-0.0f)) == 0);
+    CHECK(re4probe_fabsf(3.0f) == 3.0f);
+    // SQRTF: 0 up to 0.00001, then the square root
+    CHECK(SQRTF(0.0f) == 0.0f && SQRTF(0.00001f) == 0.0f && SQRTF(-4.0f) == 0.0f);
+    CHECK(SQRTF(16.0f) == 4.0f && SQRTF(2.0f) == sqrtf(2.0f) && SQRTF(12345.678f) == sqrtf(12345.678f));
+    int mismatches = 0;
+    for (const auto& row : kTrig) {
+        float x = floatOf(row[0]);
+        unsigned s = bitsOf(SINF(x)), c = bitsOf(COSF(x)), l = bitsOf(LIMIT_ANGLE(x));
+        if (s != row[1] || c != row[2] || l != row[3]) {
+            if (mismatches++ < 4) {
+                re4_log("  trig x=%08x: SINF %08x (want %08x) COSF %08x (want %08x) LIMIT_ANGLE %08x (want %08x)",
+                        row[0], s, row[1], c, row[2], l, row[3]);
+            }
+        }
+    }
+    CHECK(mismatches == 0);
+    // accuracy of the original series (about 0.0026 at most) and the range
+    float worst = 0;
+    for (int k = -2000; k <= 2000; k++) {
+        float x = k * 0.00157f;
+        float e1 = fabsf(SINF(x) - sinf(x)), e2 = fabsf(COSF(x) - cosf(x));
+        worst = e1 > worst ? e1 : worst;
+        worst = e2 > worst ? e2 : worst;
+        float w = LIMIT_ANGLE(x * 7.0f);
+        CHECK(w >= -3.1415927f && w < 3.1415927f);
+    }
+    CHECK(worst < 0.003f);
+    // a NaN angle comes back (the GameCube loop would never end)
+    float nan = floatOf(0x7FC00000);
+    CHECK(LIMIT_ANGLE(nan) != LIMIT_ANGLE(nan));
+    // quantised loads and stores (GQR2 u8, GQR5 s16)
+    unsigned char u8v = 200;
+    short s16v = -1234, out = 0;
+    CHECK(re4_psq_l_u8(&u8v) == 200.0f && re4_psq_l_s16(&s16v) == -1234.0f);
+    re4_psq_st_s16(-4.75f, &out);
+    CHECK(out == -4);  // truncation towards zero
+    re4_psq_st_s16(40000.0f, &out);
+    CHECK(out == 32767);
+    re4_psq_st_s16(-40000.0f, &out);
+    CHECK(out == -32768);
+    re4_psq_st_s16(nan, &out);
+    CHECK(out == 0);
+    CHECK(re4_gqr_scale(0x32) == -14 && re4_gqr_scale(0x20) == -32 && re4_gqr_scale(5) == 5);
+    return ok;
+}
+
+// CalcSk1_x / CalcSk1_x2 (trans.cpp, patch 0021): palette ROMtx in the locked
+// cache, GQR6 scales, fused multiply-adds, clamp and truncate.
+static bool testSkinning()
+{
+    bool ok = true;
+    float* lc = (float*) re4_locked_cache;
+    // matrix 0: scale 1.5 and translation (10, -20, 0.5); matrix 1: swap x/y
+    TMtx a = {{1.5f, 0, 0, 10}, {0, 1.5f, 0, -20}, {0, 0, 1.5f, 0.5f}};
+    TMtx b = {{0, 1, 0, 0}, {1, 0, 0, 0}, {0, 0, 1, 0}};
+    PSMTXReorder(a, (float(*)[3]) (lc + 0));
+    PSMTXReorder(b, (float(*)[3]) (lc + 12));
+    // positions: s16 x/y/z + index, shift 2 (GQR6 = shift << 24 | shift << 8 | 0x70007)
+    short src[4 * 4] = {
+        4, -8, 3, 0,             // (1, -2, 0.75) * 1.5 + t = (11.5, -23, 1.625) -> *4: 46, -92, 6.5 -> 6
+        -3, 100, -7, 0,          // (-0.75, 25, -1.75) -> (8.875, 17.5, -2.125) -> 35.5, 70, -8.5 -> 35, 70, -8
+        32000, -32000, 0, 0,     // (8000, -8000) * 1.5 + t -> 48040, -48080 -> clamp
+        12, 34, 56, 1,           // matrix 1: (3, 8.5, 14) -> (8.5, 3, 14) -> 34, 12, 56
+    };
+    short dst[4 * 3 + 1];
+    memset(dst, 0x55, sizeof dst);
+    unsigned long shift = 2;
+    setupGQR6((shift << 24) | (shift << 8) | 0x00070007);
+    CalcSk1_x(dst, src, 4);
+    const short want[12] = {46, -92, 6, 35, 70, -8, 32767, -32768, 2, 34, 12, 56};
+    for (int i = 0; i < 12; i++) {
+        if (dst[i] != want[i]) {
+            re4_log("  CalcSk1_x[%d] = %d, want %d", i, dst[i], want[i]);
+            ok = false;
+        }
+    }
+    CHECK(dst[12] == 0x5555);  // nothing written past the last vertex
+    // normals: s8 x/y/z + u8 index, GQR6 0x20062006 (load * 2^32, store * 2^-32:
+    // the translation vanishes next to the scaled normal)
+    signed char nsrc[2 * 4] = {64, -64, 10, 0, 100, 20, -128, 1};
+    signed char ndst[2 * 3];
+    setupGQR6(0x20062006);
+    CalcSk1_x2(ndst, nsrc, 2);
+    // matrix 0: 1.5 * (64, -64, 10) = (96, -96, 15); matrix 1: (20, 100, -128)
+    CHECK(ndst[0] == 96 && ndst[1] == -96 && ndst[2] == 15);
+    CHECK(ndst[3] == 20 && ndst[4] == 100 && ndst[5] == -128);
+    // n == 0 writes nothing (the hardware loop would run 2^32 times)
+    ndst[0] = 7;
+    CalcSk1_x2(ndst, nsrc, 0);
+    CHECK(ndst[0] == 7);
+    return ok;
+}
+
+// What exists only inside game units (tests/game_probe.cpp).
+static bool testGameProbe()
+{
+    bool ok = true;
+    unsigned char r[4];
+    re4probe_routine(r);
+    CHECK(r[0] == 1 && r[1] == 0x2E && r[2] == 3 && r[3] == 4);  // EmRoutineSetW, patch 0023
+    int views = re4probe_byte_views();
+    if (views != 0) {
+        re4_log("  byte views failed: mask 0x%x", views);
+    }
+    CHECK(views == 0);
+    // __FILE__ fits DVD_REQ_WORK::reqfile (0x30 bytes) whatever the build path
+    const char* f = re4probe_file();
+    CHECK(strlen(f) < 0x30 && strcmp(f, "port/whole/tests/game_probe.cpp") == 0);
+    CHECK(strlen(__FILE__) < 0x30);
+    return ok;
+}
+
 static void testMath()
 {
     bool ok = true;
@@ -633,6 +817,9 @@ static void testMath()
     TVec e1 = {1, 0, 0}, e2 = {0, 1, 0};
     PSVECCrossProduct(&e1, &e2, &c);
     CHECK(near(c.z, 1) && near(PSVECDotProduct(&e1, &e2), 0));
+    ok = testGekkoMath() && ok;
+    ok = testSkinning() && ok;
+    ok = testGameProbe() && ok;
     report("math", ok);
 }
 

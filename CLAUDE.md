@@ -17,9 +17,23 @@
 
 Ziel: das komplette Originalspiel nativ auf Android, mit dem Originalcode aus `src/`.
 
-**Endprodukt:** ein Android-Studio-Projekt (Android Studio 2025, Gradle/AGP 8.13),
-das der Projektinhaber öffnet, baut und auf den Retroid installiert. Grundlage ist
-`port/android/`; der Ganzprogramm-Build (`port/whole/`) wird dort eingebunden.
+**Endprodukt (Entscheidung des Projektinhabers, 14.10.2026):** die App
+**RE4-Android-Decomp** in `port/android-decomp/` (Android Studio 2025,
+Gradle-Projekt der App; per Subtree-Merge aus dem Branch `re4-standalone`
+übernommen, der Branch selbst bleibt als Vergleichsstand unverändert). Der
+Original-Spielkern aus dem Ganzprogramm-Build (`port/whole/`) übernimmt dort
+die gesamte Spiellogik. Die App bleibt Hülle: Disc-Import, GLES3-Grafik,
+Controller, Tonausgabe, Menü. **Keine Raum-, Gegner- oder Eventlogik mehr von
+Hand nachbauen**; die eigenen Spielmodule der App (`r100_scenario.cpp`,
+`enemy_encounter.cpp`, `event_playback.cpp` …) werden nicht erweitert und
+im Kernmodus abgeschaltet.
+
+- **Kernmodus:** vorerst `armeabi-v7a` (ARM32), weil der Kern nur dort
+  ohne Zeiger-Kürzungen läuft (siehe „ARM32 zuerst“).
+- **Bisheriger ARM64-Modus** der App (eigene Spielmodule) bleibt parallel
+  erhalten und baubar, bis der Kern ihn vollständig ersetzt.
+- `port/android/` (alte Port-App, Vulkan) ist nicht mehr das Endprodukt; nur
+  noch Fundus für einzelne bewährte Teile.
 
 **Ganzprogramm-Ansatz:** Der gesamte Spielcode (`src/` außer `src/lib/`) wird
 auf einmal kompiliert. Ersetzt wird nur die Plattformschicht
@@ -46,7 +60,9 @@ Dann ausführen, Absturzstelle finden, beheben, wiederholen.
   `port/docs/whole-program-status.md` eingetragen.
 - Port-Code liegt in `port/`. Bewährte Teile weiterverwenden: Scheduler
   (`port/src/scheduler.cpp`, `stack_context.cpp`), Datei-I/O, Yz2,
-  Vulkan-Renderer, Android-App (`port/android/`), ADB-Skripte.
+  ADB-Skripte; aus der App (`port/android-decomp/`) Disc-Import,
+  GLES3-Renderer, Controller, Tonausgabe und die geprüften Big-Endian-Leser
+  (als Vergleich für die Formatumwandler).
 - Disc-Daten sind big-endian: beim Laden umwandeln, nie stillschweigend annehmen.
 - Keine Spieldateien und keine Disc-Images ins Repository.
 
@@ -74,8 +90,13 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
    32-bit-Linux-Programm, jedes REL-Modul als eigene Bibliothek
 4. ✅ Booten mit echten Disc-Daten bis `gameRoomInit` (vorhandene Datei/Yz2/Scheduler nutzen)
    — Teil A ✅ (Cloud: Plattformschicht ohne Disc-Daten), Teil B ✅ (lokal mit Disc-Daten, i686 und armhf/qemu)
+4.5 ✅/⏳ Kern korrekt machen: C-Ersatz für Assembler-Funktionen, Byte-Aggregate,
+   `__FILE__`-Länge (Stand in der Status-Datei)
 5. Erster Raum (r100): Spielschleife läuft ohne Absturz, noch ohne Bild
-6. Grafik: GX → Vulkan (vorhandenen Renderer anbinden), Titelbild und r100 sichtbar
+   (Formatumwandler für die Raumdaten, Abdeckungs-Log, Zustands-Trace)
+6. K2 „Kern in die App“: ARM32-Build von RE4-Android-Decomp mit den
+   Kern-Bibliotheken, Zustandsbrücke zum GLES3-Renderer der App,
+   Titelbild und r100 sichtbar
 7. Steuerung (Retroid-Tasten, später Touch)
 8. Audio (CRI-ADX-Code aus `src/lib/` möglichst direkt mitkompilieren)
 9. Videos (SFD/MPV)
