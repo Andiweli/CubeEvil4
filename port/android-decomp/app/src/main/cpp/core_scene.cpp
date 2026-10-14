@@ -722,6 +722,10 @@ void CoreScene::draw(const CoreFrame &frame, int width, int height, double secon
     probe.roomCamera = &camera;
     probe.screenAspect = true;
     probe.hidePlayer = true;
+    // the old app's collision capsule and ground patch (a yellow wire oval,
+    // drawn at the probe's feet = the world origin): a debug aid of its own
+    // movement code, which the core mode does not use
+    probe.showBody = false;
     probe.extraActors = [&](const float *matrix, const std::array<float, 3> &center, float scale,
                             bool normalView) { drawActors(frame, matrix, center, scale, normalView); };
     // the room scene's SMD works as the core has them: a work the core does

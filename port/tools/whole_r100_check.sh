@@ -207,9 +207,11 @@ free_script="STICKUP@30-330/1"
 # r100 only: once free the player is put in front of the first house, where
 # the room script puts him after the s03 event (r100.cpp r100_Sce_look),
 # facing the house; the walk then leads into the s03 trigger (the Retroid
-# crashed there, 14.10.2026). Other rooms: no placing.
+# crashed there, 14.10.2026). Starting in r120 (a new game: the opening movie,
+# skipped until milestone 9, and the car ride) ends in r100 as well, the
+# player first free there (use --frames 30000). Other rooms: no placing.
 place=""
-[ "$room" = 100 ] && place="free+1:-82910,860,-38480,1.75"
+case "$room" in 100 | 120) place="free+1:-82910,860,-38480,1.75" ;; esac
 
 # "Bild N, Spielschritt R, Raum 0xXXX" from the last complete trace line
 trace_state() {

@@ -822,6 +822,37 @@ Kern an (`PADRead`), das Overlay zeigte durchgehend „event“.
   weit Leon lief; unter 500 Einheiten FEHLER). Das Tastenprotokoll nennt
   jetzt jede Änderung, auch vom Gerät, einmal.
 
+### Rückfragen nach dem dritten Gerätelauf (14.10.2026)
+
+- **Gelber Fleck = ovales Drahtgitter:** das Kollisions-Hilfsbild (Kapsel und
+  Bodenfleck) der Bewegungsprüfung der früheren App (`scene_gl.cpp`,
+  `SceneProbe::showBody`), im Kernmodus nie abgeschaltet und am Weltursprung
+  gezeichnet. Jetzt aus (`core_scene.cpp`). Test `core_scene_gl_check`: Bild
+  auf den Ursprung, vorher 163 Punkte in der Farbe der Kapsel, jetzt 0. Der
+  Kulissen-Test sah den Boden bisher nur über diese Kapsel; er blickt jetzt
+  von der Seite auf den Boden (verstecken: 32 229 Punkte ändern sich).
+- **Vollständiges Intro:** Der Gerätetest startete im Debug-Menü direkt r100
+  (nur die kurze Ankunft s40). Ein neues Spiel beginnt in r120
+  (`r120.cpp R120Event`): Vorfilm `movie/opening.sfd`, dann die Autofahrt
+  (Ereignisse r120s00/s01), dann Sprung nach r100. `test-core-app.ps1` startet
+  jetzt standardmäßig r120 (`-StartRoom`); `whole_r100_check.sh --room 120`
+  ebenso (mit `--frames 30000`).
+- **Filme bis M9:** `runtime/movie.cpp` statt der erzeugten Platzhalter. Diese
+  hätten r120 und die Demo-Filme des Titels abstürzen lassen: ohne Handle
+  ruft `cSofdec::ThreadMove` trotzdem `mwPlyGetStat` über dessen
+  Funktionstabelle, und `mwPlyGetCurFrm` ließ den Bildsatz ungeschrieben.
+  Jetzt endet jeder Film sofort (Status PLAYEND, „movie: … skipped“ im Log),
+  das Spiel geht danach weiter. Test `core-test movie`. Platzhalter: 173.
+- **Ton:** `ax.cpp` lässt den Tontreiber laufen (Stimmen werden frei, Streams
+  bereit, Funkspruch läuft), erzeugt aber noch keine Töne. Hörbarer Ton ist
+  Meilenstein 8: Stimmen dekodieren und mischen (DSP-ADPCM, Abtastrate,
+  Lautstärke), MIX/SYN/SEQ/AXART/AXFX aus `src/lib` mitkompilieren (Quellen
+  liegen vor), Ausgabe über `GameAudio.java` (AudioTrack) der App.
+- **Logos, Titelmenü, Untermenüs, Anzeigen:** Das Spiel zeichnet sie mit GX
+  (2D); GX ist noch Platzhalter, die App zeigt bis zum ersten Raum nur das
+  Titelbild. Entscheidung über den Weg (GX-Nachbildung oder Nachbau der
+  Bildschirme in der App) beim Projektinhaber angefragt.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1033,6 +1064,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `os_thread.cpp` | `OSThread`, `OSSemaphore`: ein Host-Thread, strikte Prioritäten, Wechsel nur in OS-Aufrufen; jeder Thread hat einen Host-Stack (`port/src/stack_context.cpp` aus dem alten Port, neu mit ucontext für Linux x86, Boost.Context-Assembler für Linux ARM wie auf Android); ein Verteiler auf dem Stack des Startprogramms (`re4_os_run`). Spielsichtbar wie im SDK: `state`, `suspend`, Priorität, Warteschlangen, Stack-Magie `0xDEADBABE` |
 | `vi.cpp` | VI-Retrace alle 1/59,94 s Echtzeit, zugestellt an Interrupt-Punkten (Verteiler im Leerlauf, `VIWaitForRetrace`, Patch 0012, später lange Hintergrundarbeit); Thread-Wechsel aus dem Rückruf erst am Interrupt-Ende. `RE4_VI_FAST=1`: ohne Warten (Tests) |
 | `ax.cpp` (K2) | AX ohne Tonausgabe: 64 Stimmen mit den Vergaberegeln des SDK (`AXAlloc.c`), die Setter (`AXVPB.c`), Abspielposition je Audio-Rahmen nach Abtastrate (ADPCM mit Rahmenköpfen, PCM16, PCM8; Schleife oder Stopp am Ende), der Audio-Rahmen-Rückruf des Spiels 200-mal je Sekunde Spielzeit, zugestellt mit den VI-Retraces. Damit läuft der Tontreiber (`snd_main.cpp cb_audio_frame`): Stimmen werden frei, Sprach-Streams werden bereit. MIX, SYN, SEQ, AXFX, AI bleiben Platzhalter. Hörbarer Ton: M8 |
+| `movie.cpp` (K2) | Sofdec-Filme (`mwPly*`) bis M9: jeder Film endet sofort (PLAYEND, kein Bild), das Spiel macht danach weiter (r120: Autofahrt nach dem Vorfilm) |
 | `dvd.cpp` | `DVD*` über einen Ordner mit entpackten Disc-Dateien (siehe unten); Lesen sofort, Rückruf vor der Rückkehr; aus einem Interrupt heraus (Audio-Rahmen: Nachladen der Sprach-/Musik-Streams) bleibt der Auftrag „beschäftigt“, bis der Interrupt-Rückruf zurückgekehrt ist (`os_thread.cpp re4_os_defer`), Abbruch liefert dann −3; FST der eingelegten Disc oben in MEM1, Disc-ID bei `0x80000000`; Disc-Wechsel lädt den anderen Ordner |
 | `aram.cpp` | ARAM (16 MB) als Host-Puffer, `ARInit`/`ARAlloc` (Stapel ab `0x4000`), ARQ kopiert sofort und ruft den Rückruf (aus einem Interrupt heraus erst nach dessen Ende, wie `dvd.cpp`) |
 | `os_link.cpp` | `OSLink`/`OSUnlink` (siehe unten) |

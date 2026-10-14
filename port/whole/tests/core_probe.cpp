@@ -440,3 +440,39 @@ extern "C" int re4probe_ax_test(void)
     AXRegisterCallback(old);
     return failed;
 }
+
+// Movies until milestone 9 (runtime/movie.cpp): the player cSofdec gets ends
+// at once, through the same calls game/sofdec.cpp makes (the interface table
+// of the handle, the frame record). Returns a bit mask of failed checks.
+#include "mwply.h"
+
+extern "C" int re4probe_movie_test(void)
+{
+    int failed = 0;
+    MWS_PLY_CPRM_SFD cprm;
+    memset(&cprm, 0, sizeof(cprm));
+    cprm.wksize = mwPlyCalcWorkCprmSfd(&cprm);
+    MWPLY hn = mwPlyCreateSofdec(&cprm);
+    if (hn == 0 || hn->vtbl == 0) {
+        return 0x1;  // cSofdec::appMain calls through hn->vtbl
+    }
+    mwPlyStartFname(hn, "movie/opening.sfd");
+    MWS_FRM frm;
+    memset(&frm, 0xCD, sizeof(frm));
+    mwPlyGetCurFrm(hn, &frm);
+    if (frm.bufadr != 0) {
+        failed |= 0x2;  // no frame to convert (loadMvFrmFx is skipped)
+    }
+    if (mwPlyGetStat(hn) != MWE_PLY_STAT_PLAYEND) {
+        failed |= 0x4;  // appMain ends the movie on PLAYEND
+    }
+    MWS_SFD_HDRINF info;
+    memset(&info, 0xCD, sizeof(info));
+    mwPlyGetHdrInf(0, 0, &info);
+    if (info.width != 512 || info.height != 448) {
+        failed |= 0x8;
+    }
+    mwPlyPause(hn, 1);
+    mwPlyDestroy(hn);
+    return failed;
+}

@@ -22,10 +22,13 @@ bittet darum und wartet bis zu -ImportMinutes Minuten (Standard 45), ohne die Ap
 zu beenden; erst danach beginnt der Test. Der Kern braucht einen neuen, vollstaendigen
 Import in der App "RE4 Kern" (die bisherige App hat einen eigenen Datenordner).
 
-Standard ist ein Debug-Start direkt in r100 mit derselben Test-Tastenfolge wie
-die PC-Pruefung (Speicherkarten-Dialog, Titel, Debug-Menue); sobald der Raum
-laedt, endet die Tastenfolge und dein Controller steuert. -Manual startet ohne
-Tastenfolge (Titelbild, du spielst selbst).
+Standard ist ein Debug-Start in r120 (der Anfang eines neuen Spiels: Vorfilm,
+dann die Autofahrt mit den Polizisten, dann r100) mit derselben
+Test-Tastenfolge wie die PC-Pruefung (Speicherkarten-Dialog, Titel,
+Debug-Menue); sobald der Raum laedt, endet die Tastenfolge und dein Controller
+steuert. Den Vorfilm ueberspringt der Kern noch (Filme: Meilenstein 9).
+-StartRoom 100 springt direkt nach r100 (nur die kurze Ankunft). -Manual
+startet ohne Tastenfolge (Titelbild, du spielst selbst).
 
 Ergebnis in -OutDir (Standard: Desktop\RE4-Kern-App): bericht.txt, logcat.txt,
 bild-*.png, kern-build.log, apk-build.log. Bitte bericht.txt und die Bilder schicken.
@@ -53,7 +56,8 @@ param(
     [switch]$SkipSetup,
     [string]$Distro = '',
     [string]$JavaHome = '',
-    [int]$ImportMinutes = 45
+    [int]$ImportMinutes = 45,
+    [string]$StartRoom = '120'
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -203,7 +207,7 @@ if (-not $Adb) {
 $settings = ''
 if (-not $Manual) {
     # the timing of the PC check (port/tools/whole_r100_check.sh)
-    $settings = 'RE4_START_ROOM=0x100;RE4_PAD_UNTIL_ROOM=1;RE4_PAD_SCRIPT=UP@100-60000/60 A@115-60000/60 START@130-60000/60'
+    $settings = "RE4_START_ROOM=0x$StartRoom;RE4_PAD_UNTIL_ROOM=1;RE4_PAD_SCRIPT=UP@100-60000/60 A@115-60000/60 START@130-60000/60"
 }
 . (Join-Path $PSScriptRoot 'Retroid-Adb-Exclusive.ps1')
 Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
@@ -265,7 +269,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     $start = "am start -n $package/com.ast.re4decomp.MainActivity"
     if ($settings) { $start += " --es coreSettings '$settings'" }
     & $Adb -s $Serial shell $start | ForEach-Object { Say "   $_" }
-    Say "   gestartet ($(if ($Manual) { 'Titelbild, du steuerst' } else { 'Debug-Start r100 mit Test-Tastenfolge' })), $Seconds s Beobachtung"
+    Say "   gestartet ($(if ($Manual) { 'Titelbild, du steuerst' } else { "Debug-Start r$StartRoom mit Test-Tastenfolge" })), $Seconds s Beobachtung"
     $shots = @(15, 40) + @(70..([math]::Max(70, $Seconds)) | Where-Object { ($_ - 70) % 25 -eq 0 })
     $elapsed = 0
     $firstPid = ''

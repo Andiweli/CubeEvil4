@@ -449,6 +449,26 @@ int main() {
     frame.infos.resize(1);
     frame.models[0].nInfos = 1;
 
+    // no debug drawing of the old app: its collision capsule (a yellow wire
+    // oval, colour 1, .9, .2) stood at the world origin in every picture
+    {
+      const auto saved = frame;
+      frame.models.clear();
+      frame.infos.clear();
+      frame.parts.clear();
+      frame.eye = {0, 1200, -2500};
+      frame.target = {0, 600, 0};
+      scene.draw(frame, kWidth, kHeight, kStill);
+      const auto shot = pixels();
+      unsigned capsule = 0;
+      for (std::size_t i = 0; i < shot.size(); i += 4)
+        capsule += shot[i] > 200 && shot[i + 1] > 140 && shot[i + 1] < 245 && shot[i + 2] < 110 &&
+                   shot[i] > shot[i + 2] + 120;
+      std::fprintf(stderr, "capsule pixels at the origin: %u\n", capsule);
+      require(capsule == 0, "no debug capsule in the picture");
+      frame = saved;
+    }
+
     // the room scene follows the core's scroll objects: the floor (SMD work 0)
     {
       const auto saved = frame;
@@ -466,8 +486,9 @@ int main() {
       frame.models = {floor};
       frame.infos.clear();
       frame.parts.assign(1, Re4CorePart{});
-      frame.eye = {0, 6000, -3000};
-      frame.target = {0, 0, 0};
+      // from the side, where the floor fills much of the picture
+      frame.eye = {3000, 900, -300};
+      frame.target = {100, 200, -300};
       scene.draw(frame, kWidth, kHeight, kStill);
       std::fprintf(stderr, "status: %s\n", scene.status().c_str());
       require(scene.status().find("scenery 1, hidden 0, moved 0") != std::string::npos, "floor where it was built");
@@ -477,7 +498,7 @@ int main() {
       const auto hidden = pixels();
       require(scene.status().find("hidden 1") != std::string::npos, "hidden floor counted");
       frame.models[0].beFlag = 1 | 2 | 4;
-      frame.models[0].matrix[7] += 1000;  // a script moves it (up: it covers more of the marker at the feet)
+      frame.models[0].matrix[3] += 2000;  // a script moves it (sideways: its edge moves in the picture)
       scene.draw(frame, kWidth, kHeight, kStill);
       const auto moved = pixels();
       require(scene.status().find("moved 1") != std::string::npos, "moved floor counted");
@@ -485,7 +506,7 @@ int main() {
       // scene stays as it was built (a work the core lacks while it names
       // others, like a scroll block not loaded, is hidden; the sample SMD has
       // only one work)
-      frame.models[0].matrix[7] -= 1000;
+      frame.models[0].matrix[3] -= 2000;
       frame.models[0].scrollIndex = 1;
       scene.draw(frame, kWidth, kHeight, kStill);
       const auto absent = pixels();
