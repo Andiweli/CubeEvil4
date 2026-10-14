@@ -348,4 +348,31 @@ if(NOT ANDROID)
     add_dependencies(re4_host re4_hostlib)
     target_link_options(re4_host PRIVATE -fuse-ld=lld)
     target_link_libraries(re4_host PRIVATE ${CMAKE_DL_LIBS})
+
+    # --- format comparison (re4_format_compare) -----------------------------------------
+    # The Formatumwandler against the checked big-endian readers of the app
+    # (port/android-decomp): the readers and what they link, compiled as the
+    # app compiles them (C++17, original floating-point rules).
+    set(RE4_APP_CPP "${RE4_ROOT}/port/android-decomp/app/src/main/cpp")
+    set(RE4_APP_READERS archive smd gx_stream smx sat enemy_spawn event_data model_skin room_lighting
+        room_flow scene collision_query materials village_flow animation texture room_state
+        ports/yz2 ports/motion64/motion ports/motion64/math ports/motion64/ik
+        ports/fdlibm/sf_sin ports/fdlibm/sf_cos ports/fdlibm/kf_sin ports/fdlibm/kf_cos
+        ports/fdlibm/ef_rem_pio2 ports/fdlibm/kf_rem_pio2 ports/fdlibm/sf_scalbn ports/fdlibm/sf_floor
+        ports/fdlibm/sf_fabs ports/fdlibm/ef_acos ports/fdlibm/ef_sqrt)
+    list(TRANSFORM RE4_APP_READERS PREPEND "${RE4_APP_CPP}/")
+    list(TRANSFORM RE4_APP_READERS APPEND ".cpp")
+    add_library(re4_app_readers STATIC ${RE4_APP_READERS})
+    target_include_directories(re4_app_readers PUBLIC "${RE4_APP_CPP}")
+    target_compile_features(re4_app_readers PUBLIC cxx_std_17)
+    target_compile_options(re4_app_readers PRIVATE -fno-fast-math -ffp-contract=off -fno-strict-aliasing -w)
+    # the game side: converters and original structures (game flags)
+    add_library(re4_compare_game_obj OBJECT tests/format_compare/game_side.cpp)
+    target_link_libraries(re4_compare_game_obj PRIVATE re4_game_flags)
+    target_include_directories(re4_compare_game_obj PRIVATE runtime runtime/formats tests/format_compare)
+    add_executable(re4_format_compare tests/format_compare/main.cpp tests/format_compare/app_side.cpp
+        $<TARGET_OBJECTS:re4_compare_game_obj>)
+    target_include_directories(re4_format_compare PRIVATE tests/format_compare)
+    target_link_options(re4_format_compare PRIVATE -fuse-ld=lld)
+    target_link_libraries(re4_format_compare PRIVATE re4_app_readers re4_platform)
 endif()

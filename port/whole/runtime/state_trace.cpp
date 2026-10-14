@@ -1,6 +1,7 @@
-// Zustands-Trace: one JSON line per game frame (RE4_TRACE=FILE), written when
-// the game reads the controller (PADRead, once per frame). Compiled with the
-// game's flags into libre4_main, because it reads the game's own state:
+// Per-frame hook of the game (PADRead calls it once per frame), compiled with
+// the game's flags into libre4_main because it reads the game's own state.
+//
+// Zustands-Trace: one JSON line per game frame (RE4_TRACE=FILE):
 //
 //   {"frame":N,"Rno0":3,"room":"0x100","pl":[x,y,z],"rsf":["0x80000000"],
 //    "em":[{"slot":1,"id":"0x12","r":[1,11,0,0],"hp":500,"pos":[x,y,z]}, ...]}
@@ -9,6 +10,15 @@
 // flag word of the current room (flag_rsf.h), "em" every live enemy work of
 // EmMgr except the player (id 0). Every pointer is checked against MEM1 first,
 // so the trace can run from the first frame on.
+//
+// Run control of the local checks (port/tools/whole_r100_check.sh):
+//
+//   RE4_PAD_UNTIL_ROOM=1   the test script (RE4_PAD_SCRIPT) ends when the game
+//                          starts loading its first room (step 2): its presses
+//                          drive the title screen only
+//   RE4_STOP_AFTER=N       the run ends (exit code 0) after N frames counted
+//                          from the first frame of the game's main loop
+//                          (step 3), with a summary line in the log
 #include "types.h"
 #include "em.h"
 #include "global.h"
@@ -17,12 +27,15 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 extern GLOBAL_WK* pG;
 extern cPlayer* pPL;
 extern cEmMgr EmMgr;
 
 extern "C" void re4_set_frame_hook(void (*hook)(unsigned));
+extern "C" void re4_pad_script_stop(void);
+extern "C" void re4_log(const char* fmt, ...);
 
 namespace {
 
@@ -40,7 +53,7 @@ void vec(FILE* f, const Vec& v)
     fprintf(f, "[%.3f,%.3f,%.3f]", (double) v.x, (double) v.y, (double) v.z);
 }
 
-void frame(unsigned n)
+void trace(unsigned n)
 {
     FILE* f = g_trace;
     if (!f) {
@@ -86,15 +99,56 @@ void frame(unsigned n)
     }
 }
 
+bool g_padUntilRoom;
+unsigned long g_stopAfter;
+unsigned long g_roomFrames;  // frames since the first main loop frame
+unsigned long g_loopFrames;  // of them in step 3
+
+void frame(unsigned n)
+{
+    trace(n);
+    GLOBAL_WK* g = pG;
+    if (!live(g)) {
+        return;
+    }
+    if (g_padUntilRoom && g->Rno0 >= 2) {
+        re4_pad_script_stop();
+        g_padUntilRoom = false;
+    }
+    if (g_stopAfter == 0 || (g_roomFrames == 0 && g->Rno0 != 3)) {
+        return;
+    }
+    if (g_roomFrames == 0) {
+        re4_log("run: main loop reached at frame %u in room r%03x", n, (unsigned) g->room_id);
+    }
+    g_roomFrames++;
+    g_loopFrames += g->Rno0 == 3;
+    if (g_roomFrames >= g_stopAfter) {
+        re4_log("run: stopped after %lu frames from the main loop on (%lu in step 3), room r%03x, step %u "
+                "(RE4_STOP_AFTER)",
+                g_roomFrames, g_loopFrames, (unsigned) g->room_id, (unsigned) g->Rno0);
+        if (g_trace) {
+            fflush(g_trace);
+        }
+        fflush(stdout);
+        fflush(stderr);
+        _exit(0);
+    }
+}
+
 struct Install {
     Install()
     {
         const char* path = getenv("RE4_TRACE");
         if (path && *path) {
             g_trace = fopen(path, "w");
-            if (g_trace) {
-                re4_set_frame_hook(frame);
-            }
+        }
+        const char* until = getenv("RE4_PAD_UNTIL_ROOM");
+        g_padUntilRoom = until && *until && *until != '0';
+        const char* stop = getenv("RE4_STOP_AFTER");
+        g_stopAfter = stop ? strtoul(stop, 0, 10) : 0;
+        if (g_trace || g_padUntilRoom || g_stopAfter) {
+            re4_set_frame_hook(frame);
         }
     }
 } g_install;

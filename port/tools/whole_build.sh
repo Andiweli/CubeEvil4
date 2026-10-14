@@ -8,6 +8,8 @@
 #   re4_host --self-test       cross-module trampolines pass arguments intact
 #   re4_host --check-modules   every module loads, every cross-module import resolves
 #   re4_host --runtime-test    OSLink, DVD folder and yz2 work without disc data
+#   re4_format_compare         the Formatumwandler against the app's checked
+#                              big-endian readers (synthetic samples)
 # armhf runs under qemu-arm when it is installed. Finally the disc folder tool
 # is tested (port/tools/test_whole_disc_folder.py, synthetic images). Needs
 # clang, lld, cmake, ninja, python3, the lib32 C/C++ libraries,
@@ -47,6 +49,13 @@ for t in "${targets[@]}"; do
         echo "  re4_host $check: exit $code | $(echo "$out" | grep -E 'self-test:|check-modules:|runtime-test' | tr '\n' ' ' | sed 's/\[re4\] //g')"
         [ "$code" -ne 0 ] && status=1
     done
+    out=$(cd "$build" && timeout 300 "${run[@]}" ./re4_format_compare 2>&1)
+    code=$?
+    echo "  re4_format_compare: exit $code | $(echo "$out" | grep '^Ergebnis:')"
+    if [ "$code" -ne 0 ]; then
+        echo "$out" | grep -vE '^  OK |^\[re4\]' | sed 's/^/    /'
+        status=1
+    fi
 done
 if python3 "$root/port/tools/test_whole_disc_folder.py" > "$root/port/build/disc-folder-test.log" 2>&1; then
     echo "disc folder tool: ok"

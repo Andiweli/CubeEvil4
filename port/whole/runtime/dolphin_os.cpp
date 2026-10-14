@@ -241,16 +241,25 @@ void LCEnable(void) {}
 void PPCSync(void) {}
 
 // RE4_START_ROOM: room the original debug start menu preselects (stage << 8 |
-// room, hex). START or A in the menu then jumps there (DBG_ROOMJMP path).
-void re4_debug_start_room(unsigned short* room_id)
+// room, hex). With it the title menu starts on "new game" (patch 0026), so a
+// test script only presses A: new game, then the debug start menu jumps there.
+static unsigned long debugStartRoom()
 {
     const char* v = getenv("RE4_START_ROOM");
-    if (v && *v) {
-        unsigned long room = strtoul(v, 0, 16);
-        if (room >= 0x100 && room < 0x600) {
-            re4_log("debug: start room r%03lx preselected (RE4_START_ROOM)", room);
-            *room_id = (unsigned short) room;
-        }
+    unsigned long room = v && *v ? strtoul(v, 0, 16) : 0;
+    return room >= 0x100 && room < 0x600 ? room : 0;
+}
+
+int re4_debug_start_room_set(void)
+{
+    return debugStartRoom() != 0;
+}
+
+void re4_debug_start_room(unsigned short* room_id)
+{
+    if (unsigned long room = debugStartRoom()) {
+        re4_log("debug: start room r%03lx preselected (RE4_START_ROOM)", room);
+        *room_id = (unsigned short) room;
     }
 }
 

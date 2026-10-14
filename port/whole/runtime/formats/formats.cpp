@@ -218,6 +218,21 @@ void noteEntry(const void* addr, const char* tag, int status)
     }
 }
 
+int entryStatus(const void* addr)
+{
+    u32 s = slotOf(addr);
+    for (u32 i = 0; i < kNotes; i++) {
+        const EntryNote& e = g_notes[(s + i) % kNotes];
+        if (e.addr == 0) {
+            break;
+        }
+        if (e.addr == addr) {
+            return e.status;
+        }
+    }
+    return 0;
+}
+
 void noteArchive(const void* addr, const char* name)
 {
     for (u32 i = 0; i < 64; i++) {

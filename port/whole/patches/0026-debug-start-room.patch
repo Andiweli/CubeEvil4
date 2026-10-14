@@ -1,6 +1,25 @@
 --- a/src/game/title.cpp
 +++ b/src/game/title.cpp
-@@ -1343,6 +1343,8 @@
+@@ -377,6 +377,8 @@
+ 
+ // Loads the main menu id layout: 5 entries (new game, Ada, Mercenaries, load, options) once all
+ // is unlocked, else 3 (new game, load, options); cursor on "load".
++extern "C" int re4_debug_start_room_set(void); /* port: runtime/dolphin_os.cpp */
++
+ void titleMenuInit(TITLE_WORK* w)
+ {
+     IdSys.kill(0xFF, IDC_TITLE_MENU);
+@@ -396,6 +398,9 @@
+         w->p_menu[1] = IdSys.unitPtr(5, IDC_TITLE_MENU);
+         w->p_menu[2] = IdSys.unitPtr(3, IDC_TITLE_MENU);
+         w->cursor = 1;
++    }
++    if (re4_debug_start_room_set()) {  /* port: debug start (RE4_START_ROOM) picks the new game */
++        w->cursor = 0;
+     }
+     w->scroll = 0;
+     w->scroll_add = 1.5f;
+@@ -1343,6 +1348,8 @@
  // (debug menu picks otherwise), a load restores the save (CardLoad, System_flg 0x100 continue),
  // Ada / Mercenaries start at their rooms with the chosen character / stage; sets the new-game
  // flag (System_flg 0x2000), the next position and chains into GameTask.
@@ -9,7 +28,7 @@
  void titleExit(TITLE_WORK* w)
  {
      if (!SysFlagChk(pG, SYS_OMAKE_ADA_GAME)) {
-@@ -1355,6 +1357,7 @@
+@@ -1355,6 +1362,7 @@
          if (!SysFlagChk(pG, SYS_OMAKE_ADA_GAME)) {
              if (!SysFlagChk(pG, SYS_OMAKE_ETC_GAME)) {
                  pRj = new cRoomJmp(roomInfoAddr);

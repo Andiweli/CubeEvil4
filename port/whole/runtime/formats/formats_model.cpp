@@ -115,11 +115,11 @@ void convertBinAt(Blob& b, u32 base, u32 end)
         RE4_SWAP(b, base, D, flipTbl);
     }
 
-    // parts records: four bytes, then the position
+    // parts records: the word x0 (partsNo, parentNo and two bytes as one
+    // union, a byte view that patch 0016 lays out for host-order words), then
+    // the position
     if (nParts && fits(b, base + head, nParts * sizeof(ModelDataHead), "BIN parts records")) {
-        for (u32 i = 0; i < nParts; i++) {
-            swap32(b, base + head + i * sizeof(ModelDataHead) + offsetof(ModelDataHead, center), 3);
-        }
+        swap32(b, base + head, nParts * sizeof(ModelDataHead) / 4);
     }
     // vertex positions s16 x/y/z + s16 matrix index, normals s16 x4 or s8 x4
     if (nVtx) {

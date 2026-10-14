@@ -98,13 +98,15 @@ int re4_interrupt_point(void);
 void re4_os_idle(void);
 void re4_wait_interrupt(void);
 
-/* Per-frame observer, called from PADRead (pad.cpp; the state trace,
- * state_trace.cpp). */
+/* Per-frame observer, called from PADRead (pad.cpp; the state trace and the
+ * run control, state_trace.cpp). re4_pad_script_stop ends RE4_PAD_SCRIPT. */
 void re4_set_frame_hook(void (*hook)(unsigned));
+void re4_pad_script_stop(void);
 
 /* Debug start room (dolphin_os.cpp): RE4_START_ROOM=0x100 preselects that
  * room in the original debug start menu (patch 0026, title.cpp titleExit). */
 void re4_debug_start_room(unsigned short* room_id);
+int re4_debug_start_room_set(void);
 
 #ifdef __cplusplus
 }

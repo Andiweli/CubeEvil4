@@ -6,6 +6,8 @@
 //     BUTTONS@FRAME            hold for 3 frames from PADRead call FRAME
 //     BUTTONS@FROM-TO/EVERY    the same every EVERY frames from FROM to TO
 //     BUTTONS: A B X Y Z L R START UP DOWN LEFT RIGHT, joined with '+'
+//   RE4_PAD_UNTIL_ROOM=1       the script ends when the game loads its first
+//                              room (state_trace.cpp)
 //
 // The game calls PADRead once per frame (pad.cpp PadRead in the main loop).
 #include "re4_runtime.h"
@@ -147,6 +149,15 @@ static void (*g_frameHook)(unsigned);
 void re4_set_frame_hook(void (*hook)(unsigned))
 {
     g_frameHook = hook;
+}
+
+// Ends the test script (state_trace.cpp: RE4_PAD_UNTIL_ROOM).
+void re4_pad_script_stop(void)
+{
+    if (gScriptLen) {
+        re4_log("pad: test script ends at frame %u", gFrame);
+        gScriptLen = 0;
+    }
 }
 
 u32 PADRead(PADStatus* status)

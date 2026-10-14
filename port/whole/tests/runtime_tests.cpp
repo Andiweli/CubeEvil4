@@ -836,6 +836,7 @@ struct TestPadStatus {  // dolphin/pad.h PADStatus
     signed char err;
 };
 extern "C" unsigned long PADRead(TestPadStatus* status);
+extern "C" int PADInit(void);
 void* GetDataExt(void* arc, const char* tag, int no);
 
 static void testTrace()
@@ -865,6 +866,15 @@ static void testTrace()
     }
     CHECK(lines == 2);
     unlink(path);
+    // the test script ends on request (run control: RE4_PAD_UNTIL_ROOM)
+    setenv("RE4_PAD_SCRIPT", "A@0-100000/1", 1);
+    PADInit();
+    PADRead(pads);
+    CHECK(pads[0].button == 0x0100 && pads[1].err == -1);
+    re4_pad_script_stop();
+    PADRead(pads);
+    CHECK(pads[0].button == 0);
+    unsetenv("RE4_PAD_SCRIPT");
     // GetDataExt on a host-order archive: one entry "CNS", one "SMD"
     unsigned arc[8] = {2, 0, 0, 0, 0x18, 0x1C, 0, 0};
     memcpy(&arc[6], "CNS\0SMD\0", 8);
