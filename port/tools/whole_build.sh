@@ -22,6 +22,8 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 targets=("$@")
 [ $# -eq 0 ] && targets=(i686 armhf)
 status=0
+# the runtime test checks the per-thread wait record of the hang search
+export RE4_WAIT_TRACE=1
 for t in "${targets[@]}"; do
     build="$root/port/build/whole-$t"
     log="$root/port/build/whole-$t.log"

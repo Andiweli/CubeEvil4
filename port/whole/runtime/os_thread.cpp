@@ -23,8 +23,14 @@
 #include "stack_context.h"
 
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#if !defined(__ANDROID__)
+#include <execinfo.h>
+#define RE4_WAIT_TRACE_SUPPORTED 1
+#endif
 
 #include <memory>
 #include <unordered_map>
@@ -101,6 +107,9 @@ struct Host {
     std::unique_ptr<StackContext> context;
     long long readySeq;  // FIFO order among equal priorities
     bool finished;
+    // RE4_WAIT_TRACE=1: where the thread last gave up the CPU (re4_os_dump_threads)
+    void* waitFrames[24];
+    int waitDepth;
 };
 
 OSThread gMainThread;
@@ -205,6 +214,11 @@ void dequeue(OSThread* t)
     t->queue = 0;
 }
 
+const bool gWaitTrace = [] {
+    const char* v = getenv("RE4_WAIT_TRACE");
+    return v && *v && *v != '0';
+}();
+
 // Gives the CPU to the dispatcher; returns when this thread runs again.
 void switchAway()
 {
@@ -213,6 +227,11 @@ void switchAway()
         re4_log("OS thread: a switch outside re4_os_run (thread %p)", (void*) gCurrent);
         abort();
     }
+#ifdef RE4_WAIT_TRACE_SUPPORTED
+    if (gWaitTrace) {
+        h->waitDepth = backtrace(h->waitFrames, 24);
+    }
+#endif
     h->context->yield();
 }
 
@@ -271,6 +290,33 @@ void releaseContext(Host* h)
 }  // namespace
 
 extern "C" {
+
+// Every OS thread with its state and, with RE4_WAIT_TRACE=1, the place where
+// it last gave up the CPU (host/main.cpp calls it on SIGUSR1: hang search).
+void re4_os_dump_threads(int fd)
+{
+    char line[160];
+    for (auto& entry : gHosts) {
+        OSThread* t = entry.first;
+        Host* h = entry.second.get();
+        int n = snprintf(line, sizeof(line), "[re4] OS thread %p%s: priority %d, state %u, suspend %d%s, waits at:\n",
+                         (void*) t, t == &gMainThread ? " (main)" : "", (int) t->priority, (unsigned) t->state,
+                         (int) t->suspend, h->finished ? ", finished" : "");
+        if (write(fd, line, n) < 0) {
+            return;
+        }
+#ifdef RE4_WAIT_TRACE_SUPPORTED
+        if (h->waitDepth > 0) {
+            backtrace_symbols_fd(h->waitFrames, h->waitDepth, fd);
+        } else {
+            const char* none = "  (no wait recorded; RE4_WAIT_TRACE=1 records it)\n";
+            if (write(fd, none, strlen(none)) < 0) {
+                return;
+            }
+        }
+#endif
+    }
+}
 
 // Ends the running thread (OSExitThread, or its function returned).
 void re4_os_exit_current(void* val)

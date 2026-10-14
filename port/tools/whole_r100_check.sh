@@ -218,7 +218,7 @@ run_game() {
     echo "  (Fortschritt alle 30 s; Abbruch bei $stall s ohne neues Bild, ohne Hauptschleife nach $main_limit s, spätestens nach $limit s)"
     rm -f "$cov" "$trace" "$trace.gz"
     local start=$SECONDS
-    (cd "$dir" && exec env RE4_VI_FAST=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
+    (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
         RE4_PAD_SCRIPT="$pad_script" RE4_STOP_AFTER="$frames" \
         RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" \
         "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1 &
@@ -273,8 +273,9 @@ run_game() {
     say "Hauptschleife: ${reached:-nicht erreicht}"
     say "Ende:          ${stopped:-kein regulärer Stopp}"
     if grep -q "backtrace of the running context" "$log"; then
-        say "Rückverfolgung beim Abbruch (wo das Programm gerade war):"
-        sed -n '/backtrace of the running context/,$p' "$log" | head -n 30 | sed 's/^/  /' | tee -a "$report"
+        say "Rückverfolgung beim Abbruch (wo das Programm gerade war, dann jede Spielaufgabe mit ihrem Warteort):"
+        sed -n '/backtrace of the running context/,$p' "$log" | grep -v "pad: frame" | head -n 400 |
+            sed 's/^/  /' | tee -a "$report"
     fi
     # coverage: every GetDataExt access, converted yes / no
     if [ -f "$cov" ]; then

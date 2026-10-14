@@ -251,6 +251,36 @@ Mit Disc-Daten: `re4_format_compare --data ORDNER [--room r100]` vergleicht
 `static_assert` und die Läufe): CNS, ETS, EMI, SAR, EAR, FSE, ESE, DSE, STB,
 BLK, RTP, ITA, SHD, ETM, ITM, EVS, SEQ, TPL, EFF/TEX/VIB, MDT, UWF, Ton.
 
+### Erster lokaler Lauf (14.10.2026, i686 in WSL2)
+
+Der Kern lief vom Titelbild über das Debug-Startmenü bis in **r100**: Raum-
+archiv entpackt und umgewandelt, Abdeckung für RTP, MDT, OSD, EMI, CNS, SMX,
+LIT, SAT, EAT, AEV, ITA „ja“, `em/wep02.drs` (Pistole) geladen und per OSLink
+gebunden („Wep02 HANDGUN prolog Ok“). Danach blieb er in `gameRoomInit`
+(Spielschritt 2) stehen; die Bilder liefen weiter (über 2,3 Millionen), es
+kamen keine weiteren GetDataExt-Zugriffe (SHD, EFF, CAM … fehlen im Log): Die
+Wartestelle liegt zwischen `EmMgr.create(0, 0)` (Spieler) und `ShdInit`.
+
+- **Behoben:** Beide SMD des Raums (`#4`, `#5`) waren nur halb umgewandelt:
+  ihr Motion-Tabellen-Offset zeigt genau auf das Blockende (leere Tabelle),
+  `tableCount` wertete das als Fehler und brach vor den BIN/TPL-Modellen ab.
+  Jetzt gilt ein Offset am Blockende als leere Tabelle; das synthetische SMD
+  des Formatvergleichs hat dieselbe Form (Gegenprobe: mit dem alten Fehler
+  313 Abweichungen und „Umwandlung unvollständig“).
+- **Wahrscheinliche Ursache des Halts:** `SmdSetup` → `SmdSetParam` →
+  `cModInfoMgr::create` prüft die BIN-Version; mit den nicht umgewandelten
+  Modellen schlägt das fehl, und das Original wartet dann für immer in
+  `notBinData()` (`eprintf("not bin data")` + `TaskSleep(1)`, nur auf dem
+  Bildschirm, nicht im Log). Das passt zur Wartestelle. Bestätigt erst der
+  nächste lokale Lauf.
+- **Diagnose für den nächsten Lauf:** `RE4_WAIT_TRACE=1` merkt sich bei jedem
+  Threadwechsel die Rückverfolgung (`os_thread.cpp`), `SIGUSR1` gibt danach
+  jede Spielaufgabe mit ihrem Warteort aus (`re4_os_dump_threads`); der Wächter
+  des Prüfskripts löst das aus, wenn die Hauptschleife nach 10 Minuten nicht
+  erreicht ist.
+- Archiv-Kürzel `DRA` in r100 hat keinen Umwandler (GetDataExt griff im Lauf
+  bis zum Halt nicht darauf zu).
+
 ### Lokale Prüfung mit Disc-Daten (`port/scripts/test-r100-core.ps1`)
 
 Windows-PowerShell-Skript, startet in WSL2 `port/tools/whole_r100_check.sh`:

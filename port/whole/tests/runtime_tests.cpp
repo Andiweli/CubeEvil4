@@ -486,6 +486,26 @@ static void testTasks()
     }
     CHECK(TaskStatus(3) == 0 && TaskStatus(1) != 0);
     CHECK(retraces == 3 && gRetraceCalls == 3 && gLastRetrace == VIGetRetraceCount());
+    // hang search: every OS thread with the place it waits; task A sleeps in
+    // TaskSleep (recorded when RE4_WAIT_TRACE=1, as whole_build.sh runs it)
+    char path[] = "/tmp/re4-threads-XXXXXX";
+    int fd = mkstemp(path);
+    CHECK(fd >= 0);
+    if (fd >= 0) {
+        re4_os_dump_threads(fd);
+        lseek(fd, 0, SEEK_SET);
+        static char dump[32768];
+        ssize_t n = read(fd, dump, sizeof(dump) - 1);
+        dump[n > 0 ? n : 0] = 0;
+        close(fd);
+        unlink(path);
+        const char* waitTrace = getenv("RE4_WAIT_TRACE");
+        CHECK(strstr(dump, "OS thread") != 0);
+        CHECK(!(waitTrace && *waitTrace == '1') || strstr(dump, "TaskSleep") != 0);
+        if (waitTrace && *waitTrace == '1' && !strstr(dump, "TaskSleep")) {
+            re4_log("  thread dump:\n%s", dump);
+        }
+    }
     report("tasks", ok);
 }
 

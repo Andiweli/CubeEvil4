@@ -382,6 +382,8 @@ Bytes makeSmd()
     s.append(makeTpl());
     s.put32(4, std::uint32_t(binTbl));
     s.put32(8, std::uint32_t(tplTbl));
+    s.pad(32);
+    s.put32(12, std::uint32_t(s.size()));  // empty motion table at the end (as in r100)
     return s.b;
 }
 

@@ -103,6 +103,10 @@ void re4_wait_interrupt(void);
 void re4_set_frame_hook(void (*hook)(unsigned));
 void re4_pad_script_stop(void);
 
+/* Every OS thread and where it waits (os_thread.cpp; RE4_WAIT_TRACE=1 records
+ * the places): the hang search of host/main.cpp on SIGUSR1. */
+void re4_os_dump_threads(int fd);
+
 /* Debug start room (dolphin_os.cpp): RE4_START_ROOM=0x100 preselects that
  * room in the original debug start menu (patch 0026, title.cpp titleExit). */
 void re4_debug_start_room(unsigned short* room_id);

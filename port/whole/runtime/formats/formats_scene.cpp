@@ -35,7 +35,9 @@ namespace {
 // it): the entry count is implied by the smallest offset.
 u32 tableCount(Blob& b, u32 tbl, u32 max)
 {
-    if (tbl == 0 || !fits(b, tbl, 4, "offset table")) {
+    // A table offset at the very end of the block is an empty table: the SMDs
+    // of r100 end with their motion table offset and use no motion.
+    if (tbl == 0 || tbl == b.size || !fits(b, tbl, 4, "offset table")) {
         return 0;
     }
     u32 limit = 0xFFFFFFFFu;

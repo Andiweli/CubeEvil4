@@ -9,7 +9,8 @@
 //   re4_host --runtime-test   OSLink, DVD and yz2 checks without disc data
 //                             (tests/runtime_tests.cpp)
 //
-// kill -USR1 <pid> prints a backtrace of the running context (hang search).
+// kill -USR1 <pid> prints a backtrace of the running context and of every OS
+// thread's last wait (with RE4_WAIT_TRACE=1): the hang search.
 //
 // Module libraries are looked up in <directory of re4_host>/modules. The
 // extracted disc files are read from --data DIR, else $RE4_DATA_DIR, else
@@ -45,6 +46,7 @@ static void traceHandler(int sig)
     int n = backtrace(frames, 64);
     fprintf(stderr, "[re4] signal %d (%s), backtrace of the running context:\n", sig, strsignal(sig));
     backtrace_symbols_fd(frames, n, 2);
+    re4_os_dump_threads(2);
 }
 
 static int checkModules()
