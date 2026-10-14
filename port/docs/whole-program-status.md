@@ -258,13 +258,19 @@ Werkzeuge einrichten (`whole_setup_linux.sh`), Quelltext nach `~/re4-kern`
 klonen (Stand des Windows-Checkouts), `whole_build.sh i686` (mit `-Arm` auch
 armhf), Formatvergleich mit den Disc-Dateien, dann das Spiel vom Titelbild:
 `RE4_VI_FAST=1 RE4_START_ROOM=0x100 RE4_PAD_UNTIL_ROOM=1
-RE4_PAD_SCRIPT="UP@60-60000/20 A@65-60000/20 START@70-60000/20"
-RE4_STOP_AFTER=10000` mit Trace und Abdeckungs-Log, Zeitlimit 1 h (armhf 4 h).
-Die Tastenfolge: OBEN+A wählt im Speicherkarten-Dialog „ohne Speichern
-fortfahren“, START überspringt Logos, A wählt „Neues Spiel“, A/START verlässt
-das Debug-Startmenü. Dort verschiebt OBEN die Zeile (21 Zeilen, Zeile 1 lädt,
-2 erzwingt r120, 0x12 schwer + Neustart); vor dem nächsten A/START kommt
-höchstens ein OBEN an (Zeile 20 = normaler Start). Bericht
+RE4_PAD_SCRIPT="UP@100-60000/60 A@115-60000/60 START@130-60000/60"
+RE4_STOP_AFTER=10000` mit Trace und Abdeckungs-Log. Die Tastenfolge hat das
+Timing des Boot-Tests vom 13.10.2026: OBEN+A wählt im Speicherkarten-Dialog
+„ohne Speichern fortfahren“, START überspringt Logos, A wählt „Neues Spiel“,
+A/START verlässt das Debug-Startmenü. Dort verschiebt OBEN die Zeile (21
+Zeilen, Zeile 1 lädt, 2 erzwingt r120, 0x12 schwer + Neustart); vor dem
+nächsten A/START kommt höchstens ein OBEN an (Zeile 20 = normaler Start).
+Wächter (seit 14.10.2026, nachdem der erste lokale Lauf ohne Anzeige hing):
+alle 30 s Fortschritt (Bild, Spielschritt, Raum aus dem Trace); Abbruch mit
+Rückverfolgung (`kill -USR1`, Ausgabe von `host/main.cpp`), wenn 180 s kein
+neues Bild kommt, die Hauptschleife nach 600 s nicht erreicht ist oder nach
+3600 s (Umgebungsvariablen `RE4_CHECK_STALL`, `RE4_CHECK_MAIN_LIMIT`,
+`RE4_CHECK_LIMIT`; armhf 600/5400/14400 s). Bericht
 `Desktop\RE4-Kern-Pruefung\bericht.txt`: Ergebnis (OK/Absturz/Zeitlimit),
 erreichte Hauptschleife, Abdeckung mit allen „nein“-Zeilen, Umwandler-
 Meldungen, aufgerufene Platzhalter, letzte Trace-Zeile. Disc-Daten als

@@ -179,16 +179,33 @@ else
 fi
 
 # ---- the game: debug start into the room ---------------------------------------------------
-# Every 20 frames UP, 5 frames later A, 5 frames later START. UP+A picks
-# "continue without saving" in the memory card dialog (A alone retries); UP
-# keeps the title menu on "new game" (patch 0026 puts it there); START skips
-# the logos; A or START leaves the debug start menu (title.cpp titleExit).
-# There UP moves the cursor (21 lines, wrapping; line 1 loads, 2 forces r120,
-# 0x12 hard mode + reset): at most one UP can arrive before the next A/START,
-# so the cursor is line 0 or 20, both the normal start.
-pad_script="UP@60-60000/20 A@65-60000/20 START@70-60000/20"
-run_game() {  # target, timeout in seconds
-    local t="$1" limit="$2" dir="$src/port/build/whole-$1"
+# Every 60 frames UP, 15 frames later A, 15 frames later START: the timing of
+# the boot test of 13.10.2026 (M4 part B), which got through the memory card
+# dialog (UP+A picks "continue without saving", A alone retries). UP keeps the
+# title menu on "new game" (patch 0026 puts it there); START skips the logos;
+# A or START leaves the debug start menu (title.cpp titleExit). There UP moves
+# the cursor (21 lines, wrapping; line 1 loads, 2 forces r120, 0x12 hard mode +
+# reset): at most one UP can arrive before the next A/START, so the cursor is
+# line 0 or 20, both the normal start.
+pad_script="UP@100-60000/60 A@115-60000/60 START@130-60000/60"
+
+# "Bild N, Spielschritt R, Raum 0xXXX" from the last complete trace line
+trace_state() {
+    local line f r rm
+    line=$(tail -n 2 "$1" 2>/dev/null | head -n 1)
+    f=$(echo "$line" | grep -o '"frame":[0-9]*' | cut -d: -f2)
+    r=$(echo "$line" | grep -o '"Rno0":[0-9]*' | cut -d: -f2)
+    rm=$(echo "$line" | grep -o '"room":"0x[0-9a-fA-F]*"' | cut -d'"' -f4)
+    if [ -n "$f" ]; then
+        echo "Bild $f, Spielschritt $r, Raum $rm"
+    else
+        echo "noch kein Bild"
+    fi
+}
+
+# target, overall limit, limit until the main loop, stall limit (seconds)
+run_game() {
+    local t="$1" limit="$2" main_limit="$3" stall="$4" dir="$src/port/build/whole-$1"
     local log="$run/spiel-$t.log" trace="$run/trace-$t.jsonl" cov="$run/abdeckung-$t.tsv"
     local runner=() bad=0
     [ "$t" = armhf ] && runner=(env QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf qemu-arm)
@@ -198,22 +215,53 @@ run_game() {  # target, timeout in seconds
         overall=1
         return
     fi
-    rm -f "$cov"
+    echo "  (Fortschritt alle 30 s; Abbruch bei $stall s ohne neues Bild, ohne Hauptschleife nach $main_limit s, spätestens nach $limit s)"
+    rm -f "$cov" "$trace" "$trace.gz"
     local start=$SECONDS
-    (cd "$dir" && RE4_VI_FAST=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
+    (cd "$dir" && exec env RE4_VI_FAST=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
         RE4_PAD_SCRIPT="$pad_script" RE4_STOP_AFTER="$frames" \
         RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" \
-        timeout -k 10 -s USR1 "$limit" "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1
+        "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1 &
+    local pid=$!
+    # watchdog: progress, stall (no new trace data), no main loop, overall limit
+    local size last_size=-1 last_change=$SECONDS last_note=$SECONDS reason="" state
+    while kill -0 "$pid" 2> /dev/null; do
+        sleep 5
+        size=$(stat -c %s "$trace" 2> /dev/null || echo 0)
+        if [ "$size" != "$last_size" ]; then
+            last_size=$size
+            last_change=$SECONDS
+        fi
+        if [ $((SECONDS - last_note)) -ge 30 ]; then
+            echo "  ... $((SECONDS - start)) s: $(trace_state "$trace")"
+            last_note=$SECONDS
+        fi
+        if [ $((SECONDS - last_change)) -ge "$stall" ]; then
+            reason="STILLSTAND: seit $stall s kein neues Bild"
+        elif [ $((SECONDS - start)) -ge "$main_limit" ] && ! grep -q "run: main loop reached" "$log"; then
+            reason="ABBRUCH: Hauptschleife nach $main_limit s nicht erreicht"
+        elif [ $((SECONDS - start)) -ge "$limit" ]; then
+            reason="ABBRUCH: Zeitlimit von $limit s erreicht"
+        fi
+        if [ -n "$reason" ]; then
+            # backtrace of the running context into the log (host/main.cpp), then stop
+            kill -USR1 "$pid" 2> /dev/null
+            sleep 3
+            kill -KILL "$pid" 2> /dev/null
+            break
+        fi
+    done
+    wait "$pid" 2> /dev/null
     local code=$?
     local secs=$((SECONDS - start))
     local stopped reached
     stopped=$(grep -m1 "run: stopped after" "$log" | sed 's/^\[re4\] //')
     reached=$(grep -m1 "run: main loop reached" "$log" | sed 's/^\[re4\] //')
-    if [ "$code" -eq 0 ] && [ -n "$stopped" ] && echo "$stopped" | grep -q "room r$room"; then
-        say "Ergebnis: OK, kein Absturz ($secs s)"
-    elif [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
-        say "Ergebnis: ABBRUCH nach dem Zeitlimit von $limit s (Spiel hängt oder ist zu langsam)"
+    if [ -n "$reason" ]; then
+        say "Ergebnis: $reason ($secs s)"
         bad=1
+    elif [ "$code" -eq 0 ] && [ -n "$stopped" ] && echo "$stopped" | grep -q "room r$room"; then
+        say "Ergebnis: OK, kein Absturz ($secs s)"
     elif grep -q "fatal signal" "$log"; then
         say "Ergebnis: ABSTURZ ($(grep -m1 'fatal signal' "$log" | sed 's/^\[re4\] //'))"
         bad=1
@@ -221,8 +269,13 @@ run_game() {  # target, timeout in seconds
         say "Ergebnis: FEHLER (Exit-Code $code, Ziel nicht erreicht)"
         bad=1
     fi
+    say "Letzter Stand:  $(trace_state "$trace")"
     say "Hauptschleife: ${reached:-nicht erreicht}"
     say "Ende:          ${stopped:-kein regulärer Stopp}"
+    if grep -q "backtrace of the running context" "$log"; then
+        say "Rückverfolgung beim Abbruch (wo das Programm gerade war):"
+        sed -n '/backtrace of the running context/,$p' "$log" | head -n 30 | sed 's/^/  /' | tee -a "$report"
+    fi
     # coverage: every GetDataExt access, converted yes / no
     if [ -f "$cov" ]; then
         local total no room_no
@@ -265,14 +318,15 @@ run_game() {  # target, timeout in seconds
         gzip -f "$trace"
     fi
     if [ "$bad" -ne 0 ]; then
-        say "Letzte 40 Zeilen des Spiel-Logs:"
-        tail -n 40 "$log" | sed 's/^/  /' | tee -a "$report"
+        say "Letzte 60 Zeilen des Spiel-Logs (ohne Tastenzeilen):"
+        grep -v "pad: frame" "$log" | tail -n 60 | sed 's/^/  /' | tee -a "$report"
         overall=1
     fi
 }
 if [ "$game_ok" -eq 1 ]; then
-    run_game i686 3600
-    [ "$arm" -eq 1 ] && run_game armhf 14400
+    # limits in seconds: overall, until the main loop, without a new frame
+    run_game i686 "${RE4_CHECK_LIMIT:-3600}" "${RE4_CHECK_MAIN_LIMIT:-600}" "${RE4_CHECK_STALL:-180}"
+    [ "$arm" -eq 1 ] && run_game armhf 14400 5400 600
 fi
 
 section "Zusammenfassung"
