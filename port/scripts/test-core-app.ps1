@@ -16,8 +16,8 @@ Drei Schritte, jeder einzeln abschaltbar:
      com.ast.re4decomp.core, neben der bisherigen App), starten, mehrere
      Bildschirmfotos aufnehmen, das Protokoll der App holen, App beenden.
 
-Beim ersten Mal in der App "RE4 Kern" beide Discs importieren (Menue > Data >
-Import Disc 1 / 2). Der Kern braucht dafuer einen neuen, vollstaendigen Import.
+Beim ersten Mal in der App "RE4 Kern" beide Discs importieren (Menu >
+Import Disc 1 und Import Disc 2). Der Kern braucht dafuer einen neuen, vollstaendigen Import.
 
 Standard ist ein Debug-Start direkt in r100 mit derselben Test-Tastenfolge wie
 die PC-Pruefung (Speicherkarten-Dialog, Titel, Debug-Menue); sobald der Raum
@@ -165,7 +165,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     Say '   App installiert (armeabi-v7a)'
     $fst = (& $Adb -s $Serial shell "ls /sdcard/Android/data/$package/files/game/disc1/sys/fst.bin 2>/dev/null") -join ''
     if (-not $fst) {
-        Say '   Hinweis: In der App "RE4 Kern" sind noch keine Discs importiert (Menue > Data > Import Disc 1 und 2).'
+        Say '   Hinweis: In der App "RE4 Kern" sind noch keine Discs importiert (Menu > Import Disc 1 und Import Disc 2).'
         Say '   Die App wird trotzdem gestartet; das Bildschirmfoto zeigt dann den Import.'
     }
     & $Adb -s $Serial shell am force-stop $package
