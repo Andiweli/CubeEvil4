@@ -202,6 +202,7 @@ struct ArchiveNote {
     u32 holeLo[4], holeHi[4];  // parts later loads overwrote (offsets in the archive)
     u32 nHoles;
     bool plain;       // a file without entry table (an EVD): data found by offset (entry -2)
+    u32 seq;          // when it was noted (g_seq), against copies
     bool suspended;   // signature differs right now (memory swapped out, sub screen)
 };
 
@@ -213,7 +214,19 @@ EntryNote g_notes[kNotes];
 ArchiveNote g_archives[kArchives];
 u32 g_nextArchive;
 u32 g_lastArchive;  // the archive noted last (its entries follow it)
-u32 g_gen;          // +1 per noted archive
+u32 g_gen;          // +1 per noted archive or copy: cached lookups are redone
+u32 g_seq;          // order of notes and copies
+
+// ARAM -> MEM1 copies: data the converter noted in ARAM now lies in MEM1 too
+struct CopyNote {
+    const u8* dst;
+    const u8* src;
+    u32 len;
+    u32 seq;
+};
+const u32 kCopies = 512;
+CopyNote g_copies[kCopies];
+u32 g_nextCopy;
 
 int archiveSlot(const void* archive)
 {
@@ -399,6 +412,7 @@ void noteArchive(const void* addr, unsigned size, const char* name, const Part& 
     a->addr = addr;
     a->size = size;
     a->gen = ++g_gen;
+    a->seq = ++g_seq;
     snprintf(a->name, sizeof(a->name), "%s", name);
     snprintf(a->file, sizeof(a->file), "%s", part.name ? part.name : "");
     a->fileOfs = part.fileOfs;
@@ -642,6 +656,61 @@ extern "C" void re4_formats_unpacked(void* dst, unsigned size)
 // Core bridge (runtime/re4_core.h): the disc source of the archive entry at
 // `addr`, from the notes of the converter. The notes are written while the
 // game loads (its own thread); the bridge reads them on the same thread.
+namespace {
+
+// The notes alone: an archive entry starting at addr, or the entry (or plain
+// file) around it. Returns the entry (-1 none), *slot the archive.
+int lookupNotes(const void* addr, int* slot, u32* inner)
+{
+    *slot = -1;
+    *inner = 0;
+    u32 s = slotOf(addr);
+    for (u32 i = 0; i < kNotes; i++) {
+        const EntryNote& e = g_notes[(s + i) % kNotes];
+        if (e.addr == 0) {
+            break;
+        }
+        if (e.addr == addr) {
+            if (current(e) && intact(g_archives[e.archiveSlot])) {
+                *slot = e.archiveSlot;
+                return e.entry;
+            }
+            break;
+        }
+    }
+    // nested inside an entry (a BIN in an SMD, a model in a block file) or
+    // inside a file without entries (an EVD: entry -2)
+    return containingEntry(addr, slot, inner);
+}
+
+// The newest ARAM copy that put data at addr, 0 if none.
+const CopyNote* copyAt(const void* addr)
+{
+    const u8* p = (const u8*) addr;
+    for (u32 k = 0; k < kCopies && k < g_nextCopy; k++) {
+        const CopyNote& c = g_copies[(g_nextCopy - 1 - k) % kCopies];
+        if (p >= c.dst && p < c.dst + c.len) {
+            return &c;
+        }
+    }
+    return 0;
+}
+
+}  // namespace
+
+extern "C" void re4_formats_aram_copied(void* dst, const void* src, unsigned length)
+{
+    if (!length) {
+        return;
+    }
+    CopyNote& c = g_copies[g_nextCopy++ % kCopies];
+    c.dst = (const u8*) dst;
+    c.src = (const u8*) src;
+    c.len = length;
+    c.seq = ++g_seq;
+    ++g_gen;
+}
+
 extern "C" int re4_formats_locate(const void* addr, Re4CoreSource* out)
 {
     memset(out, 0, sizeof(*out));
@@ -649,8 +718,8 @@ extern "C" int re4_formats_locate(const void* addr, Re4CoreSource* out)
     if (!addr) {
         return 0;
     }
-    // remembered per address until the next archive is noted: the bridge asks
-    // for the same models every frame
+    // remembered per address until the next archive or copy is noted: the
+    // bridge asks for the same models every frame
     struct Cached {
         const void* addr;
         u32 gen;
@@ -663,29 +732,25 @@ extern "C" int re4_formats_locate(const void* addr, Re4CoreSource* out)
     if (c.addr != addr || c.gen != g_gen) {
         c.addr = addr;
         c.gen = g_gen;
-        c.slot = -1;
-        c.entry = -1;
-        c.inner = 0;
-        // an archive entry starts here
-        u32 s = slotOf(addr);
-        for (u32 i = 0; i < kNotes; i++) {
-            const EntryNote& e = g_notes[(s + i) % kNotes];
-            if (e.addr == 0) {
-                break;
-            }
-            if (e.addr == addr) {
-                if (current(e) && intact(g_archives[e.archiveSlot])) {
-                    c.slot = e.archiveSlot;
-                    c.entry = e.entry;
-                }
-                break;
+        int slot;
+        u32 inner;
+        int entry = lookupNotes(addr, &slot, &inner);
+        // data copied from ARAM after the archive here was noted: the source
+        // is what the converter saw in ARAM
+        const CopyNote* copy = copyAt(addr);
+        if (copy && (slot < 0 || copy->seq > g_archives[slot].seq)) {
+            int cslot;
+            u32 cinner;
+            int centry = lookupNotes(copy->src + ((const u8*) addr - copy->dst), &cslot, &cinner);
+            if (cslot >= 0 && (centry >= 0 || centry == -2)) {
+                slot = cslot;
+                inner = cinner;
+                entry = centry;
             }
         }
-        // else nested inside an entry (a BIN in an SMD, a model in a block
-        // file) or inside a file without entries (an EVD: entry -2)
-        if (c.entry < 0) {
-            c.entry = containingEntry(addr, &c.slot, &c.inner);
-        }
+        c.slot = slot;
+        c.entry = entry;
+        c.inner = inner;
     }
     if ((c.entry < 0 && c.entry != -2) || c.slot < 0 || !g_archives[c.slot].gen) {
         return 0;

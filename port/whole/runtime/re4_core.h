@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define RE4_CORE_API_VERSION 3
+#define RE4_CORE_API_VERSION 4
 
 enum Re4CoreState {
     RE4_CORE_IDLE = 0,     /* not started */
@@ -58,10 +58,19 @@ typedef struct Re4CoreSource {
 } Re4CoreSource;
 
 /* One cModelInfo of a model: its BIN (cModelData) and TPL. The addresses
- * identify the loaded data across frames. */
+ * identify the loaded data across frames. How the game places it
+ * (trans.cpp commonModelTrans): drawn only with flags & 8; a rigid model
+ * (one part, no weights) hangs on parts[rigidPart] with its vertices in that
+ * part's space; a skinned one is posed by all parts; both times the info's
+ * own matrix comes on top (identity, unless the game moves or hides it, like
+ * the knife: cPlBody::setKnife scales it to 0). */
 typedef struct Re4CoreModelInfo {
     uint32_t binAddress, tplAddress;
     Re4CoreSource bin, tpl;
+    uint32_t flags;      /* cModelInfo::be_flag */
+    int16_t rigidPart;   /* >= 0 rigid on that part, -1 skinned, -2 placed by the model matrix */
+    uint16_t reserved;
+    float matrix[12];    /* cModelInfo::mat, row-major 3x4 */
 } Re4CoreModelInfo;
 
 #define RE4_CORE_MAX_INFOS 4

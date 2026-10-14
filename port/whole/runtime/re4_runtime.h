@@ -80,6 +80,8 @@ void re4_swap16_words(void* p, unsigned bytes);
  * decoder for every unpacked stream. */
 void re4_formats_part_loaded(const char* name, int nest, int index, const void* part, unsigned addr);
 void re4_formats_unpacked(void* dst, unsigned size);
+// ARAM -> main memory DMA (aram.cpp): the data at dst came from src (ARAM)
+void re4_formats_aram_copied(void* dst, const void* src, unsigned length);
 
 /* ARAM contents (aram.cpp), 16 MB. */
 unsigned char* re4_aram(void);

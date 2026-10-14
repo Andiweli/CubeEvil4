@@ -8,6 +8,8 @@
 //     source is refused with a message
 //   - event-file sources (entry -2: data at an offset of the file), and the
 //     last known source of a model when the core loses it for a while
+//   - the infos as the game draws them (trans.cpp): hidden without be_flag 8,
+//     a rigid model hung on its part, the info's own matrix on top
 //   - nested sources (innerOffset: a BIN inside another entry) and sources in
 //     the Yz2-packed room archive (read from the decoded room file) are drawn;
 //     the room's scenery objects (ObjMgr id 2) are left to the room scene
@@ -123,6 +125,8 @@ int main() {
       nested.insert(nested.end(), b.begin(), b.end());
     }
     const auto archive2 = makeArchive({{"SMD", nested}, {"TPL", makeTpl()}});
+    const auto archive3 = makeArchive({{"BIN", makeRigidBin()}, {"TPL", makeTpl()}});
+    writeFile(root + "/disc1/files/em/em97.drs", makeDrs(archive3));
     writeFile(root + "/disc1/files/em/em98.drs", makeDrs(archive2));
     // an event file: a container part at 0x400 holding the BIN at +0x100 and the TPL after it
     Bytes eventPart(0x100, 0);
@@ -201,6 +205,9 @@ int main() {
     model.matrix[0] = model.matrix[5] = model.matrix[10] = 1;
     model.infos[0].bin = bin;
     model.infos[0].tpl = tpl;
+    model.infos[0].flags = 8;  // drawn (cModelInfo::be_flag)
+    model.infos[0].rigidPart = -1;
+    model.infos[0].matrix[0] = model.infos[0].matrix[5] = model.infos[0].matrix[10] = 1;
     frame.models = {model};
     frame.parts.assign(2, Re4CorePart{});
     for (auto &p : frame.parts) p.matrix[0] = p.matrix[5] = p.matrix[10] = 1;
@@ -291,6 +298,43 @@ int main() {
     frame.models[0].infos[0].binAddress += 0x20;  // other data: not the remembered source
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
     require(scene.status().find("drawn 0, missing 1") != std::string::npos, "other data not mistaken");
+
+    // the infos as the game draws them
+    frame.eye = {-3000, 900, -600};
+    frame.models[0].address = 0x82003000u;
+    frame.models[0].infos[0].binAddress = 0x82200000u;
+    frame.models[0].infos[0].bin = bin;
+    frame.models[0].infos[0].tpl = tpl;
+    frame.models[0].infos[0].flags = 0;  // hidden by the game
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    require(scene.status().find("drawn 0, missing 0") != std::string::npos, "hidden info not drawn");
+    frame.models[0].infos[0].flags = 8;
+    // a rigid model (one part, no weights) hung on part 1: it follows part 1, not part 0
+    setSource(frame.models[0].infos[0].bin, "em/em97.drs", 0x400, unsigned(archive3.size()), 0);
+    setSource(frame.models[0].infos[0].tpl, "em/em97.drs", 0x400, unsigned(archive3.size()), 1);
+    frame.models[0].infos[0].binAddress = 0x82300000u;
+    frame.models[0].infos[0].rigidPart = 1;
+    frame.eye = {0, 6000, -3000};
+    frame.target = {0, 0, 0};
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    require(scene.status().find("drawn 1, missing 0") != std::string::npos, "rigid info drawn");
+    const auto rigidRest = pixels();
+    frame.parts[0].matrix[3] = 1500;  // part 0 moves: the rigid model stays
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    const auto rootMoved = pixels();
+    frame.parts[0].matrix[3] = 0;
+    frame.parts[1].matrix[3] = 1500;  // part 1 moves: the rigid model goes with it
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    const auto partMoved = pixels();
+    frame.parts[1].matrix[3] = 0;
+    std::fprintf(stderr, "rigid: root moved %u, its part moved %u pixels\n", changes(rigidRest, rootMoved),
+                 changes(rigidRest, partMoved));
+    require(changes(rigidRest, rootMoved) == 0 && changes(rigidRest, partMoved) > 20, "rigid info on its part");
+    // the info's own matrix moves it as well
+    frame.models[0].infos[0].matrix[3] = 1500;
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    require(changes(rigidRest, pixels()) > 20, "info matrix applied");
+    frame.models[0].infos[0].matrix[3] = 0;
 
     std::string cleanup = "rm -rf '" + root + "'";
     if (std::system(cleanup.c_str()) != 0) std::fprintf(stderr, "cleanup failed\n");

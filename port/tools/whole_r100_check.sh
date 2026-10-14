@@ -384,7 +384,12 @@ def summary(last):
         return re.sub(r"0x[0-9a-f]{6,8}|\+0x[0-9a-f]+", "…", src or "?")
     seen, lines = {}, []
     for m in drawn:
-        srcs = "; ".join(f"BIN {i['bin'] or '?'} TPL {i['tpl'] or '?'}" for i in m["infos"]) or "kein Modell"
+        def how(i):
+            if not i.get("shown", 1):
+                return " (versteckt)"
+            r = i.get("rigid", -1)
+            return f" (starr an Teil {r})" if r >= 0 else " (am Modell)" if r == -2 else ""
+        srcs = "; ".join(f"BIN {i['bin'] or '?'} TPL {i['tpl'] or '?'}{how(i)}" for i in m["infos"]) or "kein Modell"
         key = (m["mgr"], m["id"], m["parts"], plain(srcs))
         if key in seen:
             seen[key] += 1

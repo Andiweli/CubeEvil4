@@ -60,6 +60,9 @@ bool near(float a, float b)
 
 extern "C" int re4_formats_describe(const void* addr, char* out, int size);
 
+extern "C" void ARStartDMA(unsigned type, unsigned mainAddr, unsigned aramAddr, unsigned length);
+extern "C" unsigned char* re4_aram(void);
+
 Re4CoreSnapshot gSnap;
 
 void testBridge()
@@ -189,6 +192,33 @@ void testBridge()
         memcpy(trigger + 0x14, "XBN\0", 4);
         re4_formats_part_loaded("em/trigger2.drs", 0, 0, &ht, 0x8210C000u);
         CHECK(re4_formats_locate(evd + 0x123, &src) && src.entry == -2 && src.innerOffset == 0x123);
+        // an event file loaded to ARAM (converted and noted there) and copied
+        // to MEM1 when the event plays: found through the copy
+        {
+            unsigned aramAt = 0x00F00000u;  // high in ARAM, away from the game's stack
+            unsigned char* inAram = re4_aram() + aramAt;
+            memset(inAram, 0, 0x200);
+            memcpy(inAram, "event", 5);
+            memcpy(inAram + 0x20, "r100", 4);
+            memcpy(inAram + 0x28, "s03", 3);
+            put32be(inAram + 0x40, 0x50);
+            put32be(inAram + 0x4C, 0x50);
+            Header ha = { 3 /* TRANS_ARAM */, 0x200, 0, 0x400, 0, 0, 0, 0 };
+            re4_formats_part_loaded("Evd/r100s03.evd", 0, 0, &ha, aramAt);
+            unsigned char* inMem1 = (unsigned char*) (unsigned long) 0x8210E000u;
+            ARStartDMA(1, 0x8210E000u, aramAt, 0x200);
+            CHECK(memcmp(inMem1, "event", 5) == 0);
+            CHECK(re4_formats_locate(inMem1 + 0x180, &src) && strcmp(src.file, "evd/r100s03.evd") == 0 &&
+                  src.entry == -2 && src.innerOffset == 0x180);
+            // an archive loaded there later wins over the copy
+            memset(inMem1, 0, 0x60);
+            put32be(inMem1 + 0x00, 1);
+            put32be(inMem1 + 0x10, 0x20);
+            memcpy(inMem1 + 0x14, "XBN\0", 4);
+            Header hl = { 0, 0x60, 0, 0x400, 0, 0, 0, 0 };
+            re4_formats_part_loaded("em/later.drs", 0, 0, &hl, 0x8210E000u);
+            CHECK(re4_formats_locate(inMem1 + 0x20, &src) && strcmp(src.file, "em/later.drs") == 0 && src.entry == 0);
+        }
         // motion curves (FCV): a joint the game reads is converted, an unused
         // joint whose offset points into the header is left alone (weapon
         // motions have such joints) and does not stop the conversion
@@ -245,7 +275,10 @@ void testBridge()
         CHECK(near(p.matrix[0], 1.0f) && near(p.matrix[7], 10.0f * (i + 1)));
         CHECK(near(p.bind[0], 0.0f) && near(p.bind[1], 10.0f * (i + 1)) && near(p.bind[2], 0.0f));
     }
-    CHECK(m.nInfos == 1 && m.infos[0].binAddress == 0x82000020u && m.infos[0].tplAddress == 0x82000040u);
+    CHECK(m.nInfos == 2 && m.infos[0].binAddress == 0x82000020u && m.infos[0].tplAddress == 0x82000040u);
+    // how the game draws the infos: the first skinned, the second rigid on parts 1
+    CHECK(m.infos[0].flags == 8 && m.infos[0].rigidPart == -1 && near(m.infos[0].matrix[0], 1.0f));
+    CHECK(m.infos[1].flags == 8 && m.infos[1].rigidPart == 1 && near(m.infos[1].matrix[7], 5.0f));
     CHECK(strcmp(m.infos[0].bin.file, "em/em99.drs") == 0 && m.infos[0].bin.entry == 0 &&
           m.infos[0].tpl.entry == 1 && m.infos[0].tpl.fileOffset == 0x400);
     report("bridge", ok);

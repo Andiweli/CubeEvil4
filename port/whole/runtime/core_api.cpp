@@ -125,7 +125,7 @@ void dumpHook(unsigned frame)
             dumpSource(f, m.infos[k].bin, m.infos[k].binAddress);
             fprintf(f, ",\"tpl\":");
             dumpSource(f, m.infos[k].tpl, m.infos[k].tplAddress);
-            fprintf(f, "}");
+            fprintf(f, ",\"shown\":%d,\"rigid\":%d}", (m.infos[k].flags & 8) != 0, (int) m.infos[k].rigidPart);
         }
         fprintf(f, "]}");
     }

@@ -415,14 +415,14 @@ PowerShell 7 durchgespielt.
    Zurück fragt „End the game?“ und beendet den Prozess (der Kern lässt sich
    im selben Prozess nicht neu starten).
 
-**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 3, reines C, gleiche
+**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 4, reines C, gleiche
 Struktur-Größe auf 32 und 64 bit): `re4_core_reserve`, `re4_core_start`,
 `re4_core_state` (idle/running/ended/failed), `re4_core_message`,
 `re4_core_pad`, `re4_core_acquire`/`re4_core_release`, `re4_core_log_tail`
 (letzte 24 Log-Zeilen für das Overlay), für Tests `re4_core_start_entry`.
 Umgesetzt in `runtime/core_api.cpp` (in `libre4_main`).
 
-**Schnappschuss** (`Re4CoreSnapshot`, 409 664 Byte auf 32 und 64 bit): Spielschritt
+**Schnappschuss** (`Re4CoreSnapshot`, 466 996 Byte auf 32 und 64 bit): Spielschritt
 `Rno0..3`, Raum, Disc, Kamera aus `pG->Camera` (Augpunkt, Ziel, Rollwinkel,
 Öffnungswinkel; bei offenem Untermenü die Weltkamera `CamCtrl.camera`, denn
 `pG->Camera` ist dann die Kamera des Menüs), `screen` (Untermenü offen,
@@ -430,7 +430,11 @@ Ereignis, Debug-Kamera), bis 256 Modelle aus `EmMgr` (Gegner) und `ObjMgr` (Obje
 lebend (`be_flag & 0x201 == 1`), Zeichen-Bits `2|4`, Weltmatrix, je Teil die
 Weltmatrix `cParts::mat` und die Bindung (−`lt_inv_mat`-Verschiebung), bis
 4096 Teile. Für jede Modell-Info (`pModelInfo`) die Herkunft der BIN- und
-TPL-Daten auf der Disc (Datei, Archiv-Offset, Eintrag): Die Formatumwandler
+TPL-Daten auf der Disc (Datei, Archiv-Offset, Eintrag) und wie das Spiel
+sie zeichnet (`trans.cpp commonModelTrans`): nur mit `be_flag & 8`; ein
+starres Modell (ein Teil, keine Gewichte) hängt an `pHead->partsNo` mit
+seinen Punkten im Raum dieses Teils (Leons Haare am Kopf); dazu die eigene
+Matrix der Modell-Info. Die Formatumwandler
 merken sich beim Laden jedes Archiv und jeden Eintrag
 (`re4_formats_locate`; bis 1024 Archive und 65 536 Einträge, vorher 64
 Archive: r100 lädt mehr, ältere Herkunftsangaben gingen verloren). Liegt ein
@@ -443,7 +447,10 @@ Daten ohne eigene Notiz erkennt eine Prüfsumme der Eintragsnamen; stimmt
 sie nicht, ruhen die Angaben nur, bis die Daten wieder da sind (ein
 Untermenü lagert Teile von MEM1 vorübergehend nach ARAM aus,
 `SubScreenAramRead`). Die App merkt sich je Modell die letzte bekannte
-Herkunft und zeichnet es so auch während solcher Pausen. Ereignis-Dateien
+Herkunft und zeichnet es so auch während solcher Pausen. Kopiert das Spiel
+Daten aus ARAM in den Hauptspeicher (Ereignisse laden ihre Dateien nach ARAM
+und holen sie beim Abspielen), folgt die Herkunft der Kopie
+(`re4_formats_aram_copied`, `aram.cpp`). Ereignis-Dateien
 (`Evd/*.evd`) werden als Ganzes gemerkt: Modelle darin haben `entry = -2`,
 `innerOffset` = Position in der Datei. Jede Überlappung und jede Pause steht
 im Log („formats: archive … overlaps …“, „… suspended“, im Bericht unter den
@@ -596,6 +603,20 @@ Gerätelauf, Bilder mit echten Disc-Daten.
   Spiel nur mit angehängter Kamera, und was in den Eintrag passt, wird
   umgewandelt. Die Meldung nennt jetzt den Grund, gezählt als Fehler wird nur
   ein gelesenes Gelenk mit Daten im Eintrag.
+
+### Fünfter lokaler Lauf (14.10.2026, WSL2)
+
+- Während des Funkspruchs zeichnet die App jetzt 42 Figuren ohne Lücke
+  (vorher 16 und 26 fehlende); alle 27 Modelle lassen sich laden. Formatvergleich:
+  nur noch pl14 (FCV mit 32 Byte, keine Achse passt) – jetzt als Originaldaten
+  eingeordnet.
+- Leons Haare: kein Ladefehler, sondern die Regel aus `commonModelTrans`
+  fehlte: Die Haare sind ein starres Teil am Kopf-Knochen, die App hängte sie
+  an Knochen 0 (Hüfte). Jetzt mit Sichtbarkeit, Knochen und Info-Matrix
+  (Version 4; Test in `core_scene_gl_check`, 52 Prüfungen).
+- Köpfe der Polizisten: Ereignis-Modelle lagen „in em12.drs“ – die Ereignis-
+  Datei kommt aus ARAM und überschreibt dabei vorübergehend em12. Jetzt folgt
+  die Herkunft der ARAM-Kopie (Test `core-test bridge`).
 
 ### Lokale Prüfungen für K2
 

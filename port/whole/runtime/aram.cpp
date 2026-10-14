@@ -68,6 +68,9 @@ bool dma(u32 type, u32 mainAddr, u32 aramAddr, u32 length)
         memcpy(aram() + aramAddr, mem, length);
     } else {
         memcpy(mem, aram() + aramAddr, length);
+        // the converter's notes follow the data (event files are loaded to
+        // ARAM and copied to MEM1 when the event plays)
+        re4_formats_aram_copied(mem, aram() + aramAddr, length);
     }
     return true;
 }

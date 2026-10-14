@@ -90,6 +90,17 @@ void captureModel(Re4CoreSnapshot* s, cModel* m, u8 manager)
         Re4CoreModelInfo& mi = out.infos[out.nInfos++];
         mi.binAddress = (u32) (unsigned long) info->model_addr;
         mi.tplAddress = (u32) (unsigned long) info->tpl_addr;
+        mi.flags = info->be_flag;
+        copy34(mi.matrix, info->mat);
+        // trans.cpp commonModelTrans: which matrix the info is drawn with
+        cModelData* d = info->model_addr;
+        mi.rigidPart = -1;
+        if (m->be_flag & 0x4000) {
+            mi.rigidPart = -2;
+        } else if (live(d) && d->weight_palette_num <= 1 && d->weight_ext_num <= 0xFF && !(info->be_flag & 2) &&
+                   d->nParts == 1 && live(d->pHead)) {
+            mi.rigidPart = d->pHead->partsNo;
+        }
         re4_formats_locate(info->model_addr, &mi.bin);
         re4_formats_locate(info->tpl_addr, &mi.tpl);
         info = info->pList;

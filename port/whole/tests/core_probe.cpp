@@ -41,6 +41,11 @@ extern "C" void re4probe_core_setup(void* mem, void* bin, void* tpl)
     cEm* em = (cEm*) base;
     cParts* parts = (cParts*) (base + 0x2000);
     cModelInfo* info = (cModelInfo*) (base + 0x3000);
+    // a second, rigid info hung on parts 1 (cModelData with one part, no
+    // weights) and moved up by its own matrix
+    cModelInfo* rigid = (cModelInfo*) (base + 0x3400);
+    cModelData* data = (cModelData*) (base + 0x3800);
+    ModelDataHead* head = (ModelDataHead*) (base + 0x3900);
     em->be_flag = 1 | 2 | 4;
     em->id = 0x12;
     em->type = 3;
@@ -54,7 +59,19 @@ extern "C" void re4probe_core_setup(void* mem, void* bin, void* tpl)
     }
     info->model_addr = (cModelData*) bin;
     info->tpl_addr = tpl;
-    info->pList = 0;
+    info->be_flag = 8;
+    setMatrix(info->mat, 0.0f, 0.0f, 0.0f);
+    info->pList = rigid;
+    head->partsNo = 1;
+    data->pHead = head;
+    data->nParts = 1;
+    data->weight_palette_num = 1;
+    data->weight_ext_num = 0;
+    rigid->model_addr = data;
+    rigid->tpl_addr = tpl;
+    rigid->be_flag = 8;
+    setMatrix(rigid->mat, 0.0f, 5.0f, 0.0f);
+    rigid->pList = 0;
     em->pModelInfo = info;
 
     gSavedArray = EmMgr.pArray;
@@ -90,3 +107,5 @@ extern "C" void re4probe_core_restore(void)
 }
 
 static_assert(sizeof(cEm) <= 0x2000, "the fake enemy work overlaps its parts");
+static_assert(2 * sizeof(cParts) <= 0x1000, "the fake parts overlap the model info");
+static_assert(sizeof(cModelInfo) <= 0x400 && sizeof(cModelData) <= 0x100, "the fake infos overlap");

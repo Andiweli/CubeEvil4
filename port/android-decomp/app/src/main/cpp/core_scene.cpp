@@ -185,6 +185,46 @@ std::vector<std::uint8_t> ReadCoreSource(const std::string &gameRoot, int disc,
 
 bool CoreModelIsScenery(const Re4CoreModel &model) { return model.manager == 1 && model.id == 2; }
 
+namespace {
+
+// row-major 3x4 matrices as the game keeps them (Mtx)
+Matrix34 toMatrix(const float *m) {
+  Matrix34 r{};
+  std::copy(m, m + 12, r.begin());
+  return r;
+}
+
+Matrix34 multiply(const Matrix34 &a, const Matrix34 &b) {
+  Matrix34 r{};
+  for (int row = 0; row < 3; ++row)
+    for (int col = 0; col < 4; ++col)
+      r[row * 4 + col] = a[row * 4] * b[col] + a[row * 4 + 1] * b[4 + col] + a[row * 4 + 2] * b[8 + col] +
+                         (col == 3 ? a[row * 4 + 3] : 0.f);
+  return r;
+}
+
+Matrix34 inverse(const Matrix34 &m) {
+  const float a = m[0], b = m[1], c = m[2], d = m[4], e = m[5], f = m[6], g = m[8], h = m[9], i = m[10];
+  const float det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+  if (std::fabs(det) < 1e-12f) return Matrix34{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+  const float k = 1.f / det;
+  Matrix34 r{(e * i - f * h) * k, (c * h - b * i) * k, (b * f - c * e) * k, 0,
+             (f * g - d * i) * k, (a * i - c * g) * k, (c * d - a * f) * k, 0,
+             (d * h - e * g) * k, (b * g - a * h) * k, (a * e - b * d) * k, 0};
+  for (int row = 0; row < 3; ++row)
+    r[row * 4 + 3] = -(r[row * 4] * m[3] + r[row * 4 + 1] * m[7] + r[row * 4 + 2] * m[11]);
+  return r;
+}
+
+bool isIdentity(const float *m) {
+  static const float id[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+  for (int k = 0; k < 12; ++k)
+    if (std::fabs(m[k] - id[k]) > 1e-6f) return false;
+  return true;
+}
+
+}  // namespace
+
 struct CoreScene::Actor {
   std::unique_ptr<GenericEventActor> model;
   bool gpu{};
@@ -298,12 +338,35 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
                  known(remembered.bin) && known(remembered.tpl)) {
         mi = remembered;
       }
+      // trans.cpp commonModelTrans: drawn only with be_flag 8; a rigid model
+      // hangs on one part (or the model matrix) with its vertices in that
+      // space; a skinned one is posed by all parts; the info's own matrix on top
+      if (!(mi.flags & 8)) continue;
+      const std::vector<Matrix34> *usePose = &pose;
+      const std::vector<std::array<float, 3>> *useBind = &bind;
+      if (mi.rigidPart >= 0 || mi.rigidPart == -2) {
+        if (mi.rigidPart >= int(m.nParts)) {
+          ++missing;
+          continue;
+        }
+        const auto base = mi.rigidPart == -2 ? toMatrix(m.matrix) : pose[std::size_t(mi.rigidPart)];
+        rigidPose_.assign(1, multiply(base, toMatrix(mi.matrix)));
+        rigidBind_.assign(1, {0.f, 0.f, 0.f});
+        usePose = &rigidPose_;
+        useBind = &rigidBind_;
+      } else if (!isIdentity(mi.matrix)) {
+        // skinned in the root's space (CalcSk1), drawn with root * info matrix
+        const auto pre = multiply(multiply(pose[0], toMatrix(mi.matrix)), inverse(pose[0]));
+        movedPose_.resize(pose.size());
+        for (std::size_t i = 0; i < pose.size(); ++i) movedPose_[i] = multiply(pre, pose[i]);
+        usePose = &movedPose_;
+      }
       Actor *a = actorFor(mi, frame.disc);
-      if (!a || a->joints > m.nParts || m.nParts > 128) {
+      if (!a || a->joints > usePose->size() || usePose->size() > 128) {
         ++missing;
         continue;
       }
-      DrawGenericActorGl(a->model.get(), camera, center, scale, pose, bind, identity,
+      DrawGenericActorGl(a->model.get(), camera, center, scale, *usePose, *useBind, identity,
                          normalView, 1, &light, 1000.f);
       ++drawn;
     }

@@ -106,6 +106,9 @@ class CoreScene {
   // last known disc source per (model, info): the core loses some while a
   // sub screen has memory swapped out
   std::map<std::uint64_t, Re4CoreModelInfo> knownSources_;
+  // per-info poses (rigid models, moved infos), reused across frames
+  std::vector<std::array<float, 12>> rigidPose_, movedPose_;
+  std::vector<std::array<float, 3>> rigidBind_;
   std::vector<std::uint8_t> coreEff_;
   bool coreLoaded_{};
   unsigned titleTexture_{}, titleProgram_{}, titleVao_{}, titleVbo_{};

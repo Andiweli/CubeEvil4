@@ -257,7 +257,8 @@ void convertMotionAt(Blob& b, u32 base)
     //   - camera joints (channel 6 / 7): read only for a model with an
     //     attached camera; weapon motions point them past their entry,
     //   - the joint with the last curves when the entry ends inside them (the
-    //     original data is shorter, a 32-byte FCV in pl14.drs).
+    //     original data is shorter: a 32-byte FCV in pl14.drs whose only
+    //     joint does not even fit one axis).
     u32 dataStart = table - base + 4 + n * 4;
     u32 lastStart = 0;
     for (u32 i = 0; i < n; i++) {
@@ -314,7 +315,8 @@ void convertMotionAt(Blob& b, u32 base)
         u32 channel = (kinds[i] >> 8) & 0xF;
         bool read = kind == 1 || kind == 0x40 || (kind & (2 | 4 | 8 | 0x30)) != 0;
         bool camera = channel == 6 || channel == 7;
-        bool truncated = w.inside && offs[i] == lastStart && w.axes > 0;
+        // the last curves start inside the entry, which ends before they do
+        bool truncated = w.inside && offs[i] == lastStart;
         if (truncated && read && !camera) {
             for (int axis = 0; axis < w.axes; axis++) {
                 swap16(b, w.at[axis], 1 + w.count[axis]);
