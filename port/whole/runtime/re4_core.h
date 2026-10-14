@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define RE4_CORE_API_VERSION 7
+#define RE4_CORE_API_VERSION 8
 
 enum Re4CoreState {
     RE4_CORE_IDLE = 0,     /* not started */
@@ -72,6 +72,16 @@ typedef struct Re4CoreModelInfo {
     uint16_t nMorph;     /* > 0: the vertex positions are Re4CoreSnapshot::morph[firstMorph ..] */
     float matrix[12];    /* cModelInfo::mat, row-major 3x4 */
     uint32_t firstMorph;
+    /* How the game blends it (trans.cpp commonModelTrans): blendMode =
+     * cModelInfo::blend_mode, the row of GXSetBlendMode it uses (0 alpha
+     * blend, 1 add with source alpha, 2 add, 3 add times the destination
+     * colour, 4 none: glass, light glows and beams use 1..3); color =
+     * cModelInfo::color, whose alpha a fade scales; opacity =
+     * cModelInfo::invisible_factor, the info's share of the fade. */
+    uint8_t color[4];
+    float opacity;
+    uint8_t blendMode;
+    uint8_t pad[3];
 } Re4CoreModelInfo;
 
 /* Shape (morph) animation: faces talk and blink by moving their vertices
@@ -89,7 +99,7 @@ typedef struct Re4CoreModelInfo {
  * object managers, the player included. */
 typedef struct Re4CoreModel {
     uint32_t address;      /* the cModel, stable while the work lives */
-    uint32_t beFlag;       /* cUnit::be_flag; drawn when (beFlag & 6) == 6 */
+    uint32_t beFlag;       /* cUnit::be_flag; drawn when (beFlag & 6) == 6, unless HIDDEN (flags) */
     uint8_t manager;       /* 0 EmMgr (player, partner, enemies), 1 ObjMgr */
     uint8_t id, type;      /* cModel::id / type */
     uint8_t nInfos;        /* Re4CoreSnapshot::infos[firstInfo ..] */
@@ -103,10 +113,27 @@ typedef struct Re4CoreModel {
      * car: SetObjSmd). */
     uint16_t scrollIndex;
     int16_t scrollBlock;
-    uint16_t reserved;
+    uint16_t flags;        /* RE4_CORE_MODEL_* */
     float matrix[12];      /* cModel::mat, row-major 3x4 (world placement) */
+    /* How the game draws it (trans.cpp ModelRender / commonModelTrans):
+     * opacity = invisible_factor * invisible_factor2 (0: not drawn at all,
+     * HIDDEN; below 1: faded, each info's colour alpha times this); zMode =
+     * cModel::z_mode (0 depth test and write, 1 test only, 2 neither);
+     * cullMode = cModel::CullMode (0 the usual single side, 1 the other side,
+     * 2 both sides); otType = cModel::ot_type (its ordering-table class). */
+    float opacity;
+    uint8_t zMode, cullMode, otType, pad;
 } Re4CoreModel;
 #define RE4_CORE_NO_SCROLL 0xFFFF
+/* Re4CoreModel::flags. HIDDEN: the game does not draw the model this frame
+ * although its be_flag would allow it (trans.cpp emTrans / objTrans /
+ * ModelTrans): hidden by a display switch (pG->Disp_flg: DPF_PL the player,
+ * DPF_SUBCHAR the partner, DPF_EM the other enemies, DPF_SCR scenery, DPF_OBJ
+ * the other objects), held while an event or close-up runs (STA_SUSPEND)
+ * without be_flag 0x800 (setNoSuspend), or faded out completely (opacity 0). In r100's opening event that is the
+ * player, the parked police car and the two officers of the room: the event
+ * shows its own models instead. Drawn = (beFlag & 6) == 6 and not HIDDEN. */
+#define RE4_CORE_MODEL_HIDDEN 1
 
 /* Pose of one cParts: world matrix and bind position (the translation that
  * cParts::lt_inv_mat removes: palette = mat * lt_inv_mat). */

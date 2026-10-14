@@ -8,6 +8,9 @@
 //          synthetic fixtures of port/tests/yz2_fixtures.h
 //   dvdq   the game's own DVD queue (dvd.cpp) reading a synthetic headered file:
 //          big-endian part table (patch 0013), parts into the game heap
+//   stream the sound driver's stream code (snd_str*.cpp) plays two synthetic
+//          stream files with its refill in the audio frame (an interrupt):
+//          DVD reads and ARAM DMAs started there complete after the handler
 //   math   PS*/C_* matrix and vector functions (SDK C versions); the C
 //          versions of the game's Gekko asm (patches 0020-0022: fabsf, SQRTF,
 //          SINF, COSF, LIMIT_ANGLE bit-exact against an exact oracle,
@@ -197,6 +200,8 @@ TestDiskID* DVDGetCurrentDiskID(void);
 int DVDOpenDir(const char* path, TestDir* dir);
 int DVDReadDir(TestDir* dir, TestDirEntry* entry);
 int DVDChangeDiskAsync(TestCommandBlock* block, TestDiskID* id, void (*cb)(int, TestCommandBlock*));
+int DVDGetCommandBlockStatus(const void* block);
+int DVDCancelAsync(void* block, void (*cb)(int, TestCommandBlock*));
 }
 
 namespace {
@@ -320,6 +325,22 @@ static void testDvd()
     CHECK(gReadResult == 32 && memcmp(buf, hed, sizeof(hed) - 1) == 0 && buf[19] == 0 && buf[31] == 0 &&
           buf[32] == 0xEE);
     CHECK(DVDReadAsyncPrio(&fi, buf, 32, 3, onRead, 2) == 1 && gReadResult == 32 && buf[0] == '0');
+    // Started inside an interrupt handler (the sound driver's stream refill in
+    // the audio frame), a read completes when the handler has returned: the
+    // data is there, the block stays busy and the callback waits.
+    gReadResult = -99;
+    re4_os_interrupt_begin();
+    CHECK(DVDReadAsyncPrio(&fi, buf, 32, 0, onRead, 2) == 1 && gReadResult == -99 &&
+          DVDGetCommandBlockStatus(&fi) == 1 && memcmp(buf, hed, 8) == 0);
+    re4_os_interrupt_end();
+    CHECK(gReadResult == 32 && DVDGetCommandBlockStatus(&fi) == 0);
+    // cancelled before the handler returned: the callback gets -3
+    gReadResult = -99;
+    re4_os_interrupt_begin();
+    CHECK(DVDReadAsyncPrio(&fi, buf, 32, 0, onRead, 2) == 1);
+    CHECK(DVDCancelAsync(&fi, 0) == 1 && gReadResult == -99);
+    re4_os_interrupt_end();
+    CHECK(gReadResult == -3 && DVDGetCommandBlockStatus(&fi) == 10);
 
     TestDir dir;
     TestDirEntry ent;
@@ -605,6 +626,65 @@ static void testDvdQueue()
     std::string cmd = "rm -rf '" + gQueueDir + "'";
     CHECK(system(cmd.c_str()) == 0);
     report("dvdq", ok && gQueueOk);
+}
+
+// --- the sound driver's streams -------------------------------------------------
+
+extern "C" int re4probe_stream_test(const char* name, int blocks, int mode, int* readyField, int* endField);
+
+// The game's stream code (snd_str*.cpp, tests/stream_probe.cpp) plays two
+// files of a synthetic disc to their end: one that fits the ARAM ring
+// (2 blocks) and one that wraps it (11 blocks); then the long one is stopped
+// while playing and while buffering. Before the interrupt
+// rule of dvd.cpp/aram.cpp the first read left the stream busy for good and
+// it never got ready (the radio call of r100 waited in SndStrPlayBlock).
+static void testStream()
+{
+    bool ok = true;
+    char tmpl[] = "/tmp/re4-stream-test-XXXXXX";
+    const char* root = mkdtemp(tmpl);
+    CHECK(root != 0);
+    if (!root) {
+        report("stream", false);
+        return;
+    }
+    std::string base = root;
+    const unsigned kShort = 2, kLong = 11;
+    std::vector<unsigned char> data(kLong * 0x8000);
+    for (unsigned i = 0; i < data.size(); i++) {
+        data[i] = (unsigned char) (i * 7 + (i >> 15) * 13 + 3);
+    }
+    std::vector<FstEntry> fst = {{false, "short.str", 0x10000, kShort * 0x8000},
+                                 {false, "long.str", 0x100000, kLong * 0x8000}};
+    std::vector<unsigned char> f = buildFst(fst);
+    unsigned char boot[0x40] = "G4BE08";
+    CHECK(makeDirs(base + "/disc0/sys") && makeDirs(base + "/disc0/files"));
+    CHECK(writeFile(base + "/disc0/sys/fst.bin", f.data(), f.size()));
+    CHECK(writeFile(base + "/disc0/sys/boot.bin", boot, sizeof(boot)));
+    CHECK(writeFile(base + "/disc0/files/short.str", data.data(), kShort * 0x8000));
+    CHECK(writeFile(base + "/disc0/files/long.str", data.data(), data.size()));
+    char saved[1024];
+    snprintf(saved, sizeof(saved), "%s", re4_data_dir());
+    re4_set_data_dir(root);
+    struct {
+        const char* file;
+        unsigned blocks;
+        int mode;
+        const char* what;
+    } runs[] = {{"short.str", kShort, 0, "short stream"},
+                {"long.str", kLong, 0, "long stream"},
+                {"long.str", kLong, 1, "stopped while playing"},
+                {"long.str", kLong, 2, "stopped while buffering"}};
+    for (const auto& r : runs) {
+        int ready = -1, end = -1;
+        int failed = re4probe_stream_test(r.file, (int) r.blocks, r.mode, &ready, &end);
+        re4_log("  %s: checks 0x%x, ready after %d fields, gone after %d", r.what, failed, ready, end);
+        CHECK(failed == 0);
+    }
+    re4_set_data_dir(saved);
+    std::string cmd = "rm -rf '" + base + "'";
+    CHECK(system(cmd.c_str()) == 0);
+    report("stream", ok);
 }
 
 // --- matrix math ----------------------------------------------------------------
@@ -908,11 +988,22 @@ static void testTrace()
     PADRead(pads);
     PADRead(pads);
     CHECK(pads[0].button == (0x1000 | 0x0200) && pads[0].stickY == 100);
+    // once the player is free (state_trace.cpp), the free script replaces the
+    // rest of the room script, its frames counted from then
+    setenv("RE4_PAD_FREE_SCRIPT", "STICKLEFT@1-3/1", 1);
+    re4_pad_script_free();
+    PADRead(pads);
+    CHECK(pads[0].button == 0 && pads[0].stickX == 0 && pads[0].stickY == 0);
+    PADRead(pads);
+    CHECK(pads[0].button == 0 && pads[0].stickX == -100 && pads[0].stickY == 0);
+    unsetenv("RE4_PAD_FREE_SCRIPT");
     unsetenv("RE4_PAD_SCRIPT");
     unsetenv("RE4_PAD_ROOM_SCRIPT");
     re4_pad_script_stop();
     PADRead(pads);
-    CHECK(pads[0].button == 0 && pads[0].stickY == 0);
+    PADRead(pads);
+    PADRead(pads);
+    CHECK(pads[0].button == 0 && pads[0].stickY == 0 && pads[0].stickX == 0);
     // GetDataExt on a host-order archive: one entry "CNS", one "SMD"
     unsigned arc[8] = {2, 0, 0, 0, 0x18, 0x1C, 0, 0};
     memcpy(&arc[6], "CNS\0SMD\0", 8);
@@ -927,6 +1018,7 @@ int re4_runtime_tests()
     testDvd();
     testYz2();
     testDvdQueue();
+    testStream();
     testMath();
     testTrace();
     testTasks();

@@ -45,7 +45,7 @@ Je Ziel: Build, dann drei Prüfungen von `re4_host` und der Formatvergleich
 | `--self-test` | Weiterleitungen zwischen Modulen geben Argumente korrekt weiter |
 | `--check-modules` | alle 114 Module laden, alle Querverweise lösen sich auf |
 | `--core-test` | Einbettungs-Schnittstelle der App ohne Disc-Daten (`port/whole/tests/core_tests.cpp`, `core_probe.cpp`): `bridge` Schnappschuss aus einem nachgebauten Gegner (EmMgr, Teile, Modell-Info, Kamera, Raum), `thread` Kern-Thread mit Testeinstieg, Controller über `re4_core_pad`, Dreifachpuffer |
-| `--runtime-test` | Plattformschicht ohne Disc-Daten (`port/whole/tests/runtime_tests.cpp`): `link` OSLink/OSUnlink mit synthetischem big-endian REL-Kopf und Testmodul; `dvd` DVD-API über einen synthetischen Zwei-Disc-Ordner; `yz2` Yz2 des Spiels + Kern mit den Testdaten `port/tests/yz2_fixtures.h`; `dvdq` die DVD-Warteschlange des Spiels liest eine synthetische mehrteilige Datei in den Spiel-Heap; `math` PS*/C_*-Matrixfunktionen, die C-Fassungen der Gekko-Assembler-Funktionen (Tabelle mit Bitmustern aus einem Python-Modell der Paired-Single-Befehle), Skinning `CalcSk1` mit GQR-Quantisierung, `EmRoutineSetW`, die big-endian Sichten, die Länge von `__FILE__`; `trace` Zustands-Trace, GetDataExt-Abdeckung, Ende des Test-Tastenskripts; `tasks` der Task-Scheduler des Spiels (`TaskExec`, `TaskSleep`, `TaskExit`, `iTaskExec`) auf der Thread-Emulation, dazu VI-Retraces |
+| `--runtime-test` | Plattformschicht ohne Disc-Daten (`port/whole/tests/runtime_tests.cpp`): `link` OSLink/OSUnlink mit synthetischem big-endian REL-Kopf und Testmodul; `dvd` DVD-API über einen synthetischen Zwei-Disc-Ordner; `yz2` Yz2 des Spiels + Kern mit den Testdaten `port/tests/yz2_fixtures.h`; `dvdq` die DVD-Warteschlange des Spiels liest eine synthetische mehrteilige Datei in den Spiel-Heap; `stream` der Stream-Code des Tontreibers spielt synthetische Stream-Dateien (Nachladen im Audio-Rahmen, Aufträge aus dem Interrupt enden erst danach); `math` PS*/C_*-Matrixfunktionen, die C-Fassungen der Gekko-Assembler-Funktionen (Tabelle mit Bitmustern aus einem Python-Modell der Paired-Single-Befehle), Skinning `CalcSk1` mit GQR-Quantisierung, `EmRoutineSetW`, die big-endian Sichten, die Länge von `__FILE__`; `trace` Zustands-Trace, GetDataExt-Abdeckung, Ende des Test-Tastenskripts; `tasks` der Task-Scheduler des Spiels (`TaskExec`, `TaskSleep`, `TaskExit`, `iTaskExec`) auf der Thread-Emulation, dazu VI-Retraces |
 | `re4_format_compare` | Formatumwandler gegen die geprüften big-endian Leser der App, mit synthetischen Beispielen jedes verglichenen Formats; danach `port/tools/test_whole_format_compare.py`: dieselben Beispiele als Disc-Ordner (Raumdatei Yz2-gepackt, `.drs`-Container), Modus `--data` (siehe „Formatvergleich mit der App“) |
 
 Danach einmal `port/tools/test_whole_disc_folder.py` (Disc-Ordner-Werkzeug mit
@@ -415,19 +415,26 @@ PowerShell 7 durchgespielt.
    Zurück fragt „End the game?“ und beendet den Prozess (der Kern lässt sich
    im selben Prozess nicht neu starten).
 
-**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 7, reines C, gleiche
+**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 8, reines C, gleiche
 Struktur-Größe auf 32 und 64 bit): `re4_core_reserve`, `re4_core_start`,
 `re4_core_state` (idle/running/ended/failed), `re4_core_message`,
 `re4_core_pad`, `re4_core_acquire`/`re4_core_release`, `re4_core_log_tail`
 (letzte 24 Log-Zeilen für das Overlay), für Tests `re4_core_start_entry`.
 Umgesetzt in `runtime/core_api.cpp` (in `libre4_main`).
 
-**Schnappschuss** (`Re4CoreSnapshot`, 1 245 264 Byte auf 32 und 64 bit): Spielschritt
+**Schnappschuss** (`Re4CoreSnapshot`, 1 278 032 Byte auf 32 und 64 bit): Spielschritt
 `Rno0..3`, Raum, Disc, Kamera aus `pG->Camera` (Augpunkt, Ziel, Rollwinkel,
 Öffnungswinkel; bei offenem Untermenü die Weltkamera `CamCtrl.camera`, denn
 `pG->Camera` ist dann die Kamera des Menüs), `screen` (Untermenü offen,
 Ereignis, Debug-Kamera), bis 1024 Modelle aus `EmMgr` (Gegner) und `ObjMgr` (Objekte):
-lebend (`be_flag & 0x201 == 1`), Zeichen-Bits `2|4`, Weltmatrix, je Teil die
+lebend (`be_flag & 0x201 == 1`), Zeichen-Bits `2|4`, `HIDDEN`, wenn das Spiel
+das Modell in diesem Bild trotzdem nicht zeichnet (`trans.cpp`: Anzeige-
+Schalter `Disp_flg` für Spieler, Partner, Gegner, Objekte, Kulisse; während
+eines Ereignisses oder einer Nahaufnahme, `STA_SUSPEND`, nur Modelle mit
+`be_flag & 0x800`; ganz ausgeblendete, `invisible_factor` 0), die
+Zeichen-Einstellungen (Ausblenden `invisible_factor`, Tiefenmodus `z_mode`,
+Flächenseite `CullMode`, Ordnungsklasse `ot_type`; je Info Mischmodus
+`blend_mode`, Materialfarbe, eigener Ausblend-Anteil), Weltmatrix, je Teil die
 Weltmatrix `cParts::mat` und die Bindung (−`lt_inv_mat`-Verschiebung), bis
 8192 Teile. Für jede Modell-Info (`pModelInfo`; alle Infos aller Modelle in
 einer gemeinsamen Liste, bis 2048, Leon allein hat neun) die Herkunft der BIN- und
@@ -742,11 +749,85 @@ Blick nach oben, Absturz beim Erreichen des Hauses. Ursachen und Korrekturen:
   Umwandlung zu stoppen. Test `core-test camera` nachgebaut wie r100 (fällt
   mit dem vorigen Umwandler mit genau der Meldung aus dem Lauf durch).
 
+### Dritter Gerätelauf (14.10.2026, Retroid) und Analyse
+
+Gemeldet: Nach dem Intro steht Leon mit richtiger Kamera da, aber keine Taste
+wirkt, die Vögel stehen still; im Intro steht Leon kurz mit abgespreizten
+Armen außerhalb des Autos; Dach, Seitenwände und Boden des Autos fehlen; ein
+gelber Fleck im Intro. Lauf 600 s ohne Absturz, die Tasten kamen laut Log im
+Kern an (`PADRead`), das Overlay zeigte durchgehend „event“.
+
+- **Keine Steuerung, Vögel still:** Das Spiel hing im Funkspruch nach dem
+  Intro (`sscrn.cpp OpeSetOpenTerm` → `event.cpp SndStrPlayBlock`: wartet,
+  bis der Sprach-Stream bereit ist), also innerhalb von `SceEventStart`: Tasten
+  gesperrt, alle Gegner und Tiere im Ereignis-Modus. Seit `ax.cpp` bekommt der
+  Stream eine Stimme (vorher keine: der Funkspruch lief ohne Stream weiter,
+  START schloss ihn). Der Stream-Code des Tontreibers (`snd_str2.cpp`) startet
+  im Audio-Rahmen (einem Interrupt) einen DVD-Lese- oder ARAM-Kopierauftrag
+  und setzt erst **danach** sein Kennzeichen `dvd_busy`/`dma_busy`; der
+  Rückruf löscht es. Die Plattformschicht rief den Rückruf schon während des
+  Auftrags, das Kennzeichen blieb für immer gesetzt, der Stream wurde nie
+  bereit. Jetzt bleibt ein Auftrag aus einem Interrupt heraus „beschäftigt“,
+  bis der Interrupt-Rückruf zurückgekehrt ist (wie auf der GameCube, deren
+  Laufwerk Millisekunden braucht): `os_thread.cpp re4_os_defer` /
+  `re4_os_run_deferred` (nach jedem Audio-Rahmen und am Ende des Interrupts),
+  `dvd.cpp`, `aram.cpp`. Außerhalb von Interrupts bleibt alles sofort (die
+  Lade-Warteschlangen des Spiels warten in Schleifen ohne Unterbrechung
+  darauf). Tests: `runtime-test dvd` (Lesen im Interrupt, Abbruch → −3) und
+  neu `runtime-test stream`: der Stream-Code des Spiels spielt zwei Dateien
+  einer synthetischen Disc (eine passt in den ARAM-Ring, eine läuft
+  11 Blöcke durch den Ring) bis zum Ende, dazu Stopp beim Spielen und beim
+  Puffern (`tests/stream_probe.cpp`); mit der alten Plattformschicht schlägt
+  er fehl. Der Funkspruch endet damit von selbst (er läuft nach Bildern, nicht
+  nach Tonende, `ss_term.cpp OpeMesMove`).
+- **Leon außerhalb des Autos (Arme abgespreizt):** Das war die Spielfigur
+  Leon, die das Spiel während des Intros nicht zeichnet; das Intro zeigt
+  seine eigene Leon-Figur im Auto. Die Brücke kannte die Sichtbarkeitsregeln
+  von `trans.cpp` nicht: Anzeige-Schalter (`DPF_PL` …) und vor allem
+  „während eines Ereignisses nur Modelle mit `be_flag & 0x800`“. Dadurch
+  zeichnete die App im Intro zusätzlich Leon, das geparkte Polizeiauto des
+  Raums (`R100Init`: `setNoSuspend(0)`, darin die Teile 11/13/15 auf 0
+  skaliert) und die beiden Polizisten des Raums. Jetzt Kennzeichen `HIDDEN`
+  (Version 8), die App hält sich daran. Tests: `core-test bridge` (Ereignis
+  hält die Welt an, `setNoSuspend`, `DPF_PL`, `DPF_EM`, ganz ausgeblendet;
+  schlägt ohne die Regel fehl), `core_scene_gl_check` (verstecktes Modell
+  fehlt im Bild).
+- **Zeichen-Einstellungen des Spiels:** Glas, Lichtschein und Strahlen
+  zeichnet das Spiel mit eigenem Mischmodus (`blend_mode`: addieren …), ohne
+  Tiefenschreiben (`z_mode`) oder ausgeblendet (`invisible_factor`); die App
+  zeichnete alles undurchsichtig. Jetzt übernimmt sie Mischmodus, Tiefenmodus,
+  Flächenseite (`CullMode`) und Ausblenden und zeichnet Durchscheinendes nach
+  dem Undurchsichtigen (Test `core_scene_gl_check`, 83 Prüfungen).
+- **Auto (Dach, Seiten, Boden):** Im Intro ist das Auto ein eigenes
+  Ereignis-Modell `obm1a00` (24 Teile) plus sechs Scheiben-Modelle
+  `obm3000a–f` (`r120.cpp EventCarInit`: Scheiben mit `z_mode` 1; im Auto
+  versteckt das Spiel selbst die Teile 0xF und 0x12–0x17). Ursache noch nicht
+  belegt; mit den beiden Korrekturen oben liegt das geparkte Auto nicht mehr
+  im Intro, und die Scheiben werden durchscheinend gezeichnet. Diagnose für
+  den nächsten PC-Lauf: Schnappschüsse während der ganzen Autofahrt (30 …
+  750 Bilder nach dem Raumstart) und je Modell-Info im Bericht, wie viele
+  Dreiecke auf vom Spiel auf 0 skalierten Teilen liegen, wie viele der
+  Alpha-Test entfernt (Punkt-Alpha, fast durchsichtiges Alphabild), dazu
+  Mischmodus, Tiefe, Seite, Ausblenden.
+- **Gelber Fleck:** noch nicht belegt. Vermutung: ein Lichtschein- oder
+  Glas-Modell, das die App bisher undurchsichtig zeichnete (jetzt gemischt
+  wie im Spiel), oder ein Material mit Spiegel-/Wasser-Textur des Spiels
+  (`setTexRender`, Rückspiegel `EvtTexRenderCamTrans`), das die App mit
+  seiner Ersatz-Textur zeichnet. Der nächste Lauf zeigt, ob er bleibt.
+- **PC-Prüfung:** drückt im Raum kein START mehr. Sie wartet, bis der Spieler
+  frei ist (kein Ereignis, kein Untermenü seit 300 Bildern: „run: player
+  free“), stellt Leon dann vor das erste Haus (`RE4_TEST_PLACE` mit
+  `free+`) und lässt ihn 5 s laufen (`RE4_PAD_FREE_SCRIPT`). Der Bericht nennt
+  „Spieler frei“ (sonst FEHLER: Funkspruch endet nicht) und „Steuerung“ (wie
+  weit Leon lief; unter 500 Einheiten FEHLER). Das Tastenprotokoll nennt
+  jetzt jede Änderung, auch vom Gerät, einmal.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
-   Bilder: Der Kern schreibt mit `RE4_BRIDGE_SNAPSHOT` bis zu 8
-   Schnappschüsse (30 Bilder nach Beginn der Hauptschleife, dann alle 2500),
+   Bilder: Der Kern schreibt mit `RE4_BRIDGE_SNAPSHOT` bis zu 14
+   Schnappschüsse (30, 150, 300, 450, 600 und 750 Bilder nach Beginn der
+   Hauptschleife: die Autofahrt des Intros; dann alle 2500),
    `core_snapshot_render` (`port/android-decomp/tools/`) zeichnet sie mit dem
    App-Renderer und den Disc-Daten (Bericht Abschnitt 4, Ordner `bilder`).
    Braucht die Mesa-Pakete aus `whole_setup_linux.sh`.
@@ -952,8 +1033,8 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `os_thread.cpp` | `OSThread`, `OSSemaphore`: ein Host-Thread, strikte Prioritäten, Wechsel nur in OS-Aufrufen; jeder Thread hat einen Host-Stack (`port/src/stack_context.cpp` aus dem alten Port, neu mit ucontext für Linux x86, Boost.Context-Assembler für Linux ARM wie auf Android); ein Verteiler auf dem Stack des Startprogramms (`re4_os_run`). Spielsichtbar wie im SDK: `state`, `suspend`, Priorität, Warteschlangen, Stack-Magie `0xDEADBABE` |
 | `vi.cpp` | VI-Retrace alle 1/59,94 s Echtzeit, zugestellt an Interrupt-Punkten (Verteiler im Leerlauf, `VIWaitForRetrace`, Patch 0012, später lange Hintergrundarbeit); Thread-Wechsel aus dem Rückruf erst am Interrupt-Ende. `RE4_VI_FAST=1`: ohne Warten (Tests) |
 | `ax.cpp` (K2) | AX ohne Tonausgabe: 64 Stimmen mit den Vergaberegeln des SDK (`AXAlloc.c`), die Setter (`AXVPB.c`), Abspielposition je Audio-Rahmen nach Abtastrate (ADPCM mit Rahmenköpfen, PCM16, PCM8; Schleife oder Stopp am Ende), der Audio-Rahmen-Rückruf des Spiels 200-mal je Sekunde Spielzeit, zugestellt mit den VI-Retraces. Damit läuft der Tontreiber (`snd_main.cpp cb_audio_frame`): Stimmen werden frei, Sprach-Streams werden bereit. MIX, SYN, SEQ, AXFX, AI bleiben Platzhalter. Hörbarer Ton: M8 |
-| `dvd.cpp` | `DVD*` über einen Ordner mit entpackten Disc-Dateien (siehe unten); Lesen sofort, Rückruf vor der Rückkehr; FST der eingelegten Disc oben in MEM1, Disc-ID bei `0x80000000`; Disc-Wechsel lädt den anderen Ordner |
-| `aram.cpp` | ARAM (16 MB) als Host-Puffer, `ARInit`/`ARAlloc` (Stapel ab `0x4000`), ARQ kopiert sofort und ruft den Rückruf |
+| `dvd.cpp` | `DVD*` über einen Ordner mit entpackten Disc-Dateien (siehe unten); Lesen sofort, Rückruf vor der Rückkehr; aus einem Interrupt heraus (Audio-Rahmen: Nachladen der Sprach-/Musik-Streams) bleibt der Auftrag „beschäftigt“, bis der Interrupt-Rückruf zurückgekehrt ist (`os_thread.cpp re4_os_defer`), Abbruch liefert dann −3; FST der eingelegten Disc oben in MEM1, Disc-ID bei `0x80000000`; Disc-Wechsel lädt den anderen Ordner |
+| `aram.cpp` | ARAM (16 MB) als Host-Puffer, `ARInit`/`ARAlloc` (Stapel ab `0x4000`), ARQ kopiert sofort und ruft den Rückruf (aus einem Interrupt heraus erst nach dessen Ende, wie `dvd.cpp`) |
 | `os_link.cpp` | `OSLink`/`OSUnlink` (siehe unten) |
 | `yz2_decode.cpp` + `port/src/yz2_kernel.cpp` | `yz2Decode_Decode`: der geprüfte Kern des alten Ports unverändert, ein Adapter verbindet ihn mit `yz2code.cpp` des Spiels |
 | `mtx_ps.c` + `sdk_c/` | Matrix-/Vektor-/Quaternion-Mathematik (C-Fassungen des SDK) |

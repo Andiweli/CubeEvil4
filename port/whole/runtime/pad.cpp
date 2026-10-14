@@ -12,7 +12,13 @@
 //                              room (state_trace.cpp)
 //   RE4_PAD_ROOM_SCRIPT="START@1500 STICKUP@1700-2400/1"
 //                              then this one runs, its frames counted from
-//                              that moment (closes the radio call, walks)
+//                              that moment
+//   RE4_PAD_FREE_SCRIPT="STICKUP@30-330/1"
+//                              and this one once the player is free in the
+//                              room (no event, no sub screen for 300 frames;
+//                              state_trace.cpp), its frames counted from then:
+//                              the opening event and the radio call end on
+//                              their own, then Leon walks
 //
 // The game calls PADRead once per frame (pad.cpp PadRead in the main loop).
 //
@@ -160,11 +166,6 @@ Press scriptAt(u32 frame)
     return b;
 }
 
-u16 scriptButtons(u32 frame)
-{
-    return scriptAt(frame).buttons;
-}
-
 }  // namespace
 
 extern "C" {
@@ -240,6 +241,17 @@ void re4_pad_script_stop(void)
     }
 }
 
+// The player is free in the room (state_trace.cpp): RE4_PAD_FREE_SCRIPT starts,
+// replacing what is left of the room script.
+void re4_pad_script_free(void)
+{
+    const char* free = getenv("RE4_PAD_FREE_SCRIPT");
+    if (free && *free) {
+        gScriptLen = 0;
+        parseScript(free, gFrame);
+    }
+}
+
 u32 PADRead(PADStatus* status)
 {
     if (g_frameHook) {
@@ -270,12 +282,12 @@ u32 PADRead(PADStatus* status)
             status[0].analogB = (g_live.buttons & 0x0200) ? 0xFF : 0;
         }
     }
-    if (status[0].button) {
-        u16 old = gFrame ? scriptButtons(gFrame - 1) : 0;
-        if (old != status[0].button) {
-            re4_log("pad: frame %u buttons 0x%04x", gFrame, status[0].button);
-        }
+    // every change of the buttons (scripted or from the device)
+    static u16 lastButtons;
+    if (status[0].button != lastButtons && status[0].button) {
+        re4_log("pad: frame %u buttons 0x%04x", gFrame, status[0].button);
     }
+    lastButtons = status[0].button;
     for (int i = 1; i < 4; i++) {
         status[i].err = kNoController;
     }

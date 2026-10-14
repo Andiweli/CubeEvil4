@@ -393,9 +393,74 @@ void re4_os_interrupt_begin(void)
 
 void re4_os_interrupt_end(void)
 {
+    if (gInInterrupt == 1) {
+        re4_os_run_deferred();
+    }
     if (--gInInterrupt == 0 && gRescheduleDeferred) {
         gRescheduleDeferred = false;
         reschedule();
+    }
+}
+
+int re4_os_in_interrupt(void)
+{
+    return gInInterrupt > 0;
+}
+
+// Completions of DVD reads and ARAM DMAs started inside an interrupt handler
+// (dvd.cpp, aram.cpp). On the GameCube their own interrupt comes later, never
+// before the handler that started them has run on: the sound driver's stream
+// code (snd_str2.cpp) marks a read or DMA busy only after starting it, and
+// its completion callback clears the mark. Completing at once inside the
+// start call would leave the mark set for good (the stream never gets ready).
+namespace {
+struct Deferred {
+    Re4Deferred fn;
+    void* object;
+    int value;
+};
+const unsigned kDeferredMax = 64;
+Deferred gDeferred[kDeferredMax];
+unsigned gDeferredFirst;
+unsigned gDeferredCount;
+}  // namespace
+
+int re4_os_defer(Re4Deferred fn, void* object, int value)
+{
+    if (gDeferredCount == kDeferredMax) {
+        static bool logged;
+        if (!logged) {
+            logged = true;
+            re4_log("OS: more than %u completions pending, the next ones finish at once", kDeferredMax);
+        }
+        return 0;
+    }
+    gDeferred[(gDeferredFirst + gDeferredCount) % kDeferredMax] = {fn, object, value};
+    gDeferredCount++;
+    return 1;
+}
+
+int re4_os_deferred_set(Re4Deferred fn, void* object, int value)
+{
+    for (unsigned i = 0; i < gDeferredCount; i++) {
+        Deferred& d = gDeferred[(gDeferredFirst + i) % kDeferredMax];
+        if (d.fn == fn && d.object == object) {
+            d.value = value;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// Runs the completions pending now; ones they start in turn wait for the
+// next call (the end of the next handler).
+void re4_os_run_deferred(void)
+{
+    for (unsigned n = gDeferredCount; n > 0 && gDeferredCount > 0; n--) {
+        Deferred d = gDeferred[gDeferredFirst];
+        gDeferredFirst = (gDeferredFirst + 1) % kDeferredMax;
+        gDeferredCount--;
+        d.fn(d.object, d.value);
     }
 }
 

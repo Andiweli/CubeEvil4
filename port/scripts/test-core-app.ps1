@@ -302,13 +302,20 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     Say "Raeume aufgebaut:                 $(if ($rooms) { ($rooms | ForEach-Object { ($_ -split 'RE4Core\s*:\s*')[-1] }) -join ' | ' } else { 'keiner' })"
     $models = @($keep | Where-Object { $_ -match 'RE4Core.*model ' })
     Say "Figuren-Modelle geladen:          $($models.Count) (Fehler: $(@($models | Where-Object { $_ -notmatch 'joints' }).Count))"
+    # the opening event and the radio call end on their own: the core logs the
+    # moment the player is free (no event, no sub screen for 300 frames)
+    $free = $keep | Where-Object { $_ -match 'run: player free' } | Select-Object -First 1
+    Say "Intro und Funkspruch beendet:     $(if ($free) { 'ja (' + (($free -split 'run: ')[-1]) + ')' } else { 'NEIN (Spieler nie frei)' })"
+    $presses = @($keep | Where-Object { $_ -match 're4\s*: pad: frame' })
+    Say "Tastendruecke im Kern angekommen: $($presses.Count)"
     if (Has 'Fatal signal|FATAL EXCEPTION|SIGSEGV|SIGABRT') {
         Say 'ABSTURZ erkannt; Ausschnitt:'
         $keep | Where-Object { $_ -match 'Fatal signal|FATAL|backtrace|#\d\d pc |Abort message' } | Select-Object -First 40 |
             ForEach-Object { Say "  $_" }
     }
-    Say 'Letzte 40 Zeilen des Kern-Protokolls:'
-    $keep | Where-Object { $_ -match ' (re4|RE4Core)\s*:' } | Select-Object -Last 40 | ForEach-Object { Say "  $_" }
+    Say 'Letzte 40 Zeilen des Kern-Protokolls (ohne Tastenzeilen):'
+    $keep | Where-Object { $_ -match ' (re4|RE4Core)\s*:' -and $_ -notmatch 'pad: frame' } | Select-Object -Last 40 |
+        ForEach-Object { Say "  $_" }
 }
 Say ''
 Say "Fertig. Bitte bericht.txt und die Bilder (bild-*.png) aus $OutDir schicken."

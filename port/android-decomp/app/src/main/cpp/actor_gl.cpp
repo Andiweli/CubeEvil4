@@ -451,8 +451,8 @@ void drawPose(ActorGpu &gpu, const float *camera,
   glGetIntegerv(GL_CULL_FACE_MODE, &cullFace);
   glGetIntegerv(GL_FRONT_FACE, &frontFace);
   glEnable(GL_CULL_FACE);
-  if(style && style->shadowMask)glDisable(GL_CULL_FACE);
-  glCullFace(GL_BACK);
+  if(style && (style->shadowMask || style->cullMode==2))glDisable(GL_CULL_FACE);
+  glCullFace(style && style->cullMode==1?GL_FRONT:GL_BACK);
   glFrontFace(GL_CCW);
   glEnable(GL_BLEND);
   glBlendEquation(GL_FUNC_ADD);

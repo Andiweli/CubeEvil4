@@ -181,6 +181,8 @@ void re4_ax_frame(void)
     if (gCallback) {
         gCallback();
     }
+    // the DVD reads and DMAs the driver started finish before the next frame
+    re4_os_run_deferred();
 }
 
 // A video field went by (vi.cpp): the audio frames of that time, 200 per

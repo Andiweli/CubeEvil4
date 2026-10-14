@@ -39,6 +39,7 @@
 #include <GLES3/gl3.h>
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <stdexcept>
@@ -224,11 +225,14 @@ int main() {
     model.firstInfo = 0;
     model.nInfos = 1;
     model.matrix[0] = model.matrix[5] = model.matrix[10] = 1;
+    model.opacity = 1;  // invisible_factor * invisible_factor2
     Re4CoreModelInfo info{};
     info.bin = bin;
     info.tpl = tpl;
     info.flags = 8;  // drawn (cModelInfo::be_flag)
     info.rigidPart = -1;
+    info.opacity = 1;
+    std::memset(info.color, 0xFF, 4);
     info.matrix[0] = info.matrix[5] = info.matrix[10] = 1;
     frame.models = {model};
     frame.infos = {info};
@@ -237,6 +241,26 @@ int main() {
     scene.draw(frame, kWidth, kHeight, kStill);
     require(scene.wantedRoom() == 0x100, "the room is wanted");
     scene.roomPrepared(0x100, roomPath, "");
+
+    // how the game draws one info (trans.cpp): blend row, depth mode, side, fade
+    {
+      Re4CoreModel m{};
+      Re4CoreModelInfo i{};
+      m.opacity = 0.5f;
+      m.zMode = 1;
+      m.cullMode = 2;
+      i.opacity = 1;
+      i.blendMode = 2;
+      std::memset(i.color, 0xFF, 4);
+      i.color[3] = 0x80;
+      const auto style = re4::CoreModelStyle(m, i);
+      require(style.blendMode == 2 && style.zMode == 1 && style.cullMode == 2, "draw state taken over");
+      require(std::fabs(style.color[3] - 0x80 / 255.f * 0.5f) < 1e-4f, "fade scales the material alpha");
+      m.opacity = 1;
+      i.blendMode = 9;  // out of the table: plain
+      const auto plain = re4::CoreModelStyle(m, i);
+      require(plain.color[3] == 1.f && plain.blendMode == 0, "no fade, plain blending");
+    }
 
     unsigned best = 0;
     for (float side : {-1.f, 1.f}) {
@@ -253,6 +277,29 @@ int main() {
       scene.draw(frame, kWidth, kHeight, kStill);
       require(scene.status().find("drawn 0, missing 0") != std::string::npos, "hidden model skipped");
       const auto without = pixels();
+      // the game leaves it out (an event holds the world, a display switch)
+      frame.models[0].beFlag = 1 | 2 | 4;
+      frame.models[0].flags = RE4_CORE_MODEL_HIDDEN;
+      scene.draw(frame, kWidth, kHeight, kStill);
+      require(scene.status().find("drawn 0, missing 0") != std::string::npos, "model the game hides skipped");
+      require(changes(without, pixels()) == 0, "nothing of the hidden model in the picture");
+      frame.models[0].flags = 0;
+      // the game's blending: added on (a glow) it is still drawn, but lighter
+      // than the plain model; half faded it changes the picture less
+      frame.infos[0].blendMode = 2;
+      scene.draw(frame, kWidth, kHeight, kStill);
+      require(scene.status().find("drawn 1, missing 0") != std::string::npos, "added-on model drawn");
+      const auto added = pixels();
+      std::fprintf(stderr, "added on: %u pixels from the plain model, %u from none\n", changes(with, added),
+                   changes(without, added));
+      // (from one of the two sides the model shows its back: nothing to see)
+      require(changes(with, without) < 20 || (changes(with, added) > 0 && changes(without, added) > 0),
+              "added on: neither plain nor absent");
+      frame.infos[0].blendMode = 0;
+      frame.models[0].opacity = 0.5f;
+      scene.draw(frame, kWidth, kHeight, kStill);
+      require(changes(with, without) < 20 || changes(with, pixels()) > 0, "a faded model differs from the plain one");
+      frame.models[0].opacity = 1;
       best = std::max(best, changes(with, without));
     }
     std::fprintf(stderr, "model pixels: %u\n", best);
@@ -409,6 +456,7 @@ int main() {
       Re4CoreModel floor{};
       floor.address = 0x82005000u;
       floor.beFlag = 1 | 2 | 4;
+      floor.opacity = 1;
       floor.manager = 1;
       floor.id = 2;
       floor.nParts = 1;

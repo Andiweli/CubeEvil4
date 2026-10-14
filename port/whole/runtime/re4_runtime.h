@@ -94,12 +94,23 @@ int re4_os_run(int (*entry)(void));
 int re4_os_in_dispatcher(void);
 void re4_os_exit_current(void* val);
 void re4_os_interrupt_begin(void);
+void re4_os_interrupt_end(void);
+int re4_os_in_interrupt(void);
+/* Completions (DVD reads, ARAM DMAs) started inside an interrupt handler run
+ * when the handler has returned: re4_os_defer queues one (0 when the queue is
+ * full: complete at once), re4_os_deferred_set changes the value of a queued
+ * one (a cancelled read), re4_os_run_deferred runs the queued ones (after
+ * every audio frame and at the end of the interrupt). */
+typedef void (*Re4Deferred)(void* object, int value);
+int re4_os_defer(Re4Deferred fn, void* object, int value);
+int re4_os_deferred_set(Re4Deferred fn, void* object, int value);
+void re4_os_run_deferred(void);
+
 /* AX (ax.cpp): the audio frames of one video field (200 per second; vi.cpp
  * calls it with every retrace), one audio frame, and the frames so far. */
 void re4_ax_field(void);
 void re4_ax_frame(void);
 unsigned re4_ax_frames(void);
-void re4_os_interrupt_end(void);
 
 /* Interrupts (vi.cpp). re4_interrupt_point delivers the retraces that are due
  * (cheap when none is); re4_os_idle / re4_wait_interrupt wait for the next one. */
@@ -111,6 +122,8 @@ void re4_wait_interrupt(void);
  * run control, state_trace.cpp). re4_pad_script_stop ends RE4_PAD_SCRIPT. */
 void re4_set_frame_hook(void (*hook)(unsigned));
 void re4_pad_script_stop(void);
+/* The player is free in the room: RE4_PAD_FREE_SCRIPT starts (pad.cpp). */
+void re4_pad_script_free(void);
 
 /* Every OS thread and where it waits (os_thread.cpp; RE4_WAIT_TRACE=1 records
  * the places): the hang search of host/main.cpp on SIGUSR1. */

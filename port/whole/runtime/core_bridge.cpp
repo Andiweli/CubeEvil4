@@ -84,6 +84,40 @@ void copy34(float* out, const Mtx m)
     }
 }
 
+// trans.cpp: models the game leaves out of this frame although their be_flag
+// would let them draw -- emTrans / objTrans (the display switches of
+// pG->Disp_flg), ModelTrans (while STA_SUSPEND holds the world for an event
+// or a close-up, only be_flag 0x800 models are drawn) and ModelRender (a
+// model faded out completely).
+bool gameHides(cModel* m, u8 manager)
+{
+    GLOBAL_WK* g = pG;
+    if (manager == 0) {
+        if (m == (cModel*) pPL) {
+            if (DpfFlagChk(g, DPF_PL)) {
+                return true;
+            }
+        } else if (m == (cModel*) pSUB) {
+            if (DpfFlagChk(g, DPF_SUBCHAR)) {
+                return true;
+            }
+        } else if (DpfFlagChk(g, DPF_EM)) {
+            return true;
+        }
+    } else if (m->kindid == 2) {
+        if (DpfFlagChk(g, DPF_SCR)) {
+            return true;
+        }
+    } else if (DpfFlagChk(g, DPF_OBJ)) {
+        return true;
+    }
+    if (StaFlagChk(g, STA_SUSPEND) && !(m->be_flag & 0x800)) {
+        return true;
+    }
+    // ModelRender: a model faded out completely is skipped
+    return m->invisible_factor * m->invisible_factor2 == 0.0f;
+}
+
 void captureModel(Re4CoreSnapshot* s, cModel* m, u8 manager, u32 slot)
 {
     if (s->nModels >= RE4_CORE_MAX_MODELS) {
@@ -100,6 +134,12 @@ void captureModel(Re4CoreSnapshot* s, cModel* m, u8 manager, u32 slot)
     copy34(out.matrix, m->mat);
     out.scrollIndex = RE4_CORE_NO_SCROLL;
     out.scrollBlock = -1;
+    out.flags = gameHides(m, manager) ? RE4_CORE_MODEL_HIDDEN : 0;
+    out.opacity = m->invisible_factor * m->invisible_factor2;
+    out.zMode = m->z_mode;
+    out.cullMode = m->CullMode;
+    out.otType = m->ot_type;
+    out.pad = 0;
     if (manager == 1 && m->id == cObjMgr::ID_SCROLL && slot < kScrollSlots) {
         const ScrollNote& n = gScroll[slot];
         if (n.obj == m && n.blk == ((cObj*) m)->blk && inMem1(m->pModelInfo) &&
@@ -138,6 +178,9 @@ void captureModel(Re4CoreSnapshot* s, cModel* m, u8 manager, u32 slot)
         mi.tplAddress = (u32) (unsigned long) info->tpl_addr;
         mi.flags = info->be_flag;
         copy34(mi.matrix, info->mat);
+        memcpy(mi.color, info->color, 4);
+        mi.opacity = info->invisible_factor;
+        mi.blendMode = info->blend_mode;
         // trans.cpp commonModelTrans: which matrix the info is drawn with
         cModelData* d = info->model_addr;
         mi.rigidPart = -1;

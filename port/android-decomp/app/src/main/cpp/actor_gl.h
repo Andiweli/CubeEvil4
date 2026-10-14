@@ -10,6 +10,8 @@ void SetActorSpecularBank(std::shared_ptr<const std::vector<Texture>> bank);
 struct GenericActorStyle {
   std::array<float,4> color{1,1,1,1};
   unsigned blendMode{},zMode{},alphaOmit=255;
+  // cModel::CullMode (trans.cpp): 0 the usual side, 1 the other side, 2 both
+  unsigned cullMode{};
   std::uint32_t selectMask=0xffffffffu;
   unsigned projectiveImage{};
   std::array<float,16> projectiveMatrix{};

@@ -17,7 +17,10 @@
 // (DVDGetFSTLocation) and the disc id to 0x80000000. Entry numbers are FST
 // indices. Reads complete immediately: the callback runs before
 // DVDReadAsyncPrio returns, which the game's queue (dvd.cpp) handles like a
-// very fast drive.
+// very fast drive. A read started inside an interrupt handler (the sound
+// driver's stream refill in the audio frame) completes when the handler has
+// returned (os_thread.cpp re4_os_defer): the stream code marks the read busy
+// only after starting it.
 #include "re4_runtime.h"
 
 #include <ctype.h>
@@ -85,6 +88,8 @@ static_assert(sizeof(DVDFileInfo) == 0x3C, "DVDFileInfo layout on ILP32");
 
 const int kStateEnd = 0;
 const int kStateBusy = 1;
+const int kStateCanceled = 10;
+const int kResultCanceled = -3;
 const int kCommandRead = 1;
 const int kCommandChangeDisk = 3;
 
@@ -439,6 +444,16 @@ int DVDClose(DVDFileInfo* fi)
     return 1;
 }
 
+// The end of a read: state and callback (result -3: cancelled).
+static void finishRead(void* object, int result)
+{
+    DVDFileInfo* fi = (DVDFileInfo*) object;
+    fi->cb.state = result == kResultCanceled ? kStateCanceled : result < 0 ? -1 : kStateEnd;
+    if (fi->callback) {
+        fi->callback(result, fi);
+    }
+}
+
 int DVDReadAsyncPrio(DVDFileInfo* fi, void* addr, s32 length, s32 offset, DVDCallback callback, s32 prio)
 {
     (void) prio;
@@ -450,10 +465,10 @@ int DVDReadAsyncPrio(DVDFileInfo* fi, void* addr, s32 length, s32 offset, DVDCal
     fi->cb.state = kStateBusy;
     s32 result = readFile(fi, addr, length, offset);
     fi->cb.transferredSize = result > 0 ? (u32) result : 0;
-    fi->cb.state = result < 0 ? -1 : kStateEnd;
-    if (callback) {
-        callback(result, fi);
+    if (re4_os_in_interrupt() && re4_os_defer(finishRead, fi, result)) {
+        return 1;  // busy until the interrupt handler has returned
     }
+    finishRead(fi, result);
     return 1;
 }
 
@@ -473,7 +488,10 @@ s32 DVDReadPrio(DVDFileInfo* fi, void* addr, s32 length, s32 offset, s32 prio)
 
 s32 DVDGetCommandBlockStatus(const DVDCommandBlock* block)
 {
-    return block->state == kStateBusy ? kStateBusy : block->state < 0 ? -1 : kStateEnd;
+    if (block->state == kStateBusy || block->state == kStateCanceled) {
+        return block->state;
+    }
+    return block->state < 0 ? -1 : kStateEnd;
 }
 
 s32 DVDGetDriveStatus(void)
@@ -488,6 +506,9 @@ u32 DVDGetTransferredSize(DVDFileInfo* fi)
 
 int DVDCancelAsync(DVDCommandBlock* block, DVDCBCallback callback)
 {
+    // a read still waiting for its completion ends as cancelled (its callback
+    // gets -3, as from the drive)
+    re4_os_deferred_set(finishRead, block, kResultCanceled);
     if (callback) {
         callback(0, block);
     }

@@ -23,8 +23,9 @@
 # with the disc files (re4_format_compare --data), then the game from the
 # title screen: debug start into the room (RE4_START_ROOM, patch 0026), the
 # test script presses UP/A/START on the title screens until the room loads
-# (RE4_PAD_UNTIL_ROOM), then START ends the radio call and Leon walks a few
-# steps (RE4_PAD_ROOM_SCRIPT), and the run ends after FRAMES frames of the main loop
+# (RE4_PAD_UNTIL_ROOM), the opening event and the radio call end on their own,
+# then Leon walks a few steps (RE4_PAD_FREE_SCRIPT, once the player is free),
+# and the run ends after FRAMES frames of the main loop
 # (RE4_STOP_AFTER). The report (bericht.txt) lists: crash or not, frames,
 # GetDataExt coverage lines with "nein", converter messages, called stubs,
 # the last state trace line. Exit code 0 when everything passed.
@@ -196,18 +197,19 @@ fi
 # reset): at most one UP can arrive before the next A/START, so the cursor is
 # line 0 or 20, both the normal start.
 pad_script="UP@100-60000/60 A@115-60000/60 START@130-60000/60"
-# From the room on (frames counted from its loading): START ends the radio
-# call that follows the opening event (about 1260 frames in), then Leon walks
-# ahead for 10 s. Without it the game waits in the radio call to the end and
-# never runs the enemies' own logic (their sounds crashed on the Retroid,
-# 14.10.2026, which the PC check could not see).
-room_script="START@1500 STICKUP@1700-2000/1"
-# r100 only: after the radio call the player is put in front of the first house,
-# where the room script puts him after the s03 event (r100.cpp r100_Sce_look),
-# facing the house; the walk above then leads into the s03 trigger (the
-# Retroid crashed there, 14.10.2026). Other rooms: no placing.
+# No key in the room until the player is free: the opening event and the
+# radio call that follows it must end on their own (the radio waits for its
+# voice stream; on the Retroid it hung there, 14.10.2026, and no key worked).
+# Once free (no event, no sub screen for 300 frames; "run: player free" in the
+# log), Leon walks ahead for 10 s: the report shows how far he got.
+room_script=""
+free_script="STICKUP@30-330/1"
+# r100 only: once free the player is put in front of the first house, where
+# the room script puts him after the s03 event (r100.cpp r100_Sce_look),
+# facing the house; the walk then leads into the s03 trigger (the Retroid
+# crashed there, 14.10.2026). Other rooms: no placing.
 place=""
-[ "$room" = 100 ] && place="1650:-82910,860,-38480,1.75"
+[ "$room" = 100 ] && place="free+1:-82910,860,-38480,1.75"
 
 # "Bild N, Spielschritt R, Raum 0xXXX" from the last complete trace line
 trace_state() {
@@ -241,7 +243,7 @@ run_game() {
     mkdir -p "$snaps"
     local start=$SECONDS
     (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
-        RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script" RE4_TEST_PLACE="$place" RE4_STOP_AFTER="$frames" \
+        RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script" RE4_PAD_FREE_SCRIPT="$free_script" RE4_TEST_PLACE="$place" RE4_STOP_AFTER="$frames" \
         RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" RE4_BRIDGE_DUMP="$bridge" RE4_BRIDGE_SNAPSHOT="$snaps" \
         "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1 &
     local pid=$!
@@ -294,7 +296,14 @@ run_game() {
     say "Letzter Stand:  $(trace_state "$trace")"
     say "Hauptschleife: ${reached:-nicht erreicht}"
     say "Ende:          ${stopped:-kein regulärer Stopp}"
-    local placed
+    local placed free
+    free=$(grep -m1 "run: player free" "$log" | sed 's/^\[re4\] //')
+    if [ -n "$free" ]; then
+        say "Spieler frei:  $free"
+    else
+        say "Spieler frei:  NEIN - Ereignis oder Untermenü (Funkspruch) endete nicht von selbst"
+        bad=1
+    fi
     placed=$(grep -m1 "run: player placed" "$log" | sed 's/^\[re4\] //')
     [ -n "$placed" ] && say "Testhilfe:     $placed"
     if grep -q "run: area " "$log"; then
@@ -345,6 +354,42 @@ run_game() {
         enemies=$(echo "$last" | grep -o '"slot"' | wc -l)
         say "Zustands-Trace: $lines Bilder; im letzten Bild $enemies Gegner"
         say "  letzte Zeile: $(echo "$last" | cut -c1-600)"
+        # control: how far Leon walked while the free script held the stick
+        # (until an event took over, e.g. s03 at the first house)
+        local freeframe walk
+        freeframe=$(echo "$free" | sed -n 's/.* at frame \([0-9]*\).*/\1/p')
+        if [ -n "$freeframe" ]; then
+            walk=$(python3 - "$trace" "$freeframe" <<'PY'
+import json, math, sys
+free = int(sys.argv[2])
+start, end, pos, why = free + 32, free + 330, {}, "Ende der Tastenfolge"
+for line in open(sys.argv[1]):
+    try:
+        r = json.loads(line)
+    except ValueError:
+        continue
+    f = r["frame"]
+    if f < start or f > end or "pl" not in r:
+        continue
+    if "E" in r.get("cam", {}).get("sw", "") or "U" in r.get("cam", {}).get("sw", ""):
+        why = f"Ereignis ab Bild {f}"
+        break
+    pos[f] = r["pl"]
+if len(pos) < 2:
+    print("0 keine Daten")
+else:
+    a, b = pos[min(pos)], pos[max(pos)]
+    d = math.dist((a[0], a[2]), (b[0], b[2]))
+    print(f"{d:.0f} Leon lief {d:.0f} Einheiten in {max(pos) - min(pos)} Bildern (Stick nach vorn, bis {why})")
+PY
+)
+            if [ "${walk%% *}" -ge 500 ] 2> /dev/null; then
+                say "Steuerung:     OK, ${walk#* }"
+            else
+                say "Steuerung:     FEHLER, ${walk#* }"
+                bad=1
+            fi
+        fi
         # the camera over the run: every change of its switches, and every 2500 frames
         python3 - "$trace" <<'PY' | tee -a "$report"
 import json, sys
@@ -499,10 +544,13 @@ render_pictures() {
         tee -a "$report"
     # where the characters' model infos land (one line per info of the player and
     # of models with more than 20 parts, from the first snapshot that has them)
-    say "  Lage der Modellteile (Spieler und Figuren mit vielen Teilen):"
-    grep -h "^\[RE4Core\] bounds " "$run/bild-werkzeug-lauf.log" 2> /dev/null | sed 's/^\[RE4Core\] bounds //' |
-        awk '{key=$4" "$6" "$8; if (!(key in seen) && ($6 == "00" || $0 ~ /joints [2-9][0-9]|joints [0-9][0-9][0-9]/)) {seen[key]=1; print "    " $0}}' |
-        head -30 | tee -a "$report"
+    say "  Lage der Modellteile (Spieler und Figuren mit vielen Teilen; darunter je Info, was Dreiecke"
+    say "  unsichtbar macht: auf 0 skalierte Teile, Alpha-Test, Mischmodus/Tiefe/Seite/Ausblenden des Spiels):"
+    grep -h "^\[RE4Core\] bounds \|^\[RE4Core\]   info " "$run/bild-werkzeug-lauf.log" 2> /dev/null |
+        sed 's/^\[RE4Core\] bounds //; s/^\[RE4Core\]   info /      info /' |
+        awk '/^      info / {if (keep) print; keep=0; next}
+             {keep=0; key=$4" "$6" "$8; if (!(key in seen) && ($6 == "00" || $0 ~ /joints [2-9][0-9]|joints [0-9][0-9][0-9]/)) {seen[key]=1; keep=1; print "    " $0}}' |
+        head -80 | tee -a "$report"
     rm -rf "$approot"  # links to the disc folder: not copied with the report
     # PPM -> PNG (python's zlib), for viewing on Windows
     python3 - "$pics" <<'PY'

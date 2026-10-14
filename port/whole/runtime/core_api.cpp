@@ -117,9 +117,24 @@ void dumpHook(unsigned frame)
             (unsigned) s->nParts, (unsigned) s->droppedModels, (unsigned) s->droppedInfos);
     for (unsigned i = 0; i < s->nModels; i++) {
         const Re4CoreModel& m = s->models[i];
+        bool hidden = (m.flags & RE4_CORE_MODEL_HIDDEN) != 0;
         fprintf(f, "%s{\"mgr\":%u,\"id\":\"0x%02x\",\"type\":%u,\"drawn\":%d,\"parts\":%u,\"pos\":[%.1f,%.1f,%.1f],",
-                i ? "," : "", (unsigned) m.manager, (unsigned) m.id, (unsigned) m.type, (m.beFlag & 6) == 6,
-                (unsigned) m.nParts, m.matrix[3], m.matrix[7], m.matrix[11]);
+                i ? "," : "", (unsigned) m.manager, (unsigned) m.id, (unsigned) m.type,
+                (m.beFlag & 6) == 6 && !hidden, (unsigned) m.nParts, m.matrix[3], m.matrix[7], m.matrix[11]);
+        if (hidden) {
+            fprintf(f, "\"hidden\":1,");  // the game leaves it out this frame (re4_core.h)
+        }
+        // how it is drawn, where it differs from a plain model
+        fprintf(f, "\"ot\":%u,", (unsigned) m.otType);
+        if (m.opacity != 1.0f) {
+            fprintf(f, "\"opacity\":%.3f,", m.opacity);
+        }
+        if (m.zMode) {
+            fprintf(f, "\"z\":%u,", (unsigned) m.zMode);
+        }
+        if (m.cullMode) {
+            fprintf(f, "\"cull\":%u,", (unsigned) m.cullMode);
+        }
         if (m.scrollIndex != RE4_CORE_NO_SCROLL) {
             fprintf(f, "\"smd\":[%d,%u],", (int) m.scrollBlock, (unsigned) m.scrollIndex);
         }
@@ -131,6 +146,12 @@ void dumpHook(unsigned frame)
             fprintf(f, ",\"tpl\":");
             dumpSource(f, mi.tpl, mi.tplAddress);
             fprintf(f, ",\"shown\":%d,\"rigid\":%d", (mi.flags & 8) != 0, (int) mi.rigidPart);
+            if (mi.blendMode) {
+                fprintf(f, ",\"blend\":%u", (unsigned) mi.blendMode);
+            }
+            if (mi.color[3] != 0xFF || mi.opacity != 1.0f) {
+                fprintf(f, ",\"alpha\":%u,\"opacity\":%.3f", (unsigned) mi.color[3], mi.opacity);
+            }
             if (mi.nMorph) {
                 fprintf(f, ",\"morph\":%u", (unsigned) mi.nMorph);
             }
@@ -144,16 +165,21 @@ void dumpHook(unsigned frame)
 
 // RE4_BRIDGE_SNAPSHOT=DIR (Linux checks with disc data): whole snapshots as
 // binary files (DIR/snapshot-<frame>.bin, the Re4CoreSnapshot bytes; the
-// layout is the same on 32 and 64 bit) once the game is in its main loop: 30
-// frames after it starts and every 2500 frames, at most 8. The app's host tool
+// layout is the same on 32 and 64 bit) once the game is in its main loop: 30,
+// 150, 300, 450, 600 and 750 frames after it starts and every 2500 frames, at
+// most 14. The app's host tool
 // core_snapshot_render draws them as the app would (pictures in the report).
 char gSnapDir[1024];
 unsigned gSnapCount;
 long gSnapFirst = -1;
 
+// the opening of a room (r100: the car ride of event s40 runs about 700
+// frames) in steps, then every 2500 frames
+const unsigned kSnapAfterStart[] = {30, 150, 300, 450, 600, 750};
+
 void snapshotHook(unsigned frame)
 {
-    if (gSnapCount >= 8) {
+    if (gSnapCount >= 14) {
         return;
     }
     Re4CoreSnapshot* s = &gDumpSnap;
@@ -164,7 +190,11 @@ void snapshotHook(unsigned frame)
     if (gSnapFirst < 0) {
         gSnapFirst = frame;
     }
-    if (frame != (unsigned) gSnapFirst + 30 && frame % 2500 != 0) {
+    bool wanted = frame % 2500 == 0;
+    for (unsigned after : kSnapAfterStart) {
+        wanted = wanted || frame == (unsigned) gSnapFirst + after;
+    }
+    if (!wanted) {
         return;
     }
     s->frame = frame;

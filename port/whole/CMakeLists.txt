@@ -359,7 +359,7 @@ set_target_properties(re4test_rel PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_C
 # game libraries, which therefore lie above 0x80000000 as on Android.
 if(NOT ANDROID)
     # tests/game_probe.cpp: checks that need the game's flags and headers
-    add_library(re4_probe_obj OBJECT tests/game_probe.cpp tests/core_probe.cpp)
+    add_library(re4_probe_obj OBJECT tests/game_probe.cpp tests/core_probe.cpp tests/stream_probe.cpp)
     target_link_libraries(re4_probe_obj PRIVATE re4_game_flags)
     add_library(re4_hostlib SHARED host/main.cpp tests/runtime_tests.cpp tests/core_tests.cpp
         "${RE4_ROOT}/port/src/sha256.cpp"

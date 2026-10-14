@@ -22,6 +22,7 @@
 
 extern "C" void re4probe_core_setup(void* mem, void* bin, void* tpl);
 extern "C" void re4probe_core_restore(void);
+extern "C" void re4probe_core_display(void* mem, int what);
 extern "C" void re4probe_scroll_setup(void* mem, void* bin, void* other);
 extern "C" void re4probe_scroll_restore(void);
 extern "C" void re4probe_shape_setup(void* mem);
@@ -300,8 +301,26 @@ void testBridge()
     }
 
     re4probe_core_setup(arc + 0x1000, arc + 0x20, arc + 0x40);
+    // what the game leaves out (trans.cpp): held by an event unless it is
+    // setNoSuspend, the player under DPF_PL, an enemy under DPF_EM
+    {
+        const int want[6] = {0, 1, 0, 1, 1, 1};
+        for (int what = 1; what <= 5; what++) {
+            re4probe_core_display(arc + 0x1000, what);
+            re4_bridge_capture(&gSnap);
+            CHECK(gSnap.nModels == 1 && (gSnap.models[0].flags & RE4_CORE_MODEL_HIDDEN) == want[what] &&
+                  (gSnap.models[0].beFlag & 6) == 6);
+        }
+        re4probe_core_display(arc + 0x1000, 0);
+    }
     re4_bridge_capture(&gSnap);
     re4probe_core_restore();
+    CHECK(gSnap.models[0].flags == 0);
+    // how the game draws it: depth test only, the first info added on with
+    // half its material alpha, the others plain
+    CHECK(near(gSnap.models[0].opacity, 1.0f) && gSnap.models[0].zMode == 1 && gSnap.models[0].cullMode == 0);
+    CHECK(gSnap.infos[0].blendMode == 2 && gSnap.infos[0].color[3] == 0x80 && near(gSnap.infos[0].opacity, 1.0f));
+    CHECK(gSnap.infos[1].blendMode == 0 && gSnap.infos[1].color[3] == 0xFF);
     CHECK(gSnap.apiVersion == RE4_CORE_API_VERSION);
     CHECK(gSnap.room == 0x100 && gSnap.rno[0] == 3);
     CHECK(gSnap.cameraValid && near(gSnap.cameraEye[2], 3.0f) && near(gSnap.cameraTarget[0], 4.0f) &&

@@ -11,6 +11,7 @@
 // Before the first room (title, menus) the original title picture is shown.
 // The core's own drawing (GX) is not used; effects, 2D menus and the HUD are
 // missing until the GX path exists.
+#include "actor_gl.h"
 #include "re4_core.h"
 
 #include <array>
@@ -61,6 +62,12 @@ std::vector<std::uint8_t> ReadCoreSource(const std::string &gameRoot, int disc,
 // Scenery a room script made (SetObjSmd, r100's police car) and animated or
 // skinned works are drawn like the other models.
 bool CoreModelIsScenery(const Re4CoreModel &model);
+// The game draws the model this frame: be_flag 2 and 4, and not left out by a
+// display switch or while an event holds the world (RE4_CORE_MODEL_HIDDEN).
+bool CoreModelDrawn(const Re4CoreModel &model);
+// How the game draws one info of the model: blend mode, depth mode, which
+// side, the fade (Re4CoreModel / Re4CoreModelInfo).
+GenericActorStyle CoreModelStyle(const Re4CoreModel &model, const Re4CoreModelInfo &info);
 // Diagnostics (core_snapshot_render): log where each drawn model info lands
 // in the world (CPU-skinned bounds) and the pose of its parts.
 extern bool CoreSceneLogBounds;

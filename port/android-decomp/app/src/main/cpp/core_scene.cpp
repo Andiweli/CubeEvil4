@@ -194,6 +194,23 @@ bool CoreModelIsScenery(const Re4CoreModel &model) {
   return model.manager == 1 && model.id == 2 && model.scrollIndex != RE4_CORE_NO_SCROLL;
 }
 
+bool CoreModelDrawn(const Re4CoreModel &model) {
+  return (model.beFlag & 6) == 6 && !(model.flags & RE4_CORE_MODEL_HIDDEN);
+}
+
+GenericActorStyle CoreModelStyle(const Re4CoreModel &model, const Re4CoreModelInfo &info) {
+  GenericActorStyle style;
+  // trans.cpp ModelRender / commonModelTrans: GXSetBlendMode row of the info,
+  // GXSetZMode of the model; a fade (opacity below 1) scales the info's
+  // material alpha
+  style.blendMode = info.blendMode <= 4 ? info.blendMode : 0;
+  style.zMode = model.zMode <= 2 ? model.zMode : 0;
+  style.cullMode = model.cullMode <= 2 ? model.cullMode : 0;
+  const float fade = model.opacity * info.opacity;
+  if (fade < 1.f) style.color[3] = std::clamp(info.color[3] / 255.f * fade, 0.f, 1.f);
+  return style;
+}
+
 bool CoreSceneLogBounds = false;
 
 namespace {
@@ -323,12 +340,16 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
   std::vector<Matrix34> pose;
   std::vector<std::array<float, 3>> bind;
   unsigned drawn = 0, missing = 0, scenery = 0;
+  // two passes like the game's ordering tables: the plain models first, then
+  // what blends onto them (glass, light glows: added on, faded, or without a
+  // depth write), so a later plain model cannot cover a glow drawn before it
+  for (int pass = 0; pass < 2; ++pass)
   for (const auto &m : frame.models) {
-    if ((m.beFlag & 6) != 6 || m.nParts == 0 ||
+    if (!CoreModelDrawn(m) || m.nParts == 0 ||
         std::size_t(m.firstMatrix) + m.nParts > frame.parts.size())
       continue;
     if (CoreModelIsScenery(m) && roomSceneHolds(m)) {  // part of the room scene
-      ++scenery;
+      scenery += pass == 0;
       continue;
     }
     pose.resize(m.nParts);
@@ -355,6 +376,10 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
       // hangs on one part (or the model matrix) with its vertices in that
       // space; a skinned one is posed by all parts; the info's own matrix on top
       if (!(mi.flags & 8)) continue;
+      const GenericActorStyle style = CoreModelStyle(m, mi);
+      const bool blended = style.blendMode == 1 || style.blendMode == 2 || style.blendMode == 3 ||
+                           style.zMode != 0 || style.color[3] < 1.f;
+      if (int(blended) != pass) continue;
       const std::vector<Matrix34> *usePose = &pose;
       const std::vector<std::array<float, 3>> *useBind = &bind;
       if (mi.rigidPart >= 0 || mi.rigidPart == -2) {
@@ -390,7 +415,7 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
         a->revision = a->model->meshRevision();
       }
       DrawGenericActorGl(a->model.get(), camera, center, scale, *usePose, *useBind, identity,
-                         normalView, 1, &light, 1000.f);
+                         normalView, 1, &light, 1000.f, &style);
       ++drawn;
       if (CoreSceneLogBounds) {
         // the corners skinned on the CPU like the shader: world bounds of this info
@@ -427,6 +452,50 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
                  mi.rigidPart >= 0 ? "rigid" : mi.rigidPart == -2 ? "model matrix" : "skinned", skin.size(), a->joints,
                  mesh.draws.size(), alphaDraws, lo[0], lo[1], lo[2], hi[0], hi[1], hi[2], pose[0][3], pose[0][7],
                  pose[0][11], outside ? " (joints beyond the parts)" : "");
+        // what keeps triangles of this info off the picture: parts the game
+        // scales to 0 (hidden pieces), the alpha test (vertex alpha times the
+        // alpha image at or below the reference), the game's draw state
+        std::string flat;
+        std::vector<bool> zero(usePose->size());
+        for (std::size_t i = 0; i < usePose->size(); ++i) {
+          const auto &mtx = (*usePose)[i];
+          float most = 0;
+          for (int c = 0; c < 3; ++c)
+            most = std::max(most, std::fabs(mtx[c]) + std::fabs(mtx[4 + c]) + std::fabs(mtx[8 + c]));
+          zero[i] = most < 1e-3f;
+          if (zero[i]) flat += (flat.empty() ? "" : " ") + std::to_string(i);
+        }
+        std::size_t onFlat = 0, cutByVertexAlpha = 0, cutByImage = 0, alphaTris = 0;
+        for (const auto &d : mesh.draws) {
+          const bool alpha = d.alphaTest && d.alphaTexture >= 0 && std::size_t(d.alphaTexture) < mesh.textures.size();
+          float imageCut = 0;
+          if (alpha) {
+            const auto &img = mesh.textures[std::size_t(d.alphaTexture)].rgba;
+            std::size_t below = 0;
+            for (std::size_t t = 3; t < img.size(); t += 4) below += img[t] <= d.alphaReference;
+            imageCut = img.empty() ? 1.f : float(below) / float(img.size() / 4);
+          }
+          for (std::size_t c = d.first; c + 2 < d.first + d.count; c += 3) {
+            bool allFlat = true;
+            for (std::size_t j = c; j < c + 3 && j < skin.size(); ++j)
+              for (unsigned w = 0; w < skin[j].position.count; ++w)
+                allFlat = allFlat && skin[j].position.joints[w] < zero.size() && zero[skin[j].position.joints[w]];
+            onFlat += allFlat;
+            if (!alpha) continue;
+            ++alphaTris;
+            bool vertexCut = true;
+            for (std::size_t j = c; j < c + 3 && j * 4 + 3 < mesh.colors.size(); ++j)
+              vertexCut = vertexCut && (d.vertexColors ? mesh.colors[j * 4 + 3] : 255u) <= d.alphaReference;
+            cutByVertexAlpha += vertexCut;
+            cutByImage += imageCut > 0.9f;
+          }
+        }
+        const auto style = CoreModelStyle(m, mi);
+        CORE_LOG("  info %u: %zu of %zu triangles on parts scaled to 0 (parts: %s); alpha test on %zu, cut by "
+                 "vertex alpha %zu, by a mostly clear alpha image %zu; blend %u, depth %u, cull %u, alpha %.2f, "
+                 "order class %u",
+                 k, onFlat, mesh.triangles, flat.empty() ? "none" : flat.c_str(), alphaTris, cutByVertexAlpha,
+                 cutByImage, style.blendMode, style.zMode, style.cullMode, style.color[3], unsigned(m.otType));
       }
     }
   }
@@ -451,7 +520,7 @@ void CoreScene::updateScenery(const CoreFrame &frame) {
     auto &w = scroll_[std::size_t(m.scrollBlock + 1)][m.scrollIndex];
     scrollMapped_ = true;
     w.seen = scrollFrame_;
-    w.shown = (m.beFlag & 6) == 6;
+    w.shown = CoreModelDrawn(m);
     // the game's matrix against the placement the scene was built with: a
     // script moved it (a door, a falling bridge part ...)
     const auto delta = multiply(toMatrix(m.matrix), inverse(w.placement));

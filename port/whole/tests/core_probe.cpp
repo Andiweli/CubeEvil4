@@ -34,6 +34,19 @@ void setMatrix(Mtx m, float tx, float ty, float tz)
     m[2][3] = tz;
 }
 
+// what the cModel / cModelInfo constructors set: fully visible, white
+void visible(cModel* m)
+{
+    m->invisible_factor = 1.0f;
+    m->invisible_factor2 = 1.0f;
+}
+
+void visible(cModelInfo* info)
+{
+    info->invisible_factor = 1.0f;
+    memset(info->color, 0xFF, 4);
+}
+
 }  // namespace
 
 // `mem`: zeroed scratch memory in MEM1 (at least 0x6000 bytes), `bin` and `tpl`
@@ -52,6 +65,8 @@ extern "C" void re4probe_core_setup(void* mem, void* bin, void* tpl)
     em->be_flag = 1 | 2 | 4;
     em->id = 0x12;
     em->type = 3;
+    visible(em);
+    em->z_mode = 1;  // as the officers' heads in r100's events: depth test only
     em->nParts = 2;
     setMatrix(em->mat, 100.0f, 0.0f, -50.0f);
     em->pList = &parts[0];
@@ -63,6 +78,9 @@ extern "C" void re4probe_core_setup(void* mem, void* bin, void* tpl)
     info->model_addr = (cModelData*) bin;
     info->tpl_addr = tpl;
     info->be_flag = 8;
+    visible(info);
+    info->blend_mode = 2;  // added on (a glow)
+    info->color[3] = 0x80;
     setMatrix(info->mat, 0.0f, 0.0f, 0.0f);
     info->pList = rigid;
     head->partsNo = 1;
@@ -73,6 +91,7 @@ extern "C" void re4probe_core_setup(void* mem, void* bin, void* tpl)
     rigid->model_addr = data;
     rigid->tpl_addr = tpl;
     rigid->be_flag = 8;
+    visible(rigid);
     setMatrix(rigid->mat, 0.0f, 5.0f, 0.0f);
     // seven more skinned infos like Leon's (nine in all: body, costume, knife,
     // face, head, hair, hands); the last one with the hair's be_flag 0x40
@@ -82,6 +101,7 @@ extern "C" void re4probe_core_setup(void* mem, void* bin, void* tpl)
         more->model_addr = (cModelData*) bin;
         more->tpl_addr = tpl;
         more->be_flag = i == 6 ? 0x48 : 8;
+        visible(more);
         setMatrix(more->mat, 0.0f, 0.0f, 0.0f);
         more->pList = 0;
         last->pList = more;
@@ -121,6 +141,50 @@ extern "C" void re4probe_core_restore(void)
     pG->Camera.param = gSavedCamera;
 }
 
+// The display switches the bridge follows (trans.cpp emTrans / ModelTrans),
+// on the fake enemy of re4probe_core_setup (`mem` as given there): what 1 = an
+// event holds the world (STA_SUSPEND), 2 = the same with the model's be_flag
+// 0x800 (setNoSuspend), 3 = the model is the player and DPF_PL is on, 4 =
+// DPF_EM is on (the model is an enemy), 5 = faded out completely
+// (invisible_factor 0), 0 = everything back.
+static u32 gSavedDisp;
+static u32 gSavedStatus[4];
+static cPlayer* gSavedPl;
+
+extern "C" void re4probe_core_display(void* mem, int what)
+{
+    cEm* em = (cEm*) mem;
+    if (what == 1) {
+        gSavedDisp = pG->Disp_flg;
+        memcpy(gSavedStatus, pG->Status_flg, sizeof(gSavedStatus));
+        gSavedPl = pPL;
+    }
+    pG->Disp_flg = gSavedDisp;
+    memcpy(pG->Status_flg, gSavedStatus, sizeof(gSavedStatus));
+    pPL = gSavedPl;
+    em->be_flag &= ~0x800;
+    em->invisible_factor = 1.0f;
+    switch (what) {
+    case 1:
+        StaFlagOn(pG, STA_SUSPEND);
+        break;
+    case 2:
+        StaFlagOn(pG, STA_SUSPEND);
+        em->be_flag |= 0x800;
+        break;
+    case 3:
+        pPL = (cPlayer*) em;
+        DpfFlagOn(pG, DPF_PL);
+        break;
+    case 4:
+        DpfFlagOn(pG, DPF_EM);
+        break;
+    case 5:
+        em->invisible_factor = 0.0f;
+        break;
+    }
+}
+
 // Scenery in ObjMgr (cObjScr, id 2), for the bridge's SMD works (patch 0029):
 // slot 0 is work 5 of the room's SMD, slot 1 a room script's scenery (never
 // placed from an SMD), slot 2 was work 7 of scroll block 3 but now holds other
@@ -148,9 +212,11 @@ extern "C" void re4probe_scroll_setup(void* mem, void* bin, void* other)
     info->model_addr = (cModelData*) bin;
     info->tpl_addr = bin;
     info->be_flag = 8;
+    visible(info);
     for (int i = 0; i < 3; i++) {
         cObj* o = (cObj*) (base + i * stride);
         o->be_flag = 1 | 2 | 4;
+        visible(o);
         o->id = cObjMgr::ID_SCROLL;
         o->nParts = 1;
         o->pList = parts;
@@ -199,6 +265,7 @@ extern "C" void re4probe_shape_setup(void* mem)
     u8* sd = base + 0x3800;
     em->be_flag = 1 | 2 | 4;
     em->id = 0x18;
+    visible(em);
     em->nParts = 1;
     em->pList = parts;
     em->pModelInfo = info;
@@ -216,6 +283,7 @@ extern "C" void re4probe_shape_setup(void* mem)
     memcpy(tbl + 0x10, delta, sizeof(delta));
     info->model_addr = d;
     info->be_flag = 8 | 2;
+    visible(info);
     // ShapeData: 20 frames, one channel (kind 4, float keys), shape entry 0,
     // its curve at +0x20: three axes of two keys, the weight axis (y) 100
     host16(sd, 20);

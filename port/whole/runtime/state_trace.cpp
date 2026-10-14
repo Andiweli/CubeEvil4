@@ -24,7 +24,13 @@
 //                          player is put at x,y,z facing a (radians), as a room
 //                          script does (setPos / setAng): the checks reach a
 //                          place without steering there (r100: the first
-//                          house, where the s03 event starts)
+//                          house, where the s03 event starts);
+//                          "free+F:x,y,z,a" counts from the moment the player
+//                          is free (below)
+//   RE4_PAD_FREE_SCRIPT    pad.cpp: a test script started once the player is
+//                          free in the room: main loop, no event and no sub
+//                          screen for 300 frames in a row ("run: player free"
+//                          in the log)
 #include "types.h"
 #include "em.h"
 #include "global.h"
@@ -35,6 +41,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 extern GLOBAL_WK* pG;
@@ -43,6 +50,7 @@ extern cEmMgr EmMgr;
 
 extern "C" void re4_set_frame_hook(void (*hook)(unsigned));
 extern "C" void re4_pad_script_stop(void);
+extern "C" void re4_pad_script_free(void);
 extern "C" void re4_log(const char* fmt, ...);
 
 namespace {
@@ -153,11 +161,19 @@ void trace(unsigned n)
 }
 
 bool g_padUntilRoom;
-// RE4_TEST_PLACE
+// RE4_TEST_PLACE: frames from the room start, or with "free+" from the moment
+// the player is free
 bool g_place;
+bool g_placeFree;
 unsigned long g_placeFrame;
 float g_placePos[3], g_placeAng;
 long g_roomStart = -1;  // frame the room started loading
+// The player is free: main loop, no event (STA_EVENT), no sub screen
+// (STA_SUB_SCRN) for kFreeFrames frames in a row (the opening event and the
+// radio call follow each other within a few frames).
+const unsigned kFreeFrames = 300;
+unsigned g_freeRun;
+long g_freeAt = -1;
 unsigned long g_stopAfter;
 unsigned long g_roomFrames;  // frames since the first main loop frame
 unsigned long g_loopFrames;  // of them in step 3
@@ -172,7 +188,18 @@ void frame(unsigned n)
     if (g_roomStart < 0 && g->Rno0 >= 2) {
         g_roomStart = (long) n;
     }
-    if (g_place && g_roomStart >= 0 && n == g_roomStart + g_placeFrame && live(pPL) && g->Rno0 == 3) {
+    if (g_roomStart >= 0 && g_freeAt < 0) {
+        bool free = g->Rno0 == 3 && !StaFlagChk(g, STA_EVENT) && !StaFlagChk(g, STA_SUB_SCRN);
+        g_freeRun = free ? g_freeRun + 1 : 0;
+        if (g_freeRun == kFreeFrames) {
+            g_freeAt = (long) n;
+            re4_log("run: player free (no event, no sub screen for %u frames) at frame %u, %ld after the room start",
+                    kFreeFrames, n, (long) n - g_roomStart);
+            re4_pad_script_free();
+        }
+    }
+    long placeBase = g_placeFree ? g_freeAt : g_roomStart;
+    if (g_place && placeBase >= 0 && n == placeBase + g_placeFrame && live(pPL) && g->Rno0 == 3) {
         g_place = false;
         Vec pos = { g_placePos[0], g_placePos[1], g_placePos[2] };
         Vec ang = { 0.0f, g_placeAng, 0.0f };
@@ -217,15 +244,17 @@ void configure()
     g_padUntilRoom = until && *until && *until != '0';
     const char* place = getenv("RE4_TEST_PLACE");
     if (place && *place) {
-        g_place = sscanf(place, "%lu:%f,%f,%f,%f", &g_placeFrame, &g_placePos[0], &g_placePos[1], &g_placePos[2],
-                         &g_placeAng) == 5;
+        g_placeFree = strncmp(place, "free+", 5) == 0;
+        g_place = sscanf(place + (g_placeFree ? 5 : 0), "%lu:%f,%f,%f,%f", &g_placeFrame, &g_placePos[0],
+                         &g_placePos[1], &g_placePos[2], &g_placeAng) == 5;
         if (!g_place) {
-            re4_log("run: RE4_TEST_PLACE \"%s\" not understood (F:x,y,z,a)", place);
+            re4_log("run: RE4_TEST_PLACE \"%s\" not understood ([free+]F:x,y,z,a)", place);
         }
     }
     const char* stop = getenv("RE4_STOP_AFTER");
     g_stopAfter = stop ? strtoul(stop, 0, 10) : 0;
-    if (g_trace || g_padUntilRoom || g_stopAfter || g_place) {
+    const char* freeScript = getenv("RE4_PAD_FREE_SCRIPT");
+    if (g_trace || g_padUntilRoom || g_stopAfter || g_place || (freeScript && *freeScript)) {
         re4_set_frame_hook(frame);
     }
 }

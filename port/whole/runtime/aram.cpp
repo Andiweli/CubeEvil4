@@ -1,7 +1,10 @@
 // Auxiliary RAM (ARAM, the GameCube's 16 MB audio/streaming memory) and its
 // DMA queue (ARQ). ARAM is a separate address space (0 .. 16 MB) that the CPU
 // reaches only by DMA; the port keeps it in a host buffer and copies
-// immediately, then runs the request's callback as the DMA interrupt would.
+// immediately, then runs the request's callback as the DMA interrupt would:
+// at once, or, for a request posted inside an interrupt handler (the sound
+// driver's stream refill), when that handler has returned (os_thread.cpp
+// re4_os_defer).
 #include "re4_runtime.h"
 
 #include <stdlib.h>
@@ -157,6 +160,12 @@ void ARStartDMA(u32 type, u32 mainAddr, u32 aramAddr, u32 length)
     dma(type, mainAddr, aramAddr, length);
 }
 
+static void finishRequest(void* object, int)
+{
+    ARQRequest* request = (ARQRequest*) object;
+    request->callback((u32) (unsigned long) request);
+}
+
 void ARQInit(void) {}
 
 void ARQReset(void) {}
@@ -177,7 +186,7 @@ void ARQPostRequest(ARQRequest* request, u32 owner, u32 type, u32 priority, u32 
     } else {
         dma(type, dest, source, length);
     }
-    if (callback) {
+    if (callback && !(re4_os_in_interrupt() && re4_os_defer(finishRequest, request, 0))) {
         callback((u32) (unsigned long) request);
     }
 }
