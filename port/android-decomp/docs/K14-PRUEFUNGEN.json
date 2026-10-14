@@ -1,0 +1,64 @@
+{
+  "version": "0.37.14-dev",
+  "version_code": 47,
+  "base": "K13",
+  "user_K13_feedback": {
+    "demo_return_correct": true,
+    "other_K13_fixes_confirmed": true,
+    "gray_after_first_DPAD": true
+  },
+  "targeted_fix": {
+    "Android_default_focus_highlight_disabled_for_TitleView": true,
+    "disabled_before_first_focus": true,
+    "guard_min_API": 26,
+    "title_selection_still_drawn_by_original_menu": true,
+    "direct_device_capture_of_focus_cause": false
+  },
+  "changed_over_K13": [
+    "README.md",
+    "app/build.gradle",
+    "app/src/main/java/com/ast/re4decomp/StartupActivity.java"
+  ],
+  "all_other_K13_source_files_byte_identical": true,
+  "native_sources_and_original_assets_byte_identical": true,
+  "host_checks": {
+    "java_startup_flow": 1378,
+    "java_startup_presentation": 123
+  },
+  "android_arm64_build_passed": true,
+  "android_build_outputs_removed_before_rebuild": true,
+  "lint": {
+    "status": "BLOCKED",
+    "reason": "com.android.tools.lint:lint-gradle:31.9.2 is not cached for offline mode"
+  },
+  "apk_build_content": {
+    "unsigned_apk_sha256": "5cfb22036188abd5ca06e7d58fbece47d3806b5b6d0b9b5526f0507a712b0be7",
+    "native_sha256": "80dbe2aec06b52b11af5501306995720b8980d1886c0d45f83df394ff2e7f9f6",
+    "fresh_native_matches_apk": true,
+    "native_binary_matches_K13": true,
+    "TitleView_constructor_focus_highlight_false_in_APK": true,
+    "focus_API_26_guard_in_APK": true,
+    "focus_disabled_before_first_requestFocus": true,
+    "manifest": "package: name='com.ast.re4decomp' versionCode='47' versionName='0.37.14-dev' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'"
+  },
+  "apk_signature": {
+    "manifest_file_digests": 19,
+    "sf_section_digests": 19,
+    "legacy_metadata_unchanged_by_v2": true,
+    "apk_sha256": "6999f636b56a09036173f3dbfabac8701b1786113b3523b6ebafadf6c5825876",
+    "conversion_certificate_sha256": "31ac6bef27dc5dd0f27a4d6463ef8615277b67e2ae5eaa87daf5f3cbb335a6e5",
+    "v1_sha1_rsa_no_attributes": true,
+    "v1_and_v2_verified": true,
+    "rsa_block_stored": true,
+    "alignment_16k_verified": true
+  },
+  "signed_apk_payload_matches_final_build": true,
+  "certificate_matches_K13": true,
+  "existing_imports_remain_valid": true,
+  "device_test_of_K14": false,
+  "framework_references": [
+    "https://developer.android.com/reference/android/view/View#setDefaultFocusHighlightEnabled(boolean)",
+    "https://android.googlesource.com/platform/frameworks/base/+/18d993bb72306bcdff8744d9b717247f0747637f%5E1..18d993bb72306bcdff8744d9b717247f0747637f/",
+    "https://android.googlesource.com/platform/frameworks/base/+/6dea70b9fafcb36ec9da1e19afae89c491b965d8%5E!/core/java/android/view/View.java"
+  ]
+}

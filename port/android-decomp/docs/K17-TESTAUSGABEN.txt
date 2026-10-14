@@ -1,0 +1,378 @@
+K17 – endgültige Prüfausgaben, 2026-10-08
+
+Native CTest
+Test project WORK/host-build-k17-final
+      Start 36: room_item_contracts
+      Start  3: m36_startup_compositor_check
+      Start 10: m37_event_focus_gl_check
+      Start 39: audio_contracts
+ 1/43 Test #36: room_item_contracts ..............   Passed    0.01 sec
+      Start  7: m37_streams_check
+ 2/43 Test #39: audio_contracts ..................   Passed    0.19 sec
+      Start 11: inventory_case_contracts
+ 3/43 Test  #7: m37_streams_check ................   Passed    0.28 sec
+      Start 20: melee_rules_contracts
+ 4/43 Test #11: inventory_case_contracts .........   Passed    0.15 sec
+      Start 14: yz2_contracts
+ 5/43 Test #14: yz2_contracts ....................   Passed    0.10 sec
+      Start 22: grab_rules_contracts
+ 6/43 Test #20: melee_rules_contracts ............   Passed    0.18 sec
+      Start  9: m37_player_eyes_check
+ 7/43 Test  #9: m37_player_eyes_check ............   Passed    0.02 sec
+      Start 43: turn_rules_contracts
+ 8/43 Test #43: turn_rules_contracts .............   Passed    0.02 sec
+      Start 17: gx_contracts
+ 9/43 Test #22: grab_rules_contracts .............   Passed    0.06 sec
+      Start 16: smd_contracts
+10/43 Test #16: smd_contracts ....................   Passed    0.01 sec
+      Start 15: archive_contracts
+11/43 Test #17: gx_contracts .....................   Passed    0.01 sec
+      Start 12: environment_contracts
+12/43 Test #15: archive_contracts ................   Passed    0.01 sec
+      Start  2: m36_event_audio_check
+13/43 Test #12: environment_contracts ............   Passed    0.01 sec
+      Start  1: original_enemy_drop_tests
+14/43 Test  #1: original_enemy_drop_tests ........   Passed    0.00 sec
+      Start  8: m37_weapon_sway_check
+15/43 Test  #2: m36_event_audio_check ............   Passed    0.01 sec
+      Start 21: melee_encounter_contracts
+16/43 Test #21: melee_encounter_contracts ........   Passed    0.00 sec
+      Start 31: scene_contracts
+17/43 Test #31: scene_contracts ..................   Passed    0.00 sec
+      Start 32: world_effect_contracts
+18/43 Test  #8: m37_weapon_sway_check ............   Passed    0.01 sec
+      Start 37: object_action_contracts
+19/43 Test #32: world_effect_contracts ...........   Passed    0.01 sec
+      Start 29: player_action_contracts
+20/43 Test #37: object_action_contracts ..........   Passed    0.00 sec
+      Start 40: room_lighting_contracts
+21/43 Test #29: player_action_contracts ..........   Passed    0.00 sec
+      Start 26: enemy_encounter_contracts
+22/43 Test #40: room_lighting_contracts ..........   Passed    0.01 sec
+23/43 Test #26: enemy_encounter_contracts ........   Passed    0.01 sec
+      Start 27: animation_contracts
+      Start 35: room_object_contracts
+24/43 Test #35: room_object_contracts ............   Passed    0.00 sec
+      Start 13: native_contracts
+25/43 Test #27: animation_contracts ..............   Passed    0.01 sec
+      Start 19: sat_contracts
+26/43 Test #13: native_contracts .................   Passed    0.00 sec
+      Start 25: enemy_spawn_contracts
+27/43 Test #19: sat_contracts ....................   Passed    0.00 sec
+      Start 34: room_state_contracts
+28/43 Test #25: enemy_spawn_contracts ............   Passed    0.00 sec
+      Start 33: ambient_animal_contracts
+29/43 Test #34: room_state_contracts .............   Passed    0.00 sec
+      Start 18: collision_contracts
+30/43 Test #33: ambient_animal_contracts .........   Passed    0.00 sec
+      Start  4: context_actions_tests
+31/43 Test #18: collision_contracts ..............   Passed    0.00 sec
+      Start 41: laser_sight_contracts
+32/43 Test  #4: context_actions_tests ............   Passed    0.00 sec
+33/43 Test #41: laser_sight_contracts ............   Passed    0.00 sec
+      Start 28: player_motion_contracts
+      Start 23: grab_encounter_contracts
+34/43 Test #23: grab_encounter_contracts .........   Passed    0.00 sec
+      Start  5: enemy_feedback_tests
+35/43 Test #28: player_motion_contracts ..........   Passed    0.00 sec
+      Start 42: follow_camera_contracts
+36/43 Test  #5: enemy_feedback_tests .............   Passed    0.00 sec
+      Start  6: subscreen_data_contracts
+37/43 Test  #6: subscreen_data_contracts .........   Passed    0.00 sec
+      Start 38: destruction_effect_contracts
+38/43 Test #42: follow_camera_contracts ..........   Passed    0.00 sec
+      Start 24: hit_geometry_contracts
+39/43 Test #38: destruction_effect_contracts .....   Passed    0.00 sec
+      Start 30: room_flow_contracts
+40/43 Test #24: hit_geometry_contracts ...........   Passed    0.00 sec
+41/43 Test #30: room_flow_contracts ..............   Passed    0.00 sec
+42/43 Test #10: m37_event_focus_gl_check .........   Passed    0.73 sec
+43/43 Test  #3: m36_startup_compositor_check .....   Passed    0.84 sec
+
+100% tests passed out of 43
+
+Total Test time (real) =   0.84 sec
+
+Original-Waffenprofile
+K17 original38 weapons, first aim edge, real shots/ammo/reloads, projectile fuses and119-joint healthy/injured knife poses PASS: 3436 checks
+
+Produktions-JNI/GLES-Kampagne und Waffen
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r102
+Loading original village room r103
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r104
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r105
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r106
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r107
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r108
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r109
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r10a
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r10b
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r10c
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r10d
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4Flow: Room transition canceled: Original destination has no supporting SAT floor · Current room r10c retained
+Loading original village room r10e
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r10f
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r111
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r112
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r113
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r117
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r118
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r119
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r11a
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r11b
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r11c
+Loading original village room r11d
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r11e
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Loading original village room r11f
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+K16 original village campaign JNI/GLES and cheats passed: 2735
+K17 real JNI25 weapons/first LT edge and unchanged visible enemy pixels across every Equip PASS: 6807 checks
+
+Original-Waffen-Audio
+wep01.drs: PASS
+DISC1/files/em/wep01.drs: Original audio: Bank 2 · 19/34 SIT · DSP-ADPCM
+Original audio: 19 cues, 115 checks passed
+wep02.drs: PASS
+DISC1/files/em/wep02.drs: Original audio: Bank 2 · 25/34 SIT · DSP-ADPCM
+Original audio: 25 cues, 151 checks passed
+wep03.drs: PASS
+DISC1/files/em/wep03.drs: Original audio: Bank 2 · 18/34 SIT · DSP-ADPCM
+Original audio: 18 cues, 109 checks passed
+wep04.drs: PASS
+DISC1/files/em/wep04.drs: Original audio: Bank 2 · 20/34 SIT · DSP-ADPCM
+Original audio: 20 cues, 121 checks passed
+wep05.drs: PASS
+DISC1/files/em/wep05.drs: Original audio: Bank 2 · 18/34 SIT · DSP-ADPCM
+Original audio: 18 cues, 109 checks passed
+wep06.drs: PASS
+DISC1/files/em/wep06.drs: Original audio: Bank 2 · 20/34 SIT · DSP-ADPCM
+Original audio: 20 cues, 121 checks passed
+wep07.drs: PASS
+DISC1/files/em/wep07.drs: Original audio: Bank 2 · 14/34 SIT · DSP-ADPCM
+Original audio: 14 cues, 85 checks passed
+wep08.drs: PASS
+DISC1/files/em/wep08.drs: Original audio: Bank 2 · 14/34 SIT · DSP-ADPCM
+Original audio: 14 cues, 85 checks passed
+wep09.drs: PASS
+DISC1/files/em/wep09.drs: Original audio: Bank 2 · 14/34 SIT · DSP-ADPCM
+Original audio: 14 cues, 85 checks passed
+wep10.drs: PASS
+DISC1/files/em/wep10.drs: Original audio: Bank 2 · 14/34 SIT · DSP-ADPCM
+Original audio: 14 cues, 85 checks passed
+wep11.drs: PASS
+DISC1/files/em/wep11.drs: Original audio: Bank 2 · 14/26 SIT · DSP-ADPCM
+Original audio: 14 cues, 85 checks passed
+wep12.drs: PASS
+DISC1/files/em/wep12.drs: Original audio: Bank 2 · 12/34 SIT · DSP-ADPCM
+Original audio: 12 cues, 73 checks passed
+wep13.drs: PASS
+DISC1/files/em/wep13.drs: Original audio: Bank 2 · 5/10 SIT · DSP-ADPCM
+Original audio: 5 cues, 31 checks passed
+wep14.drs: PASS
+DISC1/files/em/wep14.drs: Original audio: Bank 2 · 14/33 SIT · DSP-ADPCM
+Original audio: 14 cues, 85 checks passed
+wep15.drs: PASS
+DISC1/files/em/wep15.drs: Original audio: Bank 2 · 16/25 SIT · DSP-ADPCM
+Original audio: 16 cues, 97 checks passed
+wep17.drs: PASS
+DISC1/files/em/wep17.drs: Original audio: Bank 2 · 18/34 SIT · DSP-ADPCM
+Original audio: 18 cues, 109 checks passed
+wep18.drs: PASS
+DISC1/files/em/wep18.drs: Original audio: Bank 2 · 18/34 SIT · DSP-ADPCM
+Original audio: 18 cues, 109 checks passed
+wep19.drs: PASS
+DISC1/files/em/wep19.drs: Original audio: Bank 2 · 0/0 SIT · DSP-ADPCM
+Original audio: 0 cues, 1 checks passed
+wep20.drs: PASS
+DISC1/files/em/wep20.drs: Original audio: Bank 2 · 14/26 SIT · DSP-ADPCM
+Original audio: 14 cues, 85 checks passed
+wep21.drs: PASS
+DISC1/files/em/wep21.drs: Original audio: Bank 2 · 14/34 SIT · DSP-ADPCM
+Original audio: 14 cues, 85 checks passed
+wep24.drs: PASS
+DISC1/files/em/wep24.drs: Original audio: Bank 2 · 14/34 SIT · DSP-ADPCM
+Original audio: 14 cues, 85 checks passed
+wep25.drs: PASS
+DISC1/files/em/wep25.drs: Original audio: Bank 2 · 14/33 SIT · DSP-ADPCM
+Original audio: 14 cues, 85 checks passed
+wep28.drs: PASS
+DISC1/files/em/wep28.drs: Original audio: Bank 2 · 3/3 SIT · DSP-ADPCM
+Original audio: 3 cues, 19 checks passed
+wep31.drs: PASS
+DISC1/files/em/wep31.drs: Original audio: Bank 2 · 14/34 SIT · DSP-ADPCM
+Original audio: 14 cues, 85 checks passed
+wep32.drs: PASS
+DISC1/files/em/wep32.drs: Original audio: Bank 2 · 14/34 SIT · DSP-ADPCM
+Original audio: 14 cues, 85 checks passed
+wep33.drs: PASS
+DISC1/files/em/wep33.drs: Original audio: Bank 2 · 12/18 SIT · DSP-ADPCM
+Original audio: 12 cues, 73 checks passed
+wep46.drs: PASS
+DISC1/files/em/wep46.drs: Original audio: Bank 2 · 5/10 SIT · DSP-ADPCM
+Original audio: 5 cues, 31 checks passed
+
+Java-Regressionen
+PROJECT/tests/DiscTests.java:38: warning: [try] auto-closeable resource ignored is never referenced in body of corresponding try statement
+    try (GameCubeDisc ignored = new GameCubeDisc(f)) {
+                      ^
+1 warning
+Java disc tests: 8 checks PASS
+Controller selection, virtual navigation, priority and reset: 11 checks PASS
+Menu repeat, rotated placement, collision and source categories: 80 checks PASS
+Full viewport, isotropic model/piece layout, flexible lists and touch inverse: 7721 checks PASS
+Map camera/footer PASS: 11
+Startup source timeline/curve/path: 1378 checks PASS
+Startup original options: 17 checks PASS
+Original HUD thresholds/30-Hz clock and Continue timers/choices: 51 checks PASS
+Startup original voice end/output drain: 14 checks PASS
+Startup presentation/movie lifecycle/source shader: 123 checks PASS
+SceneLoadGate: 24 checks passed
+Java RoomRepository tests: 76 checks PASS
+M31 room catalog PASS: 401
+
+Dorf-Inventur
+r120 has no authored AEV transitions
+29 rooms, 66 authored transitions verified
+Actor 20
+Actor 21
+Actor 22
+Actor 23
+Actor 24
+Actor 25
+Actor 26
+Actor 27
+Actor 28
+Actor 30
+Actor 31
+Actor 34
+Actor 35
+Actor 36
+Actor 40
+Actor 41
+Actor 42
+Actor 43
+Actor 44
+Actor 46
+Actor 47
+Actor 48
+Actor 49
+Actor 50
+Actor 54
+Actor 55
+Actor 56
+Actor 57
+Actor 58
+Actor 60
+Actor 61
+Actor 62
+Actor 63
+Actor 64
+Actor 65
+Actor 66
+Actor 67
+Actor 68
+Actor 69
+Actor 70
+Actor 72
+Actor 73
+Actor 74
+Event r101s00
+r101s00 complete, 210 frames
+Event r101s21
+r101s21 complete, 799 frames
+Event r101s30
+r101s30 complete, 1330 frames
+Village source-data, actors, waves and full events passed
+
+Explosionsregression
+Original player blast FCV/SEQ poses, LifeDown/RNG, Ganado weapon13 damage, r2 height, protection, 30Hz callbacks: 269320 checks PASS
+
+Originalspielstand
+M37 original save codec/native mapper: 79 checks PASS
+
+APK-Signatur und Paket
+Verifies
+Verified using v1 scheme (JAR signing): true
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): true
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+Signer #1 certificate DN: CN=AST, ST=Austria
+Signer #1 certificate SHA-256 digest: 31ac6bef27dc5dd0f27a4d6463ef8615277b67e2ae5eaa87daf5f3cbb335a6e5
+Signer #1 certificate SHA-1 digest: dc0f17c0e73ca990c0ac4f833fb74ce50ad26b15
+Signer #1 certificate MD5 digest: 6460626f68e6a531cf19b709669a394b
+Signer #1 key algorithm: RSA
+Signer #1 key size (bits): 2048
+Signer #1 public key SHA-256 digest: 50a33dd90e979200699fe80c7cea69b02fb0a11cbca3b52ac1cc0705840b8a56
+Signer #1 public key SHA-1 digest: 7c5dd8ed9d0361181460741f309d036d7726d7fe
+Signer #1 public key MD5 digest: afbfd34932dc21345b1baf5821ad5717
+
+package: name='com.ast.re4decomp' versionCode='50' versionName='0.37.17-dev' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+sdkVersion:'21'
+targetSdkVersion:'35'
+application-label:'RE4 Decomp'
+application-icon-160:'res/drawable-v26/ic_launcher.xml'
+application-icon-65535:'res/drawable-v26/ic_launcher.xml'
+application: label='RE4 Decomp' icon='res/drawable-v26/ic_launcher.xml' banner='res/drawable/tv_banner.xml'
+application-isGame
+launchable-activity: name='com.ast.re4decomp.MainActivity'  label='' icon=''
+leanback-launchable-activity: name='com.ast.re4decomp.MainActivity'  label='' icon='' banner=''
+feature-group: label=''
+  uses-gl-es: '0x30000'
+  uses-feature-not-required: name='android.hardware.gamepad'
+  uses-feature-not-required: name='android.hardware.touchscreen'
+  uses-feature-not-required: name='android.software.leanback'
+  uses-feature: name='android.hardware.screen.landscape'
+  uses-implied-feature: name='android.hardware.screen.landscape' reason='one or more activities have specified a landscape orientation'
+main
+other-activities
+supports-screens: 'small' 'normal' 'large' 'xlarge'
+supports-any-density: 'true'
+locales: '--_--'
+densities: '160' '65535'
+native-code: 'arm64-v8a'
+
+K14/K17 signing certificate match: PASS
+Final native library and DEX match: PASS
+16-KiB APK alignment: PASS
+
+Zusätzlich ausgeführte Java-Originalspielstandprüfungen:
+OriginalSaveTests: 56 PASS
+CardFlowTests: 42 PASS

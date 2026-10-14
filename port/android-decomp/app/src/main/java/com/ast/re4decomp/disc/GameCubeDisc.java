@@ -1,0 +1,267 @@
+package com.ast.re4decomp.disc;
+
+import java.io.*;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.util.*;
+
+/** Bounded reader for raw GameCube ISO/GCM images. Not an ISO9660 reader. */
+public final class GameCubeDisc implements Closeable {
+  private static final String[] UNUSED_LANGUAGES = {"jpn", "ger", "fra", "esp", "ita"};
+  private static final Set<String> UNUSED_CARD_ASSETS = new HashSet<>(Arrays.asList(
+      "files/ss/cmn/save_j.dat", "files/ss/cmn/save_g.dat",
+      "files/ss/cmn/save_f.dat", "files/ss/cmn/save_s.dat",
+      "files/ss/cmn/save_i.dat"));
+  public interface Progress {
+    void update(String phase, long done, long total) throws IOException;
+  }
+  public static final class Entry {
+    public final String path;
+    public final long offset, size;
+    Entry(String path, long offset, long size) {
+      this.path = path;
+      this.offset = offset;
+      this.size = size;
+    }
+  }
+  private final RandomAccessFile input;
+  private final long length;
+  public final int discNumber;
+  public final List<Entry> files;
+  private final Map<String, Entry> byPath = new HashMap<>();
+
+  public GameCubeDisc(File source) throws IOException {
+    input = new RandomAccessFile(source, "r");
+    length = input.length();
+    try {
+      byte[] header = read(0, 0x440);
+      if (be32(header, 0x1c) != 0xc2339f3dL)
+        throw new IOException("Not a raw GameCube ISO/GCM file");
+      if (!new String(header, 0, 6, StandardCharsets.US_ASCII).equals("G4BE08"))
+        throw new IOException("Wrong disc ID; G4BE08 is required");
+      discNumber = (header[6] & 255) + 1;
+      if (discNumber < 1 || discNumber > 2 || header[7] != 0)
+        throw new IOException("Unsupported disc/revision");
+      long dol = be32(header, 0x420), fstOffset = be32(header, 0x424),
+           fstSize = be32(header, 0x428);
+      if (fstSize < 12 || fstSize > 32 * 1024 * 1024)
+        throw new IOException("Invalid FST size");
+      byte[] fst = read(fstOffset, (int)fstSize);
+      long n = be32(fst, 8);
+      if ((fst[0] & 255) != 1 || n < 1 || n > 100000 || n * 12 > fst.length)
+        throw new IOException("Invalid FST root");
+      int count = (int)n, namesOffset = count * 12;
+      ArrayDeque<Integer> ends = new ArrayDeque<>(), indexes =
+                                                         new ArrayDeque<>();
+      ArrayDeque<String> paths = new ArrayDeque<>();
+      ends.push(count);
+      indexes.push(0);
+      paths.push("");
+      List<Entry> result = new ArrayList<>();
+      for (int i = 1; i < count; i++) {
+        while (i >= ends.peek()) {
+          ends.pop();
+          paths.pop();
+          indexes.pop();
+        }
+        int o = i * 12;
+        int nameOffset = namesOffset + (int)(be32(fst, o) & 0xffffff);
+        if (nameOffset < namesOffset || nameOffset >= fst.length)
+          throw new IOException("Invalid FST name");
+        int end = nameOffset;
+        while (end < fst.length && fst[end] != 0)
+          end++;
+        if (end == fst.length || end - nameOffset > 255)
+          throw new IOException("Invalid FST name");
+        String name = new String(fst, nameOffset, end - nameOffset,
+                                 Charset.forName("Shift_JIS"));
+        safeComponent(name);
+        String path = paths.peek().isEmpty() ? name : paths.peek() + "/" + name;
+        long a = be32(fst, o + 4), b = be32(fst, o + 8);
+        int kind = fst[o] & 255;
+        if (kind == 1) {
+          if (a != indexes.peek() || b <= i || b > ends.peek())
+            throw new IOException("Invalid FST directories");
+          ends.push((int)b);
+          indexes.push(i);
+          paths.push(path);
+        } else if (kind == 0) {
+          range(a, b);
+          Entry entry = new Entry("files/" + path, a, b);
+          String key = entry.path.toLowerCase(Locale.ROOT);
+          if (byPath.put(key, entry) != null)
+            throw new IOException("Duplicate disc path");
+          result.add(entry);
+        } else
+          throw new IOException("Unknown FST entry");
+      }
+      byte[] dh = read(dol, 0x100);
+      long dolSize = 0x100;
+      for (int i = 0; i < 18; i++) {
+        long offset = be32(dh, i * 4), size = be32(dh, 0x90 + i * 4);
+        if (size > 0)
+          dolSize = Math.max(dolSize, offset + size);
+      }
+      range(dol, dolSize);
+      Entry main = new Entry("sys/main.dol", dol, dolSize);
+      byPath.put(main.path, main);
+      result.add(main);
+      files = Collections.unmodifiableList(result);
+    } catch (IOException | RuntimeException e) {
+      input.close();
+      throw e;
+    }
+  }
+  public static long be32(byte[] b, int o) throws IOException {
+    if (o < 0 || o > b.length - 4)
+      throw new IOException("Truncated data field");
+    return ((long)(b[o] & 255) << 24) | ((long)(b[o + 1] & 255) << 16) |
+        ((b[o + 2] & 255) << 8) | (b[o + 3] & 255);
+  }
+  private static void safeComponent(String name) throws IOException {
+    if (name.isEmpty() || name.equals(".") || name.equals("..") ||
+        name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 ||
+        name.indexOf(':') >= 0 || name.indexOf('\ufffd') >= 0)
+      throw new IOException("Unsafe disc path");
+    for (int i = 0; i < name.length(); i++)
+      if (name.charAt(i) < 32)
+        throw new IOException("Unsafe disc path");
+  }
+  private void range(long offset, long size) throws IOException {
+    if (offset < 0 || size < 0 || offset > length || size > length - offset)
+      throw new IOException("Disc range exceeds file bounds");
+  }
+  public byte[] read(long offset, int size) throws IOException {
+    range(offset, size);
+    byte[] b = new byte[size];
+    input.seek(offset);
+    input.readFully(b);
+    return b;
+  }
+  public Entry find(String path) throws IOException {
+    Entry e = byPath.get(path.toLowerCase(Locale.ROOT));
+    if (e == null)
+      throw new IOException("File missing: " + path);
+    return e;
+  }
+  public void validate(ReferenceCatalog catalog, Progress progress)
+      throws IOException {
+    int total = 0, done = 0;
+    for (ReferenceCatalog.Entry r : catalog.entries)
+      if (r.disc == discNumber)
+        total++;
+    if (total != (discNumber == 1 ? 111 : 5))
+      throw new IOException("Missing references");
+    for (ReferenceCatalog.Entry r : catalog.entries) {
+      if (r.disc != discNumber)
+        continue;
+      Entry e = find(r.path);
+      if (r.offset < 0 || r.size <= 0 || r.offset > e.size ||
+          r.size > e.size - r.offset)
+        throw new IOException("Truncated original module: " + r.path);
+      String hash = digest(e.offset + r.offset, r.size, "SHA-1", null);
+      if (!hash.equals(r.sha1))
+        throw new IOException("Debug build mismatch: " + r.path);
+      progress.update("Verify debug build", ++done, total);
+    }
+  }
+  public long extractionSize() {
+    long n = 0;
+    for (Entry e : files)
+      if (importFile(e))
+        n += e.size;
+    return n;
+  }
+  private static boolean importFile(Entry entry) {
+    String path = entry.path.toLowerCase(Locale.ROOT);
+    if (path.startsWith("files/font/") && path.endsWith("_j.fnt"))
+      return false;
+    if (UNUSED_CARD_ASSETS.contains(path))
+      return false;
+    for (String language : UNUSED_LANGUAGES)
+      if (path.startsWith("files/ss/" + language + "/") ||
+          path.startsWith("files/etc/" + language + "/"))
+        return false;
+    // Shared archives contain the required English MDT slots and original
+    // offset tables. Keep them byte-for-byte; suffixes on other resources
+    // (for example *_f.fcv animations) are not language identifiers.
+    return true;
+  }
+  public void extract(File destination, Progress progress) throws IOException {
+    if (destination.exists())
+      throw new IOException("Import destination already exists");
+    if (!destination.mkdirs())
+      throw new IOException("Could not create import destination");
+    long total = extractionSize(), done = 0;
+    try (Writer manifest = new OutputStreamWriter(
+             new FileOutputStream(new File(destination, "manifest.tsv")),
+             StandardCharsets.UTF_8)) {
+      manifest.write("# sha256\tbytes\tpath\n");
+      byte[] buffer = new byte[1024 * 1024];
+      for (Entry e : files) {
+        if (!importFile(e))
+          continue;
+        File f = new File(destination, e.path);
+        if (!f.getCanonicalPath().startsWith(destination.getCanonicalPath() +
+                                             File.separator))
+          throw new IOException("Unsafe destination path");
+        if (!f.getParentFile().isDirectory() && !f.getParentFile().mkdirs())
+          throw new IOException("Could not create directory");
+        MessageDigest md = newDigest("SHA-256");
+        input.seek(e.offset);
+        long remaining = e.size;
+        try (FileOutputStream w = new FileOutputStream(f)) {
+          while (remaining > 0) {
+            int n = (int)Math.min(buffer.length, remaining);
+            input.readFully(buffer, 0, n);
+            w.write(buffer, 0, n);
+            md.update(buffer, 0, n);
+            remaining -= n;
+            done += n;
+            progress.update("Disc " + discNumber + ": Extracting", done, total);
+          }
+          w.getFD().sync();
+        }
+        manifest.write(hex(md.digest()) + "\t" + e.size + "\t" + e.path + "\n");
+      }
+    }
+    try (FileOutputStream w =
+             new FileOutputStream(new File(destination, "ready.properties"))) {
+      w.write(("format=1\nlanguage=eng\ndisc=" + discNumber + "\nid=G4BE08\nreferences=" +
+               (discNumber == 1 ? 111 : 5) + "\n")
+                  .getBytes(StandardCharsets.UTF_8));
+      w.getFD().sync();
+    }
+  }
+  private String digest(long offset, long size, String algorithm,
+                        Progress progress) throws IOException {
+    MessageDigest md = newDigest(algorithm);
+    input.seek(offset);
+    byte[] b = new byte[65536];
+    while (size > 0) {
+      int n = (int)Math.min(size, b.length);
+      input.readFully(b, 0, n);
+      md.update(b, 0, n);
+      size -= n;
+    }
+    return hex(md.digest());
+  }
+  public static MessageDigest newDigest(String algorithm) {
+    try {
+      return MessageDigest.getInstance(algorithm);
+    } catch (NoSuchAlgorithmException e) {
+      throw new AssertionError(e);
+    }
+  }
+  public static String hex(byte[] b) {
+    StringBuilder s = new StringBuilder();
+    for (byte v : b)
+      s.append(String.format(Locale.ROOT, "%02x", v & 255));
+    return s.toString();
+  }
+  @Override
+  public void close() throws IOException {
+    input.close();
+  }
+}

@@ -1,0 +1,6 @@
+Fortsetzung des Dorf-Ausbaus auf K17/Fix18 und dem bisherigen Zwischenstand.
+
+Vollständige Austauschdateien: RE4-Android-Decomp über das vorhandene Projekt kopieren und neu bauen.
+Details und offene Wegabschnitte: docs/VILLAGE-AUSBAU-SCHRAENKE-R106.md
+Neu: acht originale Schrankereignisse in r103/r113/r106; sieben Ganados und neun Fallen in r106.
+Der vollständige Original-Spielweg bleibt in Arbeit. Kein APK in diesem Paket.

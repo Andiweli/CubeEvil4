@@ -1,0 +1,55 @@
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4Effects: SST1 Record4: original Esp12 requires a separate special backend
+RE4Effects: SST4 Record4: original Esp12 requires a separate special backend
+RE4Effects: SST5 Record0: separate shimmer backend
+RE4Effects: SST6 Record0: separate shimmer backend
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4Effects: SST0: dedicated generator 68
+RE4Effects: SST0 Record2: separate shimmer backend
+RE4Effects: SST7 Record8: original Esp7 requires a separate special backend
+RE4Effects: SST7 Record9: original Esp7 requires a separate special backend
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4Effects: SST1 Record3: original Esp12 requires a separate special backend
+RE4Effects: SST4 Record3: original Esp12 requires a separate special backend
+RE4Effects: SST7 Record4: original Esp14 requires a separate special backend
+RE4Effects: SST8: dedicated generator 68
+RE4Effects: SST8 Record1: separate shimmer backend
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4Effects: SST4 Record0: separate shimmer backend
+RE4Effects: SST4 Record1: separate shimmer backend
+RE4Effects: SST4 Record2: separate shimmer backend
+RE4Effects: SST4 Record11: original Esp12 requires a separate special backend
+RE4Effects: SST4 Record12: original Esp12 requires a separate special backend
+RE4Effects: SST4 Record13: original Esp12 requires a separate special backend
+RE4Effects: SST4 Record14: original Esp12 requires a separate special backend
+RE4Effects: SST4 Record15: original Esp12 requires a separate special backend
+RE4Effects: SST4 Record16: original Esp12 requires a separate special backend
+RE4Effects: SST4 Record17: original Esp20 requires a separate special backend
+RE4Effects: SST4 Record18: original Esp20 requires a separate special backend
+RE4Effects: SST4 Record19: original Esp20 requires a separate special backend
+RE4Effects: SST5 Record18: original Esp5 requires a separate special backend
+RE4Effects: SST6 Record2: original Esp5 requires a separate special backend
+RE4Effects: SST7 Record1: original Esp5 requires a separate special backend
+RE4Effects: SST7 Record2: original Esp5 requires a separate special backend
+RE4Effects: SST7 Record3: original Esp5 requires a separate special backend
+RE4Effects: SST7 Record4: original Esp5 requires a separate special backend
+RE4Effects: SST8 Record0: original Esp14 requires a separate special backend
+RE4Effects: SST8 Record1: original Esp14 requires a separate special backend
+RE4Effects: SST9 Record0: original Esp14 requires a separate special backend
+RE4Effects: SST9 Record1: original Esp14 requires a separate special backend
+RE4Effects: SST10 Record3: original Esp14 requires a separate special backend
+RE4Effects: SST10 Record6: original Esp14 requires a separate special backend
+RE4Effects: SST15 Record0: original Esp255 requires a separate special backend
+RE4Effects: SST15 Record2: original Esp254 requires a separate special backend
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+production shelves, action input, pause, GLES and native save PASS
+production firearm routing, original medal effects, pendant variants and native save PASS
+r103 production room and native save verified
+r111 production room and native save verified
+production shelves, action input, pause, GLES and native save PASS
+production firearm routing, original medal effects, pendant variants and native save PASS
+r113 production room and native save verified
+production shelves, action input, pause, GLES and native save PASS
+r106 production room shelves verified
+production shelves, action input, pause, GLES and native save PASS
+r105 five original box/drawer events verified

@@ -1,0 +1,393 @@
+{
+  "date": "2026-10-07",
+  "language_order_from_original_code": [
+    "Japanese",
+    "English",
+    "German",
+    "French",
+    "Spanish",
+    "Italian"
+  ],
+  "method": "Original FSTs and extracted data from both complete GCMs; MDT messages normalized through end/return using mes.cpp CommandArg. Padding excluded; no translated text inferred from suffixes.",
+  "discs": [
+    {
+      "disc": 1,
+      "image": "RE4_2004-11-25_Disc1.gcm",
+      "game_id": "G4BE08",
+      "revision": 0,
+      "disc_number_byte": 0,
+      "fst_file_count": 1154,
+      "subscreen_directories": [
+        "Cmn",
+        "Eng",
+        "Item"
+      ],
+      "etc_language_directories": [
+        "Eng"
+      ],
+      "font_files": [
+        "font/common_j.fnt",
+        "font/common_p.fnt",
+        "font/dvd_j.fnt",
+        "font/event1_j.fnt",
+        "font/event1_p.fnt",
+        "font/event2_j.fnt",
+        "font/event2_p.fnt",
+        "font/event3_j.fnt",
+        "font/event3_p.fnt",
+        "font/event4_j.fnt",
+        "font/ss_file_j.fnt",
+        "font/ss_term_j.fnt",
+        "font/sscrn_j.fnt",
+        "font/sscrn_p.fnt",
+        "font/stage1_j.fnt",
+        "font/stage1_p.fnt",
+        "font/stage2_j.fnt",
+        "font/stage2_p.fnt",
+        "font/stage3_j.fnt",
+        "font/stage4_j.fnt",
+        "font/system_j.fnt"
+      ],
+      "save_archive_sha256": {
+        "j": "01daac483880b9ddf132f846fcb7a2b4f0f377db57e228d0f0243298847d2b5e",
+        "e": "b171e3e583cc70889db9c14efc0dbaac7412af0ebdbcba07baab52ae83340dab",
+        "g": "1f8be15cd3b23330a5d29679e803c2f4e9f77b336fbe48115c0173c1aa1d05b6",
+        "f": "1f8be15cd3b23330a5d29679e803c2f4e9f77b336fbe48115c0173c1aa1d05b6",
+        "s": "1f8be15cd3b23330a5d29679e803c2f4e9f77b336fbe48115c0173c1aa1d05b6",
+        "i": "1f8be15cd3b23330a5d29679e803c2f4e9f77b336fbe48115c0173c1aa1d05b6"
+      },
+      "western_save_archives_identical": true,
+      "menus": [
+        {
+          "source": "etc/core.das/word10",
+          "empty": false,
+          "languages": [
+            {
+              "language": "Japanese",
+              "message_count": 153,
+              "glyph_count": 1698,
+              "glyphs_outside_common_p_192": 578,
+              "normalized_sha256": "5e98a705920fcbf00b929f3a8e6771aa6649a2a658a88efe4323783cf5df77ee"
+            },
+            {
+              "language": "English",
+              "message_count": 153,
+              "glyph_count": 2699,
+              "glyphs_outside_common_p_192": 0,
+              "normalized_sha256": "c1e69ced44eaf99eaf5440f2206331c4b36cd462587e0e42c731c4647adb86f0"
+            },
+            {
+              "language": "German",
+              "message_count": 153,
+              "glyph_count": 1849,
+              "glyphs_outside_common_p_192": 848,
+              "normalized_sha256": "c39d449e8abc820de8e94bca4a3efe2422a5b5380d08d298f9146c202a5307de"
+            },
+            {
+              "language": "French",
+              "message_count": 153,
+              "glyph_count": 1849,
+              "glyphs_outside_common_p_192": 848,
+              "normalized_sha256": "c39d449e8abc820de8e94bca4a3efe2422a5b5380d08d298f9146c202a5307de"
+            },
+            {
+              "language": "Spanish",
+              "message_count": 153,
+              "glyph_count": 1849,
+              "glyphs_outside_common_p_192": 848,
+              "normalized_sha256": "c39d449e8abc820de8e94bca4a3efe2422a5b5380d08d298f9146c202a5307de"
+            },
+            {
+              "language": "Italian",
+              "message_count": 153,
+              "glyph_count": 1849,
+              "glyphs_outside_common_p_192": 848,
+              "normalized_sha256": "c39d449e8abc820de8e94bca4a3efe2422a5b5380d08d298f9146c202a5307de"
+            }
+          ],
+          "western_slots_identical": true,
+          "western_slots_equal_english": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "western_slots_equal_japanese": [
+            false,
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "source": "etc/memcard.das/word5",
+          "empty": false,
+          "languages": [
+            {
+              "language": "Japanese",
+              "message_count": 45,
+              "glyph_count": 2781,
+              "glyphs_outside_common_p_192": 909,
+              "normalized_sha256": "694b6dfeb427edf52f9b1c5d43af22e2b202fc3f1a76d9282f2bb2438173b38b"
+            },
+            {
+              "language": "English",
+              "message_count": 45,
+              "glyph_count": 4590,
+              "glyphs_outside_common_p_192": 0,
+              "normalized_sha256": "c1cf7f623bb4f32b21c10aa0a22dcfe6a62fa20f4a51b4fcbff1a7d0396a2df3"
+            },
+            {
+              "language": "German",
+              "message_count": 45,
+              "glyph_count": 2823,
+              "glyphs_outside_common_p_192": 2263,
+              "normalized_sha256": "2b4d69940c1feb310ec475a1be5c8fe7a8b8f0766920d6095e9fea5f7571a55a"
+            },
+            {
+              "language": "French",
+              "message_count": 45,
+              "glyph_count": 2823,
+              "glyphs_outside_common_p_192": 2263,
+              "normalized_sha256": "2b4d69940c1feb310ec475a1be5c8fe7a8b8f0766920d6095e9fea5f7571a55a"
+            },
+            {
+              "language": "Spanish",
+              "message_count": 45,
+              "glyph_count": 2823,
+              "glyphs_outside_common_p_192": 2263,
+              "normalized_sha256": "2b4d69940c1feb310ec475a1be5c8fe7a8b8f0766920d6095e9fea5f7571a55a"
+            },
+            {
+              "language": "Italian",
+              "message_count": 45,
+              "glyph_count": 2823,
+              "glyphs_outside_common_p_192": 2263,
+              "normalized_sha256": "2b4d69940c1feb310ec475a1be5c8fe7a8b8f0766920d6095e9fea5f7571a55a"
+            }
+          ],
+          "western_slots_identical": true,
+          "western_slots_equal_english": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "western_slots_equal_japanese": [
+            false,
+            false,
+            false,
+            false
+          ]
+        }
+      ],
+      "rooms": {
+        "populated_tables": 72,
+        "empty_debug_tables": 13,
+        "western_slots_identical_tables": 72,
+        "western_slots_all_equal_english_tables": 4,
+        "western_slots_all_equal_japanese_tables": 4
+      },
+      "radio": {
+        "populated_tables": 24,
+        "empty_debug_tables": 0,
+        "western_slots_identical_tables": 24,
+        "western_slots_all_equal_english_tables": 0,
+        "western_slots_all_equal_japanese_tables": 0
+      }
+    },
+    {
+      "disc": 2,
+      "image": "RE4_2004-11-25_Disc2.gcm",
+      "game_id": "G4BE08",
+      "revision": 0,
+      "disc_number_byte": 1,
+      "fst_file_count": 1090,
+      "subscreen_directories": [
+        "Cmn",
+        "Eng",
+        "Item"
+      ],
+      "etc_language_directories": [
+        "Eng"
+      ],
+      "font_files": [
+        "font/common_j.fnt",
+        "font/common_p.fnt",
+        "font/dvd_j.fnt",
+        "font/event1_j.fnt",
+        "font/event1_p.fnt",
+        "font/event2_j.fnt",
+        "font/event2_p.fnt",
+        "font/event3_j.fnt",
+        "font/event3_p.fnt",
+        "font/event4_j.fnt",
+        "font/ss_file_j.fnt",
+        "font/ss_term_j.fnt",
+        "font/sscrn_j.fnt",
+        "font/sscrn_p.fnt",
+        "font/stage1_j.fnt",
+        "font/stage1_p.fnt",
+        "font/stage2_j.fnt",
+        "font/stage2_p.fnt",
+        "font/stage3_j.fnt",
+        "font/stage4_j.fnt",
+        "font/system_j.fnt"
+      ],
+      "save_archive_sha256": {
+        "j": "01daac483880b9ddf132f846fcb7a2b4f0f377db57e228d0f0243298847d2b5e",
+        "e": "b171e3e583cc70889db9c14efc0dbaac7412af0ebdbcba07baab52ae83340dab",
+        "g": "1f8be15cd3b23330a5d29679e803c2f4e9f77b336fbe48115c0173c1aa1d05b6",
+        "f": "1f8be15cd3b23330a5d29679e803c2f4e9f77b336fbe48115c0173c1aa1d05b6",
+        "s": "1f8be15cd3b23330a5d29679e803c2f4e9f77b336fbe48115c0173c1aa1d05b6",
+        "i": "1f8be15cd3b23330a5d29679e803c2f4e9f77b336fbe48115c0173c1aa1d05b6"
+      },
+      "western_save_archives_identical": true,
+      "menus": [
+        {
+          "source": "etc/core.das/word10",
+          "empty": false,
+          "languages": [
+            {
+              "language": "Japanese",
+              "message_count": 153,
+              "glyph_count": 1698,
+              "glyphs_outside_common_p_192": 578,
+              "normalized_sha256": "5e98a705920fcbf00b929f3a8e6771aa6649a2a658a88efe4323783cf5df77ee"
+            },
+            {
+              "language": "English",
+              "message_count": 153,
+              "glyph_count": 2699,
+              "glyphs_outside_common_p_192": 0,
+              "normalized_sha256": "c1e69ced44eaf99eaf5440f2206331c4b36cd462587e0e42c731c4647adb86f0"
+            },
+            {
+              "language": "German",
+              "message_count": 153,
+              "glyph_count": 1849,
+              "glyphs_outside_common_p_192": 848,
+              "normalized_sha256": "c39d449e8abc820de8e94bca4a3efe2422a5b5380d08d298f9146c202a5307de"
+            },
+            {
+              "language": "French",
+              "message_count": 153,
+              "glyph_count": 1849,
+              "glyphs_outside_common_p_192": 848,
+              "normalized_sha256": "c39d449e8abc820de8e94bca4a3efe2422a5b5380d08d298f9146c202a5307de"
+            },
+            {
+              "language": "Spanish",
+              "message_count": 153,
+              "glyph_count": 1849,
+              "glyphs_outside_common_p_192": 848,
+              "normalized_sha256": "c39d449e8abc820de8e94bca4a3efe2422a5b5380d08d298f9146c202a5307de"
+            },
+            {
+              "language": "Italian",
+              "message_count": 153,
+              "glyph_count": 1849,
+              "glyphs_outside_common_p_192": 848,
+              "normalized_sha256": "c39d449e8abc820de8e94bca4a3efe2422a5b5380d08d298f9146c202a5307de"
+            }
+          ],
+          "western_slots_identical": true,
+          "western_slots_equal_english": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "western_slots_equal_japanese": [
+            false,
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "source": "etc/memcard.das/word5",
+          "empty": false,
+          "languages": [
+            {
+              "language": "Japanese",
+              "message_count": 45,
+              "glyph_count": 2781,
+              "glyphs_outside_common_p_192": 909,
+              "normalized_sha256": "694b6dfeb427edf52f9b1c5d43af22e2b202fc3f1a76d9282f2bb2438173b38b"
+            },
+            {
+              "language": "English",
+              "message_count": 45,
+              "glyph_count": 4590,
+              "glyphs_outside_common_p_192": 0,
+              "normalized_sha256": "c1cf7f623bb4f32b21c10aa0a22dcfe6a62fa20f4a51b4fcbff1a7d0396a2df3"
+            },
+            {
+              "language": "German",
+              "message_count": 45,
+              "glyph_count": 2823,
+              "glyphs_outside_common_p_192": 2263,
+              "normalized_sha256": "2b4d69940c1feb310ec475a1be5c8fe7a8b8f0766920d6095e9fea5f7571a55a"
+            },
+            {
+              "language": "French",
+              "message_count": 45,
+              "glyph_count": 2823,
+              "glyphs_outside_common_p_192": 2263,
+              "normalized_sha256": "2b4d69940c1feb310ec475a1be5c8fe7a8b8f0766920d6095e9fea5f7571a55a"
+            },
+            {
+              "language": "Spanish",
+              "message_count": 45,
+              "glyph_count": 2823,
+              "glyphs_outside_common_p_192": 2263,
+              "normalized_sha256": "2b4d69940c1feb310ec475a1be5c8fe7a8b8f0766920d6095e9fea5f7571a55a"
+            },
+            {
+              "language": "Italian",
+              "message_count": 45,
+              "glyph_count": 2823,
+              "glyphs_outside_common_p_192": 2263,
+              "normalized_sha256": "2b4d69940c1feb310ec475a1be5c8fe7a8b8f0766920d6095e9fea5f7571a55a"
+            }
+          ],
+          "western_slots_identical": true,
+          "western_slots_equal_english": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "western_slots_equal_japanese": [
+            false,
+            false,
+            false,
+            false
+          ]
+        }
+      ],
+      "rooms": {
+        "populated_tables": 45,
+        "empty_debug_tables": 12,
+        "western_slots_identical_tables": 45,
+        "western_slots_all_equal_english_tables": 4,
+        "western_slots_all_equal_japanese_tables": 4
+      },
+      "radio": {
+        "populated_tables": 24,
+        "empty_debug_tables": 0,
+        "western_slots_identical_tables": 24,
+        "western_slots_all_equal_english_tables": 0,
+        "western_slots_all_equal_japanese_tables": 0
+      }
+    }
+  ],
+  "conclusion": {
+    "english_menu_archives": true,
+    "japanese_text_font_and_card_art_resources": true,
+    "complete_japanese_playable_localization_demonstrated": false,
+    "complete_german_french_spanish_italian_localizations_present": false,
+    "separate_audio_language_tracks_exhaustively_audited": false
+  }
+}

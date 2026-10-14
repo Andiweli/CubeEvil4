@@ -1,0 +1,119 @@
+{
+  "task": "Prepare original Stage 1 / village implementation",
+  "date": "2026-10-07",
+  "baseline_version": "0.37.14-dev",
+  "baseline_version_code": 47,
+  "runtime_changes": false,
+  "new_apk": false,
+  "K14_existing_project_files_compared_byte_for_byte": 2656,
+  "changed_or_missing_existing_project_files": [],
+  "original_room_catalog_and_stage_registration_match": true,
+  "original_compressed_and_decoded_room_hashes_checked": 29,
+  "original_block_hashes_checked": 5,
+  "original_stage_rel_catalog_checks": 4,
+  "original_roominfo_and_esl_complete_hashes_recorded": 3,
+  "audit_totals": {
+    "rooms": 29,
+    "aev_door_records": 66,
+    "distinct_aev_directed_pairs": 63,
+    "internal_aev_door_records": 65,
+    "external_aev_targets": [
+      "r200"
+    ],
+    "same_room_aev_door_records": 2,
+    "ladder_records": 21,
+    "ita_records": 635,
+    "scr_at_records": 30,
+    "blocks": 5,
+    "campaign_esl_records": 428,
+    "native_door_field_values_checked": 2046,
+    "native_start_records_checked": 52,
+    "native_flow_failures": [],
+    "native_static_scene_failures": []
+  },
+  "native_static_scene_checks": {
+    "passed": 29,
+    "failed": 0,
+    "all_default_scene_fallback_triangle_counts_zero": true,
+    "full_visual_parity_proven": false
+  },
+  "native_current_village_available_door_records": 1,
+  "native_unavailable_village_door_records": 65,
+  "scripted_chapter_end_candidates": [
+    {
+      "room": "r105",
+      "path": "upstream/re4/src/st1/r105.cpp",
+      "category": "transition",
+      "line": 582,
+      "expression": "SceSetChapterEnd(CHAPTER_1_2, -1);"
+    },
+    {
+      "room": "r106",
+      "path": "upstream/re4/src/st1/r106.cpp",
+      "category": "transition",
+      "line": 375,
+      "expression": "SceSetChapterEnd(0, 3);"
+    },
+    {
+      "room": "r10b",
+      "path": "upstream/re4/src/st1/r10b.cpp",
+      "category": "transition",
+      "line": 314,
+      "expression": "SceSetChapterEnd(CHAPTER_1_3, 6);"
+    },
+    {
+      "room": "r117",
+      "path": "upstream/re4/src/st1/r117.cpp",
+      "category": "transition",
+      "line": 430,
+      "expression": "SceSetChapterEnd(CHAPTER_2_1, -1);"
+    },
+    {
+      "room": "r11c",
+      "path": "upstream/re4/src/st1/r11c.cpp",
+      "category": "transition",
+      "line": 635,
+      "expression": "SceSetChapterEnd(CHAPTER_2_2, -1);"
+    }
+  ],
+  "static_entry_diagnostic_candidates": [
+    {
+      "room": "r105",
+      "point": 1,
+      "ground_found": true,
+      "delta_y": -160.0,
+      "capsule_clear": false,
+      "polygon": 68
+    },
+    {
+      "room": "r109",
+      "point": 0,
+      "ground_found": false
+    },
+    {
+      "room": "r10c",
+      "point": 1,
+      "ground_found": false
+    },
+    {
+      "room": "r10d",
+      "point": 0,
+      "ground_found": false
+    },
+    {
+      "room": "r117",
+      "point": 1,
+      "ground_found": true,
+      "delta_y": -0.4310491380174426,
+      "capsule_clear": false,
+      "polygon": 0
+    }
+  ],
+  "remaining_baseline_checks": [
+    "K14 demo-return first DPAD on Android device",
+    "Known r120 Filter00 context-rebuild host integration failure"
+  ],
+  "device_test_run_for_this_preparation": false,
+  "original_console_capture_comparison_run_for_this_preparation": false,
+  "audit_script_sha256": "181ab03b777f065ea634ccff6452e4184f14ee1182c416115164c7b8bac12f5b"
+}

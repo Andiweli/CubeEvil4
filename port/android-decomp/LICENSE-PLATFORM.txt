@@ -1,0 +1,37 @@
+New Android integration, disc reader/installer, TPL decoder, input layer and
+tests created for RE4-Android-Decomp are provided under the MIT License.
+
+Copyright (c) 2026 RE4-Android-Decomp contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Excluded from this license: upstream/re4 and the derived ports/rnd.cpp,
+ports/rnd.h, ports/yz2.cpp, ports/yz2.h, ports/motion64/, ports/fdlibm/ and the original-derived
+app/src/main/cpp/hit_geometry.cpp, hit_geometry.h, grab_rules.cpp, grab_rules.h,
+melee_rules.cpp, melee_rules.h, environment.cpp, environment.h,
+follow_camera.cpp, follow_camera.h, turn_rules.cpp, turn_rules.h,
+room_objects.cpp, room_objects.h, room_items.cpp, room_items.h,
+object_actions.cpp, object_actions.h, world_effects.cpp, world_effects.h,
+destruction_effects.cpp, destruction_effects.h,
+sound_bank.cpp, sound_bank.h, sound_acoustics.cpp, sound_acoustics.h,
+sound_mixer.cpp, sound_mixer.h, ambient_animals.cpp and ambient_animals.h.
+Their original provenance and upstream license scope apply.
+The namespaced newlib 1.8.2 FDlibm files preserve their original Sun/Cygnus
+permission and attribution notices within each source file.
+The Gradle Wrapper retains its embedded Apache License 2.0 notice.

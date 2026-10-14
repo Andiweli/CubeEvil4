@@ -1,0 +1,87 @@
+{
+  "version": "0.37.17-fix6",
+  "versionCode": 55,
+  "sourceTests": {
+    "checks": 116327,
+    "result": "PASS",
+    "boltRifleItems": [
+      46,
+      107,
+      153
+    ],
+    "heldAndReleased": true,
+    "everyBoltPartComparedToIndependentOriginalARC21": true,
+    "oldIdleGunCompensationFailureReproduced": true,
+    "originalMagazineReloadProfiles": 6,
+    "inventoryProfiles": 38,
+    "original30HzSimulationWithPresentationInterpolation": true,
+    "pitchforkStationaryCases": 8,
+    "mirrors": [
+      false,
+      true
+    ],
+    "distances": [
+      900,
+      1200,
+      1600,
+      1900
+    ],
+    "ticksPerCase": 360,
+    "attacksPerCase": 3,
+    "hitsPerCase": 3,
+    "throughPlayerCases": 0
+  },
+  "productionJniGles": {
+    "result": "PASS",
+    "checks": 368,
+    "menuInterpolatedPixels": true,
+    "worldPausedWhileInventoryAdvances": true,
+    "backgroundPausesMenu": true,
+    "eglContextRecovery": true,
+    "menuPortraitAtPhysical1080p": [
+      640,
+      480
+    ],
+    "originalRifleBloodStillWorks": true
+  },
+  "regressions": {
+    "fix1Pure": 7060,
+    "fix2Pure": 3111,
+    "fix3Pure": 431,
+    "fix4Pure": 3454,
+    "fix5Pure": 22072,
+    "allWeaponProfiles": 38,
+    "allWeaponsChecks": 3437,
+    "enemyAiChecks": 18343,
+    "enemySequenceAudioChecks": 8527,
+    "fix1Production": "PASS",
+    "fix4Production": "PASS",
+    "javaContractGroups": 14,
+    "completeAndroidJavaCompile": "PASS"
+  },
+  "androidNative": {
+    "machine": "AArch64",
+    "abi": "arm64-v8a",
+    "result": "PASS",
+    "loadSegments": 3,
+    "pageAlignment": 16384,
+    "nativeSha256": "2cd5389a3c3a05f47bc366a83b80d100b7789a94c3313c5c51a6ed2532958cfe",
+    "apkProduced": false
+  },
+  "verificationEnvironment": "Linux EGL/GLES3 software renderer, production JNI, provided original assets, Java contracts, complete Android Java compile, ARM64 NDK build",
+  "notVerified": [
+    "physical Android/Adreno/controller gameplay and frame pacing",
+    "Gradle assemble/lint"
+  ],
+  "logcat": {
+    "file": "Eingefügter Text(4).txt",
+    "totalLines": 5689,
+    "applicationLines": 762,
+    "analysis": "WEP09 firing with zero reserve; no application fatal crash found"
+  },
+  "apkIncluded": false,
+  "originalSourceTree": {
+    "byteUnchanged": true,
+    "files": 2129
+  }
+}

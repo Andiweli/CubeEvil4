@@ -1,0 +1,147 @@
+{
+  "milestone": "M28",
+  "base": "M27",
+  "version": "0.28.0-dev",
+  "files": [
+    {
+      "path": "RE4-Android-Decomp/README.md",
+      "sha256": "91fe6c8c64fde1c6b1c8bdd015cc27d90397a7e910736a9742e049adc0768ec7"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/build.gradle",
+      "sha256": "7c973cd55c8174fdf544c2fcea7cb4bc24ce4ddfe494b307b97adf3b5b467a1f"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/CMakeLists.txt",
+      "sha256": "ce88c6b0ba06ceb818c7cd87d5e0b14f91458d75c326e625f5ed1350817d9bfc"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/android_bridge.cpp",
+      "sha256": "39f07810ea9938352d4462bb4837d652a8a1e32f7d6122321acd08a6d2de17cd"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/follow_camera.cpp",
+      "sha256": "12f3ac05cd06cddded61743a7780f1a4e6522d1abeca3192b04b3491eae45e37"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/follow_camera.h",
+      "sha256": "7b5c8c7eadc9785f345c73935cff4d9dec0be1f4c298d9eeb30c67e3a930be05"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/ladder_motion.cpp",
+      "sha256": "26cdbeeb0bdd5bd5d2f081973f9e0075b30188beed6c6a48fc2283cb0b2d42d5"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/ladder_motion.h",
+      "sha256": "d427135ed830486296d35fcae75d23f71e6c3653a12b616856636e9f92161fc9"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/laser_sight.cpp",
+      "sha256": "6cabcf6faf4a20f6951446d0d04caa972e62c0fef445d02df57c7e1df1d01132"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/laser_sight.h",
+      "sha256": "5281d9efe69423ce20898e94b6e4c6dd53e0d35afaeb38cc3298fe9e2362f82d"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/leon_preview.cpp",
+      "sha256": "599748814cd68f496ba2cf5de160667a6d2076fbbfcd25868b0617fbfb2934a8"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/leon_preview.h",
+      "sha256": "85f47b0980b2188a7793d5768283d1fafd03813929999919d804024a4dda34b0"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/room_flow.cpp",
+      "sha256": "5be7a41c526b97769eedf734717a5374570bdf2eb09c078b059b9bde92d5397d"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/room_flow.h",
+      "sha256": "aaa765564a79be1f98a73a6f3097adf480b168b44d9281311f8121faf2cb2efd"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/room_interactions.cpp",
+      "sha256": "e7a3905a8ac32aec2d9fcf1fde181682dd2b78e277ce0b4e6d340226be8b488a"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/room_interactions.h",
+      "sha256": "a02c56829a4dcc150f8c24bc7d4b9939ad55dd69ebdde423f386fbd49aed326d"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/room_ladders.cpp",
+      "sha256": "60ed5c7b24d507216a8012da3405c480458e5aa66e9a7b23595a5c11436da325"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/room_ladders.h",
+      "sha256": "efaa698f75c12cf24450b475381f835f421b18d35cfdd496480731d9b6e17c6c"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/scene.h",
+      "sha256": "b895a0c22370ce63ab5443225ae66e93e5887d6e2184b01b63467a0ae13349f9"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/scene_gl.cpp",
+      "sha256": "8e92d2306b2cc8715acd3708ab8060c3f89de2fb8e2259bb71a6a00aff5eee68"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/scene_gl.h",
+      "sha256": "dbc61e19e3181f8ea8bf9fefea13cf0551c1711f0fa937c01890d3701080568d"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/walk_probe.cpp",
+      "sha256": "08596f1cdc2f96932af8ca5846211e873785eaaa7aa9a1751b2784ab8332d3a0"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/walk_probe.h",
+      "sha256": "52a743fb64ae962acfddedefc6f4a75c88bea7b7b48424b7fbc75dea1ede7696"
+    },
+    {
+      "path": "RE4-Android-Decomp/app/src/main/cpp/world_effects.cpp",
+      "sha256": "3c762202386ac5184790e662a70ae744e0e9e747150b5d000c1e51f8e9804074"
+    },
+    {
+      "path": "RE4-Android-Decomp/docs/UPDATE-M28.md",
+      "sha256": "e6fdecde32b2e00ef1effeef39140cf311260e53d5b13eba1db145171facc77c"
+    },
+    {
+      "path": "RE4-Android-Decomp/docs/VALIDATION.md",
+      "sha256": "40eb89fdec3acbb1a7d834ec32f7b3262167aa42a7ad114524be335ad6495818"
+    },
+    {
+      "path": "RE4-Android-Decomp/tests/follow_camera_tests.cpp",
+      "sha256": "402903c0da30e74d90a7a283a8e18f8d2305929fd32b3068c110b0069be4a9a5"
+    },
+    {
+      "path": "RE4-Android-Decomp/tests/laser_sight_tests.cpp",
+      "sha256": "a43b825acd0d920578e57edd77b37d60c32de2bb26ec197a7f32c0a0e40d90df"
+    },
+    {
+      "path": "RE4-Android-Decomp/tests/room_flow_tests.cpp",
+      "sha256": "45d21fca4c4ae8f2cbf667c345cd08c73e237c87d83dc1f8584b649edf6beee4"
+    },
+    {
+      "path": "RE4-Android-Decomp/tools/test_android_bridge_gl.cpp",
+      "sha256": "73e3471d72352b34ff75d46d3df3c48a702f92a1cdb645cf035150ea3d53d194"
+    },
+    {
+      "path": "RE4-Android-Decomp/tools/test_follow_camera_gl.cpp",
+      "sha256": "08737e38f7b1147b972c631fbb21e325fbc33983f096cb3fdc44657617c48ba0"
+    },
+    {
+      "path": "RE4-Android-Decomp/tools/test_host.sh",
+      "sha256": "c25e773a2dfd8946f2c5e44eb5d88a86954fcf23599afb08ba01266e9cc031b6"
+    },
+    {
+      "path": "RE4-Android-Decomp/tools/test_laser_gl.cpp",
+      "sha256": "b65acb2028f6abd15d6f5064c0df33d226885089695928621b039632af36feb2"
+    },
+    {
+      "path": "RE4-Android-Decomp/tools/test_m28_assets.cpp",
+      "sha256": "b7608fd7c068f3b6503e8d87122b090b37eac1b69bfec0a5dba992e3e8ece0f7"
+    },
+    {
+      "path": "RE4-Android-Decomp/tools/test_m28_runtime.cpp",
+      "sha256": "9babfea7feded88118f0f35576c0d0f0ee0b7d97575cc0bb751e05e2ac092cdf"
+    }
+  ]
+}

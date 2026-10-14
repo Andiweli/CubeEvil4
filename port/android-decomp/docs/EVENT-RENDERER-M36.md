@@ -1,0 +1,33 @@
+# M36: Originale Ereignismodelle im GLES-Zeichenpfad
+
+`event_actor_gl` verbindet die vom Lade-Worker vorbereiteten Originaldaten von `OriginalEvent` mit dem GLES-Renderer. Der geprüfte Umfang sind die tatsächlich gelieferten Ereignisse `r100s03` und `r100s20`. Es wird kein Film, kein nachgezeichnetes Modell und keine neu erzeugte Grafik als Ersatz verwendet.
+
+## Kamera, Modelle und Licht
+
+Die Szene übernimmt die ausgewerteten Original-FCV-Werte für Kameraposition, Ziel, Rollwinkel und Sichtfeld. Während des Ereignisses werden gewöhnliche Leon- und Waffenmodelle ausgeblendet; deren Animation und Kameraeingabe bleiben beim Ereignisbesitzer eingefroren. Die unabhängigen originalen `SetOm`-/`SetParts`-Modelle verwenden ihre echten BIN-Eckpunkte, getrennte Positions-/Normalengewichte, FCV-Teilmatrizen, Bind-Mitten, Parent-Matrizen, TPL-Paletten und Transparenzmasken.
+
+Jeder Ereignisakteur besitzt einen eigenen GPU-Eintrag. Unveränderte Frames laden weder Modelltexturen noch Meshdaten neu. Eine geänderte originale Gesichtsform aktualisiert ausschließlich den vorhandenen Vertexpuffer. Anhänge benutzen das echte Elternskelett. Das originale `wep0200`-Handgun besitzt eine absichtlich leere FCV und eine Ruhe-Wurzel bei `(0,0,0)`: Die Ruhetranslationen und inversen Bind-Matrizen aus `cModel::setPartsOffset` heben sich bei unverformten Vertices auf. Seine Identitätspalette reproduziert deshalb die unveränderten Originalkoordinaten; die Ereignis-Parent-Matrix bleibt wirksam.
+
+Die aktive Original-LIT-Datei ersetzt während eines Frames die Raumbeleuchtung und den Nebel. Anschließend wird die normale Raum-LIT wiederhergestellt. `SetObj18` setzt unterschiedliche Lichtklassen: Leon und Handgun verwenden Maske1, Ganados Maske2 und OBM-/LKW-Modelle Maske4. Das Ereignismodell liefert zusätzlich den aus seinen Original-BIN-Grenzen bestimmten Mittelpunkt und den Radius der halben Boxdiagonale. Anhänge übernehmen die originale Lichtinformation ihres Körpers. Damit benutzt der LKW nicht mehr versehentlich die Lichtklasse des Spielers.
+
+Die tatsächlich enthaltenen Parent-Lichter verwenden ausschließlich `ParentType1/no0`. `cLight::calcParent` löst sie über `EmMgr` zum normalen Gameplay-`pPL` auf, nicht zum unabhängigen Ereigniskörper `PPl`. Der Renderer behält dafür die eingefrorenen Gameplay-Leon-Matrizen, während er dessen sichtbares Mesh ausblendet. Vor `r100s20` erzeugt `r100_em_set` alle sieben Ganados. Ihre Modelle bleiben während sämtlicher Cuts sichtbar; Script-Suspension betrifft ihre AI-Ticks. Der Bridge-Besitzer lässt nur die originalen laufenden Ganados4/5 ab Cut2 weiterlaufen.
+
+Die Box-Diagonale, der Mittelpunkt und die Lichtmasken sind quellengestützt. Der gemeinsame Lichtselektor verwendet weiterhin seinen bestehenden Radius-Test; der originale achsenbezogene `lightHitCheckBBox` wird damit nicht vollständig emuliert. Diese Änderung behauptet keine vollständig pixelgleiche Licht- oder Schattenemulation.
+
+## Originaleffekte und Untertitel
+
+Ereignis-EST-/EFF-Texturen besitzen einen separaten GPU-Slot. Er ersetzt weder die Raumeffektsimulation noch Mündungs- oder Gegnereffekte. Die CPU-Ereigniszustände liefern Original-Cut, Originalframe, Zufallszustand und echte Modell-Parent-Matrizen; der Zeichenaufruf erhöht diese Zeit nicht. `WorldEffectQuads` projiziert die tatsächlichen Sprites und den ursprünglichen Esp12-Streifen mit der Ereigniskamera. Die geprüften Originalrecords verwenden reguläre Texturen, Blends0/1 und keine gekachelten Quads.
+
+Die japanischen Untertitel lesen ihre echten MDT-Glyphen und die Originalschrift `font/event1_j.fnt` mit 28-Pixel-Zellen. `MessageControl::setLayout(LAYOUT_CAPTION)` gibt dafür Zeichen25×27, Abstand1, Zeilenabstand27 und die erste Quellzeile bei `y281` vor. Nichtjapanische Original-Captionmaße sind22×32, Abstand−1, Zeilenabstand25 und `y278`. Die ursprüngliche 512×384-Nachrichtenprojektion wird gleichmäßig auf den aktiven640×360-Bildbereich übertragen und bei abweichenden Displays proportional skaliert. Farbe, Glyphbreite, Bearings und breiteste-Zeile-Zentrierung stammen aus `mes.cpp` und der Originalschrift. Der Untertitelpass stellt alle von ihm berührten GLES-Zustände auch nach dem ersten Font-Upload wieder her.
+
+Im gelieferten NTSC-EVD unterdrückt der Originalcode englische Eventcaptions. Die vorhandenen MDT-Blöcke2..5 enthalten identische andere Glyphdaten, die außerhalb der Original-Western-Schrift liegen; daraus werden keine erfundenen deutschen Texte oder Ersatzglyphen erzeugt. Die Runtime lehnt solche unpassenden Ressourcen bereits vor Beginn ab. Der normale aktuelle Spielmodus verwendet Englisch ohne Eventcaptions; der GPU-Test prüft die tatsächlich verfügbaren japanischen Captions.
+
+## Prüfungen
+
+`tools/test_event_actor_gl.cpp` verwendet echte Disc-EVD/BIN/FCV/TPL/EFF-/Font-Dateien und den Produktionsrenderer in einem GLES3-EGL-Kontext. Es prüft alle21s03- und alle5s20-Kameracuts, sichtbare Originalmodelle, unabhängige doppelt genaue CPU-Auswertung der tatsächlich skinned/morphed GPU-Eckpunkte, Normalansicht und exakte Materialrückkehr. Weitere Bedingungen prüfen Textur- und Mesh-Caches, echte Schriftpixel, getrennte EST-Pixel, Pause sowie identische Modell-/Schriftpixel nach Destroy und tatsächlicher EGL-Kontextneuerzeugung.
+
+Der finale Lauf besteht **487.929 Prüfbedingungen**. Alle26Originalcuts enthalten sichtbare Ereignismodelle. Die GPU-Skinabweichung beträgt höchstens0,013607Originaleinheiten. Bei s03 werden720 und bei s20 236Frames mit Gesichts-Mesh-Uploads beobachtet. Die echten japanischen Schriftbilder verändern17.142 beziehungsweise15.875Pixel. Die Original-EST-Effekte sind in11/11s03- und18/35s20-Stichproben sichtbar; die übrigen s20-Samples liegen außerhalb der aktuellen Kamera oder sind in diesem Frame transparent.
+
+Die optionalen PPMs sind native Host-GLES-Framebuffers der Modelle, Glyphen beziehungsweise EST-Effekte auf einem leeren Testhintergrund. Sie sind keine Android-Gerätebilder und enthalten in diesem Einzeltest keine komplette Raumkomposition. Die Produktions-JNI-/Szenenintegration wird zusätzlich von `m36_runtime_check` geprüft. Original-Disc-Daten und exportierte Originalbilder werden nicht mit dem Quellpaket geliefert.
+
+Quellstellen: `game/event.cpp::ExePacket_SetOm`, `ExePacket_SetParts`, `ExePacket_Cam`, `ExePacket_Lit`, `ExePacket_Mes`, `EventCutEstSet` und `ExeEndEvt`; `game/obj18.cpp::SetObj18`; `game/model.cpp::getBoundingBox` und `setPartsOffset`; `game/lightInfo.cpp::init2/getPos`; `game/light.cpp::calcParent/setModel2/lightHitCheckBBox`; `game/mes.cpp::loadEventFont`, `setLayout`, `WidthCk`, `QueSet` und `draw`.

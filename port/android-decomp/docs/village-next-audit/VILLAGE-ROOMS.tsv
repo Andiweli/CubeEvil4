@@ -1,0 +1,30 @@
+room	editor_name	disc	starts	aev_records	door_records	ladders	ita_records	scr_at_records	sat_entries	blocks	esl00_records	esl01_records	targets	source_functions	native_available_doors
+r100	MORI	1	2	40	1	0	24	7	1	5	25	0	r101	31	
+r101	MURA	1	2	27	4	1	41	0	1	0	46	0	r100,r102,r103,r105	30	
+r102	TIKADOU	1	1	7	2	1	20	0	1	0	1	0	r101,r108	5	
+r103	FARM	1	2	13	2	0	28	1	1	0	18	0	r101,r106	16	
+r104	KANKIN	1	2	21	1	3	27	0	1	0	28	0	r107	29	
+r105	SONTYOU HOUSE	1	3	27	2	0	27	2	1	0	17	0	r101,r107	30	
+r106	HAISON	1	2	17	2	0	23	1	1	0	16	0	r103,r104	18	
+r107	KANKIN_2	1	2	6	2	1	27	0	1	0	25	0	r104,r105	7	
+r108	TOMB	1	2	15	3	0	20	0	1	0	25	0	r102,r109,r117	17	
+r109	COLOSSEUM	1	1	4	3	0	19	0	4	0	15	0	r108,r10a,r10e	3	
+r10a	NUMA	1	2	9	2	0	19	0	1	0	29	0	r109,r10b	7	
+r10b	MIZUUMI	1	2	7	2	0	17	0	1	0	4	0	r10a,r11b	18	
+r10c	TAKI(night)	1	2	18	2	3	19	4	1	0	0	12	r10e,r11b	21	
+r10d	BUKI-SYOUNIN(night)	1	1	5	1	2	21	0	1	0	0	2	r11b	2	
+r10e	SUIRO(night)	1	2	8	5	1	18	0	1	0	6	17	r109,r10c,r10e,r119	3	
+r10f	GONDOLA(night)	1	4	20	4	3	20	0	1	0	0	18	r11d,r11e,r11f,r200	15	
+r111	MURA(night)	1	1	22	2	1	25	0	1	0	0	13	r112,r113	3	
+r112	TIKADOU(night)	1	1	5	2	1	17	0	1	0	0	1	r111,r118	3	
+r113	FARM (night)	1	1	13	2	0	29	1	1	0	0	16	r111,r11c	9	
+r117	CHURCH(night)	1	2	15	2	1	28	4	1	0	0	2	r118	23	
+r118	TOMB(night)	1	2	18	4	0	25	1	1	0	0	12	r112,r117,r119	11	
+r119	COLOSSEUM(night)	1	1	7	3	0	22	3	4	0	0	2	r10e,r118,r11a	29	
+r11a	NUMA(night)	1	2	3	2	0	19	0	1	0	0	11	r119,r11b	2	
+r11b	MIZUUMI (night)	1	2	10	3	0	19	0	1	0	0	18	r10c,r10d,r11a	16	
+r11c	ROUZYOU(night)	1	1	13	3	0	16	2	1	0	0	10	r113,r11d,r11e	23	
+r11d	SEKISYO(night)	1	2	22	2	1	25	1	1	0	0	33	r10f,r11c	20	
+r11e	HOKORA(night)	1	2	4	2	0	27	0	4	0	0	2	r10f,r11c	18	
+r11f	SONTYOU-BOSS(night)	1	2	12	1	2	13	3	1	0	0	4	r10f	16	
+r120	OPENING	1	1	0	0	0	0	0	1	0	0	0		8	

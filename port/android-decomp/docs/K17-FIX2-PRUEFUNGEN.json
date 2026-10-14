@@ -1,0 +1,138 @@
+{
+  "date": "2026-10-08",
+  "update": "K17 Fix2",
+  "versionCode": 51,
+  "versionName": "0.37.17-fix2",
+  "baseFiles": [
+    {
+      "filename": "RE4-Android-Decomp-K17.zip",
+      "sha256": "c7ed9f078a605fad096b32efdaab418367a9a1511b5d66df2b22c800f71531b9"
+    },
+    {
+      "filename": "RE4-K17-Austauschdateien.zip",
+      "sha256": "2dedc2777552d6dbd7f943e948ec8728e9f0b60dccb42f21b9dc8a5acfcc8fd8"
+    }
+  ],
+  "containsFix1": true,
+  "originalSourceTree": {
+    "byteUnchanged": true,
+    "files": 2129
+  },
+  "fix2OriginalData": {
+    "result": "PASS",
+    "checks": 3122,
+    "weaponProfiles": 38,
+    "villageGroups": [
+      "initial",
+      "first wave",
+      "second wave"
+    ],
+    "fullBellFrames": 1350,
+    "houseLadders": 3
+  },
+  "fix2JavaPresentation": {
+    "result": "PASS",
+    "checks": 81,
+    "actualScopeProfiles": 10,
+    "rifleScopeMaskQuadrants": 4,
+    "clockPaintCostMillis": [
+      0,
+      8,
+      25
+    ]
+  },
+  "fix2ProductionJniGles": {
+    "result": "PASS",
+    "checks": 2572,
+    "scopeLayouts": 10,
+    "projectileVisibleRgbPixels": {
+      "54": 112,
+      "171": 631,
+      "53": 3145,
+      "23": 3143,
+      "109": 3069,
+      "82": 3429,
+      "1": 479,
+      "2": 439,
+      "14": 527
+    },
+    "completeLadderClimbs": 3,
+    "ordinaryDeathDropWithoutRoomRebuild": "PASS",
+    "bellCutsAndFollowingPhysicalStartRadio": "PASS"
+  },
+  "fix1OriginalData": {
+    "result": "PASS",
+    "checks": 7060,
+    "carryProfiles": 38,
+    "lifeValues": [
+      1200,
+      700
+    ]
+  },
+  "fix1ProductionJniGles": {
+    "result": "PASS",
+    "checks": 7143,
+    "roomTransition": "r100->r101",
+    "radioWeaponProfiles": 25,
+    "physicalStickAndResumedWorld": "PASS"
+  },
+  "k17OriginalWeapons": {
+    "result": "PASS",
+    "checks": 3437,
+    "profiles": 38
+  },
+  "k17FullProductionJniGles": {
+    "result": "PASS",
+    "checks": 6529,
+    "includesK16FullCampaignRun": true,
+    "loadedFurtherStage1Rooms": 26
+  },
+  "javaBroadContracts": "PASS",
+  "originalCardAssetChecks": {
+    "result": "PASS",
+    "nativeSave": 79,
+    "titleLoadAssets": 937,
+    "javaSave": 56,
+    "cardFlow": 42,
+    "cardMessageGeometry": 46
+  },
+  "registeredCtestGroups": {
+    "result": "PASS",
+    "passed": 43,
+    "total": 43,
+    "optionalAssets": "default invocation; original assets additionally exercised by explicit checks"
+  },
+  "androidNativeBuild": "PASS",
+  "apk": {
+    "filename": "RE4-M37-K17-Fix2.apk",
+    "sizeBytes": 29590843,
+    "sha256": "ca087fa20dc26595a852039a260782cee8a6fde944f4ee2542744dc33db46b09",
+    "versionCode": 51,
+    "versionName": "0.37.17-fix2",
+    "abi": "arm64-v8a",
+    "sameSigningCertificateAsK17": true,
+    "signatureSchemes": [
+      1,
+      2,
+      3
+    ],
+    "zipalign16KiB": "PASS",
+    "elfLoadAlignment16KiB": "PASS",
+    "nativeLibraryMatchesBuild": true,
+    "allJavaSourcesCompiled": 46,
+    "freshDEX": true,
+    "resourcesLinkedAgainstApi35": true
+  },
+  "newGradleAssembleDebug": "not run",
+  "newLint": "not run",
+  "physicalAndroidDevice": "not tested",
+  "glesHost": "Linux EGL/GLES3 software rendering",
+  "knownPortLimits": [
+    "later-room individual campaign/enemy/boss/merchant/partner/boat/ferry runtimes incomplete",
+    "full special Ganado navigation/actions incomplete",
+    "full GX indirect/strip/filter and particle effects incomplete",
+    "mine homing and complete cartridge/rocket exhaust effects incomplete",
+    "special rocket loaded/projectile tint incomplete"
+  ],
+  "legacyOptionalMotionAssetTest": "K17/Fix1 preexisting aimRate assertion documented in K17-FIX1.md; not counted as a Fix2 success"
+}

@@ -1,0 +1,40 @@
+r103 SST 8 banks warnings 4
+r103 enemy 95 type 3
+r103 enemy 96 type 0
+r103 enemy 97 type 4
+r103 enemy 98 type 1
+r103 enemy 99 type 4
+r103 verified 5 source Ganados, 1 typewriters
+r111 SST 9 banks warnings 4
+r111 enemy 160 type 0
+r111 enemy 161 type 3
+r111 enemy 162 type 1
+r111 enemy 163 type 1
+r111 enemy 164 type 12
+r111 enemy 165 type 3
+r111 enemy 166 type 12
+r111 enemy 167 type 0
+r111 verified 8 source Ganados, 0 typewriters
+r113 SST 8 banks warnings 5
+r113 enemy 180 type 0
+r113 enemy 181 type 1
+r113 enemy 182 type 3
+r113 enemy 183 type 12
+r113 enemy 184 type 0
+r113 enemy 185 type 3
+r113 enemy 187 type 1
+r113 enemy 188 type 12
+r113 verified 8 source Ganados, 1 typewriters
+r11a SST 9 banks warnings 10
+r11a enemy 20 type 3
+r11a enemy 22 type 4
+r11a enemy 24 type 4
+r11a enemy 25 type 4
+r11a enemy 26 type 1
+r11a enemy 28 type 3
+r11a enemy 29 type 4
+r11a enemy 31 type 0
+r11a enemy 32 type 1
+r11a enemy 33 type 3
+r11a enemy 34 type 4
+r11a verified 11 source Ganados, 0 typewriters

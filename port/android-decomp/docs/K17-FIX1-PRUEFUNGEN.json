@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-08",
+  "update": "K17 Fix1",
+  "versionCode": 50,
+  "versionName": "0.37.17-dev",
+  "baseFiles": [
+    {
+      "filename": "RE4-Android-Decomp-K17.zip",
+      "sha256": "c7ed9f078a605fad096b32efdaab418367a9a1511b5d66df2b22c800f71531b9"
+    },
+    {
+      "filename": "RE4-K17-Austauschdateien.zip",
+      "sha256": "2dedc2777552d6dbd7f943e948ec8728e9f0b60dccb42f21b9dc8a5acfcc8fd8"
+    }
+  ],
+  "baselineReproductions": {
+    "healthyLoadedWeapon": "Hand Grenade (1) turns toward physical LS direction, HP 1200: FAIL as expected on K17",
+    "injuredPlayer": "Default handgun turns toward physical LS direction, HP 700: FAIL as expected on K17",
+    "radioRestore": "Leon: original grab is not ported: FAIL as expected on K17"
+  },
+  "originalData": {
+    "result": "PASS",
+    "checks": 7060,
+    "carryProfiles": 38,
+    "hp": [
+      1200,
+      700
+    ]
+  },
+  "productionJniGles": {
+    "result": "PASS",
+    "checks": 7143,
+    "radioWeapons": 25,
+    "realRoomTransition": "r100->r101",
+    "simulationAfterRadio": "PASS"
+  },
+  "previousK17Runtime": {
+    "result": "PASS",
+    "checks": 6807
+  },
+  "previousK17Weapons": {
+    "result": "PASS",
+    "checks": 3436
+  },
+  "registeredCtestGroups": {
+    "result": "PASS",
+    "passed": 43,
+    "total": 43,
+    "optionalAssets": "default invocation; original assets are exercised by the explicit data/JNI checks"
+  },
+  "legacyOptionalMotionAssetTest": {
+    "result": "PREEXISTING_FAILURE",
+    "unchangedK17": "actor.aimRate() == 0.f at player_motion_tests.cpp:227",
+    "fix1": "same assertion, same failure",
+    "productionAimControl": "not changed"
+  },
+  "carryTableRegeneration": "byte-for-byte PASS",
+  "androidNativeBuild": "PASS",
+  "apk": {
+    "filename": "RE4-M37-K17-Fix1.apk",
+    "sizeBytes": 29578555,
+    "sha256": "02751eec684e3b1a80c6c449b3874a2c9754872b4da899ea7d9ae1b1b1206c38",
+    "versionCode": 50,
+    "versionName": "0.37.17-dev",
+    "abi": "arm64-v8a",
+    "sameSigningCertificateAsK17": true,
+    "signatureSchemes": [
+      1,
+      2,
+      3
+    ],
+    "zipalign16KiB": "PASS",
+    "elfLoadAlignment16KiB": "PASS",
+    "nativeLibraryMatchesBuild": true,
+    "allOtherPayloadsMatchK17": true
+  },
+  "javaResources": "byte-identical to K17",
+  "newGradleAssembleDebug": "not run",
+  "newLint": "not run",
+  "physicalAndroidDevice": "not tested"
+}

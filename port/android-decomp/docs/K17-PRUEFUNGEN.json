@@ -1,0 +1,222 @@
+{
+  "update": "K17",
+  "versionName": "0.37.17-dev",
+  "versionCode": 50,
+  "date": "2026-10-08",
+  "baseline": "RE4-Android-Decomp-K16-Quellstand.zip",
+  "originalSourceCommit": "9b76ff003081d6ece8b838453fb8310743a972c7",
+  "fixture": "User-provided original USA GameCube Disc 1, English/shared files and decoded rooms; not included in source or APK deliverables",
+  "fixedReports": [
+    "First fresh LT/L2 press starts aiming after pause/case/equip; held menu input remains gated",
+    "All 25 equippable cheat IDs shoot/throw and use their appropriate source actions/ammunition; 38 carry/accessory profiles load and fire",
+    "Healthy knife sheath uses the original healthy weapon motion; injured sheath uses PL87 according to dmMotCk",
+    "Player/weapon GPU rebuild preserves enemy and animal owners instead of clearing them"
+  ],
+  "additionalCorrections": [
+    "All six original scope layouts retain referenced shared CORE textures and their weapon reticles",
+    "Original WEP19 zero-cue sound bank is valid and replaces the previous active weapon bank",
+    "Original WEP28 packed melodic key shares its region word; access is bounded by the DLS extent and all subsequent indices remain validated",
+    "Tests use the current 1024-action parser budget and the already registered r101-to-r100 reverse door"
+  ],
+  "nativeChecks": [
+    {
+      "target": "ctest",
+      "result": "PASS",
+      "groups": 43,
+      "scope": "Registered native contracts, animation bounds, collision/doors, inventory, save/menu, audio, effects and GLES regression groups"
+    },
+    {
+      "target": "k17_weapons_check",
+      "result": "PASS",
+      "checks": 3436,
+      "profiles": 38,
+      "scope": [
+        "First aim edge after suspend",
+        "Original per-family fire/reload/ammo and 13-pellet shotgun rays",
+        "Finite rocket/mine/arrow flight and grenade fuses",
+        "Non-damaging original flash recovery",
+        "119-joint healthy and injured knife sheath poses against independently loaded original FCV/SEQ motions after the authored interpolation"
+      ]
+    },
+    {
+      "target": "k17_runtime_check",
+      "result": "PASS",
+      "checks": 6807,
+      "campaignChecks": 2735,
+      "additionalWeaponChecks": 4072,
+      "equippableIds": 25,
+      "scopeLayouts": 6,
+      "scope": [
+        "Production JNI/EGL/GLES rendering with original assets",
+        "Unchanged actual enemy framebuffer pixels across all equippable IDs",
+        "First physical LT edge, fire and held-input menu gating",
+        "All scope layout/texture variants decode",
+        "r101 radio/LOOK/binocular view, complete house and bell EVD, waves and tower bottle impact",
+        "Original injured movement, death, checkpoint CONTINUE and EM15 type11 discovery",
+        "Remaining village-room load starts and floorless-boat transfer rollback"
+      ],
+      "weaponAudioParserWarnings": 0
+    },
+    {
+      "target": "audio_check",
+      "result": "PASS",
+      "weaponArchives": 27,
+      "decodedCues": 377,
+      "checks": 2289,
+      "scope": "Every unique original archive used by the 38 weapon/carry profiles, including valid empty grenade bank and packed bow bank; DSP decoding and CPU mixer render"
+    },
+    {
+      "target": "k15_village_check",
+      "result": "PASS",
+      "rooms": 29,
+      "authoredTransitions": 66,
+      "ganadoOwners": 43,
+      "completedEvents": {
+        "r101s00": 210,
+        "r101s21": 799,
+        "r101s30": 1330
+      },
+      "scope": "Original registration/floor/actor/event data"
+    },
+    {
+      "target": "blast_combat_check",
+      "result": "PASS",
+      "checks": 269320,
+      "scope": "Existing original explosion, damage, protection, RNG and authored-eye FCV/SEQ reference rules"
+    },
+    {
+      "target": "m37_save_game_check",
+      "result": "PASS",
+      "checks": 79,
+      "scope": "Original save header/checksums and native round trip; generated fixture consumed by Java original-save/card-flow tests"
+    }
+  ],
+  "javaChecks": [
+    {
+      "test": "DiscTests",
+      "checks": 8,
+      "result": "PASS"
+    },
+    {
+      "test": "ControllerPolicyTests",
+      "checks": 11,
+      "result": "PASS"
+    },
+    {
+      "test": "GameMenuNavigationTests",
+      "checks": 80,
+      "result": "PASS"
+    },
+    {
+      "test": "GameMenuLayoutTests",
+      "checks": 7721,
+      "result": "PASS"
+    },
+    {
+      "test": "GameMapCameraTests",
+      "checks": 11,
+      "result": "PASS"
+    },
+    {
+      "test": "StartupFlowTests",
+      "checks": 1378,
+      "result": "PASS"
+    },
+    {
+      "test": "StartupOptionsTests",
+      "checks": 17,
+      "result": "PASS"
+    },
+    {
+      "test": "CockpitContinueTests",
+      "checks": 51,
+      "result": "PASS"
+    },
+    {
+      "test": "StartupVoiceTests",
+      "checks": 14,
+      "result": "PASS"
+    },
+    {
+      "test": "StartupPresentationTests",
+      "checks": 123,
+      "result": "PASS"
+    },
+    {
+      "test": "SceneLoadGateTests",
+      "checks": 24,
+      "result": "PASS"
+    },
+    {
+      "test": "RoomRepositoryTest",
+      "checks": 76,
+      "result": "PASS"
+    },
+    {
+      "test": "RoomCatalogTests",
+      "checks": 401,
+      "result": "PASS"
+    },
+    {
+      "test": "OriginalSaveTests",
+      "checks": 56,
+      "result": "PASS"
+    },
+    {
+      "test": "CardFlowTests",
+      "checks": 42,
+      "result": "PASS"
+    }
+  ],
+  "androidCompilation": {
+    "nativeArm64": "PASS",
+    "ndk": "28.2.13676358",
+    "nativeApi": 21,
+    "cmake": "3.22.1",
+    "java": "PASS: all app Java files and generated R, JDK17 / SDK35",
+    "resources": "PASS: aapt2 compile/link",
+    "dex": "PASS: SDK35 D8, minAPI21",
+    "apk": "PASS: assembled with SDK tools and signed with the supplied existing key",
+    "assembleDebug": "Not run successfully: environment Maven dependency resolution unavailable; SDK packaging used",
+    "lint": "Not run",
+    "deviceTest": "Not run"
+  },
+  "apkVerification": {
+    "filename": "RE4-M37-K17.apk",
+    "sizeBytes": 29578555,
+    "sha256": "b2fe730bb0d45216b01f3c7f5976753247afe81acb26039ff1e0413430e7c0fa",
+    "signingCertificateSha256": "31ac6bef27dc5dd0f27a4d6463ef8615277b67e2ae5eaa87daf5f3cbb335a6e5",
+    "schemes": [
+      1,
+      2,
+      3
+    ],
+    "zipalign16KiB": "PASS",
+    "nativeLibraryMatchesFinalBuild": true,
+    "dexMatchesJavaBuild": true
+  },
+  "sourceAudits": {
+    "originalUpstreamFilesIdenticalToK16": 2132,
+    "weaponActionGenerator": {
+      "result": "PASS: byte-for-byte regeneration",
+      "controllers": 21,
+      "sha256": "83fc22ce251ce07da74d9a4e8e1d18f48c4fdd1e25ac5d742efe1157364e92bc"
+    },
+    "weaponCarryGenerator": {
+      "result": "PASS: byte-for-byte regeneration",
+      "profiles": 38,
+      "sha256": "1b1c4a079bfde9ce707e1cb7b9ba9f1af9da1437d418cb9ccec8bdae8b4880fd"
+    },
+    "signingKeysOrDiscImagesIncluded": false,
+    "gradleWrapperIncluded": true,
+    "gameLanguage": "English only"
+  },
+  "remainingLimits": [
+    "Android/device/controller presentation and audio have not been tested on a physical device",
+    "Thermal scope layout/reticle load, but the complete original heat-vision rendering is not ported",
+    "Krauser Bow on Leon is a source-data test profile; not an original Leon campaign/menu setup",
+    "Boat/ferry, later story, boss and companion runtimes retain documented K15 limits",
+    "Full original EM15 special AI/path behavior, gore and all GX/light/filter details remain incomplete",
+    "Known r101 Esp46/Filter03 glow and additional EAR/SST presentation backends remain pending; original flames/smoke run"
+  ]
+}

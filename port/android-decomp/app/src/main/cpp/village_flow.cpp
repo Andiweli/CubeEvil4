@@ -1,0 +1,135 @@
+// Door graph: literal DVD1 AEV records, audited against st1 room scripts.
+#include "village_flow.h"
+#include <algorithm>
+namespace re4 {
+namespace {
+constexpr unsigned rooms[]={0x100,0x101,0x102,0x103,0x104,0x105,0x106,0x107,0x108,0x109,0x10a,0x10b,0x10c,0x10d,0x10e,0x10f,0x111,0x112,0x113,0x117,0x118,0x119,0x11a,0x11b,0x11c,0x11d,0x11e,0x11f,0x120};
+struct Edge {unsigned source,area,target,part;};
+constexpr Edge edges[]={
+  {0x100,0x00,0x101,0},
+  {0x101,0x00,0x100,0},
+  {0x101,0x01,0x105,0},
+  {0x101,0x02,0x103,0},
+  {0x101,0x19,0x102,0},
+  {0x102,0x00,0x101,0},
+  {0x102,0x01,0x108,0},
+  {0x103,0x00,0x101,0},
+  {0x103,0x01,0x106,0},
+  {0x104,0x00,0x107,0},
+  {0x105,0x00,0x107,0},
+  {0x105,0x01,0x101,0},
+  {0x106,0x00,0x103,0},
+  {0x106,0x03,0x104,0},
+  {0x107,0x00,0x104,0},
+  {0x107,0x01,0x105,0},
+  {0x108,0x00,0x117,0},
+  {0x108,0x01,0x109,0},
+  {0x108,0x03,0x102,0},
+  {0x109,0x00,0x108,0},
+  {0x109,0x01,0x10a,0},
+  {0x109,0x03,0x10e,0},
+  {0x10a,0x00,0x109,0},
+  {0x10a,0x01,0x10b,0},
+  {0x10b,0x00,0x10a,0},
+  {0x10b,0x06,0x11b,0},
+  {0x10c,0x00,0x11b,0},
+  {0x10c,0x02,0x10e,0},
+  {0x10d,0x00,0x11b,0},
+  {0x10e,0x00,0x109,0},
+  {0x10e,0x01,0x119,0},
+  {0x10e,0x02,0x10c,0},
+  {0x10e,0x04,0x10e,1},
+  {0x10e,0x05,0x10e,2},
+  {0x10f,0x00,0x11d,0},
+  {0x10f,0x01,0x11f,0},
+  {0x10f,0x02,0x200,0},
+  {0x10f,0x03,0x11e,0},
+  {0x111,0x02,0x113,0},
+  {0x111,0x19,0x112,0},
+  {0x112,0x00,0x111,0},
+  {0x112,0x01,0x118,0},
+  {0x113,0x00,0x111,0},
+  {0x113,0x02,0x11c,0},
+  {0x117,0x00,0x118,0},
+  {0x117,0x0b,0x118,0},
+  {0x118,0x00,0x117,1},
+  {0x118,0x01,0x119,0},
+  {0x118,0x03,0x112,0},
+  {0x118,0x04,0x117,0},
+  {0x119,0x00,0x118,0},
+  {0x119,0x01,0x11a,0},
+  {0x119,0x06,0x10e,0},
+  {0x11a,0x00,0x119,0},
+  {0x11a,0x01,0x11b,0},
+  {0x11b,0x00,0x11a,0},
+  {0x11b,0x01,0x10c,0},
+  {0x11b,0x02,0x10d,0},
+  {0x11c,0x00,0x113,0},
+  {0x11c,0x01,0x11d,0},
+  {0x11c,0x02,0x11e,0},
+  {0x11d,0x00,0x11c,0},
+  {0x11d,0x01,0x10f,0},
+  {0x11e,0x00,0x11c,0},
+  {0x11e,0x01,0x10f,0},
+  {0x11f,0x00,0x10f,0},
+};
+bool has(const ScenarioState &s,unsigned item) {
+  const auto i=s.carriedItems.find(item);return i!=s.carriedItems.end() && i->second;
+}
+}
+bool IsVillageRoom(unsigned id) {return std::find(std::begin(rooms),std::end(rooms),id)!=std::end(rooms);}
+bool IsAuthoredVillageDoor(const RoomDoor &d) {
+  for(const auto &e:edges)if(e.source==d.sourceRoom && e.area==d.no &&
+      e.target==d.destinationRoom && e.part==d.destinationPart)return true;
+  return false;
+}
+unsigned VillageEnemyList(unsigned room,bool night,unsigned previous) {
+  // stage.cpp::GetEmListNo: r10e retains the preceding list during the day.
+  if(!IsVillageRoom(room))return previous;
+  if(room==0x120)return 0;
+  if(room==0x10e)return night?1:previous;
+  return room>0x10b?1:0;
+}
+std::string VillageDoorReason(const RoomDoor &d,const ScenarioState &s,unsigned part,unsigned ticks) {
+  if(!IsAuthoredVillageDoor(d))return "Unknown room transition";
+  const auto &r=s.room(d.sourceRoom).room;
+  const auto locked=[] {return std::string("The door is locked.");};
+  if(d.keyId && !s.key.test(d.keyFlag))return "The door is locked from the other side.";
+  switch(d.sourceRoom) {
+  case 0x101:
+    if((d.no==0 || d.no==2) && r.test(6) && !r.test(7))return "There are enemies outside.";
+    if(d.no==1 && !s.key.test(6))return "The door is locked from the other side.";
+    if(d.no==0x19 && !s.key.test(2))return locked();
+    break;
+  case 0x104:if(d.no==0 && !s.key.test(9))return locked();break;
+  case 0x10e:
+    if((d.no==0 && s.scenario.test(39)) || (d.no==1 && !s.scenario.test(39)))return "Door area is disabled";
+    if((d.no==4 || d.no==5) && s.scenario.test(39) && part && ticks<120)return "Room transition is settling";
+    break;
+  case 0x10f:
+    if((d.no==0 && !s.key.test(15)) || (d.no==2 && !s.key.test(8)) || (d.no==3 && !s.key.test(12)))return locked();
+    break;
+  case 0x118:
+    if(d.no==1 && s.scenario.test(11))return "We should go back to the village.";
+    if(d.no==4 && !s.key.test(3))return locked();
+    break;
+  case 0x11e:if(d.no==1 && !s.key.test(12))return locked();break;
+  default:break;
+  }
+  return {};
+}
+bool UnlockVillageDoor(const RoomDoor &d,ScenarioState &s) {
+  if(!IsAuthoredVillageDoor(d))return false;
+  unsigned flag=~0u,item=~0u;bool consume=false;
+  if(d.keyId==2 && !s.key.test(d.keyFlag))flag=d.keyFlag;
+  if(d.sourceRoom==0x101 && d.no==0x19 && !s.key.test(2) && has(s,0x3b))flag=2;
+  if(d.sourceRoom==0x104 && d.no==0 && !s.key.test(9) && has(s,0xa6))flag=9;
+  if(d.sourceRoom==0x105 && d.no==1 && !s.key.test(6))flag=6;
+  if(d.sourceRoom==0x118 && d.no==4 && !s.key.test(3) && has(s,0x3c))flag=3;
+  if(d.sourceRoom==0x11d && d.no==1 && !s.key.test(15))flag=15;
+  if(d.sourceRoom==0x11e && d.no==1 && !s.key.test(12) && has(s,0x8b)) {flag=12;item=0x8b;consume=true;}
+  if(flag==~0u)return false;
+  s.key.set(flag);if(consume && !--s.carriedItems[item])s.carriedItems.erase(item);
+  return true;
+}
+} // namespace re4

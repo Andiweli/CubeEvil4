@@ -1,0 +1,105 @@
+{
+  "date": "2026-10-08",
+  "update": "K17 Fix3",
+  "versionCode": 52,
+  "versionName": "0.37.17-fix3",
+  "containsFix1": true,
+  "containsFix2": true,
+  "baseFiles": [
+    {
+      "filename": "RE4-Android-Decomp-K17.zip",
+      "sha256": "c7ed9f078a605fad096b32efdaab418367a9a1511b5d66df2b22c800f71531b9"
+    },
+    {
+      "filename": "RE4-K17-Austauschdateien.zip",
+      "sha256": "2dedc2777552d6dbd7f943e948ec8728e9f0b60dccb42f21b9dc8a5acfcc8fd8"
+    }
+  ],
+  "fix3OriginalData": {
+    "result": "PASS",
+    "checks": 431,
+    "physicalWeaponPartPairs": 10,
+    "bothCombineOrders": true,
+    "nativeSavePartLinksAndMagazine": "PASS",
+    "mineDirections": 24,
+    "villageGroups": 3,
+    "ticksPerVillageGroup": 1800,
+    "originalSpawnXZ": "PASS",
+    "sourceDashFcvSeqAndLiveTransition": "PASS"
+  },
+  "fix3ProductionJniGles": {
+    "result": "PASS",
+    "checks": 1616,
+    "accessorySelectCombineRemoveSave": "PASS",
+    "scopeVariants": "PASS",
+    "mineFlightVisibleRgbPixels": {
+      "0.6": 153,
+      "1.1": 126,
+      "1.72": 102,
+      "2.3": 123
+    },
+    "roomId": "r101",
+    "bellTitleTextures": [
+      128,
+      149,
+      151
+    ],
+    "bellTitleStartsAtSourceFrame": 1100,
+    "titlePreActivationAndNormalEndRadioSkip": "PASS"
+  },
+  "regressions": {
+    "fix1OriginalDataChecks": 7060,
+    "fix1ProductionJniGlesChecks": 7143,
+    "fix1RadioWeapons": 25,
+    "fix1RoomTransition": "r100->r101",
+    "fix2OriginalDataChecks": 3122,
+    "fix2ProductionJniGlesChecks": 2569,
+    "fix2ProjectileProfiles": 9,
+    "fix2ScopeLayouts": 10,
+    "fix2FullHouseLadderClimbs": 3,
+    "weaponsChecks": 3437,
+    "weaponProfiles": 38,
+    "originalSaveCodecChecks": 79,
+    "javaContractGroups": 14,
+    "javaSourceScopesAndUiClockChecks": 81,
+    "ctestGroups": 43,
+    "ctestResult": "PASS"
+  },
+  "androidBuild": {
+    "filename": "RE4-M37-K17-Fix3.apk",
+    "sizeBytes": 29607227,
+    "sha256": "1c5ae57f2f391c759003af12121a11abdd6fe4db091b3cb91d35d4e7f922dd6d",
+    "versionCode": 52,
+    "versionName": "0.37.17-fix3",
+    "abi": "arm64-v8a",
+    "sameSigningCertificateAsK17": true,
+    "signatureSchemes": [
+      1,
+      2,
+      3
+    ],
+    "zipalign16KiB": "PASS",
+    "elfLoadAlignment16KiB": "PASS",
+    "nativeLibraryMatchesBuild": true,
+    "allJavaSourcesCompiled": 47,
+    "freshDEX": true,
+    "resourcesLinkedAgainstApi35": true
+  },
+  "javaAndNativeJniMethods": 75,
+  "verificationEnvironment": "Linux/EGL/GLES3 software renderer; actual Android SDK/NDK, Javac/API35, AAPT2, D8, AST signing; no physical Android or controller run",
+  "notVerified": [
+    "physical Android/Adreno/controller execution",
+    "new Android Canvas title visually on a device",
+    "new Gradle assembleDebug/lint"
+  ],
+  "remainingScope": [
+    "Full special Ganado obstacle/navigation state machine",
+    "Mine homing",
+    "Full infrared thermography lighting pass",
+    "Full later-room campaign scripts"
+  ],
+  "originalSourceTree": {
+    "byteUnchanged": true,
+    "files": 2129
+  }
+}

@@ -1,0 +1,4962 @@
+{
+  "scope": "M34 source/data inventory; not a runtime coverage or equivalence claim",
+  "room_count": 127,
+  "ets_records": 1504,
+  "ets_distinct_ids": 99,
+  "etc_registry": [
+    {
+      "id": "00",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et00_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 32,
+      "rooms": 12,
+      "current_scope": "Shared compatible-asset window runtime; room callbacks and other window kinds pending"
+    },
+    {
+      "id": "01",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et01_init",
+      "classes": [
+        "cEmBox"
+      ],
+      "factories": [
+        "SetBox"
+      ],
+      "placements": 78,
+      "rooms": 30,
+      "current_scope": "Shared cEmBox types0/1/3/5: eligible bound ITA with authoritative global/local taken flags or original empty boxes, source hitboxes/break effect; scenario-owned records suppressed"
+    },
+    {
+      "id": "02",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et02_init",
+      "classes": [
+        "cEmBox"
+      ],
+      "factories": [
+        "SetBox"
+      ],
+      "placements": 43,
+      "rooms": 17,
+      "current_scope": "Shared cEmBox types0/1/3/5: eligible bound ITA with authoritative global/local taken flags or original empty boxes, source hitboxes/break effect; scenario-owned records suppressed"
+    },
+    {
+      "id": "03",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et03_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 12,
+      "rooms": 5,
+      "current_scope": "Shared compatible-asset interior door runtime; door-part destruction and general door scripts pending"
+    },
+    {
+      "id": "04",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et04_init",
+      "classes": [
+        "cEmRack"
+      ],
+      "factories": [
+        "SetRack"
+      ],
+      "placements": 6,
+      "rooms": 3,
+      "current_scope": "Movable rack only in r101 slots13/15/17; other placements and rack types pending"
+    },
+    {
+      "id": "05",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et05_init",
+      "classes": [
+        "cEmRack"
+      ],
+      "factories": [
+        "SetRack"
+      ],
+      "placements": 9,
+      "rooms": 7,
+      "current_scope": "Movable rack only in r101 slots13/15/17; other placements and rack types pending"
+    },
+    {
+      "id": "06",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et06_init",
+      "classes": [
+        "cObjLadder"
+      ],
+      "factories": [
+        "SetLadder"
+      ],
+      "placements": 19,
+      "rooms": 9,
+      "current_scope": "Object ladders only in r101/r400; other rooms and scripted ladder initial states pending"
+    },
+    {
+      "id": "07",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et07_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 7,
+      "rooms": 5,
+      "current_scope": "Shared compatible-asset window runtime; room callbacks and other window kinds pending"
+    },
+    {
+      "id": "08",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et08_init",
+      "classes": [
+        "cObjLadder"
+      ],
+      "factories": [
+        "SetLadder"
+      ],
+      "placements": 12,
+      "rooms": 8,
+      "current_scope": "Object ladders only in r101/r400; other rooms and scripted ladder initial states pending"
+    },
+    {
+      "id": "09",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et09_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 2,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "0a",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et0a_init",
+      "classes": [
+        "cEmTorch"
+      ],
+      "factories": [
+        "SetTorch"
+      ],
+      "placements": 10,
+      "rooms": 5,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "0b",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et0b_init",
+      "classes": [
+        "cEmTorch"
+      ],
+      "factories": [
+        "SetTorch"
+      ],
+      "placements": 2,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "0c",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et0c_init",
+      "classes": [
+        "cEmTorch"
+      ],
+      "factories": [
+        "SetTorch"
+      ],
+      "placements": 25,
+      "rooms": 11,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "0d",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et0d_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 14,
+      "rooms": 12,
+      "current_scope": "Shared compatible-asset interior door runtime; door-part destruction and general door scripts pending"
+    },
+    {
+      "id": "0e",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et0e_init",
+      "classes": [
+        "cEmSwitch"
+      ],
+      "factories": [
+        "SetEmSwitch"
+      ],
+      "placements": 18,
+      "rooms": 8,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "0f",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et0f_init",
+      "classes": [
+        "cEmBarred"
+      ],
+      "factories": [
+        "SetEmBarred"
+      ],
+      "placements": 1,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "10",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et10_init",
+      "classes": [
+        "cEmTorch"
+      ],
+      "factories": [
+        "SetTorch"
+      ],
+      "placements": 27,
+      "rooms": 12,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "11",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et11_init",
+      "classes": [
+        "cEmBox"
+      ],
+      "factories": [
+        "SetBox"
+      ],
+      "placements": 289,
+      "rooms": 59,
+      "current_scope": "Shared cEmBox types0/1/3/5: eligible bound ITA with authoritative global/local taken flags or original empty boxes, source hitboxes/break effect; scenario-owned records suppressed"
+    },
+    {
+      "id": "12",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et12_init",
+      "classes": [
+        "cEmBarrel"
+      ],
+      "factories": [
+        "SetBarrel"
+      ],
+      "placements": 44,
+      "rooms": 14,
+      "current_scope": "Non-rolling explosive barrel subset; original two-tick blast delay, hitboxes and break effect"
+    },
+    {
+      "id": "13",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et13_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 9,
+      "rooms": 5,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "14",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et14_init",
+      "classes": [
+        "cEmTorch"
+      ],
+      "factories": [
+        "SetTorch"
+      ],
+      "placements": 169,
+      "rooms": 27,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "15",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et15_init",
+      "classes": [
+        "cEmRack"
+      ],
+      "factories": [
+        "SetRack"
+      ],
+      "placements": 5,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "16",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et16_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 13,
+      "rooms": 7,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "17",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et17_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 5,
+      "rooms": 3,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "18",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et18_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 0,
+      "rooms": 0,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "19",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et19_init",
+      "classes": [
+        "cEmTorch"
+      ],
+      "factories": [
+        "SetTorch"
+      ],
+      "placements": 8,
+      "rooms": 3,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "1a",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et1a_init",
+      "classes": [
+        "cEmItem"
+      ],
+      "factories": [
+        "SetEmItem"
+      ],
+      "placements": 30,
+      "rooms": 4,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "1b",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et1b_init",
+      "classes": [
+        "cEmBarred"
+      ],
+      "factories": [
+        "SetEmBarred"
+      ],
+      "placements": 3,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "1c",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et1c_init",
+      "classes": [
+        "cEmTorch"
+      ],
+      "factories": [
+        "SetTorch"
+      ],
+      "placements": 17,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "1d",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et1d_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 7,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "1e",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et1e_init",
+      "classes": [
+        "cEmBox"
+      ],
+      "factories": [
+        "SetBox"
+      ],
+      "placements": 10,
+      "rooms": 9,
+      "current_scope": "Shared cEmBox types0/1/3/5: eligible bound ITA with authoritative global/local taken flags or original empty boxes, source hitboxes/break effect; scenario-owned records suppressed"
+    },
+    {
+      "id": "1f",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et1f_init",
+      "classes": [
+        "cEmBox"
+      ],
+      "factories": [
+        "SetBox"
+      ],
+      "placements": 14,
+      "rooms": 9,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "20",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et20_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 0,
+      "rooms": 0,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "21",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et21_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 14,
+      "rooms": 6,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "22",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et22_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 2,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "23",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et23_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 5,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "24",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et24_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 9,
+      "rooms": 7,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "25",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et25_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 29,
+      "rooms": 10,
+      "current_scope": "Shared compatible-asset window runtime; room callbacks and other window kinds pending"
+    },
+    {
+      "id": "26",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et26_init",
+      "classes": [
+        "cEmBarred"
+      ],
+      "factories": [
+        "SetEmBarred"
+      ],
+      "placements": 6,
+      "rooms": 3,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "27",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et27_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 2,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "28",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et28_init",
+      "classes": [
+        "cEmBarred"
+      ],
+      "factories": [
+        "SetEmBarred"
+      ],
+      "placements": 0,
+      "rooms": 0,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "29",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et29_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 3,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "2a",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et2a_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 2,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "2b",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et2b_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 10,
+      "rooms": 5,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "2c",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et2c_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 2,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "2d",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et2d_init",
+      "classes": [
+        "cEmBarrel"
+      ],
+      "factories": [
+        "SetBarrel"
+      ],
+      "placements": 14,
+      "rooms": 5,
+      "current_scope": "Non-rolling explosive barrel subset; original two-tick blast delay, hitboxes and break effect"
+    },
+    {
+      "id": "2e",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et2e_init",
+      "classes": [
+        "cEmBox"
+      ],
+      "factories": [
+        "SetBox"
+      ],
+      "placements": 50,
+      "rooms": 13,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "2f",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et2f_init",
+      "classes": [
+        "cEmBox"
+      ],
+      "factories": [
+        "SetBox"
+      ],
+      "placements": 38,
+      "rooms": 9,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "30",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et30_init",
+      "classes": [
+        "cEmRack"
+      ],
+      "factories": [
+        "SetRack"
+      ],
+      "placements": 2,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "31",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et31_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 11,
+      "rooms": 4,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "32",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et32_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 1,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "33",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et33_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 2,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "34",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et34_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 4,
+      "rooms": 3,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "35",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et35_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 21,
+      "rooms": 9,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "36",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et36_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 69,
+      "rooms": 10,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "37",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et37_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 3,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "38",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et38_init",
+      "classes": [
+        "cEmTorch"
+      ],
+      "factories": [
+        "SetTorch"
+      ],
+      "placements": 5,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "39",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et39_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 3,
+      "rooms": 3,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "3a",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et3a_init",
+      "classes": [
+        "cEmBarred"
+      ],
+      "factories": [
+        "SetEmBarred"
+      ],
+      "placements": 2,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "3b",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et3b_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 1,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "3c",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et3c_init",
+      "classes": [
+        "cEmBarrel"
+      ],
+      "factories": [
+        "SetBarrel"
+      ],
+      "placements": 4,
+      "rooms": 4,
+      "current_scope": "Non-rolling explosive barrel subset; original two-tick blast delay, hitboxes and break effect"
+    },
+    {
+      "id": "3d",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et3d_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 2,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "3e",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et3e_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 2,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "3f",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et3f_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 3,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "40",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et40_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 1,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "41",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et41_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 6,
+      "rooms": 4,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "42",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et42_init",
+      "classes": [
+        "cEmBar"
+      ],
+      "factories": [
+        "SetBar"
+      ],
+      "placements": 3,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "43",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et43_init",
+      "classes": [
+        "cEmBarred"
+      ],
+      "factories": [
+        "SetEmBarred"
+      ],
+      "placements": 4,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "44",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et44_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 6,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "45",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et45_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 2,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "46",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et46_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 0,
+      "rooms": 0,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "47",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et47_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 2,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "48",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et48_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 12,
+      "rooms": 4,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "49",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et49_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 9,
+      "rooms": 5,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "4a",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et4a_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 4,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "4b",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et4b_init",
+      "classes": [
+        "cEmBarred"
+      ],
+      "factories": [
+        "SetEmBarred"
+      ],
+      "placements": 2,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "4c",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et4c_init",
+      "classes": [
+        "cEmBarred"
+      ],
+      "factories": [
+        "SetEmBarred"
+      ],
+      "placements": 4,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "4d",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et4d_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 3,
+      "rooms": 3,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "4e",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et4e_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 3,
+      "rooms": 3,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "4f",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et4f_init",
+      "classes": [
+        "cEmBarred"
+      ],
+      "factories": [
+        "SetEmBarred"
+      ],
+      "placements": 2,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "50",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et50_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 14,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "51",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et51_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 8,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "52",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et52_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 4,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "53",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et53_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 8,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "54",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et54_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 71,
+      "rooms": 12,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "55",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et55_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 5,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "56",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et56_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 5,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "57",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et57_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 3,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "58",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et58_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 1,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "59",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et59_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 0,
+      "rooms": 0,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "5a",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et5a_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 4,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "5b",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et5b_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 5,
+      "rooms": 3,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "5c",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et5c_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 5,
+      "rooms": 3,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "5d",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et5d_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 4,
+      "rooms": 3,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "5e",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et5e_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 4,
+      "rooms": 3,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "5f",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et5f_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 2,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "60",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et60_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 2,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "61",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et61_init",
+      "classes": [
+        "cEmBarred"
+      ],
+      "factories": [
+        "SetEmBarred"
+      ],
+      "placements": 2,
+      "rooms": 2,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "62",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et62_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 1,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "63",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et63_init",
+      "classes": [
+        "cEmDoor"
+      ],
+      "factories": [
+        "SetDoor"
+      ],
+      "placements": 2,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "64",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et64_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 20,
+      "rooms": 6,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "65",
+      "source": "upstream/re4/src/game/et00.cpp",
+      "initializer": "Et65_init",
+      "classes": [
+        "cEmWindow"
+      ],
+      "factories": [
+        "EtXX_init / SetWindow"
+      ],
+      "placements": 7,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "66",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et66_init",
+      "classes": [
+        "cEmRack"
+      ],
+      "factories": [
+        "SetRack"
+      ],
+      "placements": 1,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    },
+    {
+      "id": "67",
+      "source": "upstream/re4/src/game/EtcModel.cpp",
+      "initializer": "Et67_init",
+      "classes": [
+        "cEmBarred"
+      ],
+      "factories": [
+        "SetEmBarred"
+      ],
+      "placements": 2,
+      "rooms": 1,
+      "current_scope": "Model may render; its original live object/interact/destruction runtime is not implemented"
+    }
+  ],
+  "obj_registry": [
+    {
+      "id": "00",
+      "source_enum": "ID_NORMAL",
+      "original_constructor": "cObj00",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "01",
+      "source_enum": "ID_MAGAZINE",
+      "original_constructor": "cObj01",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "02",
+      "source_enum": "ID_SCROLL",
+      "original_constructor": "cObjScr",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "03",
+      "source_enum": "ID_03",
+      "original_constructor": "cObj03",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "04",
+      "source_enum": "ID_ESP",
+      "original_constructor": "cObj04",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "05",
+      "source_enum": "ID_KABOOM",
+      "original_constructor": "cObj05",
+      "current_scope": "Efm05 destruction subset only"
+    },
+    {
+      "id": "06",
+      "source_enum": "ID_BOX",
+      "original_constructor": "cObjBox",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "07",
+      "source_enum": "ID_07",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "08",
+      "source_enum": "ID_MISSILE",
+      "original_constructor": "cObj08",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "09",
+      "source_enum": "ID_ESP2",
+      "original_constructor": "cObj09",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "0a",
+      "source_enum": "ID_WEP_ITEM",
+      "original_constructor": "cWepItem",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "0b",
+      "source_enum": "ID_PL_WEAPON",
+      "original_constructor": "cObjWep",
+      "current_scope": "Current player handgun/knife/shotgun model and motion subset; not full original weapon-object manager"
+    },
+    {
+      "id": "0c",
+      "source_enum": "ID_0C",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "0d",
+      "source_enum": "ID_0D",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "0e",
+      "source_enum": "ID_0E",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "0f",
+      "source_enum": "ID_0F",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "10",
+      "source_enum": "ID_WEP_ALLOW",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "11",
+      "source_enum": "ID_WEP_BOW",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "12",
+      "source_enum": "ID_EM12_WEAPON",
+      "original_constructor": "cObj12",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "13",
+      "source_enum": "ID_LADDER",
+      "original_constructor": "cObjLadder",
+      "current_scope": "Object ladder subset only in r101/r400"
+    },
+    {
+      "id": "14",
+      "source_enum": "ID_BELL",
+      "original_constructor": "cObjBell",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "15",
+      "source_enum": "ID_GATLING",
+      "original_constructor": "cObjGatling",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "16",
+      "source_enum": "ID_EM10_PARASITE",
+      "original_constructor": "cObj16",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "17",
+      "source_enum": "ID_22C_HITMARK",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "18",
+      "source_enum": "ID_EVENT",
+      "original_constructor": "cObj18",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "19",
+      "source_enum": "ID_ITEM",
+      "original_constructor": "cItemObj",
+      "current_scope": "Static ITA pickup models and selected waiting0 pickup transaction"
+    },
+    {
+      "id": "1a",
+      "source_enum": "ID_WEP_GRENADE",
+      "original_constructor": "cObjGrenade",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "1b",
+      "source_enum": "ID_SPEAR",
+      "original_constructor": "cObjSpear",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "1c",
+      "source_enum": "ID_FLOATISLAND",
+      "original_constructor": "cObj1c",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "1d",
+      "source_enum": "ID_CHAIN",
+      "original_constructor": "cObjChain",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "1e",
+      "source_enum": "ID_LUIS_ITEM",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "1f",
+      "source_enum": "ID_PILLAR",
+      "original_constructor": "cObjPillar",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "20",
+      "source_enum": "ID_OBAMODEL",
+      "original_constructor": "cObjObaModel",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "21",
+      "source_enum": "ID_WEP_RUGER",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Current player handgun/knife/shotgun model and motion subset; not full original weapon-object manager"
+    },
+    {
+      "id": "22",
+      "source_enum": "ID_WEP_ROCKET",
+      "original_constructor": "cObjRocket",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "23",
+      "source_enum": "ID_WEP_LAUNCHER",
+      "original_constructor": "cObjLauncher",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "24",
+      "source_enum": "ID_WEP_KNIFE",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Current player handgun/knife/shotgun model and motion subset; not full original weapon-object manager"
+    },
+    {
+      "id": "25",
+      "source_enum": "ID_WEP_TOMPSON",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "26",
+      "source_enum": "ID_EM2B_PARASITE",
+      "original_constructor": "cObj26",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "27",
+      "source_enum": "ID_WEP_MAUSER",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "28",
+      "source_enum": "ID_WEP_SNIPER",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "29",
+      "source_enum": "ID_WEP_GRE_FIRE",
+      "original_constructor": "cObjGreFire",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "2a",
+      "source_enum": "ID_WEP_GRE_LIGHT",
+      "original_constructor": "cObjGreLight",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "2b",
+      "source_enum": "ID_WEP_SHOTGUN",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Current player handgun/knife/shotgun model and motion subset; not full original weapon-object manager"
+    },
+    {
+      "id": "2c",
+      "source_enum": "ID_WEP_MAGNUM",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "2d",
+      "source_enum": "ID_WEP_MACHINE",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "2e",
+      "source_enum": "ID_WEP_CIVILIAN",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "2f",
+      "source_enum": "ID_WEP_STRIKER",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "30",
+      "source_enum": "ID_WEP_HKSNIPER",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "31",
+      "source_enum": "ID_WEP_GOVERNMENT",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "32",
+      "source_enum": "ID_WEP_FN57",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "33",
+      "source_enum": "ID_WEP_XD9",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "34",
+      "source_enum": "ID_WEP_VP70",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "35",
+      "source_enum": "ID_GONDOLA",
+      "original_constructor": "cObjGondola",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "36",
+      "source_enum": "ID_WEP_MINE",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "37",
+      "source_enum": "ID_ROBO",
+      "original_constructor": "cObjRobo",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "38",
+      "source_enum": "ID_HELI_MISSILE",
+      "original_constructor": "cObjMissile",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "39",
+      "source_enum": "ID_YAGURA",
+      "original_constructor": "cObjYagura",
+      "current_scope": "Tower climb actions only for checked r101/r400 fixed ladders"
+    },
+    {
+      "id": "3a",
+      "source_enum": "ID_WEP_EGG",
+      "original_constructor": "cObjEgg",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "3b",
+      "source_enum": "ID_TROLLEY",
+      "original_constructor": "cObjTrolley",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "3c",
+      "source_enum": "ID_WEP_HANDGRE",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "3d",
+      "source_enum": "ID_WEP_HAND",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "3e",
+      "source_enum": "ID_BULL",
+      "original_constructor": "cObjBull",
+      "current_scope": "Original factory/runtime is not implemented"
+    },
+    {
+      "id": "3f",
+      "source_enum": "ID_WEP_THERMO",
+      "original_constructor": "ObjInitFunc[id] registered factory",
+      "current_scope": "Original factory/runtime is not implemented"
+    }
+  ],
+  "aev_registry": [
+    {
+      "id": "00",
+      "source_enum": "SCEAT_ID_NORMAL",
+      "original_handler": "sceAtFunc_normal",
+      "aev_records": 238,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "01",
+      "source_enum": "SCEAT_ID_DOOR",
+      "original_handler": "sceAtFunc_door",
+      "aev_records": 265,
+      "current_scope": "Original destination/area/facing parsed; selected unlocked room-transition subset"
+    },
+    {
+      "id": "02",
+      "source_enum": "SCEAT_ID_EXEC",
+      "original_handler": "sceAtFunc_exec",
+      "aev_records": 520,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "03",
+      "source_enum": "SCEAT_ID_ITEM",
+      "original_handler": "sceAtFunc_item",
+      "aev_records": 0,
+      "current_scope": "Selected waiting0 ITA pickup transaction; original acquisition/UI/event branches partial"
+    },
+    {
+      "id": "04",
+      "source_enum": "SCEAT_ID_FLG",
+      "original_handler": "sceAtFunc_flg",
+      "aev_records": 203,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "05",
+      "source_enum": "SCEAT_ID_MES",
+      "original_handler": "sceAtFunc_mes",
+      "aev_records": 199,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "06",
+      "source_enum": "SCEAT_ID_PLANTER",
+      "original_handler": "sceAtFunc_normal",
+      "aev_records": 0,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "07",
+      "source_enum": "SCEAT_ID_JUMP",
+      "original_handler": "sceAtFunc_normal",
+      "aev_records": 0,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "08",
+      "source_enum": "SCEAT_ID_SAVE",
+      "original_handler": "sceAtFunc_save",
+      "aev_records": 43,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "09",
+      "source_enum": "SCEAT_ID_SHD_DISP",
+      "original_handler": "sceAtFunc_shd_disp",
+      "aev_records": 0,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "0a",
+      "source_enum": "SCEAT_ID_DAMAGE",
+      "original_handler": "sceAtFunc_damage",
+      "aev_records": 5,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "0b",
+      "source_enum": "SCEAT_ID_SCR_AT",
+      "original_handler": "sceAtFunc_scr_at",
+      "aev_records": 171,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "0c",
+      "source_enum": "SCEAT_ID_CAM_CTRL",
+      "original_handler": "sceAtFunc_normal",
+      "aev_records": 0,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "0d",
+      "source_enum": "SCEAT_ID_FIELD_INFO",
+      "original_handler": "sceAtFunc_field_info",
+      "aev_records": 9,
+      "current_scope": "Selected generated window fields; full campaign field manager pending"
+    },
+    {
+      "id": "0e",
+      "source_enum": "SCEAT_ID_STOOP",
+      "original_handler": "sceAtFunc_stoop",
+      "aev_records": 5,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "0f",
+      "source_enum": "SCEAT_ID_SKEY",
+      "original_handler": "sceAtFunc_skey",
+      "aev_records": 0,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "10",
+      "source_enum": "SCEAT_ID_LADDER",
+      "original_handler": "sceAtFunc_ladder",
+      "aev_records": 95,
+      "current_scope": "Fixed ladder actions only for checked r101/r400 records"
+    },
+    {
+      "id": "11",
+      "source_enum": "SCEAT_ID_USE",
+      "original_handler": "sceAtFunc_use",
+      "aev_records": 34,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "12",
+      "source_enum": "SCEAT_ID_HIDE",
+      "original_handler": "sceAtFunc_hide",
+      "aev_records": 6,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "13",
+      "source_enum": "SCEAT_ID_POS_JUMP",
+      "original_handler": "sceAtFunc_pos_jump",
+      "aev_records": 0,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    },
+    {
+      "id": "14",
+      "source_enum": "SCEAT_ID_ITEM_PARENT",
+      "original_handler": "sceAtFunc_normal",
+      "aev_records": 4,
+      "current_scope": "Parsed area data; original handler/event runtime is not implemented"
+    }
+  ],
+  "aev_kind_counts": {
+    "00": 238,
+    "01": 265,
+    "02": 520,
+    "04": 203,
+    "05": 199,
+    "08": 43,
+    "0a": 5,
+    "0b": 171,
+    "0d": 9,
+    "0e": 5,
+    "10": 95,
+    "11": 34,
+    "12": 6,
+    "14": 4
+  },
+  "ita_records": 1601,
+  "ita_distinct_ids": 132,
+  "ita_item_counts": {
+    "0000": 13,
+    "0001": 62,
+    "0002": 47,
+    "0004": 159,
+    "0005": 60,
+    "0006": 133,
+    "0007": 65,
+    "0009": 1,
+    "000c": 5,
+    "000e": 47,
+    "000f": 2,
+    "0017": 1,
+    "0018": 103,
+    "0019": 66,
+    "001c": 34,
+    "001d": 1,
+    "001e": 2,
+    "001f": 2,
+    "0020": 78,
+    "0029": 1,
+    "002c": 1,
+    "0035": 1,
+    "0039": 2,
+    "003a": 1,
+    "003b": 1,
+    "003c": 2,
+    "003d": 1,
+    "0046": 27,
+    "0047": 27,
+    "0048": 1,
+    "0049": 1,
+    "004a": 1,
+    "004b": 1,
+    "004c": 1,
+    "004d": 1,
+    "004e": 1,
+    "004f": 1,
+    "0050": 1,
+    "0056": 35,
+    "0057": 74,
+    "0058": 3,
+    "0059": 2,
+    "005a": 3,
+    "005b": 2,
+    "005c": 2,
+    "005d": 1,
+    "005e": 2,
+    "005f": 2,
+    "0060": 1,
+    "0061": 1,
+    "0069": 1,
+    "006e": 1,
+    "006f": 1,
+    "0070": 1,
+    "0071": 48,
+    "0072": 2,
+    "0073": 35,
+    "0074": 1,
+    "0075": 12,
+    "0077": 3,
+    "0078": 63,
+    "0079": 47,
+    "007a": 1,
+    "007b": 1,
+    "0080": 1,
+    "0082": 1,
+    "0083": 2,
+    "0084": 1,
+    "0085": 1,
+    "0086": 1,
+    "0087": 1,
+    "0088": 1,
+    "0089": 2,
+    "008a": 1,
+    "008b": 1,
+    "008c": 1,
+    "008d": 1,
+    "008f": 3,
+    "0090": 1,
+    "0091": 1,
+    "0092": 1,
+    "0093": 1,
+    "0096": 1,
+    "0098": 2,
+    "009a": 1,
+    "009b": 1,
+    "009c": 1,
+    "00a1": 13,
+    "00a3": 3,
+    "00a4": 1,
+    "00a5": 1,
+    "00a6": 1,
+    "00a7": 1,
+    "00ae": 1,
+    "00af": 1,
+    "00b0": 2,
+    "00b1": 1,
+    "00b2": 1,
+    "00b3": 1,
+    "00b4": 1,
+    "00b5": 1,
+    "00b6": 1,
+    "00b7": 1,
+    "00b8": 2,
+    "00b9": 7,
+    "00ba": 6,
+    "00bb": 4,
+    "00c3": 1,
+    "00c4": 1,
+    "00c5": 1,
+    "00c6": 2,
+    "00c7": 2,
+    "00c8": 2,
+    "00c9": 2,
+    "00d1": 1,
+    "00d2": 1,
+    "00d3": 1,
+    "00d4": 1,
+    "00f4": 1,
+    "00f5": 1,
+    "00f6": 1,
+    "00f7": 1,
+    "00f8": 1,
+    "00f9": 1,
+    "00fa": 1,
+    "00fb": 1,
+    "1000": 8,
+    "1001": 94,
+    "1002": 63,
+    "1003": 12,
+    "1004": 15,
+    "1005": 9
+  },
+  "ita_waiting_types": {
+    "00": 1003,
+    "01": 135,
+    "02": 463
+  },
+  "rooms": [
+    {
+      "room": "r100",
+      "sha256": "8cb4cbd4f7f85f925c76703405d0f164891cf068dc6e815d0a842fccdd3146dc",
+      "source_disc": 1,
+      "source_path": "St1/r100.das",
+      "source_sha256": "d80eee4b9d0b7abb1b7737f69cae16060f10ecb5b931ee91564ea7e27fb334da",
+      "decoded_size": 4669568,
+      "decoded_sha256": "8cb4cbd4f7f85f925c76703405d0f164891cf068dc6e815d0a842fccdd3146dc",
+      "ets": {
+        "00": 2,
+        "01": 5,
+        "02": 3,
+        "0d": 1
+      },
+      "aev_kind_counts": {
+        "00": 4,
+        "01": 1,
+        "02": 12,
+        "04": 3,
+        "05": 10,
+        "08": 1,
+        "0b": 7,
+        "0d": 2
+      },
+      "ita_records": 24
+    },
+    {
+      "room": "r101",
+      "sha256": "8d2161f73f2359874c885a755722f06118de05c3423fb86147f54517c5b30d15",
+      "source_disc": 1,
+      "source_path": "St1/r101.das",
+      "source_sha256": "b4138f10acf31cc0bc0f63d33873f6059518cfa160f2907e120e9f75a9b70dda",
+      "decoded_size": 5466016,
+      "decoded_sha256": "8d2161f73f2359874c885a755722f06118de05c3423fb86147f54517c5b30d15",
+      "ets": {
+        "00": 3,
+        "01": 4,
+        "02": 4,
+        "03": 3,
+        "04": 2,
+        "05": 1,
+        "06": 2,
+        "07": 1,
+        "08": 1,
+        "0d": 1,
+        "11": 4,
+        "1e": 1,
+        "25": 1
+      },
+      "aev_kind_counts": {
+        "00": 4,
+        "01": 4,
+        "02": 3,
+        "05": 14,
+        "10": 1,
+        "11": 1
+      },
+      "ita_records": 41
+    },
+    {
+      "room": "r102",
+      "sha256": "8aea15e6904b7e5a361861852743c295bec72151f79f8bb533277e0c0fdafbfc",
+      "source_disc": 1,
+      "source_path": "St1/r102.das",
+      "source_sha256": "54f12b7fd973805f9fac6a12741a814ea9e896ed88c017f6ec7fd7170b3470f1",
+      "decoded_size": 3985312,
+      "decoded_sha256": "8aea15e6904b7e5a361861852743c295bec72151f79f8bb533277e0c0fdafbfc",
+      "ets": {
+        "01": 2,
+        "0a": 2,
+        "0d": 1,
+        "11": 1,
+        "13": 1,
+        "2c": 1
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 2,
+        "02": 2,
+        "08": 1,
+        "10": 1
+      },
+      "ita_records": 20
+    },
+    {
+      "room": "r103",
+      "sha256": "7a8b76a3b53cec2de008e848d2da91dadea608857f528f7edb68680e094e57bc",
+      "source_disc": 1,
+      "source_path": "St1/r103.das",
+      "source_sha256": "4138ce000c12a41f5f70e030c6c0bc6d9a4c630cbb3d3530d403f90a903a506c",
+      "decoded_size": 4814112,
+      "decoded_sha256": "7a8b76a3b53cec2de008e848d2da91dadea608857f528f7edb68680e094e57bc",
+      "ets": {
+        "01": 2,
+        "02": 2,
+        "05": 1,
+        "06": 2,
+        "11": 7,
+        "1a": 7
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 4,
+        "05": 5,
+        "08": 1,
+        "0b": 1
+      },
+      "ita_records": 28
+    },
+    {
+      "room": "r104",
+      "sha256": "70d1b830e70ee0cb55e66e9c268a79c9f4ce9b27e586057cec2035d9d3622912",
+      "source_disc": 1,
+      "source_path": "St1/r104.das",
+      "source_sha256": "4cb6382e6016bf9eba685443ef11468338ae1fe113ed10d3a78fbebb5a915850",
+      "decoded_size": 4187712,
+      "decoded_sha256": "70d1b830e70ee0cb55e66e9c268a79c9f4ce9b27e586057cec2035d9d3622912",
+      "ets": {
+        "06": 2,
+        "11": 11,
+        "12": 2,
+        "13": 5,
+        "17": 2
+      },
+      "aev_kind_counts": {
+        "00": 6,
+        "01": 1,
+        "02": 9,
+        "08": 1,
+        "10": 3,
+        "11": 1
+      },
+      "ita_records": 27
+    },
+    {
+      "room": "r105",
+      "sha256": "1f4879f03dafba65222350323e9b3d135c06a4f2d96b40350d1d40dd7bc4e9d1",
+      "source_disc": 1,
+      "source_path": "St1/r105.das",
+      "source_sha256": "8ad0daf7af8c929e7609936ee37d729e45cf3e18e9ed9e4361c2f3852c47a6f7",
+      "decoded_size": 5165248,
+      "decoded_sha256": "1f4879f03dafba65222350323e9b3d135c06a4f2d96b40350d1d40dd7bc4e9d1",
+      "ets": {
+        "00": 1,
+        "02": 2,
+        "11": 1,
+        "1f": 2,
+        "22": 2,
+        "24": 1,
+        "25": 1
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 9,
+        "04": 4,
+        "05": 9,
+        "08": 1,
+        "0b": 2
+      },
+      "ita_records": 27
+    },
+    {
+      "room": "r106",
+      "sha256": "479d8f62b80b287b7a5c25974b03c5cb4e4d122a96173fcd210b404e2e43bb8d",
+      "source_disc": 1,
+      "source_path": "St1/r106.das",
+      "source_sha256": "8cc9473eb7352e672384a677996bb6d72c7773a0b9b819ab44ecb42e3fd06db0",
+      "decoded_size": 4910112,
+      "decoded_sha256": "479d8f62b80b287b7a5c25974b03c5cb4e4d122a96173fcd210b404e2e43bb8d",
+      "ets": {
+        "01": 2,
+        "02": 1,
+        "05": 1,
+        "0d": 1,
+        "11": 2,
+        "1f": 1
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 7,
+        "05": 5,
+        "08": 1,
+        "0b": 1,
+        "0d": 1
+      },
+      "ita_records": 23
+    },
+    {
+      "room": "r107",
+      "sha256": "4299ca5ede44b3d062fd8aa8f8345bc99d22fb699fb5b69704bb60942ee4ccff",
+      "source_disc": 1,
+      "source_path": "St1/r107.das",
+      "source_sha256": "540d954e567d117f3e4ce8447eeaf2defbb8a625a18ef44c16d3c0cd8d6fe63b",
+      "decoded_size": 4398848,
+      "decoded_sha256": "4299ca5ede44b3d062fd8aa8f8345bc99d22fb699fb5b69704bb60942ee4ccff",
+      "ets": {
+        "00": 2,
+        "07": 1,
+        "11": 9,
+        "16": 2,
+        "2b": 3
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 2,
+        "0e": 1,
+        "10": 1
+      },
+      "ita_records": 27
+    },
+    {
+      "room": "r108",
+      "sha256": "7cee4feda9780e9b2aed629dde716c7fd464b10c2fd0e8cf7788f6695ebf536b",
+      "source_disc": 1,
+      "source_path": "St1/r108.das",
+      "source_sha256": "f386ed6f4604beb8ee3d4f5877e203aebe9fc54ac8f049d23265051fe8b9b033",
+      "decoded_size": 4712960,
+      "decoded_sha256": "7cee4feda9780e9b2aed629dde716c7fd464b10c2fd0e8cf7788f6695ebf536b",
+      "ets": {
+        "01": 4,
+        "1a": 8,
+        "1f": 3
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 3,
+        "02": 3,
+        "05": 8
+      },
+      "ita_records": 20
+    },
+    {
+      "room": "r109",
+      "sha256": "5075f63935f7b58f7ce1c7c31eb6281ded24654c92facdd5c5df2e043f400dc6",
+      "source_disc": 1,
+      "source_path": "St1/r109.das",
+      "source_sha256": "608bac4a04f8930335fe7299de1ce38ca90aeca653aeb518225a94a5f5902e90",
+      "decoded_size": 3340256,
+      "decoded_sha256": "5075f63935f7b58f7ce1c7c31eb6281ded24654c92facdd5c5df2e043f400dc6",
+      "ets": {
+        "10": 3,
+        "11": 3
+      },
+      "aev_kind_counts": {
+        "01": 3,
+        "05": 1
+      },
+      "ita_records": 19
+    },
+    {
+      "room": "r10a",
+      "sha256": "638b86df6311a217ab71f5724ef43494160c6006c5b92421b8ca53ae12964769",
+      "source_disc": 1,
+      "source_path": "St1/r10a.das",
+      "source_sha256": "2627a672f155ce0d679a6bb1cb488d40f7c42a936ffac8deea12ee2c092f6b3e",
+      "decoded_size": 4761376,
+      "decoded_sha256": "638b86df6311a217ab71f5724ef43494160c6006c5b92421b8ca53ae12964769",
+      "ets": {
+        "01": 3,
+        "11": 2,
+        "1f": 1
+      },
+      "aev_kind_counts": {
+        "00": 4,
+        "01": 2,
+        "02": 1,
+        "05": 2
+      },
+      "ita_records": 19
+    },
+    {
+      "room": "r10b",
+      "sha256": "e31100abf3074ef426a653d2155479602c7fbc11757f6cae471bc2e24161aad3",
+      "source_disc": 1,
+      "source_path": "St1/r10b.das",
+      "source_sha256": "7efb11d8821cee3d7151f062989eb75116ab2db8b8819da52e9e06307721e89a",
+      "decoded_size": 5123104,
+      "decoded_sha256": "e31100abf3074ef426a653d2155479602c7fbc11757f6cae471bc2e24161aad3",
+      "ets": {
+        "01": 2,
+        "11": 1,
+        "1f": 1
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 1,
+        "04": 3,
+        "08": 1
+      },
+      "ita_records": 17
+    },
+    {
+      "room": "r10c",
+      "sha256": "df0f16fb6bd2b1f17f20edfba568e74118b127610f850caacab4b598d1bc1b5c",
+      "source_disc": 1,
+      "source_path": "St1/r10c.das",
+      "source_sha256": "ee1d76f42cb1640adcf58d354818f18fec96dc925744a697ab8f93f0d877a9cc",
+      "decoded_size": 4944032,
+      "decoded_sha256": "df0f16fb6bd2b1f17f20edfba568e74118b127610f850caacab4b598d1bc1b5c",
+      "ets": {
+        "11": 4,
+        "14": 14
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 6,
+        "05": 3,
+        "0b": 4,
+        "10": 3
+      },
+      "ita_records": 19
+    },
+    {
+      "room": "r10d",
+      "sha256": "f4ae4c71923faf233ae082692e61862a05f79606da2dc1fcc1ab0cd6accdbee6",
+      "source_disc": 1,
+      "source_path": "St1/r10d.das",
+      "source_sha256": "2ea33d56493ca278cf0be2ca67664dce71cd97b5944366b39faf29328b878b7b",
+      "decoded_size": 3430208,
+      "decoded_sha256": "f4ae4c71923faf233ae082692e61862a05f79606da2dc1fcc1ab0cd6accdbee6",
+      "ets": {
+        "10": 1,
+        "11": 9,
+        "14": 3,
+        "15": 3
+      },
+      "aev_kind_counts": {
+        "01": 1,
+        "05": 2,
+        "10": 2
+      },
+      "ita_records": 21
+    },
+    {
+      "room": "r10e",
+      "sha256": "50a9a044d8f5241d0336cb884ad9adc2e041f6c4dac9fec1749933c8d154edad",
+      "source_disc": 1,
+      "source_path": "St1/r10e.das",
+      "source_sha256": "bf1e6480da200d4afdfba1739ea941cb9c51ae6a48c18295f040734aa9fb2117",
+      "decoded_size": 3201952,
+      "decoded_sha256": "50a9a044d8f5241d0336cb884ad9adc2e041f6c4dac9fec1749933c8d154edad",
+      "ets": {
+        "10": 4,
+        "11": 3,
+        "14": 4,
+        "1e": 1
+      },
+      "aev_kind_counts": {
+        "01": 5,
+        "05": 1,
+        "08": 1,
+        "10": 1
+      },
+      "ita_records": 18
+    },
+    {
+      "room": "r10f",
+      "sha256": "5cbab0ec41bd94d641ca9a028cab408270bb42924cd23e4198567e6bc8b4b8ba",
+      "source_disc": 1,
+      "source_path": "St1/r10f.das",
+      "source_sha256": "9c5191dd712ac566aea0883dd8b343ec803114f4a8c4dc80ecc2871e96bb4a60",
+      "decoded_size": 4206880,
+      "decoded_sha256": "5cbab0ec41bd94d641ca9a028cab408270bb42924cd23e4198567e6bc8b4b8ba",
+      "ets": {
+        "11": 3,
+        "14": 8,
+        "29": 3,
+        "2b": 2
+      },
+      "aev_kind_counts": {
+        "00": 3,
+        "01": 4,
+        "02": 4,
+        "05": 3,
+        "08": 2,
+        "10": 3,
+        "11": 1
+      },
+      "ita_records": 20
+    },
+    {
+      "room": "r111",
+      "sha256": "0a4634f1df5dbd51c25840dc8c95b0a74150eaaaaf3c0c0e4625523517f42c47",
+      "source_disc": 1,
+      "source_path": "St1/r111.das",
+      "source_sha256": "e51a12be77d601a5205316b348dbeb47558833fea7d8d78b684cd025c385c1b4",
+      "decoded_size": 4452832,
+      "decoded_sha256": "0a4634f1df5dbd51c25840dc8c95b0a74150eaaaaf3c0c0e4625523517f42c47",
+      "ets": {
+        "00": 3,
+        "01": 4,
+        "02": 4,
+        "03": 3,
+        "04": 2,
+        "05": 1,
+        "06": 2,
+        "07": 1,
+        "08": 1,
+        "0d": 1,
+        "11": 4,
+        "14": 11,
+        "1e": 1,
+        "25": 1
+      },
+      "aev_kind_counts": {
+        "00": 3,
+        "01": 2,
+        "02": 1,
+        "05": 15,
+        "10": 1
+      },
+      "ita_records": 25
+    },
+    {
+      "room": "r112",
+      "sha256": "c6426b0f951eed8574a83d292e85048e81a8dfab62332213849b54f5ae74426a",
+      "source_disc": 1,
+      "source_path": "St1/r112.das",
+      "source_sha256": "3ec798f0024eecfe44fc2d43a7795631cd85db77dc1b577dd42ad5b75a9c8c9c",
+      "decoded_size": 3950048,
+      "decoded_sha256": "c6426b0f951eed8574a83d292e85048e81a8dfab62332213849b54f5ae74426a",
+      "ets": {
+        "01": 2,
+        "0a": 2,
+        "0d": 1,
+        "11": 1,
+        "13": 1,
+        "2c": 1
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 2,
+        "08": 1,
+        "10": 1
+      },
+      "ita_records": 17
+    },
+    {
+      "room": "r113",
+      "sha256": "adfa02b3445084de2a778371e21bf41212238db48317cd961b45a8c577f9d147",
+      "source_disc": 1,
+      "source_path": "St1/r113.das",
+      "source_sha256": "5a854f52538a3db3ef549e87e3d2f8ef5caa8c7ccf65d519bc5d5335580d7784",
+      "decoded_size": 4787712,
+      "decoded_sha256": "adfa02b3445084de2a778371e21bf41212238db48317cd961b45a8c577f9d147",
+      "ets": {
+        "01": 2,
+        "02": 2,
+        "05": 1,
+        "06": 2,
+        "0c": 1,
+        "11": 7,
+        "14": 1,
+        "1a": 7
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 5,
+        "05": 3,
+        "08": 1,
+        "0b": 1,
+        "12": 1
+      },
+      "ita_records": 29
+    },
+    {
+      "room": "r117",
+      "sha256": "a106526e68563696c8666cb98e5140cf97f1a87b5745e2904d2b683eef46a287",
+      "source_disc": 1,
+      "source_path": "St1/r117.das",
+      "source_sha256": "11abf8f411b42ab16edaec0a2a5638da5cf47fcb9f5523a9b314d1d15b22d58e",
+      "decoded_size": 4881600,
+      "decoded_sha256": "a106526e68563696c8666cb98e5140cf97f1a87b5745e2904d2b683eef46a287",
+      "ets": {
+        "11": 13,
+        "16": 1
+      },
+      "aev_kind_counts": {
+        "00": 2,
+        "01": 2,
+        "02": 2,
+        "05": 3,
+        "08": 1,
+        "0b": 4,
+        "10": 1
+      },
+      "ita_records": 28
+    },
+    {
+      "room": "r118",
+      "sha256": "b24bf3c1192939a7b4e44e2106e19cb257c2db0945edf81b3b82d5113ea2287e",
+      "source_disc": 1,
+      "source_path": "St1/r118.das",
+      "source_sha256": "552f455b3863377b200a120bd92167ff5a5864fa67c89039efb01365af85c742",
+      "decoded_size": 4892384,
+      "decoded_sha256": "b24bf3c1192939a7b4e44e2106e19cb257c2db0945edf81b3b82d5113ea2287e",
+      "ets": {
+        "01": 4,
+        "14": 6,
+        "1a": 8,
+        "1f": 3
+      },
+      "aev_kind_counts": {
+        "00": 2,
+        "01": 4,
+        "02": 2,
+        "05": 8,
+        "0b": 1,
+        "11": 1
+      },
+      "ita_records": 25
+    },
+    {
+      "room": "r119",
+      "sha256": "e438f1a5600293d75ad93811246e22409fe7ff6705719d82e1c979bb4dcbef32",
+      "source_disc": 1,
+      "source_path": "St1/r119.das",
+      "source_sha256": "f04e1f81bf001467a46bdafd2db0fdc42b20d2bdd2cbec90005b1ff3d1cafd5b",
+      "decoded_size": 4255552,
+      "decoded_sha256": "e438f1a5600293d75ad93811246e22409fe7ff6705719d82e1c979bb4dcbef32",
+      "ets": {
+        "10": 3,
+        "11": 3
+      },
+      "aev_kind_counts": {
+        "01": 3,
+        "02": 1,
+        "0b": 3
+      },
+      "ita_records": 22
+    },
+    {
+      "room": "r11a",
+      "sha256": "0b82010a331ef5834eef8011a000f56574fbf1058c0593c4161b74a50743dc11",
+      "source_disc": 1,
+      "source_path": "St1/r11a.das",
+      "source_sha256": "631355a95856776e3fe3b2f17bc66311eaf38674346fd34809392b0e421b5f98",
+      "decoded_size": 4489984,
+      "decoded_sha256": "0b82010a331ef5834eef8011a000f56574fbf1058c0593c4161b74a50743dc11",
+      "ets": {
+        "01": 3,
+        "10": 1,
+        "11": 2,
+        "14": 7,
+        "1f": 1
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "05": 1
+      },
+      "ita_records": 19
+    },
+    {
+      "room": "r11b",
+      "sha256": "9dfea79686d42463386666b16b8889d530d1cc4d4589988ecf8a5210576bdb3d",
+      "source_disc": 1,
+      "source_path": "St1/r11b.das",
+      "source_sha256": "5bd975ac778c0ad144435287ac6edc98004659de0dcb4efe77715fdfe2004f55",
+      "decoded_size": 5934880,
+      "decoded_sha256": "9dfea79686d42463386666b16b8889d530d1cc4d4589988ecf8a5210576bdb3d",
+      "ets": {
+        "01": 2,
+        "03": 1,
+        "11": 1,
+        "14": 9,
+        "1f": 1
+      },
+      "aev_kind_counts": {
+        "01": 3,
+        "02": 1,
+        "04": 1,
+        "05": 3,
+        "08": 2
+      },
+      "ita_records": 19
+    },
+    {
+      "room": "r11c",
+      "sha256": "50e13b667cf7f8e314fe220c631db779d5d6d5ea7e4be93781f4e419e04cb88c",
+      "source_disc": 1,
+      "source_path": "St1/r11c.das",
+      "source_sha256": "854cad379fae6dae70f68d76bca5db21480e9b023653dbd5b8ee5b973f483fd3",
+      "decoded_size": 4125024,
+      "decoded_sha256": "50e13b667cf7f8e314fe220c631db779d5d6d5ea7e4be93781f4e419e04cb88c",
+      "ets": {
+        "00": 4,
+        "05": 3,
+        "07": 3,
+        "08": 4,
+        "0c": 1,
+        "14": 5,
+        "17": 1,
+        "38": 1
+      },
+      "aev_kind_counts": {
+        "01": 3,
+        "02": 3,
+        "05": 4,
+        "08": 1,
+        "0b": 2
+      },
+      "ita_records": 16
+    },
+    {
+      "room": "r11d",
+      "sha256": "7452698b22885a75e63f5f38b3bd4fdb5b87f6ca7ee14e0188a0f72d5a7bd26f",
+      "source_disc": 1,
+      "source_path": "St1/r11d.das",
+      "source_sha256": "a65a96d49972a306cbcf1b9cdb2ed660c57974abef7c3683405d6c3d486050c4",
+      "decoded_size": 4276096,
+      "decoded_sha256": "7452698b22885a75e63f5f38b3bd4fdb5b87f6ca7ee14e0188a0f72d5a7bd26f",
+      "ets": {
+        "02": 1,
+        "06": 4,
+        "07": 1,
+        "10": 1,
+        "11": 14,
+        "13": 1,
+        "14": 14,
+        "24": 1
+      },
+      "aev_kind_counts": {
+        "00": 11,
+        "01": 2,
+        "02": 3,
+        "0b": 1,
+        "10": 1,
+        "11": 1,
+        "12": 3
+      },
+      "ita_records": 25
+    },
+    {
+      "room": "r11e",
+      "sha256": "190ca5b235fb8a4c4885b558dba5918473551d77140c9928693a5d277a75746b",
+      "source_disc": 1,
+      "source_path": "St1/r11e.das",
+      "source_sha256": "37d6571a1203f215b704489d5cab0b34fc24d44580d45458af0489eb9b8b9ee9",
+      "decoded_size": 4011360,
+      "decoded_sha256": "190ca5b235fb8a4c4885b558dba5918473551d77140c9928693a5d277a75746b",
+      "ets": {
+        "01": 1,
+        "09": 2,
+        "11": 6,
+        "14": 11
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 1,
+        "11": 1
+      },
+      "ita_records": 27
+    },
+    {
+      "room": "r11f",
+      "sha256": "9fc23ae3fedfa00630ab05d899a95d14f56bbd2c1a2e837a4df4504ee575ae8b",
+      "source_disc": 1,
+      "source_path": "St1/r11f.das",
+      "source_sha256": "7cc4286a4301d58473162460f40828bd7d76214cf3b13a09ce4d4221ddc08786",
+      "decoded_size": 3700576,
+      "decoded_sha256": "9fc23ae3fedfa00630ab05d899a95d14f56bbd2c1a2e837a4df4504ee575ae8b",
+      "ets": {
+        "00": 9,
+        "12": 1,
+        "1c": 1
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 1,
+        "02": 1,
+        "05": 2,
+        "0a": 2,
+        "0b": 3,
+        "10": 2
+      },
+      "ita_records": 13
+    },
+    {
+      "room": "r120",
+      "sha256": "8c39abc0499273d8f516bf03f5e1c806a10472176c0e7feca7330a9d9f26d6a9",
+      "source_disc": 1,
+      "source_path": "St1/r120.das",
+      "source_sha256": "97fbcf085571a687beadc5ba7239d610a313dccdc58c408246d6a31ae36717fb",
+      "decoded_size": 6086688,
+      "decoded_sha256": "8c39abc0499273d8f516bf03f5e1c806a10472176c0e7feca7330a9d9f26d6a9",
+      "ets": {},
+      "aev_kind_counts": {},
+      "ita_records": 0
+    },
+    {
+      "room": "r200",
+      "sha256": "57d5075af210d57164a27826c4401294190f519f0119854d2e6826a09f5551d3",
+      "source_disc": 1,
+      "source_path": "St2/r200.das",
+      "source_sha256": "6cc4cbbe209a93e926e4f6174a9b691e73165939b57cf096f4802d0a29ce0016",
+      "decoded_size": 3826112,
+      "decoded_sha256": "57d5075af210d57164a27826c4401294190f519f0119854d2e6826a09f5551d3",
+      "ets": {
+        "01": 2,
+        "10": 1,
+        "11": 7,
+        "14": 3
+      },
+      "aev_kind_counts": {
+        "00": 4,
+        "01": 3,
+        "02": 3,
+        "05": 1,
+        "08": 1
+      },
+      "ita_records": 11
+    },
+    {
+      "room": "r201",
+      "sha256": "cc07219fb91c3dae3e7e245a364ef94a147f9073fa35db2de77b4b9444833b01",
+      "source_disc": 1,
+      "source_path": "St2/r201.das",
+      "source_sha256": "57009ea20c309a9eac3de0eaf3333cd1a761011af7c689eba112242e771ff587",
+      "decoded_size": 4365696,
+      "decoded_sha256": "cc07219fb91c3dae3e7e245a364ef94a147f9073fa35db2de77b4b9444833b01",
+      "ets": {
+        "0a": 1,
+        "0e": 1,
+        "0f": 1,
+        "11": 4,
+        "14": 2,
+        "24": 1,
+        "2e": 2,
+        "2f": 4,
+        "31": 1
+      },
+      "aev_kind_counts": {
+        "00": 9,
+        "01": 4,
+        "02": 13,
+        "05": 3,
+        "08": 1,
+        "0a": 3,
+        "0b": 5,
+        "11": 4
+      },
+      "ita_records": 19
+    },
+    {
+      "room": "r202",
+      "sha256": "7133544b9e2985a3fe869029021a629a7b145d3afa5ebebd477067e2a0014de9",
+      "source_disc": 1,
+      "source_path": "St2/r202.das",
+      "source_sha256": "7e8262e5bdc938f15201f1497ccff08bb39ca4538ad8f653b679b4e449a64a94",
+      "decoded_size": 4806496,
+      "decoded_sha256": "7133544b9e2985a3fe869029021a629a7b145d3afa5ebebd477067e2a0014de9",
+      "ets": {
+        "01": 2,
+        "10": 1,
+        "11": 3,
+        "12": 3,
+        "14": 9,
+        "19": 2
+      },
+      "aev_kind_counts": {
+        "00": 13,
+        "01": 2,
+        "02": 7,
+        "05": 3,
+        "0b": 1
+      },
+      "ita_records": 10
+    },
+    {
+      "room": "r203",
+      "sha256": "3a603697a467affe1d356c6dc07b6178421659d5f17db99b27135733ad996332",
+      "source_disc": 1,
+      "source_path": "St2/r203.das",
+      "source_sha256": "acbee01eab535f30303e5ee5124bdc45abddf95741664502dc1a9878185f9845",
+      "decoded_size": 2722816,
+      "decoded_sha256": "3a603697a467affe1d356c6dc07b6178421659d5f17db99b27135733ad996332",
+      "ets": {
+        "11": 3,
+        "14": 4,
+        "16": 3,
+        "2d": 2
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 2,
+        "02": 3,
+        "04": 1,
+        "11": 1
+      },
+      "ita_records": 6
+    },
+    {
+      "room": "r204",
+      "sha256": "67a079a7b4a2750bd506368846988fa0d1428fee9ae3ae061dd6e4dcbba167e7",
+      "source_disc": 1,
+      "source_path": "St2/r204.das",
+      "source_sha256": "5bd2bd9083ef4776fa201b2ed943a670dc8f6409eafe27293cdf218e4db49107",
+      "decoded_size": 3301088,
+      "decoded_sha256": "67a079a7b4a2750bd506368846988fa0d1428fee9ae3ae061dd6e4dcbba167e7",
+      "ets": {
+        "0e": 1,
+        "1b": 2,
+        "25": 8,
+        "2f": 5
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 5,
+        "02": 6,
+        "04": 3,
+        "05": 2,
+        "08": 1,
+        "0b": 8,
+        "10": 1
+      },
+      "ita_records": 21
+    },
+    {
+      "room": "r205",
+      "sha256": "d03897408f8babbace8d1b594a29a08ad4560ab0b263f5f2ee1a654d112f45b9",
+      "source_disc": 1,
+      "source_path": "St2/r205.das",
+      "source_sha256": "a022776800b72ed06f3acc27b64645e14f7bf28d91d5c8e484ab9cf3bb439a1a",
+      "decoded_size": 4860672,
+      "decoded_sha256": "d03897408f8babbace8d1b594a29a08ad4560ab0b263f5f2ee1a654d112f45b9",
+      "ets": {
+        "01": 3,
+        "0c": 3,
+        "11": 6,
+        "14": 6,
+        "16": 4,
+        "23": 5
+      },
+      "aev_kind_counts": {
+        "00": 12,
+        "01": 2,
+        "02": 4,
+        "04": 8,
+        "05": 5,
+        "0b": 1,
+        "10": 5
+      },
+      "ita_records": 23
+    },
+    {
+      "room": "r206",
+      "sha256": "da8561a0f55270632e5f9bb0c9d4101262c4c4a3db6185f457a857ad8010847c",
+      "source_disc": 1,
+      "source_path": "St2/r206.das",
+      "source_sha256": "63dae5b24601cbd85d1e75289306d1d703dd6fd1bed76544dcff61d11c61a8a1",
+      "decoded_size": 3646176,
+      "decoded_sha256": "da8561a0f55270632e5f9bb0c9d4101262c4c4a3db6185f457a857ad8010847c",
+      "ets": {
+        "26": 2,
+        "2e": 6
+      },
+      "aev_kind_counts": {
+        "01": 6,
+        "02": 2,
+        "04": 2,
+        "05": 1,
+        "0b": 1
+      },
+      "ita_records": 9
+    },
+    {
+      "room": "r207",
+      "sha256": "009581972bc547b900478fa9cbfdea0dd3f85867d35d36086bbc636814ae9ab9",
+      "source_disc": 1,
+      "source_path": "St2/r207.das",
+      "source_sha256": "b67a3ae0e6ffd2479f3ed6dca84f581967c078f204023882128cf917a4fa4343",
+      "decoded_size": 2097536,
+      "decoded_sha256": "009581972bc547b900478fa9cbfdea0dd3f85867d35d36086bbc636814ae9ab9",
+      "ets": {
+        "01": 2
+      },
+      "aev_kind_counts": {
+        "00": 4,
+        "01": 2,
+        "02": 6,
+        "05": 1,
+        "11": 4
+      },
+      "ita_records": 9
+    },
+    {
+      "room": "r208",
+      "sha256": "ca5c88ab271ead27938fb5937aa9ca81137b5f49c26376fc57faf60abbdbac97",
+      "source_disc": 1,
+      "source_path": "St2/r208.das",
+      "source_sha256": "7e9bc8ca7bbdbba5f0c794a96421435dc03dc7e86b72b4b572ff7dd0090fe716",
+      "decoded_size": 3949792,
+      "decoded_sha256": "ca5c88ab271ead27938fb5937aa9ca81137b5f49c26376fc57faf60abbdbac97",
+      "ets": {
+        "21": 2,
+        "24": 1,
+        "26": 2,
+        "2e": 3,
+        "2f": 10
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 13,
+        "04": 8,
+        "0b": 8
+      },
+      "ita_records": 15
+    },
+    {
+      "room": "r209",
+      "sha256": "f6ee96b7f7b95e682fdfd40cd797829a1e6ad9b7e43a65ac0ba00e088345e147",
+      "source_disc": 1,
+      "source_path": "St2/r209.das",
+      "source_sha256": "a2cf2fcabbd31f076895331938defc109180e7ea0fc3253240bf76fd86a7569c",
+      "decoded_size": 4873408,
+      "decoded_sha256": "f6ee96b7f7b95e682fdfd40cd797829a1e6ad9b7e43a65ac0ba00e088345e147",
+      "ets": {
+        "00": 1,
+        "0a": 4,
+        "11": 2,
+        "16": 1,
+        "21": 6,
+        "2d": 2,
+        "2e": 7,
+        "2f": 8,
+        "3f": 1
+      },
+      "aev_kind_counts": {
+        "00": 20,
+        "01": 2,
+        "02": 17,
+        "04": 3,
+        "0b": 2,
+        "11": 1
+      },
+      "ita_records": 24
+    },
+    {
+      "room": "r20a",
+      "sha256": "bc6e4b32368ea1e85a4256a0356939a011d2e0702d890ce8b4550507420e175c",
+      "source_disc": 1,
+      "source_path": "St2/r20a.das",
+      "source_sha256": "a2e06bc003d895372c9d82c13a34514afa6043edac76f41311fbff3161537274",
+      "decoded_size": 4802080,
+      "decoded_sha256": "bc6e4b32368ea1e85a4256a0356939a011d2e0702d890ce8b4550507420e175c",
+      "ets": {
+        "01": 3,
+        "11": 7,
+        "14": 2,
+        "1d": 4,
+        "24": 2,
+        "2e": 4,
+        "3f": 2
+      },
+      "aev_kind_counts": {
+        "00": 2,
+        "01": 3,
+        "02": 5,
+        "04": 1,
+        "05": 1,
+        "08": 1
+      },
+      "ita_records": 24
+    },
+    {
+      "room": "r20b",
+      "sha256": "0b98ec8db7acecff2cccd2ccedd030a79e93053369c38ac895b8434e688d481d",
+      "source_disc": 1,
+      "source_path": "St2/r20b.das",
+      "source_sha256": "cba06a9b5e3a61ead716b49cbfa586f03d6e283ef0045e68e936c2e9c7c245bc",
+      "decoded_size": 4487584,
+      "decoded_sha256": "0b98ec8db7acecff2cccd2ccedd030a79e93053369c38ac895b8434e688d481d",
+      "ets": {
+        "0c": 2,
+        "11": 4,
+        "14": 5,
+        "2e": 3,
+        "31": 4,
+        "45": 2
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 9,
+        "04": 13,
+        "08": 1,
+        "0b": 2,
+        "11": 1
+      },
+      "ita_records": 19
+    },
+    {
+      "room": "r20c",
+      "sha256": "58316c393f4d2fef1b8edbda5771e0687295c76b15b240a5e77be008c17fb900",
+      "source_disc": 1,
+      "source_path": "St2/r20c.das",
+      "source_sha256": "f79e5a7606075a868e2aa51b09b89e6a91480ad452834e249e68942b4b1d4b55",
+      "decoded_size": 4022048,
+      "decoded_sha256": "58316c393f4d2fef1b8edbda5771e0687295c76b15b240a5e77be008c17fb900",
+      "ets": {
+        "1b": 1,
+        "25": 1,
+        "2e": 2,
+        "2f": 1,
+        "31": 2
+      },
+      "aev_kind_counts": {
+        "01": 3,
+        "02": 3,
+        "04": 1,
+        "05": 4
+      },
+      "ita_records": 8
+    },
+    {
+      "room": "r20d",
+      "sha256": "c26daf385b8e7ba01a7ed59e56a772221e2eebbb4dae850801d296d0b0482a8a",
+      "source_disc": 1,
+      "source_path": "St2/r20d.das",
+      "source_sha256": "9a4ebfa8a5ab03b69cafd94d5ef338f2b006616cc3795cc331958458dfad669e",
+      "decoded_size": 4838912,
+      "decoded_sha256": "c26daf385b8e7ba01a7ed59e56a772221e2eebbb4dae850801d296d0b0482a8a",
+      "ets": {
+        "0e": 1,
+        "10": 6,
+        "3b": 1
+      },
+      "aev_kind_counts": {
+        "00": 5,
+        "01": 2,
+        "02": 16,
+        "05": 2,
+        "08": 1,
+        "0b": 2,
+        "10": 2,
+        "11": 1
+      },
+      "ita_records": 13
+    },
+    {
+      "room": "r20e",
+      "sha256": "6ee3e8ecedf693854b486c83ae770987039d82c6c6c1fbca85bb7bcf7ef5d18f",
+      "source_disc": 1,
+      "source_path": "St2/r20e.das",
+      "source_sha256": "6cec667b91b0f17465aeddc5c84ca8edeed91a4b72882aebe6bb30e5f61dfcc9",
+      "decoded_size": 4131872,
+      "decoded_sha256": "6ee3e8ecedf693854b486c83ae770987039d82c6c6c1fbca85bb7bcf7ef5d18f",
+      "ets": {
+        "05": 1,
+        "13": 1
+      },
+      "aev_kind_counts": {
+        "00": 3,
+        "01": 1,
+        "02": 9,
+        "05": 1,
+        "0b": 4,
+        "11": 1
+      },
+      "ita_records": 9
+    },
+    {
+      "room": "r20f",
+      "sha256": "cca6899843d40258d35443931d66d6462f82d89875d04fb2ba89b057d997835c",
+      "source_disc": 1,
+      "source_path": "St2/r20f.das",
+      "source_sha256": "bff8f53c702390f15cf503145101fbad2a2a07c03734557c8418c19386c5d8d8",
+      "decoded_size": 4218848,
+      "decoded_sha256": "cca6899843d40258d35443931d66d6462f82d89875d04fb2ba89b057d997835c",
+      "ets": {
+        "0a": 1,
+        "21": 2,
+        "2e": 6,
+        "35": 2,
+        "36": 2
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 1,
+        "04": 3,
+        "08": 1,
+        "0b": 1,
+        "10": 1
+      },
+      "ita_records": 11
+    },
+    {
+      "room": "r210",
+      "sha256": "0a2327440e2872288a3ec2f623a7aeb52ebcfd683a86782e512e8543d052cc4e",
+      "source_disc": 1,
+      "source_path": "St2/r210.das",
+      "source_sha256": "a04c22b436d5a7798ea6623dbdd1d859c606bb69f89013e8f7d42ae389a6c92b",
+      "decoded_size": 3373760,
+      "decoded_sha256": "0a2327440e2872288a3ec2f623a7aeb52ebcfd683a86782e512e8543d052cc4e",
+      "ets": {
+        "2f": 4
+      },
+      "aev_kind_counts": {
+        "01": 5,
+        "02": 6,
+        "08": 1
+      },
+      "ita_records": 4
+    },
+    {
+      "room": "r211",
+      "sha256": "4a9753babd0da7b23da5eab2aaeaea5869ec1539a3306b9f9efa41d3f0b443bf",
+      "source_disc": 1,
+      "source_path": "St2/r211.das",
+      "source_sha256": "e886e7e01a0323184fc748cb44437e3d5d2954a3b60b948baab939dcee5d8279",
+      "decoded_size": 4367616,
+      "decoded_sha256": "4a9753babd0da7b23da5eab2aaeaea5869ec1539a3306b9f9efa41d3f0b443bf",
+      "ets": {
+        "1d": 3,
+        "21": 1,
+        "2e": 1
+      },
+      "aev_kind_counts": {
+        "01": 5,
+        "02": 4,
+        "08": 1,
+        "11": 2
+      },
+      "ita_records": 10
+    },
+    {
+      "room": "r212",
+      "sha256": "be61e7e29b815723941cca0d8bfa04fa2bdf4b54d165328a8cf2082c449227ac",
+      "source_disc": 1,
+      "source_path": "St2/r212.das",
+      "source_sha256": "d97a5178e16ce1381ffedd82b5ff22c174b5e7c428bb4b460825338259961cdf",
+      "decoded_size": 4408096,
+      "decoded_sha256": "be61e7e29b815723941cca0d8bfa04fa2bdf4b54d165328a8cf2082c449227ac",
+      "ets": {
+        "01": 2,
+        "0d": 1,
+        "11": 2,
+        "19": 4,
+        "1e": 1,
+        "30": 2
+      },
+      "aev_kind_counts": {
+        "00": 9,
+        "01": 1,
+        "02": 3,
+        "05": 1,
+        "0b": 3
+      },
+      "ita_records": 8
+    },
+    {
+      "room": "r213",
+      "sha256": "710ea73ee80453538a27b76fc2c91fd91f8cd29d0f5096319e2acc6bb4298c74",
+      "source_disc": 1,
+      "source_path": "St2/r213.das",
+      "source_sha256": "48e59e70578a00391b62ff543772e1ca04d0b063ccd7d2864a9f4c47a13f605a",
+      "decoded_size": 3615424,
+      "decoded_sha256": "710ea73ee80453538a27b76fc2c91fd91f8cd29d0f5096319e2acc6bb4298c74",
+      "ets": {
+        "27": 2,
+        "2e": 5
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 6,
+        "10": 1
+      },
+      "ita_records": 17
+    },
+    {
+      "room": "r214",
+      "sha256": "81c0daa0057d42108222916d2d24a3b89312cca4cf994f9b55ebfe752129f099",
+      "source_disc": 1,
+      "source_path": "St2/r214.das",
+      "source_sha256": "df435882e754cfc6aa0c87b99b463ccffdb2c49505f418d71327557a2c5161e3",
+      "decoded_size": 4894496,
+      "decoded_sha256": "81c0daa0057d42108222916d2d24a3b89312cca4cf994f9b55ebfe752129f099",
+      "ets": {
+        "11": 4,
+        "14": 8,
+        "24": 1,
+        "26": 2
+      },
+      "aev_kind_counts": {
+        "00": 11,
+        "01": 5,
+        "02": 3,
+        "05": 1,
+        "08": 1,
+        "0b": 2
+      },
+      "ita_records": 6
+    },
+    {
+      "room": "r215",
+      "sha256": "e35f737cb0dfa9d06f3d0b92e7fb7dd65dce3f5a9a8d897883156cd7c6f6f4de",
+      "source_disc": 1,
+      "source_path": "St2/r215.das",
+      "source_sha256": "208acdc9f4cf5b354186c3c6ce7f73ef4ceee3d9948b15920dbe27968692e555",
+      "decoded_size": 3665536,
+      "decoded_sha256": "e35f737cb0dfa9d06f3d0b92e7fb7dd65dce3f5a9a8d897883156cd7c6f6f4de",
+      "ets": {},
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 1
+      },
+      "ita_records": 0
+    },
+    {
+      "room": "r216",
+      "sha256": "9ae47c67aee404f55aa12ee8acbe7c117c11b10aa04e28cacb5a2d1c396d35fe",
+      "source_disc": 1,
+      "source_path": "St2/r216.das",
+      "source_sha256": "c0f134e88a10d2f5b0729693d970fb2cf61c3bcaa684eb9624374f6852043a6a",
+      "decoded_size": 2785984,
+      "decoded_sha256": "9ae47c67aee404f55aa12ee8acbe7c117c11b10aa04e28cacb5a2d1c396d35fe",
+      "ets": {},
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 2,
+        "0b": 1
+      },
+      "ita_records": 10
+    },
+    {
+      "room": "r217",
+      "sha256": "ecd6a1b99818f4427f785abc4546a90fbf215dc264e1d6241ed7b3220026d791",
+      "source_disc": 1,
+      "source_path": "St2/r217.das",
+      "source_sha256": "6746be8b4c5b755b647e9547a23846fa759854c71ac66f679a5e99f1f46aac9b",
+      "decoded_size": 3919200,
+      "decoded_sha256": "ecd6a1b99818f4427f785abc4546a90fbf215dc264e1d6241ed7b3220026d791",
+      "ets": {
+        "01": 2,
+        "02": 2,
+        "14": 7
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 3,
+        "02": 2,
+        "04": 1,
+        "05": 1,
+        "10": 3
+      },
+      "ita_records": 6
+    },
+    {
+      "room": "r218",
+      "sha256": "b2283024eadc33cf614666f2bf0b8178c7712a5aebda330ba58b0cbc9ef263c5",
+      "source_disc": 1,
+      "source_path": "St2/r218.das",
+      "source_sha256": "bba81163b4e90e0e6a94653bb00ade41dc451bb0f32c551f617ee87444899a29",
+      "decoded_size": 3455712,
+      "decoded_sha256": "b2283024eadc33cf614666f2bf0b8178c7712a5aebda330ba58b0cbc9ef263c5",
+      "ets": {
+        "2e": 2,
+        "2f": 1,
+        "3d": 2
+      },
+      "aev_kind_counts": {
+        "00": 2,
+        "01": 2,
+        "0b": 1
+      },
+      "ita_records": 9
+    },
+    {
+      "room": "r219",
+      "sha256": "38bf3692effbc0a17de92744fdfa60681605c4d0cafdf78a29ce1ce2b6e66d69",
+      "source_disc": 1,
+      "source_path": "St2/r219.das",
+      "source_sha256": "3eb2a1d72c7544e683f6c8f092013f535bdef7b04611cd0893ab351c174ae50c",
+      "decoded_size": 3644736,
+      "decoded_sha256": "38bf3692effbc0a17de92744fdfa60681605c4d0cafdf78a29ce1ce2b6e66d69",
+      "ets": {
+        "2e": 2,
+        "2f": 2
+      },
+      "aev_kind_counts": {
+        "01": 4,
+        "02": 1
+      },
+      "ita_records": 5
+    },
+    {
+      "room": "r21a",
+      "sha256": "9ae8948aaec1f010bbea2eb906034f15a86a6fd1f078a3cfbbd70cf036c9c3b4",
+      "source_disc": 1,
+      "source_path": "St2/r21a.das",
+      "source_sha256": "081ae6df320856d017234a90b6ad669ccb33f671a8eaff19976450402f4e42be",
+      "decoded_size": 3947328,
+      "decoded_sha256": "9ae8948aaec1f010bbea2eb906034f15a86a6fd1f078a3cfbbd70cf036c9c3b4",
+      "ets": {
+        "00": 1,
+        "01": 4,
+        "08": 1,
+        "0b": 1,
+        "11": 5,
+        "16": 1,
+        "1e": 1,
+        "40": 1
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 4,
+        "04": 1,
+        "05": 2,
+        "0b": 3,
+        "11": 1
+      },
+      "ita_records": 18
+    },
+    {
+      "room": "r21b",
+      "sha256": "5d688b71376b2a27237d852ad85c2892071c6693bac6270f58326dae26f965fd",
+      "source_disc": 1,
+      "source_path": "St2/r21b.das",
+      "source_sha256": "5d67f5553c2a2eeffb7728967f8d06af2ec721cb3bea1f051582f3e0f390555c",
+      "decoded_size": 4816768,
+      "decoded_sha256": "5d688b71376b2a27237d852ad85c2892071c6693bac6270f58326dae26f965fd",
+      "ets": {
+        "11": 2,
+        "1c": 16,
+        "42": 3
+      },
+      "aev_kind_counts": {
+        "00": 2,
+        "01": 2,
+        "02": 1,
+        "0b": 2
+      },
+      "ita_records": 20
+    },
+    {
+      "room": "r21d",
+      "sha256": "c23a6f6bf3a746505cbcbdfa1ea53b49e791d37791ded51e01be4edabea2b54a",
+      "source_disc": 1,
+      "source_path": "St2/r21d.das",
+      "source_sha256": "55fc0d6658a33e000ee2584c3489da7675289ef40ed2c981de5c0f7bbc7d739e",
+      "decoded_size": 4303008,
+      "decoded_sha256": "c23a6f6bf3a746505cbcbdfa1ea53b49e791d37791ded51e01be4edabea2b54a",
+      "ets": {},
+      "aev_kind_counts": {
+        "00": 5,
+        "01": 2,
+        "02": 6,
+        "05": 2,
+        "0b": 8
+      },
+      "ita_records": 18
+    },
+    {
+      "room": "r220",
+      "sha256": "f5c35ec42e00e4c4d12d7aff5d09dd2d2f1605567625f1bbc1c3ee2408ed925c",
+      "source_disc": 1,
+      "source_path": "St2/r220.das",
+      "source_sha256": "b489fd52082c95bd5740e5cc52436ce315d81f55a73a8025cecf8c757990ab2b",
+      "decoded_size": 2470272,
+      "decoded_sha256": "f5c35ec42e00e4c4d12d7aff5d09dd2d2f1605567625f1bbc1c3ee2408ed925c",
+      "ets": {
+        "11": 2,
+        "1e": 1
+      },
+      "aev_kind_counts": {
+        "01": 3,
+        "02": 1,
+        "08": 1
+      },
+      "ita_records": 6
+    },
+    {
+      "room": "r221",
+      "sha256": "1efec1b965c18fffa63e4fa85434ee5c884a199f1253c36e08b2f2bd6be4fd02",
+      "source_disc": 1,
+      "source_path": "St2/r221.das",
+      "source_sha256": "ef2cf20cf0535ff6d592bcd4206d8e06d4d43a945bf35a22d544cd6efe3218f2",
+      "decoded_size": 4557792,
+      "decoded_sha256": "1efec1b965c18fffa63e4fa85434ee5c884a199f1253c36e08b2f2bd6be4fd02",
+      "ets": {
+        "0d": 1,
+        "3e": 1
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 2,
+        "02": 14,
+        "04": 4,
+        "0b": 6
+      },
+      "ita_records": 6
+    },
+    {
+      "room": "r222",
+      "sha256": "17d4c8106bf2998c6a15d74c3e0ac11e4fc4580b4b009cb3bc79885c62f908b9",
+      "source_disc": 1,
+      "source_path": "St2/r222.das",
+      "source_sha256": "9dd11b7b4ad14879a0f8ec04f30be23e193dd552f55c14d5f707a98ba0386003",
+      "decoded_size": 3281696,
+      "decoded_sha256": "17d4c8106bf2998c6a15d74c3e0ac11e4fc4580b4b009cb3bc79885c62f908b9",
+      "ets": {},
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 4,
+        "04": 3,
+        "0b": 3
+      },
+      "ita_records": 3
+    },
+    {
+      "room": "r223",
+      "sha256": "f5c8f6bdf012023aa4d7b247688e00fe90f3414bc65c03d40d5b5eb92cc77715",
+      "source_disc": 1,
+      "source_path": "St2/r223.das",
+      "source_sha256": "9032df94741399a9e040894697fbde5fafa13de2628ed5aca313aae0c3f4d713",
+      "decoded_size": 3852544,
+      "decoded_sha256": "f5c8f6bdf012023aa4d7b247688e00fe90f3414bc65c03d40d5b5eb92cc77715",
+      "ets": {
+        "11": 2,
+        "14": 3,
+        "1e": 2
+      },
+      "aev_kind_counts": {
+        "00": 8,
+        "01": 2,
+        "02": 3,
+        "04": 1,
+        "05": 3,
+        "0b": 2,
+        "10": 1,
+        "11": 1
+      },
+      "ita_records": 11
+    },
+    {
+      "room": "r224",
+      "sha256": "abfd73aa5f37052239945b54dbd32378be7adde1b417c59b05d0657e93b8fcbf",
+      "source_disc": 1,
+      "source_path": "St2/r224.das",
+      "source_sha256": "24c719e8b13dbe0a4067f263f7da9a27f6c183c4e5fa598ed6455e8ac30a5821",
+      "decoded_size": 3288640,
+      "decoded_sha256": "abfd73aa5f37052239945b54dbd32378be7adde1b417c59b05d0657e93b8fcbf",
+      "ets": {
+        "11": 2
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 3,
+        "0b": 4,
+        "10": 1
+      },
+      "ita_records": 7
+    },
+    {
+      "room": "r225",
+      "sha256": "7a31e5aac0129541afdebdb6dd367239df8aa0bb9659fdef80f3d4a1ae7113f0",
+      "source_disc": 1,
+      "source_path": "St2/r225.das",
+      "source_sha256": "6666ba7ebb8126bfd65b1ef893e8e34b14f7ce62101910cb8cdb6ffc15b8e707",
+      "decoded_size": 3887040,
+      "decoded_sha256": "7a31e5aac0129541afdebdb6dd367239df8aa0bb9659fdef80f3d4a1ae7113f0",
+      "ets": {
+        "01": 1,
+        "0b": 1,
+        "11": 5,
+        "14": 2,
+        "1f": 1
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 4,
+        "02": 3,
+        "08": 1,
+        "0b": 5,
+        "10": 2,
+        "11": 1
+      },
+      "ita_records": 12
+    },
+    {
+      "room": "r226",
+      "sha256": "01d1810bb660e764366813e396a9d13e572808deb21ba106ef7fe95377455a87",
+      "source_disc": 1,
+      "source_path": "St2/r226.das",
+      "source_sha256": "e7be1402082e013ba7f81023a3ebfe8fb3c57021279f8bf1cbf36bc73875e4b2",
+      "decoded_size": 5323104,
+      "decoded_sha256": "01d1810bb660e764366813e396a9d13e572808deb21ba106ef7fe95377455a87",
+      "ets": {
+        "10": 1,
+        "21": 1,
+        "2e": 7,
+        "2f": 3
+      },
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 13,
+        "04": 9,
+        "08": 1,
+        "0b": 5,
+        "0d": 6,
+        "10": 2,
+        "14": 2
+      },
+      "ita_records": 11
+    },
+    {
+      "room": "r227",
+      "sha256": "8d6136d9624c877ab19a3624099ffb5ee4b95e84ba6922b620c6e2b0830d1379",
+      "source_disc": 1,
+      "source_path": "St2/r227.das",
+      "source_sha256": "7e31e9c31735b5b43fa49cac604675507b85c8c61b9595400b5564e6c566e74d",
+      "decoded_size": 5234880,
+      "decoded_sha256": "8d6136d9624c877ab19a3624099ffb5ee4b95e84ba6922b620c6e2b0830d1379",
+      "ets": {
+        "0e": 1,
+        "11": 9,
+        "14": 4,
+        "15": 2
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 1,
+        "02": 8,
+        "05": 1,
+        "08": 1,
+        "0b": 7,
+        "10": 1,
+        "14": 1
+      },
+      "ita_records": 16
+    },
+    {
+      "room": "r228",
+      "sha256": "595f5775145675551e555ec70968b47a4dd39a9814e2d7b143219285947847c3",
+      "source_disc": 1,
+      "source_path": "St2/r228.das",
+      "source_sha256": "e9b41e7c7837e059118bb9ff79bcbc4e7f7314d2465b12ce182030a0067e8ee1",
+      "decoded_size": 2792352,
+      "decoded_sha256": "595f5775145675551e555ec70968b47a4dd39a9814e2d7b143219285947847c3",
+      "ets": {
+        "11": 8
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 1,
+        "0b": 1,
+        "10": 3
+      },
+      "ita_records": 12
+    },
+    {
+      "room": "r229",
+      "sha256": "2a7ec76b2d61a635556efeccddb030fbb938a87ef925d36000c5cfc30f9e1079",
+      "source_disc": 1,
+      "source_path": "St2/r229.das",
+      "source_sha256": "b50a15e80295f5c074e2969d518e43617f763177275b8e69ee1c2a57800be873",
+      "decoded_size": 3427520,
+      "decoded_sha256": "2a7ec76b2d61a635556efeccddb030fbb938a87ef925d36000c5cfc30f9e1079",
+      "ets": {
+        "0c": 2
+      },
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 2,
+        "08": 1,
+        "10": 1
+      },
+      "ita_records": 6
+    },
+    {
+      "room": "r22a",
+      "sha256": "5a9dd98e756b709f5927f54f84667527c1cf6276a931e5eb8d4a008e2d0784a9",
+      "source_disc": 1,
+      "source_path": "St2/r22a.das",
+      "source_sha256": "ca15f4f629886e0939501dc60de886b43f8e78106c41159c6bb11326abefb19b",
+      "decoded_size": 2765504,
+      "decoded_sha256": "5a9dd98e756b709f5927f54f84667527c1cf6276a931e5eb8d4a008e2d0784a9",
+      "ets": {
+        "01": 3,
+        "0d": 1,
+        "11": 8
+      },
+      "aev_kind_counts": {
+        "01": 4,
+        "02": 3,
+        "08": 1
+      },
+      "ita_records": 9
+    },
+    {
+      "room": "r22b",
+      "sha256": "16f0581b9dc3a115cc11f71f8a95ac27dc1ac21abc0b038d13867b349d37552f",
+      "source_disc": 1,
+      "source_path": "St2/r22b.das",
+      "source_sha256": "8662cea035fe3f6958a773f3c5437f04d7ed0d7870841a570a6f377dce976d31",
+      "decoded_size": 3746112,
+      "decoded_sha256": "16f0581b9dc3a115cc11f71f8a95ac27dc1ac21abc0b038d13867b349d37552f",
+      "ets": {
+        "12": 1
+      },
+      "aev_kind_counts": {
+        "01": 1
+      },
+      "ita_records": 0
+    },
+    {
+      "room": "r22c",
+      "sha256": "0bdc85887eb160e983a26b7215650dd214a88dad7bc872140e033bb794661510",
+      "source_disc": 2,
+      "source_path": "St2/r22c.das",
+      "source_sha256": "30e1d3aee59cc51cf60be88528931acf5b2780544404912063c2d48dc90c8db5",
+      "decoded_size": 2154752,
+      "decoded_sha256": "0bdc85887eb160e983a26b7215650dd214a88dad7bc872140e033bb794661510",
+      "ets": {
+        "21": 2
+      },
+      "aev_kind_counts": {
+        "01": 5,
+        "02": 4,
+        "05": 1
+      },
+      "ita_records": 5
+    },
+    {
+      "room": "r300",
+      "sha256": "a0fccfc6bd1a608f7ed5868eff1d1f9869903234d288a35b261c4ff15bd94788",
+      "source_disc": 2,
+      "source_path": "St3/r300.das",
+      "source_sha256": "d1cf2933f31751e7000e2f54e9d7ebd92fbfc32b3a98867ed9d20114196335df",
+      "decoded_size": 5427520,
+      "decoded_sha256": "a0fccfc6bd1a608f7ed5868eff1d1f9869903234d288a35b261c4ff15bd94788",
+      "ets": {
+        "02": 2,
+        "0c": 2,
+        "11": 2,
+        "33": 1
+      },
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 11,
+        "04": 4,
+        "0b": 1,
+        "10": 2
+      },
+      "ita_records": 10
+    },
+    {
+      "room": "r301",
+      "sha256": "118a4c23384eab110863bd8bfe2861b2d6f53b1464521bcef9aa87612aaf445b",
+      "source_disc": 2,
+      "source_path": "St3/r301.das",
+      "source_sha256": "37e407d25e6903b867691dd4f736db227b97059bf46905e145fafd42b97a374c",
+      "decoded_size": 4490336,
+      "decoded_sha256": "118a4c23384eab110863bd8bfe2861b2d6f53b1464521bcef9aa87612aaf445b",
+      "ets": {
+        "0c": 3,
+        "12": 2
+      },
+      "aev_kind_counts": {
+        "00": 10,
+        "01": 2,
+        "02": 4,
+        "05": 1,
+        "08": 1,
+        "0b": 2
+      },
+      "ita_records": 10
+    },
+    {
+      "room": "r303",
+      "sha256": "2e30c8e9f5aa31d322fe5f6843f27b77fc805ef645c51d55fbfa021e54cd6a04",
+      "source_disc": 2,
+      "source_path": "St3/r303.das",
+      "source_sha256": "565aafbf630366acaec2db958604d0bf0afc2544e19753f44109979f8cc1c6bd",
+      "decoded_size": 3980704,
+      "decoded_sha256": "2e30c8e9f5aa31d322fe5f6843f27b77fc805ef645c51d55fbfa021e54cd6a04",
+      "ets": {
+        "32": 1
+      },
+      "aev_kind_counts": {
+        "01": 3,
+        "02": 6,
+        "05": 4
+      },
+      "ita_records": 5
+    },
+    {
+      "room": "r304",
+      "sha256": "f16c567fbfb263ec897732d6dc84231d5df3cfa9030a95a2f2caadb21d1b3788",
+      "source_disc": 2,
+      "source_path": "St3/r304.das",
+      "source_sha256": "ec92f53908ffd00f0a5385a4505be4cfa5e766437aa40ff818ad52c4167141b4",
+      "decoded_size": 4222976,
+      "decoded_sha256": "f16c567fbfb263ec897732d6dc84231d5df3cfa9030a95a2f2caadb21d1b3788",
+      "ets": {
+        "11": 2,
+        "34": 1,
+        "54": 7,
+        "58": 1,
+        "5a": 4
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 4,
+        "05": 2
+      },
+      "ita_records": 5
+    },
+    {
+      "room": "r305",
+      "sha256": "7470d142694452505765e6ae73fc87aa84ea71ce9f6b7aa67525a337b04510d1",
+      "source_disc": 2,
+      "source_path": "St3/r305.das",
+      "source_sha256": "7ddd1be2d223b4db8bc738e0784ac25474439f8a184b8e89da716fd56beb63ba",
+      "decoded_size": 3434560,
+      "decoded_sha256": "7470d142694452505765e6ae73fc87aa84ea71ce9f6b7aa67525a337b04510d1",
+      "ets": {
+        "5b": 3,
+        "5c": 3,
+        "5d": 2,
+        "5e": 2
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 3,
+        "02": 4,
+        "0b": 1
+      },
+      "ita_records": 6
+    },
+    {
+      "room": "r306",
+      "sha256": "a4b482402f05227c9066db4cea117a586e6bade01f948396da5d63a92d0a770f",
+      "source_disc": 2,
+      "source_path": "St3/r306.das",
+      "source_sha256": "ad3ac1247aebd69e77953e887800ec39ec388cebc4a1ae5f78b267c408d6da44",
+      "decoded_size": 4734528,
+      "decoded_sha256": "a4b482402f05227c9066db4cea117a586e6bade01f948396da5d63a92d0a770f",
+      "ets": {
+        "01": 2,
+        "0c": 3,
+        "3c": 1,
+        "41": 2,
+        "5b": 1,
+        "5c": 1,
+        "5d": 1,
+        "5e": 1,
+        "5f": 1,
+        "60": 1
+      },
+      "aev_kind_counts": {
+        "01": 5,
+        "02": 4,
+        "04": 1,
+        "08": 1,
+        "11": 3
+      },
+      "ita_records": 10
+    },
+    {
+      "room": "r307",
+      "sha256": "499c57aaa105170e17c4afd71371b6fcf084396e526b9cadb1edee5e1c675063",
+      "source_disc": 2,
+      "source_path": "St3/r307.das",
+      "source_sha256": "7cf05141ca964ab3ad0f075721772aa1e4abe67f8d5b690a2eff059ccffbd64a",
+      "decoded_size": 3811424,
+      "decoded_sha256": "499c57aaa105170e17c4afd71371b6fcf084396e526b9cadb1edee5e1c675063",
+      "ets": {
+        "48": 1,
+        "4a": 2,
+        "4b": 1,
+        "54": 1,
+        "61": 1,
+        "64": 2
+      },
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 4,
+        "05": 5,
+        "0b": 1
+      },
+      "ita_records": 6
+    },
+    {
+      "room": "r308",
+      "sha256": "4e774b39f70161fbaacdec7a5fe1814838ecb7e0d62034eb30335b3e82253e8b",
+      "source_disc": 2,
+      "source_path": "St3/r308.das",
+      "source_sha256": "b22ec82bb3f7421efaa4af1f8369340ddce3ea7adaca74606ef02a9722c8ac1d",
+      "decoded_size": 3332288,
+      "decoded_sha256": "4e774b39f70161fbaacdec7a5fe1814838ecb7e0d62034eb30335b3e82253e8b",
+      "ets": {
+        "4f": 1,
+        "50": 7,
+        "51": 4
+      },
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 3,
+        "05": 2,
+        "11": 1
+      },
+      "ita_records": 6
+    },
+    {
+      "room": "r309",
+      "sha256": "9d8c39589a584e469e2f1daeb8ceb06f7087fd74b3de8e1201a00242cdb0f4f1",
+      "source_disc": 2,
+      "source_path": "St3/r309.das",
+      "source_sha256": "9f5a587ef3da15bef23cf420355d0b565c45ac92891f7f08cdc88dca882c7f48",
+      "decoded_size": 4099648,
+      "decoded_sha256": "9d8c39589a584e469e2f1daeb8ceb06f7087fd74b3de8e1201a00242cdb0f4f1",
+      "ets": {
+        "25": 4,
+        "35": 2,
+        "36": 12,
+        "3c": 1,
+        "43": 2,
+        "48": 5,
+        "49": 1,
+        "52": 2,
+        "53": 4,
+        "54": 19,
+        "64": 5
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 3,
+        "05": 5
+      },
+      "ita_records": 11
+    },
+    {
+      "room": "r30a",
+      "sha256": "3246cbaaabbe6d03ffc9b97022bb291dda2699386341f060c37d82d3c1305d43",
+      "source_disc": 2,
+      "source_path": "St3/r30a.das",
+      "source_sha256": "54dc97068edd80a0c46e232c9441f621f51c12ba9d9564a1a803a69f1959253b",
+      "decoded_size": 3821824,
+      "decoded_sha256": "3246cbaaabbe6d03ffc9b97022bb291dda2699386341f060c37d82d3c1305d43",
+      "ets": {
+        "11": 3,
+        "35": 2,
+        "36": 5,
+        "4d": 1,
+        "54": 1
+      },
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 3,
+        "05": 1,
+        "0b": 2
+      },
+      "ita_records": 7
+    },
+    {
+      "room": "r30b",
+      "sha256": "450f07d66c1f1609c9887609a04e414f336936d515758bca1fff2916eb0f77b5",
+      "source_disc": 2,
+      "source_path": "St3/r30b.das",
+      "source_sha256": "3c144d8d73ae307bc6b389d049462ff116a8e16b27afd501e5a143caa101a0a6",
+      "decoded_size": 3997920,
+      "decoded_sha256": "450f07d66c1f1609c9887609a04e414f336936d515758bca1fff2916eb0f77b5",
+      "ets": {
+        "2b": 2,
+        "35": 3,
+        "36": 3,
+        "39": 1,
+        "54": 5
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 8,
+        "04": 1,
+        "05": 4,
+        "0b": 1,
+        "10": 1
+      },
+      "ita_records": 8
+    },
+    {
+      "room": "r30c",
+      "sha256": "4f66432cd2d48f9084f9374907adbe45a73c2da6b42eba29470d14305fabfd5b",
+      "source_disc": 2,
+      "source_path": "St3/r30c.das",
+      "source_sha256": "fcf2f8fd869d14179001da7c802708a74c6fff41269504dfa658da0d0402b998",
+      "decoded_size": 3215520,
+      "decoded_sha256": "4f66432cd2d48f9084f9374907adbe45a73c2da6b42eba29470d14305fabfd5b",
+      "ets": {
+        "4e": 1
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 2,
+        "02": 6,
+        "11": 1
+      },
+      "ita_records": 3
+    },
+    {
+      "room": "r30d",
+      "sha256": "d1570faf9eaea98f24143bed03fc88a639510a3a7d7fa2197ec2992006ca488c",
+      "source_disc": 2,
+      "source_path": "St3/r30d.das",
+      "source_sha256": "785eaf73fd5e3e74e2c854ac7f1d0cc0bf343e31e0ac36df095f5bee79442959",
+      "decoded_size": 3592512,
+      "decoded_sha256": "d1570faf9eaea98f24143bed03fc88a639510a3a7d7fa2197ec2992006ca488c",
+      "ets": {
+        "0e": 4,
+        "2b": 1,
+        "39": 1,
+        "3a": 2
+      },
+      "aev_kind_counts": {
+        "01": 3,
+        "02": 8,
+        "04": 12,
+        "05": 3,
+        "08": 1
+      },
+      "ita_records": 7
+    },
+    {
+      "room": "r30e",
+      "sha256": "40788e6bfb78ea0d36b1085d85a680457c71cba535d972d5ec268ab2711bd2ee",
+      "source_disc": 2,
+      "source_path": "St3/r30e.das",
+      "source_sha256": "30700155ee46a48c8441f775e1835f8db0dbd38f9685f45b8b3250f554dfff9d",
+      "decoded_size": 3338880,
+      "decoded_sha256": "40788e6bfb78ea0d36b1085d85a680457c71cba535d972d5ec268ab2711bd2ee",
+      "ets": {
+        "25": 4,
+        "36": 12,
+        "49": 3,
+        "54": 3
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "05": 2,
+        "08": 1
+      },
+      "ita_records": 5
+    },
+    {
+      "room": "r30f",
+      "sha256": "8eeb9ffba88448609249d2c575fae76f6d9cd3af9f7cc9522ddf5ee131125bc3",
+      "source_disc": 2,
+      "source_path": "St3/r30f.das",
+      "source_sha256": "81449ff5e00cf589dfa7810859996a4f4e9ee255c9341c28fa199fe72b127a30",
+      "decoded_size": 4246752,
+      "decoded_sha256": "8eeb9ffba88448609249d2c575fae76f6d9cd3af9f7cc9522ddf5ee131125bc3",
+      "ets": {
+        "02": 7,
+        "12": 1
+      },
+      "aev_kind_counts": {
+        "00": 5,
+        "01": 2,
+        "02": 4,
+        "04": 1,
+        "0b": 15,
+        "10": 2,
+        "14": 1
+      },
+      "ita_records": 8
+    },
+    {
+      "room": "r310",
+      "sha256": "321196613bf2be5dc9e467021bd557cff871e04e735084e0fad97bc9c3806f17",
+      "source_disc": 2,
+      "source_path": "St3/r310.das",
+      "source_sha256": "0b55a8195b5fb5ae906a93058eb0c9e75622a882557cf7192e7b05b871314ff7",
+      "decoded_size": 3283808,
+      "decoded_sha256": "321196613bf2be5dc9e467021bd557cff871e04e735084e0fad97bc9c3806f17",
+      "ets": {
+        "0e": 4,
+        "12": 2,
+        "4c": 2
+      },
+      "aev_kind_counts": {
+        "00": 4,
+        "01": 1,
+        "02": 2,
+        "0b": 6,
+        "12": 2
+      },
+      "ita_records": 6
+    },
+    {
+      "room": "r311",
+      "sha256": "fcd7177c8a6b60e94ba2c48073eaa01234e2e055c2fdab75b0dbe58c3f7bf169",
+      "source_disc": 2,
+      "source_path": "St3/r311.das",
+      "source_sha256": "e52cc9db3330ae8da6b175aaea0541c45e78cd6425af1c7c8ed1b617b8b10cb2",
+      "decoded_size": 3524736,
+      "decoded_sha256": "fcd7177c8a6b60e94ba2c48073eaa01234e2e055c2fdab75b0dbe58c3f7bf169",
+      "ets": {
+        "11": 1,
+        "1e": 1,
+        "35": 4,
+        "47": 2
+      },
+      "aev_kind_counts": {
+        "00": 8,
+        "01": 2,
+        "02": 1,
+        "0b": 3
+      },
+      "ita_records": 4
+    },
+    {
+      "room": "r312",
+      "sha256": "48d11330778cb12a8768532bb6d7ecbb48cca55bea671ac5f5df85e9da8773ce",
+      "source_disc": 2,
+      "source_path": "St3/r312.das",
+      "source_sha256": "aaf90f927b7dcdb1d32ff44b13bedb4f170ec0d8ec70208340704147cfab6dee",
+      "decoded_size": 469120,
+      "decoded_sha256": "48d11330778cb12a8768532bb6d7ecbb48cca55bea671ac5f5df85e9da8773ce",
+      "ets": {},
+      "aev_kind_counts": {
+        "01": 3,
+        "02": 8,
+        "04": 12,
+        "05": 3,
+        "08": 1
+      },
+      "ita_records": 1
+    },
+    {
+      "room": "r313",
+      "sha256": "106ce3de53ffb5fa1edc14bb01c98bf92b23ed5b416ded44e25f556fef625971",
+      "source_disc": 2,
+      "source_path": "St3/r313.das",
+      "source_sha256": "41beea646fa2b7d7343dd9f163c7e09ad97839055938cbb5301266c30ef72e69",
+      "decoded_size": 1065600,
+      "decoded_sha256": "106ce3de53ffb5fa1edc14bb01c98bf92b23ed5b416ded44e25f556fef625971",
+      "ets": {},
+      "aev_kind_counts": {},
+      "ita_records": 0
+    },
+    {
+      "room": "r314",
+      "sha256": "106ce3de53ffb5fa1edc14bb01c98bf92b23ed5b416ded44e25f556fef625971",
+      "source_disc": 2,
+      "source_path": "St3/r314.das",
+      "source_sha256": "41beea646fa2b7d7343dd9f163c7e09ad97839055938cbb5301266c30ef72e69",
+      "decoded_size": 1065600,
+      "decoded_sha256": "106ce3de53ffb5fa1edc14bb01c98bf92b23ed5b416ded44e25f556fef625971",
+      "ets": {},
+      "aev_kind_counts": {},
+      "ita_records": 0
+    },
+    {
+      "room": "r315",
+      "sha256": "a7fa4479423a7d855f41d083cfa23366d2e5d2aa4afe8c324017f97af5262eea",
+      "source_disc": 2,
+      "source_path": "St3/r315.das",
+      "source_sha256": "edcf299ac60e25b4b8cf9907ff51bf0cf921d22fd62eb3d53393f4e1cc87a08e",
+      "decoded_size": 3291744,
+      "decoded_sha256": "a7fa4479423a7d855f41d083cfa23366d2e5d2aa4afe8c324017f97af5262eea",
+      "ets": {
+        "49": 1
+      },
+      "aev_kind_counts": {
+        "00": 3,
+        "01": 1,
+        "05": 1,
+        "08": 1
+      },
+      "ita_records": 6
+    },
+    {
+      "room": "r316",
+      "sha256": "8a2e89db3f5e027460590aca0a85e33a523bf2807822bfd9fc6008699323dce7",
+      "source_disc": 2,
+      "source_path": "St3/r316.das",
+      "source_sha256": "c5dd9e4150497170a84417fc834440c4d466d374ded2fc58b3583d9c04b9c5da",
+      "decoded_size": 4087264,
+      "decoded_sha256": "8a2e89db3f5e027460590aca0a85e33a523bf2807822bfd9fc6008699323dce7",
+      "ets": {
+        "0d": 1,
+        "34": 2,
+        "44": 6,
+        "55": 5,
+        "56": 5,
+        "57": 3
+      },
+      "aev_kind_counts": {
+        "00": 4,
+        "01": 2,
+        "02": 2
+      },
+      "ita_records": 9
+    },
+    {
+      "room": "r317",
+      "sha256": "ddd9da5dda040bf1a309c119602e7f734c24156292805c0b005a3e7025252a06",
+      "source_disc": 2,
+      "source_path": "St3/r317.das",
+      "source_sha256": "d7b6cb6f2d3ed9bf89ff8ac51de389ba70b3c3582f57972d13ab84664a07359e",
+      "decoded_size": 3456032,
+      "decoded_sha256": "ddd9da5dda040bf1a309c119602e7f734c24156292805c0b005a3e7025252a06",
+      "ets": {
+        "34": 1
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 4,
+        "10": 4
+      },
+      "ita_records": 1
+    },
+    {
+      "room": "r318",
+      "sha256": "27cd2d45cf8a51dede6b64076f5ffa4c4eaa2f8452ddca5d8819d4185929d451",
+      "source_disc": 2,
+      "source_path": "St3/r318.das",
+      "source_sha256": "0552b8b24d3a6c692d82306ee606829c7160ed811ef8d55ce421a28c6c5d5e25",
+      "decoded_size": 3530432,
+      "decoded_sha256": "27cd2d45cf8a51dede6b64076f5ffa4c4eaa2f8452ddca5d8819d4185929d451",
+      "ets": {},
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 4,
+        "04": 8,
+        "05": 2,
+        "0b": 1
+      },
+      "ita_records": 2
+    },
+    {
+      "room": "r31a",
+      "sha256": "a5f45fd7664323e4bb8b22e8090276a54521e6e2f69c3bfca94f169de375bb60",
+      "source_disc": 2,
+      "source_path": "St3/r31a.das",
+      "source_sha256": "02830803bc118baa49ef7e39ef8f5a89336f567ac364a8e98f0d59ce71ceddd1",
+      "decoded_size": 2461856,
+      "decoded_sha256": "a5f45fd7664323e4bb8b22e8090276a54521e6e2f69c3bfca94f169de375bb60",
+      "ets": {
+        "41": 1
+      },
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 1,
+        "08": 1
+      },
+      "ita_records": 5
+    },
+    {
+      "room": "r31b",
+      "sha256": "485968c7547e7b9dd8b6cd1b1443a940f448a743b095f630a6e94e7c1871f7c1",
+      "source_disc": 2,
+      "source_path": "St3/r31b.das",
+      "source_sha256": "b3a18d52906a946600bca091d0603da3fc91678777eec89689730e6ab5c9d6ff",
+      "decoded_size": 4755904,
+      "decoded_sha256": "485968c7547e7b9dd8b6cd1b1443a940f448a743b095f630a6e94e7c1871f7c1",
+      "ets": {
+        "0e": 4,
+        "12": 2,
+        "3e": 1,
+        "4c": 2
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 19,
+        "04": 2,
+        "05": 7
+      },
+      "ita_records": 12
+    },
+    {
+      "room": "r31c",
+      "sha256": "2bfd5ea1d08f4b426b0eed7a7a3ee472c35fcf420744047a82cf29ef853a1f5d",
+      "source_disc": 2,
+      "source_path": "St3/r31c.das",
+      "source_sha256": "8d23cff53b2b5111ac83b29d7a11f3b43425c5f8e973f18316bdea272d807025",
+      "decoded_size": 6123840,
+      "decoded_sha256": "2bfd5ea1d08f4b426b0eed7a7a3ee472c35fcf420744047a82cf29ef853a1f5d",
+      "ets": {
+        "02": 1,
+        "03": 2,
+        "0e": 2,
+        "11": 4,
+        "62": 1,
+        "66": 1
+      },
+      "aev_kind_counts": {
+        "00": 4,
+        "01": 2,
+        "02": 18,
+        "10": 4,
+        "11": 3
+      },
+      "ita_records": 22
+    },
+    {
+      "room": "r31d",
+      "sha256": "577a501c5c2c12d47e4567b4933b589406af1acc4fc18f605d4baef3c136b032",
+      "source_disc": 2,
+      "source_path": "St3/r31d.das",
+      "source_sha256": "61f1ae7b49001a8fd538d43622205fbc01e40c466963f9ae84a990e55a6eac8e",
+      "decoded_size": 3750112,
+      "decoded_sha256": "577a501c5c2c12d47e4567b4933b589406af1acc4fc18f605d4baef3c136b032",
+      "ets": {
+        "01": 4,
+        "11": 7,
+        "12": 3,
+        "14": 2,
+        "4e": 1
+      },
+      "aev_kind_counts": {
+        "01": 3,
+        "02": 1,
+        "05": 1,
+        "08": 1,
+        "10": 4
+      },
+      "ita_records": 13
+    },
+    {
+      "room": "r320",
+      "sha256": "408ff2915e4948beb00cec13fe75f693207498e4953e582e52812caf1e685815",
+      "source_disc": 2,
+      "source_path": "St3/r320.das",
+      "source_sha256": "d88a6e7ba94adaf2e83dd18e0b2068caba4809e8709b86edb6db728477114c35",
+      "decoded_size": 4110080,
+      "decoded_sha256": "408ff2915e4948beb00cec13fe75f693207498e4953e582e52812caf1e685815",
+      "ets": {
+        "00": 1,
+        "06": 1,
+        "08": 1,
+        "11": 12,
+        "12": 11,
+        "31": 4
+      },
+      "aev_kind_counts": {
+        "00": 5,
+        "01": 2,
+        "02": 17,
+        "04": 11,
+        "05": 2,
+        "08": 1,
+        "0b": 8,
+        "0e": 4,
+        "10": 5
+      },
+      "ita_records": 26
+    },
+    {
+      "room": "r321",
+      "sha256": "febbb1eebf0e173f51560ea4705c6231b87af78b7a6ec4ea4394b78fc3e1eaae",
+      "source_disc": 2,
+      "source_path": "St3/r321.das",
+      "source_sha256": "fbbc38d7baa7d3ec1cbcc6adda1c7790cf69058096c3eab76eb28ff33fe015bf",
+      "decoded_size": 4326272,
+      "decoded_sha256": "febbb1eebf0e173f51560ea4705c6231b87af78b7a6ec4ea4394b78fc3e1eaae",
+      "ets": {
+        "11": 1,
+        "14": 8
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 1,
+        "05": 1
+      },
+      "ita_records": 6
+    },
+    {
+      "room": "r322",
+      "sha256": "792474e5352e67d1263d12103f349492a7e27100ad4d02313610c89e0ae27c12",
+      "source_disc": 2,
+      "source_path": "St3/r322.das",
+      "source_sha256": "919b7416737f30c8a746a3d907bbd74db0ebc03cb334593e972255049b7af8fa",
+      "decoded_size": 827232,
+      "decoded_sha256": "792474e5352e67d1263d12103f349492a7e27100ad4d02313610c89e0ae27c12",
+      "ets": {},
+      "aev_kind_counts": {},
+      "ita_records": 0
+    },
+    {
+      "room": "r323",
+      "sha256": "eec2e841cd07f32ef773124de89c432e3d8249ec6b1037d867e11c3da68fca58",
+      "source_disc": 2,
+      "source_path": "St3/r323.das",
+      "source_sha256": "cc3c67e8f6be94ae1b80c11d541d531febf3348461048d73987b60fd1c488eb8",
+      "decoded_size": 960192,
+      "decoded_sha256": "eec2e841cd07f32ef773124de89c432e3d8249ec6b1037d867e11c3da68fca58",
+      "ets": {},
+      "aev_kind_counts": {},
+      "ita_records": 0
+    },
+    {
+      "room": "r324",
+      "sha256": "3e1b36addd9caf32e22976d7907e2cb1f277eb4703aecd316b491ced9517a2bf",
+      "source_disc": 2,
+      "source_path": "St3/r324.das",
+      "source_sha256": "67e83f8d5a08f790fb48ad61f875c14dc9e2716c823370c4ece49d593720f1d4",
+      "decoded_size": 2815360,
+      "decoded_sha256": "3e1b36addd9caf32e22976d7907e2cb1f277eb4703aecd316b491ced9517a2bf",
+      "ets": {},
+      "aev_kind_counts": {},
+      "ita_records": 0
+    },
+    {
+      "room": "r325",
+      "sha256": "d8476f4b5e13f5e19061cef7f4bea41b969ac619171c331f5d1901f8f1a73733",
+      "source_disc": 2,
+      "source_path": "St3/r325.das",
+      "source_sha256": "3524fe8de083bd87d6e3c2e034fb783005ed9cfa50e9a4c81dd4885e844f1f3d",
+      "decoded_size": 4424608,
+      "decoded_sha256": "d8476f4b5e13f5e19061cef7f4bea41b969ac619171c331f5d1901f8f1a73733",
+      "ets": {
+        "16": 1
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 1,
+        "10": 1
+      },
+      "ita_records": 2
+    },
+    {
+      "room": "r326",
+      "sha256": "0db65ebb42be2b4f3f4a3704803dcd2aa172007fd872a9d0c53074bb3ab36602",
+      "source_disc": 2,
+      "source_path": "St3/r326.das",
+      "source_sha256": "c3f0e7415d00aa55b7340001bf03cd23cb5dcf9f2baaf3f5635e22c6dbe20f5c",
+      "decoded_size": 3860416,
+      "decoded_sha256": "0db65ebb42be2b4f3f4a3704803dcd2aa172007fd872a9d0c53074bb3ab36602",
+      "ets": {
+        "37": 3
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 3,
+        "05": 1,
+        "08": 1
+      },
+      "ita_records": 7
+    },
+    {
+      "room": "r327",
+      "sha256": "769901ed00b2e93baae0d9bbb2c32bc95e572dffe632c7caf273afc6bcd9af6e",
+      "source_disc": 2,
+      "source_path": "St3/r327.das",
+      "source_sha256": "0f6e21fbb96cb3974d61fdae017984a0131b4ea9f73eca40fd38e662d7989743",
+      "decoded_size": 3995136,
+      "decoded_sha256": "769901ed00b2e93baae0d9bbb2c32bc95e572dffe632c7caf273afc6bcd9af6e",
+      "ets": {
+        "02": 2,
+        "11": 8,
+        "12": 6,
+        "41": 1,
+        "4d": 1
+      },
+      "aev_kind_counts": {
+        "00": 7,
+        "01": 2,
+        "02": 14,
+        "0b": 1,
+        "10": 3,
+        "11": 1
+      },
+      "ita_records": 18
+    },
+    {
+      "room": "r328",
+      "sha256": "2f618463c3c2f3f63338025fecfab6d9d3bfd63e0b71b51515837bc6c4592cba",
+      "source_disc": 2,
+      "source_path": "St3/r328.das",
+      "source_sha256": "dded4e38fd83b60da153a92b50a5c97fa3d56500c6a2d89b7f5b91417a509202",
+      "decoded_size": 884576,
+      "decoded_sha256": "2f618463c3c2f3f63338025fecfab6d9d3bfd63e0b71b51515837bc6c4592cba",
+      "ets": {},
+      "aev_kind_counts": {},
+      "ita_records": 0
+    },
+    {
+      "room": "r329",
+      "sha256": "050e290b1687a0394e1a70f3e09c2c1fa171713af7844b87eb1b5f4d42ff1528",
+      "source_disc": 2,
+      "source_path": "St3/r329.das",
+      "source_sha256": "597ac8ee034ae9ae59c3c74a3e5b8f5552c05b63d036e1155d693e2cd105eab1",
+      "decoded_size": 4223232,
+      "decoded_sha256": "050e290b1687a0394e1a70f3e09c2c1fa171713af7844b87eb1b5f4d42ff1528",
+      "ets": {
+        "11": 2,
+        "35": 1,
+        "36": 3,
+        "54": 6,
+        "63": 2,
+        "64": 4
+      },
+      "aev_kind_counts": {
+        "01": 3,
+        "05": 2
+      },
+      "ita_records": 8
+    },
+    {
+      "room": "r330",
+      "sha256": "4170c632b05cfc47e5c675b86d9ba2edeaa145edf4cdfe69366b27fbcbd47bff",
+      "source_disc": 2,
+      "source_path": "St3/r330.das",
+      "source_sha256": "96575d08ec2a4136cda674b7a8d8d5be2aabf40c9c982f91cb8a5c56dd44d8e9",
+      "decoded_size": 3968832,
+      "decoded_sha256": "4170c632b05cfc47e5c675b86d9ba2edeaa145edf4cdfe69366b27fbcbd47bff",
+      "ets": {
+        "64": 2,
+        "65": 7,
+        "67": 2
+      },
+      "aev_kind_counts": {
+        "01": 3,
+        "02": 1,
+        "05": 3
+      },
+      "ita_records": 3
+    },
+    {
+      "room": "r331",
+      "sha256": "163d883d053f4ecd3f559110ee9b95672b88805b89b57672d308d3c78bf1c720",
+      "source_disc": 2,
+      "source_path": "St3/r331.das",
+      "source_sha256": "6d0096fc20e6cb41d443ff12df23e85c4b8ddbc2522e96866f9847002780a0c6",
+      "decoded_size": 2935712,
+      "decoded_sha256": "163d883d053f4ecd3f559110ee9b95672b88805b89b57672d308d3c78bf1c720",
+      "ets": {
+        "02": 2
+      },
+      "aev_kind_counts": {
+        "01": 3,
+        "02": 1,
+        "08": 1
+      },
+      "ita_records": 3
+    },
+    {
+      "room": "r332",
+      "sha256": "100ee6dce88c882691c88d84c58054c82afd64d55990c7fc1f1fb2a7198ba239",
+      "source_disc": 2,
+      "source_path": "St3/r332.das",
+      "source_sha256": "9b05286e61181607e9d7b081b1457eabf1fdfacd8dca9b20926ba3bcc5c93b9b",
+      "decoded_size": 4723648,
+      "decoded_sha256": "100ee6dce88c882691c88d84c58054c82afd64d55990c7fc1f1fb2a7198ba239",
+      "ets": {
+        "12": 2
+      },
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 2,
+        "04": 2,
+        "05": 1,
+        "0b": 2
+      },
+      "ita_records": 8
+    },
+    {
+      "room": "r333",
+      "sha256": "6bf9a245fdf5f49290ec78a2c1d1d828ea6ec1241da603edde53b6388a165fbf",
+      "source_disc": 2,
+      "source_path": "St3/r333.das",
+      "source_sha256": "7f35b9c617778bb188fd1dbe798e4a5cbc2e070c54ee3ba455e940503dd00af4",
+      "decoded_size": 3680992,
+      "decoded_sha256": "6bf9a245fdf5f49290ec78a2c1d1d828ea6ec1241da603edde53b6388a165fbf",
+      "ets": {},
+      "aev_kind_counts": {
+        "02": 11,
+        "04": 12,
+        "0b": 5,
+        "10": 1,
+        "11": 1
+      },
+      "ita_records": 0
+    },
+    {
+      "room": "r400",
+      "sha256": "7c5f4f57b394c2c261e918effa10a8482d8eb6375d53a9e4d71c75c4758e58d3",
+      "source_disc": 2,
+      "source_path": "St4/r400.das",
+      "source_sha256": "f142bd54093acf4a0e5de9085b47794803e107af8a9853cf83646df01230a7e5",
+      "decoded_size": 5266016,
+      "decoded_sha256": "7c5f4f57b394c2c261e918effa10a8482d8eb6375d53a9e4d71c75c4758e58d3",
+      "ets": {
+        "00": 4,
+        "01": 3,
+        "02": 2,
+        "03": 3,
+        "04": 2,
+        "06": 3,
+        "08": 1,
+        "0d": 1,
+        "11": 7,
+        "1e": 1,
+        "25": 1,
+        "2a": 2,
+        "2d": 3
+      },
+      "aev_kind_counts": {
+        "00": 3,
+        "04": 10,
+        "10": 1
+      },
+      "ita_records": 36
+    },
+    {
+      "room": "r402",
+      "sha256": "5593e75baf41e186457b3bc56fff1129a5e0b26737e1aa8d6053e5474ec0a53c",
+      "source_disc": 2,
+      "source_path": "St4/r402.das",
+      "source_sha256": "341a8bc0f3d13a5f782c0566185b9c82c60c6819e02b059b060a0a70d634e949",
+      "decoded_size": 3808960,
+      "decoded_sha256": "5593e75baf41e186457b3bc56fff1129a5e0b26737e1aa8d6053e5474ec0a53c",
+      "ets": {
+        "08": 2,
+        "10": 1,
+        "11": 12,
+        "14": 11,
+        "17": 2,
+        "19": 2,
+        "24": 2,
+        "2d": 3
+      },
+      "aev_kind_counts": {
+        "02": 5,
+        "04": 18,
+        "05": 1,
+        "0b": 2
+      },
+      "ita_records": 33
+    },
+    {
+      "room": "r403",
+      "sha256": "a82039505094d551ec0c49d56cf80a267d1a92d25a3b9af4e5512f072adfef65",
+      "source_disc": 2,
+      "source_path": "St4/r403.das",
+      "source_sha256": "38f304ad369c0bcb02e8876336abff6fbee6bc4552e6086fc9a479205f265486",
+      "decoded_size": 3596288,
+      "decoded_sha256": "a82039505094d551ec0c49d56cf80a267d1a92d25a3b9af4e5512f072adfef65",
+      "ets": {
+        "00": 1,
+        "02": 4,
+        "06": 1,
+        "08": 1,
+        "11": 16,
+        "12": 6,
+        "38": 4
+      },
+      "aev_kind_counts": {
+        "02": 4,
+        "04": 32,
+        "10": 10
+      },
+      "ita_records": 40
+    },
+    {
+      "room": "r404",
+      "sha256": "4f4eb7adfe5a5de09fd8886cb53a378cd874274f11ba31423b05d2f7fbbbe7b8",
+      "source_disc": 2,
+      "source_path": "St4/r404.das",
+      "source_sha256": "9eb34c5a60c628f9cfa7012566b28b6156c075b993e566b63e99bcfe58b7f816",
+      "decoded_size": 2374080,
+      "decoded_sha256": "4f4eb7adfe5a5de09fd8886cb53a378cd874274f11ba31423b05d2f7fbbbe7b8",
+      "ets": {
+        "01": 1,
+        "0d": 3,
+        "10": 4,
+        "11": 9,
+        "2d": 4
+      },
+      "aev_kind_counts": {
+        "00": 14,
+        "02": 4,
+        "10": 8
+      },
+      "ita_records": 43
+    },
+    {
+      "room": "r405",
+      "sha256": "42374504d0cdc4e416e1134272edf9cfd11bf07f67b482acaff13eaffa7140c9",
+      "source_disc": 2,
+      "source_path": "St4/r405.das",
+      "source_sha256": "db0d137690d857b75420894a03c8e960f5892e4c074cfb9135e210b63546fd02",
+      "decoded_size": 4892480,
+      "decoded_sha256": "42374504d0cdc4e416e1134272edf9cfd11bf07f67b482acaff13eaffa7140c9",
+      "ets": {
+        "02": 2,
+        "0c": 2,
+        "11": 2,
+        "33": 1
+      },
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 3,
+        "04": 4,
+        "10": 2
+      },
+      "ita_records": 13
+    },
+    {
+      "room": "r406",
+      "sha256": "e49ffef665ca60076e70d565aa1a7949d95b57e822e72416cfff1146468332f2",
+      "source_disc": 2,
+      "source_path": "St4/r406.das",
+      "source_sha256": "4922a87b2b0d32ddc80f827898fd0e58fa0758a44983cd8d8868ffa48ea16904",
+      "decoded_size": 4381952,
+      "decoded_sha256": "e49ffef665ca60076e70d565aa1a7949d95b57e822e72416cfff1146468332f2",
+      "ets": {
+        "0c": 3,
+        "11": 2,
+        "12": 2
+      },
+      "aev_kind_counts": {
+        "00": 3,
+        "01": 2,
+        "02": 5,
+        "05": 1,
+        "0b": 1,
+        "10": 1
+      },
+      "ita_records": 9
+    },
+    {
+      "room": "r40a",
+      "sha256": "7d31d93af338fffe49e520347db28dc6d43392ac30448046c0083af340092e54",
+      "source_disc": 2,
+      "source_path": "St4/r40a.das",
+      "source_sha256": "61cd4baf33b60d1455d5363df6e2da37b4df3584eb511ef79b9f17ba228d1c00",
+      "decoded_size": 4632768,
+      "decoded_sha256": "7d31d93af338fffe49e520347db28dc6d43392ac30448046c0083af340092e54",
+      "ets": {
+        "01": 2,
+        "0c": 3,
+        "3c": 1,
+        "41": 2,
+        "5b": 1,
+        "5c": 1,
+        "5d": 1,
+        "5e": 1,
+        "5f": 1,
+        "60": 1
+      },
+      "aev_kind_counts": {
+        "01": 5,
+        "02": 3,
+        "05": 2
+      },
+      "ita_records": 9
+    },
+    {
+      "room": "r40b",
+      "sha256": "a278441d2e9c7397df95d5f0039676c7e6ecb47249f510923c8f57e898290ab9",
+      "source_disc": 2,
+      "source_path": "St4/r40b.das",
+      "source_sha256": "7eb42f660973d2056c16f6cda615c2e220daef8629e14ff78e28845f0037c31c",
+      "decoded_size": 3638624,
+      "decoded_sha256": "a278441d2e9c7397df95d5f0039676c7e6ecb47249f510923c8f57e898290ab9",
+      "ets": {
+        "48": 1,
+        "4a": 2,
+        "4b": 1,
+        "54": 1,
+        "61": 1,
+        "64": 2
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 1,
+        "02": 1
+      },
+      "ita_records": 4
+    },
+    {
+      "room": "r40c",
+      "sha256": "5382e3585aa32a5f345eab01ef4093d72f8f618fe3a237f5e5d1410cf70f73ce",
+      "source_disc": 2,
+      "source_path": "St4/r40c.das",
+      "source_sha256": "72e95ae7d358771c99e09cd456d604d3dd388805045895adc1fd6a4fe8b2de2e",
+      "decoded_size": 3292896,
+      "decoded_sha256": "5382e3585aa32a5f345eab01ef4093d72f8f618fe3a237f5e5d1410cf70f73ce",
+      "ets": {
+        "4f": 1,
+        "50": 7,
+        "51": 4
+      },
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 1
+      },
+      "ita_records": 4
+    },
+    {
+      "room": "r40d",
+      "sha256": "31811b907de690906cce6e407031d78eebb2be522e9dfc2aaffb4cb4837e48e7",
+      "source_disc": 2,
+      "source_path": "St4/r40d.das",
+      "source_sha256": "d767b98afccd57326fee5beb970daa23aff767e10079c581068671c8ac2e71c3",
+      "decoded_size": 4043008,
+      "decoded_sha256": "31811b907de690906cce6e407031d78eebb2be522e9dfc2aaffb4cb4837e48e7",
+      "ets": {
+        "25": 4,
+        "35": 2,
+        "36": 12,
+        "3c": 1,
+        "43": 2,
+        "48": 5,
+        "49": 1,
+        "52": 2,
+        "53": 4,
+        "54": 19,
+        "64": 5
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 2,
+        "02": 4,
+        "05": 2
+      },
+      "ita_records": 19
+    },
+    {
+      "room": "r40e",
+      "sha256": "fba21d97246e11faba7adeb6119a6bc5d27551b2637c0d59a83d6bd5810fdc93",
+      "source_disc": 2,
+      "source_path": "St4/r40e.das",
+      "source_sha256": "b01b2a528fc38584a28533c6d36cca97bf51853e8fc414d3d7783332893242e7",
+      "decoded_size": 3753472,
+      "decoded_sha256": "fba21d97246e11faba7adeb6119a6bc5d27551b2637c0d59a83d6bd5810fdc93",
+      "ets": {
+        "11": 3,
+        "35": 2,
+        "36": 5,
+        "4d": 1,
+        "54": 1
+      },
+      "aev_kind_counts": {
+        "01": 1,
+        "02": 4,
+        "0b": 1
+      },
+      "ita_records": 4
+    },
+    {
+      "room": "r40f",
+      "sha256": "5299afb7993384cace257239370e307c8bbef6d1adc579a4fbff51fc67d22aff",
+      "source_disc": 2,
+      "source_path": "St4/r40f.das",
+      "source_sha256": "2842fc22eb56bf9b06fd482e1dfefa4c059a1c1f0e0c4567357c10136df857c1",
+      "decoded_size": 3891200,
+      "decoded_sha256": "5299afb7993384cace257239370e307c8bbef6d1adc579a4fbff51fc67d22aff",
+      "ets": {
+        "2b": 2,
+        "35": 3,
+        "36": 3,
+        "39": 1,
+        "54": 5
+      },
+      "aev_kind_counts": {
+        "01": 2,
+        "02": 3,
+        "05": 1,
+        "10": 1
+      },
+      "ita_records": 5
+    },
+    {
+      "room": "r410",
+      "sha256": "69d5ac636339d780f742e20fab0c1ea4b76411abb2aeab5f5220dbfadf050cf0",
+      "source_disc": 2,
+      "source_path": "St4/r410.das",
+      "source_sha256": "f322f863c2596275ad34d82608d201052a0ec1d0b3abe81d7dda840e16cf94ae",
+      "decoded_size": 3093184,
+      "decoded_sha256": "69d5ac636339d780f742e20fab0c1ea4b76411abb2aeab5f5220dbfadf050cf0",
+      "ets": {
+        "4e": 1
+      },
+      "aev_kind_counts": {
+        "00": 1,
+        "01": 2,
+        "02": 1
+      },
+      "ita_records": 5
+    },
+    {
+      "room": "r411",
+      "sha256": "11ae68a8de079e9de67680a773876f6a101dc608adf10225acc3fcdee01fae74",
+      "source_disc": 2,
+      "source_path": "St4/r411.das",
+      "source_sha256": "5f0eeb4e4e8d3fd417ca1f4ad90674e6362bd31cb3e96a47392f968ee4fdaf30",
+      "decoded_size": 3344480,
+      "decoded_sha256": "11ae68a8de079e9de67680a773876f6a101dc608adf10225acc3fcdee01fae74",
+      "ets": {
+        "25": 4,
+        "36": 12,
+        "49": 3,
+        "54": 3
+      },
+      "aev_kind_counts": {
+        "00": 5,
+        "01": 2,
+        "02": 1,
+        "05": 1
+      },
+      "ita_records": 7
+    }
+  ]
+}

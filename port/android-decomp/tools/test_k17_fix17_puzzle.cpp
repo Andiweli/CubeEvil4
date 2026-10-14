@@ -1,0 +1,28 @@
+#include "inventory_case.h"
+#include <array>
+#include <iostream>
+#include <map>
+#include <stdexcept>
+using namespace re4;
+unsigned checks;
+void check(bool b,const char *s){++checks;if(!b)throw std::runtime_error(s);}
+CaseItem piece(unsigned slot,unsigned id,int x,int y,unsigned count=1){CaseItem p;p.slot=slot;p.id=id;p.x=x;p.y=y;p.active=true;p.count=count;return p;}
+InventoryCase sample(){InventoryCase c;auto gun=piece(0,0x21,0,0);gun.loaded=7;c.restoreSnapshot(0,{gun,piece(1,5,4,0),piece(2,0xe,6,0)},0);return c;}
+void valid(const InventoryCase &c){unsigned held=0;for(const auto &p:c.items())if(p.active){if(p.held){++held;check(p.slot==c.heldSlot(),"Held identity");continue;}if(!p.onBoard())continue;auto d=OriginalItemFootprint(p.id);if(p.rotation&1)std::swap(d.width,d.height);check(p.x>=0 && p.y>=0 && p.x+int(d.width)<=int(p.space?6:c.width()) && p.y+int(d.height)<=int(p.space?12:c.height()),"Settled piece stays within board");for(const auto &q:c.items())if(q.active && q.onBoard() && q.space==p.space && q.slot>p.slot){auto e=OriginalItemFootprint(q.id);if(q.rotation&1)std::swap(e.width,e.height);check(!(p.x<q.x+int(e.width) && p.x+int(d.width)>q.x && p.y<q.y+int(e.height) && p.y+int(d.height)>q.y),"No settled overlap");}}check(held<=1 && (held==0)==(c.heldSlot()==~0u),"One hand or empty hand");}
+int main(){try{
+ {auto c=sample();const auto s=c.snapshotJson(0,"");check(s.find("\"casePuzzleVersion\":1")!=std::string::npos,"Native puzzle schema published");check(s.find("\"spaceWidth\":6,\"spaceHeight\":12")!=std::string::npos,"Both board dimensions published");}
+
+ {auto c=sample();check(c.puzzleTake(0),"Take equipped gun");check(!c.item(0)->inCase() && c.item(0)->held,"Hand leaves board");check(!c.puzzleTake(1),"No second hand");check(c.puzzleReturn() && c.item(0)->loaded==7 && c.equippedSlot()==0,"Cancel keeps identity/ammo/equip");}
+ {auto c=sample();check(c.puzzleTake(0) && c.puzzlePut(0,0,0,true)==1,"Place gun on independent 6x12 board");check(c.item(0)->space && c.count(0x21)==1,"Space remains owned");check(c.puzzleTake(1) && c.puzzlePut(0,0,0,true)==3 && c.heldSlot()==0,"Single overlap exchanges into hand");check(!c.puzzleReturn() && c.heldSlot()==0,"Blocked source B does not destroy or duplicate item");check(c.puzzlePut(3,0,0,true)==1,"Continue chain into free space");valid(c);check(c.puzzleTake(0) && c.puzzlePut(0,0,0,false)==1,"Return gun to case");check(c.puzzleDiscardSpace() && !c.item(1) && c.equippedSlot()==0,"Confirmed offboard dump leaves case gun equipped");check(!c.puzzleUnsettled(),"All boards settled");}
+ {auto c=sample();check(c.puzzleTake(0) && c.puzzlePut(4,0,0,false)==0,"Multiple overlaps cannot exchange");check(c.item(1)->x==4 && c.item(2)->x==6 && c.item(0)->loaded==7,"Blocked overlap is lossless");check(!c.puzzleDiscardSpace(),"Cannot dump while holding");check(c.puzzleReturn(),"Cancel initial blocked placement");}
+ {InventoryCase c;c.restoreSnapshot(0,{piece(0,4,0,0,45),piece(1,4,3,0,20)},~0u);check(c.puzzleTake(1) && c.puzzlePut(0,0,0,false)==2,"Combine precedes swap");check(c.item(0)->count==50 && c.item(1)->count==15 && c.heldSlot()==1,"Partial ammo remainder stays in hand");check(c.puzzlePut(0,0,0,true)==1 && c.count(4)==65,"Partial stack ownership retained");}
+ {InventoryCase c;c.restoreSnapshot(0,{piece(0,6,0,0),piece(1,0x19,2,0)},~0u);check(c.puzzleTake(0) && c.puzzlePut(0,0,0,true)==1,"Herb onto space");check(c.puzzleTake(1) && c.puzzlePut(0,0,0,true)==2,"Combine herbs on space");check(c.count(0x14)==1 && c.heldSlot()==~0u && c.item(0)->space,"Recipe result stays on target board");valid(c);check(c.puzzleTake(0) && c.puzzlePut(0,0,0,false)==1,"Recipe can return to case");}
+ {auto c=sample();check(c.puzzleTake(0) && c.puzzlePut(0,0,0,true)==1 && c.puzzleDiscardSpace(),"Dump equipped gun from space");check(c.equippedId()==0xffff && c.count(0x21)==0,"Offboard erase unarms");}
+ {InventoryCase c;check(c.add(6,1) && c.add(0x19,1),"Prepare offboard herbs");check(c.puzzleTake(0) && c.puzzlePut(0,0,0,true)==1 && c.puzzleTake(1) && c.puzzlePut(2,0,0,true)==1,"Stage both herbs");check(c.add(5,30),"Fill every case cell while herbs stay offboard");check(c.puzzleTake(1) && c.puzzlePut(0,0,0,true)==2,"Space recipe works even with completely full case");check(c.count(5)==30 && c.count(0x14)==1 && c.item(0)->space,"Full-case recipe changes only target ingredients");valid(c);}
+ {InventoryCase c;check(c.add(6,1) && c.add(0x19,1),"Menu recipe setup");check(c.puzzleTake(0) && c.puzzlePut(0,0,0,true)==1 && c.puzzleTake(1) && c.puzzlePut(2,0,0,true)==1 && c.add(5,30),"Menu ingredients offboard/full case");check(c.combine(0,1) && c.item(0)->space && c.count(0x14)==1,"Menu Combine preserves original target slot and board");}
+ {auto c=sample();check(c.puzzleTake(0) && c.puzzlePut(4,11,0,true)==0,"Space edge rejects partial fit");check(c.puzzleReturn(),"Edge rejection cancellable");}
+ {InventoryCase c;std::vector<CaseItem> items;for(unsigned n=0;n<6;++n)items.push_back(piece(n,std::array<unsigned,6>{0x21,0x23,5,1,2,0xe}[n],int(n%3)*3,int(n/3)*3));c.restoreSnapshot(0,items,0);unsigned random=12345;
+  for(unsigned n=0;n<1000;++n){random=random*1664525+1013904223;if(c.heldSlot()==~0u)c.puzzleTake((random>>12)%6);random=random*1664525+1013904223;c.puzzlePut(int((random>>8)%10),int((random>>16)%12),(random>>24)&3,random&1);valid(c);for(const auto &p:items)check(c.count(p.id)==1,"Random chain conserves every item");}
+ }
+ std::cout<<"Fix17 native puzzle PASS: "<<checks<<" checks\n";return 0;
+ }catch(const std::exception &e){std::cerr<<"Fix17 puzzle FAILED: "<<e.what()<<"\n";return 1;}}

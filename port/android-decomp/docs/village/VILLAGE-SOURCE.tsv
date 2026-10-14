@@ -1,0 +1,2157 @@
+room	source	category	line	expression
+r100	upstream/re4/src/st1/r100.cpp	render_audio	51	TexRenderMng* tex;
+r100	upstream/re4/src/st1/r100.cpp	render_audio	102	void setTexRender();
+r100	upstream/re4/src/st1/r100.cpp	flags	126	RsfSet(G_ROOM_ID, 10);
+r100	upstream/re4/src/st1/r100.cpp	flags	127	RsfSet(G_ROOM_ID, 3);
+r100	upstream/re4/src/st1/r100.cpp	flags	128	RsfSet(G_ROOM_ID, 13);
+r100	upstream/re4/src/st1/r100.cpp	enemy	132	EmReadSearch(0x12, 0, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	135	SceAtSetEnable(0x17, 0);
+r100	upstream/re4/src/st1/r100.cpp	flags	152	if (RsfCheck(G_ROOM_ID, 10) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	object	158	SmdGetObjPtr(0x37)->be_flag &= ~2;
+r100	upstream/re4/src/st1/r100.cpp	object	159	SmdGetObjPtr(0x38)->be_flag &= ~2;
+r100	upstream/re4/src/st1/r100.cpp	object	160	SmdGetObjPtr(0x23)->be_flag |= 2;
+r100	upstream/re4/src/st1/r100.cpp	object	161	SmdGetObjPtr(0x44)->be_flag |= 2;
+r100	upstream/re4/src/st1/r100.cpp	render_audio	162	setTexRender();
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	163	SceAtSetEnable(1, 0);
+r100	upstream/re4/src/st1/r100.cpp	flags	164	if (RsfCheck(G_ROOM_ID, 10) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	enemy	181	em = EmSetEvent(&d);
+r100	upstream/re4/src/st1/r100.cpp	event	194	"EvtMgr.SetBin(""em/pl07/pl0700a.bin"", ROOM_ARC_PTR(pG->pRoom, 0x26), 0, 2);"
+r100	upstream/re4/src/st1/r100.cpp	event	195	"EvtMgr.SetBin(""em/pl07/pl0700.bin"", ROOM_ARC_PTR(pG->pRoom, 0x24), 0, 2);"
+r100	upstream/re4/src/st1/r100.cpp	event	196	"EvtMgr.SetBin(""em/pl07/pl0700.tpl"", ROOM_ARC_PTR(pG->pRoom, 0x25), 0, 2);"
+r100	upstream/re4/src/st1/r100.cpp	event	197	"EvtMgr.SetBin(""obj/objmodel/obm2a00.bin"", ROOM_ARC_PTR(pG->pRoom, 0x1D), 0, 2);"
+r100	upstream/re4/src/st1/r100.cpp	event	198	"EvtMgr.SetBin(""obj/objmodel/obm2a00.tpl"", ROOM_ARC_PTR(pG->pRoom, 0x1E), 0, 2);"
+r100	upstream/re4/src/st1/r100.cpp	event	201	"EvtMgr.SetFunc(""evt_r100s03_func"", (void*) Evt_R100S03_Func);"
+r100	upstream/re4/src/st1/r100.cpp	event	202	"EvtMgr.SetFunc(""evt_r100s20_func"", (void*) Evt_R100S20_Func);"
+r100	upstream/re4/src/st1/r100.cpp	event	203	"EvtMgr.SetFunc(""evt_r100s40_func"", (void*) Evt_R100S40_Func);"
+r100	upstream/re4/src/st1/r100.cpp	flags	253	if (RsfCheck(G_ROOM_ID, 10)) {
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	256	SceAtSetEnable(1, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	257	SceAtDataSet_exec(1, SCE_LEVEL10, 0, (TaskFunc) r100_GakeEvent, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	297	SceAtSetEnable(0xA, 0);
+r100	upstream/re4/src/st1/r100.cpp	flags	298	if (RsfCheck(G_ROOM_ID, 10) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	flags	305	flag = RsfCheck(G_ROOM_ID, 3);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	307	SceAtSetEnable(0xA, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	308	SceAtDataSet_exec(0xA, SCE_LEVEL10, 0, (TaskFunc) r100_Sce_look, 0, 2);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	323	SceAtDataSet_exec(0x15, SCE_LEVEL10, 0, (TaskFunc) r100_HouseEvent, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	324	SceAtDataSet_exec(0xC, SCE_LEVEL10, 0, (TaskFunc) r100_MesTruck, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	325	SceAtDataSet_exec(0x19, SCE_LEVEL10, 0, (TaskFunc) r100_MesCar00, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	326	SceAtDataSet_exec(0x1A, SCE_LEVEL10, 0, (TaskFunc) r100_MesCar01, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	327	SceAtDataSet_exec(0xB, SCE_LEVEL10, 0, (TaskFunc) r100_MesDoor, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	328	SceAtSetEnable(0xB, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	329	SceAtDataSet_exec(0x1B, SCE_LEVEL10, 0, (TaskFunc) r100_EventBrige, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	flags	330	if (RsfCheck(G_ROOM_ID, 10)) {
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	331	SceAtSetEnable(0xC, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	332	SceAtSetEnable(0x19, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	333	SceAtSetEnable(0x1A, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	334	SceAtDataSet_exec(0x18, SCE_LEVEL10, 0, (TaskFunc) r100_MesBrige, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	335	SceAtSetEnable(0x1C, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	336	SceAtSetEnable(0x1E, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	338	SceAtSetEnable(0x1C, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	339	SceAtSetEnable(0x1E, 1);
+r100	upstream/re4/src/st1/r100.cpp	flags	341	if (RsfCheck(G_ROOM_ID, 13) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	flags	342	RsfSet(G_ROOM_ID, 13);
+r100	upstream/re4/src/st1/r100.cpp	collision	346	EatMgr.registEffInfo(EAT_ET_WATER, (AtEffInfo*) &r100_eff_info2);
+r100	upstream/re4/src/st1/r100.cpp	collision	347	EatMgr.registEffInfo(EAT_ET_ROOM0, (AtEffInfo*) &r100_eff_info4);
+r100	upstream/re4/src/st1/r100.cpp	collision	348	EatMgr.registEffInfo(EAT_ET_ROOM1, (AtEffInfo*) &r100_eff_info5);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	349	SceAtDataSet_exec(0x16, SCE_LEVEL10, 0, (TaskFunc) r100_mes_gaikotu, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	350	SceAtDataSet_exec(0x22, SCE_LEVEL10, 0, (TaskFunc) r100_mes_gaikotu_bgm_down, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	351	SceAtDataSet_exec(0x23, SCE_LEVEL10, 0, (TaskFunc) r100_mes_gaikotu_bgm_up, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	flags	363	if (RsfCheck(G_ROOM_ID, 0) == 0 && SceAtHitCheck(6)) {
+r100	upstream/re4/src/st1/r100.cpp	flags	364	RsfSet(G_ROOM_ID, 0);
+r100	upstream/re4/src/st1/r100.cpp	flags	368	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	flags	370	RsfSet(G_ROOM_ID, 1);
+r100	upstream/re4/src/st1/r100.cpp	flags	373	if (RsfCheck(G_ROOM_ID, 12) == 0 && RsfCheck(G_ROOM_ID, 3) && !SceAtHitCheck(0xD) &&
+r100	upstream/re4/src/st1/r100.cpp	flags	375	RsfSet(G_ROOM_ID, 12);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	378	SndStrReq(1, 4, 4, 400, 0, *(const f32*) &vol);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	379	SndStrReq(1, 5, 4, 400, 0, *(const f32*) &vol);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	380	SndStrReq(1, 6, 4, 400, 0, *(const f32*) &vol);
+r100	upstream/re4/src/st1/r100.cpp	flags	382	if (RsfCheck(G_ROOM_ID, 10) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	event	423	W->evt[no] = DC.setData(EvtMgr.NameChange(r100_evtName[no]));
+r100	upstream/re4/src/st1/r100.cpp	enemy	498	W->ems[0] = (cEmGanado*) EmSetFromList2(3, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	499	W->ems[1] = (cEmGanado*) EmSetFromList2(4, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	500	W->ems[2] = (cEmGanado*) EmSetFromList2(5, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	501	W->ems[3] = (cEmGanado*) EmSetFromList2(0x12, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	502	W->ems[4] = (cEmGanado*) EmSetFromList2(0x13, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	503	W->ems[5] = (cEmGanado*) EmSetFromList2(0x26, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	504	W->ems[6] = (cEmGanado*) EmSetFromList2(0x27, 1);
+r100	upstream/re4/src/st1/r100.cpp	flags	513	if (RsfCheck(G_ROOM_ID, 14)) {
+r100	upstream/re4/src/st1/r100.cpp	event	516	SceEventStart(0);
+r100	upstream/re4/src/st1/r100.cpp	event	523	SceEventEnd(0);
+r100	upstream/re4/src/st1/r100.cpp	flags	525	RsfSet(G_ROOM_ID, 14);
+r100	upstream/re4/src/st1/r100.cpp	event	527	SceEventStart(0);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	528	if (SndStrStatusCk(1, 0xA, 0x10)) {
+r100	upstream/re4/src/st1/r100.cpp	render_audio	529	SndStrReq(1, 0xA, 8, 0, 0, 0.0f);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	530	while (SndStrStatusCk(1, 0xA, 0x10)) {
+r100	upstream/re4/src/st1/r100.cpp	render_audio	534	SndRoomStrStop(3);
+r100	upstream/re4/src/st1/r100.cpp	event	538	EvtMgr.SetEvt(evt, 0);
+r100	upstream/re4/src/st1/r100.cpp	event	539	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0)) {
+r100	upstream/re4/src/st1/r100.cpp	event	544	SceEventEnd(0);
+r100	upstream/re4/src/st1/r100.cpp	event	556	SceEventStart(0);
+r100	upstream/re4/src/st1/r100.cpp	object	559	SmdGetObjPtr(0x44)->be_flag &= ~2;
+r100	upstream/re4/src/st1/r100.cpp	flags	566	if (!FlagChk((u32) &pG->System_flg, SYS_START_EVT_SKIP) && !ScfFlagChk(pG, SCF_R120_EVENT_CANCEL)) {
+r100	upstream/re4/src/st1/r100.cpp	event	568	EvtMgr.SetEvt(evt, 0);
+r100	upstream/re4/src/st1/r100.cpp	event	571	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0)) {
+r100	upstream/re4/src/st1/r100.cpp	object	580	SmdGetObjPtr(0x44)->be_flag |= 2;
+r100	upstream/re4/src/st1/r100.cpp	event	592	SceEventEnd(0);
+r100	upstream/re4/src/st1/r100.cpp	flags	594	if (skip == 0 && !ScfFlagChk(pG, SCF_R120_EVENT_CANCEL)) {
+r100	upstream/re4/src/st1/r100.cpp	render_audio	600	SndRoomBgmStart(0, 0);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	601	SndRoomBgmStart(1, 0);
+r100	upstream/re4/src/st1/r100.cpp	flags	615	while (RsfCheck(G_ROOM_ID, 3) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	flags	621	while (RsfCheck(G_ROOM_ID, 4) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	flags	631	if (RsfCheck(G_ROOM_ID, 10)) {
+r100	upstream/re4/src/st1/r100.cpp	flags	650	while (RsfCheck(G_ROOM_ID, 4) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	654	SceAtSetEnable(0xB, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	657	SceAtSetEnable(0xB, 0);
+r100	upstream/re4/src/st1/r100.cpp	object	664	cEmWindow* win0;
+r100	upstream/re4/src/st1/r100.cpp	object	665	cEmWindow* win1;
+r100	upstream/re4/src/st1/r100.cpp	flags	673	while (RsfCheck(G_ROOM_ID, 10) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	flags	680	while (RsfCheck(G_ROOM_ID, 4) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	flags	682	RsfSet(G_ROOM_ID, 4);
+r100	upstream/re4/src/st1/r100.cpp	event	705	SceEventEnd(0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	713	SceAtSetEnable(0x15, 0);
+r100	upstream/re4/src/st1/r100.cpp	flags	714	if (RsfCheck(G_ROOM_ID, 15)) {
+r100	upstream/re4/src/st1/r100.cpp	flags	717	RsfSet(G_ROOM_ID, 15);
+r100	upstream/re4/src/st1/r100.cpp	event	718	SceEventStart(0);
+r100	upstream/re4/src/st1/r100.cpp	enemy	720	W->emHouse = EmSetFromList2(0x25, 1);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	740	SndStrReq(1, 0x22, 0x80000003, 0, 0, 0.0f);
+r100	upstream/re4/src/st1/r100.cpp	flags	770	while (RsfCheck(G_ROOM_ID, 3) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	flags	781	if (RsfCheck(G_ROOM_ID, 10) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	flags	784	while (RsfCheck(G_ROOM_ID, 10) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	flags	789	if (RsfCheck(G_ROOM_ID, 10)) {
+r100	upstream/re4/src/st1/r100.cpp	flags	819	if (RsfCheck(G_ROOM_ID, 4)) {
+r100	upstream/re4/src/st1/r100.cpp	render_audio	829	SndRoomStrStart(1, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	833	SndRoomStrStop(3);
+r100	upstream/re4/src/st1/r100.cpp	event	849	SceEventStart(0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	850	SceAtSetEnable(0xA, 0);
+r100	upstream/re4/src/st1/r100.cpp	flags	851	RsfSet(G_ROOM_ID, 3);
+r100	upstream/re4/src/st1/r100.cpp	event	855	EvtMgr.SetEvt(evt, 0);
+r100	upstream/re4/src/st1/r100.cpp	event	856	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0)) {
+r100	upstream/re4/src/st1/r100.cpp	event	886	SceEventEnd(0);
+r100	upstream/re4/src/st1/r100.cpp	event	909	SceEventStart(0);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	910	SndRoomStrStop(0);
+r100	upstream/re4/src/st1/r100.cpp	event	914	EvtMgr.SetEvt(evt, &ev);
+r100	upstream/re4/src/st1/r100.cpp	event	916	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0)) {
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	950	SceAtSetEnable(1, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	951	SceAtDataSet_exec(1, SCE_LEVEL10, 0, (TaskFunc) r100_GakeEvent, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	954	SceAtSetEnable(0xC, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	955	SceAtSetEnable(0x19, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	956	SceAtSetEnable(0x1A, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	957	SceAtDataSet_exec(0x18, SCE_LEVEL10, 0, (TaskFunc) r100_MesBrige, 0, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	958	SceAtSetEnable(0x1C, 1);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	959	SceAtSetEnable(0x1E, 0);
+r100	upstream/re4/src/st1/r100.cpp	flags	960	RsfSet(G_ROOM_ID, 10);
+r100	upstream/re4/src/st1/r100.cpp	flags	961	ScfFlagOn(pG, SCF_R100_KILL_GANADE_1ST);
+r100	upstream/re4/src/st1/r100.cpp	event	964	SceEventEnd(0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	1009	SceAtSetEnable(4, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	1010	SceAtSetEnable(0x26, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	1011	SceAtSetEnable(0x27, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	1012	SceAtSetEnable(5, 0);
+r100	upstream/re4/src/st1/r100.cpp	scenario_area	1013	SceAtSetEnable(0x25, 0);
+r100	upstream/re4/src/st1/r100.cpp	object	1014	SmdGetObjPtr(0x23)->be_flag &= ~2;
+r100	upstream/re4/src/st1/r100.cpp	object	1015	SmdGetObjPtr(0x44)->be_flag &= ~2;
+r100	upstream/re4/src/st1/r100.cpp	object	1016	SmdGetObjPtr(0x37)->be_flag |= 2;
+r100	upstream/re4/src/st1/r100.cpp	object	1017	SmdGetObjPtr(0x38)->be_flag |= 2;
+r100	upstream/re4/src/st1/r100.cpp	enemy	1031	EmSetFromList2(9, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	1032	EmSetFromList2(0xA, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	1033	EmSetFromList2(0xB, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	1034	EmSetFromList2(0xC, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	1035	EmSetFromList2(0xD, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	1036	EmSetFromList2(0xE, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	1037	EmSetFromList2(0x1D, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	1038	EmSetFromList2(0x7A, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	1040	em = EmSetFromList2(6, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	1044	em = EmSetFromList2(7, 1);
+r100	upstream/re4/src/st1/r100.cpp	enemy	1048	em = EmSetFromList2(8, 1);
+r100	upstream/re4/src/st1/r100.cpp	event	1072	SceEventStart(1);
+r100	upstream/re4/src/st1/r100.cpp	event	1075	SceEventEnd(0);
+r100	upstream/re4/src/st1/r100.cpp	flags	1084	if (RsfCheck(G_ROOM_ID, 10)) {
+r100	upstream/re4/src/st1/r100.cpp	event	1095	EvtMgr.SetEvt(evt, 0);
+r100	upstream/re4/src/st1/r100.cpp	event	1096	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0)) {
+r100	upstream/re4/src/st1/r100.cpp	flags	1113	if (RsfCheck(G_ROOM_ID, 10)) {
+r100	upstream/re4/src/st1/r100.cpp	event	1124	EvtMgr.SetEvt(evt, 0);
+r100	upstream/re4/src/st1/r100.cpp	event	1125	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0)) {
+r100	upstream/re4/src/st1/r100.cpp	flags	1141	if (RsfCheck(G_ROOM_ID, 10) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	flags	1143	} else if (RsfCheck(G_ROOM_ID, 14) == 0) {
+r100	upstream/re4/src/st1/r100.cpp	event	1146	SceEventStart(0);
+r100	upstream/re4/src/st1/r100.cpp	event	1153	SceEventEnd(0);
+r100	upstream/re4/src/st1/r100.cpp	flags	1163	if (RsfCheck(G_ROOM_ID, 10)) {
+r100	upstream/re4/src/st1/r100.cpp	event	1176	EvtMgr.SetEvt(evt, 0);
+r100	upstream/re4/src/st1/r100.cpp	event	1177	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0)) {
+r100	upstream/re4/src/st1/r100.cpp	object	1191	obj = SmdGetObjPtr(id);                     \
+r100	upstream/re4/src/st1/r100.cpp	render_audio	1200	void setTexRender()
+r100	upstream/re4/src/st1/r100.cpp	render_audio	1205	if (GetTexRenderMgr(&W->tex)) {
+r100	upstream/re4/src/st1/r100.cpp	render_audio	1211	EstSet(0, -1, 0, 0, EFF_ROOM, 0, W->tex->GetCoreFlg() | 1, ESP_CORE_KIND_NONE, 0, 0);
+r100	upstream/re4/src/st1/r100.cpp	flags	1237	ScfFlagOn(pG, SCF_R120_EVENT_CANCEL);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	1314	SndRoomStrVolSet(1, 200);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	1315	id = SndStrReq(0, 0x12, 3, 0, 0, 0.0f);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	1317	while (SndStrStatusCk(id, 0x16) != 0 && !(pG->Room_flg[0] & 0x20000000)) {
+r100	upstream/re4/src/st1/r100.cpp	render_audio	1320	SndStrReq(id, 8, 0, 0);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	1321	SndRoomStrVolSet(0x2D, 200);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	1337	SndRoomStrVolSet(0x2D, 400);
+r100	upstream/re4/src/st1/r100.cpp	render_audio	1343	SndRoomStrVolReset(400);
+r101	upstream/re4/src/st1/r101.cpp	object	113	cEmRack* rack;
+r101	upstream/re4/src/st1/r101.cpp	object	114	cEmWindow* win;
+r101	upstream/re4/src/st1/r101.cpp	flags	129	if (!ScfFlagChk(pG, SCF_R101_ENTER)) {
+r101	upstream/re4/src/st1/r101.cpp	flags	130	ScfFlagOn(pG, SCF_R101_ENTER);
+r101	upstream/re4/src/st1/r101.cpp	event	133	"EvtMgr.SetFunc(""evt_r101s21_func"", (void*) Evt_R101S21_Func);"
+r101	upstream/re4/src/st1/r101.cpp	event	134	"EvtMgr.SetFunc(""evt_r101s30_func"", (void*) Evt_R101S30_Func);"
+r101	upstream/re4/src/st1/r101.cpp	collision	135	EatMgr.registEffInfo(EAT_ET_ROOM0, (AtEffInfo*) &r101_eff_info);
+r101	upstream/re4/src/st1/r101.cpp	flags	151	if (RsfCheck(G_ROOM_ID, 8) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	163	SceAtSetEnable(0x20, 0);
+r101	upstream/re4/src/st1/r101.cpp	render_audio	176	EstSet(0, -1, 0, 0, EFF_ROOM, 0, 0x801, ESP_CORE_KIND_NONE, 0, 0);
+r101	upstream/re4/src/st1/r101.cpp	flags	180	if (RsfCheck(G_ROOM_ID, 7) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	flags	181	if (RsfCheck(G_ROOM_ID, 6) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	183	SceAtDataSet_exec(0x13, SCE_LEVEL10, 0, (TaskFunc) r101_callGanadoVoice, 0, 1);
+r101	upstream/re4/src/st1/r101.cpp	event	184	"r101_work->evt00 = DC.setData(EvtMgr.NameChange(""evd/r101s00.evd""));"
+r101	upstream/re4/src/st1/r101.cpp	enemy	186	EmReadSearch(0x26, 0, r101_work->evt00->getSize());
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	187	SceAtDataSet_exec(7, SCE_LEVEL10, 0, (TaskFunc) r101_Event00, 0, 1);
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	190	SceAtDataSet_exec(0, SCE_LEVEL10, 0, (TaskFunc) r101_DoorDontOpen100, 0, 1);
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	191	SceAtDataSet_exec(2, SCE_LEVEL10, 0, (TaskFunc) r101_DoorDontOpen103, 0, 1);
+r101	upstream/re4/src/st1/r101.cpp	event	193	"r101_work->evt30 = DC.setData(EvtMgr.NameChange(""evd/r101s30.evd""));"
+r101	upstream/re4/src/st1/r101.cpp	flags	194	if (RsfCheck(G_ROOM_ID, 8) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	event	195	"r101_work->evt21 = DC.setData(EvtMgr.NameChange(""evd/r101s21.evd""));"
+r101	upstream/re4/src/st1/r101.cpp	enemy	198	EmReadSearch(0x15, 0, r101_work->evt21->getSize());
+r101	upstream/re4/src/st1/r101.cpp	enemy	200	EmReadSearch(0x15, 0, r101_work->evt30->getSize());
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	208	SceAtDataSet_exec(8, SCE_LEVEL10, 0, (TaskFunc) r101_Event20, 0, 2);
+r101	upstream/re4/src/st1/r101.cpp	flags	214	if (RsfCheck(G_ROOM_ID, 10) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	flags	217	if (ScfFlagChk(pG, SCF_R106_EVENT)) {
+r101	upstream/re4/src/st1/r101.cpp	flags	218	if (RsfCheck(G_ROOM_ID, 9) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	flags	219	RsfSet(G_ROOM_ID, 9);
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	244	SceAtDataSet_exec(1, SCE_LEVEL10, 0, (TaskFunc) r101_DoorDontOpen3, 0, 1);
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	247	SceAtDataSet_exec(0x19, SCE_LEVEL10, 0, (TaskFunc) r101_checkDoor102, 0, 1);
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	250	SceAtSetEnable(0xA3, 1);
+r101	upstream/re4/src/st1/r101.cpp	flags	282	if (RsfCheck(G_ROOM_ID, 7)) {
+r101	upstream/re4/src/st1/r101.cpp	object	300	Obj01SetEst(obj, 1, 0x12, 2, 1, 0x11, 0, 0x14, 0, 0);
+r101	upstream/re4/src/st1/r101.cpp	render_audio	301	EstSet(obj, -1, 0, 0, EFF_ROOM, 0x10, 0, ESP_CORE_KIND_NONE, obj, 0);
+r101	upstream/re4/src/st1/r101.cpp	flags	307	RsfSet(G_ROOM_ID, 7);
+r101	upstream/re4/src/st1/r101.cpp	flags	308	ScfFlagOff(pG, SCF_R101_IMPRISON);
+r101	upstream/re4/src/st1/r101.cpp	flags	309	ScfFlagOn(pG, SCF_96);
+r101	upstream/re4/src/st1/r101.cpp	flags	310	ScfFlagOn(pG, SCF_9a);
+r101	upstream/re4/src/st1/r101.cpp	flags	329	if (RsfCheck(G_ROOM_ID, 3) == 0 && r101_work->emNum - alive > 4) {
+r101	upstream/re4/src/st1/r101.cpp	flags	330	RsfSet(G_ROOM_ID, 3);
+r101	upstream/re4/src/st1/r101.cpp	flags	334	if (RsfCheck(G_ROOM_ID, 2) == 0 && r101_work->emNum - alive > 9) {
+r101	upstream/re4/src/st1/r101.cpp	flags	335	RsfSet(G_ROOM_ID, 2);
+r101	upstream/re4/src/st1/r101.cpp	flags	339	if (RsfCheck(G_ROOM_ID, 7)) {
+r101	upstream/re4/src/st1/r101.cpp	flags	342	if (RsfCheck(G_ROOM_ID, 8) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	flags	361	if (RsfCheck(G_ROOM_ID, 8) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	object	438	cEmWindow* win;
+r101	upstream/re4/src/st1/r101.cpp	flags	441	RsfSet(G_ROOM_ID, 7);
+r101	upstream/re4/src/st1/r101.cpp	flags	442	ScfFlagOff(pG, SCF_R101_IMPRISON);
+r101	upstream/re4/src/st1/r101.cpp	flags	443	ScfFlagOn(pG, SCF_96);
+r101	upstream/re4/src/st1/r101.cpp	flags	444	ScfFlagOn(pG, SCF_9a);
+r101	upstream/re4/src/st1/r101.cpp	flags	445	if (RsfCheck(G_ROOM_ID, 8) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	446	SceAtSetEnable(8, 0);
+r101	upstream/re4/src/st1/r101.cpp	event	461	SceEventStart(0);
+r101	upstream/re4/src/st1/r101.cpp	render_audio	463	SndRoomStrStop(3);
+r101	upstream/re4/src/st1/r101.cpp	event	478	EvtMgr.SetEvt(r101_work->evt30->getAddr(), 0);
+r101	upstream/re4/src/st1/r101.cpp	event	479	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0)) {
+r101	upstream/re4/src/st1/r101.cpp	event	487	SceEventEnd(0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	496	EmListSetAlive(0x14, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	497	EmListSetAlive(0x15, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	498	EmListSetAlive(0x16, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	499	EmListSetAlive(0x17, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	500	EmListSetAlive(0x18, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	501	EmListSetAlive(0x19, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	502	EmListSetAlive(0x1A, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	503	EmListSetAlive(0x1B, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	504	EmListSetAlive(0x1C, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	505	EmListSetAlive(0x1E, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	506	EmListSetAlive(0x1F, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	507	EmListSetAlive(0x22, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	508	EmListSetAlive(0x23, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	509	EmListSetAlive(0x24, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	510	EmListSetAlive(0x28, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	511	EmListSetAlive(0x29, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	512	EmListSetAlive(0x2A, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	513	EmListSetAlive(0x2B, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	514	EmListSetAlive(0x2C, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	515	EmListSetAlive(0x2E, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	516	EmListSetAlive(0x2F, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	517	EmListSetAlive(0x30, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	518	EmListSetAlive(0x31, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	519	EmListSetAlive(0x32, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	520	EmListSetAlive(0x36, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	521	EmListSetAlive(0x37, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	522	EmListSetAlive(0x38, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	523	EmListSetAlive(0x39, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	524	EmListSetAlive(0x3A, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	525	EmListSetAlive(0x3C, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	526	EmListSetAlive(0x3D, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	527	EmListSetAlive(0x3E, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	528	EmListSetAlive(0x3F, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	529	EmListSetAlive(0x40, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	530	EmListSetAlive(0x41, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	531	EmListSetAlive(0x42, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	532	EmListSetAlive(0x43, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	533	EmListSetAlive(0x44, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	534	EmListSetAlive(0x45, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	535	EmListSetAlive(0x46, 0);
+r101	upstream/re4/src/st1/r101.cpp	flags	536	if (RsfCheck(G_ROOM_ID, 8)) {
+r101	upstream/re4/src/st1/r101.cpp	flags	566	RsfSet(G_ROOM_ID, 10);
+r101	upstream/re4/src/st1/r101.cpp	flags	579	if (RsfCheck(G_ROOM_ID, 8)) {
+r101	upstream/re4/src/st1/r101.cpp	flags	582	if (RsfCheck(G_ROOM_ID, 7)) {
+r101	upstream/re4/src/st1/r101.cpp	object	603	cEmRack* rack;
+r101	upstream/re4/src/st1/r101.cpp	object	605	cEmWindow* win;
+r101	upstream/re4/src/st1/r101.cpp	flags	607	if (RsfCheck(G_ROOM_ID, 7)) {
+r101	upstream/re4/src/st1/r101.cpp	flags	610	RsfSet(G_ROOM_ID, 8);
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	612	SceAtSetEnable(8, 0);
+r101	upstream/re4/src/st1/r101.cpp	event	613	SceEventStart(0);
+r101	upstream/re4/src/st1/r101.cpp	render_audio	615	SndRoomStrStop(3);
+r101	upstream/re4/src/st1/r101.cpp	event	639	EvtMgr.SetEvt(m->pData, 0);
+r101	upstream/re4/src/st1/r101.cpp	flags	705	if (RsfCheck(G_ROOM_ID, 6) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	render_audio	708	SndRoomStrStart(1, 3, 1);
+r101	upstream/re4/src/st1/r101.cpp	event	712	SceEventEnd(0);
+r101	upstream/re4/src/st1/r101.cpp	flags	718	RsfSet(G_ROOM_ID, 2);
+r101	upstream/re4/src/st1/r101.cpp	flags	720	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	event	764	SceEventEnd(0);
+r101	upstream/re4/src/st1/r101.cpp	flags	773	RsfSet(G_ROOM_ID, 3);
+r101	upstream/re4/src/st1/r101.cpp	flags	775	RsfSet(G_ROOM_ID, 0);
+r101	upstream/re4/src/st1/r101.cpp	flags	777	RsfSet(G_ROOM_ID, 1);
+r101	upstream/re4/src/st1/r101.cpp	flags	784	if (RsfCheck(G_ROOM_ID, 7)) {
+r101	upstream/re4/src/st1/r101.cpp	event	787	SceEventStart(1);
+r101	upstream/re4/src/st1/r101.cpp	render_audio	789	SndStrReq(1, 0x3E, 0x80000003, 0, 0, 0.0f);
+r101	upstream/re4/src/st1/r101.cpp	flags	791	RsfSet(G_ROOM_ID, 0);
+r101	upstream/re4/src/st1/r101.cpp	enemy	792	r101_work->pEm[0]->setEm(0x28, -1, 1, 1, 1);
+r101	upstream/re4/src/st1/r101.cpp	enemy	793	r101_work->pEm[1]->setEm(0x29, -1, 1, 1, 1);
+r101	upstream/re4/src/st1/r101.cpp	enemy	794	r101_work->pEm[2]->setEm(0x2A, -1, 1, 1, 1);
+r101	upstream/re4/src/st1/r101.cpp	enemy	795	r101_work->pEm[3]->setEm(0x2B, -1, 1, 1, 1);
+r101	upstream/re4/src/st1/r101.cpp	enemy	796	r101_work->pEm[4]->setEm(0x2C, -1, 1, 1, 1);
+r101	upstream/re4/src/st1/r101.cpp	render_audio	804	SndStrReq(1, 0x3B, 0x80000003, 0, 0, 0.0f);
+r101	upstream/re4/src/st1/r101.cpp	flags	806	RsfSet(G_ROOM_ID, 1);
+r101	upstream/re4/src/st1/r101.cpp	enemy	807	r101_work->pEm[5]->setEm(0x2E, -1, 1, 1, 1);
+r101	upstream/re4/src/st1/r101.cpp	enemy	808	r101_work->pEm[6]->setEm(0x2F, -1, 1, 1, 1);
+r101	upstream/re4/src/st1/r101.cpp	enemy	809	r101_work->pEm[7]->setEm(0x30, -1, 1, 1, 1);
+r101	upstream/re4/src/st1/r101.cpp	enemy	810	r101_work->pEm[8]->setEm(0x31, -1, 1, 1, 1);
+r101	upstream/re4/src/st1/r101.cpp	enemy	811	r101_work->pEm[9]->setEm(0x32, -1, 1, 1, 1);
+r101	upstream/re4/src/st1/r101.cpp	flags	879	if (RsfCheck(G_ROOM_ID, 6) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	render_audio	892	SndRoomStrStart(1, 3, 1);
+r101	upstream/re4/src/st1/r101.cpp	render_audio	896	SndRoomStrStop(3);
+r101	upstream/re4/src/st1/r101.cpp	flags	902	RsfSet(G_ROOM_ID, 6);
+r101	upstream/re4/src/st1/r101.cpp	flags	903	ScfFlagOn(pG, SCF_R101_IMPRISON);
+r101	upstream/re4/src/st1/r101.cpp	flags	904	ScfFlagOff(pG, SCF_96);
+r101	upstream/re4/src/st1/r101.cpp	flags	905	ScfFlagOff(pG, SCF_9a);
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	906	SceAtSetEnable(7, 0);
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	911	SceAtDataSet_exec(0, SCE_LEVEL10, 0, (TaskFunc) r101_DoorDontOpen100, 0, 1);
+r101	upstream/re4/src/st1/r101.cpp	scenario_area	912	SceAtDataSet_exec(2, SCE_LEVEL10, 0, (TaskFunc) r101_DoorDontOpen103, 0, 1);
+r101	upstream/re4/src/st1/r101.cpp	render_audio	913	SndRoomStrStart(1, 3, 1);
+r101	upstream/re4/src/st1/r101.cpp	flags	954	if (RsfCheck(G_ROOM_ID, 5) == 0) {
+r101	upstream/re4/src/st1/r101.cpp	flags	955	RsfSet(G_ROOM_ID, 5);
+r101	upstream/re4/src/st1/r101.cpp	event	956	SceEventStart(0);
+r101	upstream/re4/src/st1/r101.cpp	event	965	EvtMgr.SetEvt(m->pData, 0);
+r101	upstream/re4/src/st1/r101.cpp	event	966	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0)) {
+r101	upstream/re4/src/st1/r101.cpp	event	973	SceEventEnd(0);
+r101	upstream/re4/src/st1/r101.cpp	flags	1034	if (RsfCheck(G_ROOM_ID, 6)) {
+r101	upstream/re4/src/st1/r101.cpp	object	1074	if ((obj = SmdGetObjPtr(0x39)) != 0) {
+r101	upstream/re4/src/st1/r101.cpp	object	1084	w = SmdGetWorkPtr(0x39);
+r101	upstream/re4/src/st1/r101.cpp	object	1085	if ((obj = SmdGetObjPtr(0x39)) != 0 && w != 0) {
+r102	upstream/re4/src/st1/r102.cpp	flags	48	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r102	upstream/re4/src/st1/r102.cpp	scenario_area	49	SceAtDataSet_exec(3, SCE_LEVEL10, 0, (TaskFunc) r102_openCover, 0, 2);
+r102	upstream/re4/src/st1/r102.cpp	object	51	SmdGetObjPtr(0x25)->pList->ang.z = -2.46091f;
+r102	upstream/re4/src/st1/r102.cpp	object	52	SmdGetObjPtr(0x25)->be_flag |= 0x20;
+r102	upstream/re4/src/st1/r102.cpp	flags	54	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r102	upstream/re4/src/st1/r102.cpp	scenario_area	55	SceAtDataSet_exec(5, SCE_LEVEL10, 0, (TaskFunc) r102_execEvent00, 0, 1);
+r102	upstream/re4/src/st1/r102.cpp	enemy	56	EmReadSearch(0x18, 0, 0);
+r102	upstream/re4/src/st1/r102.cpp	event	57	"r102_work->evd = DC.setData(EvtMgr.NameChange(""evd/r102s00.evd""));"
+r102	upstream/re4/src/st1/r102.cpp	flags	71	RsfSet(G_ROOM_ID, 1);
+r102	upstream/re4/src/st1/r102.cpp	event	72	SceEventStart(0);
+r102	upstream/re4/src/st1/r102.cpp	event	74	EvtMgr.SetEvt(r102_work->evd->getAddr(), 0);
+r102	upstream/re4/src/st1/r102.cpp	event	75	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0) != 0) {
+r102	upstream/re4/src/st1/r102.cpp	event	79	SceEventEnd(0);
+r102	upstream/re4/src/st1/r102.cpp	render_audio	107	SndRoomBgmStart(0, 1);
+r102	upstream/re4/src/st1/r102.cpp	render_audio	110	SndRoomBgmStart(0, 0);
+r102	upstream/re4/src/st1/r102.cpp	render_audio	117	SndRoomBgmVolSet(0, 1, 600);
+r102	upstream/re4/src/st1/r102.cpp	render_audio	122	SndRoomBgmVolReset(0, 600);
+r102	upstream/re4/src/st1/r102.cpp	flags	136	RsfSet(G_ROOM_ID, 0);
+r102	upstream/re4/src/st1/r102.cpp	event	137	SceEventStart(0);
+r102	upstream/re4/src/st1/r102.cpp	object	140	obj = SmdGetObjPtr(0x25);
+r102	upstream/re4/src/st1/r102.cpp	event	156	SceEventEnd(0);
+r103	upstream/re4/src/st1/r103.cpp	object	80	cEmRack* rack;
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	86	SceAtSetEnable(0xB, 0);
+r103	upstream/re4/src/st1/r103.cpp	render_audio	92	EstSet(0, -1, 0, 0, EFF_ROOM, 5, 0, ESP_CORE_KIND_NONE, 0, 0);
+r103	upstream/re4/src/st1/r103.cpp	flags	94	ScfFlagOn(pG, SCF_R103_ENTER);
+r103	upstream/re4/src/st1/r103.cpp	collision	98	EatMgr.registEffInfo(EAT_ET_ROOM0, (AtEffInfo*) &r103_eff_info);
+r103	upstream/re4/src/st1/r103.cpp	render_audio	107	EstSet(0, -1, 0, 0, EFF_ROOM, 6, 1, (u8) r103_work->eff, 0, 0);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	108	SceAtDataSet_exec(0x80, SCE_LEVEL10, 0, (TaskFunc) r103_getFile, 0, 1);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	110	SceAtSetActColor(2, 1);
+r103	upstream/re4/src/st1/r103.cpp	object	133	a = SmdGetObjPtr(s->door[0]);
+r103	upstream/re4/src/st1/r103.cpp	object	134	b = SmdGetObjPtr(s->door[1]);
+r103	upstream/re4/src/st1/r103.cpp	object	247	cObj* obj = SmdGetObjPtr(objNo);
+r103	upstream/re4/src/st1/r103.cpp	flags	263	ScfFlagOn(pG, SCF_R103_OPEN_COVER);
+r103	upstream/re4/src/st1/r103.cpp	object	264	lid = SmdGetObjPtr(c->lid);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	278	SceAtSetEnable(c->at14, 1);
+r103	upstream/re4/src/st1/r103.cpp	object	288	cover = SmdGetObjPtr(c->cover);
+r103	upstream/re4/src/st1/r103.cpp	object	289	lid = SmdGetObjPtr(c->lid);
+r103	upstream/re4/src/st1/r103.cpp	render_audio	309	EstSet(0, -1, 0, 0, EFF_ROOM, 0x10, 0, ESP_CORE_KIND_NONE, 0, 0);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	312	SceAtSetEnable(c->at10, 1);
+r103	upstream/re4/src/st1/r103.cpp	flags	313	ScfFlagOn(pG, SCF_R103_CLOSE_COVER);
+r103	upstream/re4/src/st1/r103.cpp	render_audio	330	EstSet(0, -1, 0, 0, EFF_ROOM, 0x11, 0, ESP_CORE_KIND_NONE, 0, 0);
+r103	upstream/re4/src/st1/r103.cpp	flags	331	ScfFlagOn(pG, SCF_R103_CLOSE_COVER);
+r103	upstream/re4/src/st1/r103.cpp	flags	360	if (!ScfFlagChk(pG, SCF_R103_CLOSE_COVER)) {
+r103	upstream/re4/src/st1/r103.cpp	flags	361	if (!ScfFlagChk(pG, SCF_R103_ITEM_IN_CESSPIT)) {
+r103	upstream/re4/src/st1/r103.cpp	flags	363	ScfFlagOn(pG, SCF_R103_ITEM_IN_CESSPIT);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	374	SceAtSetEnable(c->at10, 1);
+r103	upstream/re4/src/st1/r103.cpp	flags	375	if (ScfFlagChk(pG, SCF_R103_ITEM_IN_CESSPIT)) {
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	376	SceAtSetEnable(c->itemAt, 0);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	378	SceAtDataSet_exec(c->at18, SCE_LEVEL10, 0, (TaskFunc) r103_execOpenCover, c, 1);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	379	SceAtSetEnable(c->at14, 0);
+r103	upstream/re4/src/st1/r103.cpp	flags	390	if (!ScfFlagChk(pG, SCF_R103_OPEN_COVER)) {
+r103	upstream/re4/src/st1/r103.cpp	flags	391	if (!ScfFlagChk(pG, SCF_R103_ITEM_IN_CESSPIT)) {
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	394	SceAtSetEnable(c->at18, 0);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	399	SceAtSetEnable(c->at18, 1);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	410	SceAtSetEnable(c->at10, 0);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	411	SceAtSetEnable(c->at18, 0);
+r103	upstream/re4/src/st1/r103.cpp	flags	415	if (ScfFlagChk(pG, SCF_R103_ITEM_IN_CESSPIT)) {
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	418	SceAtSetEnable(c->itemAt, 1);
+r103	upstream/re4/src/st1/r103.cpp	flags	430	if (!ScfFlagChk(pG, SCF_R103_ITEM_IN_CESSPIT) && SceAtItemFindFlgCk(c->itemAt) == 1) {
+r103	upstream/re4/src/st1/r103.cpp	flags	431	ScfFlagOn(pG, SCF_R103_ITEM_IN_CESSPIT);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	446	SceAtSetEnable(c->itemAt2, 1);
+r103	upstream/re4/src/st1/r103.cpp	object	447	SmdGetObjPtr(c->lid)->be_flag |= 0x20;
+r103	upstream/re4/src/st1/r103.cpp	flags	448	if (!ScfFlagChk(pG, SCF_R103_CLOSE_COVER)) {
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	451	SceAtSetEnable(c->at10, 0);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	452	SceAtSetEnable(c->itemAt, 1);
+r103	upstream/re4/src/st1/r103.cpp	object	454	SmdGetObjPtr(c->cover)->be_flag &= ~2;
+r103	upstream/re4/src/st1/r103.cpp	flags	455	if (!ScfFlagChk(pG, SCF_R103_OPEN_COVER)) {
+r103	upstream/re4/src/st1/r103.cpp	object	456	SmdGetObjPtr(c->lid)->pList->ang.x = 1.12f;
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	457	SceAtDataSet_exec(c->at18, SCE_LEVEL10, 0, (TaskFunc) r103_execOpenCover, c, 1);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	458	SceAtSetEnable(c->at14, 0);
+r103	upstream/re4/src/st1/r103.cpp	flags	459	if (ScfFlagChk(pG, SCF_R103_ITEM_IN_CESSPIT)) {
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	460	SceAtSetEnable(c->itemAt, 1);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	461	SceAtSetEnable(c->itemAt, 0);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	462	SceAtSetEnable(c->at10, 1);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	464	SceAtSetEnable(c->at10, 1);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	465	SceAtSetEnable(c->itemAt, 1);
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	467	SceAtSetEnable(c->at10, 1);
+r103	upstream/re4/src/st1/r103.cpp	object	471	SmdGetObjPtr(c->lid)->pList->ang.x = -1.83f;
+r103	upstream/re4/src/st1/r103.cpp	scenario_area	472	SceAtSetEnable(c->at10, 0);
+r103	upstream/re4/src/st1/r103.cpp	flags	479	if (ScfFlagChk(pG, SCF_R103_ITEM_IN_CESSPIT)) {
+r103	upstream/re4/src/st1/r103.cpp	render_audio	493	SndRoomStrStart(1, 0xF, 1);
+r104	upstream/re4/src/st1/r104.cpp	event	155	"EvtMgr.SetFunc(""evt_r104s00_func"", (void*) Evt_R104S00_Func);"
+r104	upstream/re4/src/st1/r104.cpp	event	156	"EvtMgr.SetFunc(""evt_r104s01_func"", (void*) Evt_R104S01_Func);"
+r104	upstream/re4/src/st1/r104.cpp	flags	158	RsfSet(G_ROOM_ID, 1);
+r104	upstream/re4/src/st1/r104.cpp	flags	160	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	166	if (RsfCheck(G_ROOM_ID, 21) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	scenario_area	167	SceAtDataSet_exec(0x11, SCE_LEVEL10, 0, (TaskFunc) r104_execEvent10, 0, 1);
+r104	upstream/re4/src/st1/r104.cpp	flags	169	if (RsfCheck(G_ROOM_ID, 22) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	170	if (RsfCheck(G_ROOM_ID, 1)) {
+r104	upstream/re4/src/st1/r104.cpp	event	171	"EvtMgr.EvtReadAram(""event/evd/r104s20.evd"", 0, 0, 0, 0);"
+r104	upstream/re4/src/st1/r104.cpp	scenario_area	173	SceAtDataSet_exec(0x12, SCE_LEVEL10, 0, (TaskFunc) r104_execEvent20, 0, 1);
+r104	upstream/re4/src/st1/r104.cpp	scenario_area	175	SceAtSetEnable(0x97, 1);
+r104	upstream/re4/src/st1/r104.cpp	scenario_area	182	SceAtSetEnable(0x97, 0);
+r104	upstream/re4/src/st1/r104.cpp	scenario_area	183	SceAtDataSet_exec(0, SCE_LEVEL10, 0, (TaskFunc) r104_checkDoor107, 0, 1);
+r104	upstream/re4/src/st1/r104.cpp	flags	186	if (RsfCheck(G_ROOM_ID, 14) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	scenario_area	187	SceAtDataSet_exec(0xA, SCE_LEVEL10, 0, (TaskFunc) r104_execShowView, 0, 1);
+r104	upstream/re4/src/st1/r104.cpp	flags	189	if (RsfCheck(G_ROOM_ID, 15) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	scenario_area	190	SceAtDataSet_exec(0xE, SCE_LEVEL10, 0, (TaskFunc) r104_execEmDash, 0, 1);
+r104	upstream/re4/src/st1/r104.cpp	render_audio	211	SndRoomStrStart(1, 3, 1);
+r104	upstream/re4/src/st1/r104.cpp	flags	212	while (!(RsfCheck(G_ROOM_ID, 3) && RsfCheck(G_ROOM_ID, 6) && RsfCheck(G_ROOM_ID, 9) && RsfCheck(G_ROOM_ID, 12))) {
+r104	upstream/re4/src/st1/r104.cpp	render_audio	218	SndRoomStrStop(3);
+r104	upstream/re4/src/st1/r104.cpp	flags	224	RsfSet(G_ROOM_ID, 15);
+r104	upstream/re4/src/st1/r104.cpp	object	242	obj = SmdGetObjPtr(0x36);
+r104	upstream/re4/src/st1/r104.cpp	object	246	obj = SmdGetObjPtr(0x38);
+r104	upstream/re4/src/st1/r104.cpp	object	294	obj = SmdGetObjPtr(0x29);
+r104	upstream/re4/src/st1/r104.cpp	object	298	obj = SmdGetObjPtr(0x2A);
+r104	upstream/re4/src/st1/r104.cpp	object	302	obj = SmdGetObjPtr(0x2B);
+r104	upstream/re4/src/st1/r104.cpp	render_audio	409	SndStrReq(r104_work->strId, 4, 50, 0);
+r104	upstream/re4/src/st1/r104.cpp	event	411	SceEventEnd(0);
+r104	upstream/re4/src/st1/r104.cpp	flags	424	RsfSet(G_ROOM_ID, 14);
+r104	upstream/re4/src/st1/r104.cpp	render_audio	425	r104_work->strId = SndStrReq(0, 0x15, 0x80000003, 0, 0, *(const f32*) &vol);
+r104	upstream/re4/src/st1/r104.cpp	event	427	SceEventStart(1);
+r104	upstream/re4/src/st1/r104.cpp	event	442	SceEventStart(0);
+r104	upstream/re4/src/st1/r104.cpp	scenario_area	445	SceAtSetEnable(0x97, 1);
+r104	upstream/re4/src/st1/r104.cpp	event	451	SceEventEnd(0);
+r104	upstream/re4/src/st1/r104.cpp	flags	479	if (RsfCheck(G_ROOM_ID, r->flagC) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	480	if (RsfCheck(G_ROOM_ID, r->flagB)) {
+r104	upstream/re4/src/st1/r104.cpp	flags	481	RsfClear(G_ROOM_ID, r->flagB);
+r104	upstream/re4/src/st1/r104.cpp	flags	483	RsfClear(G_ROOM_ID, r->flagA);
+r104	upstream/re4/src/st1/r104.cpp	flags	491	if (RsfCheck(G_ROOM_ID, r->flagC)) {
+r104	upstream/re4/src/st1/r104.cpp	enemy	495	r->em[0].setEm(r->R104ResetData::em[0], -1, 0, 0, 1);
+r104	upstream/re4/src/st1/r104.cpp	enemy	496	r->em[1].setEm(r->R104ResetData::em[1], -1, 0, 0, 1);
+r104	upstream/re4/src/st1/r104.cpp	enemy	497	r->em[2].setEm(r->R104ResetData::em[2], -1, 0, 0, 1);
+r104	upstream/re4/src/st1/r104.cpp	flags	509	if (RsfCheck(G_ROOM_ID, r->flagA) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	510	RsfSet(G_ROOM_ID, r->flagA);
+r104	upstream/re4/src/st1/r104.cpp	flags	511	} else if (RsfCheck(G_ROOM_ID, r->flagB) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	512	RsfSet(G_ROOM_ID, r->flagB);
+r104	upstream/re4/src/st1/r104.cpp	flags	514	RsfSet(G_ROOM_ID, r->flagC);
+r104	upstream/re4/src/st1/r104.cpp	flags	542	if (RsfCheck(G_ROOM_ID, 8) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	546	if (RsfCheck(G_ROOM_ID, 11) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	550	if (RsfCheck(G_ROOM_ID, 9) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	556	if (RsfCheck(G_ROOM_ID, 12) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	562	if (RsfCheck(G_ROOM_ID, 11) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	566	if (RsfCheck(G_ROOM_ID, 8) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	570	if (RsfCheck(G_ROOM_ID, 12) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	576	if (RsfCheck(G_ROOM_ID, 9) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	582	if (RsfCheck(G_ROOM_ID, 2) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	586	if (RsfCheck(G_ROOM_ID, 5) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	590	if (RsfCheck(G_ROOM_ID, 3) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	596	if (RsfCheck(G_ROOM_ID, 6) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	602	if (RsfCheck(G_ROOM_ID, 5) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	606	if (RsfCheck(G_ROOM_ID, 2) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	610	if (RsfCheck(G_ROOM_ID, 6) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	616	if (RsfCheck(G_ROOM_ID, 3) == 0) {
+r104	upstream/re4/src/st1/r104.cpp	flags	644	RsfSet(G_ROOM_ID, 5);
+r104	upstream/re4/src/st1/r104.cpp	flags	645	RsfSet(G_ROOM_ID, 6);
+r104	upstream/re4/src/st1/r104.cpp	flags	646	RsfSet(G_ROOM_ID, 7);
+r104	upstream/re4/src/st1/r104.cpp	flags	667	RsfSet(G_ROOM_ID, 22);
+r104	upstream/re4/src/st1/r104.cpp	event	668	"EvtMgr.EvtReadExec(""event/evd/r104s20.evd"", 0x13, EvtReadFlagNone);"
+r104	upstream/re4/src/st1/r104.cpp	flags	690	ScfFlagOn(pG, SCF_R104_MEET_MERCHANT);
+r104	upstream/re4/src/st1/r104.cpp	flags	691	RsfSet(G_ROOM_ID, 21);
+r104	upstream/re4/src/st1/r104.cpp	event	692	"EvtMgr.EvtReadExec(""event/evd/r104s10.evd"", 0x13, EvtReadFlagNone);"
+r104	upstream/re4/src/st1/r104.cpp	flags	698	RsfSet(G_ROOM_ID, 1);
+r104	upstream/re4/src/st1/r104.cpp	event	714	SceEventStart(0);
+r104	upstream/re4/src/st1/r104.cpp	event	716	"EvtMgr.EvtReadAram(""event/evd/r104s01.evd"", 0, 0, 0, 0);"
+r104	upstream/re4/src/st1/r104.cpp	event	717	"EvtMgr.EvtReadAram(""event/evd/r104s02.evd"", 0, 0, 0, 0);"
+r104	upstream/re4/src/st1/r104.cpp	event	718	"EvtMgr.EvtReadAram(""event/evd/r104s10.evd"", 0, 0, 0, 0);"
+r104	upstream/re4/src/st1/r104.cpp	event	719	"EvtMgr.EvtReadAram(""event/evd/r104s20.evd"", 0, 0, 0, 0);"
+r104	upstream/re4/src/st1/r104.cpp	event	726	"if (EvtMgr.EvtReadExec(""event/evd/r104s00.evd"", 0, EvtReadFlagPlPosNoSet)) {"
+r104	upstream/re4/src/st1/r104.cpp	event	729	"EvtMgr.EvtReadExec(""event/evd/r104s01.evd"", 0, EvtReadFlagPlPosNoSet);"
+r104	upstream/re4/src/st1/r104.cpp	event	732	"EvtMgr.EvtReadExec(""event/evd/r104s02.evd"", 0, EvtReadFlagDiedemo);"
+r104	upstream/re4/src/st1/r104.cpp	event	744	SceEventEnd(0);
+r104	upstream/re4/src/st1/r104.cpp	render_audio	794	cLight* l = LightMgr.getKindLight(1);
+r104	upstream/re4/src/st1/r104.cpp	event	853	EvtMgr.EvtSndStrPlay(EvtMgr.GetNowExeEvtNamePtr(), 1, 0x86, 1, 0.0f);
+r104	upstream/re4/src/st1/r104.cpp	render_audio	853	EvtMgr.EvtSndStrPlay(EvtMgr.GetNowExeEvtNamePtr(), 1, 0x86, 1, 0.0f);
+r105	upstream/re4/src/st1/r105.cpp	enemy	88	void r105_EmSet();
+r105	upstream/re4/src/st1/r105.cpp	object	115	cEmWindow* win;
+r105	upstream/re4/src/st1/r105.cpp	object	116	cEmWindow* win2;
+r105	upstream/re4/src/st1/r105.cpp	flags	121	RsfClear(G_ROOM_ID, 0);
+r105	upstream/re4/src/st1/r105.cpp	event	125	"EvtMgr.SetFunc(""evt_r105s00_func"", (void*) Evt_R105S00_Func);"
+r105	upstream/re4/src/st1/r105.cpp	event	126	"EvtMgr.SetFunc(""evt_r105s10_func"", (void*) Evt_R105S10_Func);"
+r105	upstream/re4/src/st1/r105.cpp	event	127	"EvtMgr.SetFunc(""evt_r105s99_func"", (void*) Evt_R105S10_Func);"
+r105	upstream/re4/src/st1/r105.cpp	flags	133	if (RsfCheck(G_ROOM_ID, 12) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	134	SceAtDataSet_exec(0x1A, SCE_LEVEL10, 0, r105_keyItem, 0, 1);
+r105	upstream/re4/src/st1/r105.cpp	collision	137	EatMgr.registEffInfo(EAT_ET_ROOM0, (AtEffInfo*) &r105_eff_info);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	139	SceAtDataSet_exec(1, SCE_LEVEL10, 0, r105_checkDoor, 0, 1);
+r105	upstream/re4/src/st1/r105.cpp	object	141	SmdSetTrans(0x23, 0);
+r105	upstream/re4/src/st1/r105.cpp	flags	143	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	145	SceAtDataSet_exec(6, SCE_LEVEL10, 0, r105_mark, 0, 1);
+r105	upstream/re4/src/st1/r105.cpp	object	146	obj = SmdGetObjPtr(0x22);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	153	SceAtSetEnable(6, 0);
+r105	upstream/re4/src/st1/r105.cpp	flags	155	if (RsfCheck(G_ROOM_ID, 2) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	flags	156	if (RsfCheck(G_ROOM_ID, 1)) {
+r105	upstream/re4/src/st1/r105.cpp	event	157	"EvtMgr.EvtReadAram(""event/evd/r105s10.evd"", 0x15, 0, 0, 0);"
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	159	SceAtSetEnable(0x17, 0);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	164	SceAtSetEnable(0x17, 1);
+r105	upstream/re4/src/st1/r105.cpp	flags	166	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	event	167	"EvtMgr.EvtReadAram(""event/evd/r105s00.evd"", 0x15, 0, 0, 0);"
+r105	upstream/re4/src/st1/r105.cpp	enemy	169	r105_EmSet();
+r105	upstream/re4/src/st1/r105.cpp	flags	170	if (RsfCheck(G_ROOM_ID, 11) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	178	SceAtSetEnable(8, 0);
+r105	upstream/re4/src/st1/r105.cpp	flags	194	if (RsfCheck(G_ROOM_ID, 1) == 0 || RsfCheck(G_ROOM_ID, 2) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	195	SceAtSetEnable(8, 1);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	196	SceAtDataSet_exec(8, SCE_LEVEL10, 0, r105_Event, 0, 1);
+r105	upstream/re4/src/st1/r105.cpp	object	209	OpenBoxMain(0, 1, 0x19, 0x2B, 0x2C, -1);
+r105	upstream/re4/src/st1/r105.cpp	object	212	OpenBoxMain(0, 1, 0x1A, 0x35, 0x36, -1);
+r105	upstream/re4/src/st1/r105.cpp	object	215	OpenBoxMain(0, 1, 0x1A, 0x37, 0x38, -1);
+r105	upstream/re4/src/st1/r105.cpp	object	218	OpenBoxMain(OpenBoxDwXP, 1, 0x18, 0x39, 0xFFFFFFFF, -1);
+r105	upstream/re4/src/st1/r105.cpp	object	221	OpenBoxMain(OpenBoxPosXM500, 1, 0x1B, 0x3B, 0xFFFFFFFF, 0x93);
+r105	upstream/re4/src/st1/r105.cpp	object	229	OpenBoxMain(0, 0, 0x19, 0x2B, 0x2C, -1);
+r105	upstream/re4/src/st1/r105.cpp	object	232	OpenBoxMain(0, 0, 0x1A, 0x35, 0x36, -1);
+r105	upstream/re4/src/st1/r105.cpp	object	235	OpenBoxMain(0, 0, 0x1A, 0x37, 0x38, -1);
+r105	upstream/re4/src/st1/r105.cpp	object	238	OpenBoxMain(OpenBoxDwXP, 0, 0x18, 0x39, 0xFFFFFFFF, -1);
+r105	upstream/re4/src/st1/r105.cpp	object	241	OpenBoxMain(OpenBoxPosXM500, 0, 0x1B, 0x3B, 0xFFFFFFFF, 0x93);
+r105	upstream/re4/src/st1/r105.cpp	flags	248	if (RsfCheck(G_ROOM_ID, 12) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	flags	249	RsfSet(G_ROOM_ID, 12);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	250	SceAtSetEnable(0x1A, 0);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	255	SceAtSetEnable(0x8E, 1);
+r105	upstream/re4/src/st1/r105.cpp	event	277	SceEventStart(0);
+r105	upstream/re4/src/st1/r105.cpp	object	423	obj[0] = SmdGetObjPtr(0x20);
+r105	upstream/re4/src/st1/r105.cpp	object	424	obj[1] = SmdGetObjPtr(0x21);
+r105	upstream/re4/src/st1/r105.cpp	object	425	obj[2] = SmdGetObjPtr(0x22);
+r105	upstream/re4/src/st1/r105.cpp	object	426	obj[3] = SmdGetObjPtr(0x32);
+r105	upstream/re4/src/st1/r105.cpp	object	434	SmdSetTrans(0x22, 0);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	455	SceAtSetEnable(6, 0);
+r105	upstream/re4/src/st1/r105.cpp	flags	456	RsfSet(G_ROOM_ID, 0);
+r105	upstream/re4/src/st1/r105.cpp	event	473	SceEventEnd(0);
+r105	upstream/re4/src/st1/r105.cpp	object	480	SmdSetTrans(0x20, 0);
+r105	upstream/re4/src/st1/r105.cpp	object	481	SmdSetTrans(0x21, 0);
+r105	upstream/re4/src/st1/r105.cpp	object	482	SmdSetTrans(0x22, 0);
+r105	upstream/re4/src/st1/r105.cpp	object	483	SmdSetTrans(0x32, 0);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	484	SceAtSetEnable(7, 0);
+r105	upstream/re4/src/st1/r105.cpp	object	495	mk->obj[0].obj = SmdGetObjPtr(0x21);
+r105	upstream/re4/src/st1/r105.cpp	object	496	mk->obj[1].obj = SmdGetObjPtr(0x22);
+r105	upstream/re4/src/st1/r105.cpp	event	560	SceEventStart(0);
+r105	upstream/re4/src/st1/r105.cpp	flags	561	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	flags	562	RsfSet(G_ROOM_ID, 1);
+r105	upstream/re4/src/st1/r105.cpp	render_audio	564	SndRoomStrStop(0);
+r105	upstream/re4/src/st1/r105.cpp	event	565	"EvtMgr.EvtReadExec(""event/evd/r105s00.evd"", 0x15, EvtReadFlagFadeOut);"
+r105	upstream/re4/src/st1/r105.cpp	event	566	"EvtMgr.EvtReadAram(""event/evd/r105s10.evd"", 0x15, 0, 0, 0);"
+r105	upstream/re4/src/st1/r105.cpp	enemy	569	r105_EmSet();
+r105	upstream/re4/src/st1/r105.cpp	flags	571	RsfSet(G_ROOM_ID, 2);
+r105	upstream/re4/src/st1/r105.cpp	event	572	"EvtMgr.EvtReadExec(""event/evd/r105s10.evd"", 0x15, EvtReadFlagNone);"
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	573	SceAtSetEnable(8, 0);
+r105	upstream/re4/src/st1/r105.cpp	event	580	SceEventEnd(0);
+r105	upstream/re4/src/st1/r105.cpp	flags	581	if (RsfCheck(G_ROOM_ID, 11) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	transition	582	SceSetChapterEnd(CHAPTER_1_2, -1);
+r105	upstream/re4/src/st1/r105.cpp	flags	590	RsfSet(G_ROOM_ID, 11);
+r105	upstream/re4/src/st1/r105.cpp	enemy	596	void r105_EmSet()
+r105	upstream/re4/src/st1/r105.cpp	enemy	598	r105_work->em[0].setEm(0x64, -1, 0, 1, 1);
+r105	upstream/re4/src/st1/r105.cpp	enemy	599	r105_work->em[1].setEm(0x65, -1, 0, 1, 1);
+r105	upstream/re4/src/st1/r105.cpp	enemy	600	r105_work->em[2].setEm(0x66, -1, 0, 1, 1);
+r105	upstream/re4/src/st1/r105.cpp	enemy	601	r105_work->em[4].setEm(0x68, -1, 0, 1, 1);
+r105	upstream/re4/src/st1/r105.cpp	enemy	602	r105_work->em[5].setEm(0x69, -1, 0, 1, 1);
+r105	upstream/re4/src/st1/r105.cpp	enemy	603	r105_work->em[7].setEm(0x6B, -1, 0, 1, 1);
+r105	upstream/re4/src/st1/r105.cpp	enemy	604	r105_work->em[8].setEm(0x6C, -1, 0, 1, 1);
+r105	upstream/re4/src/st1/r105.cpp	enemy	605	r105_work->em[9].setEm(0x6D, -1, 0, 1, 1);
+r105	upstream/re4/src/st1/r105.cpp	enemy	606	r105_work->em[10].setEm(0x6E, -1, 0, 1, 1);
+r105	upstream/re4/src/st1/r105.cpp	enemy	607	r105_work->em[11].setEm(0x59, -1, 0, 1, 1);
+r105	upstream/re4/src/st1/r105.cpp	render_audio	631	SndRoomStrStop(0);
+r105	upstream/re4/src/st1/r105.cpp	render_audio	634	SndStrReq(0, 2, 0x80000003, 0, 0, *(const f32*) &vol);
+r105	upstream/re4/src/st1/r105.cpp	render_audio	639	SndStrReq(0, 2, 4, 600, 0, *(const f32*) &vol);
+r105	upstream/re4/src/st1/r105.cpp	event	655	SceEventStart(1);
+r105	upstream/re4/src/st1/r105.cpp	object	658	SmdSetTrans(0x23, 0);
+r105	upstream/re4/src/st1/r105.cpp	flags	663	ScfFlagOn(pG, SCF_90);
+r105	upstream/re4/src/st1/r105.cpp	event	666	SceEventEnd(0);
+r105	upstream/re4/src/st1/r105.cpp	object	718	cEmWindow* win;
+r105	upstream/re4/src/st1/r105.cpp	object	719	cEmWindow* win2;
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	812	SceAtSetEnable(0x17, 1);
+r105	upstream/re4/src/st1/r105.cpp	flags	822	RsfSet(G_ROOM_ID, 3);
+r105	upstream/re4/src/st1/r105.cpp	object	823	obj = SmdGetObjPtr(0x30);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	837	SceAtSetEnable(9, 1);
+r105	upstream/re4/src/st1/r105.cpp	object	847	cover = SmdGetObjPtr(0x31);
+r105	upstream/re4/src/st1/r105.cpp	object	848	lid = SmdGetObjPtr(0x30);
+r105	upstream/re4/src/st1/r105.cpp	render_audio	866	EstSet(0, -1, 0, 0, EFF_ROOM, 0x10, 0, ESP_CORE_KIND_NONE, 0, 0);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	869	SceAtSetEnable(0x11, 1);
+r105	upstream/re4/src/st1/r105.cpp	flags	870	RsfSet(G_ROOM_ID, 4);
+r105	upstream/re4/src/st1/r105.cpp	render_audio	887	EstSet(0, -1, 0, 0, EFF_ROOM, 0x11, 0, ESP_CORE_KIND_NONE, 0, 0);
+r105	upstream/re4/src/st1/r105.cpp	flags	888	RsfSet(G_ROOM_ID, 4);
+r105	upstream/re4/src/st1/r105.cpp	flags	922	if (RsfCheck(G_ROOM_ID, 4) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	flags	923	if (RsfCheck(G_ROOM_ID, 5) == 0 && SceAtItemFindFlgCk(0x8D) == 1) {
+r105	upstream/re4/src/st1/r105.cpp	flags	924	RsfSet(G_ROOM_ID, 5);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	933	SceAtSetEnable(0x11, 1);
+r105	upstream/re4/src/st1/r105.cpp	flags	934	if (RsfCheck(G_ROOM_ID, 5)) {
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	935	SceAtSetEnable(0x8D, 0);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	937	SceAtDataSet_exec(0xC, SCE_LEVEL10, 0, r105_execOpenCover, 0, 1);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	938	SceAtSetEnable(9, 0);
+r105	upstream/re4/src/st1/r105.cpp	flags	950	if (RsfCheck(G_ROOM_ID, 3) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	flags	951	if (RsfCheck(G_ROOM_ID, 5) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	954	SceAtSetEnable(0xC, 0);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	959	SceAtSetEnable(0xC, 1);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	970	SceAtSetEnable(0x11, 0);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	971	SceAtSetEnable(0xC, 0);
+r105	upstream/re4/src/st1/r105.cpp	flags	975	if (RsfCheck(G_ROOM_ID, 5)) {
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	978	SceAtSetEnable(0x8D, 1);
+r105	upstream/re4/src/st1/r105.cpp	flags	989	if (RsfCheck(G_ROOM_ID, 5) == 0 && SceAtItemFindFlgCk(0x8D) == 1) {
+r105	upstream/re4/src/st1/r105.cpp	flags	990	RsfSet(G_ROOM_ID, 5);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	1004	SceAtSetEnable(0x9B, 1);
+r105	upstream/re4/src/st1/r105.cpp	object	1005	SmdGetObjPtr(0x30)->be_flag |= 0x20;
+r105	upstream/re4/src/st1/r105.cpp	flags	1006	if (RsfCheck(G_ROOM_ID, 4) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	1009	SceAtSetEnable(0x11, 0);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	1010	SceAtSetEnable(0x8D, 1);
+r105	upstream/re4/src/st1/r105.cpp	object	1012	SmdGetObjPtr(0x31)->be_flag &= ~2;
+r105	upstream/re4/src/st1/r105.cpp	flags	1013	if (RsfCheck(G_ROOM_ID, 3) == 0) {
+r105	upstream/re4/src/st1/r105.cpp	object	1014	SmdGetObjPtr(0x30)->pList->ang.z = 0.69f;
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	1015	SceAtDataSet_exec(0xC, SCE_LEVEL10, 0, r105_execOpenCover, 0, 1);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	1016	SceAtSetEnable(9, 0);
+r105	upstream/re4/src/st1/r105.cpp	flags	1017	if (RsfCheck(G_ROOM_ID, 5)) {
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	1018	SceAtSetEnable(0x8D, 1);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	1019	SceAtSetEnable(0x8D, 0);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	1020	SceAtSetEnable(0x11, 1);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	1022	SceAtSetEnable(0x11, 1);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	1023	SceAtSetEnable(0x8D, 1);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	1025	SceAtSetEnable(0x11, 1);
+r105	upstream/re4/src/st1/r105.cpp	object	1029	SmdGetObjPtr(0x30)->pList->ang.z = -(73.0f * 0.01f);
+r105	upstream/re4/src/st1/r105.cpp	scenario_area	1030	SceAtSetEnable(0x11, 0);
+r105	upstream/re4/src/st1/r105.cpp	flags	1037	if (RsfCheck(G_ROOM_ID, 5)) {
+r106	upstream/re4/src/st1/r106.cpp	object	79	cEmRack* rack;
+r106	upstream/re4/src/st1/r106.cpp	flags	85	ScfFlagOn(pG, SCF_R106_ENTER);
+r106	upstream/re4/src/st1/r106.cpp	event	86	"EvtMgr.SetFunc(""evt_r106s00_func"", (void*) Evt_R106S00_Func);"
+r106	upstream/re4/src/st1/r106.cpp	collision	87	EatMgr.registEffInfo(EAT_ET_ROOM0, (AtEffInfo*) &r106_eff_info);
+r106	upstream/re4/src/st1/r106.cpp	flags	93	if (!ScfFlagChk(pG, SCF_R106_EVENT)) {
+r106	upstream/re4/src/st1/r106.cpp	scenario_area	94	SceAtDataSet_exec(2, SCE_LEVEL10, 0, (TaskFunc) r106_Event, 0, 1);
+r106	upstream/re4/src/st1/r106.cpp	event	95	"r106_work->evd = DC.setData(EvtMgr.NameChange(""evd/r106s00.evd""));"
+r106	upstream/re4/src/st1/r106.cpp	enemy	97	EmReadSearch(0x12, 0, 0x3C0000);
+r106	upstream/re4/src/st1/r106.cpp	enemy	98	EmReadSearch(0x29, 0, 0);
+r106	upstream/re4/src/st1/r106.cpp	enemy	99	EmReadSearch(0x2A, 0, 0);
+r106	upstream/re4/src/st1/r106.cpp	enemy	100	EmReadSearch(0x2E, 0, 0);
+r106	upstream/re4/src/st1/r106.cpp	scenario_area	101	SceAtDataSet_exec(4, SCE_LEVEL10, 0, (TaskFunc) r106_ctrlBgm, (void*) 1, 1);
+r106	upstream/re4/src/st1/r106.cpp	scenario_area	102	SceAtDataSet_exec(5, SCE_LEVEL10, 0, (TaskFunc) r106_ctrlBgm, 0, 1);
+r106	upstream/re4/src/st1/r106.cpp	scenario_area	105	SceAtSetEnable(0xE, 0);
+r106	upstream/re4/src/st1/r106.cpp	scenario_area	107	SceAtDataSet_exec(8, SCE_LEVEL10, 0, (TaskFunc) r106_ctrlEm0, 0, 1);
+r106	upstream/re4/src/st1/r106.cpp	scenario_area	108	SceAtDataSet_exec(9, SCE_LEVEL10, 0, (TaskFunc) r106_ctrlEm1, 0, 1);
+r106	upstream/re4/src/st1/r106.cpp	flags	109	if (RsfCheck(G_ROOM_ID, 2) == 0) {
+r106	upstream/re4/src/st1/r106.cpp	flags	138	RsfSet(G_ROOM_ID, 2);
+r106	upstream/re4/src/st1/r106.cpp	enemy	203	EmSetEvent(&d);
+r106	upstream/re4/src/st1/r106.cpp	enemy	218	EmSetEvent(&d);
+r106	upstream/re4/src/st1/r106.cpp	enemy	233	EmSetEvent(&d);
+r106	upstream/re4/src/st1/r106.cpp	object	276	a = SmdGetObjPtr(0x29);
+r106	upstream/re4/src/st1/r106.cpp	object	277	b = SmdGetObjPtr(0x2A);
+r106	upstream/re4/src/st1/r106.cpp	object	280	a = SmdGetObjPtr(0x2B);
+r106	upstream/re4/src/st1/r106.cpp	object	281	b = SmdGetObjPtr(0x2C);
+r106	upstream/re4/src/st1/r106.cpp	render_audio	337	SndRoomStrStart(1, 3, 1);
+r106	upstream/re4/src/st1/r106.cpp	render_audio	342	SndRoomStrStop(3);
+r106	upstream/re4/src/st1/r106.cpp	flags	352	ScfFlagOn(pG, SCF_R106_EVENT);
+r106	upstream/re4/src/st1/r106.cpp	flags	353	ScfFlagOn(pG, SCF_R106_CONFINEED_WITH_LUIS);
+r106	upstream/re4/src/st1/r106.cpp	event	354	SceEventStart(0);
+r106	upstream/re4/src/st1/r106.cpp	render_audio	356	SndRoomStrStop(3);
+r106	upstream/re4/src/st1/r106.cpp	enemy	359	EmReadInit();
+r106	upstream/re4/src/st1/r106.cpp	event	364	if (EvtMgr.SetEvt(r106_work->evd->getAddr(), &ev)) {
+r106	upstream/re4/src/st1/r106.cpp	event	374	SceEventEnd(0);
+r106	upstream/re4/src/st1/r106.cpp	transition	375	SceSetChapterEnd(0, 3);
+r106	upstream/re4/src/st1/r106.cpp	flags	469	while (!ScfFlagChk(pG, SCF_R106_EVENT)) {
+r106	upstream/re4/src/st1/r106.cpp	enemy	573	EmSetEvent(&d);
+r106	upstream/re4/src/st1/r106.cpp	enemy	586	EmSetEvent(&d);
+r106	upstream/re4/src/st1/r106.cpp	enemy	599	EmSetEvent(&d);
+r106	upstream/re4/src/st1/r106.cpp	enemy	612	EmSetEvent(&d);
+r106	upstream/re4/src/st1/r106.cpp	enemy	625	EmSetEvent(&d);
+r106	upstream/re4/src/st1/r106.cpp	enemy	638	EmSetEvent(&d);
+r107	upstream/re4/src/st1/r107.cpp	flags	55	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r107	upstream/re4/src/st1/r107.cpp	flags	56	RsfSet(G_ROOM_ID, 0);
+r107	upstream/re4/src/st1/r107.cpp	collision	60	EatMgr.registEffInfo(EAT_ET_WATER, (AtEffInfo*) &r107_eff_info);
+r107	upstream/re4/src/st1/r107.cpp	object	94	a = SmdGetObjPtr(0x3F);
+r107	upstream/re4/src/st1/r107.cpp	object	95	b = SmdGetObjPtr(0x40);
+r107	upstream/re4/src/st1/r107.cpp	object	99	a = SmdGetObjPtr(0x41);
+r107	upstream/re4/src/st1/r107.cpp	object	100	b = SmdGetObjPtr(0x42);
+r107	upstream/re4/src/st1/r107.cpp	render_audio	145	SndRoomStrStart(1, 3, 1);
+r107	upstream/re4/src/st1/r107.cpp	render_audio	149	SndRoomStrStop(3);
+r108	upstream/re4/src/st1/r108.cpp	object	59	o = SmdGetObjPtr(id);
+r108	upstream/re4/src/st1/r108.cpp	object	65	a = SmdGetObjPtr(idA);
+r108	upstream/re4/src/st1/r108.cpp	object	66	b = SmdGetObjPtr(idB);
+r108	upstream/re4/src/st1/r108.cpp	scenario_area	98	SceAtDataSet_exec(4, SCE_LEVEL10, 0, (TaskFunc) r108_checkDoor, 0, 1);
+r108	upstream/re4/src/st1/r108.cpp	enemy	100	EmReadSearch(0x17, 0, 0);
+r108	upstream/re4/src/st1/r108.cpp	flags	101	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r108	upstream/re4/src/st1/r108.cpp	scenario_area	102	SceAtDataSet_exec(6, SCE_LEVEL10, 0, (TaskFunc) r108_operator, 0, 1);
+r108	upstream/re4/src/st1/r108.cpp	flags	104	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r108	upstream/re4/src/st1/r108.cpp	scenario_area	105	SceAtDataSet_exec(0x12, SCE_LEVEL10, 0, (TaskFunc) r108_execShowView, 0, 1);
+r108	upstream/re4/src/st1/r108.cpp	scenario_area	107	SceAtSetActColor(4, 1);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	119	SndStrReq(r108_work->strId, 4, 200, 0);
+r108	upstream/re4/src/st1/r108.cpp	event	120	SceEventEnd(0);
+r108	upstream/re4/src/st1/r108.cpp	flags	133	RsfSet(G_ROOM_ID, 1);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	134	r108_work->strId = SndStrReq(0, 0x33, 0x80000003, 0, 0, *(const f32*) &vol);
+r108	upstream/re4/src/st1/r108.cpp	event	136	SceEventStart(1);
+r108	upstream/re4/src/st1/r108.cpp	flags	148	if (!ScfFlagChk(pG, SCF_R108_OPERATOR)) {
+r108	upstream/re4/src/st1/r108.cpp	flags	149	RsfSet(G_ROOM_ID, 0);
+r108	upstream/re4/src/st1/r108.cpp	object	189	bell = SmdGetObjPtr(0x1C);
+r108	upstream/re4/src/st1/r108.cpp	flags	224	if (!ScfFlagChk(pG, SCF_R108_OPERATOR)) {
+r108	upstream/re4/src/st1/r108.cpp	flags	225	ScfFlagOn(pG, SCF_R108_OPERATOR);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	236	SndRoomBgmStart(0, 1);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	237	SndRoomBgmStart(1, 0);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	240	SndRoomBgmStart(0, 0);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	241	SndRoomBgmStart(1, 1);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	250	SndRoomBgmVolReset(1, 2000);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	251	SndRoomBgmVolSet(0, 1, 2000);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	256	SndRoomBgmVolReset(0, 2000);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	257	SndRoomBgmVolSet(1, 1, 2000);
+r108	upstream/re4/src/st1/r108.cpp	scenario_area	268	SceAtSetEnable(0xA, 0);
+r108	upstream/re4/src/st1/r108.cpp	scenario_area	283	SceAtSetEnable(0x82, 1);
+r108	upstream/re4/src/st1/r108.cpp	flags	287	if (!ScfFlagChk(pG, SCF_R108_PUZZLE_CLEAR)) {
+r108	upstream/re4/src/st1/r108.cpp	scenario_area	288	SceAtDataSet_exec(0xA, SCE_LEVEL10, 0, (TaskFunc) r108_execPuzzle, 0, 1);
+r108	upstream/re4/src/st1/r108.cpp	scenario_area	293	SceAtDataSet_exec(0xA, SCE_LEVEL10, 0, (TaskFunc) r108_getItem, 0, 1);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	333	EstSet(0, -1, 0, 0, EFF_ROOM, r108_symbol[r108_symIdx].no, 1, r108_symbol[r108_symIdx].eff, 0, 0);
+r108	upstream/re4/src/st1/r108.cpp	event	377	SceEventStart(0);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	378	LightMgr.endEvent();
+r108	upstream/re4/src/st1/r108.cpp	flags	412	ScfFlagOn(pG, SCF_R108_PUZZLE_CLEAR);
+r108	upstream/re4/src/st1/r108.cpp	scenario_area	413	SceAtDataSet_exec(0xA, SCE_LEVEL10, 0, (TaskFunc) r108_getItem, 0, 1);
+r108	upstream/re4/src/st1/r108.cpp	event	427	SceEventEnd(0);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	450	SndRoomStrStart(1, 0, 1);
+r108	upstream/re4/src/st1/r108.cpp	render_audio	454	SndRoomStrStop(3);
+r109	upstream/re4/src/st1/r109.cpp	object	45	if ((obj = SmdGetObjPtr(0x21)) != 0) {
+r109	upstream/re4/src/st1/r109.cpp	object	49	if ((obj = SmdGetObjPtr(0x22)) != 0) {
+r109	upstream/re4/src/st1/r109.cpp	collision	53	r109_work->sat[0] = SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x1F), 0, &r109_pos0, &r109_rot0, 0);
+r109	upstream/re4/src/st1/r109.cpp	collision	54	r109_work->sat[1] = SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x1F), 0, &r109_pos1, &r109_rot1, 0);
+r109	upstream/re4/src/st1/r109.cpp	collision	55	r109_work->sat[2] = SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x1F), 0, &r109_pos2, &r109_rot2, 0);
+r109	upstream/re4/src/st1/r109.cpp	collision	56	r109_work->eat[0] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x20), 0, &r109_pos0, &r109_rot0, 0);
+r109	upstream/re4/src/st1/r109.cpp	collision	57	r109_work->eat[1] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x20), 0, &r109_pos1, &r109_rot1, 0);
+r109	upstream/re4/src/st1/r109.cpp	collision	58	r109_work->eat[2] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x20), 0, &r109_pos2, &r109_rot2, 0);
+r109	upstream/re4/src/st1/r109.cpp	object	61	torch->setDelete();
+r109	upstream/re4/src/st1/r109.cpp	object	64	torch->setDelete();
+r109	upstream/re4/src/st1/r109.cpp	object	67	torch->setDelete();
+r109	upstream/re4/src/st1/r109.cpp	object	70	SmdSetTrans(0x2C, 0);
+r109	upstream/re4/src/st1/r109.cpp	object	81	SmdGetObjPtr(1)->be_flag |= 2;
+r109	upstream/re4/src/st1/r109.cpp	object	82	SmdGetObjPtr(4)->be_flag |= 2;
+r109	upstream/re4/src/st1/r109.cpp	object	83	SmdGetObjPtr(5)->be_flag |= 2;
+r109	upstream/re4/src/st1/r109.cpp	object	84	SmdGetObjPtr(0x27)->be_flag &= ~2;
+r109	upstream/re4/src/st1/r109.cpp	object	85	SmdGetObjPtr(0x26)->be_flag &= ~2;
+r109	upstream/re4/src/st1/r109.cpp	object	86	SmdGetObjPtr(2)->be_flag |= 2;
+r109	upstream/re4/src/st1/r109.cpp	object	87	SmdGetObjPtr(6)->be_flag |= 2;
+r109	upstream/re4/src/st1/r109.cpp	object	88	SmdGetObjPtr(7)->be_flag |= 2;
+r109	upstream/re4/src/st1/r109.cpp	object	89	SmdGetObjPtr(0x29)->be_flag &= ~2;
+r109	upstream/re4/src/st1/r109.cpp	object	90	SmdGetObjPtr(0x28)->be_flag &= ~2;
+r109	upstream/re4/src/st1/r109.cpp	object	91	SmdGetObjPtr(3)->be_flag |= 2;
+r109	upstream/re4/src/st1/r109.cpp	object	92	SmdGetObjPtr(8)->be_flag |= 2;
+r109	upstream/re4/src/st1/r109.cpp	object	93	SmdGetObjPtr(9)->be_flag |= 2;
+r109	upstream/re4/src/st1/r109.cpp	object	94	SmdGetObjPtr(0x2B)->be_flag &= ~2;
+r109	upstream/re4/src/st1/r109.cpp	object	95	SmdGetObjPtr(0x2A)->be_flag &= ~2;
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	37	void EmSetNormal()
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	39	r10a_work->em[0].setEm(0xB1, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	40	r10a_work->em[1].setEm(0xB2, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	41	r10a_work->em[2].setEm(0xB3, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	42	r10a_work->em[3].setEm(0xB4, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	43	r10a_work->em[4].setEm(0xB5, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	44	r10a_work->em[5].setEm(0xB6, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	45	r10a_work->em[6].setEm(0xB7, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	46	r10a_work->em[7].setEm(0xB8, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	47	r10a_work->em[8].setEm(0xB9, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	48	r10a_work->em[9].setEm(0xBA, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	52	void EmSetZouenA()
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	54	r10a_work->em[10].setEm(0xAE, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	55	r10a_work->em[11].setEm(0xC4, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	56	r10a_work->em[12].setEm(0xC5, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	57	r10a_work->em[13].setEm(0xC6, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	58	r10a_work->em[14].setEm(0xC7, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	62	void EmSetZouenB()
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	64	r10a_work->em[15].setEm(0x72, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	65	r10a_work->em[16].setEm(0x73, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	66	r10a_work->em[17].setEm(0x85, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	67	r10a_work->em[18].setEm(0x86, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	68	r10a_work->em[19].setEm(0x9F, 0, 0, 1, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	collision	79	EatMgr.registEffInfo(EAT_ET_WATER, (AtEffInfo*) &r10a_eff_info);
+r10a	upstream/re4/src/st1/r10a.cpp	scenario_area	80	SceAtDataSet_exec(4, SCE_LEVEL10, 0, (TaskFunc) r10a_StrStart, 0, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	scenario_area	81	SceAtDataSet_exec(5, SCE_LEVEL10, 0, (TaskFunc) r10a_StrStart, 0, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	scenario_area	82	SceAtDataSet_exec(2, SCE_LEVEL10, 0, (TaskFunc) r10a_zouen_ck, 0, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	flags	83	if (RsfCheck(G_ROOM_ID, 2) == 0) {
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	140	EmSetEvent(&d);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	155	EmSetEvent(&d);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	170	EmSetEvent(&d);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	173	EmSetNormal();
+r10a	upstream/re4/src/st1/r10a.cpp	flags	174	if (RsfCheck(G_ROOM_ID, 0)) {
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	175	EmSetZouenA();
+r10a	upstream/re4/src/st1/r10a.cpp	flags	177	if (RsfCheck(G_ROOM_ID, 1)) {
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	178	EmSetZouenB();
+r10a	upstream/re4/src/st1/r10a.cpp	flags	187	if (RsfCheck(G_ROOM_ID, 2) == 0 && r10a_work->rock != 0 && (r10a_work->rock->flag & 1)) {
+r10a	upstream/re4/src/st1/r10a.cpp	flags	188	RsfSet(G_ROOM_ID, 2);
+r10a	upstream/re4/src/st1/r10a.cpp	render_audio	205	SndRoomStrStart(1, 0xF, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	render_audio	210	SndRoomStrStop(3);
+r10a	upstream/re4/src/st1/r10a.cpp	flags	233	if (RsfCheck(G_ROOM_ID, 0)) {
+r10a	upstream/re4/src/st1/r10a.cpp	flags	240	if (RsfCheck(G_ROOM_ID, 0) && RsfCheck(G_ROOM_ID, 1) == 0 && cnt <= 5) {
+r10a	upstream/re4/src/st1/r10a.cpp	flags	241	RsfSet(G_ROOM_ID, 1);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	242	EmSetZouenB();
+r10a	upstream/re4/src/st1/r10a.cpp	flags	244	if (RsfCheck(G_ROOM_ID, 0) == 0 && cnt <= 5) {
+r10a	upstream/re4/src/st1/r10a.cpp	flags	245	RsfSet(G_ROOM_ID, 0);
+r10a	upstream/re4/src/st1/r10a.cpp	enemy	246	EmSetZouenA();
+r10b	upstream/re4/src/st1/r10b.cpp	event	77	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0)) {
+r10b	upstream/re4/src/st1/r10b.cpp	collision	115	EatMgr.registEffInfo(EAT_ET_WATER, (AtEffInfo*) &r10b_eff_info);
+r10b	upstream/re4/src/st1/r10b.cpp	flags	116	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r10b	upstream/re4/src/st1/r10b.cpp	scenario_area	117	SceAtDataSet_exec(4, SCE_LEVEL10, 0, (TaskFunc) r10b_GakeEvent, 0, 1);
+r10b	upstream/re4/src/st1/r10b.cpp	event	123	"EvtMgr.SetFunc(""evt_r10bs00_func"", (void*) Evt_R10BS00_Func);"
+r10b	upstream/re4/src/st1/r10b.cpp	event	124	"EvtMgr.SetFunc(""evt_r10bs10_func"", (void*) Evt_R10BS10_Func);"
+r10b	upstream/re4/src/st1/r10b.cpp	event	125	"EvtMgr.SetFunc(""evt_r10bs20_func"", (void*) Evt_R10BS20_Func);"
+r10b	upstream/re4/src/st1/r10b.cpp	event	126	"EvtMgr.SetFunc(""evt_r10bs21_func"", (void*) Evt_R10BS21_Func);"
+r10b	upstream/re4/src/st1/r10b.cpp	event	127	"EvtMgr.SetFunc(""evt_r10bs22_func"", (void*) Evt_R10BS22_Func);"
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	188	EstSet(0, -1, 0, 0, EFF_ROOM, 2, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	189	EstSet(pPL, -1, 0, 0, EFF_ROOM, 5, 1, ESP_CORE_KIND_ROOM01, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	enemy	190	r10b_work->boat = EmSetFromList2(0xA2, 1);
+r10b	upstream/re4/src/st1/r10b.cpp	object	191	RoomEfmRegist(SmdGetGroupObjPtr(0x58), 0x60);
+r10b	upstream/re4/src/st1/r10b.cpp	event	214	r10b_work->evt[no] = DC.setData(EvtMgr.NameChange(r10b_evtName[no]));
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	279	SndRoomStrStop(0);
+r10b	upstream/re4/src/st1/r10b.cpp	event	282	SceEventStart(0);
+r10b	upstream/re4/src/st1/r10b.cpp	event	289	if (EvtMgr.SetEvt(evt, 0) == 0) {
+r10b	upstream/re4/src/st1/r10b.cpp	event	297	if (EvtMgr.SetEvt(evt, &pEvt) != 0) {
+r10b	upstream/re4/src/st1/r10b.cpp	event	305	if (EvtMgr.SetEvt(evt, &pEvt2) != 0) {
+r10b	upstream/re4/src/st1/r10b.cpp	event	313	SceEventStart(0);
+r10b	upstream/re4/src/st1/r10b.cpp	transition	314	SceSetChapterEnd(CHAPTER_1_3, 6);
+r10b	upstream/re4/src/st1/r10b.cpp	event	346	EvtMgr.SetEvt(evt, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	event	347	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0)) {
+r10b	upstream/re4/src/st1/r10b.cpp	enemy	354	r10b_work->boss = EmSetFromList2(0xA1, 1);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	371	EstSet(0, -1, 0, 0, EFF_ROOM, 5, 1, ESP_CORE_KIND_ROOM01, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	372	EstSet(0, -1, 0, 0, EFF_ROOM, 2, 1, ESP_CORE_KIND_ROOM00, zero, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	379	EstSet(0, -1, 0, 0, EFF_ROOM, 4, 1, ESP_CORE_KIND_ROOM01, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	380	EstSet(0, -1, 0, 0, EFF_ROOM, 3, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	390	EstSet(0, -1, 0, 0, EFF_ROOM, 5, 1, ESP_CORE_KIND_ROOM01, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	flags	406	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r10b	upstream/re4/src/st1/r10b.cpp	scenario_area	407	SceAtSetEnable(4, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	flags	408	RsfSet(G_ROOM_ID, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	event	409	SceEventStart(0);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	414	EstSet(0, -1, 0, 0, EFF_ROOM, 2, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	event	420	EvtMgr.SetEvt(evt, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	event	421	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0)) {
+r10b	upstream/re4/src/st1/r10b.cpp	enemy	426	r10b_work->boat = EmSetFromList2(0xA3, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	event	429	SceEventEnd(0);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	434	EstSet(0, -1, 0, 0, EFF_ROOM, 4, 1, ESP_CORE_KIND_ROOM01, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	435	EstSet(0, -1, 0, 0, EFF_ROOM, 3, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	event	522	"if (EvtMgr.GetBin(&bin, ""obj/objmodel/obm3100.bin"", 0) == 0) {"
+r10b	upstream/re4/src/st1/r10b.cpp	event	525	"if (EvtMgr.GetBin(&tpl, ""obj/objmodel/obm3100.tpl"", 0) == 0) {"
+r10b	upstream/re4/src/st1/r10b.cpp	event	528	"if (EvtMgr.GetBin(&fcv, ""obj/objmodel/obm31000.fcv"", 0) == 0) {"
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	593	EstSet(0, -1, 0, 0, EFF_ROOM, 3, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	609	cLight* l = LightMgr.getKindLight(1);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	667	SndRoomStrStart(1, 0, 1);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	684	EstSet(0, -1, 0, 0, EFF_ROOM, 2, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	event	719	EvtMgr.EvtSndStrPlay(EvtMgr.GetNowExeEvtNamePtr(), 1, 0x1D, 1, 0.0f);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	719	EvtMgr.EvtSndStrPlay(EvtMgr.GetNowExeEvtNamePtr(), 1, 0x1D, 1, 0.0f);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	735	EstSet(0, -1, 0, 0, EFF_ROOM, 2, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	render_audio	767	EstSet(0, -1, 0, 0, EFF_ROOM, 2, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	object	769	SmdSetTrans(0x59, 0);
+r10b	upstream/re4/src/st1/r10b.cpp	object	805	SmdSetTrans(0x59, 1);
+r10b	upstream/re4/src/st1/r10b.cpp	enemy	853	EmSetEvent(&d);
+r10b	upstream/re4/src/st1/r10b.cpp	enemy	866	EmSetEvent(&d);
+r10b	upstream/re4/src/st1/r10b.cpp	enemy	879	EmSetEvent(&d);
+r10b	upstream/re4/src/st1/r10b.cpp	enemy	892	EmSetEvent(&d);
+r10b	upstream/re4/src/st1/r10b.cpp	enemy	905	EmSetEvent(&d);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	52	TexRenderMng* tex;
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	86	static void r10c_ThunderFlagOn();
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	87	static void r10c_ThunderFlagOff();
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	88	static void r10c_ThunderMove();
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	89	void setTexRender();
+r10c	upstream/re4/src/st1/r10c.cpp	enemy	93	static void r10c_EmSet_exit();
+r10c	upstream/re4/src/st1/r10c.cpp	enemy	94	static void r10c_EmSet();
+r10c	upstream/re4/src/st1/r10c.cpp	enemy	109	EmReadSearch(0x12, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	collision	116	r10c_work->eat = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 5), 0, &zero, &zero, 6);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	118	EstSet(pPL, -1, 0, 0, EFF_PL00, 2, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	119	EstSet(pPL, -1, 0, 0, EFF_ROOM, 3, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	121	SceExec(0x12, (TaskFunc) r10c_ThunderMove, 0, 0, SCE_PRIO_DEF_2, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	123	setTexRender();
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	124	SceAtDataSet_exec(3, SCE_LEVEL10, 0, (TaskFunc) r10c_TestPosMove, 0, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	125	SceAtDataSet_exec(4, SCE_LEVEL10, 0, (TaskFunc) r10c_TestPosMove, (void*) 1, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	126	if (RsfCheck(G_ROOM_ID, 5) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	127	SceAtDataSet_exec(5, SCE_LEVEL10, 0, (TaskFunc) chkSwitchA, 0, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	object	129	SmdGetObjPtr(0xC)->be_flag |= 0x20;
+r10c	upstream/re4/src/st1/r10c.cpp	object	130	SmdGetObjPtr(0xC)->pList->ang.z = -1.6f;
+r10c	upstream/re4/src/st1/r10c.cpp	flags	132	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	133	SceAtDataSet_exec(1, SCE_LEVEL10, 0, (TaskFunc) r10c_EmEvent, 0, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	135	RsfCheck(G_ROOM_ID, 2);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	136	RsfCheck(G_ROOM_ID, 3);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	137	RsfCheck(G_ROOM_ID, 4);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	140	SceAtDataSet_exec(0x80, SCE_LEVEL10, 0, (TaskFunc) r10c_ItemGet, 0, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	141	if (RsfCheck(G_ROOM_ID, 8)) {
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	144	SceAtSetEnable(7, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	145	obj = SmdGetObjPtr(0x71);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	149	if (RsfCheck(G_ROOM_ID, 5)) {
+r10c	upstream/re4/src/st1/r10c.cpp	flags	152	RsfSet(G_ROOM_ID, 7);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	157	SceAtSetEnable(0x11, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	158	SceAtSetEnable(0x12, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	159	SmdGetObjPtr(0)->be_flag &= ~2;
+r10c	upstream/re4/src/st1/r10c.cpp	object	160	SmdGetObjPtr(0xE)->be_flag |= 2;
+r10c	upstream/re4/src/st1/r10c.cpp	object	161	SmdSetTrans(0x55, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	162	SmdSetTrans(0x5A, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	163	SmdSetTrans(0x58, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	164	SmdSetTrans(0x59, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	165	SmdSetTrans(0x56, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	166	SmdSetTrans(0x57, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	167	SmdSetTrans(0x48, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	168	SceAtSetEnable(0xE, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	169	SceAtSetEnable(0xF, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	170	SceAtSetEnable(0xC, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	171	SceAtSetEnable(0xD, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	173	if (RsfCheck(G_ROOM_ID, 9) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	174	SceAtDataSet_exec(8, SCE_LEVEL10, 0, (TaskFunc) r10c_EmSet, 0, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	enemy	174	SceAtDataSet_exec(8, SCE_LEVEL10, 0, (TaskFunc) r10c_EmSet, 0, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	object	178	SmdSetTrans(0x58, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	179	SmdSetTrans(0x59, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	183	SceAtSetEnable(0xE, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	184	SceAtSetEnable(0xF, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	193	if (RsfCheck(G_ROOM_ID, 11)) {
+r10c	upstream/re4/src/st1/r10c.cpp	collision	194	SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 5), 0, &pos, &rot, 2);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	196	if (RsfCheck(G_ROOM_ID, 12)) {
+r10c	upstream/re4/src/st1/r10c.cpp	collision	197	SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 5), 0, &pos, &rot, 3);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	199	if (RsfCheck(G_ROOM_ID, 13)) {
+r10c	upstream/re4/src/st1/r10c.cpp	collision	200	SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 5), 0, &pos, &rot, 4);
+r10c	upstream/re4/src/st1/r10c.cpp	collision	202	r10c_work->crate[0] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 5), 0, &pos, &rot, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	collision	203	r10c_work->crate[1] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 5), 0, &pos, &rot, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	collision	204	r10c_work->crate[2] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 5), 0, &pos, &rot, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	207	SceAtSetEnable(0xC, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	208	SceAtSetEnable(0xD, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	218	ScfFlagOn(pG, SCF_R10C_GET_CREST);
+r10c	upstream/re4/src/st1/r10c.cpp	object	220	r10c_work->crate[0]->setCoord(&SmdGetObjPtr(0x61)->pos, &SmdGetObjPtr(0x61)->ang);
+r10c	upstream/re4/src/st1/r10c.cpp	object	221	r10c_work->crate[1]->setCoord(&SmdGetObjPtr(0x62)->pos, &SmdGetObjPtr(0x62)->ang);
+r10c	upstream/re4/src/st1/r10c.cpp	object	222	r10c_work->crate[2]->setCoord(&SmdGetObjPtr(0x63)->pos, &SmdGetObjPtr(0x63)->ang);
+r10c	upstream/re4/src/st1/r10c.cpp	object	243	SmdSetTrans(0x5C, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	event	246	SceEventStart(0);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	251	SndStrReq(1, 0x25, 0x80000003, 0, 0, 0.0f);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	290	if (RsfCheck(G_ROOM_ID, 5)) {
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	296	SndStrReq(1, 0x26, 0x80000003, 0, 0, 0.0f);
+r10c	upstream/re4/src/st1/r10c.cpp	event	340	SceEventEnd(0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	343	SmdSetTrans(0x5C, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	344	if (RsfCheck(G_ROOM_ID, 10) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	flags	345	RsfSet(G_ROOM_ID, 10);
+r10c	upstream/re4/src/st1/r10c.cpp	event	362	SceEventEnd(0);
+r10c	upstream/re4/src/st1/r10c.cpp	enemy	370	EmSetFromList2(3, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	enemy	372	EmSetFromList2(4, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	383	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	flags	386	RsfSet(G_ROOM_ID, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	enemy	391	em = EmSetFromList2(2, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	396	EstSet(em, -1, 0, 0, EFF_ROOM, 0x1F, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	399	SndStrReq(1, 0x23, 0x80000003, 0, 0, 0.0f);
+r10c	upstream/re4/src/st1/r10c.cpp	event	400	SceEventStart(0);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	436	SndRoomStrStart(1, 0, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	440	SndRoomStrStop(3);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	448	static void r10c_ThunderFlagOn()
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	453	static void r10c_ThunderFlagOff()
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	458	static void r10c_ThunderMove()
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	463	EffSetToolStateCallBack(0, r10c_ThunderFlagOn, r10c_ThunderFlagOff);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	471	EstSet(0, -1, 0, 0, EFF_ROOM, 2, 1, ESP_CORE_KIND_NONE, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	477	SceSndCallThunder();
+r10c	upstream/re4/src/st1/r10c.cpp	object	486	obj = SmdGetObjPtr(id);                     \
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	495	void setTexRender()
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	500	if (GetTexRenderMgr(&r10c_work->tex)) {
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	507	EstSet(0, -1, 0, 0, EFF_ROOM, 0, r10c_work->tex->GetCoreFlg() | 1, ESP_CORE_KIND_NONE, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	511	obj = SmdGetObjPtr(0xE);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	565	SceAtSetEnable(0x11, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	566	SceAtSetEnable(0x12, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	568	SceAtDataSet_exec(8, SCE_LEVEL10, 0, (TaskFunc) r10c_EmSet, 0, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	enemy	568	SceAtDataSet_exec(8, SCE_LEVEL10, 0, (TaskFunc) r10c_EmSet, 0, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	event	570	SceEventEnd(0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	582	RsfSet(G_ROOM_ID, 7);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	587	SceAtSetEnable(0x11, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	588	SceAtSetEnable(0x12, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	592	SmdGetObjPtr(0)->be_flag &= ~2;
+r10c	upstream/re4/src/st1/r10c.cpp	object	593	SmdGetObjPtr(0xE)->be_flag |= 2;
+r10c	upstream/re4/src/st1/r10c.cpp	object	594	SmdSetTrans(0x55, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	595	SmdSetTrans(0x5A, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	596	SmdSetTrans(0x58, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	597	SmdSetTrans(0x59, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	598	SmdSetTrans(0x56, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	599	SmdSetTrans(0x57, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	600	SmdSetTrans(0x48, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	601	SceAtSetEnable(0xE, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	602	SceAtSetEnable(0xF, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	603	SceAtSetEnable(0xC, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	604	SceAtSetEnable(0xD, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	event	612	SceEventStart(0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	618	SceAtSetEnable(5, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	624	SmdGetObjPtr(0xC)->be_flag |= 0x20;
+r10c	upstream/re4/src/st1/r10c.cpp	object	625	while (SwitchExec(SmdGetObjPtr(0xC), &spd, 2, -1.6f, 0.0f) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	flags	633	RsfSet(G_ROOM_ID, 5);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	634	EstSet(0, -1, 0, 0, EFF_ROOM, 4, 0x2001, ESP_CORE_KIND_ROOM04, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	635	r10c_work->seSwitch = SndCall(6, 0xF, &SmdGetGroupObjPtr(4)->pos, 0, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	640	RsfSet(G_ROOM_ID, 6);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	650	EstSet(0, -1, 0, 0, EFF_ROOM, 9, 0x2001, ESP_CORE_KIND_ROOM04, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	652	RsfSet(G_ROOM_ID, 7);
+r10c	upstream/re4/src/st1/r10c.cpp	object	656	SmdSetTrans(0x56, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	657	SmdSetTrans(0x57, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	663	SmdSetTrans(0x48, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	664	SceAtSetEnable(0xE, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	665	SceAtSetEnable(0xF, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	666	SceAtSetEnable(0xC, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	667	SceAtSetEnable(0xD, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	672	SmdGetObjPtr(0)->be_flag &= ~2;
+r10c	upstream/re4/src/st1/r10c.cpp	object	673	SmdGetObjPtr(0xE)->be_flag |= 2;
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	678	EstSet(0, -1, 0, 0, EFF_ROOM, 8, 0x2001, ESP_CORE_KIND_ROOM04, z, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	event	689	SceEventEnd(0);
+r10c	upstream/re4/src/st1/r10c.cpp	enemy	695	static void r10c_EmSet_exit()
+r10c	upstream/re4/src/st1/r10c.cpp	event	698	SceEventEnd(0);
+r10c	upstream/re4/src/st1/r10c.cpp	enemy	712	static void r10c_EmSet()
+r10c	upstream/re4/src/st1/r10c.cpp	flags	718	if (RsfCheck(G_ROOM_ID, 9) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	flags	719	RsfSet(G_ROOM_ID, 9);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	722	SndStrReq(1, 7, 3, 0, 0, *(const f32*) &vol);
+r10c	upstream/re4/src/st1/r10c.cpp	event	723	SceEventStart(1);
+r10c	upstream/re4/src/st1/r10c.cpp	enemy	739	SceSetEventCancel(1, (TaskFunc) r10c_EmSet_exit, 0, -1, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	enemy	744	r10c_EmSet_exit();
+r10c	upstream/re4/src/st1/r10c.cpp	object	757	R10cRotWork* wheelA = (R10cRotWork*) ((cObjScr*) SmdGetObjPtr(6))->free;
+r10c	upstream/re4/src/st1/r10c.cpp	object	758	R10cRotWork* wheelA2 = (R10cRotWork*) ((cObjScr*) SmdGetObjPtr(0xA))->free;
+r10c	upstream/re4/src/st1/r10c.cpp	object	760	R10cRotWork* wheelA3 = (R10cRotWork*) ((cObjScr*) SmdGetObjPtr(0x33))->free;
+r10c	upstream/re4/src/st1/r10c.cpp	object	761	wheelB = (R10cRotWork*) ((cObjScr*) SmdGetObjPtr(8))->free;
+r10c	upstream/re4/src/st1/r10c.cpp	object	769	cogA = SmdGetGroupObjPtr(0x35);
+r10c	upstream/re4/src/st1/r10c.cpp	object	770	cogB = SmdGetGroupNext(cogA);
+r10c	upstream/re4/src/st1/r10c.cpp	object	773	gate = SmdGetGroupObjPtr(4);
+r10c	upstream/re4/src/st1/r10c.cpp	object	774	gate2 = SmdGetGroupObjPtr(0x5A);
+r10c	upstream/re4/src/st1/r10c.cpp	object	777	pool = SmdGetGroupObjPtr(0x6D);
+r10c	upstream/re4/src/st1/r10c.cpp	object	778	pool2 = SmdGetGroupObjPtr(0x72);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	782	if (RsfCheck(G_ROOM_ID, 5)) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	787	SmdSetTrans(0x58, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	object	788	SmdSetTrans(0x59, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	object	789	SmdSetTrans(0x56, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	790	SmdSetTrans(0x57, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	791	SmdSetTrans(0x48, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	792	SceAtSetEnable(0xE, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	793	SceAtSetEnable(0xF, 1);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	794	SceAtSetEnable(0xC, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	795	SceAtSetEnable(0xD, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	805	if (RsfCheck(G_ROOM_ID, 7)) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	820	cObj* water = SmdGetObjPtr(0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	826	if (RsfCheck(G_ROOM_ID, 6) == 0 && RsfCheck(G_ROOM_ID, 7) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	831	EstSet(0, -1, 0, 0, EFF_ROOM, 5, 0x2001, ESP_CORE_KIND_ROOM02, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	853	if (RsfCheck(G_ROOM_ID, 6)) {
+r10c	upstream/re4/src/st1/r10c.cpp	flags	854	if (RsfCheck(G_ROOM_ID, 7)) {
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	868	EstSet(0, -1, 0, 0, EFF_ROOM, 6, 0x2001, ESP_CORE_KIND_ROOM03, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	929	PSVECSubtract(&SmdGetObjPtr(0x61)->pos, &SmdGetObjPtr(0x5E)->pos, &ofsA);
+r10c	upstream/re4/src/st1/r10c.cpp	object	930	PSVECSubtract(&SmdGetObjPtr(0x62)->pos, &SmdGetObjPtr(0x5F)->pos, &ofsB);
+r10c	upstream/re4/src/st1/r10c.cpp	object	931	PSVECSubtract(&SmdGetObjPtr(0x63)->pos, &SmdGetObjPtr(0x60)->pos, &ofsC);
+r10c	upstream/re4/src/st1/r10c.cpp	object	932	SmdGetObjPtr(0x5E)->be_flag |= 0x20;
+r10c	upstream/re4/src/st1/r10c.cpp	object	933	SmdGetObjPtr(0x5F)->be_flag |= 0x20;
+r10c	upstream/re4/src/st1/r10c.cpp	object	934	SmdGetObjPtr(0x60)->be_flag |= 0x20;
+r10c	upstream/re4/src/st1/r10c.cpp	object	935	SmdGetObjPtr(0x61)->be_flag |= 0x20;
+r10c	upstream/re4/src/st1/r10c.cpp	object	936	SmdGetObjPtr(0x62)->be_flag |= 0x20;
+r10c	upstream/re4/src/st1/r10c.cpp	object	937	SmdGetObjPtr(0x63)->be_flag |= 0x20;
+r10c	upstream/re4/src/st1/r10c.cpp	object	938	SmdGetObjPtr(0x6A)->be_flag |= 0x20;
+r10c	upstream/re4/src/st1/r10c.cpp	object	939	SmdGetObjPtr(0x6B)->be_flag |= 0x20;
+r10c	upstream/re4/src/st1/r10c.cpp	object	942	(SmdGetObjPtr(0x6C)->be_flag |= 0x20);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	960	if (RsfCheck(G_ROOM_ID, 14) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	962	&SmdGetObjPtr(0x61)->pos, &SmdGetObjPtr(0x61)->ang, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	965	&SmdGetObjPtr(0x61)->pos, &SmdGetObjPtr(0x61)->ang, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	968	&SmdGetObjPtr(0x61)->pos, &SmdGetObjPtr(0x61)->ang, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	973	SmdSetTrans(0x6A, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	974	SceExec(0x12, (TaskFunc) hako_down, SmdGetObjPtr(0x61), 0, SCE_PRIO_DEF_2, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	975	obj = SmdGetObjPtr(0x61);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	980	if (RsfCheck(G_ROOM_ID, 15) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	982	&SmdGetObjPtr(0x62)->pos, &SmdGetObjPtr(0x62)->ang, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	985	&SmdGetObjPtr(0x62)->pos, &SmdGetObjPtr(0x61)->ang, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	988	&SmdGetObjPtr(0x62)->pos, &SmdGetObjPtr(0x61)->ang, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	993	SmdSetTrans(0x6B, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	994	SceExec(0x12, (TaskFunc) hako_down, SmdGetObjPtr(0x62), 0, SCE_PRIO_DEF_2, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	995	obj = SmdGetObjPtr(0x62);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1000	if (RsfCheck(G_ROOM_ID, 16) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	1002	&SmdGetObjPtr(0x63)->pos, &SmdGetObjPtr(0x63)->ang, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1005	&SmdGetObjPtr(0x63)->pos, &SmdGetObjPtr(0x61)->ang, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1008	&SmdGetObjPtr(0x63)->pos, &SmdGetObjPtr(0x61)->ang, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1013	SmdSetTrans(0x6C, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1014	SceExec(0x12, (TaskFunc) hako_down, SmdGetObjPtr(0x63), 0, SCE_PRIO_DEF_2, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1015	obj = SmdGetObjPtr(0x63);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1039	if (RsfCheck(G_ROOM_ID, 14) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	1040	SmdGetObjPtr(0x5E)->ang.y = angA;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1041	SmdGetObjPtr(0x61)->ang.y = angA;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1042	SmdGetObjPtr(0x6A)->ang.y = angA;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1043	RotMatrix(m, &SmdGetObjPtr(0x5E)->ang);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1045	PSVECAdd(&tmp, &SmdGetObjPtr(0x5E)->pos, &tmp);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1046	SmdGetObjPtr(0x61)->pos = tmp;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1047	SmdGetObjPtr(0x6A)->pos.x = tmp.x;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1048	SmdGetObjPtr(0x6A)->pos.z = tmp.z;
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1059	if (RsfCheck(G_ROOM_ID, 15) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	1060	SmdGetObjPtr(0x5F)->ang.y = angB;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1061	SmdGetObjPtr(0x62)->ang.y = angB;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1062	SmdGetObjPtr(0x6B)->ang.y = angB;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1063	RotMatrix(m, &SmdGetObjPtr(0x5F)->ang);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1065	PSVECAdd(&tmp, &SmdGetObjPtr(0x5F)->pos, &tmp);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1066	SmdGetObjPtr(0x62)->pos = tmp;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1067	SmdGetObjPtr(0x6B)->pos.x = tmp.x;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1068	SmdGetObjPtr(0x6B)->pos.z = tmp.z;
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1079	if (RsfCheck(G_ROOM_ID, 16) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	1080	SmdGetObjPtr(0x60)->ang.y = angC;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1081	SmdGetObjPtr(0x63)->ang.y = angC;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1082	SmdGetObjPtr(0x6C)->ang.y = angC;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1083	RotMatrix(m, &SmdGetObjPtr(0x60)->ang);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1085	PSVECAdd(&tmp, &SmdGetObjPtr(0x60)->pos, &tmp);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1086	SmdGetObjPtr(0x63)->pos = tmp;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1087	SmdGetObjPtr(0x6C)->pos.x = tmp.x;
+r10c	upstream/re4/src/st1/r10c.cpp	object	1088	SmdGetObjPtr(0x6C)->pos.z = tmp.z;
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1099	if (RsfCheck(G_ROOM_ID, 14) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	1105	SmdSetTrans(0x6A, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1106	SndCall(6, 1, &SmdGetObjPtr(0x61)->pos, 0, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1107	EstSet(0, -1, &SmdGetObjPtr(0x61)->pos, 0, EFF_ROOM, 0xA, 0, ESP_CORE_KIND_NONE, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	1107	EstSet(0, -1, &SmdGetObjPtr(0x61)->pos, 0, EFF_ROOM, 0xA, 0, ESP_CORE_KIND_NONE, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1108	SceExec(0x12, (TaskFunc) hako_down, SmdGetObjPtr(0x61), 0, SCE_PRIO_DEF_2, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1109	RsfSet(G_ROOM_ID, 14);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1112	if (RsfCheck(G_ROOM_ID, 15) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	1118	SmdSetTrans(0x6B, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1119	SndCall(6, 1, &SmdGetObjPtr(0x62)->pos, 0, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1120	EstSet(0, -1, &SmdGetObjPtr(0x62)->pos, 0, EFF_ROOM, 0xA, 0, ESP_CORE_KIND_NONE, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	1120	EstSet(0, -1, &SmdGetObjPtr(0x62)->pos, 0, EFF_ROOM, 0xA, 0, ESP_CORE_KIND_NONE, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1121	SceExec(0x12, (TaskFunc) hako_down, SmdGetObjPtr(0x62), 0, SCE_PRIO_DEF_2, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1122	RsfSet(G_ROOM_ID, 15);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1125	if (RsfCheck(G_ROOM_ID, 16) == 0) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	1131	SmdSetTrans(0x6C, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1132	SndCall(6, 1, &SmdGetObjPtr(0x63)->pos, 0, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1133	EstSet(0, -1, &SmdGetObjPtr(0x63)->pos, 0, EFF_ROOM, 0xA, 0, ESP_CORE_KIND_NONE, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	1133	EstSet(0, -1, &SmdGetObjPtr(0x63)->pos, 0, EFF_ROOM, 0xA, 0, ESP_CORE_KIND_NONE, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1134	SceExec(0x12, (TaskFunc) hako_down, SmdGetObjPtr(0x63), 0, SCE_PRIO_DEF_2, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1135	RsfSet(G_ROOM_ID, 16);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	1178	EstSet(0, -1, &v, 0, EFF_ROOM, 7, 0, ESP_CORE_KIND_NONE, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1198	if (obj == SmdGetObjPtr(0x61)) {
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1199	RsfSet(G_ROOM_ID, 11);
+r10c	upstream/re4/src/st1/r10c.cpp	collision	1200	SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 5), 0, &pos, &rot, 2);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1202	if (obj == SmdGetObjPtr(0x62)) {
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1203	RsfSet(G_ROOM_ID, 12);
+r10c	upstream/re4/src/st1/r10c.cpp	collision	1204	SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 5), 0, &pos, &rot, 3);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1206	if (obj == SmdGetObjPtr(0x63)) {
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1207	RsfSet(G_ROOM_ID, 13);
+r10c	upstream/re4/src/st1/r10c.cpp	collision	1208	SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 5), 0, &pos, &rot, 4);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1215	if (obj == SmdGetObjPtr(0x61)) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	1218	if (obj == SmdGetObjPtr(0x62)) {
+r10c	upstream/re4/src/st1/r10c.cpp	object	1221	if (obj == SmdGetObjPtr(0x63)) {
+r10c	upstream/re4/src/st1/r10c.cpp	event	1244	SceEventStart(0);
+r10c	upstream/re4/src/st1/r10c.cpp	render_audio	1249	EstSet(0, -1, 0, 0, EFF_ROOM, 0xC, 1, ESP_CORE_KIND_ROOM01, 0, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	object	1252	cObj* obj = SmdGetObjPtr(0x71);
+r10c	upstream/re4/src/st1/r10c.cpp	scenario_area	1264	SceAtSetEnable(7, 0);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1265	RsfSet(G_ROOM_ID, 8);
+r10c	upstream/re4/src/st1/r10c.cpp	flags	1266	ScfFlagOn(pG, SCF_9f);
+r10c	upstream/re4/src/st1/r10c.cpp	event	1271	SceEventEnd(0);
+r10c	upstream/re4/src/st1/r10c.cpp	collision	1289	r10c_work->eat2 = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 5), 0, &zero, &zero, 7);
+r10c	upstream/re4/src/st1/r10c.cpp	collision	1290	EatMgr.destroy(r10c_work->eat);
+r10e	upstream/re4/src/st1/r10e.cpp	flags	31	ScfFlagOn(pG, SCF_ST1_NIGHT);
+r10e	upstream/re4/src/st1/r10e.cpp	flags	33	if (!ScfFlagChk(pG, SCF_ST1_NIGHT)) {
+r10e	upstream/re4/src/st1/r10e.cpp	scenario_area	34	SceAtSetEnable(1, 0);
+r10e	upstream/re4/src/st1/r10e.cpp	scenario_area	36	SceAtSetEnable(0, 0);
+r10e	upstream/re4/src/st1/r10e.cpp	scenario_area	38	SceAtSetEnable(4, 0);
+r10e	upstream/re4/src/st1/r10e.cpp	scenario_area	39	SceAtSetEnable(5, 0);
+r10e	upstream/re4/src/st1/r10e.cpp	flags	42	RsfClear(G_ROOM_ID, 0);
+r10e	upstream/re4/src/st1/r10e.cpp	enemy	43	EmSetFromList2(0x10, 1);
+r10e	upstream/re4/src/st1/r10e.cpp	flags	45	RsfSet(G_ROOM_ID, 0);
+r10e	upstream/re4/src/st1/r10e.cpp	enemy	46	EmSetFromList2(0xE, 1);
+r10e	upstream/re4/src/st1/r10e.cpp	enemy	48	EmSetFromList2(0xF, 1);
+r10e	upstream/re4/src/st1/r10e.cpp	flags	51	if (RsfCheck(G_ROOM_ID, 0)) {
+r10e	upstream/re4/src/st1/r10e.cpp	enemy	52	EmSetFromList2(0xD, 1);
+r10e	upstream/re4/src/st1/r10e.cpp	flags	54	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r10e	upstream/re4/src/st1/r10e.cpp	enemy	55	EmSetFromList2(0xF, 1);
+r10e	upstream/re4/src/st1/r10e.cpp	scenario_area	71	SceAtSetEnable(4, 1);
+r10e	upstream/re4/src/st1/r10e.cpp	scenario_area	72	SceAtSetEnable(5, 1);
+r10f	upstream/re4/src/st1/r10f.cpp	enemy	54	static void r10f_GondolaEmSet(int idx);
+r10f	upstream/re4/src/st1/r10f.cpp	object	71	cEmWindow* win;
+r10f	upstream/re4/src/st1/r10f.cpp	scenario_area	77	SceAtDataSet_exec(2, SCE_LEVEL10, 0, (TaskFunc) r10f_DoorClose, 0, 1);
+r10f	upstream/re4/src/st1/r10f.cpp	scenario_area	81	SceAtDataSet_exec(0, SCE_LEVEL10, 0, (TaskFunc) r10f_DoorClose, (void*) 0x11D, 1);
+r10f	upstream/re4/src/st1/r10f.cpp	scenario_area	84	SceAtDataSet_exec(3, SCE_LEVEL10, 0, (TaskFunc) r10f_DoorClose, (void*) 0x11E, 1);
+r10f	upstream/re4/src/st1/r10f.cpp	object	99	r10f_work->gondola[i] = (cObjGondola*) SetGondola(ROOM_ARC_PTR(pG->pRoom, 0x23), ROOM_ARC_PTR(pG->pRoom, 0x24), &pos, &rot);
+r10f	upstream/re4/src/st1/r10f.cpp	scenario_area	109	SceAtDataSet_exec(7, SCE_LEVEL10, 0, (TaskFunc) r10f_GondolaGetOn, 0, 1);
+r10f	upstream/re4/src/st1/r10f.cpp	scenario_area	110	SceAtDataSet_exec(8, SCE_LEVEL10, 0, (TaskFunc) r10f_GondolaGetOn, (void*) 1, 1);
+r10f	upstream/re4/src/st1/r10f.cpp	flags	111	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r10f	upstream/re4/src/st1/r10f.cpp	scenario_area	114	SceAtDataSet_exec(9, SCE_LEVEL10, 0, (TaskFunc) r10f_GondolaGetOff, (void*) 1, 1);
+r10f	upstream/re4/src/st1/r10f.cpp	enemy	115	if ((em = EmSetFromList2(0x32, 1)) != 0) {
+r10f	upstream/re4/src/st1/r10f.cpp	enemy	118	if ((em = EmSetFromList2(0x35, 1)) != 0) {
+r10f	upstream/re4/src/st1/r10f.cpp	event	169	SceEventStart(0);
+r10f	upstream/re4/src/st1/r10f.cpp	render_audio	170	SndStrReq(1, 0xE1, 0x80000003, 0, 0, 0.0f);
+r10f	upstream/re4/src/st1/r10f.cpp	flags	214	if (RsfCheck(G_ROOM_ID, 0)) {
+r10f	upstream/re4/src/st1/r10f.cpp	enemy	279	SceExec(0x12, (TaskFunc) r10f_GondolaEmSet, 0, 0, SCE_PRIO_DEF_2, 0);
+r10f	upstream/re4/src/st1/r10f.cpp	event	283	SceEventEnd(0);
+r10f	upstream/re4/src/st1/r10f.cpp	flags	284	if (RsfCheck(G_ROOM_ID, 0)) {
+r10f	upstream/re4/src/st1/r10f.cpp	scenario_area	303	SceAtSetEnable(9, 0);
+r10f	upstream/re4/src/st1/r10f.cpp	event	304	SceEventStart(0);
+r10f	upstream/re4/src/st1/r10f.cpp	render_audio	305	SndStrReq(1, 0xE2, 0x80000003, 0, 0, 0.0f);
+r10f	upstream/re4/src/st1/r10f.cpp	flags	346	if (RsfCheck(G_ROOM_ID, 0)) {
+r10f	upstream/re4/src/st1/r10f.cpp	event	354	SceEventEnd(0);
+r10f	upstream/re4/src/st1/r10f.cpp	flags	357	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r10f	upstream/re4/src/st1/r10f.cpp	flags	358	RsfSet(G_ROOM_ID, 0);
+r10f	upstream/re4/src/st1/r10f.cpp	flags	360	if (RsfCheck(G_ROOM_ID, 5) == 0) {
+r10f	upstream/re4/src/st1/r10f.cpp	flags	361	RsfSet(G_ROOM_ID, 5);
+r10f	upstream/re4/src/st1/r10f.cpp	enemy	368	static void r10f_GondolaEmSet(int idx)
+r10f	upstream/re4/src/st1/r10f.cpp	enemy	395	if (em.setEm(*(s16*) (t + (k * 6 + n * 2)), -1, 0, 1, 0) == 1) {
+r10f	upstream/re4/src/st1/r10f.cpp	event	425	SceEventStart(0);
+r10f	upstream/re4/src/st1/r10f.cpp	render_audio	433	EstSet(eye, -1, 0, 0, EFF_ROOM, 0, 1, (u8) eff, 0, 0);
+r10f	upstream/re4/src/st1/r10f.cpp	render_audio	450	SndStrReq(1, 0xE3, 0x80000003, 0, 0, 0.0f);
+r10f	upstream/re4/src/st1/r10f.cpp	event	467	SceEventEnd(0);
+r10f	upstream/re4/src/st1/r10f.cpp	object	526	OpenBoxMain(0, 0, 0x1C, 0xFFFFFFFF, id, -1);
+r10f	upstream/re4/src/st1/r10f.cpp	object	532	OpenBoxMain(0, 1, 0x1C, 0xFFFFFFFF, id, -1);
+r10f	upstream/re4/src/st1/r10f.cpp	object	538	OpenBoxMain(OpenBoxUpXP, 0, 0x5B, id, 0xFFFFFFFF, -1);
+r10f	upstream/re4/src/st1/r10f.cpp	object	544	OpenBoxMain(OpenBoxUpXP, 1, 0x5B, id, 0xFFFFFFFF, -1);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	28	static void r111_ThunderMove();
+r111	upstream/re4/src/st1/r111.cpp	object	35	cEmRack* rack;
+r111	upstream/re4/src/st1/r111.cpp	object	36	cEmWindow* win;
+r111	upstream/re4/src/st1/r111.cpp	render_audio	53	SceExec(0x12, (TaskFunc) r111_ThunderMove, 0, 0, SCE_PRIO_DEF_2, 0);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	54	EstSet(pPL, -1, 0, 0, EFF_ROOM, 0, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	55	EstSet(pPL, -1, 0, 0, EFF_PL00, 1, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	56	EstSet(pPL, -1, 0, 0, EFF_CORE, 0x23, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	73	static void r111_ThunderMove()
+r111	upstream/re4/src/st1/r111.cpp	render_audio	85	EstSet(0, -1, 0, 0, EFF_ROOM, 2, 1, ESP_CORE_KIND_NONE, 0, 0);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	87	EstSet(0, -1, 0, 0, EFF_ROOM, 0x10, 1, ESP_CORE_KIND_NONE, 0, 0);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	90	EstSet(0, -1, 0, 0, EFF_ROOM, 4, 0, ESP_CORE_KIND_NONE, 0, 0);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	93	EstSet(0, -1, 0, 0, EFF_ROOM, 6, 0, ESP_CORE_KIND_NONE, 0, 0);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	96	EstSet(0, -1, 0, 0, EFF_ROOM, 8, 0, ESP_CORE_KIND_NONE, 0, 0);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	99	EstSet(0, -1, 0, 0, EFF_ROOM, 0xA, 0, ESP_CORE_KIND_NONE, 0, 0);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	102	EstSet(0, -1, 0, 0, EFF_ROOM, 0xC, 0, ESP_CORE_KIND_NONE, 0, 0);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	105	EstSet(0, -1, 0, 0, EFF_ROOM, 0xE, 0, ESP_CORE_KIND_NONE, 0, 0);
+r111	upstream/re4/src/st1/r111.cpp	render_audio	111	SceSndCallThunder();
+r112	upstream/re4/src/st1/r112.cpp	render_audio	24	static void r112_ThunderMove();
+r112	upstream/re4/src/st1/r112.cpp	render_audio	34	SceExec(0x12, (TaskFunc) r112_ThunderMove, 0, 0, SCE_PRIO_DEF_2, 0);
+r112	upstream/re4/src/st1/r112.cpp	render_audio	44	static void r112_ThunderMove()
+r112	upstream/re4/src/st1/r112.cpp	render_audio	56	EstSet(0, -1, 0, 0, EFF_ROOM, 3, 1, ESP_CORE_KIND_NONE, 0, 0);
+r112	upstream/re4/src/st1/r112.cpp	render_audio	57	SceSndCallThunder();
+r113	upstream/re4/src/st1/r113.cpp	partner	77	static void r113_checkAshleyPos();
+r113	upstream/re4/src/st1/r113.cpp	render_audio	79	static void r113_ThunderMove();
+r113	upstream/re4/src/st1/r113.cpp	object	86	cEmRack* rack;
+r113	upstream/re4/src/st1/r113.cpp	render_audio	91	SceExec(0x12, (TaskFunc) r113_ThunderMove, 0, 0, SCE_PRIO_DEF_2, 0);
+r113	upstream/re4/src/st1/r113.cpp	render_audio	92	EstSet(pPL, -1, 0, 0, EFF_PL00, 2, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r113	upstream/re4/src/st1/r113.cpp	render_audio	93	EstSet(pPL, -1, 0, 0, EFF_ROOM, 4, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r113	upstream/re4/src/st1/r113.cpp	render_audio	94	EstSet(pPL, -1, 0, 0, EFF_ROOM, 3, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r113	upstream/re4/src/st1/r113.cpp	scenario_area	96	SceAtDataSet_exec(2, SCE_LEVEL10, 0, (TaskFunc) r113_DoorCheck, 0, 1);
+r113	upstream/re4/src/st1/r113.cpp	scenario_area	98	SceAtDataSet_exec(3, SCE_LEVEL10, 0, (TaskFunc) r113_checkAshleyPos, 0, 1);
+r113	upstream/re4/src/st1/r113.cpp	partner	98	SceAtDataSet_exec(3, SCE_LEVEL10, 0, (TaskFunc) r113_checkAshleyPos, 0, 1);
+r113	upstream/re4/src/st1/r113.cpp	collision	100	EatMgr.registEffInfo(EAT_ET_ROOM0, (AtEffInfo*) &r113_eff_info);
+r113	upstream/re4/src/st1/r113.cpp	scenario_area	109	SceAtDataSet_hide(4, r113_execHide);
+r113	upstream/re4/src/st1/r113.cpp	render_audio	113	EstSet(0, -1, 0, 0, EFF_ROOM, 6, 1, (u8) r113_work->eff, 0, 0);
+r113	upstream/re4/src/st1/r113.cpp	scenario_area	114	SceAtDataSet_exec(0x82, SCE_LEVEL10, 0, (TaskFunc) r113_getFile, 0, 1);
+r113	upstream/re4/src/st1/r113.cpp	object	137	door = SmdGetObjPtr(0x55);
+r113	upstream/re4/src/st1/r113.cpp	render_audio	176	SndStrReq(r113_work->strId, 8, 0, 0);
+r113	upstream/re4/src/st1/r113.cpp	event	181	SceEventEnd(0);
+r113	upstream/re4/src/st1/r113.cpp	scenario_area	189	SceAtSetEnable(3, 0);
+r113	upstream/re4/src/st1/r113.cpp	event	192	SceEventStart(0);
+r113	upstream/re4/src/st1/r113.cpp	render_audio	195	r113_work->strId = SndStrReq(1, 0x27, 0x80000003, 0, 0, 0.0f);
+r113	upstream/re4/src/st1/r113.cpp	partner	261	static void r113_checkAshleyPos()
+r113	upstream/re4/src/st1/r113.cpp	partner	263	if (CheckAshleyActive() == 1) {
+r113	upstream/re4/src/st1/r113.cpp	render_audio	279	static void r113_ThunderMove()
+r113	upstream/re4/src/st1/r113.cpp	render_audio	291	EstSet(0, -1, 0, 0, EFF_ROOM, 3, 1, ESP_CORE_KIND_NONE, 0, 0);
+r113	upstream/re4/src/st1/r113.cpp	render_audio	293	EstSet(0, -1, 0, 0, EFF_ROOM, 1, 1, ESP_CORE_KIND_NONE, 0, 0);
+r113	upstream/re4/src/st1/r113.cpp	render_audio	299	SceSndCallThunder();
+r117	upstream/re4/src/st1/r117.cpp	partner	105	static void r117_EventAshleyFind();
+r117	upstream/re4/src/st1/r117.cpp	render_audio	114	static void r117_ThunderFlagOn();
+r117	upstream/re4/src/st1/r117.cpp	render_audio	115	static void r117_ThunderFlagOff();
+r117	upstream/re4/src/st1/r117.cpp	render_audio	116	static void r117_ThunderMove();
+r117	upstream/re4/src/st1/r117.cpp	render_audio	129	SceExec(0x12, (TaskFunc) r117_ThunderMove, 0, 0, SCE_PRIO_DEF_2, 0);
+r117	upstream/re4/src/st1/r117.cpp	flags	133	if (!ScfFlagChk(pG, SCF_R117_FIND_ASHLEY)) {
+r117	upstream/re4/src/st1/r117.cpp	event	139	"W->evd0 = DC.setData(EvtMgr.NameChange(""evd/r117s00.evd""));"
+r117	upstream/re4/src/st1/r117.cpp	event	141	"W->evd1 = DC.setData(EvtMgr.NameChange(""evd/r117s10.evd""));"
+r117	upstream/re4/src/st1/r117.cpp	enemy	142	EmReadSearch(3, 0, W->evd1->getSize());
+r117	upstream/re4/src/st1/r117.cpp	scenario_area	143	SceAtDataSet_exec(7, SCE_LEVEL10, 0, (TaskFunc) r117_EventAshleyFind, 0, 1);
+r117	upstream/re4/src/st1/r117.cpp	partner	143	SceAtDataSet_exec(7, SCE_LEVEL10, 0, (TaskFunc) r117_EventAshleyFind, 0, 1);
+r117	upstream/re4/src/st1/r117.cpp	scenario_area	144	SceAtDataSet_exec(4, SCE_LEVEL10, 0, (TaskFunc) r117_EventChandelier, 0, 1);
+r117	upstream/re4/src/st1/r117.cpp	event	145	"EvtMgr.SetFunc(""evt_r117s00_func"", (void*) Evt_R117S00_Func);"
+r117	upstream/re4/src/st1/r117.cpp	event	146	"EvtMgr.SetFunc(""evt_r117s10_func"", (void*) Evt_R117S10_Func);"
+r117	upstream/re4/src/st1/r117.cpp	object	153	SmdGetObjPtr(0x2E)->be_flag &= ~2;
+r117	upstream/re4/src/st1/r117.cpp	render_audio	154	EstSet(0, -1, 0, 0, EFF_ROOM, 0x27, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	157	EstSet(pPL, -1, 0, 0, EFF_PL00, 2, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	158	EstSet(pPL, -1, 0, 0, EFF_ROOM, 0x26, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	flags	168	if (RsfCheck(G_ROOM_ID, 1)) {
+r117	upstream/re4/src/st1/r117.cpp	render_audio	173	EstSet(0, -1, 0, 0, EFF_ROOM, 0x25, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	flags	175	if (RsfCheck(G_ROOM_ID, i + 0xF)) {
+r117	upstream/re4/src/st1/r117.cpp	flags	178	if (RsfCheck(G_ROOM_ID, i + 0x13)) {
+r117	upstream/re4/src/st1/r117.cpp	flags	181	if (RsfCheck(G_ROOM_ID, i + 0x17)) {
+r117	upstream/re4/src/st1/r117.cpp	scenario_area	186	SceAtDataSet_exec(8, SCE_LEVEL10, 8, (TaskFunc) r117_LightMechanism, 0, 1);
+r117	upstream/re4/src/st1/r117.cpp	flags	187	if (RsfCheck(G_ROOM_ID, 2) == 0) {
+r117	upstream/re4/src/st1/r117.cpp	flags	192	RsfClear(G_ROOM_ID, i);
+r117	upstream/re4/src/st1/r117.cpp	flags	194	RsfSet(G_ROOM_ID, W->cur[0] + 3);
+r117	upstream/re4/src/st1/r117.cpp	flags	195	RsfSet(G_ROOM_ID, W->cur[1] + 7);
+r117	upstream/re4/src/st1/r117.cpp	flags	196	RsfSet(G_ROOM_ID, W->cur[2] + 0xB);
+r117	upstream/re4/src/st1/r117.cpp	flags	201	RsfClear(G_ROOM_ID, i);
+r117	upstream/re4/src/st1/r117.cpp	flags	203	RsfSet(G_ROOM_ID, W->tgt[0] + 0xF);
+r117	upstream/re4/src/st1/r117.cpp	flags	204	RsfSet(G_ROOM_ID, W->tgt[1] + 0x13);
+r117	upstream/re4/src/st1/r117.cpp	flags	205	RsfSet(G_ROOM_ID, W->tgt[2] + 0x17);
+r117	upstream/re4/src/st1/r117.cpp	flags	208	if (RsfCheck(G_ROOM_ID, i + 3)) {
+r117	upstream/re4/src/st1/r117.cpp	flags	211	if (RsfCheck(G_ROOM_ID, i + 7)) {
+r117	upstream/re4/src/st1/r117.cpp	flags	214	if (RsfCheck(G_ROOM_ID, i + 0xB)) {
+r117	upstream/re4/src/st1/r117.cpp	flags	217	if (RsfCheck(G_ROOM_ID, i + 0xF)) {
+r117	upstream/re4/src/st1/r117.cpp	flags	220	if (RsfCheck(G_ROOM_ID, i + 0x13)) {
+r117	upstream/re4/src/st1/r117.cpp	flags	223	if (RsfCheck(G_ROOM_ID, i + 0x17)) {
+r117	upstream/re4/src/st1/r117.cpp	render_audio	227	EstSet(0, -1, 0, 0, EFF_ROOM, 0, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	228	EstSet(0, -1, 0, 0, EFF_ROOM, 1, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	229	EstSet(0, -1, 0, 0, EFF_ROOM, 2, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	230	EstSet(0, -1, 0, 0, EFF_ROOM, 3, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	233	EstSet(0, -1, 0, 0, EFF_ROOM, 0x11, 1, ESP_CORE_KIND_ROOM01, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	scenario_area	234	SceAtSetEnable(5, 0);
+r117	upstream/re4/src/st1/r117.cpp	object	236	W->light[0] = SmdGetObjPtr(0x32);
+r117	upstream/re4/src/st1/r117.cpp	object	240	W->light[1] = SmdGetObjPtr(0x30);
+r117	upstream/re4/src/st1/r117.cpp	object	243	W->light[2] = SmdGetObjPtr(0x31);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	293	if (EspEstSetSelect(EFF_ROOM, type[0], 0, &W->esp[0], 1) == 1) {
+r117	upstream/re4/src/st1/r117.cpp	render_audio	298	if (EspEstSetSelect(EFF_ROOM, type[1], 0, &W->esp[1], 1) == 1) {
+r117	upstream/re4/src/st1/r117.cpp	render_audio	303	if (EspEstSetSelect(EFF_ROOM, type[2], 0, &W->esp[2], 1) == 1) {
+r117	upstream/re4/src/st1/r117.cpp	flags	315	if (RsfCheck(G_ROOM_ID, 2)) {
+r117	upstream/re4/src/st1/r117.cpp	flags	318	if (RsfCheck(G_ROOM_ID, 2)) {
+r117	upstream/re4/src/st1/r117.cpp	object	347	PSVECSubtract(&SmdGetObjPtr(id)->pos, &W->esp[n]->m_Pos, &dir);
+r117	upstream/re4/src/st1/r117.cpp	object	350	SmdGetObjPtr(id)->ang = rot;
+r117	upstream/re4/src/st1/r117.cpp	object	351	SmdGetObjPtr(id)->matUpdate();
+r117	upstream/re4/src/st1/r117.cpp	partner	355	static void r117_EventAshleyFind()
+r117	upstream/re4/src/st1/r117.cpp	flags	359	ScfFlagOn(pG, SCF_R117_FIND_ASHLEY);
+r117	upstream/re4/src/st1/r117.cpp	flags	360	ScfFlagOff(pG, SCF_90);
+r117	upstream/re4/src/st1/r117.cpp	event	363	EvtMgr.SetEvt(W->mod->pData, 0);
+r117	upstream/re4/src/st1/r117.cpp	event	364	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0) != 0) {
+r117	upstream/re4/src/st1/r117.cpp	scenario_area	383	SceAtDataSet_exec(6, SCE_LEVEL10, 0, (TaskFunc) r117_EventSaddlerAppear, 0, 1);
+r117	upstream/re4/src/st1/r117.cpp	event	397	SceEventStart(0);
+r117	upstream/re4/src/st1/r117.cpp	event	404	if (EvtMgr.SetEvt(W->mod->pData, &ev)) {
+r117	upstream/re4/src/st1/r117.cpp	event	407	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0) != 0) {
+r117	upstream/re4/src/st1/r117.cpp	render_audio	416	EstSet(0, -1, 0, 0, EFF_ROOM, 0x27, 0x2001, ESP_CORE_KIND_ROOM01, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	event	417	SceEventEnd(0);
+r117	upstream/re4/src/st1/r117.cpp	transition	430	SceSetChapterEnd(CHAPTER_2_1, -1);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	431	EstSet(pPL, -1, 0, 0, EFF_PL00, 2, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	432	EstSet(pPL, -1, 0, 0, EFF_ROOM, 0x26, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	event	451	SceEventStart(1);
+r117	upstream/re4/src/st1/r117.cpp	flags	452	if (RsfCheck(G_ROOM_ID, 2) == 0) {
+r117	upstream/re4/src/st1/r117.cpp	render_audio	456	EstSet(0, -1, 0, 0, EFF_ROOM, 0, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	457	EstSet(0, -1, 0, 0, EFF_ROOM, 1, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	458	EstSet(0, -1, 0, 0, EFF_ROOM, 2, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	459	EstSet(0, -1, 0, 0, EFF_ROOM, 3, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	flags	461	RsfSet(G_ROOM_ID, 2);
+r117	upstream/re4/src/st1/r117.cpp	flags	519	RsfClear(G_ROOM_ID, W->sel * 4 + oldCur + 3);
+r117	upstream/re4/src/st1/r117.cpp	flags	520	RsfClear(G_ROOM_ID, W->sel * 4 + oldTgt + 0xF);
+r117	upstream/re4/src/st1/r117.cpp	flags	521	RsfSet(G_ROOM_ID, W->sel * 4 + W->cur[W->sel] + 3);
+r117	upstream/re4/src/st1/r117.cpp	flags	522	RsfSet(G_ROOM_ID, W->sel * 4 + W->tgt[W->sel] + 0xF);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	539	if (EspEstSetSelect(EFF_ROOM, effTbl[W->cur[0]][W->cur[1]][W->cur[2]], 0, &esp2, 1) == 1) {
+r117	upstream/re4/src/st1/r117.cpp	render_audio	544	EstSet(0, -1, 0, 0, EFF_ROOM, 4, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	552	EstSet(0, -1, 0, 0, EFF_ROOM, 0x11, 1, ESP_CORE_KIND_ROOM01, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	flags	567	RsfSet(G_ROOM_ID, 1);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	572	EstSet(0, -1, 0, 0, EFF_ROOM, 0x28, 1, ESP_CORE_KIND_NONE, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	object	577	SmdGetObjPtr(1)->pos.y += spd;
+r117	upstream/re4/src/st1/r117.cpp	object	578	SmdGetObjPtr(1)->matUpdate();
+r117	upstream/re4/src/st1/r117.cpp	object	579	SmdGetObjPtr(2)->pos.y += spd;
+r117	upstream/re4/src/st1/r117.cpp	object	580	SmdGetObjPtr(2)->matUpdate();
+r117	upstream/re4/src/st1/r117.cpp	flags	605	RsfClear(G_ROOM_ID, 2);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	610	EstSet(0, -1, 0, 0, EFF_ROOM, 0x25, 0x801, ESP_CORE_KIND_ROOM00, zero, 0);
+r117	upstream/re4/src/st1/r117.cpp	event	621	SceEventEnd(0);
+r117	upstream/re4/src/st1/r117.cpp	scenario_area	648	SceAtSetEnable(9, 0);
+r117	upstream/re4/src/st1/r117.cpp	scenario_area	649	SceAtSetEnable(0xA, 0);
+r117	upstream/re4/src/st1/r117.cpp	object	650	SmdGetObjPtr(1)->be_flag &= ~2;
+r117	upstream/re4/src/st1/r117.cpp	object	651	SmdGetObjPtr(2)->be_flag &= ~2;
+r117	upstream/re4/src/st1/r117.cpp	scenario_area	652	SceAtSetEnable(0xC, 0);
+r117	upstream/re4/src/st1/r117.cpp	scenario_area	653	SceAtSetEnable(0xD, 0);
+r117	upstream/re4/src/st1/r117.cpp	scenario_area	654	SceAtSetEnable(4, 0);
+r117	upstream/re4/src/st1/r117.cpp	scenario_area	655	SceAtSetEnable(3, 0);
+r117	upstream/re4/src/st1/r117.cpp	scenario_area	656	SceAtSetEnable(5, 1);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	781	static void r117_ThunderFlagOn()
+r117	upstream/re4/src/st1/r117.cpp	object	783	SmdGetObjPtr(0)->pModelInfo->color[0] = 0x5F;
+r117	upstream/re4/src/st1/r117.cpp	object	784	SmdGetObjPtr(0)->pModelInfo->color[1] = 0x87;
+r117	upstream/re4/src/st1/r117.cpp	object	785	SmdGetObjPtr(0)->pModelInfo->color[2] = 0x9B;
+r117	upstream/re4/src/st1/r117.cpp	render_audio	789	static void r117_ThunderFlagOff()
+r117	upstream/re4/src/st1/r117.cpp	object	793	SmdGetObjPtr(0)->pModelInfo->color[0] = 0x32;
+r117	upstream/re4/src/st1/r117.cpp	object	794	SmdGetObjPtr(0)->pModelInfo->color[1] = c;
+r117	upstream/re4/src/st1/r117.cpp	object	795	SmdGetObjPtr(0)->pModelInfo->color[2] = c;
+r117	upstream/re4/src/st1/r117.cpp	render_audio	799	static void r117_ThunderMove()
+r117	upstream/re4/src/st1/r117.cpp	render_audio	808	EffSetToolStateCallBack(0, r117_ThunderFlagOn, r117_ThunderFlagOff);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	812	EstSet(0, -1, 0, 0, EFF_ROOM, 0x14, 1, ESP_CORE_KIND_NONE, 0, 0);
+r117	upstream/re4/src/st1/r117.cpp	render_audio	818	SceSndCallThunder();
+r117	upstream/re4/src/st1/r117.cpp	render_audio	931	cLight* l = LightMgr.getKindLight(1);
+r117	upstream/re4/src/st1/r117.cpp	event	1002	"if (EvtMgr.GetBin(&bin, ""event/model/ev0100/ev0100a.tpl"", 0) == 1) {"
+r117	upstream/re4/src/st1/r117.cpp	object	1024	SmdGetObjPtr(0x27)->be_flag &= ~2;
+r117	upstream/re4/src/st1/r117.cpp	object	1025	SmdGetObjPtr(0x28)->be_flag &= ~2;
+r117	upstream/re4/src/st1/r117.cpp	object	1030	SmdGetObjPtr(0x2E)->be_flag &= ~2;
+r118	upstream/re4/src/st1/r118.cpp	partner	45	static void r118_execAshleyVoice();
+r118	upstream/re4/src/st1/r118.cpp	render_audio	49	static void r118_ThunderFlagOn();
+r118	upstream/re4/src/st1/r118.cpp	render_audio	50	static void r118_ThunderFlagOff();
+r118	upstream/re4/src/st1/r118.cpp	render_audio	51	static void r118_ThunderMove();
+r118	upstream/re4/src/st1/r118.cpp	object	65	SmdGetObjPtr(0)->be_flag &= ~2;
+r118	upstream/re4/src/st1/r118.cpp	object	66	SmdGetObjPtr(0)->LightInfo.EnableMask = zero;
+r118	upstream/re4/src/st1/r118.cpp	render_audio	67	SceExec(0x12, (TaskFunc) r118_ThunderMove, 0, 0, SCE_PRIO_DEF_2, 0);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	68	EstSet(pPL, -1, 0, 0, EFF_PL00, 2, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	69	EstSet(pPL, -1, 0, 0, EFF_ROOM, 5, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r118	upstream/re4/src/st1/r118.cpp	scenario_area	71	SceAtSetEnable(0x80, 1);
+r118	upstream/re4/src/st1/r118.cpp	scenario_area	77	SceAtSetEnable(0x80, 0);
+r118	upstream/re4/src/st1/r118.cpp	scenario_area	78	SceAtDataSet_exec(4, SCE_LEVEL10, 0, (TaskFunc) r118_checkDoor117, 0, 1);
+r118	upstream/re4/src/st1/r118.cpp	flags	81	if (ScfFlagChk(pG, SCF_R117_FIND_ASHLEY)) {
+r118	upstream/re4/src/st1/r118.cpp	enemy	85	EmSetFromList2(0x79, 1);
+r118	upstream/re4/src/st1/r118.cpp	enemy	86	EmSetFromList2(0x7A, 1);
+r118	upstream/re4/src/st1/r118.cpp	enemy	87	EmSetFromList2(0x7B, 1);
+r118	upstream/re4/src/st1/r118.cpp	enemy	88	EmSetFromList2(0x7C, 1);
+r118	upstream/re4/src/st1/r118.cpp	enemy	89	EmSetFromList2(0x7D, 1);
+r118	upstream/re4/src/st1/r118.cpp	enemy	90	EmSetFromList2(0x7E, 1);
+r118	upstream/re4/src/st1/r118.cpp	enemy	91	EmSetFromList2(0x7F, 1);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	92	SndRoomStrStart(1, 5, 1);
+r118	upstream/re4/src/st1/r118.cpp	flags	93	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r118	upstream/re4/src/st1/r118.cpp	enemy	97	r118_work->em.setEm(0x78, -1, 0, 1, 1);
+r118	upstream/re4/src/st1/r118.cpp	scenario_area	98	SceAtDataSet_exec(9, SCE_LEVEL10, 0, (TaskFunc) r118_execAshleyVoice, 0, 1);
+r118	upstream/re4/src/st1/r118.cpp	partner	98	SceAtDataSet_exec(9, SCE_LEVEL10, 0, (TaskFunc) r118_execAshleyVoice, 0, 1);
+r118	upstream/re4/src/st1/r118.cpp	scenario_area	99	SceAtSetEnable(1, 0);
+r118	upstream/re4/src/st1/r118.cpp	object	100	SmdSetTrans(0x26, 0);
+r118	upstream/re4/src/st1/r118.cpp	object	102	SmdSetTrans(0x1B, 0);
+r118	upstream/re4/src/st1/r118.cpp	scenario_area	103	SceAtSetEnable(8, 0);
+r118	upstream/re4/src/st1/r118.cpp	scenario_area	104	SceAtSetEnable(2, 0);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	119	SndStrReq(r118_work->strId, 4, 50, 0);
+r118	upstream/re4/src/st1/r118.cpp	event	121	SceEventEnd(0);
+r118	upstream/re4/src/st1/r118.cpp	flags	135	RsfSet(G_ROOM_ID, 0);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	136	r118_work->strId = SndStrReq(1, 0xE0, 0x80000003, 0, 0, *(const f32*) &vol);
+r118	upstream/re4/src/st1/r118.cpp	event	138	SceEventStart(0);
+r118	upstream/re4/src/st1/r118.cpp	partner	148	static void r118_execAshleyVoice()
+r118	upstream/re4/src/st1/r118.cpp	partner	150	if (CheckAshleyActive()) {
+r118	upstream/re4/src/st1/r118.cpp	scenario_area	155	SceAtSetEnable(9, 0);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	171	SndRoomBgmStart(1, 0);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	174	SndRoomBgmStart(1, 1);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	183	SndRoomBgmVolReset(1, 2000);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	188	SndRoomBgmVolSet(1, 1, 2000);
+r118	upstream/re4/src/st1/r118.cpp	event	201	SceEventStart(0);
+r118	upstream/re4/src/st1/r118.cpp	scenario_area	204	SceAtSetEnable(0x80, 1);
+r118	upstream/re4/src/st1/r118.cpp	event	210	SceEventEnd(0);
+r118	upstream/re4/src/st1/r118.cpp	flags	219	if (!ScfFlagChk(pG, SCF_R108_OPERATOR)) {
+r118	upstream/re4/src/st1/r118.cpp	flags	220	ScfFlagOn(pG, SCF_R108_OPERATOR);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	229	static void r118_ThunderFlagOn()
+r118	upstream/re4/src/st1/r118.cpp	object	231	SmdGetObjPtr(0)->be_flag |= 2;
+r118	upstream/re4/src/st1/r118.cpp	object	232	SmdGetObjPtr(0x64)->pModelInfo->color[0] = 0xEB;
+r118	upstream/re4/src/st1/r118.cpp	object	233	SmdGetObjPtr(0x64)->pModelInfo->color[1] = 0xF9;
+r118	upstream/re4/src/st1/r118.cpp	object	234	SmdGetObjPtr(0x64)->pModelInfo->color[2] = 0xFF;
+r118	upstream/re4/src/st1/r118.cpp	render_audio	238	static void r118_ThunderFlagOff()
+r118	upstream/re4/src/st1/r118.cpp	object	240	SmdGetObjPtr(0)->be_flag &= ~2;
+r118	upstream/re4/src/st1/r118.cpp	object	241	SmdGetObjPtr(0x64)->pModelInfo->color[0] = 0x5F;
+r118	upstream/re4/src/st1/r118.cpp	object	242	SmdGetObjPtr(0x64)->pModelInfo->color[1] = 0x61;
+r118	upstream/re4/src/st1/r118.cpp	object	243	SmdGetObjPtr(0x64)->pModelInfo->color[2] = 0x67;
+r118	upstream/re4/src/st1/r118.cpp	render_audio	248	static void r118_ThunderMove()
+r118	upstream/re4/src/st1/r118.cpp	render_audio	254	EffSetToolStateCallBack(0, r118_ThunderFlagOn, r118_ThunderFlagOff);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	271	EstSet(0, -1, 0, 0, EFF_ROOM, 4, 1, ESP_CORE_KIND_NONE, 0, 0);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	273	EstSet(0, -1, 0, 0, EFF_ROOM, 1, 1, ESP_CORE_KIND_NONE, 0, 0);
+r118	upstream/re4/src/st1/r118.cpp	render_audio	286	SceSndCallThunder();
+r119	upstream/re4/src/st1/r119.cpp	render_audio	75	static void r119_ThunderFlagOn();
+r119	upstream/re4/src/st1/r119.cpp	render_audio	76	static void r119_ThunderFlagOff();
+r119	upstream/re4/src/st1/r119.cpp	render_audio	77	static void r119_ThunderMove();
+r119	upstream/re4/src/st1/r119.cpp	event	114	"EvtMgr.EvtReadAram(""event/evd/r119s00.evd"", 0, 0, 0, 0);"
+r119	upstream/re4/src/st1/r119.cpp	event	115	"EvtMgr.SetFunc(""evt_r119s00_func"", (void*) Evt_R119S00_Func);"
+r119	upstream/re4/src/st1/r119.cpp	event	116	"EvtMgr.SetFunc(""evt_r119s10_func"", (void*) Evt_R119S10_Func);"
+r119	upstream/re4/src/st1/r119.cpp	event	117	"EvtMgr.SetFunc(""evt_r119s20_func"", (void*) Evt_R119S20_Func);"
+r119	upstream/re4/src/st1/r119.cpp	flags	118	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	119	SceAtDataSet_exec(2, SCE_LEVEL10, 0, (TaskFunc) r119_EventGolemAppear, 0, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	120	SmdSetTrans(0x2C, 0);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	121	SceAtSetEnable(5, 0);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	123	SceAtSetEnable(5, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	124	SmdSetTrans(0x24, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	125	SmdSetTrans(0x25, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	127	SmdGetObjPtr(0x2C)->be_flag |= 0x20;
+r119	upstream/re4/src/st1/r119.cpp	object	128	SmdGetObjPtr(0x25)->be_flag |= 0x20;
+r119	upstream/re4/src/st1/r119.cpp	object	129	SmdGetObjPtr(0x24)->be_flag |= 0x20;
+r119	upstream/re4/src/st1/r119.cpp	collision	131	r119_work->sat[0] = SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x1F), 0, &r119_koyaPos[0], &r119_koyaRot[0], 0);
+r119	upstream/re4/src/st1/r119.cpp	collision	132	r119_work->sat[1] = SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x1F), 0, &r119_koyaPos[1], &r119_koyaRot[1], 0);
+r119	upstream/re4/src/st1/r119.cpp	collision	133	r119_work->sat[2] = SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x1F), 0, &r119_koyaPos[2], &r119_koyaRot[2], 0);
+r119	upstream/re4/src/st1/r119.cpp	collision	134	r119_work->eat[0] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x20), 0, &r119_koyaPos[0], &r119_koyaRot[0], 0);
+r119	upstream/re4/src/st1/r119.cpp	collision	135	r119_work->eat[1] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x20), 0, &r119_koyaPos[1], &r119_koyaRot[1], 0);
+r119	upstream/re4/src/st1/r119.cpp	collision	136	r119_work->eat[2] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x20), 0, &r119_koyaPos[2], &r119_koyaRot[2], 0);
+r119	upstream/re4/src/st1/r119.cpp	flags	138	if (RsfCheck(G_ROOM_ID, 4)) {
+r119	upstream/re4/src/st1/r119.cpp	flags	141	if (RsfCheck(G_ROOM_ID, 5)) {
+r119	upstream/re4/src/st1/r119.cpp	flags	144	if (RsfCheck(G_ROOM_ID, 6)) {
+r119	upstream/re4/src/st1/r119.cpp	flags	147	if (RsfCheck(G_ROOM_ID, 1)) {
+r119	upstream/re4/src/st1/r119.cpp	flags	150	if (RsfCheck(G_ROOM_ID, 2)) {
+r119	upstream/re4/src/st1/r119.cpp	flags	153	if (RsfCheck(G_ROOM_ID, 3)) {
+r119	upstream/re4/src/st1/r119.cpp	render_audio	156	SceExec(0x12, (TaskFunc) r119_ThunderMove, 0, 0, SCE_PRIO_DEF_2, 0);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	157	SceAtSetEnable(3, 0);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	158	SceAtSetEnable(4, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	183	if ((obj = SmdGetObjPtr(0x21)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	188	if ((obj = SmdGetObjPtr(0x22)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	198	SmdGetObjPtr(0x24);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	202	static void r119_ThunderFlagOn()
+r119	upstream/re4/src/st1/r119.cpp	render_audio	207	l = LightMgr.at(2);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	209	l = LightMgr.at(6);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	212	l = LightMgr.at(2);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	214	l = LightMgr.at(6);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	220	static void r119_ThunderFlagOff()
+r119	upstream/re4/src/st1/r119.cpp	render_audio	224	l = LightMgr.at(2);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	226	l = LightMgr.at(6);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	231	static void r119_ThunderMove()
+r119	upstream/re4/src/st1/r119.cpp	render_audio	240	EffSetToolStateCallBack(0, r119_ThunderFlagOn, r119_ThunderFlagOff);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	243	EstSet(0, -1, 0, 0, EFF_ROOM, 0, 1, ESP_CORE_KIND_NONE, 0, 0);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	248	SceSndCallThunder();
+r119	upstream/re4/src/st1/r119.cpp	flags	260	RsfSet(G_ROOM_ID, 0);
+r119	upstream/re4/src/st1/r119.cpp	event	262	"EvtMgr.EvtReadExec(""event/evd/r119s00.evd"", 0, EvtReadFlagNone);"
+r119	upstream/re4/src/st1/r119.cpp	event	263	"EvtMgr.EvtReadAram(""event/evd/r119s10.evd"", 0, 0, 0, 0);"
+r119	upstream/re4/src/st1/r119.cpp	event	264	"EvtMgr.EvtReadAram(""event/evd/r119s20.evd"", 0, 0, 0, 0);"
+r119	upstream/re4/src/st1/r119.cpp	event	265	"EvtMgr.EvtReadAram(""event/evd/r119s30.evd"", 0, 0, 0, 0);"
+r119	upstream/re4/src/st1/r119.cpp	enemy	266	r119_work->golem = (cEmGolem*) EmSetFromList2(0x28, 0);
+r119	upstream/re4/src/st1/r119.cpp	flags	278	ScfFlagOff(pG, SCF_98);
+r119	upstream/re4/src/st1/r119.cpp	flags	279	ScfFlagOff(pG, SCF_9d);
+r119	upstream/re4/src/st1/r119.cpp	flags	280	ScfFlagOff(pG, SCF_a3);
+r119	upstream/re4/src/st1/r119.cpp	flags	281	ScfFlagOff(pG, SCF_a3);
+r119	upstream/re4/src/st1/r119.cpp	object	282	if ((obj = SmdGetObjPtr(0x21)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	287	if ((obj = SmdGetObjPtr(0x22)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	292	SceAtSetEnable(3, 1);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	293	SceAtSetEnable(4, 1);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	294	SceAtSetEnable(5, 1);
+r119	upstream/re4/src/st1/r119.cpp	flags	302	RsfSet(G_ROOM_ID, 7);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	303	SndRoomStrStop(3);
+r119	upstream/re4/src/st1/r119.cpp	event	305	"EvtMgr.EvtReadExec(""event/evd/r119s20.evd"", 0x2B, EvtReadFlagNone);"
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	306	SceAtSetEnable(3, 0);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	307	SceAtSetEnable(4, 0);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	310	EstSet(r119_work->golem, -1, 0, 0, EFF_ROOM, 0xF, 0, ESP_CORE_KIND_NONE, r119_work->golem, 0);
+r119	upstream/re4/src/st1/r119.cpp	flags	314	ScfFlagOn(pG, SCF_98);
+r119	upstream/re4/src/st1/r119.cpp	flags	315	ScfFlagOn(pG, SCF_9d);
+r119	upstream/re4/src/st1/r119.cpp	flags	316	ScfFlagOn(pG, SCF_a3);
+r119	upstream/re4/src/st1/r119.cpp	flags	317	ScfFlagOn(pG, SCF_a3);
+r119	upstream/re4/src/st1/r119.cpp	object	318	if ((obj = SmdGetObjPtr(0x21)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	323	if ((obj = SmdGetObjPtr(0x22)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	flags	332	if (ScfFlagChk(pG, SCF_R100_DOG_RUN) && !RmfFlagChk(pG, RMF_R119_DOG_APPEAR)) {
+r119	upstream/re4/src/st1/r119.cpp	event	370	"EvtMgr.EvtReadExec(""event/evd/r119s30.evd"", 0x2B, EvtReadFlagPlPosNoSet | EvtReadFlagSceEventStartTrue);"
+r119	upstream/re4/src/st1/r119.cpp	event	381	"EvtMgr.EvtReadExec(""event/evd/r119s10.evd"", 0x2B, EvtReadFlagNone);"
+r119	upstream/re4/src/st1/r119.cpp	enemy	383	r119_work->dog = EmSetFromList2(0x29, 0);
+r119	upstream/re4/src/st1/r119.cpp	flags	404	if (RmfFlagChk(pG, RMF_R119_DESTROY_KOYA_A) && RsfCheck(G_ROOM_ID, 1) == 0) {
+r119	upstream/re4/src/st1/r119.cpp	flags	405	RsfSet(G_ROOM_ID, 1);
+r119	upstream/re4/src/st1/r119.cpp	flags	407	} else if (RmfFlagChk(pG, RMF_R119_DESTROY_YANE_A) && RsfCheck(G_ROOM_ID, 4) == 0 && RsfCheck(G_ROOM_ID, 1) == 0) {
+r119	upstream/re4/src/st1/r119.cpp	flags	408	RsfSet(G_ROOM_ID, 4);
+r119	upstream/re4/src/st1/r119.cpp	flags	411	if (RmfFlagChk(pG, RMF_R119_DESTROY_KOYA_B) && RsfCheck(G_ROOM_ID, 2) == 0) {
+r119	upstream/re4/src/st1/r119.cpp	flags	412	RsfSet(G_ROOM_ID, 2);
+r119	upstream/re4/src/st1/r119.cpp	flags	414	} else if (RmfFlagChk(pG, RMF_R119_DESTROY_YANE_B) && RsfCheck(G_ROOM_ID, 5) == 0 && RsfCheck(G_ROOM_ID, 2) == 0) {
+r119	upstream/re4/src/st1/r119.cpp	flags	415	RsfSet(G_ROOM_ID, 5);
+r119	upstream/re4/src/st1/r119.cpp	flags	418	if (RmfFlagChk(pG, RMF_R119_DESTROY_KOYA_C) && RsfCheck(G_ROOM_ID, 3) == 0) {
+r119	upstream/re4/src/st1/r119.cpp	flags	419	RsfSet(G_ROOM_ID, 3);
+r119	upstream/re4/src/st1/r119.cpp	flags	421	} else if (RmfFlagChk(pG, RMF_R119_DESTROY_YANE_C) && RsfCheck(G_ROOM_ID, 6) == 0 && RsfCheck(G_ROOM_ID, 3) == 0) {
+r119	upstream/re4/src/st1/r119.cpp	flags	422	RsfSet(G_ROOM_ID, 6);
+r119	upstream/re4/src/st1/r119.cpp	flags	438	if (RsfCheck(G_ROOM_ID, 4)) {
+r119	upstream/re4/src/st1/r119.cpp	render_audio	439	EstSet(0, -1, &pos, &rot, EFF_ROOM, 5, 0, ESP_CORE_KIND_NONE, 0, 0);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	441	EstSet(0, -1, &pos, &rot, EFF_ROOM, 3, 0, ESP_CORE_KIND_NONE, 0, 0);
+r119	upstream/re4/src/st1/r119.cpp	flags	457	if (RsfCheck(G_ROOM_ID, 5)) {
+r119	upstream/re4/src/st1/r119.cpp	render_audio	458	EstSet(0, -1, &pos, &rot, EFF_ROOM, 5, 0, ESP_CORE_KIND_NONE, 0, 0);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	460	EstSet(0, -1, &pos, &rot, EFF_ROOM, 3, 0, ESP_CORE_KIND_NONE, 0, 0);
+r119	upstream/re4/src/st1/r119.cpp	flags	476	if (RsfCheck(G_ROOM_ID, 6)) {
+r119	upstream/re4/src/st1/r119.cpp	render_audio	477	EstSet(0, -1, &pos, &rot, EFF_ROOM, 5, 0, ESP_CORE_KIND_NONE, 0, 0);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	479	EstSet(0, -1, &pos, &rot, EFF_ROOM, 3, 0, ESP_CORE_KIND_NONE, 0, 0);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	494	EstSet(0, -1, &pos, &rot, EFF_ROOM, 4, 0, ESP_CORE_KIND_NONE, 0, 0);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	505	EstSet(0, -1, &pos, &rot, EFF_ROOM, 4, 0, ESP_CORE_KIND_NONE, 0, 0);
+r119	upstream/re4/src/st1/r119.cpp	render_audio	516	EstSet(0, -1, &pos, &rot, EFF_ROOM, 4, 0, ESP_CORE_KIND_NONE, 0, 0);
+r119	upstream/re4/src/st1/r119.cpp	collision	523	SatMgr.destroy(r119_work->sat[0]);
+r119	upstream/re4/src/st1/r119.cpp	collision	524	EatMgr.destroy(r119_work->eat[0]);
+r119	upstream/re4/src/st1/r119.cpp	object	525	SmdSetTrans(1, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	526	SmdSetTrans(4, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	527	SmdSetTrans(5, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	528	SmdSetTrans(0x27, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	529	SmdSetTrans(0x26, 0);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	530	SceAtSetEnable(0x98, 0);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	531	SceAtSetEnable(0x99, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	537	SmdSetTrans(2, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	538	SmdSetTrans(6, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	539	SmdSetTrans(7, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	540	SmdSetTrans(0x29, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	541	SmdSetTrans(0x28, 0);
+r119	upstream/re4/src/st1/r119.cpp	collision	547	SatMgr.destroy(r119_work->sat[1]);
+r119	upstream/re4/src/st1/r119.cpp	collision	548	EatMgr.destroy(r119_work->eat[1]);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	550	SceAtSetEnable(0x97, 0);
+r119	upstream/re4/src/st1/r119.cpp	collision	556	SatMgr.destroy(r119_work->sat[2]);
+r119	upstream/re4/src/st1/r119.cpp	collision	557	EatMgr.destroy(r119_work->eat[2]);
+r119	upstream/re4/src/st1/r119.cpp	object	558	SmdSetTrans(3, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	559	SmdSetTrans(8, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	560	SmdSetTrans(9, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	561	SmdSetTrans(0x2B, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	562	SmdSetTrans(0x2A, 0);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	563	SceAtSetEnable(0x93, 0);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	564	SceAtSetEnable(0x94, 0);
+r119	upstream/re4/src/st1/r119.cpp	scenario_area	565	SceAtSetEnable(0x95, 0);
+r119	upstream/re4/src/st1/r119.cpp	collision	572	EatMgr.destroy(r119_work->eat[0]);
+r119	upstream/re4/src/st1/r119.cpp	collision	573	r119_work->eat[0] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x21), 0, &r119_koyaPos[0], &r119_koyaRot[0], 0);
+r119	upstream/re4/src/st1/r119.cpp	object	574	SmdSetTrans(4, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	575	SmdSetTrans(5, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	576	SmdSetTrans(0x27, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	577	SmdSetTrans(0x26, 1);
+r119	upstream/re4/src/st1/r119.cpp	collision	583	EatMgr.destroy(r119_work->eat[1]);
+r119	upstream/re4/src/st1/r119.cpp	collision	584	r119_work->eat[1] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x21), 0, &r119_koyaPos[1], &r119_koyaRot[1], 0);
+r119	upstream/re4/src/st1/r119.cpp	object	585	SmdSetTrans(6, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	586	SmdSetTrans(7, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	587	SmdSetTrans(0x29, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	588	SmdSetTrans(0x28, 1);
+r119	upstream/re4/src/st1/r119.cpp	collision	600	EatMgr.destroy(r119_work->eat[2]);
+r119	upstream/re4/src/st1/r119.cpp	collision	601	r119_work->eat[2] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x21), 0, &r119_koyaPos[2], &r119_koyaRot[2], 0);
+r119	upstream/re4/src/st1/r119.cpp	object	602	SmdSetTrans(8, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	603	SmdSetTrans(9, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	604	SmdSetTrans(0x2B, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	605	SmdSetTrans(0x2A, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	611	SmdSetTrans(1, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	612	SmdSetTrans(4, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	613	SmdSetTrans(5, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	614	SmdSetTrans(0x27, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	615	SmdSetTrans(0x26, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	616	SmdSetTrans(2, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	617	SmdSetTrans(6, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	618	SmdSetTrans(7, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	619	SmdSetTrans(0x29, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	620	SmdSetTrans(0x28, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	621	SmdSetTrans(3, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	622	SmdSetTrans(8, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	623	SmdSetTrans(9, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	624	SmdSetTrans(0x2B, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	625	SmdSetTrans(0x2A, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	641	SmdSetTrans(6, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	642	SmdSetTrans(7, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	643	SmdSetTrans(0xC, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	644	SmdSetTrans(0xD, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	645	SmdSetTrans(0xE, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	646	SmdSetTrans(0xF, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	647	SmdSetTrans(0x30, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	649	SmdSetTrans(0x1D, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	650	SmdSetTrans(0, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	651	SmdSetTrans(0x1C, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	652	SmdSetTrans(0x1B, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	653	SmdSetTrans(0x1F, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	654	SmdSetTrans(0x2D, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	655	SmdSetTrans(8, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	656	SmdSetTrans(9, 1);
+r119	upstream/re4/src/st1/r119.cpp	flags	672	if (RsfCheck(G_ROOM_ID, 5)) {
+r119	upstream/re4/src/st1/r119.cpp	flags	675	if (RsfCheck(G_ROOM_ID, 2)) {
+r119	upstream/re4/src/st1/r119.cpp	object	683	if ((obj = SmdGetObjPtr(0x21)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	690	if ((obj = SmdGetObjPtr(0x22)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	697	if ((obj = SmdGetObjPtr(0x25)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	704	if ((obj = SmdGetObjPtr(0x24)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	715	SmdSetTrans(0x2C, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	716	SmdSetTrans(0x24, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	717	SmdSetTrans(0x25, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	720	SmdSetTrans(0x2C, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	721	SmdSetTrans(0x24, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	722	SmdSetTrans(0x25, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	725	SmdSetTrans(6, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	726	SmdSetTrans(7, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	727	SmdSetTrans(0xC, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	728	SmdSetTrans(0xD, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	729	SmdSetTrans(0xE, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	730	SmdSetTrans(0xF, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	731	SmdSetTrans(0x30, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	737	SmdSetTrans(0x1D, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	742	SmdSetTrans(0, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	743	SmdSetTrans(0x1C, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	744	SmdSetTrans(0x1B, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	745	SmdSetTrans(0x2D, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	746	SmdSetTrans(0x1F, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	751	SmdSetTrans(0x1B, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	752	SmdSetTrans(0x2D, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	757	SmdSetTrans(6, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	758	SmdSetTrans(7, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	759	SmdSetTrans(8, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	760	SmdSetTrans(9, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	771	SmdSetTrans(0x2C, 1);
+r119	upstream/re4/src/st1/r119.cpp	object	772	SmdSetTrans(0x24, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	773	SmdSetTrans(0x25, 0);
+r119	upstream/re4/src/st1/r119.cpp	object	777	w = SmdGetWorkPtr(0x21);
+r119	upstream/re4/src/st1/r119.cpp	object	778	if ((obj = SmdGetObjPtr(0x21)) != 0 && w != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	782	w = SmdGetWorkPtr(0x22);
+r119	upstream/re4/src/st1/r119.cpp	object	783	if ((obj = SmdGetObjPtr(0x22)) != 0 && w != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	787	w = SmdGetWorkPtr(0x24);
+r119	upstream/re4/src/st1/r119.cpp	object	788	if ((obj = SmdGetObjPtr(0x24)) != 0 && w != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	792	w = SmdGetWorkPtr(0x25);
+r119	upstream/re4/src/st1/r119.cpp	object	793	if ((obj = SmdGetObjPtr(0x25)) != 0 && w != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	822	if ((obj = SmdGetObjPtr(0x21)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	829	if ((obj = SmdGetObjPtr(0x22)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	836	if ((obj = SmdGetObjPtr(0x25)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	843	if ((obj = SmdGetObjPtr(0x24)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	854	w = SmdGetWorkPtr(0x21);
+r119	upstream/re4/src/st1/r119.cpp	object	855	if ((obj = SmdGetObjPtr(0x21)) != 0 && w != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	859	w = SmdGetWorkPtr(0x22);
+r119	upstream/re4/src/st1/r119.cpp	object	860	if ((obj = SmdGetObjPtr(0x22)) != 0 && w != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	864	w = SmdGetWorkPtr(0x24);
+r119	upstream/re4/src/st1/r119.cpp	object	865	if ((obj = SmdGetObjPtr(0x24)) != 0 && w != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	869	w = SmdGetWorkPtr(0x25);
+r119	upstream/re4/src/st1/r119.cpp	object	870	if ((obj = SmdGetObjPtr(0x25)) != 0 && w != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	877	if ((o = SmdGetObjPtr(0x21)) != 0) {
+r119	upstream/re4/src/st1/r119.cpp	object	882	if ((o = SmdGetObjPtr(0x22)) != 0) {
+r11a	upstream/re4/src/st1/r11a.cpp	render_audio	32	EstSet(pPL, -1, 0, 0, EFF_PL00, 2, 0, ESP_CORE_KIND_NONE, pPL, 0);
+r11a	upstream/re4/src/st1/r11a.cpp	render_audio	33	EstSet(pPL, -1, 0, 0, EFF_ROOM, 0, 0, ESP_CORE_KIND_NONE, pPL, 0);
+r11a	upstream/re4/src/st1/r11a.cpp	collision	34	EatMgr.registEffInfo(EAT_ET_WATER, (AtEffInfo*) &r11a_eff_info);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	38	TexRenderMng* tex[2];
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	62	static void r11b_ThunderFlagOn();
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	63	static void r11b_ThunderFlagOff();
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	64	static void r11b_ThunderMove();
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	65	void EmSetChange();
+r11b	upstream/re4/src/st1/r11b.cpp	flags	87	RsfSet(G_ROOM_ID, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	91	ScfFlagOn(pG, SCF_R11B_END_SALAMANDER);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	97	ScfFlagOn(pG, SCF_ST1_MAP_NIGHT);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	98	ScfFlagOn(pG, SCF_ST1_NIGHT);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	99	ScfFlagOff(pG, SCF_90);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	100	ScfFlagOff(pG, SCF_96);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	101	ScfFlagOff(pG, SCF_9b);
+r11b	upstream/re4/src/st1/r11b.cpp	collision	104	EatMgr.registEffInfo(EAT_ET_WATER, (AtEffInfo*) &r11b_eff_info);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	105	SceExec(0x12, (TaskFunc) r11b_ThunderMove, 0, 0, SCE_PRIO_DEF_2, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	event	106	"EvtMgr.SetFunc(""evt_r11bs00_func"", (void*) Evt_R11BS00_Func);"
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	107	EstSet(pPL, -1, 0, 0, EFF_PL00, 2, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	108	EstSet(pPL, -1, 0, 0, EFF_ROOM, 2, 0x800, ESP_CORE_KIND_NONE, 0, (ESPSEQ_CONTROL*) obj);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	110	if (RsfCheck(G_ROOM_ID, 0)) {
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	125	r11b_work->boat = EmSetFromList2(0x3C, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	130	r11b_work->boat = EmSetFromList2(0x3C, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	132	if (RsfCheck(G_ROOM_ID, 2) == 0) {
+r11b	upstream/re4/src/st1/r11b.cpp	flags	140	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r11b	upstream/re4/src/st1/r11b.cpp	flags	141	RsfSet(G_ROOM_ID, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	147	RsfSet(G_ROOM_ID, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	148	EmSetChange();
+r11b	upstream/re4/src/st1/r11b.cpp	flags	150	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r11b	upstream/re4/src/st1/r11b.cpp	scenario_area	151	SceAtDataSet_exec(3, SCE_LEVEL10, 0, (TaskFunc) r11b_EmEvent, 0, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	object	161	cObj* o = SetFloatIsland(ROOM_ARC_PTR(pG->pRoom, 0x1F), ROOM_ARC_PTR(pG->pRoom, 0x20), &pos, &rot);
+r11b	upstream/re4/src/st1/r11b.cpp	object	176	cObj* o = SetFloatIsland(ROOM_ARC_PTR(pG->pRoom, 0x1F), ROOM_ARC_PTR(pG->pRoom, 0x20), &pos, &rot);
+r11b	upstream/re4/src/st1/r11b.cpp	object	191	cObj* o = SetFloatIsland(ROOM_ARC_PTR(pG->pRoom, 0x1F), ROOM_ARC_PTR(pG->pRoom, 0x20), &pos, &rot);
+r11b	upstream/re4/src/st1/r11b.cpp	object	206	cObj* o = SetFloatIsland(ROOM_ARC_PTR(pG->pRoom, 0x1F), ROOM_ARC_PTR(pG->pRoom, 0x20), &pos, &rot);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	214	TexRenderInit(&r11b_work->tex[0], 0xE0, 2);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	215	TexRenderInit(&r11b_work->tex[1], 0xE0, 2);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	231	static void r11b_ThunderFlagOn()
+r11b	upstream/re4/src/st1/r11b.cpp	object	233	SmdGetObjPtr(0x2B)->pModelInfo->color[0] = 0xDA;
+r11b	upstream/re4/src/st1/r11b.cpp	object	234	SmdGetObjPtr(0x2B)->pModelInfo->color[1] = 0xF1;
+r11b	upstream/re4/src/st1/r11b.cpp	object	235	SmdGetObjPtr(0x2B)->pModelInfo->color[2] = 0xFF;
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	239	static void r11b_ThunderFlagOff()
+r11b	upstream/re4/src/st1/r11b.cpp	object	241	SmdGetObjPtr(0x2B)->pModelInfo->color[0] = 0x18;
+r11b	upstream/re4/src/st1/r11b.cpp	object	242	SmdGetObjPtr(0x2B)->pModelInfo->color[1] = 0x19;
+r11b	upstream/re4/src/st1/r11b.cpp	object	243	SmdGetObjPtr(0x2B)->pModelInfo->color[2] = 0x1A;
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	247	static void r11b_ThunderMove()
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	256	EffSetToolStateCallBack(0, r11b_ThunderFlagOn, r11b_ThunderFlagOff);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	259	EstSet(0, -1, 0, 0, EFF_ROOM, 4, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	264	SceSndCallThunder();
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	275	void EmSetChange()
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	310	EmSetChange();
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	318	r11b_work->em[0] = EmSetFromList2(0x40, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	319	r11b_work->em[1] = EmSetFromList2(0x41, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	320	r11b_work->em[7] = EmSetFromList2(0x3E, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	321	r11b_work->em[8] = EmSetFromList2(0x3F, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	event	326	SceEventEnd(0);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	334	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r11b	upstream/re4/src/st1/r11b.cpp	flags	335	RsfSet(G_ROOM_ID, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	336	r11b_work->em[0] = EmSetFromList2(0x40, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	337	r11b_work->em[1] = EmSetFromList2(0x41, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	338	r11b_work->em[2] = EmSetFromList2(0x42, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	339	r11b_work->em[3] = EmSetFromList2(0x43, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	340	r11b_work->em[4] = EmSetFromList2(0x44, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	341	r11b_work->em[5] = EmSetFromList2(0x45, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	enemy	342	r11b_work->em[6] = EmSetFromList2(0x46, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	event	350	SceEventStart(0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	351	SndStrReq(1, 0x24, 0x80000003, 0, 0, 0.0f);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	355	EstSet(r11b_work->em[0], -1, 0, 0, EFF_ROOM, 0xA, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	356	EstSet(r11b_work->em[1], -1, 0, 0, EFF_ROOM, 0xA, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	357	EstSet(r11b_work->em[2], -1, 0, 0, EFF_ROOM, 0xA, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	358	EstSet(r11b_work->em[3], -1, 0, 0, EFF_ROOM, 0xA, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	359	EstSet(r11b_work->em[4], -1, 0, 0, EFF_ROOM, 0xA, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	360	EstSet(r11b_work->em[5], -1, 0, 0, EFF_ROOM, 0xA, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	361	EstSet(r11b_work->em[6], -1, 0, 0, EFF_ROOM, 0xA, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	event	397	"EvtMgr.EvtReadExec(""event/evd/r11bs00.evd"", 0, EvtReadFlagFadeIn);"
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	407	SndRoomBgmStart(0, 30);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	414	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r11b	upstream/re4/src/st1/r11b.cpp	flags	416	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	422	SndRoomStrStart(1, 0, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	443	SndRoomStrStop(3);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	449	static inline void r11b_evtTexRenderSet(Event* e, void*& mod, int a, int b)
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	452	TexRenderModSet((cModel*) mod, 6, r11b_work->texTbl[0], r11b_work->tex[0], 0, 0, 1, 1, 1.0f);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	453	TexRenderModSet((cModel*) mod, 7, r11b_work->texTbl[1], r11b_work->tex[1], 0, 0, 1, 1, 1.0f);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	454	TexRenderModSet((cModel*) mod, 8, r11b_work->texTbl[1], r11b_work->tex[1], 0, 0, 1, 1, 1.0f);
+r11b	upstream/re4/src/st1/r11b.cpp	object	483	SmdSetTrans(0x7C, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	505	EstSet(0, -1, 0, 0, EFF_ROOM, 0xB, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	514	EstSet(0, -1, 0, 0, EFF_ROOM, 0xB, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	523	EstSet(0, -1, 0, 0, EFF_ROOM, 0xB, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	532	EstSet(0, -1, 0, 0, EFF_ROOM, 0xB, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	546	EstSet(0, -1, 0, 0, EFF_ROOM, 0xB, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	555	r11b_evtTexRenderSet(e, mod, 1, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	557	EstSet(0, -1, 0, 0, EFF_ROOM, 6, r11b_work->tex[1]->GetCoreFlg() | 0x3001, ESP_CORE_KIND_NONE, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	562	r11b_evtTexRenderSet(e, mod, 0, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	564	EstSet(0, -1, 0, 0, EFF_ROOM, 7, r11b_work->tex[1]->GetCoreFlg() | 0x3001, ESP_CORE_KIND_NONE, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	569	r11b_evtTexRenderSet(e, mod, 1, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	571	EstSet(0, -1, 0, 0, EFF_ROOM, 8, r11b_work->tex[1]->GetCoreFlg() | 0x3001, ESP_CORE_KIND_NONE, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	572	EstSet(0, -1, 0, 0, EFF_ROOM, 9, r11b_work->tex[0]->GetCoreFlg() | 0x3001, ESP_CORE_KIND_NONE, 0, 0);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	578	TexRenderModRes((cModel*) mod, 6);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	579	TexRenderModRes((cModel*) mod, 7);
+r11b	upstream/re4/src/st1/r11b.cpp	render_audio	580	TexRenderModRes((cModel*) mod, 8);
+r11b	upstream/re4/src/st1/r11b.cpp	object	595	SmdSetTrans(0x7C, 1);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	621	RsfSet(G_ROOM_ID, 2);
+r11b	upstream/re4/src/st1/r11b.cpp	flags	623	RsfClear(G_ROOM_ID, 2);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	63	TexRenderMng* tex;
+r11c	upstream/re4/src/st1/r11c.cpp	flags	87	static inline R11cSave* r11c_save() { return (R11cSave*) RoomData.getRoomSavePtr(pG->room_id); }
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	107	static void r11c_ThunderMove();
+r11c	upstream/re4/src/st1/r11c.cpp	object	129	cEmRack* rack;
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	136	SceExec(0x12, (TaskFunc) r11c_ThunderMove, 0, 0, SCE_PRIO_DEF_2, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	137	EstSet(pPL, -1, 0, 0, EFF_ROOM, 0, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	138	EstSet(pPL, -1, 0, 0, EFF_PL00, 1, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	139	EstSet(pPL, -1, 0, 0, EFF_CORE, 0x23, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	141	EstSet(0, -1, 0, 0, EFF_ROOM, 0xA, 1, ESP_CORE_KIND_ROOM00, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	flags	186	if (!ScfFlagChk(pG, SCF_R11C_BESIEGED_EVENT)) {
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	187	SceAtDataSet_exec(3, SCE_LEVEL10, 0, (TaskFunc) r11c_EventBesiegedStart, 0, 1);
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	190	W->em = EmSetFromList2(0xC8, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	206	EstSet(0, -1, 0, 0, EFF_ROOM, 0xB, 1, (u8) W->eff, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	209	EmSetFromList2(0xC8, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	211	SceAtSetEnable(8, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	212	SceAtSetEnable(9, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	object	213	SmdGetObjPtr(0x3F)->be_flag &= ~2;
+r11c	upstream/re4/src/st1/r11c.cpp	object	216	cObj* g0 = SmdGetObjPtr(0x33);
+r11c	upstream/re4/src/st1/r11c.cpp	object	217	cObj* g1 = SmdGetObjPtr(0x34);
+r11c	upstream/re4/src/st1/r11c.cpp	event	229	"EvtMgr.SetFunc(""evt_r11cs00_func"", (void*) Evt_R11CS00_Func);"
+r11c	upstream/re4/src/st1/r11c.cpp	event	230	"EvtMgr.SetFunc(""evt_r11cs10_func"", (void*) Evt_R11CS10_Func);"
+r11c	upstream/re4/src/st1/r11c.cpp	event	231	"EvtMgr.SetFunc(""evt_r11cs20_func"", (void*) Evt_R11CS20_Func);"
+r11c	upstream/re4/src/st1/r11c.cpp	flags	232	if (!ScfFlagChk(pG, SCF_R11C_OPERATOR)) {
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	233	SceAtDataSet_exec(0xC, SCE_LEVEL10, 0, (TaskFunc) r11c_operator, 0, 1);
+r11c	upstream/re4/src/st1/r11c.cpp	flags	239	if (!ScfFlagChk(pG, SCF_R11C_BESIEGED_EVENT) && RoomData.checkPassed(pG->room_id, 0) == 0) {
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	244	TexRenderInit(&W->tex, 0, 2);
+r11c	upstream/re4/src/st1/r11c.cpp	event	274	"W->evd0 = DC.setData(EvtMgr.NameChange(""evd/r11cs00.evd""));"
+r11c	upstream/re4/src/st1/r11c.cpp	event	276	"W->evd1 = DC.setData(EvtMgr.NameChange(""evd/r11cs10.evd""));"
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	277	EmReadSearch(0x13, 0, W->evd0->getSize());
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	278	EmReadSearch(3, 0, 0x120000);
+r11c	upstream/re4/src/st1/r11c.cpp	flags	293	ScfFlagOn(pG, SCF_R11C_BESIEGED_EVENT);
+r11c	upstream/re4/src/st1/r11c.cpp	event	298	SceEventStart(0);
+r11c	upstream/re4/src/st1/r11c.cpp	event	345	EvtMgr.SetEvt(mod->pData, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	event	348	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0) != 0) {
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	355	EmReadSearch(4, 0, 0x120000);
+r11c	upstream/re4/src/st1/r11c.cpp	object	390	cEmWindow* win;
+r11c	upstream/re4/src/st1/r11c.cpp	object	394	cEmWindow* win2;
+r11c	upstream/re4/src/st1/r11c.cpp	event	405	SceEventEnd(0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	407	SndRoomStrStart(1, 3, 1);
+r11c	upstream/re4/src/st1/r11c.cpp	event	408	"EvtMgr.EvtReadAram(""event/evd/r11cs20.evd"", 0, 0, 0, 0);"
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	435	e = EmSetFromList2(0xC9, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	440	e = EmSetFromList2(0xCA, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	445	e = EmSetFromList2(0xCB, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	450	e = EmSetFromList2(0xCC, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	455	e = EmSetFromList2(0xCD, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	460	e = EmSetFromList2(0xCE, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	465	e = EmSetFromList2(0xCF, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	470	e = EmSetFromList2(0xD0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	475	e = EmSetFromList2(0xD1, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	event	485	SceEventStart(0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	486	SndRoomStrStop(3);
+r11c	upstream/re4/src/st1/r11c.cpp	event	491	"EvtMgr.EvtReadExec(""event/evd/r11cs20.evd"", 0, EvtReadFlagDiedemo);"
+r11c	upstream/re4/src/st1/r11c.cpp	event	492	SceEventEnd(0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	544	SndRoomStrStop(5);
+r11c	upstream/re4/src/st1/r11c.cpp	event	545	SceEventStart(0);
+r11c	upstream/re4/src/st1/r11c.cpp	event	564	if (EvtMgr.SetEvt(mod2->pData, &ev)) {
+r11c	upstream/re4/src/st1/r11c.cpp	event	567	while (EvtMgr.IsAliveEvt(EvtMgr.GetNowExeEvtNamePtr(), 0, 0) != 0) {
+r11c	upstream/re4/src/st1/r11c.cpp	event	575	SceEventEnd(0);
+r11c	upstream/re4/src/st1/r11c.cpp	enemy	582	EmSetFromList2(0xC8, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	flags	626	ScfFlagOn(pG, SCF_R11C_BESIEGED_END_EVENT);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	629	SceAtSetEnable(8, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	630	SceAtSetEnable(9, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	object	631	SmdGetObjPtr(0x3F)->be_flag &= ~2;
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	632	EstSet(0, -1, 0, 0, EFF_ROOM, 0xA, 1, ESP_CORE_KIND_NONE, zero, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	transition	635	SceSetChapterEnd(CHAPTER_2_2, -1);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	640	static void r11c_ThunderMove()
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	655	EstSet(0, -1, 0, 0, EFF_ROOM, 1, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	657	EstSet(0, -1, 0, 0, EFF_ROOM, 0xC, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	659	SceSndCallThunder();
+r11c	upstream/re4/src/st1/r11c.cpp	object	689	cObj* g0 = SmdGetObjPtr(0x33);
+r11c	upstream/re4/src/st1/r11c.cpp	object	690	cObj* g1 = SmdGetObjPtr(0x34);
+r11c	upstream/re4/src/st1/r11c.cpp	flags	693	if (!ScfFlagChk(pG, SCF_R11C_BESIEGED_EVENT)) {
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	699	SceAtDataSet_exec(4, SCE_LEVEL10, 0, (TaskFunc) r11c_selectRoute, 0, 2);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	706	SceAtSetEnable(5, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	709	SceAtSetEnable(6, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	711	SceAtSetEnable(0xA, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	712	SceAtSetEnable(0xB, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	object	722	cObj* g = SmdGetObjPtr(id);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	729	EstSet(0, -1, 0, 0, EFF_ROOM, 6, 1, (u8) W->effGate, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	object	754	cObj* g = SmdGetObjPtr(id);
+r11c	upstream/re4/src/st1/r11c.cpp	object	789	g0 = SmdGetObjPtr(0x10);
+r11c	upstream/re4/src/st1/r11c.cpp	object	790	g1 = SmdGetObjPtr(0x11);
+r11c	upstream/re4/src/st1/r11c.cpp	object	791	g2 = SmdGetObjPtr(0x32);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	806	EstSet(0, -1, 0, 0, EFF_ROOM, 5, 1, (u8) W->effGear, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	object	841	c = SmdGetObjPtr(id);
+r11c	upstream/re4/src/st1/r11c.cpp	object	862	lv = SmdGetObjPtr(0x35);
+r11c	upstream/re4/src/st1/r11c.cpp	object	885	lv = SmdGetObjPtr(0x35);
+r11c	upstream/re4/src/st1/r11c.cpp	object	915	cObj* g0 = SmdGetObjPtr(0x33);
+r11c	upstream/re4/src/st1/r11c.cpp	object	916	cObj* g1 = SmdGetObjPtr(0x34);
+r11c	upstream/re4/src/st1/r11c.cpp	object	917	cObj* lv = SmdGetObjPtr(0x35);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	959	SceAtSetEnable(6, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	960	SceAtSetEnable(5, 1);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	961	SceAtSetEnable(0xA, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	962	SceAtSetEnable(0xB, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	974	SceAtSetEnable(6, 1);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	975	SceAtSetEnable(5, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	976	SceAtSetEnable(0xA, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	977	SceAtSetEnable(0xB, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	event	980	SceEventEnd(0);
+r11c	upstream/re4/src/st1/r11c.cpp	event	992	SceEventStart(0);
+r11c	upstream/re4/src/st1/r11c.cpp	event	1058	SceEventEnd(0);
+r11c	upstream/re4/src/st1/r11c.cpp	flags	1064	if (!ScfFlagChk(pG, SCF_R11C_OPERATOR)) {
+r11c	upstream/re4/src/st1/r11c.cpp	flags	1065	ScfFlagOn(pG, SCF_R11C_OPERATOR);
+r11c	upstream/re4/src/st1/r11c.cpp	scenario_area	1066	SceAtSetEnable(0xC, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	1086	EstSet(o, -1, 0, 0, EFF_ROOM, 0xD, 0, ESP_CORE_KIND_ROOM00, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	1100	EstSet(o, -1, 0, 0, EFF_ROOM, 0xD, 0, ESP_CORE_KIND_ROOM00, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	1114	EstSet(o, -1, 0, 0, EFF_ROOM, 0xD, 0, ESP_CORE_KIND_ROOM00, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	1149	EstSet(0, -1, 0, 0, EFF_ROOM, 0xD, 0x2001, ESP_CORE_KIND_ROOM01, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	object	1150	o = SmdGetObjPtr(0x3F);
+r11c	upstream/re4/src/st1/r11c.cpp	object	1177	SmdSetTrans(0x3F, 1);
+r11c	upstream/re4/src/st1/r11c.cpp	object	1178	w = SmdGetWorkPtr(0x3F);
+r11c	upstream/re4/src/st1/r11c.cpp	object	1179	o = SmdGetObjPtr(0x3F);
+r11c	upstream/re4/src/st1/r11c.cpp	object	1202	o = SmdGetObjPtr(0x3F);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	1232	EstSet(0, -1, 0, 0, EFF_ROOM, no, W->tex->GetCoreFlg() | 0x3001, ESP_CORE_KIND_NONE, 0, 0);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	1257	TexRenderModSet((cModel*) mod, 6, W->texTbl, W->tex, 0, 1, 1, 1, 1.0f);
+r11c	upstream/re4/src/st1/r11c.cpp	render_audio	1260	TexRenderModSet((cModel*) mod, 3, W->texTbl, W->tex, 0, 1, 1, 1, 1.0f);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	79	static void r11d_ThunderMove();
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	92	EstSet(pPL, -1, 0, 0, EFF_PL00, 1, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	93	EstSet(pPL, -1, 0, 0, EFF_ROOM, 0, 0x800, ESP_CORE_KIND_NONE, 0, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	flags	95	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r11d	upstream/re4/src/st1/r11d.cpp	scenario_area	96	SceAtDataSet_exec(2, SCE_LEVEL10, 0, (TaskFunc) r11d_checkEmReset, 0, 1);
+r11d	upstream/re4/src/st1/r11d.cpp	scenario_area	101	SceAtDataSet_exec(1, SCE_LEVEL10, 0, (TaskFunc) r11d_checkDoor, 0, 1);
+r11d	upstream/re4/src/st1/r11d.cpp	object	103	SmdGetObjPtr(0x20)->be_flag &= ~2;
+r11d	upstream/re4/src/st1/r11d.cpp	scenario_area	106	SceAtDataSet_hide(3, r11d_execHide0);
+r11d	upstream/re4/src/st1/r11d.cpp	scenario_area	107	SceAtDataSet_hide(4, r11d_execHide1);
+r11d	upstream/re4/src/st1/r11d.cpp	scenario_area	108	SceAtDataSet_hide(5, r11d_execHide2);
+r11d	upstream/re4/src/st1/r11d.cpp	flags	109	if (RsfCheck(G_ROOM_ID, 2) == 0) {
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	112	SceExec(0x12, (TaskFunc) r11d_ThunderMove, 0, 0, SCE_PRIO_DEF_2, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	flags	115	if (RsfCheck(G_ROOM_ID, 3) == 0) {
+r11d	upstream/re4/src/st1/r11d.cpp	object	116	SmdGetObjPtr(0x1A)->be_flag &= ~2;
+r11d	upstream/re4/src/st1/r11d.cpp	scenario_area	117	SceAtDataSet_exec(6, SCE_LEVEL10, 0, (TaskFunc) r11d_execEmAppear, 0, 1);
+r11d	upstream/re4/src/st1/r11d.cpp	scenario_area	125	SceAtDataSet_exec(8, SCE_LEVEL10, 0, (TaskFunc) r11d_checkIronDoor, 0, 1);
+r11d	upstream/re4/src/st1/r11d.cpp	scenario_area	164	SceAtSetEnable(8, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	flags	189	RsfSet(G_ROOM_ID, 4);
+r11d	upstream/re4/src/st1/r11d.cpp	enemy	201	r11d_work->em0.setEm(0xE6, -1, 0, 1, 1);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	216	EstSet(obj, -1, 0, 0, EFF_CORE, 0x2D, 0x801, r11d_work->eff0, zero, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	enemy	224	if (r11d_work->em1.setEm(0xEC, -1, 0, 1, 1) == 1) {
+r11d	upstream/re4/src/st1/r11d.cpp	object	232	SmdGetObjPtr(0x32)->be_flag &= ~2;
+r11d	upstream/re4/src/st1/r11d.cpp	object	233	SmdGetObjPtr(0x1A)->be_flag |= 2;
+r11d	upstream/re4/src/st1/r11d.cpp	flags	234	if (RsfCheck(G_ROOM_ID, 5) == 0) {
+r11d	upstream/re4/src/st1/r11d.cpp	flags	235	RsfSet(G_ROOM_ID, 5);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	236	EstSet(0, -1, 0, 0, EFF_ROOM, 7, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	240	EstSet(0, -1, 0, 0, EFF_ROOM, 8, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	event	260	SceEventEnd(0);
+r11d	upstream/re4/src/st1/r11d.cpp	flags	288	RsfSet(G_ROOM_ID, 3);
+r11d	upstream/re4/src/st1/r11d.cpp	event	296	SceEventStart(0);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	302	SndRoomStrStart(1, 0, 1);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	303	SndStrReq(1, 8, 0x80000003, 0, 0, 0.0f);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	307	EstSet(0, -1, 0, 0, EFF_ROOM, 9, 1, r11d_work->eff1, 0, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	315	EstSet(0, -1, 0, 0, EFF_ROOM, 0xA, 1, r11d_work->eff1, 0, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	flags	342	if (RsfCheck(G_ROOM_ID, 4) == 0 && !(pG->Room_flg[0] & 0x80000000)) {
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	357	SndStrReq(r11d_work->strId, 4, 50, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	event	359	SceEventEnd(0);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	361	SceExec(0x12, (TaskFunc) r11d_ThunderMove, 0, 0, SCE_PRIO_DEF_2, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	flags	376	RsfSet(G_ROOM_ID, 2);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	377	r11d_work->strId = SndStrReq(0, 0x16, 0x80000003, 0, 0, *(const f32*) &vol);
+r11d	upstream/re4/src/st1/r11d.cpp	event	379	SceEventStart(1);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	382	EstSet(0, -1, 0, 0, EFF_ROOM, 3, 1, r11d_work->eff2, zero, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	object	399	door = SmdGetObjPtr(objId);
+r11d	upstream/re4/src/st1/r11d.cpp	flags	438	if (RsfCheck(G_ROOM_ID, 1) == 0) {
+r11d	upstream/re4/src/st1/r11d.cpp	flags	439	RsfSet(G_ROOM_ID, 1);
+r11d	upstream/re4/src/st1/r11d.cpp	flags	444	RsfClear(G_ROOM_ID, 1);
+r11d	upstream/re4/src/st1/r11d.cpp	event	468	SceEventStart(0);
+r11d	upstream/re4/src/st1/r11d.cpp	object	471	SmdSetTrans(0x20, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	event	477	SceEventEnd(0);
+r11d	upstream/re4/src/st1/r11d.cpp	flags	485	RsfSet(G_ROOM_ID, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	511	static void r11d_ThunderMove()
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	526	EstSet(0, -1, 0, 0, EFF_ROOM, 1, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	532	SceSndCallThunder();
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	553	SndRoomStrStart(1, 0, 1);
+r11d	upstream/re4/src/st1/r11d.cpp	render_audio	558	SndRoomStrStop(3);
+r11e	upstream/re4/src/st1/r11e.cpp	partner	69	void funcAshley(cEm* m);
+r11e	upstream/re4/src/st1/r11e.cpp	enemy	80	static void r11e_EmSet_exit();
+r11e	upstream/re4/src/st1/r11e.cpp	enemy	81	static void r11e_EmSet();
+r11e	upstream/re4/src/st1/r11e.cpp	enemy	97	EmReadSearch(0x2B, 0, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	99	SceAtDataSet_exec(1, SCE_LEVEL10, 0, (TaskFunc) r11e_checkDoor, 0, 1);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	103	r11e_work->sat[0] = SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x28), 0, &r11e_koyaAPos, &r11e_koyaARot, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	104	r11e_work->sat[1] = SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x28), 0, &r11e_koyaBPos, &r11e_koyaBRot, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	105	r11e_work->sat[2] = SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x2A), 0, &r11e_sakuAPos, &r11e_sakuARot, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	106	r11e_work->sat[3] = SatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x2A), 0, &r11e_sakuBPos, &r11e_sakuBRot, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	107	r11e_work->eat[0] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x29), 0, &r11e_koyaAPos, &r11e_koyaARot, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	108	r11e_work->eat[1] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x29), 0, &r11e_koyaBPos, &r11e_koyaBRot, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	109	r11e_work->eat[2] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x2A), 0, &r11e_sakuAPos, &r11e_sakuARot, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	110	r11e_work->eat[3] = EatMgr.create(ROOM_ARC_PTR(pG->pRoom, 0x2A), 0, &r11e_sakuBPos, &r11e_sakuBRot, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	flags	113	if (RsfCheck(G_ROOM_ID, 0)) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	116	if (RsfCheck(G_ROOM_ID, 1)) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	119	if (RsfCheck(G_ROOM_ID, 2)) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	122	if (RsfCheck(G_ROOM_ID, 3)) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	126	if (RsfCheck(G_ROOM_ID, 6) == 0) {
+r11e	upstream/re4/src/st1/r11e.cpp	render_audio	127	r11e_work->strId = SndStrReq(1, 0x4C, 0x80000001, 0, 0, 0.0f);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	128	SceAtDataSet_exec(2, SCE_LEVEL10, 0, (TaskFunc) r11e_EmSet, 0, 1);
+r11e	upstream/re4/src/st1/r11e.cpp	enemy	128	SceAtDataSet_exec(2, SCE_LEVEL10, 0, (TaskFunc) r11e_EmSet, 0, 1);
+r11e	upstream/re4/src/st1/r11e.cpp	partner	134	void funcAshley(cEm* m)
+r11e	upstream/re4/src/st1/r11e.cpp	flags	173	if (RsfCheck(G_ROOM_ID, 6) && SceCountEmAlive(0x2B, -1) == 0) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	182	if ((pG->Room_flg[0] & 0x80000000) && RsfCheck(G_ROOM_ID, 0) == 0) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	183	RsfSet(G_ROOM_ID, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	flags	186	if ((pG->Room_flg[0] & 0x40000000) && RsfCheck(G_ROOM_ID, 1) == 0) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	187	RsfSet(G_ROOM_ID, 1);
+r11e	upstream/re4/src/st1/r11e.cpp	flags	190	if ((pG->Room_flg[0] & 0x20000000) && RsfCheck(G_ROOM_ID, 2) == 0) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	191	RsfSet(G_ROOM_ID, 2);
+r11e	upstream/re4/src/st1/r11e.cpp	flags	194	if ((pG->Room_flg[0] & 0x10000000) && RsfCheck(G_ROOM_ID, 3) == 0) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	195	RsfSet(G_ROOM_ID, 3);
+r11e	upstream/re4/src/st1/r11e.cpp	render_audio	209	EstSet(0, -1, &pos, &rot, EFF_ROOM, 5, 0, ESP_CORE_KIND_NONE, 0, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	render_audio	220	EstSet(0, -1, &pos, &rot, EFF_ROOM, 5, 0, ESP_CORE_KIND_NONE, 0, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	227	SatMgr.destroy(r11e_work->sat[0]);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	228	EatMgr.destroy(r11e_work->eat[0]);
+r11e	upstream/re4/src/st1/r11e.cpp	object	229	SmdSetTrans(4, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	object	230	SmdSetTrans(5, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	231	SceAtSetEnable(0x80, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	232	SceAtSetEnable(0x81, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	233	SceAtSetEnable(0x82, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	234	SceAtSetEnable(0x83, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	235	SceAtSetEnable(0x84, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	241	SatMgr.destroy(r11e_work->sat[1]);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	242	EatMgr.destroy(r11e_work->eat[1]);
+r11e	upstream/re4/src/st1/r11e.cpp	object	243	SmdSetTrans(6, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	object	244	SmdSetTrans(7, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	245	SceAtSetEnable(0x85, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	246	SceAtSetEnable(0x86, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	247	SceAtSetEnable(0x87, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	248	SceAtSetEnable(0x88, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	249	SceAtSetEnable(0x89, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	250	SceAtSetEnable(0x8A, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	scenario_area	251	SceAtSetEnable(0x8B, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	render_audio	262	EstSet(0, -1, &pos, &rot, EFF_ROOM, 3, 0, ESP_CORE_KIND_NONE, 0, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	render_audio	277	EstSet(0, -1, &pos, &rot, EFF_ROOM, 3, 0, ESP_CORE_KIND_NONE, 0, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	287	SatMgr.destroy(r11e_work->sat[2]);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	288	EatMgr.destroy(r11e_work->eat[2]);
+r11e	upstream/re4/src/st1/r11e.cpp	object	289	SmdSetTrans(0xE, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	object	290	SmdSetTrans(0xF, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	object	291	SmdSetTrans(0x10, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	297	SatMgr.destroy(r11e_work->sat[3]);
+r11e	upstream/re4/src/st1/r11e.cpp	collision	298	EatMgr.destroy(r11e_work->eat[3]);
+r11e	upstream/re4/src/st1/r11e.cpp	object	299	SmdSetTrans(0x12, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	object	300	SmdSetTrans(0x11, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	object	301	SmdSetTrans(0x13, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	object	315	objA = SmdGetObjPtr(0x23);
+r11e	upstream/re4/src/st1/r11e.cpp	object	316	objB = SmdGetObjPtr(0x24);
+r11e	upstream/re4/src/st1/r11e.cpp	flags	322	if (RsfCheck(G_ROOM_ID, 4) == 0) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	344	if (RsfCheck(G_ROOM_ID, 5) == 0) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	367	if (RsfCheck(G_ROOM_ID, 4) == 0 && hitA->ckStatus() == 1) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	368	RsfSet(G_ROOM_ID, 4);
+r11e	upstream/re4/src/st1/r11e.cpp	render_audio	369	EstSet(0, -1, &r11e_rockAPos, &r11e_rockARot, EFF_ROOM, 0, 0, ESP_CORE_KIND_NONE, 0, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	flags	373	if (RsfCheck(G_ROOM_ID, 5) == 0 && hitB->ckStatus() == 1) {
+r11e	upstream/re4/src/st1/r11e.cpp	flags	374	RsfSet(G_ROOM_ID, 5);
+r11e	upstream/re4/src/st1/r11e.cpp	render_audio	375	EstSet(0, -1, &r11e_rockBPos, &r11e_rockBRot, EFF_ROOM, 0, 0, ESP_CORE_KIND_NONE, 0, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	enemy	384	static void r11e_EmSet_exit()
+r11e	upstream/re4/src/st1/r11e.cpp	event	390	SceEventEnd(0);
+r11e	upstream/re4/src/st1/r11e.cpp	enemy	412	em.setEm(0xF0, -1, 1, 1, 1);
+r11e	upstream/re4/src/st1/r11e.cpp	flags	422	if (RsfCheck(G_ROOM_ID, 4) == 0 && pSUB != 0 && (SubCharGetStatus() & 0x20000000)) {
+r11e	upstream/re4/src/st1/r11e.cpp	partner	431	SetSubAux(funcAshley, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	enemy	438	static void r11e_EmSet()
+r11e	upstream/re4/src/st1/r11e.cpp	flags	442	RsfSet(G_ROOM_ID, 6);
+r11e	upstream/re4/src/st1/r11e.cpp	enemy	443	r11e_work->em.setEm(0xF1, -1, 1, 1, 1);
+r11e	upstream/re4/src/st1/r11e.cpp	event	451	SceEventStart(0);
+r11e	upstream/re4/src/st1/r11e.cpp	render_audio	452	SndStrReq(r11e_work->strId, 2, 0, 0);
+r11e	upstream/re4/src/st1/r11e.cpp	enemy	454	SceSetEventCancel(1, (TaskFunc) r11e_EmSet_exit, 0, -1, 1);
+r11e	upstream/re4/src/st1/r11e.cpp	flags	459	if (RsfCheck(G_ROOM_ID, 4) == 0) {
+r11e	upstream/re4/src/st1/r11e.cpp	enemy	466	r11e_EmSet_exit();
+r11e	upstream/re4/src/st1/r11e.cpp	render_audio	487	SndRoomStrStart(1, 0, 1);
+r11e	upstream/re4/src/st1/r11e.cpp	render_audio	492	SndRoomStrStop(3);
+r11f	upstream/re4/src/st1/r11f.cpp	object	55	cEmWindow* win;
+r11f	upstream/re4/src/st1/r11f.cpp	object	66	void r11f_DoorReplace();
+r11f	upstream/re4/src/st1/r11f.cpp	partner	79	static void r11f_AshleyRunUp();
+r11f	upstream/re4/src/st1/r11f.cpp	flags	93	if (RsfCheck(G_ROOM_ID, 0) == 0) {
+r11f	upstream/re4/src/st1/r11f.cpp	event	94	"EvtMgr.EvtReadAram(""event/evd/r11fs00.evd"", 0, 0, 0, 0);"
+r11f	upstream/re4/src/st1/r11f.cpp	scenario_area	95	SceAtDataSet_exec(0x18, SCE_LEVEL10, 0, r11f_EventS00, 0, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	event	96	"EvtMgr.SetFunc(""evt_r11fs00_func"", (void*) Evt_R11FS00_Func);"
+r11f	upstream/re4/src/st1/r11f.cpp	event	97	"EvtMgr.SetFunc(""evt_r11fs01_func"", (void*) Evt_R11FS01_Func);"
+r11f	upstream/re4/src/st1/r11f.cpp	event	98	"EvtMgr.SetFunc(""evt_r11fs02_func"", (void*) Evt_R11FS02_Func);"
+r11f	upstream/re4/src/st1/r11f.cpp	event	99	"EvtMgr.SetFunc(""evt_r11fs10_func"", (void*) Evt_R11FS10_Func);"
+r11f	upstream/re4/src/st1/r11f.cpp	event	100	"EvtMgr.SetFunc(""evt_r11fs11_func"", (void*) Evt_R11FS11_Func);"
+r11f	upstream/re4/src/st1/r11f.cpp	object	101	SmdSetTrans(0x14, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	102	SmdSetTrans(0x15, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	103	SmdSetTrans(0x16, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	scenario_area	109	SceAtSetEnable(8, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	111	r11f_DoorReplace();
+r11f	upstream/re4/src/st1/r11f.cpp	object	112	SmdSetTrans(0x14, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	113	SmdSetTrans(0x15, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	scenario_area	114	SceAtSetEnable(4, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	scenario_area	124	SceAtSetEnable(7, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	141	void r11f_DoorReplace()
+r11f	upstream/re4/src/st1/r11f.cpp	object	146	SmdSetTrans(1, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	147	SmdSetTrans(2, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	scenario_area	167	SceAtSetEnable(7, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	scenario_area	170	SceAtSetEnable(7, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	flags	177	RsfSet(G_ROOM_ID, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	scenario_area	178	SceAtSetEnable(0x18, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	179	SndRoomBgmVolSet(0, 1, 600);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	180	SndRoomBgmVolSet(1, 1, 600);
+r11f	upstream/re4/src/st1/r11f.cpp	event	181	SceEventStart(0);
+r11f	upstream/re4/src/st1/r11f.cpp	event	183	"EvtMgr.EvtReadExec(""event/evd/r11fs00.evd"", 0, EvtReadFlagNone);"
+r11f	upstream/re4/src/st1/r11f.cpp	object	184	r11f_DoorReplace();
+r11f	upstream/re4/src/st1/r11f.cpp	event	186	"EvtMgr.EvtReadExec(""event/evd/r11fs01.evd"", 0, EvtReadFlagDiedemo);"
+r11f	upstream/re4/src/st1/r11f.cpp	event	188	"EvtMgr.EvtReadExec(""event/evd/r11fs02.evd"", 0, EvtReadFlagNone);"
+r11f	upstream/re4/src/st1/r11f.cpp	enemy	189	if (r11f_work->em0.setEm(0xF8, -1, 1, 1, 1)) {
+r11f	upstream/re4/src/st1/r11f.cpp	event	206	SceEventEnd(0);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	208	EstSet(0, -1, 0, 0, EFF_ROOM, 0, 0x801, ESP_CORE_KIND_NONE, 0, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	209	EstSet(0, -1, 0, 0, EFF_ROOM, 4, 0x801, ESP_CORE_KIND_ROOM00, 0, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	240	SmdSetTrans(1, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	241	SmdSetTrans(2, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	320	SmdSetTrans(1, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	321	SmdSetTrans(2, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	328	em->EvtSndStrPlay(em->GetNowExeEvtNamePtr(), 1, 0x50, 1, 0.0f);
+r11f	upstream/re4/src/st1/r11f.cpp	object	352	SmdSetTrans(0xE, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	353	SmdSetTrans(0xD, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	354	SmdSetTrans(0xD, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	355	SmdSetTrans(0x12, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	357	SmdSetTrans(0xE, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	358	SmdSetTrans(0xD, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	359	SmdSetTrans(0xD, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	360	SmdSetTrans(0x12, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	387	EstSet(0, -1, 0, 0, EFF_ROOM, 0, 0x2001, ESP_CORE_KIND_ROOM01, 0, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	388	EstSet(0, -1, 0, 0, EFF_ROOM, 4, 0x2001, ESP_CORE_KIND_ROOM01, 0, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	441	SmdSetTrans(0xE, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	442	SmdSetTrans(0xD, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	443	SmdSetTrans(0xD, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	444	SmdSetTrans(0x12, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	445	SmdSetTrans(0x14, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	446	SmdSetTrans(0x15, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	447	SmdSetTrans(0x16, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	449	SmdSetTrans(0xE, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	450	SmdSetTrans(0xD, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	451	SmdSetTrans(0xD, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	452	SmdSetTrans(0x12, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	457	EstSet(0, -1, 0, 0, EFF_ROOM, 7, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	464	SmdSetTrans(0xE, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	465	SmdSetTrans(0xD, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	466	SmdSetTrans(0xD, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	467	SmdSetTrans(0x12, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	468	SmdSetTrans(0x14, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	object	469	SmdSetTrans(0x15, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	object	470	SmdSetTrans(0x16, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	enemy	482	r11f_work->em0.setEm(0xF9, -1, 1, 1, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	enemy	483	r11f_work->em1.setEm(0xFA, -1, 0, 1, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	event	484	SceEventStart(0);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	496	r11f_work->strId = SndStrReq(1, 0x2C, 0x80000003, 0, 0, 0.0f);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	526	SndStrReq(r11f_work->strId, 8, 0, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	event	543	SceEventEnd(0);
+r11f	upstream/re4/src/st1/r11f.cpp	event	553	"EvtMgr.EvtReadAram(""event/evd/r11fs11.evd"", 0, 0, 0, 0);"
+r11f	upstream/re4/src/st1/r11f.cpp	event	554	"EvtMgr.EvtReadAram(""event/evd/r11fs10.evd"", 0, 0, 0, 0);"
+r11f	upstream/re4/src/st1/r11f.cpp	event	558	SceEventStart(0);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	560	SndRoomStrStop(2);
+r11f	upstream/re4/src/st1/r11f.cpp	event	561	"EvtMgr.EvtReadExec(""event/evd/r11fs10.evd"", 0, EvtReadFlagNone);"
+r11f	upstream/re4/src/st1/r11f.cpp	scenario_area	562	SceAtDataSet_exec(0x80, SCE_LEVEL10, 0, r11f_EventS11, 0, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	event	563	SceEventEnd(0);
+r11f	upstream/re4/src/st1/r11f.cpp	event	571	SceEventStart(0);
+r11f	upstream/re4/src/st1/r11f.cpp	event	573	"EvtMgr.EvtReadExec(""event/evd/r11fs11.evd"", 0, EvtReadFlagNone);"
+r11f	upstream/re4/src/st1/r11f.cpp	event	574	SceEventEnd(0);
+r11f	upstream/re4/src/st1/r11f.cpp	scenario_area	575	SceAtSetEnable(8, 1);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	576	EstSet(0, -1, 0, 0, EFF_ROOM, 7, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	render_audio	609	EstSet(0, -1, 0, 0, EFF_ROOM, 5, 1, ESP_CORE_KIND_NONE, 0, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	partner	611	SceExec(0x12, r11f_AshleyRunUp, 0, 0, SCE_PRIO_DEF_2, 0);
+r11f	upstream/re4/src/st1/r11f.cpp	partner	615	static void r11f_AshleyRunUp()
+r120	upstream/re4/src/st1/r120.cpp	render_audio	30	TexRenderMng* mgr;
+r120	upstream/re4/src/st1/r120.cpp	render_audio	40	void EvtTexRenderCamTrans(Event* e, int cut);
+r120	upstream/re4/src/st1/r120.cpp	event	49	"EvtMgr.SetFunc(""evt_r120s00_func"", (void*) Evt_R120S00_Func);"
+r120	upstream/re4/src/st1/r120.cpp	event	50	"EvtMgr.SetFunc(""evt_r120s01_func"", (void*) Evt_R120S01_Func);"
+r120	upstream/re4/src/st1/r120.cpp	render_audio	54	TexRenderInit(&r120_work->mgr, 0x100, 1);
+r120	upstream/re4/src/st1/r120.cpp	flags	72	ScfFlagOff(pG, SCF_R120_EVENT_CANCEL);
+r120	upstream/re4/src/st1/r120.cpp	flags	79	ScfFlagOn(pG, SCF_R120_EVENT_CANCEL);
+r120	upstream/re4/src/st1/r120.cpp	event	81	SceEventStart(0);
+r120	upstream/re4/src/st1/r120.cpp	event	87	"EvtMgr.EvtReadAram(""event/evd/r120s01.evd"", 0, 0, 0, 0);"
+r120	upstream/re4/src/st1/r120.cpp	event	88	"EvtMgr.EvtReadExec(""event/evd/r120s00.evd"", 0, EvtReadFlagNone);"
+r120	upstream/re4/src/st1/r120.cpp	flags	90	if (!ScfFlagChk(pG, SCF_R120_EVENT_CANCEL)) {
+r120	upstream/re4/src/st1/r120.cpp	event	91	"EvtMgr.EvtReadExec(""event/evd/r120s01.evd"", 0, EvtReadFlagNone);"
+r120	upstream/re4/src/st1/r120.cpp	event	93	SceEventEnd(0);
+r120	upstream/re4/src/st1/r120.cpp	transition	99	SceAtExecRoomJump(0x100, &pos, &rot, 0);
+r120	upstream/re4/src/st1/r120.cpp	object	109	SmdSetTrans(i, on);
+r120	upstream/re4/src/st1/r120.cpp	object	112	SmdSetTrans(i, on);
+r120	upstream/re4/src/st1/r120.cpp	object	115	SmdSetTrans(i, on);
+r120	upstream/re4/src/st1/r120.cpp	object	118	SmdSetTrans(i, on);
+r120	upstream/re4/src/st1/r120.cpp	object	121	SmdSetTrans(i, on);
+r120	upstream/re4/src/st1/r120.cpp	object	124	SmdSetTrans(i, on);
+r120	upstream/re4/src/st1/r120.cpp	render_audio	145	cLight* l = LightMgr.getKindLight(1);
+r120	upstream/re4/src/st1/r120.cpp	render_audio	154	EvtTexRenderCamTrans(e, 0);
+r120	upstream/re4/src/st1/r120.cpp	flags	254	ScfFlagOn(pG, SCF_R120_EVENT_CANCEL);
+r120	upstream/re4/src/st1/r120.cpp	object	271	SmdSetTrans(i, 0);
+r120	upstream/re4/src/st1/r120.cpp	render_audio	443	EvtTexRenderCamTrans(e, 2);
+r120	upstream/re4/src/st1/r120.cpp	render_audio	446	EvtTexRenderCamTrans(e, 6);
+r120	upstream/re4/src/st1/r120.cpp	flags	456	ScfFlagOn(pG, SCF_R120_EVENT_CANCEL);
+r120	upstream/re4/src/st1/r120.cpp	render_audio	560	void EvtTexRenderCamTrans(Event* e, int cut)
+r120	upstream/re4/src/st1/r120.cpp	render_audio	569	TexRenderModAddOtMirror(0x10, (cModel*) mod);
+r120	upstream/re4/src/st1/r120.cpp	render_audio	574	TexRenderModAddOt(0, (cModel*) mod);

@@ -1,0 +1,31 @@
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4Effects: SST1 Record4: original Esp12 requires a separate special backend
+RE4Effects: SST4 Record4: original Esp12 requires a separate special backend
+RE4Effects: SST5 Record0: separate shimmer backend
+RE4Effects: SST6 Record0: separate shimmer backend
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4Effects: SST0: dedicated generator 68
+RE4Effects: SST0 Record2: separate shimmer backend
+RE4Effects: SST7 Record8: original Esp7 requires a separate special backend
+RE4Effects: SST7 Record9: original Esp7 requires a separate special backend
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4Effects: SST1 Record3: original Esp12 requires a separate special backend
+RE4Effects: SST4 Record3: original Esp12 requires a separate special backend
+RE4Effects: SST7 Record4: original Esp14 requires a separate special backend
+RE4Effects: SST8: dedicated generator 68
+RE4Effects: SST8 Record1: separate shimmer backend
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4Effects: SST0: dedicated generator 66
+RE4Effects: SST1 Record0: original Esp65 requires a separate special backend
+RE4Effects: SST1 Record1: original Esp65 requires a separate special backend
+RE4Effects: SST2 Record0: original Esp65 requires a separate special backend
+RE4Effects: SST2 Record1: original Esp65 requires a separate special backend
+RE4Effects: SST3 Record0: original Esp65 requires a separate special backend
+RE4Effects: SST3 Record1: original Esp65 requires a separate special backend
+RE4Effects: SST3 Record2: original Esp65 requires a separate special backend
+RE4Effects: SST5: dedicated generator 68
+RE4Effects: SST5 Record1: separate shimmer backend
+r103 production room and native save verified
+r111 production room and native save verified
+r113 production room and native save verified
+r11a production room and native save verified

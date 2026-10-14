@@ -1,0 +1,495 @@
+{
+  "upstream_commit": "9b76ff003081d6ece8b838453fb8310743a972c7",
+  "source_files": 1051,
+  "header_files": 492,
+  "matches_are_candidates_not_proven_bugs": true,
+  "patterns": {
+    "inline_asm": {
+      "matching_lines": 792,
+      "examples": [
+        {
+          "file": "upstream/re4/src/Sscrn/ss_file.cpp",
+          "line": 984,
+          "text": "asm(\".section .data; .balign 8; .section .text\");"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item.cpp",
+          "line": 810,
+          "text": "register int pin asm(\"r30\"); // COMPILER-DIFF: candidate #17"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item.cpp",
+          "line": 811,
+          "text": "asm(\"\" : \"=r\"(pin) : \"r\"(i));"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item.cpp",
+          "line": 812,
+          "text": "asm(\"\" : : \"r\"(pin));"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item.cpp",
+          "line": 1266,
+          "text": "register int types asm(\"r29\");  // COMPILER-DIFF: 12"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item.cpp",
+          "line": 1310,
+          "text": "register int hi asm(\"r28\"); // COMPILER-DIFF: candidate #17"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item.cpp",
+          "line": 1311,
+          "text": "register int lo asm(\"r29\"); // COMPILER-DIFF: candidate #17"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item_draw.cpp",
+          "line": 286,
+          "text": "asm(\".section .rodata; .balign 8; .section .text\");"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_main.cpp",
+          "line": 1064,
+          "text": "asm(\".section .data; .balign 8; .section .text\");"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_map.cpp",
+          "line": 1272,
+          "text": "asm(\"\" : \"=&r\"(z) : \"0\"(&zero), \"r\"(&zero), \"m\"(zero));"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_pzzl.cpp",
+          "line": 84,
+          "text": "asm(\".comm _7pzlGrid.size,52,4\");"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_pzzl.cpp",
+          "line": 335,
+          "text": "register pzlPlayer* pl asm(\"r3\");"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_shop.cpp",
+          "line": 1112,
+          "text": "register SellItemNum* self asm(\"r24\") = this;"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_shop.cpp",
+          "line": 2051,
+          "text": "asm(\"\" : \"+r\"(scr)); // COMPILER-DIFF: 3"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_shop.cpp",
+          "line": 2189,
+          "text": "asm(\"\" : \"+r\"(scr)); // COMPILER-DIFF: 3"
+        },
+        {
+          "file": "upstream/re4/src/Tools/t_dr.cpp",
+          "line": 720,
+          "text": "asm(\".section .data; .balign 8\");"
+        },
+        {
+          "file": "upstream/re4/src/Tools/t_esp_area.cpp",
+          "line": 260,
+          "text": "asm(\"\" : \"=m\"(buf[0]) : \"r\"(path1)); // COMPILER-DIFF: #17 (global.c refs, the r18/r17 pair)"
+        },
+        {
+          "file": "upstream/re4/src/Tools/t_flr_at.cpp",
+          "line": 919,
+          "text": "asm volatile(\"\" : \"+r\"(c));"
+        },
+        {
+          "file": "upstream/re4/src/Tools/t_motseq.cpp",
+          "line": 728,
+          "text": "asm(\"\" : \"=m\"(w->seq[0].flagDisp[2]) : \"m\"(w->seq[0].flagDisp[2]));"
+        },
+        {
+          "file": "upstream/re4/src/Tools/t_rck.cpp",
+          "line": 339,
+          "text": "asm(\".section .data; .balign 8; .text\");"
+        }
+      ]
+    },
+    "powerpc_register_pin": {
+      "matching_lines": 98,
+      "examples": [
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item.cpp",
+          "line": 810,
+          "text": "register int pin asm(\"r30\"); // COMPILER-DIFF: candidate #17"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item.cpp",
+          "line": 1266,
+          "text": "register int types asm(\"r29\");  // COMPILER-DIFF: 12"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item.cpp",
+          "line": 1310,
+          "text": "register int hi asm(\"r28\"); // COMPILER-DIFF: candidate #17"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item.cpp",
+          "line": 1311,
+          "text": "register int lo asm(\"r29\"); // COMPILER-DIFF: candidate #17"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_pzzl.cpp",
+          "line": 335,
+          "text": "register pzlPlayer* pl asm(\"r3\");"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_shop.cpp",
+          "line": 1112,
+          "text": "register SellItemNum* self asm(\"r24\") = this;"
+        },
+        {
+          "file": "upstream/re4/src/em21/em21.cpp",
+          "line": 93,
+          "text": "register int c asm(\"r9\"); // COMPILER-DIFF: #13"
+        },
+        {
+          "file": "upstream/re4/src/em2b/em2b.cpp",
+          "line": 177,
+          "text": "register int x63c asm(\"r11\");"
+        },
+        {
+          "file": "upstream/re4/src/em2b/em2b.cpp",
+          "line": 207,
+          "text": "register int x63c asm(\"r11\"); // COMPILER-DIFF: #13 (see em2bAtkEndSet)"
+        },
+        {
+          "file": "upstream/re4/src/em2b/em2b.cpp",
+          "line": 864,
+          "text": "register int dmy7 asm(\"r7\");"
+        },
+        {
+          "file": "upstream/re4/src/em32/em32.cpp",
+          "line": 676,
+          "text": "register int lw asm(\"r10\"); // COMPILER-DIFF: #13"
+        },
+        {
+          "file": "upstream/re4/src/em32/em32.cpp",
+          "line": 677,
+          "text": "register int bn asm(\"r9\"); // COMPILER-DIFF: #13"
+        },
+        {
+          "file": "upstream/re4/src/em32/em32.cpp",
+          "line": 703,
+          "text": "register int hp asm(\"r0\"); // COMPILER-DIFF: #13"
+        },
+        {
+          "file": "upstream/re4/src/em32/em32.cpp",
+          "line": 704,
+          "text": "register int six asm(\"r11\"); // COMPILER-DIFF: #13"
+        },
+        {
+          "file": "upstream/re4/src/em32/em32.cpp",
+          "line": 705,
+          "text": "register int one asm(\"r0\"); // COMPILER-DIFF: #13"
+        },
+        {
+          "file": "upstream/re4/src/em36/em36.cpp",
+          "line": 4187,
+          "text": "register u8 kind asm(\"r30\"); // COMPILER-DIFF: #2"
+        },
+        {
+          "file": "upstream/re4/src/em39/em39.cpp",
+          "line": 651,
+          "text": "register int z0 asm(\"r20\");"
+        },
+        {
+          "file": "upstream/re4/src/em39/em39.cpp",
+          "line": 653,
+          "text": "register int r8c asm(\"r8\");"
+        },
+        {
+          "file": "upstream/re4/src/em39/em39.cpp",
+          "line": 654,
+          "text": "register int r9c asm(\"r9\");"
+        },
+        {
+          "file": "upstream/re4/src/em39/em39.cpp",
+          "line": 655,
+          "text": "register int r10c asm(\"r10\");"
+        }
+      ]
+    },
+    "32bit_cast": {
+      "matching_lines": 1969,
+      "examples": [
+        {
+          "file": "upstream/re4/src/Sscrn/ss_debug.cpp",
+          "line": 348,
+          "text": "g_boss_bar_flag = (u32) g_boss_bar_flag > 3 ? 0 : g_boss_bar_flag;"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_debug.cpp",
+          "line": 423,
+          "text": "if ((u32) pArray < 0x80000000 || (u32) pArray > 0x82FFFFFF) {"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item_draw.cpp",
+          "line": 93,
+          "text": "if ((u32) tpl - 0x80000000 > 0x02FFFFFF) {"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item_draw.cpp",
+          "line": 98,
+          "text": "if ((u32) d < 0x80000000) {"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item_draw.cpp",
+          "line": 101,
+          "text": "if ((u32) d > 0x82FFFFFF) {"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item_draw.cpp",
+          "line": 105,
+          "text": "if ((u32) th < 0x80000000) {"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item_draw.cpp",
+          "line": 108,
+          "text": "if ((u32) th > 0x82FFFFFF) {"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item_draw.cpp",
+          "line": 115,
+          "text": "if ((u32) ch < 0x80000000) {"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_item_draw.cpp",
+          "line": 118,
+          "text": "if ((u32) ch > 0x82FFFFFF) {"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_main.cpp",
+          "line": 540,
+          "text": "if ((u32) wk->pItemTpl + size > (u32) wk->pExamDat + 0x3E800) {"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_map.cpp",
+          "line": 690,
+          "text": "if (FlagChkVar((u32) &pG->Scenario_flg[0], (u32) tbl[i])) {"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_map.cpp",
+          "line": 793,
+          "text": "if (FlagChkVar((u32) &pG->Scenario_flg[0], (u32) (tbl[i * 2]))) {"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_map.cpp",
+          "line": 933,
+          "text": "return FlagChkVar((u32) pG->Item_flg, st1[no]) == 0;"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_map.cpp",
+          "line": 935,
+          "text": "return FlagChkVar((u32) pG->Item_flg, st2a[no]) == 0;"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_map.cpp",
+          "line": 937,
+          "text": "return FlagChkVar((u32) pG->Item_flg, st2b[no]) == 0;"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_map.cpp",
+          "line": 939,
+          "text": "return flagBit((u32) pG->Item_flg, st2c[no]) == 0;"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_map.cpp",
+          "line": 941,
+          "text": "return FlagChkVar((u32) pG->Item_flg, st3b[no]) == 0;"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_map.cpp",
+          "line": 943,
+          "text": "return FlagChkVar((u32) pG->Item_flg, st3e[no]) == 0;"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_map.cpp",
+          "line": 945,
+          "text": "return FlagChkVar((u32) pG->Item_flg, st4a[no]) == 0;"
+        },
+        {
+          "file": "upstream/re4/src/Sscrn/ss_map.cpp",
+          "line": 947,
+          "text": "return FlagChkVar((u32) pG->Item_flg, st4b[no]) == 0;"
+        }
+      ]
+    },
+    "hardware_address": {
+      "matching_lines": 48,
+      "examples": [
+        {
+          "file": "upstream/re4/src/game/examine.cpp",
+          "line": 428,
+          "text": "AddOtDirect(ot_type, (void*) 0xCDCDCDCD, store, ot_no, ot_kind, 0, 0.0f);"
+        },
+        {
+          "file": "upstream/re4/src/game/examine.cpp",
+          "line": 860,
+          "text": "AddOtDirect(ot_type, (void*) 0xCDCDCDCD, render, ot_no, ot_kind, 0, 0.0f);"
+        },
+        {
+          "file": "upstream/re4/src/game/filter00.cpp",
+          "line": 82,
+          "text": "AddOtDirect(0x12, (void*) 0xCDCDCDCD, Filter00Render, 0, 0x400, 0, 0.0f);"
+        },
+        {
+          "file": "upstream/re4/src/game/filter02.cpp",
+          "line": 58,
+          "text": "AddOtDirect(0x12, (void*) 0xCDCDCDCD, Filter02Render, 7, 0x400, 0, 0.0f);"
+        },
+        {
+          "file": "upstream/re4/src/game/filter03.cpp",
+          "line": 97,
+          "text": "AddOtDirect(0x12, (void*) 0xCDCDCDCD, Filter03Render, 7, 0x400, 0, 0.0f);"
+        },
+        {
+          "file": "upstream/re4/src/game/filter04.cpp",
+          "line": 70,
+          "text": "AddOtDirect(0x12, (void*) 0xCDCDCDCD, Filter04Render, 7, 0x400, 0, 0.0f);"
+        },
+        {
+          "file": "upstream/re4/src/game/filter06.cpp",
+          "line": 211,
+          "text": "AddOtDirect(0x12, (void*) 0xCDCDCDCD, Filter06Render, 7, 0x400, 0, 0.0f);"
+        },
+        {
+          "file": "upstream/re4/src/game/filter07.cpp",
+          "line": 72,
+          "text": "AddOtDirect(0x12, (void*) 0xCDCDCDCD, Filter07Render, 7, 0x400, 0, 0.0f);"
+        },
+        {
+          "file": "upstream/re4/src/game/filter08.cpp",
+          "line": 87,
+          "text": "AddOtDirect(0x12, (void*) 0xCDCDCDCD, Filter08Render, 7, 0x400, 0, 0.0f);"
+        },
+        {
+          "file": "upstream/re4/src/game/filter09.cpp",
+          "line": 49,
+          "text": "AddOtDirect(0x12, (void*) 0xCDCDCDCD, Filter09Render, 7, 0x400, 0, 0.0f);"
+        },
+        {
+          "file": "upstream/re4/src/game/filter0a.cpp",
+          "line": 104,
+          "text": "AddOtDirect(0x12, (void*) 0xCDCDCDCD, Filter0aRender, 7, 0x400, 0, 0.0f);"
+        },
+        {
+          "file": "upstream/re4/src/game/filter0b.cpp",
+          "line": 79,
+          "text": "AddOtDirect(0x12, (void*) 0xCDCDCDCD, Filter0bRender, 7, 0x400, 0, 0.0f);"
+        },
+        {
+          "file": "upstream/re4/src/game/mes.cpp",
+          "line": 57,
+          "text": "0xE5D9CFF0, 0x87CFA5FF, 0xCD7D5FFF, 0x87AFFFFF, 0xA55FFFFF,"
+        },
+        {
+          "file": "upstream/re4/src/lib/FSasync.c",
+          "line": 26,
+          "text": "#define PI_INTSR (*(volatile u32 *)0xCC003000)"
+        },
+        {
+          "file": "upstream/re4/src/lib/FSasync.c",
+          "line": 27,
+          "text": "#define EXI2_CSR (*(volatile u32 *)0xCC006828)"
+        },
+        {
+          "file": "upstream/re4/src/lib/FSasync.c",
+          "line": 28,
+          "text": "#define EXI2_CR (*(volatile u32 *)0xCC006834)"
+        },
+        {
+          "file": "upstream/re4/src/lib/dsp_task.c",
+          "line": 52,
+          "text": "DSPSendMailToDSP(0xCDD10003);"
+        },
+        {
+          "file": "upstream/re4/src/lib/dsp_task.c",
+          "line": 61,
+          "text": "DSPSendMailToDSP(0xCDD10001);"
+        },
+        {
+          "file": "upstream/re4/src/lib/dsp_task.c",
+          "line": 73,
+          "text": "DSPSendMailToDSP(0xCDD10003);"
+        },
+        {
+          "file": "upstream/re4/src/lib/dsp_task.c",
+          "line": 79,
+          "text": "DSPSendMailToDSP(0xCDD10001);"
+        }
+      ]
+    },
+    "sdk_module_link": {
+      "matching_lines": 6,
+      "examples": [
+        {
+          "file": "upstream/re4/src/game/main_sub.cpp",
+          "line": 550,
+          "text": "if (OSUnlink(&pModule->info) != 1) {"
+        },
+        {
+          "file": "upstream/re4/src/game/main_sub.cpp",
+          "line": 562,
+          "text": "if (OSLink(&pModule->info, pBss) != 1) {"
+        },
+        {
+          "file": "upstream/re4/src/lib/OSLink.c",
+          "line": 320,
+          "text": "BOOL OSLink(OSModuleInfo* newModule, void* bss) {"
+        },
+        {
+          "file": "upstream/re4/src/lib/OSLink.c",
+          "line": 428,
+          "text": "BOOL OSUnlink(OSModuleInfo* oldModule) {"
+        },
+        {
+          "file": "upstream/re4/include/dolphin/os/OSModule.h",
+          "line": 99,
+          "text": "BOOL OSLink(OSModuleInfo* newModule, void* bss);"
+        },
+        {
+          "file": "upstream/re4/include/dolphin/os/OSModule.h",
+          "line": 105,
+          "text": "BOOL OSUnlink(OSModuleInfo* oldModule);"
+        }
+      ]
+    }
+  },
+  "probes": [
+    {
+      "file": "type_probe.cpp",
+      "exit_code": 1,
+      "diagnostics": "<temporary>/type_probe.cpp:2:15: error: static assertion failed due to requirement 'sizeof(unsigned long) == 4': u32 must have 32 bits\n    2 | static_assert(sizeof(u32)==4,\"u32 must have 32 bits\");\n      |               ^~~~~~~~~~~~~~\n<temporary>/type_probe.cpp:2:26: note: expression evaluates to '8 == 4'\n    2 | static_assert(sizeof(u32)==4,\"u32 must have 32 bits\");\n      |               ~~~~~~~~~~~^~~\n1 error generated.\n"
+    },
+    {
+      "file": "rnd.cpp",
+      "exit_code": 0,
+      "diagnostics": ""
+    },
+    {
+      "file": "pad.cpp",
+      "exit_code": 1,
+      "diagnostics": "In file included from upstream/re4/src/game/pad.cpp:9:\nupstream/re4/include/math_sub.h:19:33: error: invalid output constraint '=f' in asm\n   19 |     asm volatile(\"fabs %0,%1\" : \"=f\"(r) : \"f\"(x));\n      |                                 ^\n1 error generated.\n"
+    },
+    {
+      "file": "read.cpp",
+      "exit_code": 1,
+      "diagnostics": "In file included from upstream/re4/src/game/read.cpp:4:\nIn file included from upstream/re4/include/atari.h:7:\nupstream/re4/include/cManager.h:9:14: error: 'operator new' takes type size_t ('unsigned long') as first parameter\n    9 | inline void* operator new(unsigned int, void* p) { return p; }\n      |              ^\nupstream/re4/include/cManager.h:26:13: error: no suitable member 'operator delete' in 'cUnit'\n   26 |     virtual ~cUnit() { be_flag &= ~0x601; }\n      |             ^\nupstream/re4/include/cManager.h:32:10: note: member 'operator delete' declared here\n   32 |     void operator delete(void*, unsigned int) {}\n      |          ^\nupstream/re4/include/cManager.h:359:19: error: use of undeclared identifier 'Debug_alloc'\n  359 |     pArray = (T*) Debug_alloc(size * n, 1);\n      |                   ^\nIn file included from upstream/re4/src/game/read.cpp:4:\nD:/Bio4/Prog/atari.h:61:7: error: deleted function '~cSat' cannot override a non-deleted function\n   61 | class cSat : public cUnit {\n      |       ^\nupstream/re4/include/cManager.h:26:13: note: overridden virtual function is here\n   26 |     virtual ~cUnit() { be_flag &= ~0x601; }\n      |             ^\nD:/Bio4/Prog/atari.h:61:7: note: virtual destructor requires an unambiguous, accessible 'operator delete'\n   61 | class cSat : public cUnit {\n      |       ^\nIn file included from upstream/re4/src/game/read.cpp:5:\nupstream/re4/include/light.h:193:13: error: no suitable member 'operator delete' in 'cLight'\n  193 |     virtual ~cLight() {}\n      |             ^\nupstream/re4/include/cManager.h:32:10: note: member 'operator delete' declared here\n   32 |     void operator delete(void*, unsigned int) {}\n      |          ^\nfatal error: too many errors emitted, stopping now [-ferror-limit=]\n6 errors generated.\n"
+    },
+    {
+      "file": "main.cpp",
+      "exit_code": 1,
+      "diagnostics": "In file included from upstream/re4/src/game/main.cpp:18:\nIn file included from upstream/re4/include/main_sub.h:5:\nIn file included from upstream/re4/include/gx.h:8:\nIn file included from upstream/re4/include/dolphin/vi/vitypes.h:4:\nIn file included from upstream/re4/include/dolphin/types.h:48:\nIn file included from <ANDROID_SDK>/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/../sysroot/usr/include/c++/v1/string.h:61:\n<ANDROID_SDK>/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/../sysroot/usr/include/string.h:53:16: error: conflicting types for 'memcpy'\n   53 | void* _Nonnull memcpy(void* _Nonnull, const void* _Nonnull, size_t);\n      |                ^\nupstream/re4/include/joy.h:47:18: note: previous declaration is here\n   47 | extern \"C\" void* memcpy(void* dst, const void* src, unsigned int n);\n      |                  ^\nIn file included from upstream/re4/src/game/main.cpp:21:\nIn file included from upstream/re4/include/atari.h:7:\nupstream/re4/include/cManager.h:9:14: error: 'operator new' takes type size_t ('unsigned long') as first parameter\n    9 | inline void* operator new(unsigned int, void* p) { return p; }\n      |              ^\nupstream/re4/include/cManager.h:26:13: error: no suitable member 'operator delete' in 'cUnit'\n   26 |     virtual ~cUnit() { be_flag &= ~0x601; }\n      |             ^\nupstream/re4/include/cManager.h:32:10: note: member 'operator delete' declared here\n   32 |     void operator delete(void*, unsigned int) {}\n      |          ^\nIn file included from upstream/re4/src/game/main.cpp:21:\nD:/Bio4/Prog/atari.h:61:7: error: deleted function '~cSat' cannot override a non-deleted function\n   61 | class cSat : public cUnit {\n      |       ^\nupstream/re4/include/cManager.h:26:13: note: overridden virtual function is here\n   26 |     virtual ~cUnit() { be_flag &= ~0x601; }\n      |             ^\nD:/Bio4/Prog/atari.h:61:7: note: virtual destructor requires an unambiguous, accessible 'operator delete'\n   61 | class cSat : public cUnit {\n      |       ^\nIn file included from upstream/re4/src/game/main.cpp:22:\nupstream/re4/include/light.h:193:13: error: no suitable member 'operator delete' in 'cLight'\n  193 |     virtual ~cLight() {}\n      |             ^\nupstream/re4/include/cManager.h:32:10: note: member 'operator delete' declared here\n   32 |     void operator delete(void*, unsigned int) {}\n      |          ^\nfatal error: too many errors emitted, stopping now [-ferror-limit=]\n6 errors generated.\n"
+    },
+    {
+      "file": "model.cpp",
+      "exit_code": 1,
+      "diagnostics": "In file included from upstream/re4/src/game/model.cpp:3:\nIn file included from upstream/re4/include/atari.h:7:\nupstream/re4/include/cManager.h:9:14: error: 'operator new' takes type size_t ('unsigned long') as first parameter\n    9 | inline void* operator new(unsigned int, void* p) { return p; }\n      |              ^\nupstream/re4/include/cManager.h:26:13: error: no suitable member 'operator delete' in 'cUnit'\n   26 |     virtual ~cUnit() { be_flag &= ~0x601; }\n      |             ^\nupstream/re4/include/cManager.h:32:10: note: member 'operator delete' declared here\n   32 |     void operator delete(void*, unsigned int) {}\n      |          ^\nupstream/re4/include/cManager.h:359:19: error: use of undeclared identifier 'Debug_alloc'\n  359 |     pArray = (T*) Debug_alloc(size * n, 1);\n      |                   ^\nIn file included from upstream/re4/src/game/model.cpp:3:\nD:/Bio4/Prog/atari.h:61:7: error: deleted function '~cSat' cannot override a non-deleted function\n   61 | class cSat : public cUnit {\n      |       ^\nupstream/re4/include/cManager.h:26:13: note: overridden virtual function is here\n   26 |     virtual ~cUnit() { be_flag &= ~0x601; }\n      |             ^\nD:/Bio4/Prog/atari.h:61:7: note: virtual destructor requires an unambiguous, accessible 'operator delete'\n   61 | class cSat : public cUnit {\n      |       ^\nIn file included from upstream/re4/src/game/model.cpp:4:\nupstream/re4/include/model.h:45:13: error: no suitable member 'operator delete' in 'cCoord'\n   45 |     virtual ~cCoord() {}\n      |             ^\nupstream/re4/include/cManager.h:32:10: note: member 'operator delete' declared here\n   32 |     void operator delete(void*, unsigned int) {}\n      |          ^\nfatal error: too many errors emitted, stopping now [-ferror-limit=]\n6 errors generated.\n"
+    }
+  ]
+}
