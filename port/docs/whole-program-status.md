@@ -422,7 +422,7 @@ Struktur-Größe auf 32 und 64 bit): `re4_core_reserve`, `re4_core_start`,
 (letzte 24 Log-Zeilen für das Overlay), für Tests `re4_core_start_entry`.
 Umgesetzt in `runtime/core_api.cpp` (in `libre4_main`).
 
-**Schnappschuss** (`Re4CoreSnapshot`, 466 996 Byte auf 32 und 64 bit): Spielschritt
+**Schnappschuss** (`Re4CoreSnapshot`, 467 008 Byte auf 32 und 64 bit): Spielschritt
 `Rno0..3`, Raum, Disc, Kamera aus `pG->Camera` (Augpunkt, Ziel, Rollwinkel,
 Öffnungswinkel; bei offenem Untermenü die Weltkamera `CamCtrl.camera`, denn
 `pG->Camera` ist dann die Kamera des Menüs), `screen` (Untermenü offen,
