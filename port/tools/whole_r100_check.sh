@@ -378,7 +378,8 @@ def summary(last):
           f"mit dem Raum zeichnet), {len(drawn) - len(unknown)} von {len(drawn)} übrigen mit bekannter "
           f"Modell-Herkunft auf der Disc; {last['parts']} Körperteile; Kamera {last['camera']}"
           + ("; Untermenü offen (Kamera = Weltkamera)" if screen & 1 else "") + ("; Ereignis läuft" if screen & 2 else "")
-          + (f"; {last['dropped']} Figuren über der Obergrenze" if last.get("dropped") else ""))
+          + (f"; {last['dropped']} Figuren über der Obergrenze" if last.get("dropped") else "")
+          + (f"; {last['droppedInfos']} Modellteile über der Obergrenze" if last.get("droppedInfos") else ""))
     def plain(src):
         # unknown sources carry their address: leave it out when grouping
         return re.sub(r"0x[0-9a-f]{6,8}|\+0x[0-9a-f]+", "…", src or "?")

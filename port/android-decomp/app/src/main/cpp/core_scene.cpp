@@ -53,8 +53,10 @@ void CopyCoreFrame(const Re4CoreSnapshot &s, CoreFrame &out) {
   out.fovy = s.cameraFovy;
   out.screen = s.screen;
   const auto models = std::min<unsigned>(s.nModels, RE4_CORE_MAX_MODELS);
+  const auto infos = std::min<unsigned>(s.nInfos, RE4_CORE_MAX_INFOS);
   const auto parts = std::min<unsigned>(s.nParts, RE4_CORE_MAX_PARTS);
   out.models.assign(s.models, s.models + models);
+  out.infos.assign(s.infos, s.infos + infos);
   out.parts.assign(s.parts, s.parts + parts);
 }
 
@@ -328,11 +330,11 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
       bind[i] = {p.bind[0], p.bind[1], p.bind[2]};
     }
     const std::array<float, 3> light{pose[0][3], pose[0][7] + 800, pose[0][11]};
-    for (unsigned k = 0; k < m.nInfos; ++k) {
+    for (unsigned k = 0; k < m.nInfos && std::size_t(m.firstInfo) + k < frame.infos.size(); ++k) {
       // the core cannot always name the source (a sub screen swaps memory
       // out for a while): the last source seen for the same data stays valid
-      Re4CoreModelInfo mi = m.infos[k];
-      const auto memoryKey = (std::uint64_t(m.address) << 3) | k;
+      Re4CoreModelInfo mi = frame.infos[m.firstInfo + k];
+      const auto memoryKey = (std::uint64_t(m.address) << 8) | k;
       auto &remembered = knownSources_[memoryKey];
       if (known(mi.bin) && known(mi.tpl)) {
         remembered = mi;

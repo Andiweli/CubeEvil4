@@ -202,14 +202,17 @@ int main() {
     model.beFlag = 1 | 2 | 4;
     model.nParts = 2;
     model.firstMatrix = 0;
+    model.firstInfo = 0;
     model.nInfos = 1;
     model.matrix[0] = model.matrix[5] = model.matrix[10] = 1;
-    model.infos[0].bin = bin;
-    model.infos[0].tpl = tpl;
-    model.infos[0].flags = 8;  // drawn (cModelInfo::be_flag)
-    model.infos[0].rigidPart = -1;
-    model.infos[0].matrix[0] = model.infos[0].matrix[5] = model.infos[0].matrix[10] = 1;
+    Re4CoreModelInfo info{};
+    info.bin = bin;
+    info.tpl = tpl;
+    info.flags = 8;  // drawn (cModelInfo::be_flag)
+    info.rigidPart = -1;
+    info.matrix[0] = info.matrix[5] = info.matrix[10] = 1;
     frame.models = {model};
+    frame.infos = {info};
     frame.parts.assign(2, Re4CorePart{});
     for (auto &p : frame.parts) p.matrix[0] = p.matrix[5] = p.matrix[10] = 1;
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
@@ -251,21 +254,21 @@ int main() {
     // a model without a known source is counted as missing (other data than
     // the source remembered for it)
     frame.models[0].beFlag = 1 | 2 | 4;
-    std::memset(&frame.models[0].infos[0].bin, 0, sizeof(Re4CoreSource));
-    frame.models[0].infos[0].bin.entry = -1;
-    frame.models[0].infos[0].binAddress = 0x82FF0000u;
+    std::memset(&frame.infos[0].bin, 0, sizeof(Re4CoreSource));
+    frame.infos[0].bin.entry = -1;
+    frame.infos[0].binAddress = 0x82FF0000u;
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
     require(scene.status().find("drawn 0, missing 1") != std::string::npos, "unknown source missing");
 
     // nested and packed sources are drawn; scenery is left to the room scene
     frame.eye = {-3000, 900, -600};
-    frame.models[0].infos[0].bin = inner;
-    setSource(frame.models[0].infos[0].tpl, "em/em98.drs", 0x400, unsigned(archive2.size()), 1);
+    frame.infos[0].bin = inner;
+    setSource(frame.infos[0].tpl, "em/em98.drs", 0x400, unsigned(archive2.size()), 1);
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
     std::fprintf(stderr, "status: %s\n", scene.status().c_str());
     require(scene.status().find("drawn 1, missing 0") != std::string::npos, "nested source drawn");
-    setSource(frame.models[0].infos[0].bin, "st1/r100.das", 0xFFFFFFFFu, 0, 2);
-    setSource(frame.models[0].infos[0].tpl, "st1/r100.das", 0xFFFFFFFFu, 0, 3);
+    setSource(frame.infos[0].bin, "st1/r100.das", 0xFFFFFFFFu, 0, 2);
+    setSource(frame.infos[0].tpl, "st1/r100.das", 0xFFFFFFFFu, 0, 3);
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
     require(scene.status().find("drawn 1, missing 0") != std::string::npos, "packed room source drawn");
     frame.models[0].manager = 1;
@@ -279,42 +282,42 @@ int main() {
 
     // an event model: data at an offset of the event file
     frame.screen = 0;
-    setSource(frame.models[0].infos[0].bin, "evd/r100s00.evd", 0x400, unsigned(eventPart.size()), -2);
-    frame.models[0].infos[0].bin.innerOffset = 0x100;
-    setSource(frame.models[0].infos[0].tpl, "evd/r100s00.evd", 0x400, unsigned(eventPart.size()), -2);
-    frame.models[0].infos[0].tpl.innerOffset = tplOffset;
-    require(re4::ReadCoreSource(root, 0, frame.models[0].infos[0].bin).size() == eventPart.size() - 0x100,
+    setSource(frame.infos[0].bin, "evd/r100s00.evd", 0x400, unsigned(eventPart.size()), -2);
+    frame.infos[0].bin.innerOffset = 0x100;
+    setSource(frame.infos[0].tpl, "evd/r100s00.evd", 0x400, unsigned(eventPart.size()), -2);
+    frame.infos[0].tpl.innerOffset = tplOffset;
+    require(re4::ReadCoreSource(root, 0, frame.infos[0].bin).size() == eventPart.size() - 0x100,
             "event file data from its offset");
     frame.models[0].address = 0x82002000u;
-    frame.models[0].infos[0].binAddress = 0x82100100u;
-    frame.models[0].infos[0].tplAddress = 0x82100100u + tplOffset - 0x100;
+    frame.infos[0].binAddress = 0x82100100u;
+    frame.infos[0].tplAddress = 0x82100100u + tplOffset - 0x100;
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
     require(scene.status().find("drawn 1, missing 0") != std::string::npos, "event file model drawn");
     // the core loses the source (memory swapped out): the same data is still drawn
-    std::memset(&frame.models[0].infos[0].bin, 0, sizeof(Re4CoreSource));
-    std::memset(&frame.models[0].infos[0].tpl, 0, sizeof(Re4CoreSource));
-    frame.models[0].infos[0].bin.entry = frame.models[0].infos[0].tpl.entry = -1;
+    std::memset(&frame.infos[0].bin, 0, sizeof(Re4CoreSource));
+    std::memset(&frame.infos[0].tpl, 0, sizeof(Re4CoreSource));
+    frame.infos[0].bin.entry = frame.infos[0].tpl.entry = -1;
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
     require(scene.status().find("drawn 1, missing 0") != std::string::npos, "last known source kept");
-    frame.models[0].infos[0].binAddress += 0x20;  // other data: not the remembered source
+    frame.infos[0].binAddress += 0x20;  // other data: not the remembered source
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
     require(scene.status().find("drawn 0, missing 1") != std::string::npos, "other data not mistaken");
 
     // the infos as the game draws them
     frame.eye = {-3000, 900, -600};
     frame.models[0].address = 0x82003000u;
-    frame.models[0].infos[0].binAddress = 0x82200000u;
-    frame.models[0].infos[0].bin = bin;
-    frame.models[0].infos[0].tpl = tpl;
-    frame.models[0].infos[0].flags = 0;  // hidden by the game
+    frame.infos[0].binAddress = 0x82200000u;
+    frame.infos[0].bin = bin;
+    frame.infos[0].tpl = tpl;
+    frame.infos[0].flags = 0;  // hidden by the game
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
     require(scene.status().find("drawn 0, missing 0") != std::string::npos, "hidden info not drawn");
-    frame.models[0].infos[0].flags = 8;
+    frame.infos[0].flags = 8;
     // a rigid model (one part, no weights) hung on part 1: it follows part 1, not part 0
-    setSource(frame.models[0].infos[0].bin, "em/em97.drs", 0x400, unsigned(archive3.size()), 0);
-    setSource(frame.models[0].infos[0].tpl, "em/em97.drs", 0x400, unsigned(archive3.size()), 1);
-    frame.models[0].infos[0].binAddress = 0x82300000u;
-    frame.models[0].infos[0].rigidPart = 1;
+    setSource(frame.infos[0].bin, "em/em97.drs", 0x400, unsigned(archive3.size()), 0);
+    setSource(frame.infos[0].tpl, "em/em97.drs", 0x400, unsigned(archive3.size()), 1);
+    frame.infos[0].binAddress = 0x82300000u;
+    frame.infos[0].rigidPart = 1;
     frame.eye = {0, 6000, -3000};
     frame.target = {0, 0, 0};
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
@@ -332,10 +335,24 @@ int main() {
                  changes(rigidRest, partMoved));
     require(changes(rigidRest, rootMoved) == 0 && changes(rigidRest, partMoved) > 20, "rigid info on its part");
     // the info's own matrix moves it as well
-    frame.models[0].infos[0].matrix[3] = 1500;
+    frame.infos[0].matrix[3] = 1500;
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
     require(changes(rigidRest, pixels()) > 20, "info matrix applied");
-    frame.models[0].infos[0].matrix[3] = 0;
+    frame.infos[0].matrix[3] = 0;
+    // every info of every model (Leon has nine: the hair is the sixth), the
+    // models' infos side by side in one list
+    frame.infos.assign(9, frame.infos[0]);
+    frame.models[0].nInfos = 9;
+    frame.models.push_back(frame.models[0]);
+    frame.models[1].address = 0x82004000u;
+    frame.models[1].firstInfo = 8;
+    frame.models[1].nInfos = 1;
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    std::fprintf(stderr, "status: %s\n", scene.status().c_str());
+    require(scene.status().find("drawn 10, missing 0") != std::string::npos, "all infos of all models drawn");
+    frame.models.resize(1);
+    frame.infos.resize(1);
+    frame.models[0].nInfos = 1;
 
     std::string cleanup = "rm -rf '" + root + "'";
     if (std::system(cleanup.c_str()) != 0) std::fprintf(stderr, "cleanup failed\n");

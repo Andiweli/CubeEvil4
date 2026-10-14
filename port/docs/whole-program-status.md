@@ -415,25 +415,26 @@ PowerShell 7 durchgespielt.
    Zurück fragt „End the game?“ und beendet den Prozess (der Kern lässt sich
    im selben Prozess nicht neu starten).
 
-**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 4, reines C, gleiche
+**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 5, reines C, gleiche
 Struktur-Größe auf 32 und 64 bit): `re4_core_reserve`, `re4_core_start`,
 `re4_core_state` (idle/running/ended/failed), `re4_core_message`,
 `re4_core_pad`, `re4_core_acquire`/`re4_core_release`, `re4_core_log_tail`
 (letzte 24 Log-Zeilen für das Overlay), für Tests `re4_core_start_entry`.
 Umgesetzt in `runtime/core_api.cpp` (in `libre4_main`).
 
-**Schnappschuss** (`Re4CoreSnapshot`, 467 008 Byte auf 32 und 64 bit): Spielschritt
+**Schnappschuss** (`Re4CoreSnapshot`, 468 040 Byte auf 32 und 64 bit): Spielschritt
 `Rno0..3`, Raum, Disc, Kamera aus `pG->Camera` (Augpunkt, Ziel, Rollwinkel,
 Öffnungswinkel; bei offenem Untermenü die Weltkamera `CamCtrl.camera`, denn
 `pG->Camera` ist dann die Kamera des Menüs), `screen` (Untermenü offen,
 Ereignis, Debug-Kamera), bis 256 Modelle aus `EmMgr` (Gegner) und `ObjMgr` (Objekte):
 lebend (`be_flag & 0x201 == 1`), Zeichen-Bits `2|4`, Weltmatrix, je Teil die
 Weltmatrix `cParts::mat` und die Bindung (−`lt_inv_mat`-Verschiebung), bis
-4096 Teile. Für jede Modell-Info (`pModelInfo`) die Herkunft der BIN- und
+4096 Teile. Für jede Modell-Info (`pModelInfo`; alle Infos aller Modelle in
+einer gemeinsamen Liste, bis 1024, Leon allein hat neun) die Herkunft der BIN- und
 TPL-Daten auf der Disc (Datei, Archiv-Offset, Eintrag) und wie das Spiel
 sie zeichnet (`trans.cpp commonModelTrans`): nur mit `be_flag & 8`; ein
 starres Modell (ein Teil, keine Gewichte) hängt an `pHead->partsNo` mit
-seinen Punkten im Raum dieses Teils (Leons Haare am Kopf); dazu die eigene
+seinen Punkten im Raum dieses Teils (z. B. Waffen in der Hand); dazu die eigene
 Matrix der Modell-Info. Die Formatumwandler
 merken sich beim Laden jedes Archiv und jeden Eintrag
 (`re4_formats_locate`; bis 1024 Archive und 65 536 Einträge, vorher 64
@@ -633,6 +634,26 @@ Gerätelauf, Bilder mit echten Disc-Daten.
   em12. Patch 0028 meldet den Tausch, die Herkunftsangaben wandern mit
   (Test `core-test bridge`).
 
+### Siebter lokaler Lauf und erster Gerätelauf (14.10.2026)
+
+- PC-Prüfung **ALLES OK**. Bild 651 (Anfangsszene im Polizeiauto): die
+  Polizisten jetzt mit Köpfen (Patch 0028 wirkt).
+- Leons Haare: Die Brücke gab je Figur nur die ersten **4** Modell-Infos
+  weiter. Leon hat neun (`cPlLeon::setModel`: Körper, Kostüm, Messer,
+  Gesicht, Kopf, Haare, dazu Gesicht/Hände aus `setFace`/`setRightHand`/
+  `setLeftHand`); Kopf, Haare und Hände fielen weg. Jetzt liegen alle Infos
+  aller Modelle in einer gemeinsamen Liste (`Re4CoreSnapshot::infos`, bis
+  1024, Zähler `droppedInfos`; Version 5). Tests: `core-test bridge` mit einer
+  Figur aus neun Infos, `core_scene_gl_check` (53 Prüfungen: alle Infos von
+  zwei Modellen gezeichnet).
+- Gerät (Retroid, App „RE4 Kern“): APK gebaut (Java 21 aus Android Studio),
+  installiert, Kern geladen, MEM1 reserviert. Das Spiel startete nicht, weil
+  Disc 1 in der neuen App noch nicht importiert war; der Import, den der
+  Projektinhaber während des Laufs begann, wurde abgebrochen, weil das
+  Skript die App nach 120 s beendet. `test-core-app.ps1` wartet jetzt auf
+  den fertigen Import (Fortschritt in MB, höchstens `-ImportMinutes`,
+  Standard 45) und beendet die App währenddessen nicht.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -649,7 +670,9 @@ Gerätelauf, Bilder mit echten Disc-Daten.
    Test-Tastenfolge starten (`-Manual`: Titelbild, selbst spielen),
    Bildschirmfotos bei 15, 40, 70, 95 … s, Protokoll (`logcat` der App ab
    Startzeit), App beenden. Bericht `Desktop\RE4-Kern-App\bericht.txt`.
-   Vorher in der App „RE4 Kern“ beide Discs importieren.
+   Fehlt Disc 1 in der App „RE4 Kern“ (eigener Datenordner, ein Import der
+   bisherigen App zählt nicht), startet das Skript die App, bittet um den
+   Import und wartet darauf, ohne die App zu beenden.
 
 Ziel des Gerätetests: Titelbild sichtbar, r100 mit Originalablauf (Ereignis
 s03, Tor, Hinterhalt). Grenzen dieses Stands: Effekte, Partikel, Schrift,

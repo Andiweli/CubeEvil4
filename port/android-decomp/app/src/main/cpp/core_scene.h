@@ -36,6 +36,7 @@ struct CoreFrame {
   float roll{}, fovy{};
   std::uint32_t screen{};  // RE4_CORE_SCREEN_*
   std::vector<Re4CoreModel> models;
+  std::vector<Re4CoreModelInfo> infos;  // Re4CoreModel::firstInfo / nInfos
   std::vector<Re4CorePart> parts;
 };
 void CopyCoreFrame(const Re4CoreSnapshot &snapshot, CoreFrame &out);

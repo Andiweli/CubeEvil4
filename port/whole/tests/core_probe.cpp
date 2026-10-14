@@ -33,7 +33,7 @@ void setMatrix(Mtx m, float tx, float ty, float tz)
 
 }  // namespace
 
-// `mem`: zeroed scratch memory in MEM1 (at least 0x4000 bytes), `bin` and `tpl`
+// `mem`: zeroed scratch memory in MEM1 (at least 0x6000 bytes), `bin` and `tpl`
 // the addresses of two converted archive entries.
 extern "C" void re4probe_core_setup(void* mem, void* bin, void* tpl)
 {
@@ -71,7 +71,19 @@ extern "C" void re4probe_core_setup(void* mem, void* bin, void* tpl)
     rigid->tpl_addr = tpl;
     rigid->be_flag = 8;
     setMatrix(rigid->mat, 0.0f, 5.0f, 0.0f);
-    rigid->pList = 0;
+    // seven more skinned infos like Leon's (nine in all: body, costume, knife,
+    // face, head, hair, hands); the last one with the hair's be_flag 0x40
+    cModelInfo* last = rigid;
+    for (int i = 0; i < 7; i++) {
+        cModelInfo* more = (cModelInfo*) (base + 0x4000 + i * 0x400);
+        more->model_addr = (cModelData*) bin;
+        more->tpl_addr = tpl;
+        more->be_flag = i == 6 ? 0x48 : 8;
+        setMatrix(more->mat, 0.0f, 0.0f, 0.0f);
+        more->pList = 0;
+        last->pList = more;
+        last = more;
+    }
     em->pModelInfo = info;
 
     gSavedArray = EmMgr.pArray;

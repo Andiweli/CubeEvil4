@@ -310,12 +310,17 @@ void testBridge()
         CHECK(near(p.matrix[0], 1.0f) && near(p.matrix[7], 10.0f * (i + 1)));
         CHECK(near(p.bind[0], 0.0f) && near(p.bind[1], 10.0f * (i + 1)) && near(p.bind[2], 0.0f));
     }
-    CHECK(m.nInfos == 2 && m.infos[0].binAddress == 0x82000020u && m.infos[0].tplAddress == 0x82000040u);
+    // all nine infos (Leon has nine; the hair is the sixth)
+    CHECK(m.firstInfo == 0 && m.nInfos == 9 && gSnap.nInfos == 9 && gSnap.droppedInfos == 0);
+    const Re4CoreModelInfo* mi = gSnap.infos + m.firstInfo;
+    CHECK(mi[0].binAddress == 0x82000020u && mi[0].tplAddress == 0x82000040u);
     // how the game draws the infos: the first skinned, the second rigid on parts 1
-    CHECK(m.infos[0].flags == 8 && m.infos[0].rigidPart == -1 && near(m.infos[0].matrix[0], 1.0f));
-    CHECK(m.infos[1].flags == 8 && m.infos[1].rigidPart == 1 && near(m.infos[1].matrix[7], 5.0f));
-    CHECK(strcmp(m.infos[0].bin.file, "em/em99.drs") == 0 && m.infos[0].bin.entry == 0 &&
-          m.infos[0].tpl.entry == 1 && m.infos[0].tpl.fileOffset == 0x400);
+    CHECK(mi[0].flags == 8 && mi[0].rigidPart == -1 && near(mi[0].matrix[0], 1.0f));
+    CHECK(mi[1].flags == 8 && mi[1].rigidPart == 1 && near(mi[1].matrix[7], 5.0f));
+    CHECK(strcmp(mi[0].bin.file, "em/em99.drs") == 0 && mi[0].bin.entry == 0 &&
+          mi[0].tpl.entry == 1 && mi[0].tpl.fileOffset == 0x400);
+    CHECK(mi[8].flags == 0x48 && mi[8].rigidPart == -1 && mi[8].binAddress == 0x82000020u &&
+          strcmp(mi[8].tpl.file, "em/em99.drs") == 0);
     report("bridge", ok);
 }
 

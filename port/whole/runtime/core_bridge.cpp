@@ -85,9 +85,17 @@ void captureModel(Re4CoreSnapshot* s, cModel* m, u8 manager)
         out.nParts++;
         p = p->pList;
     }
+    out.firstInfo = s->nInfos;
     cModelInfo* info = m->pModelInfo;
-    while (inMem1(info) && out.nInfos < RE4_CORE_MAX_INFOS) {
-        Re4CoreModelInfo& mi = out.infos[out.nInfos++];
+    // a guard against a broken (cyclic) list: no model has nearly 255 infos
+    for (u32 guard = 0; inMem1(info) && guard < 4096; guard++, info = info->pList) {
+        if (s->nInfos >= RE4_CORE_MAX_INFOS || out.nInfos == 0xFF) {
+            s->droppedInfos++;
+            continue;
+        }
+        Re4CoreModelInfo& mi = s->infos[s->nInfos++];
+        out.nInfos++;
+        memset(&mi, 0, sizeof(mi));
         mi.binAddress = (u32) (unsigned long) info->model_addr;
         mi.tplAddress = (u32) (unsigned long) info->tpl_addr;
         mi.flags = info->be_flag;
@@ -103,7 +111,6 @@ void captureModel(Re4CoreSnapshot* s, cModel* m, u8 manager)
         }
         re4_formats_locate(info->model_addr, &mi.bin);
         re4_formats_locate(info->tpl_addr, &mi.tpl);
-        info = info->pList;
     }
     s->nModels++;
 }
@@ -135,6 +142,8 @@ extern "C" void re4_bridge_capture(Re4CoreSnapshot* s)
     s->nModels = 0;
     s->nParts = 0;
     s->droppedModels = 0;
+    s->nInfos = 0;
+    s->droppedInfos = 0;
     s->cameraValid = 0;
     s->screen = 0;
     s->disc = (int8_t) re4_dvd_inserted_disc();

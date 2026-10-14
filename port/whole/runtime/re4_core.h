@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define RE4_CORE_API_VERSION 4
+#define RE4_CORE_API_VERSION 5
 
 enum Re4CoreState {
     RE4_CORE_IDLE = 0,     /* not started */
@@ -73,7 +73,9 @@ typedef struct Re4CoreModelInfo {
     float matrix[12];    /* cModelInfo::mat, row-major 3x4 */
 } Re4CoreModelInfo;
 
-#define RE4_CORE_MAX_INFOS 4
+/* All infos of all models, in the game's list order (cModel::pModelInfo):
+ * Leon alone has nine (body, costume, knife, face, head, hair, hands ...). */
+#define RE4_CORE_MAX_INFOS 1024
 
 /* A drawable model of the game (cModel): every live work of the enemy and
  * object managers, the player included. */
@@ -82,11 +84,12 @@ typedef struct Re4CoreModel {
     uint32_t beFlag;       /* cUnit::be_flag; drawn when (beFlag & 6) == 6 */
     uint8_t manager;       /* 0 EmMgr (player, partner, enemies), 1 ObjMgr */
     uint8_t id, type;      /* cModel::id / type */
-    uint8_t nInfos;
+    uint8_t nInfos;        /* Re4CoreSnapshot::infos[firstInfo ..] */
     uint16_t firstMatrix;  /* into Re4CoreSnapshot::parts */
     uint16_t nParts;
+    uint16_t firstInfo;    /* into Re4CoreSnapshot::infos */
+    uint16_t reserved;
     float matrix[12];      /* cModel::mat, row-major 3x4 (world placement) */
-    Re4CoreModelInfo infos[RE4_CORE_MAX_INFOS];
 } Re4CoreModel;
 
 /* Pose of one cParts: world matrix and bind position (the translation that
@@ -122,7 +125,11 @@ typedef struct Re4CoreSnapshot {
     uint16_t nParts;
     uint32_t droppedModels;  /* models beyond the budget */
     uint32_t screen;         /* RE4_CORE_SCREEN_* */
+    uint16_t nInfos;
+    uint16_t reserved;
+    uint32_t droppedInfos;   /* infos beyond the budget (or beyond 255 of one model) */
     Re4CoreModel models[RE4_CORE_MAX_MODELS];
+    Re4CoreModelInfo infos[RE4_CORE_MAX_INFOS];
     Re4CorePart parts[RE4_CORE_MAX_PARTS];
 } Re4CoreSnapshot;
 

@@ -113,19 +113,20 @@ void dumpHook(unsigned frame)
     fprintf(f, "{\"frame\":%u,\"Rno0\":%u,\"room\":\"0x%03x\",\"camera\":[%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.3f,%.1f]",
             frame, (unsigned) s->rno[0], (unsigned) s->room, s->cameraEye[0], s->cameraEye[1], s->cameraEye[2],
             s->cameraTarget[0], s->cameraTarget[1], s->cameraTarget[2], s->cameraRoll, s->cameraFovy);
-    fprintf(f, ",\"screen\":%u,\"parts\":%u,\"dropped\":%u,\"models\":[", (unsigned) s->screen,
-            (unsigned) s->nParts, (unsigned) s->droppedModels);
+    fprintf(f, ",\"screen\":%u,\"parts\":%u,\"dropped\":%u,\"droppedInfos\":%u,\"models\":[", (unsigned) s->screen,
+            (unsigned) s->nParts, (unsigned) s->droppedModels, (unsigned) s->droppedInfos);
     for (unsigned i = 0; i < s->nModels; i++) {
         const Re4CoreModel& m = s->models[i];
         fprintf(f, "%s{\"mgr\":%u,\"id\":\"0x%02x\",\"type\":%u,\"drawn\":%d,\"parts\":%u,\"pos\":[%.1f,%.1f,%.1f],\"infos\":[",
                 i ? "," : "", (unsigned) m.manager, (unsigned) m.id, (unsigned) m.type, (m.beFlag & 6) == 6,
                 (unsigned) m.nParts, m.matrix[3], m.matrix[7], m.matrix[11]);
-        for (unsigned k = 0; k < m.nInfos; k++) {
+        for (unsigned k = 0; k < m.nInfos && m.firstInfo + k < s->nInfos; k++) {
+            const Re4CoreModelInfo& mi = s->infos[m.firstInfo + k];
             fprintf(f, "%s{\"bin\":", k ? "," : "");
-            dumpSource(f, m.infos[k].bin, m.infos[k].binAddress);
+            dumpSource(f, mi.bin, mi.binAddress);
             fprintf(f, ",\"tpl\":");
-            dumpSource(f, m.infos[k].tpl, m.infos[k].tplAddress);
-            fprintf(f, ",\"shown\":%d,\"rigid\":%d}", (m.infos[k].flags & 8) != 0, (int) m.infos[k].rigidPart);
+            dumpSource(f, mi.tpl, mi.tplAddress);
+            fprintf(f, ",\"shown\":%d,\"rigid\":%d}", (mi.flags & 8) != 0, (int) mi.rigidPart);
         }
         fprintf(f, "]}");
     }
