@@ -209,21 +209,66 @@ void convertEffect(Blob& b, const Part&)
             convertPath(b, h[kPaths] + offs[i]);
         }
     }
-    // Effect models (EffEfmEnt: x0, offsets of model, TPL, motion table and
-    // shape header from the entry).
+    // Effect models (eff_sys.cpp EffEfmEnt: x0, offsets of the BIN model, the
+    // TPL, the motion table (EspEfmMotTbl: u32 count, offsets of MotionData
+    // from the table) and the shape header, from the entry).
     n = convertOfsTable(b, h[kObjs], offs, 1024);
-    static bool modelReported;
+    static bool shapeReported;
+    u32 starts[4096];
+    u32 nStarts = 0;
+    for (u32 i = 0; i < kEffWords; i++) {
+        starts[nStarts++] = h[i];
+    }
+    for (u32 i = 0; i < n; i++) {
+        u32 e = h[kObjs] + offs[i];
+        if (fits(b, e, 20, "EffEfmEnt") && nStarts + 5 <= 4096) {
+            starts[nStarts++] = e;
+            for (u32 k = 1; k < 5; k++) {
+                u32 o = be32(b, e + k * 4);
+                if (o) {
+                    starts[nStarts++] = e + o;
+                }
+            }
+        }
+    }
     for (u32 i = 0; i < n && b.ok; i++) {
         u32 e = h[kObjs] + offs[i];
         if (!seen.first(e) || !fits(b, e, sizeof(u32) * 5, "EffEfmEnt")) {
             continue;
         }
+        u32 model = be32(b, e + 4);
         u32 tpl = be32(b, e + 8);
+        u32 mot = be32(b, e + 12);
+        u32 shape = be32(b, e + 16);
         swap32(b, e, 5);
+        if (model && seen.first(e + model)) {
+            u32 end = b.size;
+            for (u32 k = 0; k < nStarts; k++) {
+                if (starts[k] > e + model && starts[k] < end) {
+                    end = starts[k];
+                }
+            }
+            convertBinAt(b, e + model, end);
+        }
         if (tpl && seen.first(e + tpl)) {
             convertTplAt(b, e + tpl);
         }
-        reportOnce(modelReported, "effect model, motion and shape data", b.name);
+        if (mot && seen.first(e + mot) && fits(b, e + mot, 4, "EspEfmMotTbl")) {
+            u32 t = e + mot;
+            u32 count = be32(b, t);
+            if (fits(b, t + 4, count * 4, "EspEfmMotTbl offsets")) {
+                for (u32 k = 0; k < count && b.ok; k++) {
+                    u32 m = t + be32(b, t + 4 + k * 4);
+                    if (seen.first(m)) {
+                        convertMotionAt(b, m);
+                    }
+                }
+                swap32(b, t, 1 + count);
+            }
+        }
+        if (shape) {
+            reportOnce(shapeReported, "effect model shape header", b.name);
+        }
     }
 }
 

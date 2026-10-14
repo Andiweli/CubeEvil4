@@ -1,0 +1,19 @@
+--- a/src/game/title.cpp
++++ b/src/game/title.cpp
+@@ -1343,6 +1343,8 @@
+ // (debug menu picks otherwise), a load restores the save (CardLoad, System_flg 0x100 continue),
+ // Ada / Mercenaries start at their rooms with the chosen character / stage; sets the new-game
+ // flag (System_flg 0x2000), the next position and chains into GameTask.
++extern "C" void re4_debug_start_room(unsigned short* room_id); /* port: runtime/dolphin_os.cpp */
++
+ void titleExit(TITLE_WORK* w)
+ {
+     if (!SysFlagChk(pG, SYS_OMAKE_ADA_GAME)) {
+@@ -1355,6 +1357,7 @@
+         if (!SysFlagChk(pG, SYS_OMAKE_ADA_GAME)) {
+             if (!SysFlagChk(pG, SYS_OMAKE_ETC_GAME)) {
+                 pRj = new cRoomJmp(roomInfoAddr);
++                re4_debug_start_room(&pG->room_id); /* port: RE4_START_ROOM preselects the room */
+                 w->Stage = pG->stage_no;
+                 w->Room[w->Stage] = pRj->getRoomIdx(pG->stage_no, pG->room_no);
+                 w->JumpPoint = pG->JumpPoint;

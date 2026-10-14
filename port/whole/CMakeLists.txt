@@ -146,6 +146,13 @@ target_link_libraries(re4_formats_obj PRIVATE re4_game_flags)
 target_include_directories(re4_formats_obj PRIVATE runtime runtime/formats)
 string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_formats_obj>\n")
 
+# Port code that reads the game's own state, compiled as game code into
+# libre4_main: the per-frame state trace (RE4_TRACE).
+add_library(re4_gamehooks_obj OBJECT runtime/state_trace.cpp)
+target_link_libraries(re4_gamehooks_obj PRIVATE re4_game_flags)
+target_include_directories(re4_gamehooks_obj PRIVATE runtime)
+string(APPEND RE4_LINK_OBJECTS "main=$<TARGET_OBJECTS:re4_gamehooks_obj>\n")
+
 # Toolchain-runtime replacements that belong to the game code (libre4_main):
 # the SN constructor lists, GCC 2.95 allocation names, the game heap for modules.
 add_library(re4_glue_obj OBJECT
@@ -221,8 +228,8 @@ endforeach()
 set(RE4_GEN "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/link_objects.txt" CONTENT "${RE4_LINK_OBJECTS}")
 set(RE4_GEN_FILES "${RE4_GEN}/stubs.cpp" "${RE4_GEN}/modules.cpp" "${RE4_GEN}/link_report.json")
-set(RE4_OBJ_DEPS re4_main_obj re4_platform_obj re4_formats_obj re4_glue_obj re4_sdk_obj re4_reuse_obj
-    "$<TARGET_OBJECTS:re4_main_obj>" "$<TARGET_OBJECTS:re4_platform_obj>" "$<TARGET_OBJECTS:re4_formats_obj>"
+set(RE4_OBJ_DEPS re4_main_obj re4_gamehooks_obj re4_platform_obj re4_formats_obj re4_glue_obj re4_sdk_obj re4_reuse_obj
+    "$<TARGET_OBJECTS:re4_main_obj>" "$<TARGET_OBJECTS:re4_gamehooks_obj>" "$<TARGET_OBJECTS:re4_platform_obj>" "$<TARGET_OBJECTS:re4_formats_obj>"
     "$<TARGET_OBJECTS:re4_glue_obj>" "$<TARGET_OBJECTS:re4_sdk_obj>" "$<TARGET_OBJECTS:re4_reuse_obj>")
 foreach(mod IN LISTS RE4_MODULES)
     list(APPEND RE4_GEN_FILES "${RE4_GEN}/imports/${mod}.cpp" "${RE4_GEN}/imports/${mod}.S")
@@ -268,6 +275,7 @@ endif()
 # --- libre4_main ------------------------------------------------------------------
 add_library(re4_main SHARED
     $<TARGET_OBJECTS:re4_main_obj>
+    $<TARGET_OBJECTS:re4_gamehooks_obj>
     $<TARGET_OBJECTS:re4_glue_obj>
     "${RE4_GEN}/stubs.cpp")
 add_dependencies(re4_main re4_link_plan)

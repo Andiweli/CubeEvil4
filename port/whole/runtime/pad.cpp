@@ -140,8 +140,20 @@ void PADSetAnalogMode(u32) {}
 void PADClamp(PADStatus*) {}
 void PADControlMotor(long, u32) {}
 
+// Per-frame observers (the state trace, runtime/state_trace.cpp), called
+// once per game frame with the frame number.
+static void (*g_frameHook)(unsigned);
+
+void re4_set_frame_hook(void (*hook)(unsigned))
+{
+    g_frameHook = hook;
+}
+
 u32 PADRead(PADStatus* status)
 {
+    if (g_frameHook) {
+        g_frameHook(gFrame);
+    }
     memset(status, 0, 4 * sizeof(PADStatus));
     status[0].button = scriptButtons(gFrame);
     if (status[0].button) {

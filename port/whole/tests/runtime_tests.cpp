@@ -14,6 +14,8 @@
 //          quantised loads/stores, the CalcSk1 skinning loops with GQR6);
 //          EmRoutineSetW (patch 0023), the big-endian views and the length
 //          of __FILE__ (tests/game_probe.cpp, compiled as game code)
+//   trace  the per-frame state trace (RE4_TRACE, runtime/state_trace.cpp)
+//          through PADRead, and the coverage log of GetDataExt (patch 0025)
 //   tasks  the game's own task scheduler (scheduler.cpp: TaskExec, TaskSleep,
 //          TaskExit, iTaskExec) on the OS thread emulation, plus VI retraces
 #include "re4_runtime.h"
@@ -22,6 +24,7 @@
 #include "yz2_fixtures.h"
 
 #include <dlfcn.h>
+#include <unistd.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -823,6 +826,52 @@ static void testMath()
     report("math", ok);
 }
 
+// --- state trace and coverage log ------------------------------------------------
+
+extern "C" int re4_state_trace_open(const char* path);
+struct TestPadStatus {  // dolphin/pad.h PADStatus
+    unsigned short button;
+    signed char stickX, stickY, substickX, substickY;
+    unsigned char triggerL, triggerR, analogA, analogB;
+    signed char err;
+};
+extern "C" unsigned long PADRead(TestPadStatus* status);
+void* GetDataExt(void* arc, const char* tag, int no);
+
+static void testTrace()
+{
+    bool ok = true;
+    char path[] = "/tmp/re4-trace-test-XXXXXX";
+    int fd = mkstemp(path);
+    CHECK(fd >= 0);
+    if (fd >= 0) {
+        close(fd);
+    }
+    CHECK(re4_state_trace_open(path) == 1);
+    TestPadStatus pads[4];
+    PADRead(pads);
+    PADRead(pads);
+    re4_state_trace_open(0);
+    FILE* f = fopen(path, "r");
+    char line[4096] = "";
+    int lines = 0;
+    while (f && fgets(line, sizeof(line), f)) {
+        lines++;
+        CHECK(strncmp(line, "{\"frame\":", 9) == 0 && strstr(line, "\"Rno0\":") && strstr(line, "\"room\":\"0x") &&
+              strstr(line, "\"em\":[") && line[strlen(line) - 2] == '}');
+    }
+    if (f) {
+        fclose(f);
+    }
+    CHECK(lines == 2);
+    unlink(path);
+    // GetDataExt on a host-order archive: one entry "CNS", one "SMD"
+    unsigned arc[8] = {2, 0, 0, 0, 0x18, 0x1C, 0, 0};
+    memcpy(&arc[6], "CNS\0SMD\0", 8);
+    CHECK(GetDataExt(arc, "SMD", 0) == (char*) arc + 0x1C && GetDataExt(arc, "LIT", 0) == 0);
+    report("trace", ok);
+}
+
 int re4_runtime_tests()
 {
     gFailures = 0;
@@ -831,6 +880,7 @@ int re4_runtime_tests()
     testYz2();
     testDvdQueue();
     testMath();
+    testTrace();
     testTasks();
     re4_log("runtime-test: %d failed", gFailures);
     return gFailures;

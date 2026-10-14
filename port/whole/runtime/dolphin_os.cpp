@@ -240,4 +240,18 @@ void DCStoreRangeNoSync(void*, unsigned) {}
 void LCEnable(void) {}
 void PPCSync(void) {}
 
+// RE4_START_ROOM: room the original debug start menu preselects (stage << 8 |
+// room, hex). START or A in the menu then jumps there (DBG_ROOMJMP path).
+void re4_debug_start_room(unsigned short* room_id)
+{
+    const char* v = getenv("RE4_START_ROOM");
+    if (v && *v) {
+        unsigned long room = strtoul(v, 0, 16);
+        if (room >= 0x100 && room < 0x600) {
+            re4_log("debug: start room r%03lx preselected (RE4_START_ROOM)", room);
+            *room_id = (unsigned short) room;
+        }
+    }
+}
+
 }  // extern "C"
