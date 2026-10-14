@@ -415,22 +415,22 @@ PowerShell 7 durchgespielt.
    Zurück fragt „End the game?“ und beendet den Prozess (der Kern lässt sich
    im selben Prozess nicht neu starten).
 
-**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 5, reines C, gleiche
+**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 7, reines C, gleiche
 Struktur-Größe auf 32 und 64 bit): `re4_core_reserve`, `re4_core_start`,
 `re4_core_state` (idle/running/ended/failed), `re4_core_message`,
 `re4_core_pad`, `re4_core_acquire`/`re4_core_release`, `re4_core_log_tail`
 (letzte 24 Log-Zeilen für das Overlay), für Tests `re4_core_start_entry`.
 Umgesetzt in `runtime/core_api.cpp` (in `libre4_main`).
 
-**Schnappschuss** (`Re4CoreSnapshot`, 468 040 Byte auf 32 und 64 bit): Spielschritt
+**Schnappschuss** (`Re4CoreSnapshot`, 1 245 264 Byte auf 32 und 64 bit): Spielschritt
 `Rno0..3`, Raum, Disc, Kamera aus `pG->Camera` (Augpunkt, Ziel, Rollwinkel,
 Öffnungswinkel; bei offenem Untermenü die Weltkamera `CamCtrl.camera`, denn
 `pG->Camera` ist dann die Kamera des Menüs), `screen` (Untermenü offen,
-Ereignis, Debug-Kamera), bis 256 Modelle aus `EmMgr` (Gegner) und `ObjMgr` (Objekte):
+Ereignis, Debug-Kamera), bis 1024 Modelle aus `EmMgr` (Gegner) und `ObjMgr` (Objekte):
 lebend (`be_flag & 0x201 == 1`), Zeichen-Bits `2|4`, Weltmatrix, je Teil die
 Weltmatrix `cParts::mat` und die Bindung (−`lt_inv_mat`-Verschiebung), bis
-4096 Teile. Für jede Modell-Info (`pModelInfo`; alle Infos aller Modelle in
-einer gemeinsamen Liste, bis 1024, Leon allein hat neun) die Herkunft der BIN- und
+8192 Teile. Für jede Modell-Info (`pModelInfo`; alle Infos aller Modelle in
+einer gemeinsamen Liste, bis 2048, Leon allein hat neun) die Herkunft der BIN- und
 TPL-Daten auf der Disc (Datei, Archiv-Offset, Eintrag) und wie das Spiel
 sie zeichnet (`trans.cpp commonModelTrans`): nur mit `be_flag & 8`; ein
 starres Modell (ein Teil, keine Gewichte) hängt an `pHead->partsNo` mit
@@ -680,6 +680,48 @@ Gerätelauf, Bilder mit echten Disc-Daten.
   Auto. Kein Ton: Meilenstein 8. `test-core-app.ps1` meldet jetzt einen
   Neustart der App (anderer Prozess) als „NEU GESTARTET … abgestürzt?“.
 
+### Zweiter Gerätelauf (14.10.2026, Retroid) und Analyse
+
+Gemeldet: Auto fehlt um Polizisten und Leon, Münder bewegen sich nicht, kein
+Ton, der erste Funkspruch endet erst mit START, danach Kamera am Boden mit
+Blick nach oben, Absturz beim Erreichen des Hauses. Ursachen und Korrekturen:
+
+- **Kamera am Boden:** Ein Schulterkamera-Schnitt (CAM, `Id 8`,
+  `CameraQuasiFPS::setAreaData`) liest immer 24 Kamerapositionen (nahe und
+  ferne Punkte) und je 12 Ziele, Rollwinkel und Öffnungswinkel, unabhängig von
+  `nPoint`. Der Umwandler drehte nur `nPoint` Werte: Die fernen Punkte blieben
+  big-endian, fast 0, also die Kamera an Leons Füßen. Jetzt dreht er, was das
+  Spiel liest, jedes Wort einmal (Test `core-test camera`, schlägt mit dem
+  alten Umwandler genau bei den 12 fernen Punkten fehl).
+- **Auto:** Das Polizeiauto ist Kulisse aus dem Raumskript (`SetObjSmd`,
+  Einträge 0x1D/0x1E, 0x1F/0x20), nicht aus dem SMD. Die App übersprang alle
+  Kulissen-Objekte. Patch 0029 + Brücke Version 6 (SMD-Eintrag je Objekt), die
+  App folgt dem Kern: versteckte, nicht geladene und bewegte SMD-Kulisse, alles
+  andere wie die Figuren (Tests `core-test bridge`, `core_scene_gl_check`).
+  Dabei auch: r100 versteckt die SMD-Objekte 0x37/0x38 beim Start, die App
+  zeichnete sie bisher trotzdem.
+- **Münder / Blinzeln:** Formanimationen (`shape.cpp`) verformen die
+  Gesichtspunkte im Speicher des Kerns; die App zeichnete die unverformten
+  Disc-Daten. Brücke Version 7: Für Infos mit laufender Form rechnet die
+  Brücke mit dem Originalcode (`ResetShape`, `CalculateShape_new`) und gibt
+  die Punkte weiter; die App lädt das Gesicht dann neu hoch (Tests
+  `core-test bridge` „shape“, `core_scene_gl_check`).
+- **Funkspruch / Stimmen:** Der Tontreiber läuft im AX-Audiorahmen-Rückruf
+  (5 ms); mit AX als Platzhalter lief er nie (Stimmen blieben belegt: „STR
+  SND_VOICE L is not available“, Sprach-Stream nie bereit, `ss_term.cpp
+  OpeMesMove` wartet). Jetzt `runtime/ax.cpp` ohne Tonausgabe (Plattformtabelle;
+  Test `core-test ax`). Hörbarer Ton bleibt M8.
+- **Absturz am Haus:** Kein Protokoll (nach Ende des 120-s-Laufs gespielt).
+  Die PC-Prüfung stellt Leon jetzt nach dem Funkspruch vor das erste Haus
+  (Testhilfe `RE4_TEST_PLACE`, die Stelle, an die `r100_Sce_look` Leon nach
+  s03 setzt) und lässt ihn hineinlaufen; sie listet außerdem alle
+  Auslöse-Bereiche des Raums (AEV). Ob s03 damit ausgelöst wird, zeigt der
+  nächste Lauf; sonst Gerätelauf mit `-Seconds 600` bis zum Haus.
+- App-Bildtest: Die Raum-Animationen (Himmel, Wasser, 30 Hz) liefen zwischen
+  den Testbildern weiter; frühere Pixelvergleiche passten nur zufällig. Der
+  Test zeichnet jetzt ohne Zeitfortschritt; die Prüfungen für starre Teile
+  bewegen sichtbar (nach oben).
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -810,6 +852,7 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0025 `read.cpp` | `GetDataExt` meldet jeden Fund an `re4_formats_get_data` (Abdeckungs-Log) |
 | 0026 `title.cpp` | Debug-Start: `RE4_START_ROOM` wählt den Raum im Debug-Startmenü vor, Titelmenü auf „Neues Spiel“ |
 | 0028 `dvd.cpp` | `MemorySwap` meldet am Ende den getauschten Bereich (`re4_formats_memory_swapped`): Ereignisse leihen sich so den Archivspeicher eines Gegners, Untermenüs den Heap; die Herkunftsangaben der Brücke wandern mit |
+| 0029 `scroll.cpp` | `setObj` meldet für jedes Kulissen-Objekt, welchen SMD-Eintrag (Raum oder Block, Nummer) es zeigt (`re4_scroll_placed`): Die Brücke gibt das weiter, die App lässt versteckte und nicht geladene Kulisse weg, verschiebt bewegte und zeichnet Kulisse aus Raumskripten (r100: das Polizeiauto) wie die übrigen Modelle |
 | 0027 `model.cpp`, `objRocket.cpp` | Mit `-O2` (Android) gibt clang Inline-Funktionen, die nur in einer `.cpp` definiert sind, nicht aus; Module brauchen sie: `cModel::getPartsPtr` ohne `inline`, `cManager<cObj>::destroyNow` ausdrücklich instanziiert. Ohne den Patch zwei Platzhalter mehr als bei `-O0` |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
@@ -888,6 +931,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | SDK `OSAlloc.c`, `OSArena.c` | unverändert aus `src/lib`: Heap und Arena; `main_mem.cpp` liest die Heap-Deskriptoren direkt |
 | `os_thread.cpp` | `OSThread`, `OSSemaphore`: ein Host-Thread, strikte Prioritäten, Wechsel nur in OS-Aufrufen; jeder Thread hat einen Host-Stack (`port/src/stack_context.cpp` aus dem alten Port, neu mit ucontext für Linux x86, Boost.Context-Assembler für Linux ARM wie auf Android); ein Verteiler auf dem Stack des Startprogramms (`re4_os_run`). Spielsichtbar wie im SDK: `state`, `suspend`, Priorität, Warteschlangen, Stack-Magie `0xDEADBABE` |
 | `vi.cpp` | VI-Retrace alle 1/59,94 s Echtzeit, zugestellt an Interrupt-Punkten (Verteiler im Leerlauf, `VIWaitForRetrace`, Patch 0012, später lange Hintergrundarbeit); Thread-Wechsel aus dem Rückruf erst am Interrupt-Ende. `RE4_VI_FAST=1`: ohne Warten (Tests) |
+| `ax.cpp` (K2) | AX ohne Tonausgabe: 64 Stimmen mit den Vergaberegeln des SDK (`AXAlloc.c`), die Setter (`AXVPB.c`), Abspielposition je Audio-Rahmen nach Abtastrate (ADPCM mit Rahmenköpfen, PCM16, PCM8; Schleife oder Stopp am Ende), der Audio-Rahmen-Rückruf des Spiels 200-mal je Sekunde Spielzeit, zugestellt mit den VI-Retraces. Damit läuft der Tontreiber (`snd_main.cpp cb_audio_frame`): Stimmen werden frei, Sprach-Streams werden bereit. MIX, SYN, SEQ, AXFX, AI bleiben Platzhalter. Hörbarer Ton: M8 |
 | `dvd.cpp` | `DVD*` über einen Ordner mit entpackten Disc-Dateien (siehe unten); Lesen sofort, Rückruf vor der Rückkehr; FST der eingelegten Disc oben in MEM1, Disc-ID bei `0x80000000`; Disc-Wechsel lädt den anderen Ordner |
 | `aram.cpp` | ARAM (16 MB) als Host-Puffer, `ARInit`/`ARAlloc` (Stapel ab `0x4000`), ARQ kopiert sofort und ruft den Rückruf |
 | `os_link.cpp` | `OSLink`/`OSUnlink` (siehe unten) |

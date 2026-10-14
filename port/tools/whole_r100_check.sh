@@ -202,6 +202,12 @@ pad_script="UP@100-60000/60 A@115-60000/60 START@130-60000/60"
 # never runs the enemies' own logic (their sounds crashed on the Retroid,
 # 14.10.2026, which the PC check could not see).
 room_script="START@1500 STICKUP@1700-2000/1"
+# r100 only: after the radio call the player is put in front of the first house,
+# where the room script puts him after the s03 event (r100.cpp r100_Sce_look),
+# facing the house; the walk above then leads into the s03 trigger (the
+# Retroid crashed there, 14.10.2026). Other rooms: no placing.
+place=""
+[ "$room" = 100 ] && place="1650:-82910,860,-38480,1.75"
 
 # "Bild N, Spielschritt R, Raum 0xXXX" from the last complete trace line
 trace_state() {
@@ -235,7 +241,7 @@ run_game() {
     mkdir -p "$snaps"
     local start=$SECONDS
     (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
-        RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script" RE4_STOP_AFTER="$frames" \
+        RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script" RE4_TEST_PLACE="$place" RE4_STOP_AFTER="$frames" \
         RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" RE4_BRIDGE_DUMP="$bridge" RE4_BRIDGE_SNAPSHOT="$snaps" \
         "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1 &
     local pid=$!
@@ -288,6 +294,13 @@ run_game() {
     say "Letzter Stand:  $(trace_state "$trace")"
     say "Hauptschleife: ${reached:-nicht erreicht}"
     say "Ende:          ${stopped:-kein regulärer Stopp}"
+    local placed
+    placed=$(grep -m1 "run: player placed" "$log" | sed 's/^\[re4\] //')
+    [ -n "$placed" ] && say "Testhilfe:     $placed"
+    if grep -q "run: area " "$log"; then
+        say "Auslöse-Bereiche des Raums (AEV, für RE4_TEST_PLACE):"
+        grep "run: area " "$log" | sed 's/^\[re4\] run: /  /' | head -n 80 | tee -a "$report"
+    fi
     if grep -q "backtrace of the running context" "$log"; then
         say "Rückverfolgung beim Abbruch (wo das Programm gerade war, dann jede Spielaufgabe mit ihrem Warteort):"
         sed -n '/backtrace of the running context/,$p' "$log" | grep -v "pad: frame" | head -n 400 |

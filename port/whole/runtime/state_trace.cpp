@@ -19,12 +19,19 @@
 //   RE4_STOP_AFTER=N       the run ends (exit code 0) after N frames counted
 //                          from the first frame of the game's main loop
 //                          (step 3), with a summary line in the log
+//   RE4_TEST_PLACE="F:x,y,z,a"  F frames after the room started loading (the
+//                          frame RE4_PAD_UNTIL_ROOM ends the title script), the
+//                          player is put at x,y,z facing a (radians), as a room
+//                          script does (setPos / setAng): the checks reach a
+//                          place without steering there (r100: the first
+//                          house, where the s03 event starts)
 #include "types.h"
 #include "em.h"
 #include "global.h"
 #include "player.h"
 #include "cam_ctrl.h"
 #include "room_data.h"
+#include "sce_at.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,6 +59,36 @@ bool live(const void* p)
 void vec(FILE* f, const Vec& v)
 {
     fprintf(f, "[%.3f,%.3f,%.3f]", (double) v.x, (double) v.y, (double) v.z);
+}
+
+// The room's scene areas (AEV, sce_at.cpp) once its main loop runs: where the
+// room scripts' triggers are (r100: 0x0A starts the s03 event at the first
+// house), for placing the player in the checks (RE4_TEST_PLACE).
+void logAreas()
+{
+    unsigned count = 0;
+    for (SCE_AT_DATA* w = sceAtSetOtStart(); (w = sceAtGetOtAddr(w)) != 0 && count < 256; count++) {
+        const AREA_HIT_DATA& a = w->area;
+        if (a.type == AREA_TYPE_XZ4) {
+            const AREA_XZ4& q = a.xz4;
+            re4_log("run: area 0x%02x id %u on %u trg %u: floor %.0f height %.0f, (%.0f %.0f) (%.0f %.0f) (%.0f %.0f) "
+                    "(%.0f %.0f)", (unsigned) w->no, (unsigned) w->id, (unsigned) (w->be_flg & 1),
+                    (unsigned) w->trg_type, (double) q.floor, (double) q.height, (double) q.p[0].x, (double) q.p[0].z,
+                    (double) q.p[1].x, (double) q.p[1].z, (double) q.p[2].x, (double) q.p[2].z, (double) q.p[3].x,
+                    (double) q.p[3].z);
+        } else if (a.type == AREA_TYPE_CYLINDER) {
+            const AREA_CYLINDER& c = a.cylinder;
+            re4_log("run: area 0x%02x id %u on %u trg %u: floor %.0f height %.0f, circle (%.0f %.0f) radius %.0f",
+                    (unsigned) w->no, (unsigned) w->id, (unsigned) (w->be_flg & 1), (unsigned) w->trg_type,
+                    (double) c.floor, (double) c.height, (double) c.x, (double) c.z, (double) c.radius);
+        } else {
+            const AREA_EYE_TRIGGER& e = a.eye_trigger;
+            re4_log("run: area 0x%02x id %u on %u trg %u: type %u floor %.0f height %.0f, at (%.0f %.0f) radius %.0f, "
+                    "view %.2f %.2f open %.2f", (unsigned) w->no, (unsigned) w->id, (unsigned) (w->be_flg & 1),
+                    (unsigned) w->trg_type, (unsigned) a.type, (double) e.floor, (double) e.height, (double) e.xz,
+                    (double) e.z, (double) e.radius, (double) e.ang_x, (double) e.ang_y, (double) e.open_ang);
+        }
+    }
 }
 
 void trace(unsigned n)
@@ -116,6 +153,11 @@ void trace(unsigned n)
 }
 
 bool g_padUntilRoom;
+// RE4_TEST_PLACE
+bool g_place;
+unsigned long g_placeFrame;
+float g_placePos[3], g_placeAng;
+long g_roomStart = -1;  // frame the room started loading
 unsigned long g_stopAfter;
 unsigned long g_roomFrames;  // frames since the first main loop frame
 unsigned long g_loopFrames;  // of them in step 3
@@ -127,6 +169,18 @@ void frame(unsigned n)
     if (!live(g)) {
         return;
     }
+    if (g_roomStart < 0 && g->Rno0 >= 2) {
+        g_roomStart = (long) n;
+    }
+    if (g_place && g_roomStart >= 0 && n == g_roomStart + g_placeFrame && live(pPL) && g->Rno0 == 3) {
+        g_place = false;
+        Vec pos = { g_placePos[0], g_placePos[1], g_placePos[2] };
+        Vec ang = { 0.0f, g_placeAng, 0.0f };
+        pPL->setPos(&pos);
+        pPL->setAng(&ang);
+        re4_log("run: player placed at (%.0f %.0f %.0f), facing %.2f, frame %u", (double) pos.x, (double) pos.y,
+                (double) pos.z, (double) g_placeAng, n);
+    }
     if (g_padUntilRoom && g->Rno0 >= 2) {
         re4_pad_script_stop();
         g_padUntilRoom = false;
@@ -136,6 +190,7 @@ void frame(unsigned n)
     }
     if (g_roomFrames == 0) {
         re4_log("run: main loop reached at frame %u in room r%03x", n, (unsigned) g->room_id);
+        logAreas();
     }
     g_roomFrames++;
     g_loopFrames += g->Rno0 == 3;
@@ -160,9 +215,17 @@ void configure()
     }
     const char* until = getenv("RE4_PAD_UNTIL_ROOM");
     g_padUntilRoom = until && *until && *until != '0';
+    const char* place = getenv("RE4_TEST_PLACE");
+    if (place && *place) {
+        g_place = sscanf(place, "%lu:%f,%f,%f,%f", &g_placeFrame, &g_placePos[0], &g_placePos[1], &g_placePos[2],
+                         &g_placeAng) == 5;
+        if (!g_place) {
+            re4_log("run: RE4_TEST_PLACE \"%s\" not understood (F:x,y,z,a)", place);
+        }
+    }
     const char* stop = getenv("RE4_STOP_AFTER");
     g_stopAfter = stop ? strtoul(stop, 0, 10) : 0;
-    if (g_trace || g_padUntilRoom || g_stopAfter) {
+    if (g_trace || g_padUntilRoom || g_stopAfter || g_place) {
         re4_set_frame_hook(frame);
     }
 }
