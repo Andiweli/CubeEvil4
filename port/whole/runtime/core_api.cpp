@@ -90,7 +90,11 @@ extern "C" int re4_formats_describe(const void* addr, char* out, int size);
 void dumpSource(FILE* f, const Re4CoreSource& s, uint32_t address)
 {
     if (s.file[0]) {
-        fprintf(f, "\"%s@0x%x#%d\"", s.file, (unsigned) s.fileOffset, (int) s.entry);
+        fprintf(f, "\"%s@0x%x#%d", s.file, (unsigned) s.fileOffset, (int) s.entry);
+        if (s.innerOffset) {
+            fprintf(f, "+0x%x", (unsigned) s.innerOffset);
+        }
+        fprintf(f, "\"");
     } else {
         char where[160];
         re4_formats_describe((const void*) (uintptr_t) address, where, sizeof(where));
@@ -109,7 +113,8 @@ void dumpHook(unsigned frame)
     fprintf(f, "{\"frame\":%u,\"Rno0\":%u,\"room\":\"0x%03x\",\"camera\":[%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.3f,%.1f]",
             frame, (unsigned) s->rno[0], (unsigned) s->room, s->cameraEye[0], s->cameraEye[1], s->cameraEye[2],
             s->cameraTarget[0], s->cameraTarget[1], s->cameraTarget[2], s->cameraRoll, s->cameraFovy);
-    fprintf(f, ",\"parts\":%u,\"dropped\":%u,\"models\":[", (unsigned) s->nParts, (unsigned) s->droppedModels);
+    fprintf(f, ",\"screen\":%u,\"parts\":%u,\"dropped\":%u,\"models\":[", (unsigned) s->screen,
+            (unsigned) s->nParts, (unsigned) s->droppedModels);
     for (unsigned i = 0; i < s->nModels; i++) {
         const Re4CoreModel& m = s->models[i];
         fprintf(f, "%s{\"mgr\":%u,\"id\":\"0x%02x\",\"type\":%u,\"drawn\":%d,\"parts\":%u,\"pos\":[%.1f,%.1f,%.1f],\"infos\":[",

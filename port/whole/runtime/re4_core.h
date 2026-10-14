@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define RE4_CORE_API_VERSION 2
+#define RE4_CORE_API_VERSION 3
 
 enum Re4CoreState {
     RE4_CORE_IDLE = 0,     /* not started */
@@ -42,15 +42,19 @@ typedef struct Re4CorePad {
     uint8_t triggerL, triggerR;   /* analog triggers 0..255 */
 } Re4CorePad;
 
-/* Where a model's data lies on the disc: archive entry `entry` of the archive
- * that starts `fileOffset` bytes into files/<file> (a DVD container part or a
- * plain archive file) and is `archiveSize` bytes long. file[0] == 0: unknown
- * (not loaded from an archive the format converter saw). */
+/* Where a model's data lies on the disc: `innerOffset` bytes into archive
+ * entry `entry` of the archive that starts `fileOffset` bytes into
+ * files/<file> (a DVD container part or a plain archive file) and is
+ * `archiveSize` bytes long. innerOffset > 0: nested data (a BIN inside an SMD
+ * entry, a model inside a room block). fileOffset 0xFFFFFFFF: the archive is
+ * Yz2-packed on the disc (room archives; the app reads its decoded copy).
+ * file[0] == 0: unknown (not loaded from an archive the converter saw). */
 typedef struct Re4CoreSource {
     char file[52];
     uint32_t fileOffset;
     uint32_t archiveSize;
     int32_t entry;
+    uint32_t innerOffset;
 } Re4CoreSource;
 
 /* One cModelInfo of a model: its BIN (cModelData) and TPL. The addresses
@@ -84,6 +88,13 @@ typedef struct Re4CorePart {
 } Re4CorePart;
 
 #define RE4_CORE_MAX_MODELS 256
+
+/* Re4CoreSnapshot::screen */
+#define RE4_CORE_SCREEN_SUB 1       /* a sub screen is open (inventory, map, radio ...): drawn by
+                                       the game in 2D; the camera fields hold the world camera
+                                       (CamCtrl) instead of the sub screen's own */
+#define RE4_CORE_SCREEN_EVENT 2     /* an event (cutscene) runs */
+#define RE4_CORE_SCREEN_DEBUGCAM 4  /* the debug camera (pad 2) is on */
 #define RE4_CORE_MAX_PARTS 4096
 
 typedef struct Re4CoreSnapshot {
@@ -101,6 +112,7 @@ typedef struct Re4CoreSnapshot {
     uint16_t nModels;
     uint16_t nParts;
     uint32_t droppedModels;  /* models beyond the budget */
+    uint32_t screen;         /* RE4_CORE_SCREEN_* */
     Re4CoreModel models[RE4_CORE_MAX_MODELS];
     Re4CorePart parts[RE4_CORE_MAX_PARTS];
 } Re4CoreSnapshot;

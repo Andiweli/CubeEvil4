@@ -145,7 +145,10 @@ enum EntryStatus { kEntryConverted = 1, kEntryNoConverter = 2, kEntryIncomplete 
 void noteEntry(const void* addr, const char* tag, int status, const void* archive = 0, int entry = -1);
 // An archive of `size` bytes from files/<part.name>, part.fileOfs bytes into
 // the file (0xFFFFFFFF: Yz2-packed, the archive is the unpacked file).
-void noteArchive(const void* addr, unsigned size, const char* name, const Part& part);
+// offs/count: the entry start offsets (re4_formats_locate finds nested data by them)
+void noteArchive(const void* addr, unsigned size, const char* name, const Part& part, const u32* offs = 0,
+                 u32 count = 0);
+int containingEntry(const void* addr, int* slot, u32* inner);
 // what noteEntry recorded (0 = nothing); tag, if given, receives its tag (4 chars)
 int entryStatus(const void* addr, char* tag = 0);
 

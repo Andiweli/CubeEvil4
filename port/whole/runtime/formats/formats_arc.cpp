@@ -107,7 +107,7 @@ void convertArchive(Blob& b, const Part& part)
         offs[i] = be32(b, 0x10 + i * 4);
     }
     swap32(b, 0, 4 + count);
-    noteArchive(b.data, b.size, b.name, part);
+    noteArchive(b.data, b.size, b.name, part, offs, count);
     Seen seen;
     for (u32 i = 0; i < count && b.ok; i++) {
         u32 o = offs[i];
@@ -152,7 +152,22 @@ void convertArchive(Blob& b, const Part& part)
             conv(e, part);
             noteEntry(b.data + o, entryTag, e.ok ? kEntryConverted : kEntryIncomplete, b.data, (int) i);
             if (!e.ok) {
-                re4_log("formats: %s: conversion incomplete", label);
+                // what bounds the entry: the next entry (its tag) or the archive end
+                int next = -1;
+                for (u32 k = 0; k < count; k++) {
+                    if (offs[k] == stop) {
+                        next = (int) k;
+                    }
+                }
+                if (next >= 0) {
+                    re4_log("formats: %s: conversion incomplete (entry 0x%x..0x%x, next entry #%d %.4s, archive "
+                            "end 0x%x)",
+                            label, (unsigned) o, (unsigned) stop, next,
+                            (const char*) b.data + 0x10 + count * 4 + next * 4, (unsigned) end);
+                } else {
+                    re4_log("formats: %s: conversion incomplete (entry 0x%x..0x%x = archive end)", label,
+                            (unsigned) o, (unsigned) stop);
+                }
             }
         } else {
             reportTag(tag, b.name);

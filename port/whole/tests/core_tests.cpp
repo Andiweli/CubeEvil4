@@ -80,7 +80,11 @@ void testBridge()
     CHECK(re4_formats_locate(arc + 0x40, &src));
     CHECK(strcmp(src.file, "em/em99.drs") == 0 && src.fileOffset == 0x400 && src.archiveSize == 0x60 &&
           src.entry == 1);
-    CHECK(!re4_formats_locate(arc + 0x44, &src) && src.entry == -1 && src.file[0] == 0);
+    // nested data (a BIN inside an SMD entry): the entry around it and the offset in it
+    CHECK(re4_formats_locate(arc + 0x44, &src) && src.entry == 1 && src.innerOffset == 4 &&
+          strcmp(src.file, "em/em99.drs") == 0);
+    CHECK(re4_formats_locate(arc + 0x40, &src) && src.entry == 1 && src.innerOffset == 0);
+    CHECK(!re4_formats_locate(arc + 0x9000, &src) && src.entry == -1 && src.file[0] == 0);
     // r100 loads far more archives than the first note table held (64): the
     // first one must still be found after 100 more
     for (unsigned k = 0; k < 100; k++) {
@@ -102,6 +106,32 @@ void testBridge()
     CHECK(strstr(where, "inside") && strstr(where, "+0x44"));
     re4_formats_describe((void*) (unsigned long) 0x82F00000u, where, sizeof(where));
     CHECK(strstr(where, "not in a noted archive") != 0);
+    // memory reused: another archive loaded over em/t98.drs makes its notes stale
+    {
+        unsigned char* reuse = (unsigned char*) (unsigned long) 0x82106200u;
+        memset(reuse, 0, 0x100);
+        put32be(reuse + 0x00, 1);
+        put32be(reuse + 0x10, 0x40);
+        memcpy(reuse + 0x14, "XBN\0", 4);
+        Header hr = { 0, 0x60, 0, 0x800, 0, 0, 0, 0 };
+        re4_formats_part_loaded("em/new.drs", 0, 0, &hr, 0x82106200u);
+        CHECK(!re4_formats_locate(reuse + 0x20, &src));  // the old entry start
+        CHECK(re4_formats_locate(reuse + 0x40, &src) && strcmp(src.file, "em/new.drs") == 0 && src.entry == 0);
+        // and data loaded over an archive without a note of its own (its tags change)
+        unsigned char* plain = (unsigned char*) (unsigned long) 0x82106000u;  // em/t96.drs
+        CHECK(re4_formats_locate(plain + 0x24, &src) && strcmp(src.file, "em/t96.drs") == 0 &&
+              src.innerOffset == 4);
+        memset(plain, 0x5A, 0x40);
+        // any new note makes the lookups run again
+        unsigned char* other = (unsigned char*) (unsigned long) 0x82107000u;
+        memset(other, 0, 0x40);
+        put32be(other + 0x00, 1);
+        put32be(other + 0x10, 0x20);
+        memcpy(other + 0x14, "XBN\0", 4);
+        Header hx = { 0, 0x40, 0, 0x400, 0, 0, 0, 0 };
+        re4_formats_part_loaded("em/other.drs", 0, 0, &hx, 0x82107000u);
+        CHECK(!re4_formats_locate(plain + 0x24, &src));
+    }
 
     re4probe_core_setup(arc + 0x1000, arc + 0x20, arc + 0x40);
     re4_bridge_capture(&gSnap);

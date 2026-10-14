@@ -4,7 +4,8 @@
 // structures (model.h, em.h, obj.h, global.h, camera.h).
 //
 // Per frame: the game step and room, the camera (pG->Camera.param, which
-// CameraMove turns into the projection) and every live work of EmMgr (player,
+// CameraMove turns into the projection; CamCtrl's camera while a sub screen
+// is open) and every live work of EmMgr (player,
 // partner, enemies) and ObjMgr (weapons, objects) with
 //   - cModel::mat (world placement) and be_flag (drawn when bits 1 and 2 are
 //     set, trans.cpp ModelTrans),
@@ -19,6 +20,7 @@
 #include "em.h"
 #include "global.h"
 #include "model.h"
+#include "cam_ctrl.h"
 #include "obj.h"
 
 #include "re4_core.h"
@@ -123,6 +125,7 @@ extern "C" void re4_bridge_capture(Re4CoreSnapshot* s)
     s->nParts = 0;
     s->droppedModels = 0;
     s->cameraValid = 0;
+    s->screen = 0;
     s->disc = (int8_t) re4_dvd_inserted_disc();
     GLOBAL_WK* g = pG;
     if (!live(g)) {
@@ -133,7 +136,13 @@ extern "C" void re4_bridge_capture(Re4CoreSnapshot* s)
     s->rno[2] = g->Rno2;
     s->rno[3] = g->Rno3;
     s->room = g->room_id;
-    const CAMERA_POINT& cam = g->Camera.param;
+    s->screen = (StaFlagChk(g, STA_SUB_SCRN) ? RE4_CORE_SCREEN_SUB : 0) |
+                (StaFlagChk(g, STA_EVENT) ? RE4_CORE_SCREEN_EVENT : 0) |
+                (DbgFlagChk(g, DBG_DBG_CAM) ? RE4_CORE_SCREEN_DEBUGCAM : 0);
+    // a sub screen draws its own items with its own camera in pG->Camera
+    // (sscrn.cpp keeps the world camera aside); the world behind it is the
+    // controller's camera
+    const CAMERA_POINT& cam = (s->screen & RE4_CORE_SCREEN_SUB) ? CamCtrl.camera.param : g->Camera.param;
     for (int k = 0; k < 3; k++) {
         s->cameraEye[k] = (&cam.Campos.x)[k];
         s->cameraTarget[k] = (&cam.Target.x)[k];

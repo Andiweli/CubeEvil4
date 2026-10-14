@@ -257,6 +257,15 @@ void convertMotionAt(Blob& b, u32 base)
         for (int axis = 0; axis < 3 && b.ok; axis++) {
             u32 count = be16(b, p);
             swap16(b, p, 1 + count);
+            if (!b.ok) {
+                // where the walk left the data (for the format comparison report)
+                re4_log("formats: %s: MotionData at 0x%x, %u joints: joint %u kind 0x%04x (key layout %u, %u bytes "
+                        "per key) block at +0x%x, axis %d at +0x%x: %u keys",
+                        b.name, (unsigned) base, (unsigned) n, (unsigned) i, (unsigned) kinds[i],
+                        (unsigned) (kinds[i] >> 12), (unsigned) key, (unsigned) offs[i], axis,
+                        (unsigned) (p - base), (unsigned) count);
+                break;
+            }
             p += 2 + count * 2 + count * key;
         }
     }

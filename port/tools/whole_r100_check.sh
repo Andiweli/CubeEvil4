@@ -363,14 +363,20 @@ inroom = [r for r in rows if r["Rno0"] == 3 and r["room"] == room]
 last = inroom[-1] if inroom else rows[-1]
 models = last["models"]
 drawn = [m for m in models if m["drawn"]]
+# the room's scenery objects (cObjScr, ObjMgr id 2): the app draws them with the room scene
+scenery = [m for m in drawn if m["mgr"] == 1 and m["id"] == "0x02"]
+drawn = [m for m in drawn if not (m["mgr"] == 1 and m["id"] == "0x02")]
 def found(src):
     return bool(src) and not src.startswith("?")
 def known(m):
     return m["infos"] and all(found(i["bin"]) and found(i["tpl"]) for i in m["infos"])
 unknown = [m for m in drawn if not known(m)]
+screen = last.get("screen", 0)
 print(f"Brücke zur App (Bild {last['frame']}, Schritt {last['Rno0']}, Raum {last['room']}): "
-      f"{len(models)} Figuren, davon {len(drawn)} sichtbar, {len(drawn) - len(unknown)} mit bekannter "
+      f"{len(models)} Figuren, davon {len(drawn) + len(scenery)} sichtbar ({len(scenery)} Raumkulisse, die die App "
+      f"mit dem Raum zeichnet), {len(drawn) - len(unknown)} von {len(drawn)} übrigen mit bekannter "
       f"Modell-Herkunft auf der Disc; {last['parts']} Körperteile; Kamera {last['camera']}"
+      + ("; Untermenü offen (Kamera = Weltkamera)" if screen & 1 else "") + ("; Ereignis läuft" if screen & 2 else "")
       + (f"; {last['dropped']} Figuren über der Obergrenze" if last.get("dropped") else ""))
 import re
 def plain(src):

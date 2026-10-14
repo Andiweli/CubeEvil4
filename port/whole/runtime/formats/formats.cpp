@@ -185,15 +185,20 @@ struct EntryNote {
     int status;
     const void* archive;  // noteArchive address, 0 = not in an archive
     int entry;
-    int archiveSlot;      // index in g_archives (checked against archive), -1 none
+    int archiveSlot;      // index in g_archives, -1 none
+    u32 archiveGen;       // the archive's generation at the time (a reload makes the note stale)
 };
 
 struct ArchiveNote {
     const void* addr;
     u32 size;
+    u32 gen;          // 0 = free
     char name[80];
-    char file[52];   // path below files/
+    char file[52];    // path below files/
     u32 fileOfs;
+    u32* offs;        // entry start offsets (by entry number), malloc'd
+    u32 nOffs;
+    u32 sig;          // hash of the entry count and tags: memory reused without a new note?
 };
 
 // r100 alone loads well over 64 archives (enemies, player, weapons, room):
@@ -204,6 +209,7 @@ EntryNote g_notes[kNotes];
 ArchiveNote g_archives[kArchives];
 u32 g_nextArchive;
 u32 g_lastArchive;  // the archive noted last (its entries follow it)
+u32 g_gen;          // +1 per noted archive
 
 int archiveSlot(const void* archive)
 {
@@ -219,6 +225,50 @@ int archiveSlot(const void* archive)
         }
     }
     return -1;
+}
+
+void forget(ArchiveNote& a)
+{
+    free(a.offs);
+    memset(&a, 0, sizeof(a));
+}
+
+// The game never rewrites an archive's entry count and tags; other data
+// loaded over the archive (without a note of its own) changes them.
+u32 signature(const ArchiveNote& a)
+{
+    const u8* p = (const u8*) a.addr;
+    u32 n = a.nOffs;
+    u32 len = 0x10 + n * 8;
+    if (len > a.size) {
+        len = a.size;
+    }
+    u32 h = 2166136261u;
+    for (u32 i = 0; i < 4 && i < len; i++) {
+        h = (h ^ p[i]) * 16777619u;
+    }
+    for (u32 i = 0x10 + n * 4; i < len; i++) {
+        h = (h ^ p[i]) * 16777619u;
+    }
+    return h;
+}
+
+bool intact(ArchiveNote& a)
+{
+    if (a.gen && signature(a) != a.sig) {
+        forget(a);
+        return false;
+    }
+    return a.gen != 0;
+}
+
+bool current(const EntryNote& e)
+{
+    if (e.archiveSlot < 0) {
+        return false;
+    }
+    const ArchiveNote& a = g_archives[e.archiveSlot];
+    return a.gen != 0 && a.addr == e.archive && a.gen == e.archiveGen;
 }
 
 u32 slotOf(const void* addr)
@@ -243,6 +293,7 @@ void noteEntry(const void* addr, const char* tag, int status, const void* archiv
             e.archive = archive;
             e.entry = entry;
             e.archiveSlot = archiveSlot(archive);
+            e.archiveGen = e.archiveSlot >= 0 ? g_archives[e.archiveSlot].gen : 0;
             return;
         }
     }
@@ -266,23 +317,72 @@ int entryStatus(const void* addr, char* tag)
     return 0;
 }
 
-void noteArchive(const void* addr, unsigned size, const char* name, const Part& part)
+void noteArchive(const void* addr, unsigned size, const char* name, const Part& part, const u32* offs, u32 count)
 {
-    ArchiveNote* a = 0;
-    for (u32 i = 0; i < kArchives && !a; i++) {
-        if (g_archives[i].addr == addr) {
-            a = &g_archives[i];
+    // memory reused: notes of archives this one overwrites are stale now (an
+    // archive that encloses it, like a container around an inner archive, stays)
+    const char* lo = (const char*) addr;
+    const char* hi = lo + size;
+    for (u32 i = 0; i < kArchives; i++) {
+        ArchiveNote& o = g_archives[i];
+        const char* b = (const char*) o.addr;
+        const char* e = b + o.size;
+        bool encloses = b <= lo && hi <= e && (b != lo || e != hi);
+        if (o.gen && b < hi && lo < e && !encloses) {
+            forget(o);
         }
     }
-    if (!a) {
-        a = &g_archives[g_nextArchive++ % kArchives];
-    }
+    ArchiveNote* a = &g_archives[g_nextArchive++ % kArchives];
+    forget(*a);
     g_lastArchive = (u32) (a - g_archives);
     a->addr = addr;
     a->size = size;
+    a->gen = ++g_gen;
     snprintf(a->name, sizeof(a->name), "%s", name);
     snprintf(a->file, sizeof(a->file), "%s", part.name ? part.name : "");
     a->fileOfs = part.fileOfs;
+    if (offs && count) {
+        a->offs = (u32*) malloc(count * sizeof(u32));
+        if (a->offs) {
+            memcpy(a->offs, offs, count * sizeof(u32));
+            a->nOffs = count;
+        }
+    }
+    a->sig = signature(*a);
+}
+
+// The archive entry that contains `addr` (nested data: a BIN inside an SMD,
+// a model inside a room block file): the entry with the highest start at or
+// below it; of entries sharing a start, the last one owns the data
+// (convertArchive). -1 = not inside a noted archive.
+int containingEntry(const void* addr, int* slot, u32* inner)
+{
+    const char* p = (const char*) addr;
+    int found = -1;  // the innermost archive around it
+    for (u32 k = 0; k < kArchives; k++) {
+        ArchiveNote& a = g_archives[k];
+        const char* base = (const char*) a.addr;
+        if (a.gen && a.offs && p >= base && p < base + a.size &&
+            (found < 0 || a.size < g_archives[found].size) && intact(a)) {
+            found = (int) k;
+        }
+    }
+    if (found < 0) {
+        return -1;
+    }
+    const ArchiveNote& a = g_archives[found];
+    u32 rel = (u32) (p - (const char*) a.addr);
+    int best = -1;
+    for (u32 i = 0; i < a.nOffs; i++) {
+        if (a.offs[i] <= rel && (best < 0 || a.offs[i] >= a.offs[best])) {
+            best = (int) i;
+        }
+    }
+    if (best >= 0) {
+        *slot = found;
+        *inner = rel - a.offs[best];
+    }
+    return best;
 }
 
 }  // namespace re4fmt
@@ -482,27 +582,53 @@ extern "C" int re4_formats_locate(const void* addr, Re4CoreSource* out)
     if (!addr) {
         return 0;
     }
-    u32 s = slotOf(addr);
-    for (u32 i = 0; i < kNotes; i++) {
-        const EntryNote& e = g_notes[(s + i) % kNotes];
-        if (e.addr == 0) {
-            return 0;
+    // remembered per address until the next archive is noted: the bridge asks
+    // for the same models every frame
+    struct Cached {
+        const void* addr;
+        u32 gen;
+        int slot;
+        int entry;
+        u32 inner;
+    };
+    static Cached cache[4096];
+    Cached& c = cache[slotOf(addr) % 4096];
+    if (c.addr != addr || c.gen != g_gen) {
+        c.addr = addr;
+        c.gen = g_gen;
+        c.slot = -1;
+        c.entry = -1;
+        c.inner = 0;
+        // an archive entry starts here
+        u32 s = slotOf(addr);
+        for (u32 i = 0; i < kNotes; i++) {
+            const EntryNote& e = g_notes[(s + i) % kNotes];
+            if (e.addr == 0) {
+                break;
+            }
+            if (e.addr == addr) {
+                if (current(e) && intact(g_archives[e.archiveSlot])) {
+                    c.slot = e.archiveSlot;
+                    c.entry = e.entry;
+                }
+                break;
+            }
         }
-        if (e.addr != addr) {
-            continue;
+        // else nested inside an entry (a BIN in an SMD, a model in a block file)
+        if (c.entry < 0) {
+            c.entry = containingEntry(addr, &c.slot, &c.inner);
         }
-        // the archive may have been replaced since (its slot reused)
-        if (e.archiveSlot < 0 || g_archives[e.archiveSlot].addr != e.archive) {
-            return 0;
-        }
-        const ArchiveNote& a = g_archives[e.archiveSlot];
-        snprintf(out->file, sizeof(out->file), "%s", a.file);
-        out->fileOffset = a.fileOfs;
-        out->archiveSize = a.size;
-        out->entry = e.entry;
-        return out->file[0] != 0 && e.entry >= 0;
     }
-    return 0;
+    if (c.entry < 0 || c.slot < 0 || !g_archives[c.slot].gen) {
+        return 0;
+    }
+    const ArchiveNote& a = g_archives[c.slot];
+    snprintf(out->file, sizeof(out->file), "%s", a.file);
+    out->fileOffset = a.fileOfs;
+    out->archiveSize = a.size;
+    out->entry = c.entry;
+    out->innerOffset = c.inner;
+    return out->file[0] != 0;
 }
 
 // For the reports: where an address lies that re4_formats_locate does not
@@ -523,16 +649,15 @@ extern "C" int re4_formats_describe(const void* addr, char* out, int size)
             break;
         }
         if (e.addr == addr) {
-            const bool current = e.archiveSlot >= 0 && g_archives[e.archiveSlot].addr == e.archive;
             return snprintf(out, size, "%p entry #%d %.4s of %s", addr, e.entry, e.tag,
-                            current ? g_archives[e.archiveSlot].name : "a replaced archive");
+                            current(e) ? g_archives[e.archiveSlot].name : "a replaced archive");
         }
     }
     const char* a = (const char*) addr;
     for (u32 k = 0; k < kArchives; k++) {
         const ArchiveNote& n = g_archives[k];
         const char* base = (const char*) n.addr;
-        if (base && a >= base && a < base + n.size) {
+        if (n.gen && a >= base && a < base + n.size) {
             return snprintf(out, size, "%p inside %s at +0x%x (no entry starts there)", addr, n.name,
                             (unsigned) (a - base));
         }

@@ -51,6 +51,7 @@ void CopyCoreFrame(const Re4CoreSnapshot &s, CoreFrame &out) {
   }
   out.roll = s.cameraRoll;
   out.fovy = s.cameraFovy;
+  out.screen = s.screen;
   const auto models = std::min<unsigned>(s.nModels, RE4_CORE_MAX_MODELS);
   const auto parts = std::min<unsigned>(s.nParts, RE4_CORE_MAX_PARTS);
   out.models.assign(s.models, s.models + models);
@@ -74,9 +75,10 @@ bool sameName(const std::string &a, const char *b) {
 }
 
 std::string sourceKey(const Re4CoreSource &s) {
-  char text[96];
-  std::snprintf(text, sizeof(text), "%.52s@%x#%d", s.file,
-                static_cast<unsigned>(s.fileOffset), static_cast<int>(s.entry));
+  char text[112];
+  std::snprintf(text, sizeof(text), "%.52s@%x#%d+%x", s.file,
+                static_cast<unsigned>(s.fileOffset), static_cast<int>(s.entry),
+                static_cast<unsigned>(s.innerOffset));
   return text;
 }
 
@@ -140,11 +142,26 @@ std::string ResolveCoreDiscPath(const std::string &gameRoot, int disc,
   return exists(path) ? path : std::string{};
 }
 
+namespace {
+
+std::vector<std::uint8_t> entryFrom(const RoomArchive &archive, const Re4CoreSource &source) {
+  if (source.entry < 0 || std::size_t(source.entry) >= archive.entries().size())
+    throw std::runtime_error("Core: archive entry");
+  auto bytes = archive.copy(std::size_t(source.entry));
+  if (source.innerOffset >= bytes.size()) throw std::runtime_error("Core: offset outside the entry");
+  bytes.erase(bytes.begin(), bytes.begin() + source.innerOffset);
+  return bytes;
+}
+
+}  // namespace
+
 std::vector<std::uint8_t> ReadCoreSource(const std::string &gameRoot, int disc,
-                                         const Re4CoreSource &source) {
+                                         const Re4CoreSource &source, const RoomArchive *packed) {
   if (!known(source)) throw std::runtime_error("Core: unknown model source");
-  if (source.fileOffset == 0xFFFFFFFFu)
-    throw std::runtime_error("Core: model in a Yz2-packed room archive (not yet supported)");
+  if (source.fileOffset == 0xFFFFFFFFu) {
+    if (!packed) throw std::runtime_error("Core: model in a Yz2-packed archive of another room");
+    return entryFrom(*packed, source);
+  }
   const auto path = ResolveCoreDiscPath(gameRoot, disc, source.file);
   if (path.empty()) throw std::runtime_error(std::string("Core: file missing: ") + source.file);
   if (source.archiveSize < 0x20 || source.archiveSize > 64u * 1024 * 1024)
@@ -154,11 +171,10 @@ std::vector<std::uint8_t> ReadCoreSource(const std::string &gameRoot, int disc,
   in.seekg(source.fileOffset);
   if (!in.read(reinterpret_cast<char *>(bytes.data()), std::streamsize(bytes.size())))
     throw std::runtime_error(std::string("Core: archive outside the file: ") + source.file);
-  RoomArchive archive(std::move(bytes));
-  if (source.entry < 0 || std::size_t(source.entry) >= archive.entries().size())
-    throw std::runtime_error("Core: archive entry");
-  return archive.copy(std::size_t(source.entry));
+  return entryFrom(RoomArchive(std::move(bytes)), source);
 }
+
+bool CoreModelIsScenery(const Re4CoreModel &model) { return model.manager == 1 && model.id == 2; }
 
 struct CoreScene::Actor {
   std::unique_ptr<GenericEventActor> model;
@@ -215,8 +231,11 @@ CoreScene::Actor *CoreScene::actorFor(const Re4CoreModel &model, unsigned info,
   if (!slot) {
     slot = std::make_unique<Actor>();
     try {
-      auto bin = ReadCoreSource(gameRoot_, disc, mi.bin);
-      auto tpl = ReadCoreSource(gameRoot_, disc, mi.tpl);
+      auto packedFor = [&](const Re4CoreSource &src) -> const RoomArchive * {
+        return roomArchive_ && sameName(roomArchiveName_, src.file) ? roomArchive_.get() : nullptr;
+      };
+      auto bin = ReadCoreSource(gameRoot_, disc, mi.bin, packedFor(mi.bin));
+      auto tpl = ReadCoreSource(gameRoot_, disc, mi.tpl, packedFor(mi.tpl));
       slot->model = std::make_unique<GenericEventActor>(key, key, std::move(bin), std::move(tpl));
       for (const auto &corner : slot->model->skin())
         for (const auto *w : {&corner.position, &corner.normal})
@@ -243,11 +262,15 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
   static const Matrix34 identity{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
   std::vector<Matrix34> pose;
   std::vector<std::array<float, 3>> bind;
-  unsigned drawn = 0, missing = 0;
+  unsigned drawn = 0, missing = 0, scenery = 0;
   for (const auto &m : frame.models) {
     if ((m.beFlag & 6) != 6 || m.nParts == 0 ||
         std::size_t(m.firstMatrix) + m.nParts > frame.parts.size())
       continue;
+    if (CoreModelIsScenery(m)) {  // part of the room scene
+      ++scenery;
+      continue;
+    }
     pose.resize(m.nParts);
     bind.resize(m.nParts);
     for (unsigned i = 0; i < m.nParts; ++i) {
@@ -269,6 +292,7 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
   }
   drawnModels_ = drawn;
   missingModels_ = missing;
+  sceneryModels_ = scenery;
 }
 
 void CoreScene::buildRoom(std::uint16_t id, const std::string &path) {
@@ -317,6 +341,10 @@ void CoreScene::buildRoom(std::uint16_t id, const std::string &path) {
   DestroySceneGl();
   CreateSceneGl(scene);
   room_ = std::move(state);
+  char name[32];
+  std::snprintf(name, sizeof(name), "st%x/r%03x.das", unsigned(id >> 8), unsigned(id));
+  roomArchiveName_ = name;
+  roomArchive_ = std::make_unique<RoomArchive>(std::move(arc));
   CORE_LOG("room %03x: %zu triangles, %zu textures", unsigned(id), scene.triangles,
            scene.textures.size());
 }
@@ -414,13 +442,14 @@ void CoreScene::draw(const CoreFrame &frame, int width, int height, double secon
         roomError_.clear();
       } catch (const std::exception &e) {
         room_.reset();
+        roomArchive_.reset();
         roomError_ = e.what();
         CORE_LOG("room %03x: %s", unsigned(preparedRoom), e.what());
       }
     }
   }
   const bool inRoom = frame.valid && frame.step[0] >= 2 && room_ && room_->id == frame.room;
-  drawnModels_ = missingModels_ = 0;
+  drawnModels_ = missingModels_ = sceneryModels_ = 0;
   if (inRoom && frame.cameraValid) {
     EventCamera camera;
     camera.eye = frame.eye;
@@ -442,12 +471,16 @@ void CoreScene::draw(const CoreFrame &frame, int width, int height, double secon
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   }
-  char text[256];
+  char text[320];
   std::snprintf(text, sizeof(text),
-                "frame %u  step %u/%u  room r%03x  disc %d\nmodels %zu (drawn %u, missing %u)  room %s%s%s",
+                "frame %u  step %u/%u  room r%03x  disc %d%s%s\nmodels %zu (drawn %u, missing %u, scenery %u)  "
+                "room %s%s%s",
                 unsigned(frame.frame), unsigned(frame.step[0]), unsigned(frame.step[1]),
-                unsigned(frame.room), frame.disc + 1, frame.models.size(), drawnModels_,
-                missingModels_, inRoom ? "loaded" : room_ ? "other" : "none",
+                unsigned(frame.room), frame.disc + 1,
+                (frame.screen & RE4_CORE_SCREEN_EVENT) ? "  event" : "",
+                (frame.screen & RE4_CORE_SCREEN_SUB) ? "  MENU OPEN (not drawn yet)" : "",
+                frame.models.size(), drawnModels_, missingModels_, sceneryModels_,
+                inRoom ? "loaded" : room_ ? "other" : "none",
                 roomError_.empty() ? "" : " - ", roomError_.c_str());
   std::lock_guard<std::mutex> lock(lock_);
   status_ = text;

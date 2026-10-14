@@ -415,24 +415,36 @@ PowerShell 7 durchgespielt.
    Zurück fragt „End the game?“ und beendet den Prozess (der Kern lässt sich
    im selben Prozess nicht neu starten).
 
-**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 2, reines C, gleiche
+**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 3, reines C, gleiche
 Struktur-Größe auf 32 und 64 bit): `re4_core_reserve`, `re4_core_start`,
 `re4_core_state` (idle/running/ended/failed), `re4_core_message`,
 `re4_core_pad`, `re4_core_acquire`/`re4_core_release`, `re4_core_log_tail`
 (letzte 24 Log-Zeilen für das Overlay), für Tests `re4_core_start_entry`.
 Umgesetzt in `runtime/core_api.cpp` (in `libre4_main`).
 
-**Schnappschuss** (`Re4CoreSnapshot`, 401 468 Byte auf 32 und 64 bit): Spielschritt
+**Schnappschuss** (`Re4CoreSnapshot`, 409 664 Byte auf 32 und 64 bit): Spielschritt
 `Rno0..3`, Raum, Disc, Kamera aus `pG->Camera` (Augpunkt, Ziel, Rollwinkel,
-Öffnungswinkel), bis 256 Modelle aus `EmMgr` (Gegner) und `ObjMgr` (Objekte):
+Öffnungswinkel; bei offenem Untermenü die Weltkamera `CamCtrl.camera`, denn
+`pG->Camera` ist dann die Kamera des Menüs), `screen` (Untermenü offen,
+Ereignis, Debug-Kamera), bis 256 Modelle aus `EmMgr` (Gegner) und `ObjMgr` (Objekte):
 lebend (`be_flag & 0x201 == 1`), Zeichen-Bits `2|4`, Weltmatrix, je Teil die
 Weltmatrix `cParts::mat` und die Bindung (−`lt_inv_mat`-Verschiebung), bis
 4096 Teile. Für jede Modell-Info (`pModelInfo`) die Herkunft der BIN- und
 TPL-Daten auf der Disc (Datei, Archiv-Offset, Eintrag): Die Formatumwandler
 merken sich beim Laden jedes Archiv und jeden Eintrag
 (`re4_formats_locate`; bis 1024 Archive und 65 536 Einträge, vorher 64
-Archive: r100 lädt mehr, ältere Herkunftsangaben gingen verloren). Yz2-gepackte Archive (Raumdateien) haben keinen
-Datei-Offset; die App lädt Raummodelle über ihren Raumlader.
+Archive: r100 lädt mehr, ältere Herkunftsangaben gingen verloren). Liegt ein
+Modell mitten in einem Eintrag (BIN in einem SMD, Modell in einer
+Raumblock-Datei), meldet die Brücke den umgebenden Eintrag und `innerOffset`.
+Angaben zu Archiven, über die später anderes geladen wurde, verfallen: bei
+einem neuen, überlappenden Archiv sofort, bei Daten ohne eigene Notiz über
+eine Prüfsumme der Eintragsnamen. Yz2-gepackte Archive (Raumdateien) haben keinen
+Datei-Offset (`0xFFFFFFFF`); solche Modelle (Gegenstände, Tiere des Raums)
+liest die App aus der entpackten Raumdatei, die sie für den Raum ohnehin
+vorbereitet. Die Raumkulisse (`cObjScr`, ObjMgr-Kennung 2: die SMD-Modelle
+des Raums und seiner Blockdateien) zeichnet die App mit dem Raum; die Brücke
+zählt sie nur („scenery“). Bewegt das Spiel ein Kulissenteil, sieht man das
+deshalb noch nicht.
 
 **Zeichnen** (`app/src/main/cpp/core_scene.cpp`, `CoreScene`): bis zum ersten
 Raum (Schritt < 2) das Titelbild (größtes Bild der Titeldaten der App), danach
@@ -514,6 +526,26 @@ Gerätelauf, Bilder mit echten Disc-Daten.
 - Ursache der Kamera noch offen: `CameraMove` übernimmt `CamCtrl.camera` nur
   mit STA_CAMERA und ohne Debug-Kamera (DBG_DBG_CAM, schaltet sich bei
   Tasten an Controller 2 ein); der nächste Lauf zeigt, welcher Fall vorliegt.
+
+### Zweiter lokaler Lauf (14.10.2026, WSL2)
+
+- Kamera-Verlauf: bis Bild 621 Titel/Laden, ab 622 Ereignis mit
+  Ereigniskamera (Winkel 29), ab 1800 Kamera hinter Leon (`CamCtrl`, Zustand
+  17), ab Bild 1871 ein Untermenü (`U`, vermutlich der Funkspruch, der auf
+  eine Taste wartet; ohne Eingabe bleibt er offen): `pG->Camera` ist dann die
+  Menükamera `(0, 0, 2000) → (0, 0, 0)`. Behoben: Die Brücke nimmt dann die
+  Weltkamera und meldet das Menü (App-Overlay „MENU OPEN“).
+- Brücke: 226 Figuren (Obergrenze 256 reicht), 15 mit Herkunft; die übrigen
+  lagen mitten in Einträgen (Raumarchiv, Blockdateien) oder in Speicher, über
+  den ältere Archive geladen worden waren (title.dat, save_e.dat: veraltete
+  Angaben). Behoben wie oben (Version 3).
+- Formatvergleich: 8 Dateien mit „FEHLER“ (FCV-Animationen in wep09, 10, 21,
+  24, 31, 32, 47 und pl14). Kein neuer Fehler: Die größere Notiztabelle macht
+  sichtbar, dass diese Einträge schon immer unvollständig umgewandelt wurden
+  (vorher als „nicht vergleichbar“ durchgerutscht; die App-Leser lehnen sie
+  auch ab). Für r100 ohne Bedeutung (Waffen, die dort nicht vorkommen). Der
+  Umwandler meldet jetzt Gelenk, Kennung, Schlüsselformat und Grenze des
+  Eintrags; die Ursache folgt aus dem nächsten Lauf.
 
 ### Lokale Prüfungen für K2
 

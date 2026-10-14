@@ -6,6 +6,9 @@
 //     a decoded room archive (SMD with a rigid floor + LIT)
 //   - the path of a core source is found case-insensitively; a Yz2-packed
 //     source is refused with a message
+//   - nested sources (innerOffset: a BIN inside another entry) and sources in
+//     the Yz2-packed room archive (read from the decoded room file) are drawn;
+//     the room's scenery objects (ObjMgr id 2) are left to the room scene
 //   - before the first room (step 0) the title path runs (no title data here:
 //     black) and no room is wanted
 //   - in the room (step 3) the room is built from the prepared file, the
@@ -14,6 +17,8 @@
 //     (be_flag without the draw bits), from one of two opposite cameras, and
 //     moves when the part matrices move
 #include "core_scene.h"
+
+#include "archive.h"
 
 #include "../../whole/tests/format_compare/samples.h"
 
@@ -109,8 +114,18 @@ int main() {
       mkdir((root + dir).c_str(), 0755);
     const auto archive = makeArchive({{"BIN", makeBin(true, false, true)}, {"TPL", makeTpl()}});
     writeFile(root + "/disc1/files/em/em99.drs", makeDrs(archive));
+    // a BIN 0x40 bytes into an entry (as inside an SMD)
+    Bytes nested(0x40, 0);
+    {
+      const auto b = makeBin(true, false, true);
+      nested.insert(nested.end(), b.begin(), b.end());
+    }
+    const auto archive2 = makeArchive({{"SMD", nested}, {"TPL", makeTpl()}});
+    writeFile(root + "/disc1/files/em/em98.drs", makeDrs(archive2));
+    // the decoded room archive also holds a model (entries 2 and 3)
     const std::string roomPath = root + "/room.arc";
-    writeFile(roomPath, makeArchive({{"SMD", makeSmd(makeRigidBin())}, {"LIT", makeLit()}}));
+    writeFile(roomPath, makeArchive({{"SMD", makeSmd(makeRigidBin())}, {"LIT", makeLit()},
+                                     {"BIN", makeBin(true, false, true)}, {"TPL", makeTpl()}}));
 
     // sources
     require(re4::ResolveCoreDiscPath(root, 0, "EM/EM99.DRS") == root + "/disc1/files/em/em99.drs",
@@ -129,6 +144,17 @@ int main() {
       refused = true;
     }
     require(refused, "Yz2-packed source refused");
+    Re4CoreSource inner{};
+    setSource(inner, "em/em98.drs", 0x400, unsigned(archive2.size()), 0);
+    inner.innerOffset = 0x40;
+    require(re4::ReadCoreSource(root, 0, inner) == makeBin(true, false, true), "nested BIN from its entry");
+    {
+      const auto decoded = re4::RoomArchive::Load(roomPath);
+      Re4CoreSource inRoom{};
+      setSource(inRoom, "st1/r100.das", 0xFFFFFFFFu, unsigned(decoded.size()), 2);
+      require(re4::ReadCoreSource(root, 0, inRoom, &decoded) == makeBin(true, false, true),
+              "packed source from the decoded room archive");
+    }
 
     context();
     re4::CoreScene scene(root);
@@ -205,6 +231,26 @@ int main() {
     frame.models[0].infos[0].bin.entry = -1;
     scene.draw(frame, kWidth, kHeight, 1 / 60.);
     require(scene.status().find("drawn 0, missing 1") != std::string::npos, "unknown source missing");
+
+    // nested and packed sources are drawn; scenery is left to the room scene
+    frame.eye = {-3000, 900, -600};
+    frame.models[0].infos[0].bin = inner;
+    setSource(frame.models[0].infos[0].tpl, "em/em98.drs", 0x400, unsigned(archive2.size()), 1);
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    std::fprintf(stderr, "status: %s\n", scene.status().c_str());
+    require(scene.status().find("drawn 1, missing 0") != std::string::npos, "nested source drawn");
+    setSource(frame.models[0].infos[0].bin, "st1/r100.das", 0xFFFFFFFFu, 0, 2);
+    setSource(frame.models[0].infos[0].tpl, "st1/r100.das", 0xFFFFFFFFu, 0, 3);
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    require(scene.status().find("drawn 1, missing 0") != std::string::npos, "packed room source drawn");
+    frame.models[0].manager = 1;
+    frame.models[0].id = 2;
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    require(scene.status().find("drawn 0, missing 0, scenery 1") != std::string::npos, "scenery left to the room");
+    frame.models[0].manager = 0;
+    frame.screen = RE4_CORE_SCREEN_SUB;
+    scene.draw(frame, kWidth, kHeight, 1 / 60.);
+    require(scene.status().find("MENU OPEN") != std::string::npos, "open sub screen reported");
 
     std::string cleanup = "rm -rf '" + root + "'";
     if (std::system(cleanup.c_str()) != 0) std::fprintf(stderr, "cleanup failed\n");

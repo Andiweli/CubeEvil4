@@ -34,6 +34,7 @@ struct CoreFrame {
   bool cameraValid{};
   std::array<float, 3> eye{}, target{};
   float roll{}, fovy{};
+  std::uint32_t screen{};  // RE4_CORE_SCREEN_*
   std::vector<Re4CoreModel> models;
   std::vector<Re4CorePart> parts;
 };
@@ -43,9 +44,18 @@ void CopyCoreFrame(const Re4CoreSnapshot &snapshot, CoreFrame &out);
 // the core names files in lower case); empty when it does not exist.
 std::string ResolveCoreDiscPath(const std::string &gameRoot, int disc,
                                 const std::string &file);
-// BIN/TPL bytes (big-endian, as on the disc) of a core source.
+class RoomArchive;
+// BIN/TPL bytes (big-endian, as on the disc) of a core source, from
+// innerOffset to the end of its archive entry. A Yz2-packed source (room
+// archive, fileOffset 0xFFFFFFFF) comes from `packed`, the decoded archive
+// the app prepared for that room; without it, it is refused.
 std::vector<std::uint8_t> ReadCoreSource(const std::string &gameRoot, int disc,
-                                         const Re4CoreSource &source);
+                                         const Re4CoreSource &source,
+                                         const RoomArchive *packed = nullptr);
+// Models the app draws itself: the room's scenery objects (ObjMgr id 2,
+// cObjScr: the SMD models of the room and its blocks, part of the static
+// room scene).
+bool CoreModelIsScenery(const Re4CoreModel &model);
 
 class GenericEventActor;
 
@@ -90,6 +100,8 @@ class CoreScene {
   std::string status_;
   // GL thread only
   std::unique_ptr<RoomState> room_;
+  std::unique_ptr<RoomArchive> roomArchive_;  // decoded archive of room_ (packed model sources)
+  std::string roomArchiveName_;               // its name on the disc, e.g. "st1/r100.das"
   std::map<std::string, std::unique_ptr<Actor>> actors_;
   std::vector<std::uint8_t> coreEff_;
   bool coreLoaded_{};
@@ -97,7 +109,7 @@ class CoreScene {
   unsigned titleWidth_{}, titleHeight_{};
   bool titleTried_{};
   std::string roomError_;
-  unsigned drawnModels_{}, missingModels_{};
+  unsigned drawnModels_{}, missingModels_{}, sceneryModels_{};
 };
 
 }  // namespace re4
