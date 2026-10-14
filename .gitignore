@@ -1,0 +1,12 @@
+.gradle/
+.idea/
+local.properties
+**/build/
+**/.cxx/
+.host-tests/
+*.apk
+*.aab
+*.jks
+
+# Converted game videos (never commit game data)
+app/src/main/assets/movies/*.mp4

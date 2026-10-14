@@ -1,0 +1,280 @@
+K17 Fix6 – endgültige Prüfungen
+Originaldaten separat; Linux EGL/GLES3, Produktions-JNI, Java und ARM64. Kein physischer Android-/Controller-Test.
+Vollständige Austauschdateien, keine APK.
+
+fix6-pure-results.log
+Bolt profile 46 held 1 compensated ticks 38 down 0 old idle error 5105.58
+Bolt profile 46 held 0 compensated ticks 25 down 18 old idle error 3656.57
+Bolt profile 107 held 1 compensated ticks 38 down 0 old idle error 5105.58
+Bolt profile 107 held 0 compensated ticks 25 down 18 old idle error 3656.57
+Bolt profile 153 held 1 compensated ticks 38 down 0 old idle error 5105.58
+Bolt profile 153 held 0 compensated ticks 25 down 18 old idle error 3656.57
+Pitchfork mirror 0 distance 900 attacks 3 hits 3 closest 450 crossed 0
+Pitchfork mirror 0 distance 1200 attacks 3 hits 3 closest 493.659 crossed 0
+Pitchfork mirror 0 distance 1600 attacks 3 hits 3 closest 728.507 crossed 0
+Pitchfork mirror 0 distance 1900 attacks 3 hits 3 closest 1025.54 crossed 0
+Pitchfork mirror 1 distance 900 attacks 3 hits 3 closest 450 crossed 0
+Pitchfork mirror 1 distance 1200 attacks 3 hits 3 closest 499.413 crossed 0
+Pitchfork mirror 1 distance 1600 attacks 3 hits 3 closest 715.364 crossed 0
+Pitchfork mirror 1 distance 1900 attacks 3 hits 3 closest 1008.84 crossed 0
+K17 Fix6 source tests PASS: 116327 checks
+
+fix6-runtime-results.log
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+SS profile 33 static/reference difference 6061 opaque 32950
+SS profile 46 static/reference difference 4416 opaque 28790
+SS profile 47 static/reference difference 5249 opaque 30343
+SS profile 54 static/reference difference 4520 opaque 41647
+SS profile 52 static/reference difference 5424 opaque 37927
+SS profile 14 static/reference difference 4857 opaque 31607
+K17 Fix6 production SS/blood/pause/context checks PASS: 368 checks
+
+fix6-fix1-results.log
+K17 Fix1 original physical LS/radio hand checks PASS: 7060 checks, default handgun plus 38 weapon profiles
+
+fix6-fix2-results.log
+K17 Fix2 original weapon response/grips/scopes, all village waves,1350 bell frames and3 ladder bounds PASS: 3111 checks
+
+fix6-fix3-results.log
+K17 Fix3 attachments/SAVE-LOAD,24 mine directions,source scopes/title,three long village waves and original dash PASS: 431 checks
+
+fix6-fix4-results.log
+Scope profile 46 pitch -0.35 PASS
+Scope profile 46 pitch 0.35 PASS
+Scope profile 47 pitch -0.35 PASS
+Scope profile 47 pitch 0.35 PASS
+Scope profile 107 pitch -0.35 PASS
+Scope profile 107 pitch 0.35 PASS
+Scope profile 108 pitch -0.35 PASS
+Scope profile 108 pitch 0.35 PASS
+Scope profile 153 pitch -0.35 PASS
+Scope profile 153 pitch 0.35 PASS
+Scope profile 81 pitch -0.35 PASS
+Scope profile 81 pitch 0.35 PASS
+Hen idle 1 pos -10839.9,0,2661.24
+Hen idle 2 pos -7861.18,0,6299.62
+Animal hit id 38 index 52 center -4977.67,933.316,11833.6 hp 1000 target 1
+Animal hit id 40 index 78 center -8099.06,354.437,-3477.54 hp 100 target 1
+Animal hit id 40 index 79 center -7928.76,329.753,6268.22 hp 100 target 1
+Spawn 20 pos -11300,0,-1520 flags 220
+Spawn 21 pos -7340,0,800 flags 48002020
+Spawn 22 pos -6100,0,-840 flags 60002020
+Spawn 23 pos 6010,0,2740 flags 80000120
+Spawn 24 pos -5890,0,-21630 flags 80400020
+Spawn 25 pos 1770,869.145,18570 flags 80000220
+Spawn 26 pos 38770,3081.9,-27360 flags 8800020
+Spawn 27 pos 39170,3085.33,-25840 flags 80020
+Spawn 28 pos 40060,3178.94,-27040 flags 10000020
+Spawn 30 pos -4530,3200,-10970 flags 20092420
+Spawn 31 pos 5790,3205.19,-15480 flags 8012620
+  Roof surface 21000000 n=1,0,0
+Spawn 34 pos -51120,166.33,22220 flags 20080020
+Spawn 35 pos -51780,165.286,21490 flags 20
+Spawn 36 pos -52720,242.47,23000 flags 81000020
+Spawn 40 pos -12540,2560.27,30760 flags 200000a0
+Spawn 41 pos -13930,2623.79,31560 flags 10040a0
+Spawn 42 pos -13350,2230.31,27730 flags a0
+Spawn 43 pos -11910,1865.56,24760 flags 90000a0
+Spawn 44 pos -12920,2712.9,33010 flags 80800a0
+Spawn 46 pos 25210,1107.75,-120 flags a0
+Spawn 47 pos 26430,1112.24,1140 flags 200000a0
+Spawn 48 pos 25880,1114.93,-1640 flags 80000a0
+Spawn 49 pos 29150,1137.87,-990 flags 90000a0
+Spawn 50 pos 27340,1118.64,650 flags 4040a0
+Spawn 54 pos -6900,0,-19570 flags 200000a0
+Spawn 55 pos -5100,0,-18710 flags 440a0
+Spawn 56 pos -6840,0,-17680 flags a0
+Spawn 57 pos -8770,0,-18040 flags 80000a0
+Spawn 58 pos -4810,0,-20810 flags 90000a0
+Spawn 60 pos 6450,0,-2180 flags 10000020
+Spawn 61 pos 7060,0,-5410 flags 8000020
+Spawn 62 pos 7430,0,-3310 flags 20
+Spawn 63 pos 360,0,-3700 flags 20
+Spawn 64 pos -330,0,-3030 flags 800020
+Spawn 65 pos -2920,0,-8440 flags 20040020
+Spawn 66 pos -3450,0,-7360 flags 80020
+Spawn 67 pos 1070,0,-2590 flags 80020
+Spawn 68 pos -3950,0,-8190 flags 8800020
+Spawn 69 pos -3430,3200,-12500 flags 20412420
+Spawn 70 pos -3700,3200,-13750 flags 8092420
+Spawn 72 pos 3730,0,-1670 flags 88
+Spawn 73 pos 9160,0,2310 flags 88
+Spawn 74 pos 15290,0,-950 flags 8000088
+Roof original mask 0 falling 1 landing 1 finalY 0
+Roof original mask 1 falling 1 landing 1 finalY 0
+K17 Fix4 PASS: 3454 checks
+
+fix6-fix5-results.log
+Village alert slot 20 character 2 moved 3754.65 state Ganado test · HP 800/800 · Walk · Hits 0/0
+Village alert slot 21 character 2 moved 6214.02 state Ganado test · HP 800/800 · Dash · Hits 0/0
+Village alert slot 22 character 2 moved 5423 state Ganado test · HP 800/800 · Walk · Hits 0/0
+Village alert slot 23 character 2 moved 7847.83 state Ganado test · HP 800/800 · Walk · Hits 0/0
+Village alert slot 24 character 2 moved 7129.15 state Ganado test · HP 800/800 · Walk · Hits 0/0
+Village alert slot 34 character 1 moved 5542.32 state Ganado test · HP 1000/1000 · Walk · Hits 0/0
+Village alert slot 35 character 1 moved 3723.57 state Ganado test · HP 1000/1000 · Walk · Hits 0/0
+Village alert slot 36 character 1 moved 5787.74 state Ganado test · HP 1000/1000 · Walk · Hits 0/0
+Rifle reload id 46 pitch -0.5 hold 0 ticks 109 tail 0
+Rifle reload id 46 pitch -0.5 hold 1 ticks 119 tail 1
+Rifle reload id 46 pitch 0.5 hold 0 ticks 109 tail 0
+Rifle reload id 46 pitch 0.5 hold 1 ticks 119 tail 1
+Rifle reload id 47 pitch -0.5 hold 0 ticks 58 tail 0
+Rifle reload id 47 pitch -0.5 hold 1 ticks 69 tail 1
+Rifle reload id 47 pitch 0.5 hold 0 ticks 58 tail 0
+Rifle reload id 47 pitch 0.5 hold 1 ticks 69 tail 1
+Rifle reload id 107 pitch -0.5 hold 0 ticks 109 tail 0
+Rifle reload id 107 pitch -0.5 hold 1 ticks 119 tail 1
+Rifle reload id 107 pitch 0.5 hold 0 ticks 109 tail 0
+Rifle reload id 107 pitch 0.5 hold 1 ticks 119 tail 1
+Rifle reload id 108 pitch -0.5 hold 0 ticks 58 tail 0
+Rifle reload id 108 pitch -0.5 hold 1 ticks 69 tail 1
+Rifle reload id 108 pitch 0.5 hold 0 ticks 58 tail 0
+Rifle reload id 108 pitch 0.5 hold 1 ticks 69 tail 1
+Rifle reload id 153 pitch -0.5 hold 0 ticks 109 tail 0
+Rifle reload id 153 pitch -0.5 hold 1 ticks 119 tail 1
+Rifle reload id 153 pitch 0.5 hold 0 ticks 109 tail 0
+Rifle reload id 153 pitch 0.5 hold 1 ticks 119 tail 1
+Rifle reload id 81 pitch -0.5 hold 0 ticks 58 tail 0
+Rifle reload id 81 pitch -0.5 hold 1 ticks 69 tail 1
+Rifle reload id 81 pitch 0.5 hold 0 ticks 58 tail 0
+Rifle reload id 81 pitch 0.5 hold 1 ticks 69 tail 1
+K17 Fix5 original scope/reload/menu/blood/r101 checks PASS: 22072 checks
+
+fix6-weapons-results.log
+K17 original38 weapons, first aim edge, real shots/ammo/reloads, projectile fuses and119-joint healthy/injured knife poses PASS: 3437 checks
+
+fix6-enemy-ai-results.log
+M37 original Ganado awareness/r100 RTP/gait: 18343 checks PASS; unchanged FindCk,66-node actual graph and seven live ambush profiles.
+
+fix6-enemy-audio-results.log
+M37 original Ganado sequence footsteps/death: 8527 checks PASS; 111 source SEQ sounds from eight authored profiles, posed feet/material bank and Timer49 drop transitions.
+
+fix6-fix1-runtime-results.log
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+K17 Fix1 production JNI/GLES r100->r101, radio/25 weapons, physical LS and resumed world PASS: 7143 checks
+
+fix6-fix4-runtime-results.log
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Animal slot 52 original visible RGB pixels 55394
+Animal slot 78 original visible RGB pixels 9052
+Animal slot 79 original visible RGB pixels 7331
+K17 Fix4 production JNI/GLES animals,knife,save,audio and frustum PASS: 306 checks
+
+fix6-java-results.log
+Java disc tests: 8 checks PASS
+Controller selection, virtual navigation, priority and reset: 11 checks PASS
+Menu repeat, rotated placement, collision and source categories: 80 checks PASS
+Full viewport, isotropic model/piece layout, flexible lists and touch inverse: 7721 checks PASS
+Map camera/footer PASS: 11
+Startup source timeline/curve/path: 1378 checks PASS
+Startup original options: 17 checks PASS
+Original HUD thresholds/30-Hz clock and Continue timers/choices: 51 checks PASS
+Startup original voice end/output drain: 14 checks PASS
+Startup presentation/movie lifecycle/source shader: 123 checks PASS
+Fix2 original 30Hz UI clock,3D ID transforms and10 scope layouts PASS: 10 checks
+SceneLoadGate: 24 checks passed
+Java RoomRepository tests: 76 checks PASS
+M31 room catalog PASS: 401
+
+fix6-java-android-compile.log
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+fix6-android-build.log
+[0/1] Re-running CMake...
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /workspace/scratch/7d71f11084f3/android-native-fix1
+[1/27] Building CXX object CMakeFiles/re4_platform.dir/event_effect_models.cpp.o
+[2/27] Building CXX object CMakeFiles/re4_platform.dir/generic_event_actor.cpp.o
+[3/27] Building CXX object CMakeFiles/re4_platform.dir/enemy_group.cpp.o
+[4/27] Building CXX object CMakeFiles/re4_platform.dir/laser_sight.cpp.o
+[5/27] Building CXX object CMakeFiles/re4_platform.dir/dog_traps.cpp.o
+[6/27] Building CXX object CMakeFiles/re4_platform.dir/enemy_encounter.cpp.o
+[7/27] Building CXX object CMakeFiles/re4_platform.dir/startup_data.cpp.o
+[8/27] Building CXX object CMakeFiles/re4_platform.dir/event_playback.cpp.o
+[9/27] Building CXX object CMakeFiles/re4_platform.dir/weapon_preview.cpp.o
+[10/27] Building CXX object CMakeFiles/re4_platform.dir/subscreen_data.cpp.o
+[11/27] Building CXX object CMakeFiles/re4_platform.dir/r100_secondary.cpp.o
+[12/27] Building CXX object CMakeFiles/re4_platform.dir/leon_preview.cpp.o
+[13/27] Building CXX object CMakeFiles/re4_platform.dir/radio_term.cpp.o
+[14/27] Building CXX object CMakeFiles/re4_platform.dir/player_projectiles.cpp.o
+[15/27] Linking CXX static library libre4_platform.a
+[16/27] Building CXX object CMakeFiles/re4decomp.dir/event_focus_gl.cpp.o
+[17/27] Building CXX object CMakeFiles/re4decomp.dir/event_actor_gl.cpp.o
+[18/27] Building CXX object CMakeFiles/re4decomp.dir/actor_gl.cpp.o
+[19/27] Building CXX object CMakeFiles/re4decomp.dir/event_mirror_gl.cpp.o
+[20/27] Building CXX object CMakeFiles/re4decomp.dir/scene_gl.cpp.o
+[21/27] Building CXX object CMakeFiles/re4decomp.dir/subscreen_portrait_gl.cpp.o
+[22/27] Building CXX object CMakeFiles/re4decomp.dir/item_effects_gl.cpp.o
+[23/27] Building CXX object CMakeFiles/re4decomp.dir/subscreen_item_gl.cpp.o
+[24/27] Building CXX object CMakeFiles/re4decomp.dir/room_shadows_gl.cpp.o
+[25/27] Building CXX object CMakeFiles/re4decomp.dir/radio_term_gl.cpp.o
+[26/27] Building CXX object CMakeFiles/re4decomp.dir/android_bridge.cpp.o
+[27/27] Linking CXX shared library libre4decomp.so
+
+fix6-regression-build.log
+[ 12%] Built target re4_motion64
+[100%] Built target re4_platform
+[100%] Linking CXX executable k17_fix1_check
+[100%] Built target k17_fix1_check
+[ 11%] Built target re4_motion64
+[ 88%] Built target re4_platform
+[100%] Building CXX object CMakeFiles/k17_fix2_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k17_fix2.cpp.o
+[100%] Linking CXX executable k17_fix2_check
+[100%] Built target k17_fix2_check
+[ 12%] Built target re4_motion64
+[100%] Built target re4_platform
+[100%] Building CXX object CMakeFiles/k17_fix3_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k17_fix3.cpp.o
+[100%] Linking CXX executable k17_fix3_check
+[100%] Built target k17_fix3_check
+[ 12%] Built target re4_motion64
+[100%] Built target re4_platform
+[100%] Building CXX object CMakeFiles/k17_weapons_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k17_weapons.cpp.o
+[100%] Linking CXX executable k17_weapons_check
+[100%] Built target k17_weapons_check
+[ 12%] Built target re4_motion64
+[100%] Built target re4_platform
+[100%] Linking CXX executable m37_enemy_ai_check
+[100%] Built target m37_enemy_ai_check
+[ 12%] Built target re4_motion64
+[100%] Built target re4_platform
+[100%] Building CXX object CMakeFiles/m37_enemy_sequence_audio_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_enemy_sequence_audio.cpp.o
+[100%] Linking CXX executable m37_enemy_sequence_audio_check
+[100%] Built target m37_enemy_sequence_audio_check
+[ 11%] Built target re4_motion64
+[ 88%] Built target re4_platform
+[ 88%] Building CXX object CMakeFiles/k17_fix1_runtime_check.dir/actor_gl.cpp.o
+[ 88%] Building CXX object CMakeFiles/k17_fix1_runtime_check.dir/event_mirror_gl.cpp.o
+[100%] Building CXX object CMakeFiles/k17_fix1_runtime_check.dir/event_focus_gl.cpp.o
+[100%] Building CXX object CMakeFiles/k17_fix1_runtime_check.dir/event_actor_gl.cpp.o
+[100%] Building CXX object CMakeFiles/k17_fix1_runtime_check.dir/item_effects_gl.cpp.o
+[100%] Building CXX object CMakeFiles/k17_fix1_runtime_check.dir/radio_term_gl.cpp.o
+[100%] Building CXX object CMakeFiles/k17_fix1_runtime_check.dir/room_shadows_gl.cpp.o
+[100%] Building CXX object CMakeFiles/k17_fix1_runtime_check.dir/scene_gl.cpp.o
+[100%] Building CXX object CMakeFiles/k17_fix1_runtime_check.dir/subscreen_item_gl.cpp.o
+[100%] Building CXX object CMakeFiles/k17_fix1_runtime_check.dir/subscreen_portrait_gl.cpp.o
+[100%] Building CXX object CMakeFiles/k17_fix1_runtime_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k17_fix1_runtime.cpp.o
+[100%] Linking CXX executable k17_fix1_runtime_check
+[100%] Built target k17_fix1_runtime_check
+[ 10%] Built target re4_motion64
+[ 80%] Built target re4_platform
+[ 80%] Building CXX object CMakeFiles/k17_fix4_runtime_check.dir/event_actor_gl.cpp.o
+[ 80%] Building CXX object CMakeFiles/k17_fix4_runtime_check.dir/actor_gl.cpp.o
+[ 80%] Building CXX object CMakeFiles/k17_fix4_runtime_check.dir/event_mirror_gl.cpp.o
+[ 80%] Building CXX object CMakeFiles/k17_fix4_runtime_check.dir/event_focus_gl.cpp.o
+[ 80%] Building CXX object CMakeFiles/k17_fix4_runtime_check.dir/item_effects_gl.cpp.o
+[ 80%] Building CXX object CMakeFiles/k17_fix4_runtime_check.dir/radio_term_gl.cpp.o
+[ 80%] Building CXX object CMakeFiles/k17_fix4_runtime_check.dir/room_shadows_gl.cpp.o
+[ 80%] Building CXX object CMakeFiles/k17_fix4_runtime_check.dir/scene_gl.cpp.o
+[ 80%] Building CXX object CMakeFiles/k17_fix4_runtime_check.dir/subscreen_item_gl.cpp.o
+[ 80%] Building CXX object CMakeFiles/k17_fix4_runtime_check.dir/subscreen_portrait_gl.cpp.o
+[ 80%] Building CXX object CMakeFiles/k17_fix4_runtime_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k17_fix4_runtime.cpp.o
+[ 80%] Linking CXX executable k17_fix4_runtime_check
+[100%] Built target k17_fix4_runtime_check

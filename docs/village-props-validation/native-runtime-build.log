@@ -1,0 +1,5 @@
+[ 12%] Built target re4_motion64
+[ 87%] Built target re4_platform
+[ 87%] Building CXX object CMakeFiles/village_next_runtime_check.dir/workspace/scratch/5c7e3472beb8/work/RE4-Android-Decomp/tools/test_village_next_runtime.cpp.o
+[ 87%] Linking CXX executable village_next_runtime_check
+[100%] Built target village_next_runtime_check

@@ -1,0 +1,219 @@
+{
+  "format": 2,
+  "video_encoding": "H264 CRF18; decoded original frames and timing",
+  "audio_encoding": "AAC stereo 128kbps (default first track) + AAC mono 64kbps (second track); decoded original ADX",
+  "audio_tracks": [
+    {
+      "audio_stream": 0,
+      "title": "Stereo",
+      "channels": 2,
+      "default": true
+    },
+    {
+      "audio_stream": 1,
+      "title": "Mono",
+      "channels": 1,
+      "default": false
+    }
+  ],
+  "movies": [
+    {
+      "name": "opening",
+      "source": "Movie/opening.sfd",
+      "source_sha256": "5810a094749f023aeba86ecc29a363951aa932fc5ff25875f7b131a2d25ccabe",
+      "mp4_sha256": "eb68164dbf5023641368e3a72749a50439c68c790bb20fce95ebed8c6e28b29e",
+      "bytes": 9725292,
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "index": 0,
+            "codec_name": "h264",
+            "codec_type": "video",
+            "width": 512,
+            "height": 336,
+            "sample_aspect_ratio": "200:219",
+            "start_time": "0.000000",
+            "duration": "76.042633",
+            "disposition": {
+              "default": 1
+            },
+            "tags": {
+              "language": "und",
+              "handler_name": "VideoHandler"
+            }
+          },
+          {
+            "index": 1,
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "sample_rate": "32000",
+            "channels": 2,
+            "channel_layout": "stereo",
+            "start_time": "0.000000",
+            "duration": "76.008000",
+            "disposition": {
+              "default": 1
+            },
+            "tags": {
+              "language": "und",
+              "handler_name": "Stereo"
+            }
+          },
+          {
+            "index": 2,
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "sample_rate": "32000",
+            "channels": 1,
+            "channel_layout": "mono",
+            "start_time": "0.000000",
+            "duration": "76.008000",
+            "disposition": {
+              "default": 0
+            },
+            "tags": {
+              "language": "und",
+              "handler_name": "Mono"
+            }
+          }
+        ],
+        "format": {
+          "duration": "76.042633"
+        }
+      }
+    },
+    {
+      "name": "demo0",
+      "source": "Movie/demo0.sfd",
+      "source_sha256": "2821b97d1dd8e9412470ea48b1e1a6b008ef98078fc6153c464203d92e5f2b88",
+      "mp4_sha256": "061ca2dff6738dc9de09f268a8ac9a4fc0d410561048e84b5d1039a306c6818e",
+      "bytes": 7926850,
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "index": 0,
+            "codec_name": "h264",
+            "codec_type": "video",
+            "width": 512,
+            "height": 336,
+            "sample_aspect_ratio": "200:219",
+            "start_time": "0.000000",
+            "duration": "61.394667",
+            "disposition": {
+              "default": 1
+            },
+            "tags": {
+              "language": "und",
+              "handler_name": "VideoHandler"
+            }
+          },
+          {
+            "index": 1,
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "sample_rate": "32000",
+            "channels": 2,
+            "channel_layout": "stereo",
+            "start_time": "0.000000",
+            "duration": "61.370000",
+            "disposition": {
+              "default": 1
+            },
+            "tags": {
+              "language": "und",
+              "handler_name": "Stereo"
+            }
+          },
+          {
+            "index": 2,
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "sample_rate": "32000",
+            "channels": 1,
+            "channel_layout": "mono",
+            "start_time": "0.000000",
+            "duration": "61.370000",
+            "disposition": {
+              "default": 0
+            },
+            "tags": {
+              "language": "und",
+              "handler_name": "Mono"
+            }
+          }
+        ],
+        "format": {
+          "duration": "61.394667"
+        }
+      }
+    },
+    {
+      "name": "demo1",
+      "source": "Movie/demo1.sfd",
+      "source_sha256": "2821b97d1dd8e9412470ea48b1e1a6b008ef98078fc6153c464203d92e5f2b88",
+      "mp4_sha256": "061ca2dff6738dc9de09f268a8ac9a4fc0d410561048e84b5d1039a306c6818e",
+      "bytes": 7926850,
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "index": 0,
+            "codec_name": "h264",
+            "codec_type": "video",
+            "width": 512,
+            "height": 336,
+            "sample_aspect_ratio": "200:219",
+            "start_time": "0.000000",
+            "duration": "61.394667",
+            "disposition": {
+              "default": 1
+            },
+            "tags": {
+              "language": "und",
+              "handler_name": "VideoHandler"
+            }
+          },
+          {
+            "index": 1,
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "sample_rate": "32000",
+            "channels": 2,
+            "channel_layout": "stereo",
+            "start_time": "0.000000",
+            "duration": "61.370000",
+            "disposition": {
+              "default": 1
+            },
+            "tags": {
+              "language": "und",
+              "handler_name": "Stereo"
+            }
+          },
+          {
+            "index": 2,
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "sample_rate": "32000",
+            "channels": 1,
+            "channel_layout": "mono",
+            "start_time": "0.000000",
+            "duration": "61.370000",
+            "disposition": {
+              "default": 0
+            },
+            "tags": {
+              "language": "und",
+              "handler_name": "Mono"
+            }
+          }
+        ],
+        "format": {
+          "duration": "61.394667"
+        }
+      }
+    }
+  ]
+}

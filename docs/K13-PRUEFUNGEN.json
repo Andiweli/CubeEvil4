@@ -1,0 +1,108 @@
+{
+  "version": "0.37.13-dev",
+  "version_code": 46,
+  "base": "K12",
+  "first_title_choice": "START",
+  "LOAD_SAVE_exit_confirmation_default": "YES",
+  "title_demo_return": {
+    "original_animation_clock_preserved": true,
+    "frozen_frame_615_removed": true,
+    "separate_black_return_fade_ticks": 15,
+    "android_bitmap_canvas_recreated": true
+  },
+  "original_scenario_collision": {
+    "room": "r100",
+    "AEV_type": "SCR_AT/0x0B",
+    "original_area_numbers_hex": [
+      "04",
+      "05",
+      "1C",
+      "1E",
+      "25",
+      "26",
+      "27"
+    ],
+    "original_unparented_triangles_and_attributes": true,
+    "source_switch_functions": [
+      "R100Init",
+      "r100_Sce_zombi_dead",
+      "r100_Car_pos_move"
+    ],
+    "state_flag": "RSF10",
+    "before_truck_SAT_areas_hex": [
+      "04",
+      "05"
+    ],
+    "after_truck_SAT_areas_hex": [
+      "1C"
+    ],
+    "before_truck_EAT_areas_hex": [
+      "05",
+      "1E",
+      "25",
+      "26",
+      "27"
+    ],
+    "after_truck_EAT_areas_hex": [],
+    "covers_shared_walk_ground_camera_and_shot_queries": true,
+    "parented_areas_and_full_dynamic_engine_port": false
+  },
+  "host_checks": {
+    "java_startup_flow": 1378,
+    "java_startup_presentation": 123,
+    "java_card_flow": 42,
+    "native_scenario_collision": 60,
+    "grounded_vehicle_approaches": 5,
+    "original_atari_AEV_exact_float32_geometry_fields": 880,
+    "original_geometry_states": 4,
+    "native_ctest_groups_passed": 43,
+    "original_title_CARD_asset_checks": 937,
+    "production_JNI_GLES_save_load_room_checks": 337,
+    "production_JNI_GLES_secondary_EGL_camera_checks": 213
+  },
+  "open_validation_findings": [
+    {
+      "test": "m37_entry_runtime_check",
+      "status": "FAIL",
+      "reason": "Filter00: incomplete framebuffer at r120 filter/context rebuild",
+      "older_comparison_binary_same_failure": true,
+      "older_comparison_error": "Filter00: unvollst\u00e4ndiger Bildpuffer",
+      "fixed_in_K13": false
+    }
+  ],
+  "android_ARM64_final_cold_build_passed": true,
+  "earlier_incremental_packaging_failure": {
+    "reason": "missing temporary .rsync-tmp/classes.dex file",
+    "resolved_by_final_clean_build": true
+  },
+  "apk_build_content": {
+    "apk_sha256": "98208c80bb06a56cd7c4600ed4aa6a48fd129fb83fb4261bb36524595deb4d35",
+    "native_sha256": "80dbe2aec06b52b11af5501306995720b8980d1886c0d45f83df394ff2e7f9f6",
+    "fresh_native_matches_apk": true,
+    "scenario_collision_in_apk": true,
+    "menu_return_fade_clock_in_apk": true,
+    "native_and_dex_changed_from_K12": true,
+    "dex_files": [
+      "classes.dex",
+      "classes2.dex",
+      "classes3.dex"
+    ],
+    "manifest": "package: name='com.ast.re4decomp' versionCode='46' versionName='0.37.13-dev' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'"
+  },
+  "apk_signature": {
+    "manifest_file_digests": 19,
+    "sf_section_digests": 19,
+    "legacy_metadata_unchanged_by_v2": true,
+    "apk_sha256": "cf69f258cdaec93ade4abe24665cccf3f4576fe15cb932b81d2e865b4ecb4cba",
+    "conversion_certificate_sha256": "31ac6bef27dc5dd0f27a4d6463ef8615277b67e2ae5eaa87daf5f3cbb335a6e5",
+    "v1_sha1_rsa_no_attributes": true,
+    "v1_and_v2_verified": true,
+    "rsa_block_stored": true,
+    "alignment_16k_verified": true
+  },
+  "signed_apk_payload_matches_final_build": true,
+  "certificate_matches_K12": true,
+  "english_only_and_K12_import_filters_retained": true,
+  "existing_imports_and_saves_remain_valid": true,
+  "device_test_of_K13": false
+}

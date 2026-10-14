@@ -1,0 +1,95 @@
+{
+  "version": "0.37.15-dev",
+  "version_code": 48,
+  "base": "complete K14 plus village preparation",
+  "upstream_commit": "9b76ff003081d6ece8b838453fb8310743a972c7",
+  "original_data_checks": {
+    "status": "PASS",
+    "rooms": 29,
+    "authored_AEV_transitions": 66,
+    "arrivals_with_supporting_original_SAT": 63,
+    "same_room_part_transfers": 2,
+    "boat_only_arrivals_without_static_floor": 1,
+    "EM15_actor_owners": 43,
+    "initial_active_EM15_actors": 11,
+    "full_original_EVD_frames": {
+      "r101s00": 210,
+      "r101s21": 799,
+      "r101s30": 1330
+    }
+  },
+  "JNI_GLES_integration": {
+    "status": "PASS",
+    "checks": 813,
+    "real_original_data": true,
+    "real_software_EGL_GLES": true,
+    "coverage": [
+      "r101 entry radio and checkpoint",
+      "all 33 selectable original items",
+      "duplicate and full-case transactions",
+      "house event and first resumed frame",
+      "five-actor wave camera",
+      "complete bell event and radio",
+      "tower bottle flight, impact and source flames",
+      "fatal chainsaw player pair and Continue",
+      "25 additional grounded village room starts",
+      "floorless boat transfer rolls back and retains the previous live room"
+    ]
+  },
+  "save_continue_regression": {
+    "status": "PASS",
+    "checks": 337
+  },
+  "java_HUD_Continue": {
+    "status": "PASS",
+    "checks": 51
+  },
+  "java_scene_loading": {
+    "status": "PASS",
+    "checks": 24
+  },
+  "android": {
+    "assembleDebug": "PASS",
+    "abi": "arm64-v8a",
+    "compile_sdk": 35,
+    "ndk": "28.2.13676358",
+    "cmake": "3.22.1",
+    "gradle": "8.11.1",
+    "java": 17,
+    "lintDebug": "PASS",
+    "lint_errors": 0,
+    "lint_warnings": 48,
+    "built_debug_apk_sha256": "e409f5a24745af768611cdbacfe680e4fadc1b71306ebd9483b10164a5ff23a3",
+    "native_library_entry": "lib/arm64-v8a/libre4decomp.so",
+    "native_library_sha256": "ab852106f43094698b2beb48364d43cc595e2c5a3c53de1c4842dd8ba284dcba"
+  },
+  "device_gameplay_or_GameCube_visual_comparison": {
+    "performed": false
+  },
+  "material_limits": [
+    "pl0f boat and ferry controllers not ported; r11b to r10d cannot complete as an ordinary walking transfer",
+    "cheat menu grants all listed original items; additional weapon/grenade combat controllers remain unported",
+    "other village room story, enemy, partner and boss logic is not complete",
+    "r101 continuous binocular view, chapter title, complete variant AI and all gore/GX/filter details are not complete"
+  ],
+  "authorization_and_language": {
+    "own_test_and_debug_UI": "English",
+    "language_choice": false,
+    "Japanese_data_import": false,
+    "automatic_external_messages": false,
+    "private_signing_material_in_source_archives": false
+  },
+  "continue_original_behavior": "gameDiedemo YES calls GameContinue(0), restoring checkpoint rather than opening LOAD selection",
+  "dvd2": "Stage3/island and ending assets; full game needs both DVDs. Current village scope uses Disc1.",
+  "delivery": {
+    "contains": "complete replacement files, not diffs",
+    "changed_or_new_files_over_K14_including_manifest": 69,
+    "source_archive_excludes": [
+      "DVD images",
+      "SDKs",
+      "build outputs",
+      "local SDK paths",
+      "private signing material"
+    ]
+  }
+}

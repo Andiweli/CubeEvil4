@@ -1,0 +1,49 @@
+fix18-java.log
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+
+fix18-android.log
+[0/1] Re-running CMake...
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /workspace/scratch/7d71f11084f3/android-native-fix1
+[1/3] Building CXX object CMakeFiles/re4_platform.dir/subscreen_data.cpp.o
+[2/3] Linking CXX static library libre4_platform.a
+[3/3] Linking CXX shared library libre4decomp.so
+
+
+fix18-runtime.log
+MSAA requested 0 actual 0 error 0
+MSAA requested 2 actual 0 error 0
+MSAA requested 4 actual 4 error 0
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Menu boundary partial coverage 15 -> 745
+SS profile 33 static/reference difference 12611 opaque 33328
+AA silhouette changes 132 away from edge 1 interior RGB error 1.38368
+Menu boundary partial coverage 40 -> 769
+SS profile 46 static/reference difference 10546 opaque 29158
+AA silhouette changes 138 away from edge 0 interior RGB error 1.4855
+Menu boundary partial coverage 24 -> 905
+SS profile 47 static/reference difference 11418 opaque 30800
+AA silhouette changes 173 away from edge 0 interior RGB error 1.52534
+Menu boundary partial coverage 19 -> 989
+SS profile 54 static/reference difference 12251 opaque 42143
+AA silhouette changes 193 away from edge 0 interior RGB error 1.21905
+Menu boundary partial coverage 14 -> 850
+SS profile 52 static/reference difference 12562 opaque 38364
+AA silhouette changes 150 away from edge 0 interior RGB error 1.25708
+Menu boundary partial coverage 32 -> 689
+SS profile 14 static/reference difference 10680 opaque 31938
+AA silhouette changes 122 away from edge 0 interior RGB error 1.14093
+K17 Fix16 production SS/blood/pause/context checks PASS: 578 checks
+
+
+fix18-menu.log
+Fix18 native menu PASS: 12 checks
+
+
+fix18-layout.log
+Fix18 original layout PASS: 5766 geometry/touch checks

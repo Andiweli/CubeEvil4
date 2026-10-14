@@ -1,0 +1,268 @@
+K17 Fix4 – endgültige Testausgaben, 2026-10-08
+Originaldaten separat bereitgestellt; Linux-EGL/GLES statt physischem Androidgerät.
+Austauschdateien ohne APK. ARM64-Code für16-KiB-ELF-Ausrichtung geprüft.
+
+fix4-pure-results.log
+Scope profile 46 pitch -0.35 PASS
+Scope profile 46 pitch 0.35 PASS
+Scope profile 47 pitch -0.35 PASS
+Scope profile 47 pitch 0.35 PASS
+Scope profile 107 pitch -0.35 PASS
+Scope profile 107 pitch 0.35 PASS
+Scope profile 108 pitch -0.35 PASS
+Scope profile 108 pitch 0.35 PASS
+Scope profile 153 pitch -0.35 PASS
+Scope profile 153 pitch 0.35 PASS
+Scope profile 81 pitch -0.35 PASS
+Scope profile 81 pitch 0.35 PASS
+Hen idle 1 pos -10839.9,0,2661.24
+Hen idle 2 pos -7861.18,0,6299.62
+Animal hit id 38 index 52 center -4977.67,933.316,11833.6 hp 1000 target 1
+Animal hit id 40 index 78 center -8099.06,354.437,-3477.54 hp 100 target 1
+Animal hit id 40 index 79 center -7928.76,329.753,6268.22 hp 100 target 1
+Spawn 20 pos -11300,0,-1520 flags 220
+Spawn 21 pos -7340,0,800 flags 48002020
+Spawn 22 pos -6100,0,-840 flags 60002020
+Spawn 23 pos 6010,0,2740 flags 80000120
+Spawn 24 pos -5890,0,-21630 flags 80400020
+Spawn 25 pos 1770,869.145,18570 flags 80000220
+Spawn 26 pos 38770,3081.9,-27360 flags 8800020
+Spawn 27 pos 39170,3085.33,-25840 flags 80020
+Spawn 28 pos 40060,3178.94,-27040 flags 10000020
+Spawn 30 pos -4530,3200,-10970 flags 20092420
+Spawn 31 pos 5790,3205.19,-15480 flags 8012620
+  Roof surface 21000000 n=1,0,0
+Spawn 34 pos -51120,166.33,22220 flags 20080020
+Spawn 35 pos -51780,165.286,21490 flags 20
+Spawn 36 pos -52720,242.47,23000 flags 81000020
+Spawn 40 pos -12540,2560.27,30760 flags 200000a0
+Spawn 41 pos -13930,2623.79,31560 flags 10040a0
+Spawn 42 pos -13350,2230.31,27730 flags a0
+Spawn 43 pos -11910,1865.56,24760 flags 90000a0
+Spawn 44 pos -12920,2712.9,33010 flags 80800a0
+Spawn 46 pos 25210,1107.75,-120 flags a0
+Spawn 47 pos 26430,1112.24,1140 flags 200000a0
+Spawn 48 pos 25880,1114.93,-1640 flags 80000a0
+Spawn 49 pos 29150,1137.87,-990 flags 90000a0
+Spawn 50 pos 27340,1118.64,650 flags 4040a0
+Spawn 54 pos -6900,0,-19570 flags 200000a0
+Spawn 55 pos -5100,0,-18710 flags 440a0
+Spawn 56 pos -6840,0,-17680 flags a0
+Spawn 57 pos -8770,0,-18040 flags 80000a0
+Spawn 58 pos -4810,0,-20810 flags 90000a0
+Spawn 60 pos 6450,0,-2180 flags 10000020
+Spawn 61 pos 7060,0,-5410 flags 8000020
+Spawn 62 pos 7430,0,-3310 flags 20
+Spawn 63 pos 360,0,-3700 flags 20
+Spawn 64 pos -330,0,-3030 flags 800020
+Spawn 65 pos -2920,0,-8440 flags 20040020
+Spawn 66 pos -3450,0,-7360 flags 80020
+Spawn 67 pos 1070,0,-2590 flags 80020
+Spawn 68 pos -3950,0,-8190 flags 8800020
+Spawn 69 pos -3430,3200,-12500 flags 20412420
+Spawn 70 pos -3700,3200,-13750 flags 8092420
+Spawn 72 pos 3730,0,-1670 flags 88
+Spawn 73 pos 9160,0,2310 flags 88
+Spawn 74 pos 15290,0,-950 flags 8000088
+Roof original mask 0 falling 1 landing 1 finalY 0
+Roof original mask 1 falling 1 landing 1 finalY 0
+K17 Fix4 PASS: 3454 checks
+
+fix4-runtime-results.log
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Animal slot 52 original visible RGB pixels 55394
+Animal slot 78 original visible RGB pixels 9052
+Animal slot 79 original visible RGB pixels 7331
+K17 Fix4 production JNI/GLES animals,knife,save,audio and frustum PASS: 306 checks
+
+fix4-distance-results.log
+Original r100/r120 distance, foliage, LOD and scaled specular GLES PASS: 6585 checks; driving cuts=9
+
+fix4-fix1-regression.log
+K17 Fix1 original physical LS/radio hand checks PASS: 7060 checks, default handgun plus 38 weapon profiles
+
+fix4-fix1-runtime-regression.log
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+K17 Fix1 production JNI/GLES r100->r101, radio/25 weapons, physical LS and resumed world PASS: 7143 checks
+
+fix4-fix2-regression.log
+K17 Fix2 original weapon response/grips/scopes, all village waves,1350 bell frames and3 ladder bounds PASS: 3122 checks
+
+fix4-fix2-runtime-regression.log
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Projectile 54 visible changed RGB pixels 99
+Projectile 171 visible changed RGB pixels 631
+Projectile 53 visible changed RGB pixels 3145
+Projectile 23 visible changed RGB pixels 3143
+Projectile 109 visible changed RGB pixels 3069
+Projectile 82 visible changed RGB pixels 3419
+Projectile 1 visible changed RGB pixels 421
+Projectile 2 visible changed RGB pixels 489
+Projectile 14 visible changed RGB pixels 490
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+K17 Fix2 real JNI/GLES flight pixels,10 scopes,3 complete ladder climbs,drop retention and bell/radio PASS: 2569 checks
+
+fix4-fix3-regression.log
+K17 Fix3 attachments/SAVE-LOAD,24 mine directions,source scopes/title,three long village waves and original dash PASS: 431 checks
+
+fix4-fix3-runtime-regression.log
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Production accessory 54/170 -> 171 PASS
+Production accessory 46/68 -> 107 PASS
+Production accessory 47/69 -> 108 PASS
+Production accessory 46/197 -> 153 PASS
+Production accessory 47/197 -> 81 PASS
+Production accessory 48/67 -> 50 PASS
+Production accessory 33/63 -> 34 PASS
+Mine heading 0.6 RGB pixels 153 visible frames 2
+Mine heading 1.1 RGB pixels 126 visible frames 3
+Mine heading 1.72 RGB pixels 102 visible frames 4
+Mine heading 2.3 RGB pixels 123 visible frames 4
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+K17 Fix3 production JNI attachments/SAVE,scope selection,mine flight,Room HUD and bell title/radio/skip PASS: 1616 checks
+
+fix4-weapons-results.log
+K17 original38 weapons, first aim edge, real shots/ammo/reloads, projectile fuses and119-joint healthy/injured knife poses PASS: 3437 checks
+
+fix4-save-results.log
+M37 original save codec/native mapper: 79 checks PASS
+
+fix4-java.log
+Java disc tests: 8 checks PASS
+Controller selection, virtual navigation, priority and reset: 11 checks PASS
+Menu repeat, rotated placement, collision and source categories: 80 checks PASS
+Full viewport, isotropic model/piece layout, flexible lists and touch inverse: 7721 checks PASS
+Map camera/footer PASS: 11
+Startup source timeline/curve/path: 1378 checks PASS
+Startup original options: 17 checks PASS
+Original HUD thresholds/30-Hz clock and Continue timers/choices: 51 checks PASS
+Startup original voice end/output drain: 14 checks PASS
+Startup presentation/movie lifecycle/source shader: 123 checks PASS
+Fix2 original 30Hz UI clock,3D ID transforms and10 scope layouts PASS: 10 checks
+SceneLoadGate: 24 checks passed
+Java RoomRepository tests: 76 checks PASS
+M31 room catalog PASS: 401
+
+fix4-java-scopes.log
+Fix2 original 30Hz UI clock,3D ID transforms and10 scope layouts PASS: 81 checks
+
+fix4-ctest.log
+Test project /workspace/scratch/7d71f11084f3/host-build
+      Start  3: m36_startup_compositor_check
+      Start 10: m37_event_focus_gl_check
+      Start 39: audio_contracts
+      Start  7: m37_streams_check
+ 1/43 Test  #7: m37_streams_check ................   Passed    0.27 sec
+      Start 11: inventory_case_contracts
+ 2/43 Test #39: audio_contracts ..................   Passed    0.32 sec
+      Start 20: melee_rules_contracts
+ 3/43 Test #20: melee_rules_contracts ............   Passed    0.15 sec
+      Start 14: yz2_contracts
+ 4/43 Test #11: inventory_case_contracts .........   Passed    0.21 sec
+      Start 22: grab_rules_contracts
+ 5/43 Test #22: grab_rules_contracts .............   Passed    0.09 sec
+      Start  2: m36_event_audio_check
+ 6/43 Test  #2: m36_event_audio_check ............   Passed    0.01 sec
+      Start  8: m37_weapon_sway_check
+ 7/43 Test  #8: m37_weapon_sway_check ............   Passed    0.01 sec
+      Start  9: m37_player_eyes_check
+ 8/43 Test #14: yz2_contracts ....................   Passed    0.12 sec
+      Start 12: environment_contracts
+ 9/43 Test #12: environment_contracts ............   Passed    0.01 sec
+      Start 27: animation_contracts
+10/43 Test  #9: m37_player_eyes_check ............   Passed    0.02 sec
+      Start 15: archive_contracts
+11/43 Test #27: animation_contracts ..............   Passed    0.00 sec
+      Start 43: turn_rules_contracts
+12/43 Test #15: archive_contracts ................   Passed    0.01 sec
+      Start 17: gx_contracts
+13/43 Test #43: turn_rules_contracts .............   Passed    0.01 sec
+      Start  1: original_enemy_drop_tests
+14/43 Test #17: gx_contracts .....................   Passed    0.01 sec
+      Start  6: subscreen_data_contracts
+15/43 Test  #1: original_enemy_drop_tests ........   Passed    0.01 sec
+      Start 16: smd_contracts
+16/43 Test  #6: subscreen_data_contracts .........   Passed    0.00 sec
+      Start 37: object_action_contracts
+17/43 Test #16: smd_contracts ....................   Passed    0.01 sec
+      Start 29: player_action_contracts
+18/43 Test #37: object_action_contracts ..........   Passed    0.01 sec
+      Start  5: enemy_feedback_tests
+19/43 Test #29: player_action_contracts ..........   Passed    0.00 sec
+      Start 41: laser_sight_contracts
+20/43 Test  #5: enemy_feedback_tests .............   Passed    0.00 sec
+      Start 36: room_item_contracts
+21/43 Test #41: laser_sight_contracts ............   Passed    0.01 sec
+22/43 Test #36: room_item_contracts ..............   Passed    0.00 sec
+      Start 23: grab_encounter_contracts
+      Start 21: melee_encounter_contracts
+23/43 Test #23: grab_encounter_contracts .........   Passed    0.00 sec
+      Start  4: context_actions_tests
+24/43 Test #21: melee_encounter_contracts ........   Passed    0.01 sec
+25/43 Test  #4: context_actions_tests ............   Passed    0.01 sec
+      Start 18: collision_contracts
+      Start 31: scene_contracts
+26/43 Test #18: collision_contracts ..............   Passed    0.00 sec
+      Start 26: enemy_encounter_contracts
+27/43 Test #31: scene_contracts ..................   Passed    0.01 sec
+      Start 13: native_contracts
+28/43 Test #26: enemy_encounter_contracts ........   Passed    0.00 sec
+      Start 40: room_lighting_contracts
+29/43 Test #13: native_contracts .................   Passed    0.00 sec
+      Start 25: enemy_spawn_contracts
+30/43 Test #40: room_lighting_contracts ..........   Passed    0.00 sec
+      Start 19: sat_contracts
+31/43 Test #25: enemy_spawn_contracts ............   Passed    0.00 sec
+      Start 33: ambient_animal_contracts
+32/43 Test #19: sat_contracts ....................   Passed    0.00 sec
+      Start 35: room_object_contracts
+33/43 Test #33: ambient_animal_contracts .........   Passed    0.00 sec
+      Start 30: room_flow_contracts
+34/43 Test #30: room_flow_contracts ..............   Passed    0.00 sec
+      Start 38: destruction_effect_contracts
+35/43 Test #35: room_object_contracts ............   Passed    0.00 sec
+      Start 34: room_state_contracts
+36/43 Test #38: destruction_effect_contracts .....   Passed    0.00 sec
+      Start 24: hit_geometry_contracts
+37/43 Test #34: room_state_contracts .............   Passed    0.00 sec
+      Start 42: follow_camera_contracts
+38/43 Test #24: hit_geometry_contracts ...........   Passed    0.00 sec
+      Start 28: player_motion_contracts
+39/43 Test #42: follow_camera_contracts ..........   Passed    0.00 sec
+      Start 32: world_effect_contracts
+40/43 Test #28: player_motion_contracts ..........   Passed    0.00 sec
+41/43 Test #32: world_effect_contracts ...........   Passed    0.00 sec
+42/43 Test #10: m37_event_focus_gl_check .........   Passed    0.69 sec
+43/43 Test  #3: m36_startup_compositor_check .....   Passed    1.08 sec
+
+100% tests passed out of 43
+
+Total Test time (real) =   1.08 sec
+
+fix4-android-native.log
+[1/2] Building CXX object CMakeFiles/re4decomp.dir/scene_gl.cpp.o
+[2/2] Linking CXX shared library libre4decomp.so
+
+ARM64-Metadaten
+{
+  "machine": "AArch64",
+  "abi": "arm64-v8a",
+  "result": "PASS",
+  "loadSegments": 3,
+  "pageAlignment": 16384,
+  "nativeSha256": "66b10832cfa95eec71eebda2fb67070424f1f01fe513bbf52cf3118b20a96d54",
+  "apkProduced": false
+}

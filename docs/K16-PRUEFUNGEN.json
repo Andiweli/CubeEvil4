@@ -1,0 +1,84 @@
+{
+  "update": "K16",
+  "versionName": "0.37.16-dev",
+  "versionCode": 49,
+  "date": "2026-10-08",
+  "baseline": "RE4-Android-Decomp-K15-Quellstand.zip",
+  "originalSourceCommit": "9b76ff003081d6ece8b838453fb8310743a972c7",
+  "fixture": "User-provided USA GameCube Disc 1, original English/shared files and decoded village rooms; not included in deliverables",
+  "nativeChecks": [
+    {
+      "target": "k16_runtime_check",
+      "result": "PASS",
+      "checks": 2735,
+      "scope": [
+        "Production JNI with real EGL/GLES rendering",
+        "All 33 selectable cheat-item IDs, every equippable ID switched through the ingame case",
+        "Original carry models/grips and equipped menu portraits",
+        "Original AEV7 LOOK press/facing predicates, first binocular EVD, held view, pan, zoom, exit and repeat",
+        "Full original house/bell events, waves and bottle impact",
+        "First blast leaves source 1 HP; injured walking compared against original PL00 FCV/SEQ joint matrices",
+        "Fatal blast begins death on the same hit and CONTINUE restores live r101",
+        "Chainsaw death/CONTINUE restores checkpoint actors and retains session cheats",
+        "Real EM15 type11 Find motion, discovery voice, binocular exit and village alarm",
+        "25 additional village rooms with static walking starts; original floorless boat arrival rejected without losing previous scene"
+      ]
+    },
+    {
+      "target": "enemy_feedback_tests",
+      "result": "PASS",
+      "checks": 97,
+      "scope": "Original voice slots, all 19 EM15 type11 slots equal bank1/EM12 type1, invalid inputs retained"
+    },
+    {
+      "target": "blast_combat_check",
+      "result": "PASS",
+      "checks": 269320,
+      "scope": "Original damage FCV/SEQ poses in authored-eye mode, LifeDown/RNG, Ganado weapon13, height/protection and 30-Hz callbacks"
+    },
+    {
+      "target": "k15_village_check",
+      "result": "PASS",
+      "rooms": 29,
+      "authoredTransitions": 66,
+      "ganadoOwners": 43,
+      "completedEvents": {"r101s00": 210, "r101s21": 799, "r101s30": 1330},
+      "scope": "Original source registrations, floor checks, waves, house/bell deadlines and complete events"
+    }
+  ],
+  "javaChecks": [
+    {"test": "CockpitContinueTests", "checks": 51, "result": "PASS"},
+    {"test": "StartupFlowTests", "checks": 1378, "result": "PASS"},
+    {"test": "StartupPresentationTests", "checks": 123, "result": "PASS"},
+    {"test": "StartupOptionsTests", "checks": 17, "result": "PASS"},
+    {"test": "StartupVoiceTests", "checks": 14, "result": "PASS"},
+    {"test": "GameMenuNavigationTests", "checks": 80, "result": "PASS"},
+    {"test": "SceneLoadGateTests", "checks": 24, "result": "PASS"},
+    {"test": "ControllerPolicyTests", "checks": 11, "result": "PASS"}
+  ],
+  "androidCompilation": {
+    "nativeArm64": "PASS",
+    "ndk": "28.2.13676358",
+    "nativeApi": 21,
+    "nativeCmake": "3.22.1",
+    "java": "PASS: all app Java files and generated R against SDK35, Java17",
+    "resources": "PASS: SDK35 aapt2 compile/link",
+    "assembleDebug": "Not completed: Maven dependency resolution unavailable in this execution environment",
+    "lint": "Not run",
+    "deviceTest": "Not run"
+  },
+  "sourceAudits": {
+    "originalUpstream": "2132 frozen files identical to K15",
+    "weaponCarryGenerator": "PASS: 38 profiles regenerate byte-for-byte",
+    "signingKeysOrDiscImagesIncluded": false,
+    "gradleWrapperIncluded": true,
+    "gameLanguage": "English only"
+  },
+  "remainingLimits": [
+    "Additional weapons are equippable for original-model/movement tests; complete attacks, aiming, reloads, throws and special behavior remain unported",
+    "Existing firearm combat supports Handgun, Punisher and Shotgun; knife uses L1",
+    "Krauser Bow on Leon is an explicit test profile, not an original Leon campaign/menu setup",
+    "Village boat/ferry and other campaign/AI/effect work retains the documented K15 limits",
+    "Android Bitmap fix compiled and reviewed; runtime presentation still requires a device test"
+  ]
+}

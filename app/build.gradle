@@ -1,0 +1,54 @@
+plugins { id 'com.android.application' }
+
+// ZIP timestamps have no timezone. A native input dated in the future keeps
+// Ninja's CMake manifest perpetually out of date after regeneration.
+def nativeSourceDirectory = layout.projectDirectory.dir('src/main/cpp').asFile
+def normalizeNativeSourceTimestamps = tasks.register('normalizeNativeSourceTimestamps') {
+    group = 'build'
+    description = 'Corrects future native-source timestamps before native configure, build and clean.'
+    // No outputs: this clock-dependent check must also run on incremental builds.
+    doLast {
+        long currentMillis = System.currentTimeMillis()
+        int corrected = 0
+        nativeSourceDirectory.eachFileRecurse(groovy.io.FileType.FILES) { File nativeInput ->
+            if (nativeInput.lastModified() > currentMillis) {
+                if (!nativeInput.setLastModified(currentMillis)) {
+                    throw new GradleException("Cannot correct future timestamp: ${nativeInput}")
+                }
+                corrected++
+            }
+        }
+        if (corrected > 0) {
+            logger.lifecycle("Corrected future timestamps on ${corrected} native source files.")
+        }
+    }
+}
+tasks.configureEach { Task nativeTask ->
+    // externalNativeBuildClean also invokes Ninja, which can regenerate CMake
+    // before cleaning. It needs this preparation even for a standalone clean.
+    if (nativeTask.name.startsWith('configureCMake') ||
+            nativeTask.name.startsWith('buildCMake') ||
+            nativeTask.name.startsWith('externalNativeBuild')) {
+        nativeTask.dependsOn(normalizeNativeSourceTimestamps)
+    }
+}
+
+android {
+    namespace 'com.ast.re4decomp'
+    compileSdk 35
+    ndkVersion '28.2.13676358'
+    defaultConfig {
+        applicationId 'com.ast.re4decomp'
+        minSdk 21
+        targetSdk 35
+        versionCode 55
+        versionName '0.37.17-fix6'
+        ndk { abiFilters 'arm64-v8a' }
+        externalNativeBuild { cmake { cppFlags '-std=c++17 -Wall -Wextra' } }
+    }
+    externalNativeBuild { cmake { path file('src/main/cpp/CMakeLists.txt'); version '3.22.1' } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    buildTypes { release { minifyEnabled false } }
+    packaging { jniLibs { useLegacyPackaging = false } }
+    lint { abortOnError true }
+}

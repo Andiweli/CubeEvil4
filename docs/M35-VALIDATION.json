@@ -1,0 +1,70 @@
+{
+  "milestone": "M35",
+  "base": "M34",
+  "date": "2026-10-05",
+  "android": {
+    "apk_bytes": 39227121,
+    "versionCode": 36,
+    "versionName": "0.35.0-dev",
+    "elf_load_alignments": [
+      "  LOAD           0x000000 0x0000000000000000 0x0000000000000000 0x5c7ed0 0x5c7ed0 R E 0x4000",
+      "  LOAD           0x5c7ed0 0x00000000005cbed0 0x00000000005cbed0 0x012e88 0x013130 RW  0x4000",
+      "  LOAD           0x5dad58 0x00000000005e2d58 0x00000000005e2d58 0x000424 0x0037a8 RW  0x4000"
+    ],
+    "zipalign16KiB": true,
+    "lint": {
+      "Error": 0,
+      "Fatal": 0,
+      "Warning": 25
+    },
+    "movie_assets": [
+      "assets/movies/demo0.mp4",
+      "assets/movies/demo1.mp4",
+      "assets/movies/manifest.json",
+      "assets/movies/opening.mp4"
+    ],
+    "device_test": false,
+    "jni_exports": 49
+  },
+  "passed_checks": {
+    "ctest_groups": 36,
+    "combined_production_jni_gles": 100,
+    "leon_original_actions": 4727,
+    "real_r10c_gap_traversals": 8,
+    "windows_ladders_original_assets": 9093,
+    "water_fse_assets": 194,
+    "fse_rooms": 127,
+    "fse_areas": 1927,
+    "r10a_walkable_water_locations": 21,
+    "original_foot_sound_oracle_comparisons": 1286419,
+    "r100_original_scenario_combat": 413,
+    "r100_original_axe_poses": 134,
+    "axe_max_pose_root_error": 0,
+    "axe_max_attachment_error_original_units": 0.00024414,
+    "r100_axe_gles": 14,
+    "title_option_load_font_assets": 446,
+    "startup_java": 18,
+    "options_java": 17,
+    "menu_layout_java": 6872,
+    "menu_navigation_java": 80,
+    "brightness_gles": 69382,
+    "original_brightness_coefficients": 567
+  },
+  "device_test": false,
+  "parity_complete": false,
+  "source_inventory": {
+    "files": 91,
+    "definitions": 1820,
+    "dispatch_tables": 54,
+    "partial_adapters": 128,
+    "not_transferred_or_unverified": 1692
+  },
+  "remaining": [
+    "r120/s03/s20 EVD runtime and scripted level progression",
+    "complete Leon original state machines",
+    "all r100 enemy families and group/route AI",
+    "CardSave/CardLoad backend",
+    "full GX/TEV/VI parity, scripted lighting/effects",
+    "original rumble/QuickKnife TypeII runtime behavior and DPLII encoder"
+  ]
+}

@@ -1,0 +1,146 @@
+fix8-java-final.log
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+
+fix8-android.log
+[1/5] Building CXX object CMakeFiles/re4decomp.dir/scene_gl.cpp.o
+[2/5] Building CXX object CMakeFiles/re4decomp.dir/actor_gl.cpp.o
+[3/5] Building CXX object CMakeFiles/re4decomp.dir/subscreen_portrait_gl.cpp.o
+[4/5] Building CXX object CMakeFiles/re4decomp.dir/android_bridge.cpp.o
+[5/5] Linking CXX shared library libre4decomp.so
+
+
+fix8-android-final.log
+[0/1] Re-running CMake...
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /workspace/scratch/7d71f11084f3/android-native-fix1
+ninja: no work to do.
+
+
+fix8-runtime.log
+MSAA requested 0 actual 0 error 0
+MSAA requested 2 actual 0 error 0
+MSAA requested 4 actual 4 error 0
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Menu boundary partial coverage 6 -> 744
+SS profile 33 static/reference difference 12721 opaque 33328
+AA silhouette changes 132 away from edge 1 interior RGB error 1.47515
+Menu boundary partial coverage 29 -> 765
+SS profile 46 static/reference difference 10698 opaque 29158
+AA silhouette changes 139 away from edge 0 interior RGB error 1.57002
+Menu boundary partial coverage 14 -> 900
+SS profile 47 static/reference difference 11623 opaque 30799
+AA silhouette changes 175 away from edge 0 interior RGB error 1.5967
+Menu boundary partial coverage 5 -> 985
+SS profile 54 static/reference difference 12560 opaque 42143
+AA silhouette changes 193 away from edge 0 interior RGB error 1.28284
+Menu boundary partial coverage 5 -> 847
+SS profile 52 static/reference difference 12726 opaque 38364
+AA silhouette changes 154 away from edge 0 interior RGB error 1.31496
+Menu boundary partial coverage 20 -> 686
+SS profile 14 static/reference difference 10808 opaque 31937
+AA silhouette changes 124 away from edge 0 interior RGB error 1.19596
+K17 Fix8 production SS/blood/pause/context checks PASS: 383 checks
+
+
+fix8-graphics.log
+Fix8 graphics PASS: MSAA changed 240 pixels / 240 intermediate edge pixels; AF changed 16384 pixels (2x -> 8x: 16384); No AF restores source image
+
+
+fix8-ctest.log
+Internal ctest changing into directory: /workspace/scratch/7d71f11084f3/host-build
+Test project /workspace/scratch/7d71f11084f3/host-build
+      Start  1: original_enemy_drop_tests
+ 1/43 Test  #1: original_enemy_drop_tests ........   Passed    0.00 sec
+      Start  2: m36_event_audio_check
+ 2/43 Test  #2: m36_event_audio_check ............   Passed    0.01 sec
+      Start  3: m36_startup_compositor_check
+ 3/43 Test  #3: m36_startup_compositor_check .....   Passed    0.91 sec
+      Start  4: context_actions_tests
+ 4/43 Test  #4: context_actions_tests ............   Passed    0.00 sec
+      Start  5: enemy_feedback_tests
+ 5/43 Test  #5: enemy_feedback_tests .............   Passed    0.00 sec
+      Start  6: subscreen_data_contracts
+ 6/43 Test  #6: subscreen_data_contracts .........   Passed    0.00 sec
+      Start  7: m37_streams_check
+ 7/43 Test  #7: m37_streams_check ................   Passed    0.25 sec
+      Start  8: m37_weapon_sway_check
+ 8/43 Test  #8: m37_weapon_sway_check ............   Passed    0.01 sec
+      Start  9: m37_player_eyes_check
+ 9/43 Test  #9: m37_player_eyes_check ............   Passed    0.01 sec
+      Start 10: m37_event_focus_gl_check
+10/43 Test #10: m37_event_focus_gl_check .........   Passed    0.56 sec
+      Start 11: inventory_case_contracts
+11/43 Test #11: inventory_case_contracts .........   Passed    0.14 sec
+      Start 12: environment_contracts
+12/43 Test #12: environment_contracts ............   Passed    0.01 sec
+      Start 13: native_contracts
+13/43 Test #13: native_contracts .................   Passed    0.00 sec
+      Start 14: yz2_contracts
+14/43 Test #14: yz2_contracts ....................   Passed    0.08 sec
+      Start 15: archive_contracts
+15/43 Test #15: archive_contracts ................   Passed    0.01 sec
+      Start 16: smd_contracts
+16/43 Test #16: smd_contracts ....................   Passed    0.00 sec
+      Start 17: gx_contracts
+17/43 Test #17: gx_contracts .....................   Passed    0.01 sec
+      Start 18: collision_contracts
+18/43 Test #18: collision_contracts ..............   Passed    0.00 sec
+      Start 19: sat_contracts
+19/43 Test #19: sat_contracts ....................   Passed    0.00 sec
+      Start 20: melee_rules_contracts
+20/43 Test #20: melee_rules_contracts ............   Passed    0.11 sec
+      Start 21: melee_encounter_contracts
+21/43 Test #21: melee_encounter_contracts ........   Passed    0.00 sec
+      Start 22: grab_rules_contracts
+22/43 Test #22: grab_rules_contracts .............   Passed    0.06 sec
+      Start 23: grab_encounter_contracts
+23/43 Test #23: grab_encounter_contracts .........   Passed    0.00 sec
+      Start 24: hit_geometry_contracts
+24/43 Test #24: hit_geometry_contracts ...........   Passed    0.00 sec
+      Start 25: enemy_spawn_contracts
+25/43 Test #25: enemy_spawn_contracts ............   Passed    0.00 sec
+      Start 26: enemy_encounter_contracts
+26/43 Test #26: enemy_encounter_contracts ........   Passed    0.00 sec
+      Start 27: animation_contracts
+27/43 Test #27: animation_contracts ..............   Passed    0.00 sec
+      Start 28: player_motion_contracts
+28/43 Test #28: player_motion_contracts ..........   Passed    0.00 sec
+      Start 29: player_action_contracts
+29/43 Test #29: player_action_contracts ..........   Passed    0.00 sec
+      Start 30: room_flow_contracts
+30/43 Test #30: room_flow_contracts ..............   Passed    0.00 sec
+      Start 31: scene_contracts
+31/43 Test #31: scene_contracts ..................   Passed    0.00 sec
+      Start 32: world_effect_contracts
+32/43 Test #32: world_effect_contracts ...........   Passed    0.00 sec
+      Start 33: ambient_animal_contracts
+33/43 Test #33: ambient_animal_contracts .........   Passed    0.00 sec
+      Start 34: room_state_contracts
+34/43 Test #34: room_state_contracts .............   Passed    0.00 sec
+      Start 35: room_object_contracts
+35/43 Test #35: room_object_contracts ............   Passed    0.00 sec
+      Start 36: room_item_contracts
+36/43 Test #36: room_item_contracts ..............   Passed    0.00 sec
+      Start 37: object_action_contracts
+37/43 Test #37: object_action_contracts ..........   Passed    0.00 sec
+      Start 38: destruction_effect_contracts
+38/43 Test #38: destruction_effect_contracts .....   Passed    0.00 sec
+      Start 39: audio_contracts
+39/43 Test #39: audio_contracts ..................   Passed    0.20 sec
+      Start 40: room_lighting_contracts
+40/43 Test #40: room_lighting_contracts ..........   Passed    0.00 sec
+      Start 41: laser_sight_contracts
+41/43 Test #41: laser_sight_contracts ............   Passed    0.00 sec
+      Start 42: follow_camera_contracts
+42/43 Test #42: follow_camera_contracts ..........   Passed    0.00 sec
+      Start 43: turn_rules_contracts
+43/43 Test #43: turn_rules_contracts .............   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 43
+
+Total Test time (real) =   2.41 sec

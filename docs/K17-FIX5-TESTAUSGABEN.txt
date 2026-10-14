@@ -1,0 +1,1193 @@
+K17 Fix5 – endgültige Prüfungen
+Originaldaten separat; Linux EGL/GLES3 und Produktions-JNI, kein physisches Androidgerät.
+Vollständige Austauschdateien, keine APK.
+
+fix5-pure-results.log
+Village alert slot 20 character 2 moved 3754.65 state Ganado test · HP 800/800 · Walk · Hits 0/0
+Village alert slot 21 character 2 moved 6214.02 state Ganado test · HP 800/800 · Dash · Hits 0/0
+Village alert slot 22 character 2 moved 5423 state Ganado test · HP 800/800 · Walk · Hits 0/0
+Village alert slot 23 character 2 moved 7847.83 state Ganado test · HP 800/800 · Walk · Hits 0/0
+Village alert slot 24 character 2 moved 7129.15 state Ganado test · HP 800/800 · Walk · Hits 0/0
+Village alert slot 34 character 1 moved 5542.32 state Ganado test · HP 1000/1000 · Walk · Hits 0/0
+Village alert slot 35 character 1 moved 3723.57 state Ganado test · HP 1000/1000 · Walk · Hits 0/0
+Village alert slot 36 character 1 moved 5787.74 state Ganado test · HP 1000/1000 · Walk · Hits 0/0
+Rifle reload id 46 pitch -0.5 hold 0 ticks 109 tail 0
+Rifle reload id 46 pitch -0.5 hold 1 ticks 119 tail 1
+Rifle reload id 46 pitch 0.5 hold 0 ticks 109 tail 0
+Rifle reload id 46 pitch 0.5 hold 1 ticks 119 tail 1
+Rifle reload id 47 pitch -0.5 hold 0 ticks 58 tail 0
+Rifle reload id 47 pitch -0.5 hold 1 ticks 69 tail 1
+Rifle reload id 47 pitch 0.5 hold 0 ticks 58 tail 0
+Rifle reload id 47 pitch 0.5 hold 1 ticks 69 tail 1
+Rifle reload id 107 pitch -0.5 hold 0 ticks 109 tail 0
+Rifle reload id 107 pitch -0.5 hold 1 ticks 119 tail 1
+Rifle reload id 107 pitch 0.5 hold 0 ticks 109 tail 0
+Rifle reload id 107 pitch 0.5 hold 1 ticks 119 tail 1
+Rifle reload id 108 pitch -0.5 hold 0 ticks 58 tail 0
+Rifle reload id 108 pitch -0.5 hold 1 ticks 69 tail 1
+Rifle reload id 108 pitch 0.5 hold 0 ticks 58 tail 0
+Rifle reload id 108 pitch 0.5 hold 1 ticks 69 tail 1
+Rifle reload id 153 pitch -0.5 hold 0 ticks 109 tail 0
+Rifle reload id 153 pitch -0.5 hold 1 ticks 119 tail 1
+Rifle reload id 153 pitch 0.5 hold 0 ticks 109 tail 0
+Rifle reload id 153 pitch 0.5 hold 1 ticks 119 tail 1
+Rifle reload id 81 pitch -0.5 hold 0 ticks 58 tail 0
+Rifle reload id 81 pitch -0.5 hold 1 ticks 69 tail 1
+Rifle reload id 81 pitch 0.5 hold 0 ticks 58 tail 0
+Rifle reload id 81 pitch 0.5 hold 1 ticks 69 tail 1
+K17 Fix5 original scope/reload/menu/blood/r101 checks PASS: 22072 checks
+
+fix5-runtime-results.log
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+SS profile 33 static/reference difference 6061 opaque 32950
+SS profile 46 static/reference difference 4416 opaque 28790
+SS profile 47 static/reference difference 5249 opaque 30343
+SS profile 54 static/reference difference 4520 opaque 41647
+SS profile 52 static/reference difference 5424 opaque 37927
+SS profile 14 static/reference difference 4857 opaque 31607
+K17 Fix5 production SS/blood/pause/context checks PASS: 343 checks
+
+fix5-blood-results.log
+EST0x1 red pixels=320
+EST0x2 red pixels=646
+EST0xc red pixels=1119
+EST0x29 red pixels=348
+EST0x35 red pixels=725
+EST0x36 red pixels=401
+EST0x37 red pixels=278
+EST0x87 red pixels=3818
+M33 actual EM12 blood GLES3 PASS: 12128927
+
+fix5-blood-cpu-results.log
+Room effects: 0 original room records / 27 texture animations / EM12 blood EST1: 21/21 Records / EM12 blood EST2: 18/19 Records / EM12 blood EST12: 5/5 Records / EM12 blood EST41: 9/10 Records / EM12 blood EST53: 17/18 Records / EM12 blood EST54: 19/20 Records / EM12 blood EST55: 15/16 Records / EM12 blood EST135: 20/20 Records
+EM12 EST2: 1 shimmer records pending separately; original spray/strips/ground decals active
+EM12 EST41: 1 shimmer records pending separately; original spray/strips/ground decals active
+EM12 EST53: 1 shimmer records pending separately; original spray/strips/ground decals active
+EM12 EST54: 1 shimmer records pending separately; original spray/strips/ground decals active
+EM12 EST55: 1 shimmer records pending separately; original spray/strips/ground decals active
+Original EM12 audio/blood checks: 197218; floor decal samples: 7325; quads: 12576
+
+fix5-fix1-results.log
+K17 Fix1 original physical LS/radio hand checks PASS: 7060 checks, default handgun plus 38 weapon profiles
+
+fix5-fix1-runtime-results.log
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+K17 Fix1 production JNI/GLES r100->r101, radio/25 weapons, physical LS and resumed world PASS: 7143 checks
+
+fix5-fix2-results.log
+K17 Fix2 original weapon response/grips/scopes, all village waves,1350 bell frames and3 ladder bounds PASS: 3111 checks
+
+fix5-fix2-runtime-results.log
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Projectile 54 visible changed RGB pixels 99
+Projectile 171 visible changed RGB pixels 650
+Projectile 53 visible changed RGB pixels 3140
+Projectile 23 visible changed RGB pixels 3140
+Projectile 109 visible changed RGB pixels 3070
+Projectile 82 visible changed RGB pixels 3439
+Projectile 1 visible changed RGB pixels 470
+Projectile 2 visible changed RGB pixels 466
+Projectile 14 visible changed RGB pixels 500
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+K17 Fix2 real JNI/GLES flight pixels,10 scopes,3 complete ladder climbs,drop retention and bell/radio PASS: 2569 checks
+
+fix5-fix3-results.log
+K17 Fix3 attachments/SAVE-LOAD,24 mine directions,source scopes/title,three long village waves and original dash PASS: 431 checks
+
+fix5-fix3-runtime-results.log
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Production accessory 54/170 -> 171 PASS
+Production accessory 46/68 -> 107 PASS
+Production accessory 47/69 -> 108 PASS
+Production accessory 46/197 -> 153 PASS
+Production accessory 47/197 -> 81 PASS
+Production accessory 48/67 -> 50 PASS
+Production accessory 33/63 -> 34 PASS
+Mine heading 0.6 RGB pixels 173 visible frames 2
+Mine heading 1.1 RGB pixels 141 visible frames 3
+Mine heading 1.72 RGB pixels 126 visible frames 4
+Mine heading 2.3 RGB pixels 128 visible frames 4
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+K17 Fix3 production JNI attachments/SAVE,scope selection,mine flight,Room HUD and bell title/radio/skip PASS: 1616 checks
+
+fix5-fix4-results.log
+Scope profile 46 pitch -0.35 PASS
+Scope profile 46 pitch 0.35 PASS
+Scope profile 47 pitch -0.35 PASS
+Scope profile 47 pitch 0.35 PASS
+Scope profile 107 pitch -0.35 PASS
+Scope profile 107 pitch 0.35 PASS
+Scope profile 108 pitch -0.35 PASS
+Scope profile 108 pitch 0.35 PASS
+Scope profile 153 pitch -0.35 PASS
+Scope profile 153 pitch 0.35 PASS
+Scope profile 81 pitch -0.35 PASS
+Scope profile 81 pitch 0.35 PASS
+Hen idle 1 pos -10839.9,0,2661.24
+Hen idle 2 pos -7861.18,0,6299.62
+Animal hit id 38 index 52 center -4977.67,933.316,11833.6 hp 1000 target 1
+Animal hit id 40 index 78 center -8099.06,354.437,-3477.54 hp 100 target 1
+Animal hit id 40 index 79 center -7928.76,329.753,6268.22 hp 100 target 1
+Spawn 20 pos -11300,0,-1520 flags 220
+Spawn 21 pos -7340,0,800 flags 48002020
+Spawn 22 pos -6100,0,-840 flags 60002020
+Spawn 23 pos 6010,0,2740 flags 80000120
+Spawn 24 pos -5890,0,-21630 flags 80400020
+Spawn 25 pos 1770,869.145,18570 flags 80000220
+Spawn 26 pos 38770,3081.9,-27360 flags 8800020
+Spawn 27 pos 39170,3085.33,-25840 flags 80020
+Spawn 28 pos 40060,3178.94,-27040 flags 10000020
+Spawn 30 pos -4530,3200,-10970 flags 20092420
+Spawn 31 pos 5790,3205.19,-15480 flags 8012620
+  Roof surface 21000000 n=1,0,0
+Spawn 34 pos -51120,166.33,22220 flags 20080020
+Spawn 35 pos -51780,165.286,21490 flags 20
+Spawn 36 pos -52720,242.47,23000 flags 81000020
+Spawn 40 pos -12540,2560.27,30760 flags 200000a0
+Spawn 41 pos -13930,2623.79,31560 flags 10040a0
+Spawn 42 pos -13350,2230.31,27730 flags a0
+Spawn 43 pos -11910,1865.56,24760 flags 90000a0
+Spawn 44 pos -12920,2712.9,33010 flags 80800a0
+Spawn 46 pos 25210,1107.75,-120 flags a0
+Spawn 47 pos 26430,1112.24,1140 flags 200000a0
+Spawn 48 pos 25880,1114.93,-1640 flags 80000a0
+Spawn 49 pos 29150,1137.87,-990 flags 90000a0
+Spawn 50 pos 27340,1118.64,650 flags 4040a0
+Spawn 54 pos -6900,0,-19570 flags 200000a0
+Spawn 55 pos -5100,0,-18710 flags 440a0
+Spawn 56 pos -6840,0,-17680 flags a0
+Spawn 57 pos -8770,0,-18040 flags 80000a0
+Spawn 58 pos -4810,0,-20810 flags 90000a0
+Spawn 60 pos 6450,0,-2180 flags 10000020
+Spawn 61 pos 7060,0,-5410 flags 8000020
+Spawn 62 pos 7430,0,-3310 flags 20
+Spawn 63 pos 360,0,-3700 flags 20
+Spawn 64 pos -330,0,-3030 flags 800020
+Spawn 65 pos -2920,0,-8440 flags 20040020
+Spawn 66 pos -3450,0,-7360 flags 80020
+Spawn 67 pos 1070,0,-2590 flags 80020
+Spawn 68 pos -3950,0,-8190 flags 8800020
+Spawn 69 pos -3430,3200,-12500 flags 20412420
+Spawn 70 pos -3700,3200,-13750 flags 8092420
+Spawn 72 pos 3730,0,-1670 flags 88
+Spawn 73 pos 9160,0,2310 flags 88
+Spawn 74 pos 15290,0,-950 flags 8000088
+Roof original mask 0 falling 1 landing 1 finalY 0
+Roof original mask 1 falling 1 landing 1 finalY 0
+K17 Fix4 PASS: 3454 checks
+
+fix5-fix4-runtime-results.log
+RE4WorldEffects: r101: Esp46/Filter03 alpha glow still pending; original flames/smoke active
+RE4WorldEffects: r101: additional EAR/SST special effects pending (not globally guessed interior effects)
+RE4Destruction: Efm05 wood/metal/glass fragments; dust/sprite/sound entries use separate backends
+Animal slot 52 original visible RGB pixels 55394
+Animal slot 78 original visible RGB pixels 9052
+Animal slot 79 original visible RGB pixels 7331
+K17 Fix4 production JNI/GLES animals,knife,save,audio and frustum PASS: 306 checks
+
+fix5-java-results.log
+Java disc tests: 8 checks PASS
+Controller selection, virtual navigation, priority and reset: 11 checks PASS
+Menu repeat, rotated placement, collision and source categories: 80 checks PASS
+Full viewport, isotropic model/piece layout, flexible lists and touch inverse: 7721 checks PASS
+Map camera/footer PASS: 11
+Startup source timeline/curve/path: 1378 checks PASS
+Startup original options: 17 checks PASS
+Original HUD thresholds/30-Hz clock and Continue timers/choices: 51 checks PASS
+Startup original voice end/output drain: 14 checks PASS
+Startup presentation/movie lifecycle/source shader: 123 checks PASS
+Fix2 original 30Hz UI clock,3D ID transforms and10 scope layouts PASS: 10 checks
+SceneLoadGate: 24 checks passed
+Java RoomRepository tests: 76 checks PASS
+M31 room catalog PASS: 401
+
+fix5-java-android-compile.log
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+fix5-ctest-results.log
+Test project /workspace/scratch/7d71f11084f3/host-build
+      Start  3: m36_startup_compositor_check
+      Start 10: m37_event_focus_gl_check
+      Start 39: audio_contracts
+      Start  7: m37_streams_check
+ 1/43 Test  #7: m37_streams_check ................   Passed    0.24 sec
+      Start 11: inventory_case_contracts
+ 2/43 Test #39: audio_contracts ..................   Passed    0.25 sec
+      Start 20: melee_rules_contracts
+ 3/43 Test #20: melee_rules_contracts ............   Passed    0.12 sec
+      Start 14: yz2_contracts
+ 4/43 Test #11: inventory_case_contracts .........   Passed    0.14 sec
+      Start 22: grab_rules_contracts
+ 5/43 Test #22: grab_rules_contracts .............   Passed    0.06 sec
+      Start  2: m36_event_audio_check
+ 6/43 Test #14: yz2_contracts ....................   Passed    0.08 sec
+      Start  8: m37_weapon_sway_check
+ 7/43 Test  #2: m36_event_audio_check ............   Passed    0.01 sec
+      Start  9: m37_player_eyes_check
+ 8/43 Test  #8: m37_weapon_sway_check ............   Passed    0.01 sec
+      Start 12: environment_contracts
+ 9/43 Test  #9: m37_player_eyes_check ............   Passed    0.01 sec
+      Start 43: turn_rules_contracts
+10/43 Test #12: environment_contracts ............   Passed    0.01 sec
+      Start 27: animation_contracts
+11/43 Test #27: animation_contracts ..............   Passed    0.00 sec
+      Start 15: archive_contracts
+12/43 Test #43: turn_rules_contracts .............   Passed    0.01 sec
+      Start 17: gx_contracts
+13/43 Test #15: archive_contracts ................   Passed    0.01 sec
+      Start  1: original_enemy_drop_tests
+14/43 Test #17: gx_contracts .....................   Passed    0.01 sec
+      Start  6: subscreen_data_contracts
+15/43 Test  #6: subscreen_data_contracts .........   Passed    0.00 sec
+      Start 16: smd_contracts
+16/43 Test  #1: original_enemy_drop_tests ........   Passed    0.00 sec
+      Start 37: object_action_contracts
+17/43 Test #16: smd_contracts ....................   Passed    0.00 sec
+18/43 Test #37: object_action_contracts ..........   Passed    0.00 sec
+      Start 29: player_action_contracts
+      Start  5: enemy_feedback_tests
+19/43 Test #29: player_action_contracts ..........   Passed    0.00 sec
+      Start 41: laser_sight_contracts
+20/43 Test  #5: enemy_feedback_tests .............   Passed    0.00 sec
+      Start 21: melee_encounter_contracts
+21/43 Test #41: laser_sight_contracts ............   Passed    0.00 sec
+      Start 26: enemy_encounter_contracts
+22/43 Test #21: melee_encounter_contracts ........   Passed    0.00 sec
+      Start  4: context_actions_tests
+23/43 Test  #4: context_actions_tests ............   Passed    0.00 sec
+      Start 18: collision_contracts
+24/43 Test #26: enemy_encounter_contracts ........   Passed    0.00 sec
+      Start 36: room_item_contracts
+25/43 Test #18: collision_contracts ..............   Passed    0.00 sec
+      Start 23: grab_encounter_contracts
+26/43 Test #36: room_item_contracts ..............   Passed    0.00 sec
+      Start 31: scene_contracts
+27/43 Test #23: grab_encounter_contracts .........   Passed    0.00 sec
+      Start 40: room_lighting_contracts
+28/43 Test #31: scene_contracts ..................   Passed    0.00 sec
+      Start 13: native_contracts
+29/43 Test #40: room_lighting_contracts ..........   Passed    0.00 sec
+      Start 25: enemy_spawn_contracts
+30/43 Test #13: native_contracts .................   Passed    0.00 sec
+31/43 Test #25: enemy_spawn_contracts ............   Passed    0.00 sec
+      Start 33: ambient_animal_contracts
+      Start 35: room_object_contracts
+32/43 Test #33: ambient_animal_contracts .........   Passed    0.00 sec
+      Start 19: sat_contracts
+33/43 Test #35: room_object_contracts ............   Passed    0.00 sec
+      Start 24: hit_geometry_contracts
+34/43 Test #19: sat_contracts ....................   Passed    0.00 sec
+      Start 28: player_motion_contracts
+35/43 Test #24: hit_geometry_contracts ...........   Passed    0.00 sec
+      Start 34: room_state_contracts
+36/43 Test #28: player_motion_contracts ..........   Passed    0.00 sec
+      Start 42: follow_camera_contracts
+37/43 Test #34: room_state_contracts .............   Passed    0.00 sec
+      Start 38: destruction_effect_contracts
+38/43 Test #42: follow_camera_contracts ..........   Passed    0.00 sec
+      Start 30: room_flow_contracts
+39/43 Test #38: destruction_effect_contracts .....   Passed    0.00 sec
+      Start 32: world_effect_contracts
+40/43 Test #30: room_flow_contracts ..............   Passed    0.00 sec
+41/43 Test #32: world_effect_contracts ...........   Passed    0.00 sec
+42/43 Test #10: m37_event_focus_gl_check .........   Passed    0.82 sec
+43/43 Test  #3: m36_startup_compositor_check .....   Passed    0.89 sec
+
+100% tests passed out of 43
+
+Total Test time (real) =   0.89 sec
+
+fix5-android-build.log
+[1/77] Building CXX object CMakeFiles/re4_platform.dir/walk_probe.cpp.o
+[2/77] Building CXX object CMakeFiles/re4_platform.dir/collision_query.cpp.o
+[3/77] Building CXX object CMakeFiles/re4_platform.dir/sat.cpp.o
+[4/77] Building CXX object CMakeFiles/re4_platform.dir/scene.cpp.o
+[5/77] Building CXX object CMakeFiles/re4_platform.dir/materials.cpp.o
+[6/77] Building CXX object CMakeFiles/re4_platform.dir/room_shadows.cpp.o
+[7/77] Building CXX object CMakeFiles/re4_platform.dir/model_skin.cpp.o
+[8/77] Building CXX object CMakeFiles/re4_platform.dir/room_blocks.cpp.o
+[9/77] Building CXX object CMakeFiles/re4_platform.dir/animation.cpp.o
+[10/77] Building CXX object CMakeFiles/re4_platform.dir/environment.cpp.o
+[11/77] Building CXX object CMakeFiles/re4_platform.dir/follow_camera.cpp.o
+[12/77] Building CXX object CMakeFiles/re4_platform.dir/room_flow.cpp.o
+[13/77] Building CXX object CMakeFiles/re4_platform.dir/weapon_preview.cpp.o
+[14/77] Building CXX object CMakeFiles/re4_platform.dir/scenario_collision.cpp.o
+[15/77] Building CXX object CMakeFiles/re4_platform.dir/room_interactions.cpp.o
+[16/77] Building CXX object CMakeFiles/re4_platform.dir/laser_sight.cpp.o
+[17/77] Building CXX object CMakeFiles/re4_platform.dir/ladder_motion.cpp.o
+[18/77] Building CXX object CMakeFiles/re4_platform.dir/room_jumps.cpp.o
+[19/77] Building CXX object CMakeFiles/re4_platform.dir/room_pickups.cpp.o
+[20/77] Building CXX object CMakeFiles/re4_platform.dir/leon_preview.cpp.o
+[21/77] Building CXX object CMakeFiles/re4_platform.dir/room_ladders.cpp.o
+[22/77] Building CXX object CMakeFiles/re4_platform.dir/turn_rules.cpp.o
+[23/77] Building CXX object CMakeFiles/re4_platform.dir/muzzle_effects.cpp.o
+[24/77] Building CXX object CMakeFiles/re4_platform.dir/object_actions.cpp.o
+[25/77] Building CXX object CMakeFiles/re4_platform.dir/room_objects.cpp.o
+[26/77] Building CXX object CMakeFiles/re4_platform.dir/room_items.cpp.o
+[27/77] Building CXX object CMakeFiles/re4_platform.dir/ambient_animals.cpp.o
+[28/77] Building CXX object CMakeFiles/re4_platform.dir/enemy_spawn.cpp.o
+[29/77] Building CXX object CMakeFiles/re4_platform.dir/hit_geometry.cpp.o
+[30/77] Building CXX object CMakeFiles/re4_platform.dir/enemy_preview.cpp.o
+[31/77] Building CXX object CMakeFiles/re4_platform.dir/grab_rules.cpp.o
+[32/77] Building CXX object CMakeFiles/re4_platform.dir/enemy_encounter.cpp.o
+[33/77] Building CXX object CMakeFiles/re4_platform.dir/melee_rules.cpp.o
+[34/77] Building CXX object CMakeFiles/re4_platform.dir/enemy_feedback.cpp.o
+[35/77] Building CXX object CMakeFiles/re4_platform.dir/destruction_effects.cpp.o
+[36/77] Building CXX object CMakeFiles/re4_platform.dir/world_effects.cpp.o
+[37/77] Building CXX object CMakeFiles/re4_platform.dir/r100_scenario.cpp.o
+[38/77] Building CXX object CMakeFiles/re4_platform.dir/startup_data.cpp.o
+[39/77] Building CXX object CMakeFiles/re4_platform.dir/generic_event_actor.cpp.o
+[40/77] Building CXX object CMakeFiles/re4_platform.dir/enemy_group.cpp.o
+[41/77] Building CXX object CMakeFiles/re4_platform.dir/subscreen_data.cpp.o
+[42/77] Building CXX object CMakeFiles/re4_platform.dir/event_effect_models.cpp.o
+[43/77] Building CXX object CMakeFiles/re4_platform.dir/forest_animals.cpp.o
+[44/77] Building CXX object CMakeFiles/re4_platform.dir/original_enemy_drop.cpp.o
+[45/77] Building CXX object CMakeFiles/re4_platform.dir/village_flow.cpp.o
+[46/77] Building CXX object CMakeFiles/re4_platform.dir/r101_scenario.cpp.o
+[47/77] Building CXX object CMakeFiles/re4_platform.dir/dog_traps.cpp.o
+[48/77] Building CXX object CMakeFiles/re4_platform.dir/radio_intro.cpp.o
+[49/77] Building CXX object CMakeFiles/re4_platform.dir/village_bottles.cpp.o
+[50/77] Building CXX object CMakeFiles/re4_platform.dir/event_playback.cpp.o
+[51/77] Building CXX object CMakeFiles/re4_platform.dir/enemy_routes.cpp.o
+[52/77] Building CXX object CMakeFiles/re4_platform.dir/save_native.cpp.o
+[53/77] Building CXX object CMakeFiles/re4_platform.dir/enemy_awareness.cpp.o
+[54/77] Building CXX object CMakeFiles/re4_platform.dir/room_area_effects.cpp.o
+[55/77] Building CXX object CMakeFiles/re4_platform.dir/item_effects.cpp.o
+[56/77] Building CXX object CMakeFiles/re4_platform.dir/r100_secondary.cpp.o
+[57/77] Building CXX object CMakeFiles/re4_platform.dir/r100_room_hit_effects.cpp.o
+[58/77] Building CXX object CMakeFiles/re4_platform.dir/player_projectiles.cpp.o
+[59/77] Building CXX object CMakeFiles/re4_platform.dir/village_animals.cpp.o
+[60/77] Building CXX object CMakeFiles/re4_platform.dir/radio_term.cpp.o
+[61/77] Linking CXX static library libre4_platform.a
+[62/77] Building CXX object CMakeFiles/re4decomp.dir/event_focus_gl.cpp.o
+[63/77] Building CXX object CMakeFiles/re4decomp.dir/environment_gl.cpp.o
+[64/77] Building CXX object CMakeFiles/re4decomp.dir/scene_gl.cpp.o
+[65/77] Building CXX object CMakeFiles/re4decomp.dir/world_effects_gl.cpp.o
+[66/77] Building CXX object CMakeFiles/re4decomp.dir/event_mirror_gl.cpp.o
+[67/77] Building CXX object CMakeFiles/re4decomp.dir/actor_gl.cpp.o
+[68/77] Building CXX object CMakeFiles/re4decomp.dir/event_actor_gl.cpp.o
+[69/77] Building CXX object CMakeFiles/re4decomp.dir/subscreen_item_gl.cpp.o
+[70/77] Building CXX object CMakeFiles/re4decomp.dir/subscreen_portrait_gl.cpp.o
+[71/77] Building CXX object CMakeFiles/re4decomp.dir/item_effects_gl.cpp.o
+[72/77] Building CXX object CMakeFiles/re4decomp.dir/room_effect_cloth_gl.cpp.o
+[73/77] Building CXX object CMakeFiles/re4decomp.dir/room_shadows_gl.cpp.o
+[74/77] Building CXX object CMakeFiles/re4decomp.dir/source_glow_gl.cpp.o
+[75/77] Building CXX object CMakeFiles/re4decomp.dir/radio_term_gl.cpp.o
+[76/77] Building CXX object CMakeFiles/re4decomp.dir/android_bridge.cpp.o
+[77/77] Linking CXX shared library libre4decomp.so
+
+fix5-final-build.log
+[  1%] Built target re4_motion64
+[  1%] Building CXX object CMakeFiles/re4_platform.dir/environment.cpp.o
+[  1%] Building CXX object CMakeFiles/re4_platform.dir/collision_query.cpp.o
+[  1%] Building CXX object CMakeFiles/re4_platform.dir/walk_probe.cpp.o
+[  2%] Building CXX object CMakeFiles/re4_platform.dir/sat.cpp.o
+[  2%] Building CXX object CMakeFiles/re4_platform.dir/materials.cpp.o
+[  2%] Building CXX object CMakeFiles/re4_platform.dir/scene.cpp.o
+[  2%] Building CXX object CMakeFiles/re4_platform.dir/room_shadows.cpp.o
+[  2%] Building CXX object CMakeFiles/re4_platform.dir/room_blocks.cpp.o
+[  2%] Building CXX object CMakeFiles/re4_platform.dir/model_skin.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/animation.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/leon_preview.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/weapon_preview.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/follow_camera.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/room_flow.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/room_interactions.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/scenario_collision.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/laser_sight.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/ladder_motion.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/room_ladders.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/room_jumps.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/room_pickups.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/muzzle_effects.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/turn_rules.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/room_objects.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/room_items.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/object_actions.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/ambient_animals.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/world_effects.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/destruction_effects.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/enemy_preview.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/enemy_spawn.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/hit_geometry.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/enemy_encounter.cpp.o
+[  3%] Building CXX object CMakeFiles/re4_platform.dir/grab_rules.cpp.o
+[  4%] Building CXX object CMakeFiles/re4_platform.dir/melee_rules.cpp.o
+[  4%] Building CXX object CMakeFiles/re4_platform.dir/enemy_feedback.cpp.o
+[  4%] Building CXX object CMakeFiles/re4_platform.dir/subscreen_data.cpp.o
+[  4%] Building CXX object CMakeFiles/re4_platform.dir/startup_data.cpp.o
+[  4%] Building CXX object CMakeFiles/re4_platform.dir/r100_scenario.cpp.o
+[  4%] Building CXX object CMakeFiles/re4_platform.dir/enemy_group.cpp.o
+[  4%] Building CXX object CMakeFiles/re4_platform.dir/generic_event_actor.cpp.o
+[  4%] Building CXX object CMakeFiles/re4_platform.dir/event_playback.cpp.o
+[  4%] Building CXX object CMakeFiles/re4_platform.dir/event_effect_models.cpp.o
+[  5%] Building CXX object CMakeFiles/re4_platform.dir/forest_animals.cpp.o
+[  5%] Building CXX object CMakeFiles/re4_platform.dir/original_enemy_drop.cpp.o
+[  5%] Building CXX object CMakeFiles/re4_platform.dir/dog_traps.cpp.o
+[  5%] Building CXX object CMakeFiles/re4_platform.dir/village_flow.cpp.o
+[  5%] Building CXX object CMakeFiles/re4_platform.dir/r101_scenario.cpp.o
+[  5%] Building CXX object CMakeFiles/re4_platform.dir/radio_intro.cpp.o
+[  5%] Building CXX object CMakeFiles/re4_platform.dir/village_bottles.cpp.o
+[  5%] Building CXX object CMakeFiles/re4_platform.dir/item_effects.cpp.o
+[  5%] Building CXX object CMakeFiles/re4_platform.dir/room_area_effects.cpp.o
+[  6%] Building CXX object CMakeFiles/re4_platform.dir/save_native.cpp.o
+[  6%] Building CXX object CMakeFiles/re4_platform.dir/enemy_routes.cpp.o
+[  6%] Building CXX object CMakeFiles/re4_platform.dir/enemy_awareness.cpp.o
+[  6%] Building CXX object CMakeFiles/re4_platform.dir/r100_room_hit_effects.cpp.o
+[  6%] Building CXX object CMakeFiles/re4_platform.dir/r100_secondary.cpp.o
+[  6%] Building CXX object CMakeFiles/re4_platform.dir/radio_term.cpp.o
+[  6%] Building CXX object CMakeFiles/re4_platform.dir/player_projectiles.cpp.o
+[  6%] Building CXX object CMakeFiles/re4_platform.dir/village_animals.cpp.o
+[  6%] Linking CXX static library libre4_platform.a
+[  8%] Built target re4_platform
+[  8%] Building CXX object CMakeFiles/k17_fix5_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k17_fix5.cpp.o
+[  8%] Building CXX object CMakeFiles/k17_fix4_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k17_fix4.cpp.o
+[  8%] Building CXX object CMakeFiles/k17_fix2_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k17_fix2.cpp.o
+[  8%] Building CXX object CMakeFiles/k17_fix3_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k17_fix3.cpp.o
+[  8%] Building CXX object CMakeFiles/k17_weapons_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k17_weapons.cpp.o
+[  8%] Building CXX object CMakeFiles/k17_fix1_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k17_fix1.cpp.o
+[  8%] Linking CXX executable k17_fix1_check
+[  8%] Built target k17_fix1_check
+[  8%] Building CXX object CMakeFiles/k15_village_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k15_village.cpp.o
+[  9%] Linking CXX executable k17_weapons_check
+[  9%] Built target k17_weapons_check
+[  9%] Building CXX object CMakeFiles/m37_item_effects_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_item_effects.cpp.o
+[  9%] Linking CXX executable k17_fix3_check
+[  9%] Linking CXX executable k17_fix4_check
+[  9%] Built target k17_fix3_check
+[  9%] Building CXX object CMakeFiles/m37_enemy_sequence_audio_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_enemy_sequence_audio.cpp.o
+[  9%] Built target k17_fix4_check
+[  9%] Linking CXX executable k17_fix5_check
+[  9%] Building CXX object CMakeFiles/m37_enemy_ai_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_enemy_ai.cpp.o
+[  9%] Built target k17_fix5_check
+[  9%] Building CXX object CMakeFiles/m37_r100_surface_effects_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_r100_surface_effects.cpp.o
+[  9%] Linking CXX executable k15_village_check
+[  9%] Built target k15_village_check
+[  9%] Building CXX object CMakeFiles/original_enemy_drop_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/original_enemy_drop_tests.cpp.o
+[  9%] Linking CXX executable m37_item_effects_check
+[  9%] Built target m37_item_effects_check
+[  9%] Building CXX object CMakeFiles/forest_animals_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_forest_animals.cpp.o
+[  9%] Linking CXX executable original_enemy_drop_tests
+[  9%] Linking CXX executable m37_enemy_ai_check
+[  9%] Built target original_enemy_drop_tests
+[  9%] Linking CXX executable enemy_audio_banks_check
+[  9%] Linking CXX executable k17_fix2_check
+[  9%] Built target m37_enemy_ai_check
+[  9%] Linking CXX executable m36_event_audio_check
+[  9%] Built target enemy_audio_banks_check
+[  9%] Building CXX object CMakeFiles/m37_opening_event_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_opening_event.cpp.o
+[  9%] Built target k17_fix2_check
+[  9%] Building CXX object CMakeFiles/m37_opening_effects_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_opening_effects.cpp.o
+[  9%] Built target m36_event_audio_check
+[  9%] Building CXX object CMakeFiles/m37_campaign_path_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_campaign_path.cpp.o
+[  9%] Linking CXX executable m37_enemy_sequence_audio_check
+[  9%] Built target m37_enemy_sequence_audio_check
+[  9%] Linking CXX executable m37_startup_audio_check
+[  9%] Built target m37_startup_audio_check
+[ 10%] Building CXX object CMakeFiles/m37_dog_traps_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_dog_traps.cpp.o
+[ 10%] Linking CXX executable m37_r100_surface_effects_check
+[ 10%] Built target m37_r100_surface_effects_check
+[ 10%] Linking CXX executable forest_animals_check
+[ 10%] Building CXX object CMakeFiles/m37_r100_cliff_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_r100_cliff.cpp.o
+[ 10%] Built target forest_animals_check
+[ 10%] Building CXX object CMakeFiles/m37_trap_effects_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_trap_effects.cpp.o
+[ 10%] Linking CXX executable m37_campaign_path_check
+[ 10%] Built target m37_campaign_path_check
+[ 10%] Building CXX object CMakeFiles/m37_secondary_event_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_secondary_event.cpp.o
+[ 10%] Linking CXX executable m37_opening_event_check
+[ 11%] Linking CXX executable m37_opening_effects_check
+[ 11%] Built target m37_opening_event_check
+[ 11%] Building CXX object CMakeFiles/m37_save_game_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_save_game.cpp.o
+[ 11%] Built target m37_opening_effects_check
+[ 11%] Linking CXX executable m37_save_clock_check
+[ 11%] Built target m37_save_clock_check
+[ 11%] Linking CXX executable m37_room_cloth_check
+[ 11%] Built target m37_room_cloth_check
+[ 11%] Building CXX object CMakeFiles/m37_room_area_effects_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_room_area_effects.cpp.o
+[ 11%] Linking CXX executable m37_r100_cliff_check
+[ 12%] Linking CXX executable m37_trap_effects_check
+[ 12%] Built target m37_r100_cliff_check
+[ 12%] Built target m37_trap_effects_check
+[ 12%] Building CXX object CMakeFiles/m37_r100_cliff_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/m37_r100_cliff_tool.cpp.o
+[ 12%] Building CXX object CMakeFiles/m36_event_playback_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m36_event_playback.cpp.o
+[ 12%] Linking CXX executable m37_dog_traps_check
+[ 12%] Built target m37_dog_traps_check
+[ 12%] Building CXX object CMakeFiles/m36_startup_compositor_check.dir/dog_traps.cpp.o
+[ 12%] Linking CXX executable m37_room_area_effects_check
+[ 12%] Linking CXX executable m37_save_game_check
+[ 12%] Linking CXX executable m37_secondary_event_check
+[ 12%] Built target m37_room_area_effects_check
+[ 12%] Building CXX object CMakeFiles/m36_loading_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m36_loading.cpp.o
+[ 12%] Linking CXX executable m37_r100_cliff_tool
+[ 12%] Built target m37_save_game_check
+[ 12%] Building CXX object CMakeFiles/m35_title_assets_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m35_title_assets.cpp.o
+[ 12%] Built target m37_secondary_event_check
+[ 13%] Building CXX object CMakeFiles/k13_scenario_collision_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_k13_scenario_collision.cpp.o
+[ 13%] Built target m37_r100_cliff_tool
+[ 13%] Building CXX object CMakeFiles/m35_water_sounds_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m35_water_sounds.cpp.o
+[ 13%] Linking CXX executable m36_event_playback_check
+[ 13%] Built target m36_event_playback_check
+[ 13%] Building CXX object CMakeFiles/m35_player_actions_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m35_player_actions.cpp.o
+[ 13%] Linking CXX executable m36_loading_check
+[ 13%] Linking CXX executable k13_scenario_collision_check
+[ 13%] Built target m36_loading_check
+[ 13%] Building CXX object CMakeFiles/r100_enemy_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/r100_enemy_tool.cpp.o
+[ 13%] Built target k13_scenario_collision_check
+[ 13%] Building CXX object CMakeFiles/r100_firearm_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/r100_firearm_tool.cpp.o
+[ 13%] Building CXX object CMakeFiles/m36_startup_compositor_check.dir/event_effect_models.cpp.o
+[ 13%] Linking CXX executable r100_enemy_tool
+[ 13%] Built target r100_enemy_tool
+[ 13%] Linking CXX executable m35_title_assets_check
+[ 13%] Building CXX object CMakeFiles/r100_group_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/r100_group_tool.cpp.o
+[ 13%] Linking CXX executable r100_firearm_tool
+[ 13%] Built target m35_title_assets_check
+[ 13%] Building CXX object CMakeFiles/r100_group_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_r100_group.cpp.o
+[ 13%] Built target r100_firearm_tool
+[ 13%] Building CXX object CMakeFiles/r100_scenario_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_r100_scenario.cpp.o
+[ 13%] Linking CXX executable m35_player_actions_check
+[ 13%] Built target m35_player_actions_check
+[ 13%] Building CXX object CMakeFiles/m34_player_weapon_flow_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m34_player_weapon_flow.cpp.o
+[ 13%] Linking CXX executable m35_water_sounds_check
+[ 13%] Linking CXX executable r100_group_tool
+[ 13%] Built target m35_water_sounds_check
+[ 13%] Building CXX object CMakeFiles/m34_interaction_profiles_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m34_interaction_profiles.cpp.o
+[ 13%] Built target r100_group_tool
+[ 13%] Building CXX object CMakeFiles/context_actions_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/context_actions_tests.cpp.o
+[ 13%] Building CXX object CMakeFiles/m36_startup_compositor_check.dir/forest_animals.cpp.o
+[ 13%] Linking CXX executable r100_scenario_check
+[ 13%] Linking CXX executable m34_player_weapon_flow_check
+[ 13%] Linking CXX executable context_actions_tests
+[ 13%] Built target r100_scenario_check
+[ 14%] Building CXX object CMakeFiles/m36_startup_compositor_check.dir/original_enemy_drop.cpp.o
+[ 14%] Built target context_actions_tests
+[ 14%] Building CXX object CMakeFiles/enemy_feedback_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/enemy_feedback_tests.cpp.o
+[ 14%] Built target m34_player_weapon_flow_check
+[ 15%] Building CXX object CMakeFiles/m33_traversal_camera_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m33_traversal_camera.cpp.o
+[ 15%] Linking CXX executable m34_interaction_profiles_check
+[ 15%] Linking CXX executable r100_group_check
+[ 15%] Built target r100_group_check
+[ 16%] Building CXX object CMakeFiles/subscreen_data_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/subscreen_data_tests.cpp.o
+[ 16%] Built target m34_interaction_profiles_check
+[ 16%] Building CXX object CMakeFiles/enemy_feedback_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_enemy_feedback.cpp.o
+[ 16%] Building CXX object CMakeFiles/m33_context_actions_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m33_context_actions.cpp.o
+[ 16%] Linking CXX executable m36_startup_compositor_check
+[ 16%] Built target m36_startup_compositor_check
+[ 16%] Linking CXX executable m37_streams_check
+[ 16%] Built target m37_streams_check
+[ 16%] Building CXX object CMakeFiles/m37_r100_door_window_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_r100_door_window.cpp.o
+[ 16%] Linking CXX executable enemy_feedback_tests
+[ 16%] Built target enemy_feedback_tests
+[ 16%] Building CXX object CMakeFiles/m37_weapon_sway_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_weapon_sway.cpp.o
+[ 16%] Linking CXX executable m33_traversal_camera_check
+[ 16%] Built target m33_traversal_camera_check
+[ 16%] Building CXX object CMakeFiles/m37_player_eyes_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_player_eyes.cpp.o
+[ 16%] Linking CXX executable enemy_feedback_check
+[ 16%] Linking CXX executable subscreen_data_tests
+[ 16%] Built target subscreen_data_tests
+[ 16%] Building CXX object CMakeFiles/m37_player_weapon_audio_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_player_weapon_audio.cpp.o
+[ 16%] Built target enemy_feedback_check
+[ 16%] Building CXX object CMakeFiles/m37_room_cloth_gl_check.dir/room_effect_cloth_gl.cpp.o
+[ 16%] Linking CXX executable m33_context_actions_check
+[ 16%] Built target m33_context_actions_check
+[ 16%] Building CXX object CMakeFiles/m37_item_effects_gl_check.dir/actor_gl.cpp.o
+[ 16%] Linking CXX executable m37_player_eyes_check
+[ 16%] Built target m37_player_eyes_check
+[ 16%] Linking CXX executable m37_weapon_sway_check
+[ 16%] Building CXX object CMakeFiles/m37_dog_traps_gl_check.dir/actor_gl.cpp.o
+[ 16%] Linking CXX executable m37_r100_door_window_check
+[ 16%] Built target m37_weapon_sway_check
+[ 16%] Building CXX object CMakeFiles/m37_event_focus_gl_check.dir/event_focus_gl.cpp.o
+[ 16%] Built target m37_r100_door_window_check
+[ 16%] Building CXX object CMakeFiles/event_actor_gl_check.dir/actor_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_room_cloth_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_room_cloth_gl.cpp.o
+[ 16%] Linking CXX executable m37_player_weapon_audio_check
+[ 16%] Built target m37_player_weapon_audio_check
+[ 16%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/actor_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_event_focus_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_event_focus_gl.cpp.o
+[ 16%] Linking CXX executable m37_room_cloth_gl_check
+[ 16%] Built target m37_room_cloth_gl_check
+[ 16%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/environment_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_dog_traps_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_dog_traps_gl.cpp.o
+[ 16%] Linking CXX executable m37_event_focus_gl_check
+[ 16%] Building CXX object CMakeFiles/m37_item_effects_gl_check.dir/environment_gl.cpp.o
+[ 16%] Built target m37_event_focus_gl_check
+[ 16%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/actor_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/event_actor_gl_check.dir/environment_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/event_actor_gl.cpp.o
+[ 16%] Linking CXX executable m37_dog_traps_gl_check
+[ 16%] Built target m37_dog_traps_gl_check
+[ 16%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/event_focus_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/event_mirror_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/event_actor_gl_check.dir/event_actor_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/item_effects_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/environment_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_item_effects_gl_check.dir/item_effects_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_item_effects_gl_check.dir/source_glow_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/event_actor_gl_check.dir/event_focus_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_item_effects_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_item_effects_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/radio_term_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_item_effects_gl_check.dir/world_effects_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/event_actor_gl_check.dir/event_mirror_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/room_effect_cloth_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/event_actor_gl_check.dir/item_effects_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/event_actor_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/event_actor_gl_check.dir/radio_term_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/room_shadows_gl.cpp.o
+[ 16%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/scene_gl.cpp.o
+[ 17%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/source_glow_gl.cpp.o
+[ 17%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/subscreen_item_gl.cpp.o
+[ 17%] Building CXX object CMakeFiles/event_actor_gl_check.dir/room_effect_cloth_gl.cpp.o
+[ 17%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/subscreen_portrait_gl.cpp.o
+[ 17%] Building CXX object CMakeFiles/event_actor_gl_check.dir/room_shadows_gl.cpp.o
+[ 17%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/event_focus_gl.cpp.o
+[ 17%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_radio.cpp.o
+[ 17%] Linking CXX executable m37_item_effects_gl_check
+[ 17%] Built target m37_item_effects_gl_check
+[ 18%] Building CXX object CMakeFiles/m37_radio_gl_check.dir/world_effects_gl.cpp.o
+[ 18%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/event_mirror_gl.cpp.o
+[ 18%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/item_effects_gl.cpp.o
+[ 18%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/actor_gl.cpp.o
+[ 18%] Building CXX object CMakeFiles/event_actor_gl_check.dir/scene_gl.cpp.o
+[ 18%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/radio_term_gl.cpp.o
+[ 18%] Building CXX object CMakeFiles/m36_water_seams_check.dir/actor_gl.cpp.o
+[ 19%] Building CXX object CMakeFiles/m34_water_check.dir/actor_gl.cpp.o
+[ 19%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/room_effect_cloth_gl.cpp.o
+[ 20%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/environment_gl.cpp.o
+[ 20%] Linking CXX executable m37_radio_gl_check
+[ 20%] Built target m37_radio_gl_check
+[ 20%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/event_actor_gl.cpp.o
+[ 20%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/room_shadows_gl.cpp.o
+[ 20%] Building CXX object CMakeFiles/m36_water_seams_check.dir/environment_gl.cpp.o
+[ 20%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/scene_gl.cpp.o
+[ 20%] Building CXX object CMakeFiles/m34_water_check.dir/environment_gl.cpp.o
+[ 20%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/event_focus_gl.cpp.o
+[ 20%] Building CXX object CMakeFiles/m34_water_check.dir/event_actor_gl.cpp.o
+[ 20%] Building CXX object CMakeFiles/m36_water_seams_check.dir/event_actor_gl.cpp.o
+[ 20%] Building CXX object CMakeFiles/event_actor_gl_check.dir/source_glow_gl.cpp.o
+[ 20%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/event_mirror_gl.cpp.o
+[ 20%] Building CXX object CMakeFiles/event_actor_gl_check.dir/subscreen_item_gl.cpp.o
+[ 20%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/item_effects_gl.cpp.o
+[ 21%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/radio_term_gl.cpp.o
+[ 21%] Building CXX object CMakeFiles/m36_water_seams_check.dir/event_focus_gl.cpp.o
+[ 21%] Building CXX object CMakeFiles/m36_water_seams_check.dir/event_mirror_gl.cpp.o
+[ 21%] Building CXX object CMakeFiles/m34_water_check.dir/event_focus_gl.cpp.o
+[ 21%] Building CXX object CMakeFiles/event_actor_gl_check.dir/subscreen_portrait_gl.cpp.o
+[ 21%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/room_effect_cloth_gl.cpp.o
+[ 21%] Building CXX object CMakeFiles/m36_water_seams_check.dir/item_effects_gl.cpp.o
+[ 21%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/room_shadows_gl.cpp.o
+[ 21%] Building CXX object CMakeFiles/m36_water_seams_check.dir/radio_term_gl.cpp.o
+[ 21%] Building CXX object CMakeFiles/m34_water_check.dir/event_mirror_gl.cpp.o
+[ 21%] Building CXX object CMakeFiles/event_actor_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_event_actor_gl.cpp.o
+[ 22%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/source_glow_gl.cpp.o
+[ 22%] Building CXX object CMakeFiles/m36_water_seams_check.dir/room_effect_cloth_gl.cpp.o
+[ 22%] Building CXX object CMakeFiles/m34_water_check.dir/item_effects_gl.cpp.o
+[ 22%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/scene_gl.cpp.o
+[ 22%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/subscreen_item_gl.cpp.o
+[ 22%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/subscreen_portrait_gl.cpp.o
+[ 22%] Building CXX object CMakeFiles/m34_water_check.dir/radio_term_gl.cpp.o
+[ 22%] Building CXX object CMakeFiles/m36_water_seams_check.dir/room_shadows_gl.cpp.o
+[ 22%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_event_mirror_gl.cpp.o
+[ 22%] Building CXX object CMakeFiles/m36_water_seams_check.dir/scene_gl.cpp.o
+[ 22%] Linking CXX executable m35_display_brightness_check
+[ 22%] Building CXX object CMakeFiles/m34_water_check.dir/room_effect_cloth_gl.cpp.o
+[ 22%] Built target m35_display_brightness_check
+[ 22%] Building CXX object CMakeFiles/r100_group_gl_check.dir/actor_gl.cpp.o
+[ 22%] Building CXX object CMakeFiles/event_actor_gl_check.dir/world_effects_gl.cpp.o
+[ 22%] Building CXX object CMakeFiles/m34_water_check.dir/room_shadows_gl.cpp.o
+[ 23%] Building CXX object CMakeFiles/m37_event_mirror_gl_check.dir/world_effects_gl.cpp.o
+[ 23%] Building CXX object CMakeFiles/m34_water_check.dir/scene_gl.cpp.o
+[ 24%] Building CXX object CMakeFiles/r100_group_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_r100_group_gl.cpp.o
+[ 24%] Linking CXX executable event_actor_gl_check
+[ 24%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/source_glow_gl.cpp.o
+[ 25%] Built target event_actor_gl_check
+[ 25%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/subscreen_item_gl.cpp.o
+[ 25%] Linking CXX executable r100_group_gl_check
+[ 25%] Building CXX object CMakeFiles/m34_water_check.dir/source_glow_gl.cpp.o
+[ 25%] Built target r100_group_gl_check
+[ 25%] Building CXX object CMakeFiles/m37_r100_cliff_gl_check.dir/actor_gl.cpp.o
+[ 25%] Building CXX object CMakeFiles/m34_water_check.dir/subscreen_item_gl.cpp.o
+[ 25%] Linking CXX executable m37_event_mirror_gl_check
+[ 25%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/subscreen_portrait_gl.cpp.o
+[ 25%] Built target m37_event_mirror_gl_check
+[ 25%] Building CXX object CMakeFiles/r100_enemy_gl_check.dir/actor_gl.cpp.o
+[ 25%] Building CXX object CMakeFiles/m36_water_seams_check.dir/source_glow_gl.cpp.o
+[ 26%] Building CXX object CMakeFiles/m36_water_seams_check.dir/subscreen_item_gl.cpp.o
+[ 26%] Building CXX object CMakeFiles/m36_water_seams_check.dir/subscreen_portrait_gl.cpp.o
+[ 26%] Building CXX object CMakeFiles/m37_r100_cliff_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m37_r100_cliff_gl.cpp.o
+[ 26%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_r100_distance_gl.cpp.o
+[ 26%] Building CXX object CMakeFiles/m34_water_check.dir/subscreen_portrait_gl.cpp.o
+[ 27%] Linking CXX executable m37_r100_cliff_gl_check
+[ 27%] Building CXX object CMakeFiles/m36_water_seams_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m36_water_seams.cpp.o
+[ 27%] Built target m37_r100_cliff_gl_check
+[ 27%] Building CXX object CMakeFiles/m36_water_seams_check.dir/world_effects_gl.cpp.o
+[ 27%] Building CXX object CMakeFiles/m33_subscreen_gl_check.dir/actor_gl.cpp.o
+[ 27%] Building CXX object CMakeFiles/r100_enemy_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_r100_enemy_gl.cpp.o
+[ 27%] Building CXX object CMakeFiles/m34_water_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m34_water.cpp.o
+[ 27%] Linking CXX executable r100_enemy_gl_check
+[ 27%] Built target r100_enemy_gl_check
+[ 27%] Building CXX object CMakeFiles/m34_water_check.dir/world_effects_gl.cpp.o
+[ 27%] Building CXX object CMakeFiles/r100_distance_gl_check.dir/world_effects_gl.cpp.o
+[ 27%] Building CXX object CMakeFiles/m33_subscreen_gl_check.dir/subscreen_item_gl.cpp.o
+[ 27%] Building CXX object CMakeFiles/m33_subscreen_gl_check.dir/subscreen_portrait_gl.cpp.o
+[ 27%] Linking CXX executable m36_water_seams_check
+[ 27%] Building CXX object CMakeFiles/m32_muzzle_gl_check.dir/environment_gl.cpp.o
+[ 27%] Built target m36_water_seams_check
+[ 27%] Building CXX object CMakeFiles/m33_enemy_gl_check.dir/environment_gl.cpp.o
+[ 27%] Building CXX object CMakeFiles/m33_subscreen_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m33_subscreen_gl.cpp.o
+[ 28%] Linking CXX executable m34_water_check
+[ 28%] Building CXX object CMakeFiles/m33_enemy_gl_check.dir/source_glow_gl.cpp.o
+[ 28%] Built target m34_water_check
+[ 28%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/actor_gl.cpp.o
+[ 28%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/environment_gl.cpp.o
+[ 28%] Building CXX object CMakeFiles/m33_enemy_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m33_enemy_gl.cpp.o
+[ 28%] Linking CXX executable r100_distance_gl_check
+[ 29%] Building CXX object CMakeFiles/m32_muzzle_gl_check.dir/source_glow_gl.cpp.o
+[ 29%] Built target r100_distance_gl_check
+[ 29%] Building CXX object CMakeFiles/environment_gl_check.dir/actor_gl.cpp.o
+[ 29%] Building CXX object CMakeFiles/m32_muzzle_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m32_muzzle_gl.cpp.o
+[ 29%] Linking CXX executable m33_subscreen_gl_check
+[ 29%] Built target m33_subscreen_gl_check
+[ 29%] Building CXX object CMakeFiles/laser_gl_check.dir/actor_gl.cpp.o
+[ 29%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/actor_gl.cpp.o
+[ 29%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/event_actor_gl.cpp.o
+[ 29%] Building CXX object CMakeFiles/m33_enemy_gl_check.dir/world_effects_gl.cpp.o
+[ 29%] Building CXX object CMakeFiles/environment_gl_check.dir/environment_gl.cpp.o
+[ 29%] Building CXX object CMakeFiles/m32_muzzle_gl_check.dir/world_effects_gl.cpp.o
+[ 29%] Building CXX object CMakeFiles/laser_gl_check.dir/environment_gl.cpp.o
+[ 30%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/environment_gl.cpp.o
+[ 30%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/event_focus_gl.cpp.o
+[ 30%] Building CXX object CMakeFiles/environment_gl_check.dir/event_actor_gl.cpp.o
+[ 30%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/event_mirror_gl.cpp.o
+[ 30%] Linking CXX executable m33_enemy_gl_check
+[ 30%] Built target m33_enemy_gl_check
+[ 30%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/item_effects_gl.cpp.o
+[ 30%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/radio_term_gl.cpp.o
+[ 30%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/room_effect_cloth_gl.cpp.o
+[ 30%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/event_actor_gl.cpp.o
+[ 30%] Building CXX object CMakeFiles/laser_gl_check.dir/event_actor_gl.cpp.o
+[ 30%] Linking CXX executable m32_muzzle_gl_check
+[ 30%] Built target m32_muzzle_gl_check
+[ 30%] Building CXX object CMakeFiles/object_actions_gl_check.dir/room_effect_cloth_gl.cpp.o
+[ 30%] Building CXX object CMakeFiles/environment_gl_check.dir/event_focus_gl.cpp.o
+[ 30%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/room_shadows_gl.cpp.o
+[ 30%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/scene_gl.cpp.o
+[ 30%] Building CXX object CMakeFiles/object_actions_gl_check.dir/source_glow_gl.cpp.o
+[ 31%] Building CXX object CMakeFiles/environment_gl_check.dir/event_mirror_gl.cpp.o
+[ 31%] Building CXX object CMakeFiles/object_actions_gl_check.dir/world_effects_gl.cpp.o
+[ 31%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/source_glow_gl.cpp.o
+[ 31%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/subscreen_item_gl.cpp.o
+[ 31%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/event_focus_gl.cpp.o
+[ 31%] Building CXX object CMakeFiles/laser_gl_check.dir/event_focus_gl.cpp.o
+[ 31%] Building CXX object CMakeFiles/environment_gl_check.dir/item_effects_gl.cpp.o
+[ 31%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/event_mirror_gl.cpp.o
+[ 32%] Building CXX object CMakeFiles/laser_gl_check.dir/event_mirror_gl.cpp.o
+[ 32%] Building CXX object CMakeFiles/environment_gl_check.dir/radio_term_gl.cpp.o
+[ 33%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/subscreen_portrait_gl.cpp.o
+[ 33%] Building CXX object CMakeFiles/laser_gl_check.dir/item_effects_gl.cpp.o
+[ 33%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/item_effects_gl.cpp.o
+[ 33%] Building CXX object CMakeFiles/environment_gl_check.dir/room_effect_cloth_gl.cpp.o
+[ 33%] Linking CXX executable object_actions_gl_check
+[ 33%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m32_lighting_gl.cpp.o
+[ 34%] Built target object_actions_gl_check
+[ 34%] Building CXX object CMakeFiles/m32_lighting_gl_check.dir/world_effects_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/radio_term_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/laser_gl_check.dir/radio_term_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/environment_gl_check.dir/room_shadows_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/world_effects_gl_check.dir/source_glow_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/world_effects_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_world_effects_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/laser_gl_check.dir/room_effect_cloth_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/room_effect_cloth_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/environment_gl_check.dir/scene_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/laser_gl_check.dir/room_shadows_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/world_effects_gl_check.dir/world_effects_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/room_shadows_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/scene_gl.cpp.o
+[ 35%] Building CXX object CMakeFiles/laser_gl_check.dir/scene_gl.cpp.o
+[ 35%] Linking CXX executable m32_lighting_gl_check
+[ 35%] Built target m32_lighting_gl_check
+[ 35%] Linking CXX executable scene_gl_check
+[ 35%] Building CXX object CMakeFiles/environment_gl_check.dir/source_glow_gl.cpp.o
+[ 37%] Built target scene_gl_check
+[ 37%] Linking CXX executable actor_gl_check
+[ 38%] Built target actor_gl_check
+[ 38%] Linking CXX executable weapon_gl_check
+[ 38%] Building CXX object CMakeFiles/environment_gl_check.dir/subscreen_item_gl.cpp.o
+[ 38%] Built target weapon_gl_check
+[ 38%] Building CXX object CMakeFiles/laser_gl_check.dir/source_glow_gl.cpp.o
+[ 38%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/source_glow_gl.cpp.o
+[ 38%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/subscreen_item_gl.cpp.o
+[ 38%] Linking CXX executable world_effects_gl_check
+[ 38%] Built target world_effects_gl_check
+[ 38%] Building CXX object CMakeFiles/environment_gl_check.dir/subscreen_portrait_gl.cpp.o
+[ 38%] Building CXX object CMakeFiles/environment_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_environment_gl.cpp.o
+[ 38%] Building CXX object CMakeFiles/environment_gl_check.dir/world_effects_gl.cpp.o
+[ 38%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/subscreen_portrait_gl.cpp.o
+[ 38%] Linking CXX executable enemy_gl_check
+[ 38%] Built target enemy_gl_check
+[ 38%] Linking CXX executable m36_player_wall_check
+[ 39%] Built target m36_player_wall_check
+[ 39%] Linking CXX executable grab_render_gl_check
+[ 39%] Built target grab_render_gl_check
+[ 39%] Linking CXX executable knife_render_gl_check
+[ 39%] Building CXX object CMakeFiles/laser_gl_check.dir/subscreen_item_gl.cpp.o
+[ 39%] Built target knife_render_gl_check
+[ 39%] Linking CXX executable m37_save_stats_runtime_check
+[ 39%] Building CXX object CMakeFiles/follow_camera_gl_check.dir/world_effects_gl.cpp.o
+[ 39%] Building CXX object CMakeFiles/laser_gl_check.dir/subscreen_portrait_gl.cpp.o
+[ 40%] Built target m37_save_stats_runtime_check
+[ 40%] Linking CXX executable m36_runtime_check
+[ 40%] Building CXX object CMakeFiles/laser_gl_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_laser_gl.cpp.o
+[ 41%] Built target m36_runtime_check
+[ 41%] Linking CXX executable m37_runtime_check
+[ 41%] Building CXX object CMakeFiles/laser_gl_check.dir/world_effects_gl.cpp.o
+[ 41%] Linking CXX executable m37_entry_runtime_check
+[ 41%] Linking CXX executable environment_gl_check
+[ 43%] Built target m37_runtime_check
+[ 44%] Linking CXX executable r100_render_runtime_check
+[ 44%] Built target environment_gl_check
+[ 44%] Linking CXX executable m37_secondary_runtime_check
+[ 46%] Built target m37_entry_runtime_check
+[ 46%] Linking CXX executable m37_save_runtime_check
+[ 47%] Built target r100_render_runtime_check
+[ 47%] Linking CXX executable k15_runtime_check
+[ 49%] Built target m37_secondary_runtime_check
+[ 49%] Linking CXX executable k16_runtime_check
+[ 49%] Linking CXX executable k17_runtime_check
+[ 51%] Built target m37_save_runtime_check
+[ 51%] Linking CXX executable k17_fix1_runtime_check
+[ 52%] Built target k15_runtime_check
+[ 53%] Linking CXX executable k17_fix2_runtime_check
+[ 55%] Built target k16_runtime_check
+[ 55%] Linking CXX executable k17_fix3_runtime_check
+[ 56%] Built target k17_runtime_check
+[ 56%] Linking CXX executable k17_fix5_runtime_check
+[ 58%] Built target k17_fix1_runtime_check
+[ 58%] Linking CXX executable k17_fix4_runtime_check
+[ 59%] Built target k17_fix2_runtime_check
+[ 60%] Built target k17_fix3_runtime_check
+[ 60%] Linking CXX executable follow_camera_gl_check
+[ 61%] Linking CXX executable m35_runtime_check
+[ 61%] Linking CXX executable android_bridge_gl_check
+[ 63%] Built target k17_fix5_runtime_check
+[ 63%] Linking CXX executable m26_runtime_check
+[ 65%] Built target k17_fix4_runtime_check
+[ 66%] Linking CXX executable m28_runtime_check
+[ 66%] Built target follow_camera_gl_check
+[ 66%] Linking CXX executable m30_runtime_check
+[ 67%] Built target m35_runtime_check
+[ 68%] Built target android_bridge_gl_check
+[ 68%] Linking CXX executable m32_action_runtime_check
+[ 68%] Linking CXX executable m32_audio_runtime_check
+[ 69%] Built target m26_runtime_check
+[ 69%] Linking CXX executable m32_inventory_runtime_check
+[ 71%] Built target m30_runtime_check
+[ 71%] Building CXX object CMakeFiles/m32_ladder_runtime_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m32_ladder_runtime.cpp.o
+[ 72%] Built target m28_runtime_check
+[ 72%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m33_context_runtime.cpp.o
+[ 73%] Built target m32_audio_runtime_check
+[ 73%] Building CXX object CMakeFiles/m31_runtime_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m31_runtime.cpp.o
+[ 74%] Built target m32_action_runtime_check
+[ 74%] Linking CXX executable laser_gl_check
+[ 74%] Building CXX object CMakeFiles/m29_runtime_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m29_runtime.cpp.o
+[ 76%] Built target m32_inventory_runtime_check
+[ 76%] Building CXX object CMakeFiles/m27_runtime_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m27_runtime.cpp.o
+[ 76%] Built target laser_gl_check
+[ 76%] Linking CXX executable inventory_case_tests
+[ 76%] Built target inventory_case_tests
+[ 76%] Building CXX object CMakeFiles/m32_weapons_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m32_weapons.cpp.o
+[ 76%] Linking CXX executable m32_weapons_check
+[ 76%] Built target m32_weapons_check
+[ 76%] Building CXX object CMakeFiles/m32_audio_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m32_audio.cpp.o
+[ 76%] Linking CXX executable m32_audio_check
+[ 76%] Built target m32_audio_check
+[ 76%] Building CXX object CMakeFiles/m32_actions_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m32_actions.cpp.o
+[ 77%] Linking CXX executable m32_actions_check
+[ 77%] Built target m32_actions_check
+[ 77%] Building CXX object CMakeFiles/m31_runtime_check.dir/world_effects_gl.cpp.o
+[ 77%] Building CXX object CMakeFiles/m31_runtime_check.dir/actor_gl.cpp.o
+[ 77%] Building CXX object CMakeFiles/m31_runtime_check.dir/event_actor_gl.cpp.o
+[ 77%] Building CXX object CMakeFiles/m29_runtime_check.dir/world_effects_gl.cpp.o
+[ 77%] Building CXX object CMakeFiles/m29_runtime_check.dir/actor_gl.cpp.o
+[ 77%] Building CXX object CMakeFiles/m27_runtime_check.dir/scene_gl.cpp.o
+[ 77%] Building CXX object CMakeFiles/m27_runtime_check.dir/event_focus_gl.cpp.o
+[ 77%] Building CXX object CMakeFiles/m31_runtime_check.dir/event_mirror_gl.cpp.o
+[ 77%] Building CXX object CMakeFiles/m29_runtime_check.dir/event_actor_gl.cpp.o
+[ 77%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/scene_gl.cpp.o
+[ 77%] Building CXX object CMakeFiles/m32_ladder_runtime_check.dir/room_shadows_gl.cpp.o
+[ 77%] Building CXX object CMakeFiles/m31_runtime_check.dir/subscreen_item_gl.cpp.o
+[ 77%] Building CXX object CMakeFiles/m32_ladder_runtime_check.dir/source_glow_gl.cpp.o
+[ 77%] Linking CXX executable m32_ladder_runtime_check
+[ 77%] Building CXX object CMakeFiles/m31_runtime_check.dir/subscreen_portrait_gl.cpp.o
+[ 78%] Built target m32_ladder_runtime_check
+[ 79%] Building CXX object CMakeFiles/m32_ladders_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m32_ladders.cpp.o
+[ 79%] Building CXX object CMakeFiles/m29_runtime_check.dir/event_mirror_gl.cpp.o
+[ 79%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/event_focus_gl.cpp.o
+[ 79%] Building CXX object CMakeFiles/m27_runtime_check.dir/foot_shadow_gl.cpp.o
+[ 80%] Building CXX object CMakeFiles/m29_runtime_check.dir/subscreen_item_gl.cpp.o
+[ 80%] Linking CXX executable m32_ladders_check
+[ 81%] Building CXX object CMakeFiles/m27_runtime_check.dir/environment_gl.cpp.o
+[ 81%] Built target m32_ladders_check
+[ 81%] Building CXX object CMakeFiles/environment_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/environment_tests.cpp.o
+[ 81%] Building CXX object CMakeFiles/m31_runtime_check.dir/display_brightness_gl.cpp.o
+[ 81%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/foot_shadow_gl.cpp.o
+[ 81%] Building CXX object CMakeFiles/m31_runtime_check.dir/item_effects_gl.cpp.o
+[ 81%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/environment_gl.cpp.o
+[ 81%] Building CXX object CMakeFiles/m29_runtime_check.dir/subscreen_portrait_gl.cpp.o
+[ 81%] Building CXX object CMakeFiles/m31_runtime_check.dir/room_effect_cloth_gl.cpp.o
+[ 81%] Building CXX object CMakeFiles/m31_runtime_check.dir/room_filter_gl.cpp.o
+[ 81%] Building CXX object CMakeFiles/m27_runtime_check.dir/world_effects_gl.cpp.o
+[ 82%] Linking CXX executable environment_tests
+[ 82%] Built target environment_tests
+[ 83%] Linking CXX executable native_tests
+[ 83%] Building CXX object CMakeFiles/m29_runtime_check.dir/display_brightness_gl.cpp.o
+[ 84%] Building CXX object CMakeFiles/m31_runtime_check.dir/room_shadows_gl.cpp.o
+[ 84%] Built target native_tests
+[ 84%] Linking CXX executable yz2_tests
+[ 84%] Built target yz2_tests
+[ 84%] Linking CXX executable archive_tests
+[ 84%] Building CXX object CMakeFiles/m29_runtime_check.dir/item_effects_gl.cpp.o
+[ 84%] Built target archive_tests
+[ 84%] Building CXX object CMakeFiles/archive_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/archive_tool.cpp.o
+[ 85%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/world_effects_gl.cpp.o
+[ 85%] Linking CXX executable archive_tool
+[ 85%] Built target archive_tool
+[ 85%] Building CXX object CMakeFiles/smd_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/smd_tool.cpp.o
+[ 85%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/actor_gl.cpp.o
+[ 85%] Building CXX object CMakeFiles/m31_runtime_check.dir/radio_term_gl.cpp.o
+[ 85%] Building CXX object CMakeFiles/m29_runtime_check.dir/room_effect_cloth_gl.cpp.o
+[ 85%] Linking CXX executable smd_tool
+[ 85%] Built target smd_tool
+[ 85%] Linking CXX executable smd_tests
+[ 85%] Built target smd_tests
+[ 85%] Building CXX object CMakeFiles/gx_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/gx_tool.cpp.o
+[ 85%] Building CXX object CMakeFiles/m29_runtime_check.dir/room_filter_gl.cpp.o
+[ 85%] Linking CXX executable gx_tool
+[ 85%] Built target gx_tool
+[ 85%] Linking CXX executable gx_tests
+[ 85%] Built target gx_tests
+[ 85%] Building CXX object CMakeFiles/room_resource_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/room_resource_tool.cpp.o
+[ 85%] Building CXX object CMakeFiles/m31_runtime_check.dir/source_glow_gl.cpp.o
+[ 85%] Building CXX object CMakeFiles/m29_runtime_check.dir/room_shadows_gl.cpp.o
+[ 85%] Building CXX object CMakeFiles/m27_runtime_check.dir/actor_gl.cpp.o
+[ 85%] Linking CXX executable m31_runtime_check
+[ 85%] Linking CXX executable room_resource_tool
+[ 86%] Built target m31_runtime_check
+[ 86%] Building CXX object CMakeFiles/material_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/material_tool.cpp.o
+[ 86%] Built target room_resource_tool
+[ 86%] Building CXX object CMakeFiles/collision_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/collision_tests.cpp.o
+[ 86%] Building CXX object CMakeFiles/m29_runtime_check.dir/radio_term_gl.cpp.o
+[ 86%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/event_actor_gl.cpp.o
+[ 86%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/event_mirror_gl.cpp.o
+[ 86%] Linking CXX executable material_tool
+[ 86%] Built target material_tool
+[ 86%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/subscreen_item_gl.cpp.o
+[ 87%] Linking CXX executable collision_tests
+[ 87%] Built target collision_tests
+[ 87%] Building CXX object CMakeFiles/collision_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/collision_tool.cpp.o
+[ 87%] Building CXX object CMakeFiles/m29_runtime_check.dir/source_glow_gl.cpp.o
+[ 87%] Linking CXX executable collision_tool
+[ 87%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/subscreen_portrait_gl.cpp.o
+[ 87%] Built target collision_tool
+[ 87%] Building CXX object CMakeFiles/sat_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/sat_tool.cpp.o
+[ 87%] Building CXX object CMakeFiles/m27_runtime_check.dir/event_actor_gl.cpp.o
+[ 87%] Linking CXX executable m29_runtime_check
+[ 87%] Built target m29_runtime_check
+[ 87%] Building CXX object CMakeFiles/sat_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/sat_tests.cpp.o
+[ 87%] Linking CXX executable sat_tool
+[ 87%] Built target sat_tool
+[ 87%] Building CXX object CMakeFiles/scene_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/scene_tool.cpp.o
+[ 87%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/display_brightness_gl.cpp.o
+[ 87%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/item_effects_gl.cpp.o
+[ 87%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/room_effect_cloth_gl.cpp.o
+[ 87%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/room_filter_gl.cpp.o
+[ 87%] Linking CXX executable sat_tests
+[ 87%] Built target sat_tests
+[ 87%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/room_shadows_gl.cpp.o
+[ 87%] Linking CXX executable scene_tool
+[ 87%] Built target scene_tool
+[ 87%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/radio_term_gl.cpp.o
+[ 87%] Building CXX object CMakeFiles/actor_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/actor_tool.cpp.o
+[ 88%] Building CXX object CMakeFiles/m33_context_runtime_check.dir/source_glow_gl.cpp.o
+[ 88%] Building CXX object CMakeFiles/m27_runtime_check.dir/event_mirror_gl.cpp.o
+[ 88%] Linking CXX executable actor_tool
+[ 88%] Building CXX object CMakeFiles/m27_runtime_check.dir/subscreen_item_gl.cpp.o
+[ 88%] Building CXX object CMakeFiles/weapon_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/weapon_tool.cpp.o
+[ 88%] Building CXX object CMakeFiles/m27_runtime_check.dir/subscreen_portrait_gl.cpp.o
+[ 88%] Built target actor_tool
+[ 88%] Building CXX object CMakeFiles/action_pose_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/action_pose_tool.cpp.o
+[ 88%] Linking CXX executable m33_context_runtime_check
+[ 88%] Built target m33_context_runtime_check
+[ 88%] Building CXX object CMakeFiles/melee_pose_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/melee_pose_tool.cpp.o
+[ 88%] Building CXX object CMakeFiles/m27_runtime_check.dir/display_brightness_gl.cpp.o
+[ 88%] Building CXX object CMakeFiles/m27_runtime_check.dir/item_effects_gl.cpp.o
+[ 88%] Linking CXX executable weapon_tool
+[ 88%] Linking CXX executable action_pose_tool
+[ 88%] Built target action_pose_tool
+[ 88%] Building CXX object CMakeFiles/enemy_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/enemy_tool.cpp.o
+[ 88%] Built target weapon_tool
+[ 88%] Building CXX object CMakeFiles/enemy_grab_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/enemy_grab_tool.cpp.o
+[ 88%] Linking CXX executable melee_pose_tool
+[ 88%] Built target melee_pose_tool
+[ 88%] Building CXX object CMakeFiles/enemy_blow_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/enemy_blow_tool.cpp.o
+[ 88%] Building CXX object CMakeFiles/m27_runtime_check.dir/room_effect_cloth_gl.cpp.o
+[ 88%] Building CXX object CMakeFiles/m27_runtime_check.dir/room_filter_gl.cpp.o
+[ 88%] Linking CXX executable enemy_tool
+[ 88%] Built target enemy_tool
+[ 88%] Building CXX object CMakeFiles/melee_rules_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/melee_rules_tests.cpp.o
+[ 88%] Building CXX object CMakeFiles/m27_runtime_check.dir/room_shadows_gl.cpp.o
+[ 88%] Linking CXX executable enemy_grab_tool
+[ 89%] Linking CXX executable enemy_blow_tool
+[ 89%] Built target enemy_grab_tool
+[ 90%] Building CXX object CMakeFiles/m27_runtime_check.dir/radio_term_gl.cpp.o
+[ 90%] Building CXX object CMakeFiles/m27_runtime_check.dir/source_glow_gl.cpp.o
+[ 90%] Built target enemy_blow_tool
+[ 90%] Building CXX object CMakeFiles/melee_encounter_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/melee_encounter_tests.cpp.o
+[ 91%] Building CXX object CMakeFiles/grab_rules_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/grab_rules_tests.cpp.o
+[ 91%] Building CXX object CMakeFiles/grab_encounter_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/grab_encounter_tests.cpp.o
+[ 91%] Linking CXX executable melee_rules_tests
+[ 91%] Building CXX object CMakeFiles/hit_geometry_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/hit_geometry_tool.cpp.o
+[ 91%] Built target melee_rules_tests
+[ 91%] Building CXX object CMakeFiles/hit_geometry_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/hit_geometry_tests.cpp.o
+[ 91%] Linking CXX executable grab_rules_tests
+[ 91%] Built target grab_rules_tests
+[ 92%] Building CXX object CMakeFiles/enemy_spawn_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/enemy_spawn_tests.cpp.o
+[ 92%] Linking CXX executable m27_runtime_check
+[ 92%] Linking CXX executable hit_geometry_tool
+[ 92%] Built target hit_geometry_tool
+[ 92%] Building CXX object CMakeFiles/terrain_combat_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_terrain_combat.cpp.o
+[ 92%] Built target m27_runtime_check
+[ 92%] Building CXX object CMakeFiles/enemy_encounter_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/enemy_encounter_tests.cpp.o
+[ 92%] Linking CXX executable grab_encounter_tests
+[ 92%] Linking CXX executable enemy_spawn_tests
+[ 92%] Built target grab_encounter_tests
+[ 92%] Built target enemy_spawn_tests
+[ 92%] Linking CXX executable hit_geometry_tests
+[ 92%] Building CXX object CMakeFiles/animation_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/animation_tests.cpp.o
+[ 92%] Building CXX object CMakeFiles/player_motion_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/player_motion_tests.cpp.o
+[ 92%] Built target hit_geometry_tests
+[ 92%] Building CXX object CMakeFiles/player_action_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/player_action_tests.cpp.o
+[ 92%] Linking CXX executable terrain_combat_check
+[ 92%] Built target terrain_combat_check
+[ 92%] Building CXX object CMakeFiles/room_flow_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/room_flow_tests.cpp.o
+[ 92%] Linking CXX executable player_motion_tests
+[ 92%] Linking CXX executable enemy_encounter_tests
+[ 92%] Built target player_motion_tests
+[ 92%] Building CXX object CMakeFiles/room_flow_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/room_flow_tool.cpp.o
+[ 92%] Built target enemy_encounter_tests
+[ 92%] Building CXX object CMakeFiles/scene_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/scene_tests.cpp.o
+[ 92%] Linking CXX executable melee_encounter_tests
+[ 92%] Built target melee_encounter_tests
+[ 92%] Building CXX object CMakeFiles/world_effects_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/world_effects_tests.cpp.o
+[ 92%] Linking CXX executable room_flow_tests
+[ 92%] Built target room_flow_tests
+[ 92%] Building CXX object CMakeFiles/world_effects_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_world_effects.cpp.o
+[ 93%] Linking CXX executable animation_tests
+[ 93%] Linking CXX executable player_action_tests
+[ 94%] Linking CXX executable room_flow_tool
+[ 94%] Built target animation_tests
+[ 94%] Building CXX object CMakeFiles/ambient_animals_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/ambient_animals_tests.cpp.o
+[ 94%] Built target player_action_tests
+[ 95%] Building CXX object CMakeFiles/ambient_animals_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_ambient_animals.cpp.o
+[ 95%] Built target room_flow_tool
+[ 95%] Building CXX object CMakeFiles/room_objects_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/room_objects_tests.cpp.o
+[ 95%] Linking CXX executable ambient_animals_tests
+[ 95%] Built target ambient_animals_tests
+[ 95%] Building CXX object CMakeFiles/room_state_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/room_state_tests.cpp.o
+[ 95%] Linking CXX executable ambient_animals_check
+[ 95%] Linking CXX executable world_effects_tests
+[ 95%] Linking CXX executable scene_tests
+[ 95%] Built target ambient_animals_check
+[ 95%] Building CXX object CMakeFiles/room_interactions_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_room_interactions.cpp.o
+[ 95%] Built target world_effects_tests
+[ 95%] Built target scene_tests
+[ 95%] Building CXX object CMakeFiles/room_objects_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_room_objects.cpp.o
+[ 95%] Building CXX object CMakeFiles/room_items_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/room_items_tests.cpp.o
+[ 96%] Linking CXX executable world_effects_check
+[ 96%] Built target world_effects_check
+[ 96%] Building CXX object CMakeFiles/room_items_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_room_items.cpp.o
+[ 96%] Linking CXX executable room_state_tests
+[ 96%] Built target room_state_tests
+[ 96%] Building CXX object CMakeFiles/object_actions_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/object_actions_tests.cpp.o
+[ 96%] Linking CXX executable room_items_tests
+[ 96%] Built target room_items_tests
+[ 96%] Building CXX object CMakeFiles/destruction_effects_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/destruction_effects_tests.cpp.o
+[ 97%] Linking CXX executable room_objects_tests
+[ 97%] Built target room_objects_tests
+[ 97%] Building CXX object CMakeFiles/destruction_effects_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_destruction_effects.cpp.o
+[ 97%] Linking CXX executable room_interactions_check
+[ 97%] Built target room_interactions_check
+[ 97%] Linking CXX executable audio_tests
+[ 97%] Built target audio_tests
+[ 97%] Building CXX object CMakeFiles/audio_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_audio.cpp.o
+[ 97%] Linking CXX executable room_objects_check
+[ 97%] Built target room_objects_check
+[ 97%] Building CXX object CMakeFiles/object_actions_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_object_actions.cpp.o
+[ 97%] Linking CXX executable room_items_check
+[ 97%] Built target room_items_check
+[ 98%] Building CXX object CMakeFiles/object_combat_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_object_combat.cpp.o
+[ 98%] Linking CXX executable audio_check
+[ 98%] Linking CXX executable destruction_effects_check
+[ 98%] Built target audio_check
+[ 98%] Building CXX object CMakeFiles/blast_combat_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_blast_combat.cpp.o
+[ 98%] Built target destruction_effects_check
+[ 98%] Building CXX object CMakeFiles/m28_assets_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m28_assets.cpp.o
+[ 98%] Linking CXX executable object_actions_tests
+[ 98%] Built target object_actions_tests
+[ 98%] Building CXX object CMakeFiles/m30_assets_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m30_assets.cpp.o
+[ 98%] Linking CXX executable destruction_effects_tests
+[ 98%] Built target destruction_effects_tests
+[ 98%] Building CXX object CMakeFiles/m31_assets_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m31_assets.cpp.o
+[ 98%] Linking CXX executable object_actions_check
+[ 98%] Built target object_actions_check
+[ 98%] Building CXX object CMakeFiles/m29_assets_check.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/test_m29_assets.cpp.o
+[ 98%] Linking CXX executable object_combat_check
+[ 98%] Linking CXX executable m28_assets_check
+[ 98%] Built target object_combat_check
+[ 98%] Built target m28_assets_check
+[ 98%] Linking CXX executable room_lighting_tests
+[ 98%] Building CXX object CMakeFiles/laser_sight_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/laser_sight_tests.cpp.o
+[ 98%] Built target room_lighting_tests
+[ 98%] Building CXX object CMakeFiles/follow_camera_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/follow_camera_tests.cpp.o
+[ 98%] Linking CXX executable blast_combat_check
+[ 98%] Built target blast_combat_check
+[ 98%] Building CXX object CMakeFiles/turn_rules_tests.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tests/turn_rules_tests.cpp.o
+[ 98%] Linking CXX executable m29_assets_check
+[ 99%] Linking CXX executable laser_sight_tests
+[ 99%] Built target m29_assets_check
+[ 99%] Building CXX object CMakeFiles/yz2_tool.dir/workspace/scratch/7d71f11084f3/work/RE4-Android-Decomp/tools/yz2_tool.cpp.o
+[ 99%] Built target laser_sight_tests
+[ 99%] Linking CXX executable m30_assets_check
+[ 99%] Linking CXX executable turn_rules_tests
+[ 99%] Linking CXX executable m31_assets_check
+[ 99%] Linking CXX executable follow_camera_tests
+[100%] Linking CXX executable yz2_tool
+[100%] Built target m30_assets_check
+[100%] Built target turn_rules_tests
+[100%] Built target follow_camera_tests
+[100%] Built target yz2_tool
+[100%] Built target m31_assets_check
+
+ARM64-Metadaten
+{
+  "machine": "AArch64",
+  "abi": "arm64-v8a",
+  "result": "PASS",
+  "loadSegments": 3,
+  "pageAlignment": 16384,
+  "nativeSha256": "6e3cab399a5f5f893ee367edc18df0a704e4269a167522440eef32cb497911df",
+  "apkProduced": false
+}
