@@ -131,6 +131,70 @@ void testBridge()
         Header hx = { 0, 0x40, 0, 0x400, 0, 0, 0, 0 };
         re4_formats_part_loaded("em/other.drs", 0, 0, &hx, 0x82107000u);
         CHECK(!re4_formats_locate(plain + 0x24, &src));
+        // a later load over the middle of an archive: only that part is stale
+        unsigned char* big = (unsigned char*) (unsigned long) 0x82108000u;
+        memset(big, 0, 0x80);
+        put32be(big + 0x00, 3);
+        put32be(big + 0x10, 0x40);
+        put32be(big + 0x14, 0x50);
+        put32be(big + 0x18, 0x60);
+        memcpy(big + 0x1C, "XBN\0XTP\0XBN\0", 12);
+        Header hb = { 0, 0x80, 0, 0x400, 0, 0, 0, 0 };
+        re4_formats_part_loaded("em/big.drs", 0, 0, &hb, 0x82108000u);
+        CHECK(re4_formats_locate(big + 0x54, &src) && strcmp(src.file, "em/big.drs") == 0 && src.entry == 1 &&
+              src.innerOffset == 4);
+        unsigned char* middle = big + 0x50;
+        memset(middle, 0, 0x40);  // reaches past the end of em/big.drs
+        put32be(middle + 0x00, 1);
+        put32be(middle + 0x10, 0x20);
+        memcpy(middle + 0x14, "XBN\0", 4);
+        Header hm = { 0, 0x40, 0, 0x800, 0, 0, 0, 0 };
+        re4_formats_part_loaded("em/middle.drs", 0, 0, &hm, 0x82108050u);
+        CHECK(re4_formats_locate(big + 0x40, &src) && strcmp(src.file, "em/big.drs") == 0 && src.entry == 0);
+        CHECK(!re4_formats_locate(big + 0x54, &src));
+        CHECK(re4_formats_locate(big + 0x70, &src) && strcmp(src.file, "em/middle.drs") == 0 && src.entry == 0);
+        re4_formats_describe(big + 0x48, where, sizeof(where));
+        CHECK(strstr(where, "no entry starts there") != 0);
+        re4_formats_describe(big + 0x54, where, sizeof(where));
+        CHECK(strstr(where, "overwritten by a later load") != 0);
+        // motion curves (FCV): a joint the game reads is converted, an unused
+        // joint whose offset points into the header is left alone (weapon
+        // motions have such joints) and does not stop the conversion
+        unsigned char* fa = (unsigned char*) (unsigned long) 0x82109000u;
+        memset(fa, 0, 0x60);
+        put32be(fa + 0x00, 1);
+        put32be(fa + 0x10, 0x20);
+        memcpy(fa + 0x14, "FCV\0", 4);
+        unsigned char* m = fa + 0x20;
+        m[0] = 0; m[1] = 10;                 // maxFrame
+        m[2] = 2;                            // joints
+        m[3] = 0xF0; m[4] = 0x02;            // joint 0: key layout 15 (4 bytes), rotation
+        m[5] = 0xF0; m[6] = 0x00;            // joint 1: kind 0, never read
+        put32be(m + 12, 48);                 // size; offsets follow
+        put32be(m + 16, 24);
+        put32be(m + 20, 4);                  // points into the header
+        for (int axis = 0; axis < 3; axis++) {
+            unsigned char* a = m + 24 + axis * 8;
+            a[1] = 1;                        // one key
+            a[3] = (unsigned char) (5 + axis);  // at frame 5 + axis
+            a[4] = 0x3F; a[5] = 0x80;        // key bytes stay big-endian
+        }
+        Header hf = { 0, 0x50, 0, 0x400, 0, 0, 0, 0 };
+        re4_formats_part_loaded("em/fcv.drs", 0, 0, &hf, 0x82109000u);
+        unsigned short v;
+        memcpy(&v, m + 0, 2);
+        CHECK(v == 10);
+        memcpy(&v, m + 3, 2);
+        CHECK(v == 0xF002);  // the kind words once in host order (joint 1 did not swap them back)
+        memcpy(&v, m + 5, 2);
+        CHECK(v == 0xF000);
+        for (int axis = 0; axis < 3; axis++) {
+            memcpy(&v, m + 24 + axis * 8, 2);
+            CHECK(v == 1);
+            memcpy(&v, m + 26 + axis * 8, 2);
+            CHECK(v == 5 + axis);
+            CHECK(m[28 + axis * 8] == 0x3F && m[29 + axis * 8] == 0x80);
+        }
     }
 
     re4probe_core_setup(arc + 0x1000, arc + 0x20, arc + 0x40);

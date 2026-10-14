@@ -199,6 +199,8 @@ struct ArchiveNote {
     u32* offs;        // entry start offsets (by entry number), malloc'd
     u32 nOffs;
     u32 sig;          // hash of the entry count and tags: memory reused without a new note?
+    u32 holeLo[4], holeHi[4];  // parts later loads overwrote (offsets in the archive)
+    u32 nHoles;
 };
 
 // r100 alone loads well over 64 archives (enemies, player, weapons, room):
@@ -256,10 +258,27 @@ u32 signature(const ArchiveNote& a)
 bool intact(ArchiveNote& a)
 {
     if (a.gen && signature(a) != a.sig) {
+        static u32 reported;
+        if (reported < 40) {
+            reported++;
+            re4_log("formats: archive %s (0x%08lx..0x%08lx): its entry names changed (memory reused without a "
+                    "load the converter saw), its notes are dropped",
+                    a.name, (unsigned long) a.addr, (unsigned long) a.addr + a.size);
+        }
         forget(a);
         return false;
     }
     return a.gen != 0;
+}
+
+bool inHole(const ArchiveNote& a, u32 rel)
+{
+    for (u32 i = 0; i < a.nHoles; i++) {
+        if (rel >= a.holeLo[i] && rel < a.holeHi[i]) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool current(const EntryNote& e)
@@ -268,7 +287,11 @@ bool current(const EntryNote& e)
         return false;
     }
     const ArchiveNote& a = g_archives[e.archiveSlot];
-    return a.gen != 0 && a.addr == e.archive && a.gen == e.archiveGen;
+    if (a.gen == 0 || a.addr != e.archive || a.gen != e.archiveGen) {
+        return false;
+    }
+    u32 rel = (u32) ((const char*) e.addr - (const char*) a.addr);
+    return rel < a.size && !inHole(a, rel);
 }
 
 u32 slotOf(const void* addr)
@@ -319,17 +342,39 @@ int entryStatus(const void* addr, char* tag)
 
 void noteArchive(const void* addr, unsigned size, const char* name, const Part& part, const u32* offs, u32 count)
 {
-    // memory reused: notes of archives this one overwrites are stale now (an
-    // archive that encloses it, like a container around an inner archive, stays)
+    // memory reused: the part of an older archive this one covers is stale
+    // now. The same range again (a reload) or its header covered: the whole
+    // note goes. An archive that encloses this one (a container around an
+    // inner archive) stays as it is.
+    static u32 reported;
     const char* lo = (const char*) addr;
     const char* hi = lo + size;
     for (u32 i = 0; i < kArchives; i++) {
         ArchiveNote& o = g_archives[i];
         const char* b = (const char*) o.addr;
         const char* e = b + o.size;
-        bool encloses = b <= lo && hi <= e && (b != lo || e != hi);
-        if (o.gen && b < hi && lo < e && !encloses) {
+        if (!o.gen || !(b < hi && lo < e)) {
+            continue;
+        }
+        if (b <= lo && hi <= e && (b != lo || e != hi)) {
+            continue;  // encloses the new one
+        }
+        const char* from = lo > b ? lo : b;
+        const char* to = hi < e ? hi : e;
+        u32 header = 0x10 + o.nOffs * 8;
+        bool whole = (b == lo && e == hi) || from < b + header || o.nHoles == 4;
+        if (reported < 40) {
+            reported++;
+            re4_log("formats: archive %s (0x%08lx..0x%08lx) overlaps %s (0x%08lx..0x%08lx): %s", name,
+                    (unsigned long) lo, (unsigned long) hi, o.name, (unsigned long) b, (unsigned long) e,
+                    whole ? "its notes are dropped" : "that part is marked stale");
+        }
+        if (whole) {
             forget(o);
+        } else {
+            o.holeLo[o.nHoles] = (u32) (from - b);
+            o.holeHi[o.nHoles] = (u32) (to - b);
+            o.nHoles++;
         }
     }
     ArchiveNote* a = &g_archives[g_nextArchive++ % kArchives];
@@ -362,7 +407,7 @@ int containingEntry(const void* addr, int* slot, u32* inner)
     for (u32 k = 0; k < kArchives; k++) {
         ArchiveNote& a = g_archives[k];
         const char* base = (const char*) a.addr;
-        if (a.gen && a.offs && p >= base && p < base + a.size &&
+        if (a.gen && a.offs && p >= base && p < base + a.size && !inHole(a, (u32) (p - base)) &&
             (found < 0 || a.size < g_archives[found].size) && intact(a)) {
             found = (int) k;
         }
@@ -658,8 +703,8 @@ extern "C" int re4_formats_describe(const void* addr, char* out, int size)
         const ArchiveNote& n = g_archives[k];
         const char* base = (const char*) n.addr;
         if (n.gen && a >= base && a < base + n.size) {
-            return snprintf(out, size, "%p inside %s at +0x%x (no entry starts there)", addr, n.name,
-                            (unsigned) (a - base));
+            return snprintf(out, size, "%p inside %s at +0x%x (%s)", addr, n.name, (unsigned) (a - base),
+                            inHole(n, (u32) (a - base)) ? "overwritten by a later load" : "no entry starts there");
         }
     }
     return snprintf(out, size, "%p not in a noted archive", addr);

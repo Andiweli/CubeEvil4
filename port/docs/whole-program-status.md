@@ -436,9 +436,12 @@ merken sich beim Laden jedes Archiv und jeden Eintrag
 Archive: r100 lädt mehr, ältere Herkunftsangaben gingen verloren). Liegt ein
 Modell mitten in einem Eintrag (BIN in einem SMD, Modell in einer
 Raumblock-Datei), meldet die Brücke den umgebenden Eintrag und `innerOffset`.
-Angaben zu Archiven, über die später anderes geladen wurde, verfallen: bei
-einem neuen, überlappenden Archiv sofort, bei Daten ohne eigene Notiz über
-eine Prüfsumme der Eintragsnamen. Yz2-gepackte Archive (Raumdateien) haben keinen
+Angaben zu Archiven, über die später anderes geladen wurde, verfallen: lädt
+das Spiel ein neues Archiv über einen Teil eines älteren, wird nur dieser
+Teil gesperrt (über den Kopf oder denselben Bereich: das ganze ältere);
+Daten ohne eigene Notiz erkennt eine Prüfsumme der Eintragsnamen. Jede
+Überlappung steht im Log („formats: archive … overlaps …“, im Bericht unter
+den Umwandler-Meldungen). Yz2-gepackte Archive (Raumdateien) haben keinen
 Datei-Offset (`0xFFFFFFFF`); solche Modelle (Gegenstände, Tiere des Raums)
 liest die App aus der entpackten Raumdatei, die sie für den Raum ohnehin
 vorbereitet. Die Raumkulisse (`cObjScr`, ObjMgr-Kennung 2: die SMD-Modelle
@@ -546,6 +549,24 @@ Gerätelauf, Bilder mit echten Disc-Daten.
   auch ab). Für r100 ohne Bedeutung (Waffen, die dort nicht vorkommen). Der
   Umwandler meldet jetzt Gelenk, Kennung, Schlüsselformat und Grenze des
   Eintrags; die Ursache folgt aus dem nächsten Lauf.
+
+### Dritter lokaler Lauf (14.10.2026, WSL2)
+
+- Kamera bei offenem Untermenü jetzt die Weltkamera; 188 Kulissenteile
+  erkannt; im ersten Bild zeichnet die App 43 Figuren (vorher 17).
+- Nach dem Öffnen des Untermenüs fehlte die Herkunft der Modelle aus dem
+  entpackten Raumarchiv (Gegner 0x41/0x43/0x46, Gegenstände 0x19) und von
+  em12.drs („replaced archive“): Ein später geladenes Archiv überlappte sie,
+  und die Regel verwarf das ganze ältere Archiv. Jetzt wird nur der
+  überdeckte Teil gesperrt (Test `core-test bridge`), und das Log nennt jede
+  Überlappung. Der Bericht wertet die Brücke jetzt zweimal aus (früh im Raum
+  und am Ende).
+- FCV: Die Diagnose-Zeile fehlte im Bericht (Filter). Der Umwandler prüft
+  jetzt jedes Gelenk vor dem Umwandeln: Gelenke, deren Daten außerhalb des
+  Datenbereichs liegen, bleiben unverändert; ein Fehler nur, wenn
+  `MotionMoveCore` diese Gelenkart liest (Kamerafahrten lesen nach Nummer,
+  daher werden alle passenden Gelenke weiter umgewandelt). Test mit einem
+  unbenutzten Gelenk, das in den Kopf zeigt.
 
 ### Lokale Prüfungen für K2
 

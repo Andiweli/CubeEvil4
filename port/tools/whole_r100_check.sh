@@ -173,7 +173,7 @@ if [ -x "$cmp" ]; then
     tee -a "$report" < "$run/formatvergleich.txt"
     # converter messages: what was left undone or left as it is
     notes=$(grep -h "formats:" "$run/formatvergleich.log" |
-        grep -E "no converter|incomplete|outside|left |no field list|blocks in its chain|more than|unknown" |
+        grep -E "no converter|incomplete|outside|left |no field list|blocks in its chain|more than|unknown|overlaps|dropped" |
         sed 's/^\[re4\] //' | sort | uniq -c | sort -rn)
     if [ -n "$notes" ]; then
         say "Umwandler-Meldungen beim Vergleich ($(echo "$notes" | grep -c .) verschiedene):"
@@ -306,7 +306,7 @@ run_game() {
     fi
     # converter messages that point at something left undone
     local msgs
-    msgs=$(grep -h "formats:" "$log" | grep -E "no converter|incomplete|outside|left big-endian|no field list|blocks in its chain|more than" |
+    msgs=$(grep -h "formats:" "$log" | grep -E "no converter|incomplete|outside|left big-endian|left as|no field list|blocks in its chain|more than|overlaps|dropped" |
         sed 's/^\[re4\] //' | sort | uniq -c | sort -rn)
     if [ -n "$msgs" ]; then
         say "Umwandler-Meldungen:"
@@ -360,43 +360,48 @@ import json, sys
 rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
 room = "0x" + sys.argv[2].lower()
 inroom = [r for r in rows if r["Rno0"] == 3 and r["room"] == room]
-last = inroom[-1] if inroom else rows[-1]
-models = last["models"]
-drawn = [m for m in models if m["drawn"]]
-# the room's scenery objects (cObjScr, ObjMgr id 2): the app draws them with the room scene
-scenery = [m for m in drawn if m["mgr"] == 1 and m["id"] == "0x02"]
-drawn = [m for m in drawn if not (m["mgr"] == 1 and m["id"] == "0x02")]
-def found(src):
-    return bool(src) and not src.startswith("?")
-def known(m):
-    return m["infos"] and all(found(i["bin"]) and found(i["tpl"]) for i in m["infos"])
-unknown = [m for m in drawn if not known(m)]
-screen = last.get("screen", 0)
-print(f"Brücke zur App (Bild {last['frame']}, Schritt {last['Rno0']}, Raum {last['room']}): "
-      f"{len(models)} Figuren, davon {len(drawn) + len(scenery)} sichtbar ({len(scenery)} Raumkulisse, die die App "
-      f"mit dem Raum zeichnet), {len(drawn) - len(unknown)} von {len(drawn)} übrigen mit bekannter "
-      f"Modell-Herkunft auf der Disc; {last['parts']} Körperteile; Kamera {last['camera']}"
-      + ("; Untermenü offen (Kamera = Weltkamera)" if screen & 1 else "") + ("; Ereignis läuft" if screen & 2 else "")
-      + (f"; {last['dropped']} Figuren über der Obergrenze" if last.get("dropped") else ""))
 import re
-def plain(src):
-    # unknown sources carry their address: leave it out when grouping
-    return re.sub(r"0x[0-9a-f]{6,8}|\+0x[0-9a-f]+", "…", src or "?")
-seen, lines = {}, []
-for m in drawn:
-    srcs = "; ".join(f"BIN {i['bin'] or '?'} TPL {i['tpl'] or '?'}" for i in m["infos"]) or "kein Modell"
-    key = (m["mgr"], m["id"], m["parts"], plain(srcs))
-    if key in seen:
-        seen[key] += 1
-        continue
-    seen[key] = 1
-    lines.append((key, f"  {'Gegner' if m['mgr'] == 0 else 'Objekt'} {m['id']} Typ {m['type']}, {m['parts']} Teile: {srcs}"))
-for key, text in lines[:40]:
-    print(text + (f"  (×{seen[key]})" if seen[key] > 1 else ""))
-if len(lines) > 40:
-    print(f"  ... {len(lines) - 40} weitere Arten")
-if unknown:
-    print(f"  Hinweis: {len(unknown)} sichtbare Figuren ohne bekannte Herkunft (die App kann sie noch nicht zeichnen)")
+def summary(last):
+    models = last["models"]
+    drawn = [m for m in models if m["drawn"]]
+    # the room's scenery objects (cObjScr, ObjMgr id 2): the app draws them with the room scene
+    scenery = [m for m in drawn if m["mgr"] == 1 and m["id"] == "0x02"]
+    drawn = [m for m in drawn if not (m["mgr"] == 1 and m["id"] == "0x02")]
+    def found(src):
+        return bool(src) and not src.startswith("?")
+    def known(m):
+        return m["infos"] and all(found(i["bin"]) and found(i["tpl"]) for i in m["infos"])
+    unknown = [m for m in drawn if not known(m)]
+    screen = last.get("screen", 0)
+    print(f"Brücke zur App (Bild {last['frame']}, Schritt {last['Rno0']}, Raum {last['room']}): "
+          f"{len(models)} Figuren, davon {len(drawn) + len(scenery)} sichtbar ({len(scenery)} Raumkulisse, die die App "
+          f"mit dem Raum zeichnet), {len(drawn) - len(unknown)} von {len(drawn)} übrigen mit bekannter "
+          f"Modell-Herkunft auf der Disc; {last['parts']} Körperteile; Kamera {last['camera']}"
+          + ("; Untermenü offen (Kamera = Weltkamera)" if screen & 1 else "") + ("; Ereignis läuft" if screen & 2 else "")
+          + (f"; {last['dropped']} Figuren über der Obergrenze" if last.get("dropped") else ""))
+    def plain(src):
+        # unknown sources carry their address: leave it out when grouping
+        return re.sub(r"0x[0-9a-f]{6,8}|\+0x[0-9a-f]+", "…", src or "?")
+    seen, lines = {}, []
+    for m in drawn:
+        srcs = "; ".join(f"BIN {i['bin'] or '?'} TPL {i['tpl'] or '?'}" for i in m["infos"]) or "kein Modell"
+        key = (m["mgr"], m["id"], m["parts"], plain(srcs))
+        if key in seen:
+            seen[key] += 1
+            continue
+        seen[key] = 1
+        lines.append((key, f"  {'Gegner' if m['mgr'] == 0 else 'Objekt'} {m['id']} Typ {m['type']}, {m['parts']} Teile: {srcs}"))
+    for key, text in lines[:40]:
+        print(text + (f"  (×{seen[key]})" if seen[key] > 1 else ""))
+    if len(lines) > 40:
+        print(f"  ... {len(lines) - 40} weitere Arten")
+    if unknown:
+        print(f"  Hinweis: {len(unknown)} sichtbare Figuren ohne bekannte Herkunft (die App kann sie noch nicht zeichnen)")
+# early in the room (before a sub screen may hide the world) and at the end
+picks = inroom[:1] + inroom[-1:] if len(inroom) > 1 else (inroom or rows[-1:])
+for row in picks:
+    summary(row)
+
 PY
     else
         say "Brücke zur App: keine Ausgabe (RE4_BRIDGE_DUMP)"
