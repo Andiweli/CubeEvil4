@@ -22,7 +22,7 @@
 # Steps: build and the cloud checks (whole_build.sh), the format comparison
 # with the disc files (re4_format_compare --data), then the game from the
 # title screen: debug start into the room (RE4_START_ROOM, patch 0026), the
-# test script presses START/A on the title screens until the room loads
+# test script presses UP/A/START on the title screens until the room loads
 # (RE4_PAD_UNTIL_ROOM), and the run ends after FRAMES frames of the main loop
 # (RE4_STOP_AFTER). The report (bericht.txt) lists: crash or not, frames,
 # GetDataExt coverage lines with "nein", converter messages, called stubs,
@@ -179,6 +179,14 @@ else
 fi
 
 # ---- the game: debug start into the room ---------------------------------------------------
+# Every 20 frames UP, 5 frames later A, 5 frames later START. UP+A picks
+# "continue without saving" in the memory card dialog (A alone retries); UP
+# keeps the title menu on "new game" (patch 0026 puts it there); START skips
+# the logos; A or START leaves the debug start menu (title.cpp titleExit).
+# There UP moves the cursor (21 lines, wrapping; line 1 loads, 2 forces r120,
+# 0x12 hard mode + reset): at most one UP can arrive before the next A/START,
+# so the cursor is line 0 or 20, both the normal start.
+pad_script="UP@60-60000/20 A@65-60000/20 START@70-60000/20"
 run_game() {  # target, timeout in seconds
     local t="$1" limit="$2" dir="$src/port/build/whole-$1"
     local log="$run/spiel-$t.log" trace="$run/trace-$t.jsonl" cov="$run/abdeckung-$t.tsv"
@@ -193,7 +201,7 @@ run_game() {  # target, timeout in seconds
     rm -f "$cov"
     local start=$SECONDS
     (cd "$dir" && RE4_VI_FAST=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
-        RE4_PAD_SCRIPT="START@60-60000/20 A@70-60000/20" RE4_STOP_AFTER="$frames" \
+        RE4_PAD_SCRIPT="$pad_script" RE4_STOP_AFTER="$frames" \
         RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" \
         timeout -k 10 -s USR1 "$limit" "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1
     local code=$?

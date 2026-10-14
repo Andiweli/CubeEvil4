@@ -258,8 +258,13 @@ Werkzeuge einrichten (`whole_setup_linux.sh`), Quelltext nach `~/re4-kern`
 klonen (Stand des Windows-Checkouts), `whole_build.sh i686` (mit `-Arm` auch
 armhf), Formatvergleich mit den Disc-Dateien, dann das Spiel vom Titelbild:
 `RE4_VI_FAST=1 RE4_START_ROOM=0x100 RE4_PAD_UNTIL_ROOM=1
-RE4_PAD_SCRIPT="START@60-60000/20 A@70-60000/20" RE4_STOP_AFTER=10000` mit
-Trace und Abdeckungs-Log, Zeitlimit 1 h (armhf 4 h). Bericht
+RE4_PAD_SCRIPT="UP@60-60000/20 A@65-60000/20 START@70-60000/20"
+RE4_STOP_AFTER=10000` mit Trace und Abdeckungs-Log, Zeitlimit 1 h (armhf 4 h).
+Die Tastenfolge: OBEN+A wählt im Speicherkarten-Dialog „ohne Speichern
+fortfahren“, START überspringt Logos, A wählt „Neues Spiel“, A/START verlässt
+das Debug-Startmenü. Dort verschiebt OBEN die Zeile (21 Zeilen, Zeile 1 lädt,
+2 erzwingt r120, 0x12 schwer + Neustart); vor dem nächsten A/START kommt
+höchstens ein OBEN an (Zeile 20 = normaler Start). Bericht
 `Desktop\RE4-Kern-Pruefung\bericht.txt`: Ergebnis (OK/Absturz/Zeitlimit),
 erreichte Hauptschleife, Abdeckung mit allen „nein“-Zeilen, Umwandler-
 Meldungen, aufgerufene Platzhalter, letzte Trace-Zeile. Disc-Daten als
