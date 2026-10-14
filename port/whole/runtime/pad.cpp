@@ -5,9 +5,14 @@
 //   RE4_PAD_SCRIPT="START@300 A@400-3000/40"
 //     BUTTONS@FRAME            hold for 3 frames from PADRead call FRAME
 //     BUTTONS@FROM-TO/EVERY    the same every EVERY frames from FROM to TO
-//     BUTTONS: A B X Y Z L R START UP DOWN LEFT RIGHT, joined with '+'
+//     BUTTONS: A B X Y Z L R START UP DOWN LEFT RIGHT, joined with '+';
+//              STICKUP STICKDOWN STICKLEFT STICKRIGHT push the main stick
+//              fully (BUTTONS@FROM-TO/1 holds it the whole time)
 //   RE4_PAD_UNTIL_ROOM=1       the script ends when the game loads its first
 //                              room (state_trace.cpp)
+//   RE4_PAD_ROOM_SCRIPT="START@1500 STICKUP@1700-2400/1"
+//                              then this one runs, its frames counted from
+//                              that moment (closes the radio call, walks)
 //
 // The game calls PADRead once per frame (pad.cpp PadRead in the main loop).
 //
@@ -46,6 +51,7 @@ const u32 kHold = 3;
 
 struct Press {
     u16 buttons;
+    s8 stickX, stickY;
     u32 from;
     u32 to;
     u32 every;
@@ -74,7 +80,27 @@ u16 buttonBit(const char* name, size_t len)
     return 0;
 }
 
-void parseScript(const char* s)
+// The main stick from a script name (STICKUP ...): true when it is one.
+bool stickName(const char* name, size_t len, Press& p)
+{
+    static const struct {
+        const char* name;
+        s8 x, y;
+    } kSticks[] = {
+        { "STICKUP", 0, 100 }, { "STICKDOWN", 0, -100 }, { "STICKLEFT", -100, 0 }, { "STICKRIGHT", 100, 0 },
+    };
+    for (const auto& n : kSticks) {
+        if (strlen(n.name) == len && strncmp(n.name, name, len) == 0) {
+            p.stickX = n.x ? n.x : p.stickX;
+            p.stickY = n.y ? n.y : p.stickY;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Appends the entries of `s`, their frames moved by `offset`.
+void parseScript(const char* s, u32 offset = 0)
 {
     while (*s && gScriptLen < 64) {
         while (*s == ' ' || *s == ',') {
@@ -83,13 +109,15 @@ void parseScript(const char* s)
         if (!*s) {
             break;
         }
-        Press p = { 0, 0, 0, 0 };
+        Press p = { 0, 0, 0, 0, 0, 0 };
         while (*s && *s != '@') {
             const char* e = s;
             while (*e && *e != '+' && *e != '@') {
                 e++;
             }
-            p.buttons |= buttonBit(s, (size_t) (e - s));
+            if (!stickName(s, (size_t) (e - s), p)) {
+                p.buttons |= buttonBit(s, (size_t) (e - s));
+            }
             s = *e == '+' ? e + 1 : e;
         }
         if (*s != '@') {
@@ -106,14 +134,17 @@ void parseScript(const char* s)
             }
         }
         s = e;
+        p.from += offset;
+        p.to += offset;
         gScript[gScriptLen++] = p;
     }
-    re4_log("pad: test script with %d entries", gScriptLen);
+    re4_log("pad: test script with %d entries%s", gScriptLen, offset ? " (from the room on)" : "");
 }
 
-u16 scriptButtons(u32 frame)
+// The scripted pad of `frame` (buttons and main stick).
+Press scriptAt(u32 frame)
 {
-    u16 b = 0;
+    Press b = { 0, 0, 0, 0, 0, 0 };
     for (int i = 0; i < gScriptLen; i++) {
         const Press& p = gScript[i];
         if (frame < p.from || frame >= p.to + kHold) {
@@ -121,10 +152,17 @@ u16 scriptButtons(u32 frame)
         }
         u32 phase = frame - p.from;
         if (p.every ? phase % p.every < kHold : phase < kHold) {
-            b |= p.buttons;
+            b.buttons |= p.buttons;
+            b.stickX = p.stickX ? p.stickX : b.stickX;
+            b.stickY = p.stickY ? p.stickY : b.stickY;
         }
     }
     return b;
+}
+
+u16 scriptButtons(u32 frame)
+{
+    return scriptAt(frame).buttons;
 }
 
 }  // namespace
@@ -196,6 +234,9 @@ void re4_pad_script_stop(void)
     if (gScriptLen) {
         re4_log("pad: test script ends at frame %u", gFrame);
         gScriptLen = 0;
+        if (const char* room = getenv("RE4_PAD_ROOM_SCRIPT")) {
+            parseScript(room, gFrame);
+        }
     }
 }
 
@@ -210,7 +251,10 @@ u32 PADRead(PADStatus* status)
         }
     }
     memset(status, 0, 4 * sizeof(PADStatus));
-    status[0].button = scriptButtons(gFrame);
+    const Press scripted = scriptAt(gFrame);
+    status[0].button = scripted.buttons;
+    status[0].stickX = scripted.stickX;
+    status[0].stickY = scripted.stickY;
     if (!gScriptLen) {
         std::lock_guard<std::mutex> lock(g_liveLock);
         if (g_hasLive) {

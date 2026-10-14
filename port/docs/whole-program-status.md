@@ -654,6 +654,32 @@ Gerätelauf, Bilder mit echten Disc-Daten.
   den fertigen Import (Fortschritt in MB, höchstens `-ImportMinutes`,
   Standard 45) und beendet die App währenddessen nicht.
 
+### Erster Gerätelauf mit Spiel (14.10.2026, Retroid)
+
+- Gerät: Import von Disc 1 mit dem neuen Warten im Skript geklappt. Der Kern
+  läuft auf dem Retroid: Titelbild (r120), Debug-Start r100, Anfangsszene im
+  Polizeiauto mit Polizisten und Leon (Köpfe, Haare), 66 Figuren gezeichnet.
+  PC-Prüfung **ALLES OK**, Leon mit Haaren (alle neun Modell-Infos).
+- **Absturz** nach dem Funkspruch (Projektinhaber drückte START):
+  `seRandomCheck` ← `emSeCheck` ← `SndCall` ← `emMove` (SIGSEGV bei
+  0x10395040). Die Zufalls-Tabelle der Geräusche in jeder Tonbank (Kopfwort 1:
+  Versatz der Tabelle, darin Versätze der Listen `{num, last, e[num]}`) blieb
+  big-endian; außerdem lief die letzte Wavetable-Tabelle bis zum Blockende und
+  hätte die Zufalls-Tabelle als 16-bit-Werte gedreht. Jetzt eigener Umwandler
+  (nur die Gruppen, die die SITs des Blocks nennen; das Spiel liest keine
+  anderen) und die Wavetable endet vor der Tabelle. Test `core-test sound`
+  (schlägt mit dem alten Umwandler fehl). Mit echten Daten noch nicht geprüft.
+- Warum die PC-Prüfung das nicht fand: Ihre Tastenfolge endet beim Laden des
+  Raums, das Spiel wartet dann bis zum Ende im Funkspruch, Gegner laufen nicht.
+  Neu: `RE4_PAD_ROOM_SCRIPT` (Bilder ab dem Raum gezählt) und Steuerknüppel
+  in der Tastenfolge (`STICKUP` …); `whole_r100_check.sh` drückt 1500 Bilder
+  nach dem Raum START (Funkspruch zu) und lässt Leon 10 s laufen. Test
+  `runtime-test trace`.
+- Offen: „Das Auto sieht man nur teilweise“ (Bild der Stelle fehlt noch);
+  eine Figur ohne Herkunft ist eine Waffen-Figur (`cEmWep`, 0x42), nicht das
+  Auto. Kein Ton: Meilenstein 8. `test-core-app.ps1` meldet jetzt einen
+  Neustart der App (anderer Prozess) als „NEU GESTARTET … abgestürzt?“.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -936,7 +962,7 @@ nach dem Laden Feld für Feld in Host-Reihenfolge gedreht:
 | `bgm/bio4midi.hed` | u32-Offsets der BGM-Dateien | `convertWords` |
 | `bgm/doorse.hed` | `SndDoorTbl`, u32-Tabelle, u16-Zähler (snd.cpp) | `formats_snd.cpp` |
 | `bgm/bgmtbl.dat` | `SndBgmTbl`, `SndBgmRoom`, u16-Raumliste | `formats_snd.cpp` |
-| Teiltyp 1 (Tonbank) | Kopf, ISS-Block, `SND_SIT`, Wavetable (`WTFILEHEADER`, `WTREGION`, `WTART`, `WTSAMPLE`, `WTADPCM`), Sequenz-Tabelle (Sequenzen selbst sind Byteströme) | `formats_snd.cpp` |
+| Teiltyp 1 (Tonbank) | Kopf, ISS-Block, `SND_SIT`, Wavetable (`WTFILEHEADER`, `WTREGION`, `WTART`, `WTSAMPLE`, `WTADPCM`), Sequenz-Tabelle (Sequenzen selbst sind Byteströme), Zufalls-Tabelle der Geräusche (Kopfwort 1, `seRandomCheck`: nur die Gruppen, die die SITs nennen; die Wavetable endet vor ihr) | `formats_snd.cpp` |
 | `etc/sizetbl.dat` | Zähler + Name/Größe (das Spiel liest es nicht) | `formats.cpp` |
 | `*.tpl`, `TPL` | `TEXPalette`, `TEXDescriptor`, `TEXHeader`, `CLUTHeader` (tpl.h) | `formats_tex.cpp` |
 | `font/*.fnt` | Kopf (TPL-Offset, Breitentabelle in Bytes) + TPL (mes.cpp) | `formats_tex.cpp` |

@@ -324,6 +324,69 @@ void testBridge()
     report("bridge", ok);
 }
 
+void put16be(unsigned char* p, unsigned v)
+{
+    p[0] = (unsigned char) (v >> 8);
+    p[1] = (unsigned char) v;
+}
+
+unsigned get32(const unsigned char* p)
+{
+    unsigned v;
+    memcpy(&v, p, 4);
+    return v;
+}
+
+unsigned get16(const unsigned char* p)
+{
+    unsigned short v;
+    memcpy(&v, p, 2);
+    return v;
+}
+
+// A sound bank (DvdHeader type 1, an enemy's block) with a random SE table
+// behind its wavetable: seRandomCheck reads header word 1, the table entry of
+// the SIT's random group and the list it points to.
+void testSound()
+{
+    bool ok = true;
+    unsigned char* blk = (unsigned char*) (unsigned long) 0x82200000u;
+    memset(blk, 0, 0x100);
+    put32be(blk + 0x00, 0x20);  // ISS block
+    put32be(blk + 0x04, 0xC0);  // random SE table
+    put32be(blk + 0x20, 2);     // SITs
+    put32be(blk + 0x24, 0x40);  // wavetable (at 0x60)
+    put32be(blk + 0x28, 0x10);  // SIT array (at 0x30)
+    put16be(blk + 0x30, 0x0102);           // SIT 0: note, no random group
+    put16be(blk + 0x30 + 0x16, 0x0004);    //        flag
+    put16be(blk + 0x48, 0x0304);           // SIT 1: note
+    blk[0x48 + 0x13] = 2;                  //        random group 2
+    put32be(blk + 0x60 + 4, 0x18);  // wavetable: melodic instruments at 0x78
+    put32be(blk + 0x60 + 20, 0x20); // ADPCM table at 0x80 (one entry): ends at the random table
+    put16be(blk + 0x78, 0x0005);
+    put16be(blk + 0x80, 0x1234);
+    put32be(blk + 0xC0 + 8, 0x10);  // group 2: list at 0xD0
+    put16be(blk + 0xD0, 3);         // num
+    put16be(blk + 0xD4, 5);
+    put16be(blk + 0xD6, 6);
+    put16be(blk + 0xD8, 7);
+    put16be(blk + 0xDA, 0xBEEF);    // after the list: not touched
+    Header h = { 1, 0xE0, 0, 0, 8, 0, 0, 0 };
+    re4_formats_part_loaded("em/snd.dat", 0, 0, &h, 0x82200000u);
+    CHECK(get32(blk + 0x00) == 0x20 && get32(blk + 0x04) == 0xC0);
+    CHECK(get32(blk + 0x20) == 2 && get32(blk + 0x28) == 0x10);
+    CHECK(get16(blk + 0x30) == 0x0102 && get16(blk + 0x48) == 0x0304 && blk[0x48 + 0x13] == 2);
+    CHECK(get16(blk + 0x78) == 5 && get16(blk + 0x80) == 0x1234);
+    // the table the game reads (seRandomCheck)
+    unsigned char* tbl = blk + get32(blk + 4);
+    CHECK(get32(tbl + 2 * 4) == 0x10);
+    unsigned char* list = tbl + get32(tbl + 2 * 4);
+    CHECK(get16(list) == 3 && get16(list + 2) == 0 && get16(list + 4) == 5 && get16(list + 6) == 6 &&
+          get16(list + 8) == 7);
+    CHECK(blk[0xDA] == 0xBE && blk[0xDB] == 0xEF);
+    report("sound", ok);
+}
+
 struct PadStatus {  // PADStatus
     unsigned short button;
     signed char stickX, stickY, substickX, substickY;
@@ -397,6 +460,7 @@ int re4_core_tests()
     gFailures = 0;
     testBridge();
     testThread();
+    testSound();
     re4_log("core-test: %d failed", gFailures);
     return gFailures;
 }

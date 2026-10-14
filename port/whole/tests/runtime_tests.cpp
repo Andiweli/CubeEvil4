@@ -895,6 +895,24 @@ static void testTrace()
     PADRead(pads);
     CHECK(pads[0].button == 0);
     unsetenv("RE4_PAD_SCRIPT");
+    // then the room script, its frames counted from the stop; the main stick
+    setenv("RE4_PAD_SCRIPT", "A@0-100000/1", 1);
+    setenv("RE4_PAD_ROOM_SCRIPT", "START@2 STICKUP+B@0-10/1", 1);
+    re4_pad_script_stop();  // nothing runs: no new script parsed yet
+    PADInit();
+    PADRead(pads);
+    CHECK(pads[0].button == 0x0100 && pads[0].stickY == 0);
+    re4_pad_script_stop();
+    PADRead(pads);
+    CHECK(pads[0].button == 0x0200 && pads[0].stickY == 100 && pads[0].stickX == 0);
+    PADRead(pads);
+    PADRead(pads);
+    CHECK(pads[0].button == (0x1000 | 0x0200) && pads[0].stickY == 100);
+    unsetenv("RE4_PAD_SCRIPT");
+    unsetenv("RE4_PAD_ROOM_SCRIPT");
+    re4_pad_script_stop();
+    PADRead(pads);
+    CHECK(pads[0].button == 0 && pads[0].stickY == 0);
     // GetDataExt on a host-order archive: one entry "CNS", one "SMD"
     unsigned arc[8] = {2, 0, 0, 0, 0x18, 0x1C, 0, 0};
     memcpy(&arc[6], "CNS\0SMD\0", 8);

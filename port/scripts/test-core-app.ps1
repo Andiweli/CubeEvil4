@@ -268,6 +268,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     Say "   gestartet ($(if ($Manual) { 'Titelbild, du steuerst' } else { 'Debug-Start r100 mit Test-Tastenfolge' })), $Seconds s Beobachtung"
     $shots = @(15, 40) + @(70..([math]::Max(70, $Seconds)) | Where-Object { ($_ - 70) % 25 -eq 0 })
     $elapsed = 0
+    $firstPid = ''
     foreach ($at in $shots) {
         if ($at -gt $Seconds) { break }
         Start-Sleep -Seconds ($at - $elapsed)
@@ -277,7 +278,11 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         & $Adb -s $Serial pull $remote (Join-Path $OutDir ('bild-{0:D3}s.png' -f $at)) | Out-Null
         & $Adb -s $Serial shell rm -f $remote
         $alive = ((& $Adb -s $Serial shell pidof $package) -join '').Trim()
-        Say ("   {0,3} s: Bild aufgenommen, App {1}" -f $at, $(if ($alive) { "laeuft (PID $alive)" } else { 'LAEUFT NICHT MEHR' }))
+        if ($alive -and -not $firstPid) { $firstPid = $alive }
+        $appState = if (-not $alive) { 'LAEUFT NICHT MEHR' }
+                 elseif ($alive -ne $firstPid) { "NEU GESTARTET (PID $alive, vorher ${firstPid}: abgestuerzt?)" }
+                 else { "laeuft (PID $alive)" }
+        Say ("   {0,3} s: Bild aufgenommen, App {1}" -f $at, $appState)
     }
     if ($Seconds -gt $elapsed) { Start-Sleep -Seconds ($Seconds - $elapsed) }
     $log = & $Adb -s $Serial logcat -d -v threadtime -T $since

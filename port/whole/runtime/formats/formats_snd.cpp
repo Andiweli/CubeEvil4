@@ -201,7 +201,7 @@ static void convertSit(Blob& b, u32 o)
 // ISS block (Snd_iss_blk_init): u32 SIT count, offsets (from the block) of the
 // wavetable, the SIT array and the sequence table (0 = none). Sequences are
 // byte streams (snd_seq2.cpp); their table is u32 count + u32 offsets.
-static void convertIssBlock(Blob& b, u32 o)
+static void convertIssBlock(Blob& b, u32 o, u32 limit)
 {
     u32 sits = be32(b, o);
     u32 wt = be32(b, o + 4);
@@ -221,6 +221,7 @@ static void convertIssBlock(Blob& b, u32 o)
         swap32(b, o + seq, n + 1);
     }
     if (wt != 0) {
+        // the wavetable's last table ends at the next structure of the block
         u32 end = b.size;
         if (sit > wt && o + sit < end) {
             end = o + sit;
@@ -228,8 +229,67 @@ static void convertIssBlock(Blob& b, u32 o)
         if (seq > wt && o + seq < end) {
             end = o + seq;
         }
+        if (limit > o + wt && limit < end) {
+            end = limit;
+        }
         convertWavetable(b, o + wt, end);
     }
+}
+
+// The random SE table of a block (game/snd.cpp seRandomCheck): at the offset
+// in header word 1, u32 offsets (from the table) of SBL lists {u16 num,
+// u16 last, u16 e[num]}, indexed by SND_SIT::rnd_no (1 and up; 0 = none).
+// The table has no count: only the groups the block's SITs name are read by
+// the game, so only they are converted. Runs before the ISS block is
+// converted (reads the SITs big-endian). Returns where the table begins (or
+// 0 when there is none).
+static u32 convertRandomTable(Blob& b, u32 tbl, u32 iss)
+{
+    if (tbl == 0) {
+        return 0;
+    }
+    if (tbl % 4 || tbl >= b.size) {
+        fits(b, tbl, 0xFFFFFFFFu, "random SE table");
+        return 0;
+    }
+    u32 sits = be32(b, iss);
+    u32 sit = iss + be32(b, iss + 8);
+    if (!b.ok || !fits(b, sit, sits * sizeof(SND_SIT), "SIT array (random groups)")) {
+        return 0;
+    }
+    bool used[128] = {};
+    for (u32 i = 0; i < sits; i++) {
+        s8 g = (s8) b.data[sit + i * sizeof(SND_SIT) + offsetof(SND_SIT, rnd_no)];
+        if (g > 0) {
+            used[g] = true;
+        } else if (g < 0) {
+            re4_log("formats: %s: SIT %u has random group %d (the game would read before the table)", b.name,
+                    (unsigned) i, (int) g);
+        }
+    }
+    Seen seen;
+    unsigned groups = 0;
+    for (u32 g = 1; g < 128 && b.ok; g++) {
+        if (!used[g] || !fits(b, tbl + g * 4, 4, "random SE table entry")) {
+            continue;
+        }
+        u32 at = be32(b, tbl + g * 4);
+        swap32(b, tbl + g * 4);
+        groups++;
+        if (at == 0 || !seen.first(at)) {
+            continue;
+        }
+        u32 list = tbl + at;
+        if (!fits(b, list, 4, "random SE list")) {
+            continue;
+        }
+        u32 num = be16(b, list);
+        if (fits(b, list, 4 + num * 2, "random SE list")) {
+            swap16(b, list, 2 + num);
+        }
+    }
+    re4_log("formats: %s: random SE table at +0x%x, %u groups used by its SITs", b.name, (unsigned) tbl, groups);
+    return tbl;
 }
 
 // DvdHeader type 1 (TRANS_SND_BLK), the MRAM half of a sound bank (the
@@ -239,15 +299,22 @@ static void convertIssBlock(Blob& b, u32 o)
 void convertSoundBlock(Blob& b, const Part& part)
 {
     u32 iss = 0;
+    u32 random = 0;
     if (part.sndType != 3) {
+        // header: word 0 the ISS block, word 1 the random SE table (both from
+        // the block start); the other header words are not read
         iss = be32(b, 0);
-        if (iss < 4 || iss % 4 || iss > b.size) {
+        if (iss < 8 || iss % 4 || iss > b.size) {
             fits(b, iss, 0xFFFFFFFFu, "ISS block offset");
             return;
         }
-        swap32(b, 0, iss / 4);
+        u32 tbl = be32(b, 4);
+        u32 header = tbl >= 8 && tbl < iss ? tbl : iss;  // a table inside the header area is not header
+        random = convertRandomTable(b, tbl, iss);
+        swap32(b, 0, 2);
+        swap32(b, 8, (header - 8) / 4);
     }
-    convertIssBlock(b, iss);
+    convertIssBlock(b, iss, random > iss ? random : 0);
 }
 
 }  // namespace re4fmt

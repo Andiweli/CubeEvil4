@@ -23,7 +23,8 @@
 # with the disc files (re4_format_compare --data), then the game from the
 # title screen: debug start into the room (RE4_START_ROOM, patch 0026), the
 # test script presses UP/A/START on the title screens until the room loads
-# (RE4_PAD_UNTIL_ROOM), and the run ends after FRAMES frames of the main loop
+# (RE4_PAD_UNTIL_ROOM), then START ends the radio call and Leon walks a few
+# steps (RE4_PAD_ROOM_SCRIPT), and the run ends after FRAMES frames of the main loop
 # (RE4_STOP_AFTER). The report (bericht.txt) lists: crash or not, frames,
 # GetDataExt coverage lines with "nein", converter messages, called stubs,
 # the last state trace line. Exit code 0 when everything passed.
@@ -195,6 +196,12 @@ fi
 # reset): at most one UP can arrive before the next A/START, so the cursor is
 # line 0 or 20, both the normal start.
 pad_script="UP@100-60000/60 A@115-60000/60 START@130-60000/60"
+# From the room on (frames counted from its loading): START ends the radio
+# call that follows the opening event (about 1260 frames in), then Leon walks
+# ahead for 10 s. Without it the game waits in the radio call to the end and
+# never runs the enemies' own logic (their sounds crashed on the Retroid,
+# 14.10.2026, which the PC check could not see).
+room_script="START@1500 STICKUP@1700-2000/1"
 
 # "Bild N, Spielschritt R, Raum 0xXXX" from the last complete trace line
 trace_state() {
@@ -228,7 +235,7 @@ run_game() {
     mkdir -p "$snaps"
     local start=$SECONDS
     (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
-        RE4_PAD_SCRIPT="$pad_script" RE4_STOP_AFTER="$frames" \
+        RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script" RE4_STOP_AFTER="$frames" \
         RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" RE4_BRIDGE_DUMP="$bridge" RE4_BRIDGE_SNAPSHOT="$snaps" \
         "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1 &
     local pid=$!
