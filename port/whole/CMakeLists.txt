@@ -133,8 +133,13 @@ add_library(re4_formats_obj OBJECT
     runtime/formats/formats_arc.cpp
     runtime/formats/formats_dbg.cpp
     runtime/formats/formats_eff.cpp
+    runtime/formats/formats_event.cpp
     runtime/formats/formats_id.cpp
+    runtime/formats/formats_lit.cpp
     runtime/formats/formats_mes.cpp
+    runtime/formats/formats_model.cpp
+    runtime/formats/formats_room.cpp
+    runtime/formats/formats_scene.cpp
     runtime/formats/formats_snd.cpp
     runtime/formats/formats_tex.cpp)
 target_link_libraries(re4_formats_obj PRIVATE re4_game_flags)

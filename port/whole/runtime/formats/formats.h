@@ -87,6 +87,61 @@ void convertRoomInfo(Blob& b, const Part& part);  // debug/roomInfo.dat
 bool looksLikeArchive(Blob& b);
 void convertArchive(Blob& b, const Part& part);
 
+// formats.cpp: a file inside a container, chosen by its name's extension
+void convertNamedFile(Blob& b, const Part& part, const char* name);
+
+// formats_model.cpp
+bool isBin(Blob& b, u32 base);
+void convertBinAt(Blob& b, u32 base, u32 end);
+void convertBin(Blob& b, const Part& part);       // BIN: model or (core) light path
+void convertMotionAt(Blob& b, u32 base);         // MotionData (FCV, camera and shape curves)
+void convertMotion(Blob& b, const Part& part);
+void convertSeqAt(Blob& b, u32 base);
+void convertSeq(Blob& b, const Part& part);
+
+// formats_lit.cpp
+void convertLitAt(Blob& b, u32 base);
+void convertLit(Blob& b, const Part& part);
+
+// formats_room.cpp
+void convertArea(Blob& b, u32 off);  // AREA_HIT_DATA
+void convertCons(Blob& b, const Part& part);         // CNS
+void convertEtcList(Blob& b, const Part& part);      // ETS
+void convertEmi(Blob& b, const Part& part);          // EMI
+void convertLightArea(Blob& b, const Part& part);    // SAR
+void convertEffArea(Blob& b, const Part& part);      // EAR
+void convertFloorSe(Blob& b, const Part& part);      // FSE
+void convertSeArea(Blob& b, const Part& part);       // ESE
+void convertDoorSe(Blob& b, const Part& part);       // DSE
+void convertSoundInfo(Blob& b, const Part& part);    // STB
+void convertBlock(Blob& b, const Part& part);        // BLK
+void convertRoute(Blob& b, const Part& part);        // RTP
+void convertUnread(Blob& b, const Part& part);       // OSD
+void convertSceAreas(Blob& b, const Part& part);     // AEV
+void convertSceItems(Blob& b, const Part& part);     // ITA
+void convertEmList(Blob& b, const Part& part);       // etc/*.esl
+
+// formats_scene.cpp
+void convertSmd(Blob& b, const Part& part);          // SMD
+void convertSmx(Blob& b, const Part& part);          // SMX
+void convertShd(Blob& b, const Part& part);          // SHD
+void convertEtcArchive(Blob& b, const Part& part);   // ETM
+void convertItemModels(Blob& b, const Part& part);   // ITM
+void convertSat(Blob& b, const Part& part);          // SAT, EAT
+
+// formats_event.cpp
+void convertCameraAt(Blob& b, u32 base);
+void convertCamera(Blob& b, const Part& part);       // CAM
+void convertEvdAt(Blob& b, u32 base, u32 end);
+void convertEvd(Blob& b, const Part& part);          // EVD, event/evd/*.evd
+void convertEvs(Blob& b, const Part& part);          // EVS
+
+// Coverage (formats.cpp): what each archive entry became, for the
+// GetDataExt log (patch 0025, re4_formats_get_data).
+enum EntryStatus { kEntryConverted = 1, kEntryNoConverter = 2, kEntryIncomplete = 3 };
+void noteEntry(const void* addr, const char* tag, int status);
+void noteArchive(const void* addr, const char* name);
+
 // Remembers converted offsets of one blob, so a structure that two tables
 // point at is converted once. Fixed size: the converters run before the game
 // heaps exist and must not allocate.

@@ -1,0 +1,24 @@
+--- a/src/game/read.cpp
++++ b/src/game/read.cpp
+@@ -986,6 +986,9 @@
+ 
+ // The `no`-th sub-file with the three-letter `tag` ("RTP", "MDT", ...) in a tagged archive
+ // (offset table + tag table); NULL when missing.
++/* port: reports each lookup to the format converters' coverage log */
++extern "C" void re4_formats_get_data(const void* arc, const char* tag, int no, const void* entry);
++
+ void* GetDataExt(void* pData, const char* pName, int no)
+ {
+     DataExtHeader* h = (DataExtHeader*) pData;
+@@ -1007,7 +1010,10 @@
+         p += 4;
+         if (p[0] == pName[0] && p[1] == pName[1] && p[2] == pName[2]) {
+             if (cnt == no) {
+-                return (void*) (*(u32*) (i * 4 + (u32) pData + 0x10) + (u32) pData);
++                /* port: coverage log of the format converters (formats.cpp) */
++                void* found = (void*) (*(u32*) (i * 4 + (u32) pData + 0x10) + (u32) pData);
++                re4_formats_get_data(pData, pName, no, found);
++                return found;
+             }
+             cnt++;
+         }

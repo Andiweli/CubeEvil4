@@ -26,6 +26,36 @@ const TagRule kTags[] = {
     { "EFF", convertEffect },
     { "TEX", convertTexSet },
     { "VIB", convertVibration },
+    // models and motions
+    { "BIN", convertBin },
+    { "FCV", convertMotion },
+    { "SEQ", convertSeq },
+    // room data (game.cpp gameRoomInit, read.cpp ReadAreaData)
+    { "CNS", convertCons },
+    { "SMD", convertSmd },
+    { "SMX", convertSmx },
+    { "LIT", convertLit },
+    { "SAT", convertSat },
+    { "EAT", convertSat },
+    { "AEV", convertSceAreas },
+    { "ITA", convertSceItems },
+    { "SHD", convertShd },
+    { "EAR", convertEffArea },
+    { "SAR", convertLightArea },
+    { "ITM", convertItemModels },
+    { "ETM", convertEtcArchive },
+    { "ETS", convertEtcList },
+    { "CAM", convertCamera },
+    { "BLK", convertBlock },
+    { "EVS", convertEvs },
+    { "EVD", convertEvd },
+    { "FSE", convertFloorSe },
+    { "ESE", convertSeArea },
+    { "DSE", convertDoorSe },
+    { "STB", convertSoundInfo },
+    { "RTP", convertRoute },
+    { "OSD", convertUnread },
+    { "EMI", convertEmi },
 };
 
 // Logs an unknown tag once.
@@ -77,9 +107,11 @@ void convertArchive(Blob& b, const Part& part)
         offs[i] = be32(b, 0x10 + i * 4);
     }
     swap32(b, 0, 4 + count);
+    noteArchive(b.data, b.name);
     Seen seen;
     for (u32 i = 0; i < count && b.ok; i++) {
         u32 o = offs[i];
+        const char* entryTag = (const char*) b.data + 0x10 + count * 4 + i * 4;
         if (!seen.first(o)) {
             continue;  // two entries share their data
         }
@@ -93,6 +125,7 @@ void convertArchive(Blob& b, const Part& part)
             return;
         }
         if (stop == o) {
+            noteEntry(b.data + o, entryTag, kEntryConverted);  // empty entry
             continue;
         }
         char tag[5];
@@ -109,8 +142,13 @@ void convertArchive(Blob& b, const Part& part)
         }
         if (conv) {
             conv(e, part);
+            noteEntry(b.data + o, entryTag, e.ok ? kEntryConverted : kEntryIncomplete);
+            if (!e.ok) {
+                re4_log("formats: %s: conversion incomplete", label);
+            }
         } else {
             reportTag(tag, b.name);
+            noteEntry(b.data + o, entryTag, kEntryNoConverter);
         }
     }
     // The embedded REL module: OSLink converts its header too, but the game

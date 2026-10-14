@@ -14,7 +14,10 @@
 
 #include <ctype.h>
 #include <fnmatch.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 namespace re4fmt {
 
@@ -137,9 +140,148 @@ void convertSizeTbl(Blob& b, const Part&)
     }
 }
 
+// A file inside a container (etc archive, event assets) by its extension.
+void convertNamedFile(Blob& b, const Part& part, const char* name)
+{
+    struct Ext {
+        const char* ext;
+        Converter convert;
+    };
+    static const Ext kExt[] = {
+        { ".bin", convertBin }, { ".tpl", convertTpl }, { ".fcv", convertMotion }, { ".seq", convertSeq },
+        { ".eff", convertEffect }, { ".lit", convertLit }, { ".mdt", convertMdt }, { ".sat", convertSat },
+        { ".eat", convertSat }, { ".esl", convertEmList }, { ".evd", convertEvd }, { ".cam", convertCamera },
+    };
+    const char* dot = strrchr(name, '.');
+    for (const Ext& e : kExt) {
+        if (dot && strcasecmp(dot, e.ext) == 0) {
+            e.convert(b, part);
+            return;
+        }
+    }
+    static char seen[64][8];
+    static u32 n;
+    char ext[8] = "";
+    snprintf(ext, sizeof(ext), "%s", dot ? dot : "(none)");
+    for (u32 i = 0; i < n; i++) {
+        if (strcmp(seen[i], ext) == 0) {
+            return;
+        }
+    }
+    if (n < 64) {
+        memcpy(seen[n++], ext, sizeof(ext));
+    }
+    re4_log("formats: %s: no converter for \"%s\" files, left big-endian", b.name, ext);
+}
+
+// ---- coverage: what every archive entry became ----------------------------------
+
+namespace {
+
+struct EntryNote {
+    const void* addr;
+    char tag[4];
+    int status;
+};
+
+struct ArchiveNote {
+    const void* addr;
+    char name[80];
+};
+
+const u32 kNotes = 8192;
+EntryNote g_notes[kNotes];
+ArchiveNote g_archives[64];
+u32 g_nextArchive;
+
+u32 slotOf(const void* addr)
+{
+    u32 h = (u32) (unsigned long) addr;
+    h ^= h >> 13;
+    h *= 0x5BD1E995u;
+    return (h ^ (h >> 15)) % kNotes;
+}
+
+}  // namespace
+
+void noteEntry(const void* addr, const char* tag, int status)
+{
+    u32 s = slotOf(addr);
+    for (u32 i = 0; i < kNotes; i++) {
+        EntryNote& e = g_notes[(s + i) % kNotes];
+        if (e.addr == 0 || e.addr == addr) {
+            e.addr = addr;
+            memcpy(e.tag, tag, 4);
+            e.status = status;
+            return;
+        }
+    }
+}
+
+void noteArchive(const void* addr, const char* name)
+{
+    for (u32 i = 0; i < 64; i++) {
+        if (g_archives[i].addr == addr) {
+            snprintf(g_archives[i].name, sizeof(g_archives[i].name), "%s", name);
+            return;
+        }
+    }
+    ArchiveNote& a = g_archives[g_nextArchive++ % 64];
+    a.addr = addr;
+    snprintf(a.name, sizeof(a.name), "%s", name);
+}
+
 }  // namespace re4fmt
 
 using namespace re4fmt;
+
+// GetDataExt (read.cpp, patch 0025) reports every lookup: the tag, the entry
+// it found and whether the converter turned that entry into host order. Each
+// entry is reported once per load; RE4_COVERAGE_LOG=FILE also appends a
+// tab-separated line (archive, tag, number, address, status).
+extern "C" void re4_formats_get_data(const void* arc, const char* tag, int no, const void* entry)
+{
+    if (entry == 0) {
+        return;  // not in this archive: nothing to convert
+    }
+    static const void* reported[4096];
+    static u32 nReported;
+    for (u32 i = 0; i < nReported; i++) {
+        if (reported[i] == entry) {
+            return;
+        }
+    }
+    if (nReported < 4096) {
+        reported[nReported++] = entry;
+    }
+    const char* status = "nein (unbekannter Eintrag)";
+    u32 s = slotOf(entry);
+    for (u32 i = 0; i < kNotes; i++) {
+        const EntryNote& e = g_notes[(s + i) % kNotes];
+        if (e.addr == 0) {
+            break;
+        }
+        if (e.addr == entry) {
+            status = e.status == kEntryConverted ? "ja"
+                     : e.status == kEntryIncomplete ? "nein (unvollständig)"
+                                                    : "nein (kein Umwandler)";
+            break;
+        }
+    }
+    const char* name = "?";
+    for (u32 i = 0; i < 64; i++) {
+        if (g_archives[i].addr == arc) {
+            name = g_archives[i].name;
+        }
+    }
+    re4_log("coverage: GetDataExt %.3s #%d in %s -> %p: umgewandelt %s", tag, no, name, entry, status);
+    if (const char* path = getenv("RE4_COVERAGE_LOG")) {
+        if (FILE* f = fopen(path, "a")) {
+            fprintf(f, "%s\t%.3s\t%d\t%p\t%s\n", name, tag, no, entry, status);
+            fclose(f);
+        }
+    }
+}
 
 namespace {
 
@@ -168,6 +310,9 @@ const Rule kRules[] = {
     { "font/*.fnt", convertFont, "message font" },
     { "*.tpl", convertTpl, "texture palette" },
     { "st*/r*.das", packed, "room archive (Yz2)" },
+    { "st*/r*_*.dat", convertArchive, "room block archive" },
+    { "etc/*.esl", convertEmList, "enemy list" },
+    { "*.evd", convertEvd, "event" },
     { "*.das", convertArchive, "archive" },
     { "*.drs", convertArchive, "archive" },
     { "ss/*.dat", convertArchive, "archive (screens)" },
