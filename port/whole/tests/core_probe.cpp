@@ -266,3 +266,109 @@ static_assert(sizeof(cEm) <= 0x2000, "the fake enemy work overlaps its parts");
 static_assert(2 * sizeof(cParts) <= 0x1000, "the fake parts overlap the model info");
 static_assert(sizeof(cModelInfo) <= 0x400 && sizeof(cModelData) <= 0x100, "the fake infos overlap");
 
+
+// AX without sound (runtime/ax.cpp): voices, play positions, the audio frame.
+// Returns the number of failed checks (each logged).
+#include "dolphin/ax.h"
+
+extern "C" void re4_log(const char* fmt, ...);
+extern "C" void re4_ax_field(void);
+extern "C" void re4_ax_frame(void);
+
+static int gAxDrops;
+static int gAxFrames;
+static void axDrop(void*)
+{
+    gAxDrops++;
+}
+static void axFrame()
+{
+    gAxFrames++;
+}
+
+#define AX_CHECK(cond)                                           \
+    do {                                                         \
+        if (!(cond)) {                                           \
+            re4_log("core-test ax: %s:%d: %s", __FILE__, __LINE__, #cond); \
+            failed++;                                            \
+        }                                                        \
+    } while (0)
+
+static u32 axCurrent(AXVPB* v)
+{
+    return ((u32) v->pb.addr.currentAddressHi << 16) | v->pb.addr.currentAddressLo;
+}
+
+extern "C" int re4probe_ax_test(void)
+{
+    int failed = 0;
+    AXInitEx(0);
+    AXCallback old = AXRegisterCallback(axFrame);
+    // 64 voices; the 65th of a higher priority takes the oldest of the lowest
+    AXVPB* v[64];
+    for (int i = 0; i < 64; i++) {
+        v[i] = AXAcquireVoice(i < 2 ? 1 : 5, axDrop, i);
+        AX_CHECK(v[i] != 0);
+    }
+    AX_CHECK(AXAcquireVoice(1, axDrop, 99) == 0);  // nothing below priority 1
+    AXVPB* taken = AXAcquireVoice(10, axDrop, 100);
+    AX_CHECK(taken == v[0] && gAxDrops == 1 && taken->userContext == 100 && taken->pb.state == 0);
+    for (int i = 1; i < 64; i++) {
+        AXFreeVoice(v[i]);
+    }
+    // ADPCM: 14 samples per 16 nibbles; 160 samples at ratio 1.0 per frame
+    AXPBADDR addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.format = 0;
+    addr.currentAddressLo = 2;          // sample 0
+    addr.endAddressHi = 0;
+    addr.endAddressLo = 0x10 * 99 + 15;  // last sample of frame 99 (1400 samples)
+    AXSetVoiceAddr(taken, &addr);
+    AXSetVoiceSrcType(taken, AX_SRC_TYPE_LINEAR);
+    AXSetVoiceSrcRatio(taken, 1.0f);
+    AXSetVoiceState(taken, 1);
+    re4_ax_frame();
+    // 160 samples: frame 11 (154), sample 6 -> nibble 8
+    AX_CHECK(axCurrent(taken) == 11 * 16 + 2 + 6);
+    AX_CHECK(gAxFrames == 1);
+    // ratio 0.5: 80 samples
+    AXSetVoiceSrcRatio(taken, 0.5f);
+    re4_ax_frame();
+    AX_CHECK(axCurrent(taken) == (240 / 14) * 16 + 2 + 240 % 14);
+    // no loop: stops at the end address
+    AXSetVoiceSrcRatio(taken, 4.0f);  // 640 samples a frame
+    for (int i = 0; i < 4; i++) {
+        re4_ax_frame();
+    }
+    AX_CHECK(taken->pb.state == 0 && axCurrent(taken) == 0x10 * 99 + 15);
+    // loop: wraps to the loop address
+    AXSetVoiceCurrentAddr(taken, 2);
+    AXSetVoiceLoopAddr(taken, 0x10 * 50 + 2);  // sample 700
+    AXSetVoiceLoop(taken, 1);
+    AXSetVoiceState(taken, 1);
+    AXSetVoiceSrcRatio(taken, 4.0f);
+    re4_ax_frame();  // 640
+    re4_ax_frame();  // 1280
+    re4_ax_frame();  // 1920 -> 700 + (1920 - 1400) = 1220 (the loop is 700 samples)
+    AX_CHECK(taken->pb.state == 1 && axCurrent(taken) == (1220 / 14) * 16 + 2 + 1220 % 14);
+    // PCM16: sample addresses
+    AXVPB* pcm = AXAcquireVoice(3, 0, 0);
+    memset(&addr, 0, sizeof(addr));
+    addr.format = 10;
+    addr.endAddressLo = 1000;
+    AXSetVoiceAddr(pcm, &addr);
+    AXSetVoiceSrcType(pcm, AX_SRC_TYPE_NONE);  // no resampling: 1.0
+    AXSetVoiceState(pcm, 1);
+    re4_ax_frame();
+    AX_CHECK(axCurrent(pcm) == 160 && pcm->pb.adpcm.gain == 0x0800);
+    // the audio frames of video fields: 200 per second, 3 or 4 per field
+    int before = gAxFrames;
+    for (int i = 0; i < 60; i++) {
+        re4_ax_field();
+    }
+    AX_CHECK(gAxFrames - before == 200 || gAxFrames - before == 201);
+    AXFreeVoice(pcm);
+    AXFreeVoice(taken);
+    AXRegisterCallback(old);
+    return failed;
+}

@@ -59,6 +59,8 @@ void deliver()
     if (gPost) {
         gPost(gRetraceCount);
     }
+    // the audio frames of this field (runtime/ax.cpp: the sound driver's tick)
+    re4_ax_field();
     re4_os_interrupt_end();
     gDelivering = false;
 }

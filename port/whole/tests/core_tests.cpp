@@ -26,6 +26,7 @@ extern "C" void re4probe_scroll_setup(void* mem, void* bin, void* other);
 extern "C" void re4probe_scroll_restore(void);
 extern "C" void re4probe_shape_setup(void* mem);
 extern "C" void re4probe_shape_restore(void);
+extern "C" int re4probe_ax_test(void);
 
 namespace {
 
@@ -584,6 +585,11 @@ int re4_core_tests()
     testThread();
     testSound();
     testCamera();
+    {
+        int failed = re4probe_ax_test();
+        gFailures += failed;
+        report("ax", failed == 0);
+    }
     re4_log("core-test: %d failed", gFailures);
     return gFailures;
 }

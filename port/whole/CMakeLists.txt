@@ -140,6 +140,7 @@ string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_platform_obj>\n")
 # converters use the original structure definitions. Small SDK replacements
 # that need the game's structures sit here too.
 add_library(re4_formats_obj OBJECT
+    runtime/ax.cpp
     runtime/tex_palette.cpp
     runtime/formats/formats.cpp
     runtime/formats/formats_arc.cpp

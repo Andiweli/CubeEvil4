@@ -94,6 +94,11 @@ int re4_os_run(int (*entry)(void));
 int re4_os_in_dispatcher(void);
 void re4_os_exit_current(void* val);
 void re4_os_interrupt_begin(void);
+/* AX (ax.cpp): the audio frames of one video field (200 per second; vi.cpp
+ * calls it with every retrace), one audio frame, and the frames so far. */
+void re4_ax_field(void);
+void re4_ax_frame(void);
+unsigned re4_ax_frames(void);
 void re4_os_interrupt_end(void);
 
 /* Interrupts (vi.cpp). re4_interrupt_point delivers the retraces that are due
