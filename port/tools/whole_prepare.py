@@ -29,6 +29,15 @@ VERSION = "G4BE08"
 
 # asm volatile -> asm, so the asm(...) macro in re4_whole_prelude.h drops it.
 ASM_VOLATILE = re.compile(r"\b(asm|__asm__|__asm)\s+(volatile|__volatile__)\b")
+# Placement new with empty parentheses, `new (em) cEm10()`: C++03 and later
+# value-initialize, which zero-fills a class without a user-provided
+# constructor before its implicit constructor runs; GCC 2.95 (C++98) only ran
+# the constructor. The game sets fields first (em.cpp: subArc, then
+# EmInitFunc -> `new (em) cEm10()`), so the fill would wipe them. Without the
+# parentheses the object is default-initialized as on the GameCube; for
+# classes with a user constructor both forms are the same.
+# port/tools/whole_value_init.py lists what still zero-fills.
+PLACEMENT_VALUE_INIT = re.compile(r"\bnew\s*\(([^()]*)\)\s*([A-Za-z_][\w:]*)\s*\(\s*\)")
 # GameCube-era size parameters of the allocation operators are unsigned int;
 # the C++ ABI on LP64 requires size_t.
 OPERATOR_SIZE = re.compile(
@@ -102,6 +111,8 @@ def rewrite(text: str) -> str:
                      for line in text.split("\n"))
     text = ASM_VOLATILE.sub(r"\1", text)
     text = OPERATOR_SIZE.sub(r"\1__SIZE_TYPE__", text)
+    if "new" in text:
+        text = PLACEMENT_VALUE_INIT.sub(r"new (\1) \2", text)
     if "pG->stage_" in text:
         text = ROOM_ID_ADDR.sub(lambda m: f"(u16*) &pG->{ROOM_ID_WORD[m.group(1)]}", text)
     return text

@@ -13,7 +13,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M4 Teil A: Plattformschicht ohne Disc-Daten (Cloud) | ✅ 13.10.2026 |
 | M4 Teil B: Booten mit echten Disc-Daten bis `gameRoomInit` (lokal, WSL2) | ✅ 13.10.2026 (i686 und armhf unter qemu) |
 | M4.5 Kern korrekt machen: C-Ersatz für Assembler, Byte-Aggregate, `__FILE__`-Länge | ✅ 14.10.2026 (Cloud, i686 und armhf) |
-| M5 Erster Raum r100 | ⏳ Umwandler, Vergleich mit den App-Lesern, Abdeckungs-Log, Zustands-Trace ✅ 14.10.2026 (Cloud); Lauf mit Disc-Daten (10 000 Bilder, Abdeckung ohne „nein“) **noch nicht gelaufen**, lokal: `port/scripts/test-r100-core.ps1` |
+| M5 Erster Raum r100 | ⏳ Umwandler, Vergleich mit den App-Lesern, Abdeckungs-Log, Zustands-Trace ✅ 14.10.2026 (Cloud); zwei lokale Läufe bis `R100Init` (Hänger und Absturz behoben, siehe unten); 10 000 Bilder ab der Hauptschleife **noch nicht erreicht**, lokal: `port/scripts/test-r100-core.ps1` |
 | K2 „Kern in die App“ | offen (Startprompt am Ende der Sitzung vom 14.10.2026) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -231,8 +231,9 @@ Synthetische Beispiele (Cloud, i686 und armhf): Raumarchiv mit SMD (mit BIN
 und TPL), SMX (Typen 1, 2, 0), SAT, EAT (zwei Dateien), AEV (Tür, Leiter,
 Schreibmaschine), LIT (Spot mit Schatten, Typ 4), CAM (B404), zwei BIN
 (cWeightExt mit 256 Gewichten / cWeight, s8/s16-Normalen, farbig/nicht),
-FCV; Gegnerliste; EVD (Kamera-, Positions-, Blenden-, Dummykamera-, Effekt-
-und Endpaket, Kurven- und LIT-Anhang); Raumsprungtabelle: 5126 Werte gleich.
+FCV, ein leerer FCV-Eintrag mit dem Offset des folgenden BIN; Gegnerliste;
+EVD (Kamera-, Positions-, Blenden-, Dummykamera-, Effekt- und Endpaket,
+Kurven- und LIT-Anhang); Raumsprungtabelle: 5129 Werte gleich.
 Gegenprobe: sechs absichtlich eingebaute Umwandlerfehler (SMX `TexV`, SAT
 `m_Status`, ESL `rot`, AEV `pExitParam`, CAM `Height`, LIT `Intensity`)
 wurden alle als Abweichung gemeldet.
@@ -245,7 +246,10 @@ wortweise gedreht (`formats_model.cpp`).
 Mit Disc-Daten: `re4_format_compare --data ORDNER [--room r100]` vergleicht
 `st1/r100.das` (über den Yz2-Entpacker der App), `etc/*.esl`,
 `debug/roominfo.dat`, die Ereignisse `*/r100*.evd`, `etc/core.das` und
-`em/*.drs`. **Noch nicht mit echten Daten gelaufen.**
+`em/*.drs`. Bei Abweichungen nennt es die betroffenen Archiv-Einträge mit
+Nummer, Offset, Größe und womit der Umwandler sie behandelt hat
+(`Eintrag BIN0. #8 BIN @0xea0, 0xd20 bytes, umgewandelt als BIN`).
+Erster Lauf mit echten Daten: siehe „Zweiter lokaler Lauf“.
 
 **Ohne Vergleich mit einem App-Leser** (nur Strukturgrößen per
 `static_assert` und die Läufe): CNS, ETS, EMI, SAR, EAR, FSE, ESE, DSE, STB,
@@ -280,6 +284,49 @@ Wartestelle liegt zwischen `EmMgr.create(0, 0)` (Spieler) und `ShdInit`.
   erreicht ist.
 - Archiv-Kürzel `DRA` in r100 hat keinen Umwandler (GetDataExt griff im Lauf
   bis zum Halt nicht darauf zu).
+
+### Zweiter lokaler Lauf (14.10.2026, i686 in WSL2)
+
+Mit der SMD-Korrektur kam der Kern über `gameRoomInit` hinaus bis
+`ScenarioRoomInit` → `R100Init` → `EmSetEvent` und stürzte in `Em12Set` ab
+(Gegnermodul em12, beim Setzen der ersten Gegner von r100).
+
+- **Ursache des Absturzes:** `em.cpp` trägt `cEm::subArc` (Archiv des
+  Gegners) ein und ruft dann die Init-Funktion des Moduls, die das Objekt mit
+  `new (em) cEm10()` aufbaut. C++11 füllt bei `T()` eine Klasse ohne eigenen
+  Konstruktor erst mit Nullen; der GameCube-Compiler hat bei solchen Klassen
+  nur den Konstruktor aufgerufen. Damit war `subArc` wieder 0. **Behoben**
+  mit der Umschreibung `PLACEMENT_VALUE_INIT` (Tabelle unten, 142 Stellen:
+  Gegner, Objekte, Waffen, Lichter, Modelle). `port/tools/whole_value_init.py`
+  fragt clang nach allen Stellen, die danach noch mit Nullen füllen: nur noch
+  vier einfache Typen, die auch das Original nullt (`GXColor()` zweimal, die
+  Flags `flg()`/`status()` von `cSubChar`).
+- **Formatvergleich mit echten Daten:** 152 Dateien, 4 019 092 Werte gleich,
+  75 Dateien mit Fehlern. Ursachen:
+  - *Leere Archiv-Einträge* (fast alle `em/*.drs`, `pl*.drs`, `wep*.drs`):
+    Ein Eintrag ohne eigene Daten hat denselben Offset wie der nächste
+    Eintrag. Der Umwandler drehte die Daten mit dem Kürzel des ersten
+    (leeren) Eintrags, z. B. ein BIN als FCV; die App-Seite las den leeren
+    Eintrag als Daten des nächsten. Jetzt gehören die Daten auf beiden Seiten
+    dem letzten Eintrag mit diesem Offset (`formats_arc.cpp`), leere
+    Einträge werden übersprungen. Gegenprobe mit der alten Regel: genau das
+    Bild aus dem Bericht („BIN0 … Kern (fehlt)“, „umgewandelt als FCV“).
+    Die FCV-Meldungen der Waffen (`wep10/21/24/31/32/47`, `pl14`) haben
+    vermutlich dieselbe Ursache; **bestätigt erst der nächste Lauf**.
+  - *Kollision mit mehr als 512 Blöcken* (SAT/EAT von r100): Grenze nur im
+    Vergleichswerkzeug, jetzt dynamisch.
+  - *Kernarchiv `etc/core.das`*: CAM ohne Versionskennung (32 Byte) und zwei
+    SAT mit unbekannter Version; das Spiel liest sie nicht über die
+    Umwandlerpfade. Bleiben jetzt mit Logzeile unverändert statt als
+    „unvollständig“ zu gelten.
+  - `etc/emleon08/09.esl`: kürzer als 255 Datensätze, der App-Leser lehnt sie
+    ab (nicht vergleichbar, kein Fehler).
+- Der Zustands-Trace schreibt jetzt nach jedem Bild auf die Platte (vorher
+  alle 64 Bilder; im Bericht stand deshalb Bild 575 statt der Absturzstelle).
+- Weiterhin ohne Umwandler: Archiv-Kürzel `FNT` (`ss/eng/ss_cmmn.dat`), ein
+  leeres Kürzel in `ss/eng/ss_pzzl.dat`, `DRA` in r100 (vielleicht ein leerer
+  Eintrag; nächster Bericht zeigt es). Abdeckung im Lauf: 27 Zugriffe, kein
+  „nein“.
 
 ### Lokale Prüfung mit Disc-Daten (`port/scripts/test-r100-core.ps1`)
 
@@ -376,6 +423,7 @@ sie ersetzt.
 | `types.h`: auf ILP32 bleiben `s32/u32` = `long` wie im Original | gleiche C++-Namen für `u32` und `unsigned long` (sonst 90 Scheinfehler beim Linken) |
 | `TaskFunc`: Klasse statt `void*` (`re4_task_func.h`, gleiche Größe) | GCC 2.95 wandelte Funktionszeiger still in `void*` um, modernes C++ nicht |
 | `(u16*) &pG->stage_no` → `(u16*) &pG->room_id`, `stage_prev` → `room_id_prev` (`ROOM_ID_ADDR`) | `G_ROOM_ID` und `RsfCheck(*(u16*) &pG->stage_no, …)` lesen die Raumnummer über die Adresse ihres ersten Bytes; auf little-endian liegt `stage_no` nach Patch 0016 am anderen Ende (auf der GameCube dieselbe Adresse) |
+| `new (p) T()` → `new (p) T` (`PLACEMENT_VALUE_INIT`) | C++11 füllt eine Klasse ohne eigenen Konstruktor bei `T()` erst mit Nullen; der GameCube-Compiler nicht. `em.cpp` setzt `subArc` vor `new (em) cEm10()` (Absturz in `Em12Set`, 14.10.2026). Prüfung: `port/tools/whole_value_init.py` |
 | Prelude: `Re4BeBytes2` | Byte-Array-Sicht `b[0]` = hohes, `b[1]` = niedriges Byte eines Halbworts, unabhängig von der Host-Reihenfolge (Patch 0016: `cItem::lv8`, `SND_RND::b`) |
 
 Compiler-Schalter: `-std=gnu++11 -Wno-c++11-narrowing -fdelayed-template-parsing
@@ -563,7 +611,7 @@ nach dem Laden Feld für Feld in Host-Reihenfolge gedreht:
 | `*.tpl`, `TPL` | `TEXPalette`, `TEXDescriptor`, `TEXHeader`, `CLUTHeader` (tpl.h) | `formats_tex.cpp` |
 | `font/*.fnt` | Kopf (TPL-Offset, Breitentabelle in Bytes) + TPL (mes.cpp) | `formats_tex.cpp` |
 | `MDT` | Sprachblöcke `MesTblBlock` + u16-Nachrichtencodes (mes.cpp) | `formats_mes.cpp` |
-| `*.das`, `*.drs`, `ss/*.dat`, entpackte Räume | Archiv: Zähler, REL-Offset, Offsets, Kürzel; eingebettetes REL bekommt `re4_rel_header_to_host` (read.cpp `GetDataExt`) | `formats_arc.cpp` |
+| `*.das`, `*.drs`, `ss/*.dat`, entpackte Räume | Archiv: Zähler, REL-Offset, Offsets, Kürzel; eingebettetes REL bekommt `re4_rel_header_to_host` (read.cpp `GetDataExt`). Ein Eintrag mit demselben Offset wie ein späterer ist leer, die Daten gehören dem letzten | `formats_arc.cpp` |
 | `UWF` | `ID_FILE_HEADER`, `ID_DATA_V1/V2`, B-Spline `FUNC_PATH_PTR`, `HERMITE_1_PTR` (id_sys.cpp) | `formats_id.cpp` |
 | `EFF` | `ESP_EFF_HEADER` (Version 0xB): Id-Listen, TPL- und `cAnm`-Tabellen, `cEspSeqHead` + `cEspSeqTbl`, Pfade (`Path`), `EffEfmEnt` (eff_sys.cpp) | `formats_eff.cpp` (Effektmodelle, -motionen, Shape-Köpfe noch nicht) |
 | `TEX` | `TexData` (Version 3), Id-Liste, TPLs, `cAnm` (texture.cpp) | `formats_eff.cpp` |
@@ -573,10 +621,10 @@ nach dem Laden Feld für Feld in Host-Reihenfolge gedreht:
 | `FCV`, Kurven in EVD/ETM | `MotionData`: Zähler und Bildnummern Host, Schlüsselwerte bleiben big-endian (`FccF32`/`FccS16`, Patch 0018) | `formats_model.cpp` |
 | `SEQ` | Sequenztabelle | `formats_model.cpp` |
 | `LIT` | `cLit`, `cLightEnv`, `cLightWork` mit Spot-Block und Bewegungsdaten je Id (light01..10) | `formats_lit.cpp` |
-| `CAM` | `CAM_FILE_HEADER` B402–B404: `CUT_INFO`, `AREA_DATA` + Eckpunkte, `CAMERA_DATA` + Schlüssel, `LERP_DATA` (B400/B401 bleiben big-endian, Log) | `formats_event.cpp` |
+| `CAM` | `CAM_FILE_HEADER` B402–B404: `CUT_INFO`, `AREA_DATA` + Eckpunkte, `CAMERA_DATA` + Schlüssel, `LERP_DATA` (B400/B401 und Daten ohne Versionskennung bleiben unverändert, Log) | `formats_event.cpp` |
 | `EVD`, `event/evd/*.evd`, `EVS` | `EvtHeader`, Pakete mit Zahlenparametern je Typ, Anhänge nach Verwendung im Paket (Kamera/Motion/Shape-Kurven, LIT, Nebel, Fokus, EFF, MDT, Modelle, Texturen) oder Endung | `formats_event.cpp` |
 | `SMD`, `SMX`, `SHD`, `ETM`, `ITM` | Streumodelle mit BIN/TPL/Motion-Tabellen, Objektparameter (Typen 1/2 mit Feldliste), Schatten, Etc-Archiv (benannte Dateien), Item-Modelle | `formats_scene.cpp` |
-| `SAT`, `EAT` | `cSatFile`/`cSatHeader`, Vektoren, `SAT_POLY`, Blockkette | `formats_scene.cpp` |
+| `SAT`, `EAT` | `cSatFile`/`cSatHeader`, Vektoren, `SAT_POLY`, Blockkette (andere Versionen als 0x20/0xFF/Blockliste bleiben unverändert, Log) | `formats_scene.cpp` |
 | `CNS`, `ETS`, `EMI`, `SAR`, `EAR`, `FSE`, `ESE`, `DSE`, `STB`, `BLK`, `RTP`, `OSD`, `AEV`, `ITA`, `etc/*.esl` | Raumtabellen aus gameRoomInit/ReadAreaData (Quelle je Format im Kopf von `formats_room.cpp`) | `formats_room.cpp` |
 | Effektmodelle in `EFF` | BIN/TPL/Motion der Effekte | `formats_eff.cpp` |
 | `rel/*.rel` | REL-Kopf | `OSLink` (`re4_rel_header_to_host`) |
@@ -665,7 +713,13 @@ Der Platz sollte früh reserviert werden (beim Laden von `libre4_platform`).
 - **M5 abschließen (lokal):** `port/scripts/test-r100-core.ps1` mit den
   Disc-Daten; Ziel: Formatvergleich ohne Abweichung, 10 000 Bilder ohne
   Absturz, Abdeckung für r100 ohne „nein“. Abweichungen und Abstürze aus dem
-  Bericht beheben.
+  Bericht beheben. Stand nach dem zweiten Lauf: Absturz in `Em12Set` und
+  leere Archiv-Einträge behoben, dritter Lauf steht aus.
+- **Null-Füllung durch C++11:** `whole_value_init.py` findet jede
+  Konstruktion, die noch mit Nullen füllt (mit und ohne Platzierung, auch
+  Member-Initialisierer `x()`). Nach Änderungen an `whole_prepare.py` oder
+  den Ersatz-Headern erneut laufen lassen; erwartet sind die vier Stellen aus
+  dem Kopf des Skripts.
 - **Formate ohne App-Leser im Vergleich** (Liste unter „Formatvergleich mit
   der App“): bei Auffälligkeiten im Lauf weitere Leser der App heranziehen
   (`room_blocks.cpp` BLK, `room_shadows.cpp` SHD, `sound_footsteps.cpp` FSE,

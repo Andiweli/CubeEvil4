@@ -37,12 +37,12 @@ void convertCameraAt(Blob& b, u32 base)
         return;
     }
     const u8* h = b.data + base;
-    if (h[0] != 'B' || h[1] != '4' || h[2] != '0' || h[3] < '0' || h[3] > '9') {
-        fits(b, base, 0xFFFFFFFFu, "camera data version");
-        return;
-    }
-    if (h[3] <= '1') {
-        re4_log("formats: %s: camera data B40%c (not relocated by the game), left big-endian", b.name, h[3]);
+    // cam_ctrl.cpp cameraDataVersion: B402..B404 are relocated (calcAddr);
+    // B400, B401 and anything else the game uses as it is (the CAM of the
+    // core archive is 32 bytes without a version)
+    if (h[0] != 'B' || h[1] != '4' || h[2] != '0' || h[3] < '2' || h[3] > '4') {
+        re4_log("formats: %s: camera data %02x %02x %02x %02x (not relocated by the game), left as it is", b.name,
+                h[0], h[1], h[2], h[3]);
         return;
     }
     u32 nCut = h[offsetof(CAM_FILE_HEADER, nCdat)];

@@ -112,8 +112,16 @@ void convertArchive(Blob& b, const Part& part)
     for (u32 i = 0; i < count && b.ok; i++) {
         u32 o = offs[i];
         const char* entryTag = (const char*) b.data + 0x10 + count * 4 + i * 4;
-        if (!seen.first(o)) {
-            continue;  // two entries share their data
+        // An entry whose offset a later entry repeats has no data of its own
+        // (a motion without sequence, a model without texture ...): the data
+        // there belongs to the last entry with that offset and is converted
+        // by its tag only.
+        bool empty = false;
+        for (u32 k = i + 1; k < count && !empty; k++) {
+            empty = offs[k] == o;
+        }
+        if (empty || !seen.first(o)) {
+            continue;
         }
         u32 stop = end;
         for (u32 k = 0; k < count; k++) {

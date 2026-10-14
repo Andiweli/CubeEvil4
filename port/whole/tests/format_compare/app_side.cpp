@@ -593,6 +593,15 @@ void appArchive(const Bytes& bytes, FactList& out)
         o.s(tag.c_str(), "arc.%u.tag", unsigned(i));
         o.u(e.offset, "arc.%u.offset", unsigned(i));
         Re4Out u = o.sub("%s%u.", tag.c_str(), unsigned(e.occurrence));
+        // an entry whose offset a later entry repeats has no data of its own
+        bool empty = false;
+        for (std::size_t k = i + 1; k < entries.size() && !empty; ++k) {
+            empty = entries[k].offset == e.offset;
+        }
+        if (empty) {
+            u.u(1, "empty");
+            continue;
+        }
         Bytes data = arc.copy(i);
         if (tag == "SMD") {
             guarded(u, [&] { smdFacts(u, data); });

@@ -218,7 +218,7 @@ void noteEntry(const void* addr, const char* tag, int status)
     }
 }
 
-int entryStatus(const void* addr)
+int entryStatus(const void* addr, char* tag)
 {
     u32 s = slotOf(addr);
     for (u32 i = 0; i < kNotes; i++) {
@@ -227,6 +227,9 @@ int entryStatus(const void* addr)
             break;
         }
         if (e.addr == addr) {
+            if (tag) {
+                memcpy(tag, e.tag, 4);
+            }
             return e.status;
         }
     }

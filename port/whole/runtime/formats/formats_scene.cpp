@@ -383,6 +383,12 @@ void convertSat(Blob& b, const Part&)
         return;
     }
     u8 version = b.data[0];
+    if (version != 0xFF && version != 0x20 && !(version & 0x80)) {
+        // not a collision file the game reads (sat.cpp accepts 0x20 and 0xFF;
+        // the two SAT entries of the core archive, which no code looks up)
+        re4_log("formats: %s: SAT version 0x%02x, left as it is", b.name, (unsigned) version);
+        return;
+    }
     if (version != 0xFF && (version & 0x80)) {
         u32 n = 0;
         u32 first = 0xFFFFFFFFu;

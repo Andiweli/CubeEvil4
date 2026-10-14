@@ -497,16 +497,17 @@ void satFacts(const Re4Out& o, const View& v)
     o.u(f->m_nWall, "wall");
     // block chain (sat.cpp: depth-first over children and m_pList links)
     u32 blockStart = p + f->m_nPolygon * sizeof(SAT_POLY);
-    u32 pending[512];
+    u32 cap = (u32) f->m_nBlock + 2;
+    u32* pending = (u32*) malloc(cap * 2 * sizeof(u32));
+    u32* leaves = pending + cap;
     u32 nPending = 0;
-    u32 leaves[512];
     u32 nLeaves = 0;
     u32 visited = 0;
     u32 refs = 0;
     if (f->m_nBlock) {
         pending[nPending++] = blockStart;
     }
-    while (nPending && visited < 512) {
+    while (nPending && visited < f->m_nBlock + 1) {
         u32 b = pending[--nPending];
         const cSatBlock* blk = v.at<cSatBlock>(b);
         if (!blk) {
@@ -514,17 +515,17 @@ void satFacts(const Re4Out& o, const View& v)
         }
         visited++;
         if (blk->m_Flag & 1) {
-            if (nPending < 512) {
+            if (nPending < cap) {
                 pending[nPending++] = b + offsetof(cSatBlock, idx);
             }
         } else {
             refs += (u32) blk->m_nFloor + blk->m_nSlope + blk->m_nWall;
-            if (nLeaves < 512) {
+            if (nLeaves < cap) {
                 leaves[nLeaves++] = b;
             }
         }
         u32 next = ptrOfs(blk->m_pList);
-        if (next && nPending < 512) {
+        if (next && nPending < cap) {
             pending[nPending++] = b + next;
         }
     }
@@ -556,6 +557,7 @@ void satFacts(const Re4Out& o, const View& v)
     }
     o.u(nWall, "wallorder.n");
     o.u(hash, "wallorder.hash");
+    free(pending);
 }
 
 // ---- AEV (room_flow.cpp RoomFlow) ------------------------------------------------
@@ -918,7 +920,31 @@ extern "C" int re4cmp_game_archive(const unsigned char* data, unsigned size, con
             }
         }
         Re4Out e = o.sub("%s%u.", key, (unsigned) occurrence[i]);
-        if (entryStatus(c.data + ofs) == kEntryIncomplete) {
+        // an entry whose offset a later entry repeats has no data of its own
+        bool empty = false;
+        for (u32 k = i + 1; k < count && !empty; k++) {
+            empty = v.w(0x10 + k * 4) == ofs;
+        }
+        char noted[5] = { 0 };
+        int status = entryStatus(c.data + ofs, noted);
+        for (u32 k = 0; k < 4; k++) {
+            noted[k] = noted[k] >= 0x20 && noted[k] < 0x7F ? noted[k] : 0;
+        }
+        char info[160];
+        snprintf(info, sizeof(info), "#%u %s @0x%lx, 0x%lx bytes, %s%s%s", (unsigned) i, key, (unsigned long) ofs,
+                 (unsigned long) (stop > ofs ? stop - ofs : 0),
+                 empty                          ? "leer (Daten gehören dem nächsten Eintrag)"
+                 : status == kEntryConverted    ? "umgewandelt"
+                 : status == kEntryIncomplete   ? "unvollständig"
+                 : status == kEntryNoConverter  ? "kein Umwandler"
+                                                : "nicht notiert",
+                 status && !empty ? " als " : "", status && !empty ? noted : "");
+        o.s(info, "!entry.%s%u.", key, (unsigned) occurrence[i]);
+        if (empty) {
+            e.u(1, "empty");
+            continue;
+        }
+        if (status == kEntryIncomplete) {
             e.u(1, kIncomplete);
         }
         View ev = { c.data + ofs, stop > ofs ? stop - ofs : 0 };

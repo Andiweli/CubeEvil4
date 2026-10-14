@@ -141,7 +141,8 @@ void convertEvs(Blob& b, const Part& part);          // EVS
 enum EntryStatus { kEntryConverted = 1, kEntryNoConverter = 2, kEntryIncomplete = 3 };
 void noteEntry(const void* addr, const char* tag, int status);
 void noteArchive(const void* addr, const char* name);
-int entryStatus(const void* addr);  // what noteEntry recorded, 0 = nothing
+// what noteEntry recorded (0 = nothing); tag, if given, receives its tag (4 chars)
+int entryStatus(const void* addr, char* tag = 0);
 
 // Remembers converted offsets of one blob, so a structure that two tables
 // point at is converted once. Fixed size: the converters run before the game

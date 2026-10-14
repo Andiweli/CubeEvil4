@@ -31,6 +31,7 @@
 #include <dirent.h>
 #include <fstream>
 #include <map>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <sys/stat.h>
@@ -55,6 +56,7 @@ struct Result {
     std::vector<std::string> diffs;
     std::vector<std::string> skipped;
     std::vector<std::string> incomplete;
+    std::map<std::string, std::string> entries;  // archive entry prefix -> position, size, status
     std::string appError;
     bool gameRejected = false;
 };
@@ -133,6 +135,11 @@ Result compare(const Input& in)
     for (const auto& kv : game) {
         if (kv.first.find("!incomplete") != std::string::npos) {
             r.incomplete.push_back(kv.first.substr(0, kv.first.find("!incomplete")));
+            continue;
+        }
+        if (kv.first.find("!entry.") != std::string::npos) {
+            std::size_t at = kv.first.find("!entry.");
+            r.entries[kv.first.substr(0, at) + kv.first.substr(at + 7)] = kv.second;
             continue;
         }
         if (!g.emplace(kv).second) {
@@ -674,6 +681,8 @@ std::vector<Input> syntheticInputs()
                                  { "AEV", makeAev() },
                                  { "LIT", makeLit() },
                                  { "CAM", makeCam() },
+                                 // no data of its own: same offset as the BIN after it
+                                 { "FCV", Bytes() },
                                  { "BIN", makeBin(true, false, true) },
                                  { "BIN", makeBin(false, true, false) },
                                  { "FCV", makeCurve(30) } }),
@@ -1020,6 +1029,29 @@ int main(int argc, char** argv)
         }
         for (const auto& s : r.skipped) {
             std::printf("           nicht vergleichbar: %s\n", s.c_str());
+        }
+        // the archive entries behind the differences: position, size, converter status
+        std::set<std::string> touched;
+        for (const auto& kv : r.entries) {
+            for (const auto& d : r.diffs) {
+                if (startsWith(d, kv.first)) {
+                    touched.insert(kv.first);
+                    break;
+                }
+            }
+            for (const auto& p : r.incomplete) {
+                if (startsWith(p, kv.first)) {
+                    touched.insert(kv.first);
+                }
+            }
+        }
+        shown = 0;
+        for (const auto& k : touched) {
+            if (!verbose && shown++ >= 40) {
+                std::printf("           ... %zu weitere Einträge (alle mit -v)\n", touched.size() - 40);
+                break;
+            }
+            std::printf("           Eintrag %s %s\n", k.c_str(), r.entries[k].c_str());
         }
         if (bad) {
             failed++;

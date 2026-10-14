@@ -94,9 +94,7 @@ void trace(unsigned n)
         }
     }
     fprintf(f, "]}\n");
-    if ((n & 63) == 0) {
-        fflush(f);
-    }
+    fflush(f);  // a crash must not lose the last frames
 }
 
 bool g_padUntilRoom;

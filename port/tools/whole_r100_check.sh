@@ -167,10 +167,13 @@ if [ -x "$cmp" ]; then
     "$cmp" --data "$layout" --room "r$room" > "$run/formatvergleich.txt" 2> "$run/formatvergleich.log"
     code=$?
     tee -a "$report" < "$run/formatvergleich.txt"
-    if grep -q "conversion incomplete\|outside the" "$run/formatvergleich.log"; then
-        say "Umwandler-Meldungen beim Vergleich:"
-        grep -h "formats:" "$run/formatvergleich.log" | sed 's/^\[re4\] //' | sort | uniq -c | sort -rn | head -30 |
-            sed 's/^/  /' | tee -a "$report"
+    # converter messages: what was left undone or left as it is
+    notes=$(grep -h "formats:" "$run/formatvergleich.log" |
+        grep -E "no converter|incomplete|outside|left |no field list|blocks in its chain|more than|unknown" |
+        sed 's/^\[re4\] //' | sort | uniq -c | sort -rn)
+    if [ -n "$notes" ]; then
+        say "Umwandler-Meldungen beim Vergleich ($(echo "$notes" | grep -c .) verschiedene):"
+        echo "$notes" | head -80 | sed 's/^/  /' | tee -a "$report"
     fi
     [ "$code" -ne 0 ] && overall=1
 else
