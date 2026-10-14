@@ -39,6 +39,7 @@ struct CoreFrame {
   std::vector<Re4CoreModel> models;
   std::vector<Re4CoreModelInfo> infos;  // Re4CoreModel::firstInfo / nInfos
   std::vector<Re4CorePart> parts;
+  std::vector<std::array<std::int16_t, 4>> morph;  // Re4CoreModelInfo::firstMorph / nMorph
 };
 void CopyCoreFrame(const Re4CoreSnapshot &snapshot, CoreFrame &out);
 

@@ -25,6 +25,7 @@
 #include "model.h"
 #include "cam_ctrl.h"
 #include "obj.h"
+#include "shape.h"
 
 #include "re4_core.h"
 
@@ -148,6 +149,27 @@ void captureModel(Re4CoreSnapshot* s, cModel* m, u8 manager, u32 slot)
         }
         re4_formats_locate(info->model_addr, &mi.bin);
         re4_formats_locate(info->tpl_addr, &mi.tpl);
+        // a running shape: the positions as trans.cpp makes them before skinning
+        if ((info->be_flag & 2) && live(d) && inMem1(d->vtxOrig) && d->nVtx != 0) {
+            bool shaped = false;
+            for (int k = 0; k < 5; k++) {
+                shaped = shaped || inMem1(info->shape[k].data);
+            }
+            if (shaped && s->nMorph + d->nVtx <= RE4_CORE_MAX_MORPH) {
+                u8* dst = (u8*) s->morph[s->nMorph];
+                ResetShape(info, dst);
+                for (int k = 0; k < 5; k++) {
+                    if (inMem1(info->shape[k].data)) {
+                        CalculateShape_new(info, info->shape[k].rate, info->shape[k].data, dst);
+                    }
+                }
+                mi.firstMorph = s->nMorph;
+                mi.nMorph = d->nVtx;
+                s->nMorph += d->nVtx;
+            } else if (shaped) {
+                s->droppedMorph++;
+            }
+        }
     }
     s->nModels++;
 }
@@ -197,6 +219,8 @@ extern "C" void re4_bridge_capture(Re4CoreSnapshot* s)
     s->droppedModels = 0;
     s->nInfos = 0;
     s->droppedInfos = 0;
+    s->nMorph = 0;
+    s->droppedMorph = 0;
     s->cameraValid = 0;
     s->screen = 0;
     s->disc = (int8_t) re4_dvd_inserted_disc();

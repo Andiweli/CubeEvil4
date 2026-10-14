@@ -24,6 +24,8 @@ extern "C" void re4probe_core_setup(void* mem, void* bin, void* tpl);
 extern "C" void re4probe_core_restore(void);
 extern "C" void re4probe_scroll_setup(void* mem, void* bin, void* other);
 extern "C" void re4probe_scroll_restore(void);
+extern "C" void re4probe_shape_setup(void* mem);
+extern "C" void re4probe_shape_restore(void);
 
 namespace {
 
@@ -335,6 +337,32 @@ void testBridge()
         CHECK(gSnap.models[1].scrollIndex == RE4_CORE_NO_SCROLL);  // a room script's scenery
         CHECK(gSnap.models[2].scrollIndex == RE4_CORE_NO_SCROLL);  // the slot holds other data now
         CHECK(near(gSnap.models[1].matrix[3], 10.0f));
+    }
+    // a face with a running shape: the positions the game's shape code makes
+    {
+        unsigned char* mem = (unsigned char*) (unsigned long) 0x82500000u;
+        memset(mem, 0, 0x4000);
+        re4probe_shape_setup(mem);
+        re4_bridge_capture(&gSnap);
+        re4probe_shape_restore();
+        bool found = false;
+        for (unsigned i = 0; i < gSnap.nModels && !found; i++) {
+            const Re4CoreModel& m = gSnap.models[i];
+            if (m.address != 0x82500000u || m.nInfos != 1) {
+                continue;
+            }
+            found = true;
+            const Re4CoreModelInfo& mi = gSnap.infos[m.firstInfo];
+            CHECK(mi.nMorph == 2 && gSnap.nMorph >= 2 && gSnap.droppedMorph == 0);
+            if (mi.nMorph == 2) {
+                const short* a = gSnap.morph[mi.firstMorph];
+                const short* b = gSnap.morph[mi.firstMorph + 1];
+                re4_log("core-test shape: (%d %d %d) (%d %d %d)", a[0], a[1], a[2], b[0], b[1], b[2]);
+                CHECK(a[0] == 10 && a[1] == 20 && a[2] == 30);
+                CHECK(b[0] == 44 && b[1] == 42 && b[2] == 72);
+            }
+        }
+        CHECK(found);
     }
     report("bridge", ok);
 }

@@ -31,6 +31,11 @@ class GenericEventActor {
   void startShape(std::shared_ptr<const EventCurve> shape,unsigned sourceFrame,float weightScale=1);
   void sampleShape(unsigned sourceFrame);
   void clearShape();
+  // Core mode: the game core's own vertex positions of this BIN (shape
+  // morphs applied by shape.cpp), x y z pad per vertex in the BIN's fixed
+  // point and order. False (nothing changed) when the count does not match.
+  bool setCorePositions(const std::int16_t (*positions)[4], std::size_t count);
+  void clearCorePositions();
   // SetObj18 assigns pos/ang directly; only an actual Pos packet rebuilds
   // LightInfo.imat. Keep its original zero-filled pool state until then.
   void resetEventPlacement();
@@ -101,5 +106,6 @@ class GenericEventActor {
   unsigned shapeStart_{};
   float shapeWeightScale_=1;
   std::uint64_t revision_{};
+  bool corePositions_{};
 };
 }

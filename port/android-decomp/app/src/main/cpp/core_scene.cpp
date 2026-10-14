@@ -22,6 +22,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <dirent.h>
 #include <fstream>
 #include <sstream>
@@ -59,6 +60,9 @@ void CopyCoreFrame(const Re4CoreSnapshot &s, CoreFrame &out) {
   out.models.assign(s.models, s.models + models);
   out.infos.assign(s.infos, s.infos + infos);
   out.parts.assign(s.parts, s.parts + parts);
+  const auto morph = std::min<unsigned>(s.nMorph, RE4_CORE_MAX_MORPH);
+  out.morph.resize(morph);
+  if (morph) std::memcpy(out.morph.data(), s.morph, morph * sizeof(s.morph[0]));
 }
 
 namespace {
@@ -235,6 +239,7 @@ bool isIdentity(const float *m) {
 struct CoreScene::Actor {
   std::unique_ptr<GenericEventActor> model;
   bool gpu{};
+  std::uint64_t revision{};  // the mesh revision on the GPU (shape morphs change it)
   unsigned joints{};  // highest skin joint + 1
   std::string error;
 };
@@ -306,6 +311,7 @@ CoreScene::Actor *CoreScene::actorFor(const Re4CoreModelInfo &mi, int disc) {
   if (!slot->gpu) {
     CreateGenericActorGl(slot->model.get(), slot->model->mesh(), slot->model->skin());
     slot->gpu = true;
+    slot->revision = slot->model->meshRevision();
   }
   return slot.get();
 }
@@ -372,6 +378,16 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
       if (!a || a->joints > usePose->size() || usePose->size() > 128) {
         ++missing;
         continue;
+      }
+      // a talking / blinking face: the game's morphed positions (shape.cpp)
+      if (mi.nMorph && std::size_t(mi.firstMorph) + mi.nMorph <= frame.morph.size())
+        a->model->setCorePositions(reinterpret_cast<const std::int16_t(*)[4]>(frame.morph[mi.firstMorph].data()),
+                                   mi.nMorph);
+      else
+        a->model->clearCorePositions();
+      if (a->revision != a->model->meshRevision()) {
+        UpdateGenericActorGl(a->model.get(), a->model->mesh());
+        a->revision = a->model->meshRevision();
       }
       DrawGenericActorGl(a->model.get(), camera, center, scale, *usePose, *useBind, identity,
                          normalView, 1, &light, 1000.f);

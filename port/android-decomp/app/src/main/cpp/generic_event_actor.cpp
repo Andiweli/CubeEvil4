@@ -280,6 +280,26 @@ void GenericEventActor::sampleShape(unsigned sourceFrame) {
   }
   if(changed) ++revision_;
 }
+bool GenericEventActor::setCorePositions(const std::int16_t (*positions)[4], std::size_t count) {
+  if(count!=originalPositions_.size()) return false;
+  const auto scale=1.f/float(1u<<model_->mesh.shift);bool changed=false;
+  for(unsigned corner=0;corner<cornerPositions_.size();++corner) for(unsigned axis=0;axis<3;++axis) {
+    const auto value=float(positions[cornerPositions_[corner]][axis])*scale;
+    auto &dst=mesh_.vertices[corner*3+axis];if(dst!=value) {dst=value;changed=true;}
+  }
+  if(changed) ++revision_;
+  corePositions_=true;
+  return true;
+}
+void GenericEventActor::clearCorePositions() {
+  if(!corePositions_) return;
+  corePositions_=false;bool changed=false;
+  for(unsigned corner=0;corner<cornerPositions_.size();++corner) for(unsigned axis=0;axis<3;++axis) {
+    const auto value=model_->mesh.positions[cornerPositions_[corner]][axis];
+    auto &dst=mesh_.vertices[corner*3+axis];if(dst!=value) {dst=value;changed=true;}
+  }
+  if(changed) ++revision_;
+}
 void GenericEventActor::clearShape() {
   if(!shape_) return;
   shape_.reset();bool changed=false;

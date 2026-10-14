@@ -17,6 +17,8 @@
 //     and the room scene follows the core's state of it (hidden: gone, moved:
 //     moves along); scenery a room script made (no SMD work, r100's police
 //     car) is drawn like the other models
+//   - a running shape morph (talking, blinking): the core's positions replace
+//     the BIN's, and the BIN's come back when it ends
 //   - before the first room (step 0) the title path runs (no title data here:
 //     black) and no room is wanted
 //   - in the room (step 3) the room is built from the prepared file, the
@@ -267,6 +269,24 @@ int main() {
     for (auto &p : frame.parts) p.matrix[7] = 0;
     std::fprintf(stderr, "pose change pixels: %u\n", changes(rest, lifted));
     require(changes(rest, lifted) > 20, "the part matrices move the model");
+    // a face's shape morph: the core's positions replace the BIN's while it
+    // runs (the sample BIN's four positions, halved), the BIN's come back after
+    {
+      const std::int16_t original[4][3] = {{160, -32, 4000}, {-2, 32767, -32768}, {0, 0, 1}, {1200, -1200, 77}};
+      frame.morph.clear();
+      for (const auto &p : original)
+        frame.morph.push_back({std::int16_t(p[0] / 2), std::int16_t(p[1] / 2), std::int16_t(p[2] / 2), 0});
+      frame.infos[0].firstMorph = 0;
+      frame.infos[0].nMorph = 4;
+      scene.draw(frame, kWidth, kHeight, kStill);
+      const auto morphed = pixels();
+      frame.infos[0].nMorph = 0;
+      frame.morph.clear();
+      scene.draw(frame, kWidth, kHeight, kStill);
+      const auto back = pixels();
+      std::fprintf(stderr, "morph: %u pixels changed, %u after it ends\n", changes(rest, morphed), changes(rest, back));
+      require(changes(rest, morphed) > 20 && changes(rest, back) == 0, "the core's morphed positions drawn");
+    }
 
     // a model without a known source is counted as missing (other data than
     // the source remembered for it)

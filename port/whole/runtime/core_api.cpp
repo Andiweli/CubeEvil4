@@ -130,7 +130,11 @@ void dumpHook(unsigned frame)
             dumpSource(f, mi.bin, mi.binAddress);
             fprintf(f, ",\"tpl\":");
             dumpSource(f, mi.tpl, mi.tplAddress);
-            fprintf(f, ",\"shown\":%d,\"rigid\":%d}", (mi.flags & 8) != 0, (int) mi.rigidPart);
+            fprintf(f, ",\"shown\":%d,\"rigid\":%d", (mi.flags & 8) != 0, (int) mi.rigidPart);
+            if (mi.nMorph) {
+                fprintf(f, ",\"morph\":%u", (unsigned) mi.nMorph);
+            }
+            fprintf(f, "}");
         }
         fprintf(f, "]}");
     }

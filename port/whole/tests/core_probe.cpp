@@ -175,7 +175,94 @@ extern "C" void re4probe_scroll_restore(void)
     EmMgr.nArray = gSavedEmCount;
 }
 
+// A face with a running shape (shape.cpp): two vertices, one shape channel
+// whose curve holds weight 100 % and moves vertex 1 by (4, -8, 12). `mem`:
+// zeroed MEM1 memory, 0x4000 bytes.
+static u32 gSavedShapeCount;
+static cEm* gSavedShapeArray;
+static u32 gSavedShapeSize;
+
+static void host16(u8* p, u16 v)
+{
+    memcpy(p, &v, 2);  // counts and frames: host order, as the converter leaves them
+}
+
+extern "C" void re4probe_shape_setup(void* mem)
+{
+    u8* base = (u8*) mem;
+    cEm* em = (cEm*) base;
+    cParts* parts = (cParts*) (base + 0x2000);
+    cModelInfo* info = (cModelInfo*) (base + 0x3000);
+    cModelData* d = (cModelData*) (base + 0x3400);
+    s16* vtx = (s16*) (base + 0x3500);
+    u8* tbl = base + 0x3600;
+    u8* sd = base + 0x3800;
+    em->be_flag = 1 | 2 | 4;
+    em->id = 0x18;
+    em->nParts = 1;
+    em->pList = parts;
+    em->pModelInfo = info;
+    setMatrix(em->mat, 0.0f, 0.0f, 0.0f);
+    setMatrix(parts->mat, 0.0f, 0.0f, 0.0f);
+    const s16 v[8] = { 10, 20, 30, 0, 40, 50, 60, 0 };
+    memcpy(vtx, v, sizeof(v));
+    d->vtxOrig = vtx;
+    d->nVtx = 2;
+    d->shapeOfs = (u32) (tbl - (u8*) d) - 4;
+    // shape table: entry 0 -> one delta (vertex 1)
+    const u32 entry[2] = { 0x10, 1 };
+    memcpy(tbl, entry, sizeof(entry));
+    const s16 delta[4] = { 1, 4, -8, 12 };
+    memcpy(tbl + 0x10, delta, sizeof(delta));
+    info->model_addr = d;
+    info->be_flag = 8 | 2;
+    // ShapeData: 20 frames, one channel (kind 4, float keys), shape entry 0,
+    // its curve at +0x20: three axes of two keys, the weight axis (y) 100
+    host16(sd, 20);
+    sd[2] = 1;
+    host16(sd + 3, 0x0004);
+    sd[5] = 0;
+    const s32 curve = 0x20;
+    memcpy(sd + 0xC, &curve, 4);
+    u8* c = sd + 0x20;
+    for (int axis = 0; axis < 3; axis++) {
+        host16(c, 2);
+        host16(c + 2, 0);
+        host16(c + 4, 10);
+        // the key values stay big-endian (motion.cpp FCC_F32 reads them bytewise)
+        for (int k = 0; k < 2; k++) {
+            const float key[3] = { axis == 1 ? 100.0f : 0.0f, 0.0f, 0.0f };
+            for (int j = 0; j < 3; j++) {
+                u32 bits;
+                memcpy(&bits, &key[j], 4);
+                u8* q = c + 6 + k * 12 + j * 4;
+                q[0] = (u8) (bits >> 24);
+                q[1] = (u8) (bits >> 16);
+                q[2] = (u8) (bits >> 8);
+                q[3] = (u8) bits;
+            }
+        }
+        c += 6 + 2 * 12;
+    }
+    info->shape[0].rate = 0.0f;
+    info->shape[0].data = (ShapeData*) sd;
+    gSavedShapeArray = EmMgr.pArray;
+    gSavedShapeCount = EmMgr.nArray;
+    gSavedShapeSize = EmMgr.size;
+    EmMgr.pArray = em;
+    EmMgr.nArray = 1;
+    EmMgr.size = 0x2000;
+}
+
+extern "C" void re4probe_shape_restore(void)
+{
+    EmMgr.pArray = gSavedShapeArray;
+    EmMgr.nArray = gSavedShapeCount;
+    EmMgr.size = gSavedShapeSize;
+}
+
 static_assert(sizeof(cObj) <= 0x500, "the fake scenery works overlap");
 static_assert(sizeof(cEm) <= 0x2000, "the fake enemy work overlaps its parts");
 static_assert(2 * sizeof(cParts) <= 0x1000, "the fake parts overlap the model info");
 static_assert(sizeof(cModelInfo) <= 0x400 && sizeof(cModelData) <= 0x100, "the fake infos overlap");
+

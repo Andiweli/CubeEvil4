@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define RE4_CORE_API_VERSION 6
+#define RE4_CORE_API_VERSION 7
 
 enum Re4CoreState {
     RE4_CORE_IDLE = 0,     /* not started */
@@ -69,9 +69,17 @@ typedef struct Re4CoreModelInfo {
     Re4CoreSource bin, tpl;
     uint32_t flags;      /* cModelInfo::be_flag */
     int16_t rigidPart;   /* >= 0 rigid on that part, -1 skinned, -2 placed by the model matrix */
-    uint16_t reserved;
+    uint16_t nMorph;     /* > 0: the vertex positions are Re4CoreSnapshot::morph[firstMorph ..] */
     float matrix[12];    /* cModelInfo::mat, row-major 3x4 */
+    uint32_t firstMorph;
 } Re4CoreModelInfo;
+
+/* Shape (morph) animation: faces talk and blink by moving their vertices
+ * (shape.cpp, applied in trans.cpp before skinning). For an info with a
+ * running shape the bridge runs the game's ResetShape / CalculateShape_new and
+ * passes the resulting positions: per vertex x y z and a pad, int16 in the
+ * BIN's fixed point (cModelData::shift), host order, BIN vertex order. */
+#define RE4_CORE_MAX_MORPH 32768
 
 /* All infos of all models, in the game's list order (cModel::pModelInfo):
  * Leon alone has nine (body, costume, knife, face, head, hair, hands ...). */
@@ -136,9 +144,12 @@ typedef struct Re4CoreSnapshot {
     uint16_t nInfos;
     uint16_t reserved;
     uint32_t droppedInfos;   /* infos beyond the budget (or beyond 255 of one model) */
+    uint32_t nMorph;
+    uint32_t droppedMorph;   /* morphed infos beyond the budget (drawn unmorphed) */
     Re4CoreModel models[RE4_CORE_MAX_MODELS];
     Re4CoreModelInfo infos[RE4_CORE_MAX_INFOS];
     Re4CorePart parts[RE4_CORE_MAX_PARTS];
+    int16_t morph[RE4_CORE_MAX_MORPH][4];
 } Re4CoreSnapshot;
 
 /* Reserves MEM1 (call as early as possible), sets the disc folder (layout:

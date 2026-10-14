@@ -412,7 +412,8 @@ def summary(last):
             if not i.get("shown", 1):
                 return " (versteckt)"
             r = i.get("rigid", -1)
-            return f" (starr an Teil {r})" if r >= 0 else " (am Modell)" if r == -2 else ""
+            morph = f" (Form-Animation, {i['morph']} Punkte)" if i.get("morph") else ""
+            return (f" (starr an Teil {r})" if r >= 0 else " (am Modell)" if r == -2 else "") + morph
         srcs = "; ".join(f"BIN {i['bin'] or '?'} TPL {i['tpl'] or '?'}{how(i)}" for i in m["infos"]) or "kein Modell"
         key = (m["mgr"], m["id"], m["parts"], plain(srcs))
         if key in seen:
