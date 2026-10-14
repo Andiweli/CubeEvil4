@@ -185,6 +185,8 @@ std::vector<std::uint8_t> ReadCoreSource(const std::string &gameRoot, int disc,
 
 bool CoreModelIsScenery(const Re4CoreModel &model) { return model.manager == 1 && model.id == 2; }
 
+bool CoreSceneLogBounds = false;
+
 namespace {
 
 // row-major 3x4 matrices as the game keeps them (Mtx)
@@ -369,6 +371,42 @@ void CoreScene::drawActors(const CoreFrame &frame, const float *camera,
       DrawGenericActorGl(a->model.get(), camera, center, scale, *usePose, *useBind, identity,
                          normalView, 1, &light, 1000.f);
       ++drawn;
+      if (CoreSceneLogBounds) {
+        // the corners skinned on the CPU like the shader: world bounds of this info
+        const auto &mesh = a->model->mesh();
+        const auto &skin = a->model->skin();
+        std::array<float, 3> lo{1e30f, 1e30f, 1e30f}, hi{-1e30f, -1e30f, -1e30f};
+        unsigned outside = 0;
+        for (std::size_t i = 0; i < skin.size() && i * 3 + 2 < mesh.vertices.size(); ++i) {
+          const float v[3] = {mesh.vertices[i * 3], mesh.vertices[i * 3 + 1], mesh.vertices[i * 3 + 2]};
+          std::array<float, 3> w{};
+          const auto &bw = skin[i].position;
+          for (unsigned j = 0; j < bw.count; ++j) {
+            const auto bone = bw.joints[j];
+            if (bone >= usePose->size()) {
+              ++outside;
+              continue;
+            }
+            const auto &mtx = (*usePose)[bone];
+            const auto &b = (*useBind)[bone];
+            for (int r = 0; r < 3; ++r)
+              w[r] += bw.rates[j] * (mtx[r * 4] * (v[0] - b[0]) + mtx[r * 4 + 1] * (v[1] - b[1]) +
+                                     mtx[r * 4 + 2] * (v[2] - b[2]) + mtx[r * 4 + 3]);
+          }
+          for (int r = 0; r < 3; ++r) {
+            lo[r] = std::min(lo[r], w[r]);
+            hi[r] = std::max(hi[r], w[r]);
+          }
+        }
+        unsigned alphaDraws = 0;
+        for (const auto &d : mesh.draws) alphaDraws += d.alphaTest ? 1u : 0u;
+        CORE_LOG("bounds frame %u model %08x id %02x info %u (%s): %zu corners, joints %u, %zu draws (%u alpha "
+                 "test), world (%.0f %.0f %.0f)..(%.0f %.0f %.0f), part 0 at (%.0f %.0f %.0f)%s",
+                 unsigned(frame.frame), unsigned(m.address), unsigned(m.id), k,
+                 mi.rigidPart >= 0 ? "rigid" : mi.rigidPart == -2 ? "model matrix" : "skinned", skin.size(), a->joints,
+                 mesh.draws.size(), alphaDraws, lo[0], lo[1], lo[2], hi[0], hi[1], hi[2], pose[0][3], pose[0][7],
+                 pose[0][11], outside ? " (joints beyond the parts)" : "");
+      }
     }
   }
   drawnModels_ = drawn;

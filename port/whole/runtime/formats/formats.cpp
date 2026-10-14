@@ -698,6 +698,74 @@ const CopyNote* copyAt(const void* addr)
 
 }  // namespace
 
+// MemorySwap (game/dvd.cpp, patch 0028) exchanged `size` bytes between MRAM
+// and ARAM: events borrow an enemy's archive memory, sub screens the heap.
+// The notes of what lay on either side move to the other; an archive cut by
+// an edge of the swapped range is dropped.
+extern "C" void re4_formats_memory_swapped(void* mram, unsigned aram, unsigned size)
+{
+    if (!size || aram >= 0x1000000u || size > 0x1000000u - aram) {
+        return;
+    }
+    const u8* a = (const u8*) mram;
+    const u8* b = re4_aram() + aram;
+    auto moved = [&](const void* p) -> const void* {
+        const u8* q = (const u8*) p;
+        if (q >= a && q < a + size) {
+            return b + (q - a);
+        }
+        if (q >= b && q < b + size) {
+            return a + (q - b);
+        }
+        return p;
+    };
+    for (u32 i = 0; i < kArchives; i++) {
+        ArchiveNote& o = g_archives[i];
+        if (!o.gen) {
+            continue;
+        }
+        const u8* lo = (const u8*) o.addr;
+        const u8* hi = lo + o.size;
+        bool inA = lo >= a && hi <= a + size;
+        bool inB = lo >= b && hi <= b + size;
+        bool cut = (lo < a + size && a < hi) || (lo < b + size && b < hi);
+        if (inA || inB) {
+            o.addr = moved(o.addr);
+        } else if (cut) {
+            forget(o);
+        }
+    }
+    // entry notes are hashed by address: insert them anew
+    static EntryNote old[kNotes];
+    memcpy(old, g_notes, sizeof(g_notes));
+    memset(g_notes, 0, sizeof(g_notes));
+    for (u32 i = 0; i < kNotes; i++) {
+        EntryNote e = old[i];
+        if (!e.addr) {
+            continue;
+        }
+        e.addr = moved(e.addr);
+        e.archive = moved(e.archive);
+        u32 s = slotOf(e.addr);
+        for (u32 k = 0; k < kNotes; k++) {
+            EntryNote& t = g_notes[(s + k) % kNotes];
+            if (t.addr == 0) {
+                t = e;
+                break;
+            }
+        }
+    }
+    // copies into either side are history now
+    for (u32 k = 0; k < kCopies; k++) {
+        CopyNote& c = g_copies[k];
+        if (c.len && ((c.dst < a + size && a < c.dst + c.len) || (c.dst < b + size && b < c.dst + c.len))) {
+            c.len = 0;
+        }
+    }
+    ++g_seq;
+    ++g_gen;
+}
+
 extern "C" void re4_formats_aram_copied(void* dst, const void* src, unsigned length)
 {
     if (!length) {

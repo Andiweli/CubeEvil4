@@ -459,6 +459,12 @@ render_pictures() {
     [ -n "$failed" ] && echo "$failed" | head -25 | sed 's/^/    /' | tee -a "$report"
     grep -h "^\[RE4Core\] room " "$run/bild-werkzeug-lauf.log" 2> /dev/null | sort -u | head -5 | sed 's/^\[RE4Core\] /  /' |
         tee -a "$report"
+    # where the characters' model infos land (one line per info of the player and
+    # of models with more than 20 parts, from the first snapshot that has them)
+    say "  Lage der Modellteile (Spieler und Figuren mit vielen Teilen):"
+    grep -h "^\[RE4Core\] bounds " "$run/bild-werkzeug-lauf.log" 2> /dev/null | sed 's/^\[RE4Core\] bounds //' |
+        awk '{key=$4" "$6" "$8; if (!(key in seen) && ($6 == "00" || $0 ~ /joints [2-9][0-9]|joints [0-9][0-9][0-9]/)) {seen[key]=1; print "    " $0}}' |
+        head -30 | tee -a "$report"
     rm -rf "$approot"  # links to the disc folder: not copied with the report
     # PPM -> PNG (python's zlib), for viewing on Windows
     python3 - "$pics" <<'PY'

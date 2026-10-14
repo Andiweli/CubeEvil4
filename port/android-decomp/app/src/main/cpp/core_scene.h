@@ -56,6 +56,9 @@ std::vector<std::uint8_t> ReadCoreSource(const std::string &gameRoot, int disc,
 // cObjScr: the SMD models of the room and its blocks, part of the static
 // room scene).
 bool CoreModelIsScenery(const Re4CoreModel &model);
+// Diagnostics (core_snapshot_render): log where each drawn model info lands
+// in the world (CPU-skinned bounds) and the pose of its parts.
+extern bool CoreSceneLogBounds;
 
 class GenericEventActor;
 

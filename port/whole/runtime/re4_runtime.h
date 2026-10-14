@@ -82,6 +82,8 @@ void re4_formats_part_loaded(const char* name, int nest, int index, const void* 
 void re4_formats_unpacked(void* dst, unsigned size);
 // ARAM -> main memory DMA (aram.cpp): the data at dst came from src (ARAM)
 void re4_formats_aram_copied(void* dst, const void* src, unsigned length);
+// MemorySwap (patch 0028) exchanged size bytes between MRAM and ARAM
+void re4_formats_memory_swapped(void* mram, unsigned aram, unsigned size);
 
 /* ARAM contents (aram.cpp), 16 MB. */
 unsigned char* re4_aram(void);

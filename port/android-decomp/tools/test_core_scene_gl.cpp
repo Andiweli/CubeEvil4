@@ -176,6 +176,7 @@ int main() {
     }
 
     context();
+    re4::CoreSceneLogBounds = true;  // the diagnostics run along (stderr)
     re4::CoreScene scene(root);
     scene.contextCreated();
 

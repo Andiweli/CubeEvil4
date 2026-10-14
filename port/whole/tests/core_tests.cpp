@@ -219,6 +219,41 @@ void testBridge()
             re4_formats_part_loaded("em/later.drs", 0, 0, &hl, 0x8210E000u);
             CHECK(re4_formats_locate(inMem1 + 0x20, &src) && strcmp(src.file, "em/later.drs") == 0 && src.entry == 0);
         }
+        // an event borrows an enemy's archive memory (MemorySwap, patch 0028):
+        // the event file goes from ARAM to the enemy's MRAM, the enemy's
+        // archive to ARAM; the notes follow both ways and back
+        {
+            unsigned aramAt = 0x00E00000u;
+            unsigned char* ev = re4_aram() + aramAt;
+            memset(ev, 0, 0x200);
+            memcpy(ev, "event", 5);
+            memcpy(ev + 0x20, "r100", 4);
+            memcpy(ev + 0x28, "s00", 3);
+            put32be(ev + 0x40, 0x50);
+            put32be(ev + 0x4C, 0x50);
+            Header hv = { 3 /* TRANS_ARAM */, 0x200, 0, 0x400, 0, 0, 0, 0 };
+            re4_formats_part_loaded("Evd/r100s00.evd", 0, 0, &hv, aramAt);
+            unsigned char* enemy = (unsigned char*) (unsigned long) 0x82110000u;
+            memset(enemy, 0, 0x200);
+            put32be(enemy + 0x00, 1);
+            put32be(enemy + 0x10, 0x40);
+            memcpy(enemy + 0x14, "XBN\0", 4);
+            Header hn = { 0, 0x200, 0, 0x400, 0, 0, 0, 0 };
+            re4_formats_part_loaded("em/em12.drs", 0, 0, &hn, 0x82110000u);
+            CHECK(re4_formats_locate(enemy + 0x40, &src) && strcmp(src.file, "em/em12.drs") == 0);
+            unsigned char tmp[0x200];
+            memcpy(tmp, enemy, 0x200);  // what MemorySwap does
+            memcpy(enemy, ev, 0x200);
+            memcpy(ev, tmp, 0x200);
+            re4_formats_memory_swapped(enemy, aramAt, 0x200);
+            CHECK(re4_formats_locate(enemy + 0x120, &src) && strcmp(src.file, "evd/r100s00.evd") == 0 &&
+                  src.entry == -2 && src.innerOffset == 0x120);
+            memcpy(tmp, enemy, 0x200);  // and back after the event
+            memcpy(enemy, ev, 0x200);
+            memcpy(ev, tmp, 0x200);
+            re4_formats_memory_swapped(enemy, aramAt, 0x200);
+            CHECK(re4_formats_locate(enemy + 0x40, &src) && strcmp(src.file, "em/em12.drs") == 0 && src.entry == 0);
+        }
         // motion curves (FCV): a joint the game reads is converted, an unused
         // joint whose offset points into the header is left alone (weapon
         // motions have such joints) and does not stop the conversion

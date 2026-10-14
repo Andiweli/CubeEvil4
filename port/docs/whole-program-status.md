@@ -447,7 +447,10 @@ Daten ohne eigene Notiz erkennt eine Prüfsumme der Eintragsnamen; stimmt
 sie nicht, ruhen die Angaben nur, bis die Daten wieder da sind (ein
 Untermenü lagert Teile von MEM1 vorübergehend nach ARAM aus,
 `SubScreenAramRead`). Die App merkt sich je Modell die letzte bekannte
-Herkunft und zeichnet es so auch während solcher Pausen. Kopiert das Spiel
+Herkunft und zeichnet es so auch während solcher Pausen. Tauscht das Spiel
+Speicher zwischen MEM1 und ARAM (`MemorySwap`, Patch 0028: Ereignisse
+tauschen ihre Datei aus ARAM in den Speicher eines Gegners, Untermenüs Teile
+des Heaps), wandern die Herkunftsangaben beider Seiten mit. Kopiert das Spiel
 Daten aus ARAM in den Hauptspeicher (Ereignisse laden ihre Dateien nach ARAM
 und holen sie beim Abspielen), folgt die Herkunft der Kopie
 (`re4_formats_aram_copied`, `aram.cpp`). Ereignis-Dateien
@@ -618,6 +621,18 @@ Gerätelauf, Bilder mit echten Disc-Daten.
   Datei kommt aus ARAM und überschreibt dabei vorübergehend em12. Jetzt folgt
   die Herkunft der ARAM-Kopie (Test `core-test bridge`).
 
+### Sechster lokaler Lauf (14.10.2026, WSL2)
+
+- PC-Prüfung **ALLES OK** (Formatvergleich 0 Fehler). Bilder unverändert.
+- Leons vier Modellteile sind alle gewichtet (keins starr), sichtbar und
+  geladen: Die Haare fehlen aus einem anderen Grund. Die Bild-Auswertung
+  schreibt jetzt für jedes gezeichnete Teil die Lage seiner Punkte im Raum
+  und die Zahl der Materialien mit Alpha-Test in den Bericht.
+- Köpfe der Polizisten: Die Ereignis-Datei kommt nicht per Kopie, sondern
+  per `MemorySwap` (Tausch MEM1/ARAM über Zwischenpuffer) in den Speicher von
+  em12. Patch 0028 meldet den Tausch, die Herkunftsangaben wandern mit
+  (Test `core-test bridge`).
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -745,6 +760,7 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0024 `pl_sub.cpp` | Bit 0x40 im ersten Byte von `cMotBase::pMod` (ungecachter Spiegel der GameCube) entfällt; auf little-endian träfe es ein anderes Objekt |
 | 0025 `read.cpp` | `GetDataExt` meldet jeden Fund an `re4_formats_get_data` (Abdeckungs-Log) |
 | 0026 `title.cpp` | Debug-Start: `RE4_START_ROOM` wählt den Raum im Debug-Startmenü vor, Titelmenü auf „Neues Spiel“ |
+| 0028 `dvd.cpp` | `MemorySwap` meldet am Ende den getauschten Bereich (`re4_formats_memory_swapped`): Ereignisse leihen sich so den Archivspeicher eines Gegners, Untermenüs den Heap; die Herkunftsangaben der Brücke wandern mit |
 | 0027 `model.cpp`, `objRocket.cpp` | Mit `-O2` (Android) gibt clang Inline-Funktionen, die nur in einer `.cpp` definiert sind, nicht aus; Module brauchen sie: `cModel::getPartsPtr` ohne `inline`, `cManager<cObj>::destroyNow` ausdrücklich instanziiert. Ohne den Patch zwei Platzhalter mehr als bei `-O0` |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,

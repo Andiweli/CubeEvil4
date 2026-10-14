@@ -1,0 +1,20 @@
+--- a/src/game/dvd.cpp
++++ b/src/game/dvd.cpp
+@@ -336,6 +336,8 @@
+ 
+ /* port: runtime/formats converts every completed part to host byte order. */
+ extern "C" void re4_formats_part_loaded(const char* name, int nest, int index, const void* part, u32 addr);
++/* port: MemorySwap moves data between MRAM and ARAM; the converter's notes move with it. */
++extern "C" void re4_formats_memory_swapped(void* mram, u32 aram, u32 size);
+ 
+ DVD_REQ_WORK DvdReqWork;
+ cDvd Dvd;
+@@ -418,6 +420,8 @@
+         q += n;
+     }
+     DCFlushRange(mram, size);
++    /* port: what lay in MRAM is in ARAM now and the other way round */
++    re4_formats_memory_swapped(mram, (u32) aram, ALIGN32(size));
+ }
+ 
+ // Part transfer: copies the read piece from the DVD buffer to its MRAM destination.

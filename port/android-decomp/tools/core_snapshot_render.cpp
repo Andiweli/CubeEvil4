@@ -114,6 +114,7 @@ int main(int argc, char **argv) {
   try {
     const std::string root = argv[1], out = argv[2];
     context();
+    re4::CoreSceneLogBounds = true;
     re4::CoreScene scene(root);
     scene.contextCreated();
     int failed = 0;
