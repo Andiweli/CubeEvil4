@@ -28,6 +28,12 @@ if(NOT ANDROID)
     # Windows drives, qemu-arm on a 64-bit host) without them.
     add_compile_definitions(_FILE_OFFSET_BITS=64)
 endif()
+# Optimisation (the Android build uses 2, port/tools/whole_build_android.sh;
+# whole_build.sh RE4_OPT=2 checks the same on Linux). Empty: none, as before.
+set(RE4_OPT_LEVEL "" CACHE STRING "optimisation level of the whole build (empty = -O0)")
+if(RE4_OPT_LEVEL)
+    add_compile_options(-O${RE4_OPT_LEVEL})
+endif()
 if(RE4_ARCH STREQUAL "i686")
     # Single-precision float arithmetic in SSE registers, as on ARM (VFP) and
     # the GameCube: x87 keeps excess precision between operations, so float
@@ -153,15 +159,19 @@ target_include_directories(re4_formats_obj PRIVATE runtime runtime/formats)
 string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_formats_obj>\n")
 
 # Port code that reads the game's own state, compiled as game code into
-# libre4_main: the per-frame state trace (RE4_TRACE).
-add_library(re4_gamehooks_obj OBJECT runtime/state_trace.cpp)
+# libre4_main: the per-frame state trace (RE4_TRACE) and the snapshot of the
+# core bridge for the app's renderer (runtime/re4_core.h).
+add_library(re4_gamehooks_obj OBJECT runtime/state_trace.cpp runtime/core_bridge.cpp)
 target_link_libraries(re4_gamehooks_obj PRIVATE re4_game_flags)
 target_include_directories(re4_gamehooks_obj PRIVATE runtime)
 string(APPEND RE4_LINK_OBJECTS "main=$<TARGET_OBJECTS:re4_gamehooks_obj>\n")
 
 # Toolchain-runtime replacements that belong to the game code (libre4_main):
 # the SN constructor lists, GCC 2.95 allocation names, the game heap for modules.
+# Also the embedding interface the Android app starts the game with
+# (runtime/core_api.cpp, runtime/re4_core.h).
 add_library(re4_glue_obj OBJECT
+    runtime/core_api.cpp
     runtime/game_heap.cpp
     runtime/sn_runtime.cpp)
 target_include_directories(re4_glue_obj PRIVATE runtime)
@@ -244,6 +254,11 @@ endforeach()
 if(CMAKE_CXX_COMPILER_TARGET)
     set(RE4_TARGET_FLAG "--target=${CMAKE_CXX_COMPILER_TARGET}")
 endif()
+if(ANDROID)
+    # the trial link must see the Android logging and loader libraries, or
+    # their functions would be planned as stubs
+    list(APPEND RE4_TARGET_FLAG -llog -ldl)
+endif()
 add_custom_command(
     OUTPUT "${RE4_GEN}/link_plan.stamp"
     BYPRODUCTS ${RE4_GEN_FILES}
@@ -259,6 +274,10 @@ add_custom_command(
 add_custom_target(re4_link_plan DEPENDS "${RE4_GEN}/link_plan.stamp")
 
 set(RE4_LINK_FLAGS -fuse-ld=lld -Wl,--no-undefined)
+if(ANDROID)
+    # 16 KB pages (newer devices), as the app's own library
+    list(APPEND RE4_LINK_FLAGS "-Wl,-z,max-page-size=16384")
+endif()
 if(RE4_ARCH STREQUAL "i686" OR RE4_ARCH STREQUAL "armv7")  # size_t = unsigned int ('j')
     set(RE4_GAME_HEAP_WRAP -Wl,--wrap=_Znwj -Wl,--wrap=_Znaj -Wl,--wrap=_ZdlPv -Wl,--wrap=_ZdaPv)
 endif()
@@ -339,9 +358,10 @@ set_target_properties(re4test_rel PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_C
 # game libraries, which therefore lie above 0x80000000 as on Android.
 if(NOT ANDROID)
     # tests/game_probe.cpp: checks that need the game's flags and headers
-    add_library(re4_probe_obj OBJECT tests/game_probe.cpp)
+    add_library(re4_probe_obj OBJECT tests/game_probe.cpp tests/core_probe.cpp)
     target_link_libraries(re4_probe_obj PRIVATE re4_game_flags)
-    add_library(re4_hostlib SHARED host/main.cpp tests/runtime_tests.cpp "${RE4_ROOT}/port/src/sha256.cpp"
+    add_library(re4_hostlib SHARED host/main.cpp tests/runtime_tests.cpp tests/core_tests.cpp
+        "${RE4_ROOT}/port/src/sha256.cpp"
         $<TARGET_OBJECTS:re4_probe_obj>)
     target_include_directories(re4_hostlib PRIVATE runtime "${RE4_ROOT}/port/include" "${RE4_ROOT}/port/tests"
         "${CMAKE_CURRENT_SOURCE_DIR}/include")

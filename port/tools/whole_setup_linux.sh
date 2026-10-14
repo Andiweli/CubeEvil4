@@ -6,7 +6,14 @@
 # qemu-user to run the ARM32 build, clang-tools (clang-query) for the
 # byte-view analysis. g++-multilib is not used because Ubuntu
 # refuses it next to the ARM cross compiler. Run as root (sudo).
+#
+#   --android   also the Android NDK r28c (28.2.13676358, the version of the
+#               app) under /opt/android-ndk-r28c for whole_build_android.sh;
+#               downloads about 700 MB from dl.google.com once
 set -euo pipefail
+
+android=0
+[ "${1:-}" = "--android" ] && android=1
 
 need=()
 for pkg in libc6-dev-i386 lib32gcc-13-dev lib32stdc++-13-dev g++-arm-linux-gnueabihf qemu-user python3; do
@@ -19,10 +26,32 @@ command -v cmake >/dev/null 2>&1 || need+=(cmake)
 command -v ninja >/dev/null 2>&1 || need+=(ninja-build)
 # clang-query for port/tools/whole_byte_views.py (only to re-run that analysis)
 command -v clang-query >/dev/null 2>&1 || command -v clang-query-18 >/dev/null 2>&1 || need+=(clang-tools)
-[ ${#need[@]} -eq 0 ] && exit 0
+if [ "$android" -eq 1 ]; then
+  command -v unzip >/dev/null 2>&1 || need+=(unzip)
+  command -v curl >/dev/null 2>&1 || need+=(curl)
+fi
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get install -y -q "${need[@]}" >/dev/null 2>&1 || {
-  apt-get update -q >/dev/null 2>&1
-  apt-get install -y -q "${need[@]}" >/dev/null
-}
+if [ ${#need[@]} -gt 0 ]; then
+  apt-get install -y -q "${need[@]}" >/dev/null 2>&1 || {
+    apt-get update -q >/dev/null 2>&1
+    apt-get install -y -q "${need[@]}" >/dev/null
+  }
+fi
+
+if [ "$android" -eq 1 ]; then
+  ndk=/opt/android-ndk-r28c
+  if ! grep -q '^Pkg.Revision *= *28.2.13676358' "$ndk/source.properties" 2>/dev/null; then
+    echo "Android-NDK r28c wird geladen (einmalig, etwa 700 MB) ..."
+    tmp=$(mktemp -d)
+    curl -fL --retry 3 -o "$tmp/ndk.zip" https://dl.google.com/android/repository/android-ndk-r28c-linux.zip
+    rm -rf "$ndk"
+    unzip -q "$tmp/ndk.zip" -d /opt
+    rm -rf "$tmp"
+    grep -q '^Pkg.Revision *= *28.2.13676358' "$ndk/source.properties" || {
+      echo "FEHLER: unerwartetes NDK in $ndk" >&2
+      exit 1
+    }
+  fi
+  echo "Android-NDK: $ndk"
+fi

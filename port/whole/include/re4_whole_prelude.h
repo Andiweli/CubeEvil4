@@ -15,6 +15,12 @@
 #include <math.h>
 #undef fabsf
 
+/* newlib's character class table (include/newlib_local.h, prodg/ctype.h,
+ * t_movie): Android's C library declares a pointer of the same name
+ * (`const char* _ctype_`), so the game's table is renamed here, after the
+ * system declaration (runtime/newlib_ctype.c defines it). */
+#define _ctype_ re4_newlib_ctype_
+
 /* C equivalents of the Gekko instructions of the replaced inline asm. */
 #include "re4_ppc.h"
 

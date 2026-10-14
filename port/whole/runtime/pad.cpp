@@ -10,8 +10,13 @@
 //                              room (state_trace.cpp)
 //
 // The game calls PADRead once per frame (pad.cpp PadRead in the main loop).
+//
+// Embedded in the app (runtime/core_api.cpp), re4_pad_live sets channel 0
+// from the device's controller; a running test script still wins.
+#include "re4_core.h"
 #include "re4_runtime.h"
 
+#include <mutex>
 #include <stdlib.h>
 #include <string.h>
 
@@ -142,13 +147,47 @@ void PADSetAnalogMode(u32) {}
 void PADClamp(PADStatus*) {}
 void PADControlMotor(long, u32) {}
 
-// Per-frame observers (the state trace, runtime/state_trace.cpp), called
-// once per game frame with the frame number.
+// Per-frame observers, called once per game frame with the frame number: the
+// state trace (runtime/state_trace.cpp, re4_set_frame_hook replaces it) and
+// the core bridge (runtime/core_api.cpp, re4_add_frame_hook).
 static void (*g_frameHook)(unsigned);
+static void (*g_moreHooks[4])(unsigned);
 
 void re4_set_frame_hook(void (*hook)(unsigned))
 {
     g_frameHook = hook;
+}
+
+void re4_add_frame_hook(void (*hook)(unsigned))
+{
+    for (auto& h : g_moreHooks) {
+        if (h == hook) {
+            return;
+        }
+    }
+    for (auto& h : g_moreHooks) {
+        if (!h) {
+            h = hook;
+            return;
+        }
+    }
+    re4_log("pad: no room for another frame hook");
+}
+
+// Live controller (the app): written by its input thread, read by PADRead.
+static std::mutex g_liveLock;
+static Re4CorePad g_live;
+static bool g_hasLive;
+
+void re4_pad_live(const Re4CorePad* pad)
+{
+    std::lock_guard<std::mutex> lock(g_liveLock);
+    if (pad) {
+        g_live = *pad;
+        g_hasLive = true;
+    } else {
+        g_hasLive = false;
+    }
 }
 
 // Ends the test script (state_trace.cpp: RE4_PAD_UNTIL_ROOM).
@@ -165,8 +204,28 @@ u32 PADRead(PADStatus* status)
     if (g_frameHook) {
         g_frameHook(gFrame);
     }
+    for (auto h : g_moreHooks) {
+        if (h) {
+            h(gFrame);
+        }
+    }
     memset(status, 0, 4 * sizeof(PADStatus));
     status[0].button = scriptButtons(gFrame);
+    if (!gScriptLen) {
+        std::lock_guard<std::mutex> lock(g_liveLock);
+        if (g_hasLive) {
+            status[0].button = g_live.buttons;
+            status[0].stickX = g_live.stickX;
+            status[0].stickY = g_live.stickY;
+            status[0].substickX = g_live.substickX;
+            status[0].substickY = g_live.substickY;
+            status[0].triggerLeft = g_live.triggerL;
+            status[0].triggerRight = g_live.triggerR;
+            // analog A/B like a real pad: full when pressed
+            status[0].analogA = (g_live.buttons & 0x0100) ? 0xFF : 0;
+            status[0].analogB = (g_live.buttons & 0x0200) ? 0xFF : 0;
+        }
+    }
     if (status[0].button) {
         u16 old = gFrame ? scriptButtons(gFrame - 1) : 0;
         if (old != status[0].button) {

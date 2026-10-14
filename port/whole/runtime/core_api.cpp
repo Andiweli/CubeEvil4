@@ -1,0 +1,262 @@
+// Embedding interface of the game core (runtime/re4_core.h): the Android app
+// starts the game through it, the Linux checks too (re4_host --core-test).
+//
+// Threads: the game runs as the boot thread of the Dolphin OS emulation
+// (re4_os_run) on a host thread of its own. It publishes one snapshot per game
+// frame from its frame hook (PADRead, once per frame); the app's GL thread
+// takes the newest one. Three buffers: the game writes one, the newest waits
+// in another, the reader holds the third, so neither side ever waits for the
+// other's work and a reader never sees a half-written frame.
+#include "re4_core.h"
+#include "re4_runtime.h"
+
+#include <dlfcn.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+extern "C" void re4_pad_live(const Re4CorePad* pad);
+extern "C" void re4_add_frame_hook(void (*hook)(unsigned));
+extern "C" int re4_log_tail(char* out, int size);
+
+namespace {
+
+pthread_mutex_t gLock = PTHREAD_MUTEX_INITIALIZER;
+int gState = RE4_CORE_IDLE;
+bool gReserved;
+char gMessage[256] = "not started";
+
+Re4CoreSnapshot gBuffers[3];
+int gWriting = 0;   // the game's buffer
+int gReady = -1;    // newest published frame, -1 none
+int gReading = -1;  // held by the reader
+uint32_t gSerial;
+
+void setMessage(const char* text)
+{
+    pthread_mutex_lock(&gLock);
+    snprintf(gMessage, sizeof(gMessage), "%s", text);
+    pthread_mutex_unlock(&gLock);
+    re4_log("core: %s", text);
+}
+
+// PADRead, once per game frame, on the game's thread.
+void frameHook(unsigned frame)
+{
+    Re4CoreSnapshot* s = &gBuffers[gWriting];
+    re4_bridge_capture(s);
+    s->frame = frame;
+    pthread_mutex_lock(&gLock);
+    s->serial = ++gSerial;
+    int published = gWriting;
+    // the next buffer to write: neither the one held by the reader nor the
+    // one just published
+    int next = 0;
+    while (next == published || next == gReading) {
+        next++;
+    }
+    gReady = published;
+    gWriting = next;
+    pthread_mutex_unlock(&gLock);
+}
+
+int (*gEntry)(void) = re4_game_main;
+
+void* gameThread(void*)
+{
+    re4_log("core: starting the game");
+    int ret = re4_os_run(gEntry);
+    char text[64];
+    snprintf(text, sizeof(text), "re4_game_main returned %d", ret);
+    setMessage(text);
+    pthread_mutex_lock(&gLock);
+    gState = RE4_CORE_ENDED;
+    pthread_mutex_unlock(&gLock);
+    return 0;
+}
+
+// RE4_BRIDGE_DUMP=FILE (Linux checks with disc data): every 300 frames one
+// JSON line with what the app would draw -- step, room, camera and each model
+// with its BIN/TPL disc sources -- so the local r100 run shows whether every
+// drawn model can be found on the disc.
+FILE* gDump;
+Re4CoreSnapshot gDumpSnap;
+
+void dumpSource(FILE* f, const Re4CoreSource& s)
+{
+    if (s.file[0]) {
+        fprintf(f, "\"%s@0x%x#%d\"", s.file, (unsigned) s.fileOffset, (int) s.entry);
+    } else {
+        fprintf(f, "null");
+    }
+}
+
+void dumpHook(unsigned frame)
+{
+    if (frame % 300 != 0) {
+        return;
+    }
+    Re4CoreSnapshot* s = &gDumpSnap;
+    re4_bridge_capture(s);
+    FILE* f = gDump;
+    fprintf(f, "{\"frame\":%u,\"Rno0\":%u,\"room\":\"0x%03x\",\"camera\":[%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.3f,%.1f]",
+            frame, (unsigned) s->rno[0], (unsigned) s->room, s->cameraEye[0], s->cameraEye[1], s->cameraEye[2],
+            s->cameraTarget[0], s->cameraTarget[1], s->cameraTarget[2], s->cameraRoll, s->cameraFovy);
+    fprintf(f, ",\"parts\":%u,\"dropped\":%u,\"models\":[", (unsigned) s->nParts, (unsigned) s->droppedModels);
+    for (unsigned i = 0; i < s->nModels; i++) {
+        const Re4CoreModel& m = s->models[i];
+        fprintf(f, "%s{\"mgr\":%u,\"id\":\"0x%02x\",\"type\":%u,\"drawn\":%d,\"parts\":%u,\"pos\":[%.1f,%.1f,%.1f],\"infos\":[",
+                i ? "," : "", (unsigned) m.manager, (unsigned) m.id, (unsigned) m.type, (m.beFlag & 6) == 6,
+                (unsigned) m.nParts, m.matrix[3], m.matrix[7], m.matrix[11]);
+        for (unsigned k = 0; k < m.nInfos; k++) {
+            fprintf(f, "%s{\"bin\":", k ? "," : "");
+            dumpSource(f, m.infos[k].bin);
+            fprintf(f, ",\"tpl\":");
+            dumpSource(f, m.infos[k].tpl);
+            fprintf(f, "}");
+        }
+        fprintf(f, "]}");
+    }
+    fprintf(f, "]}\n");
+    fflush(f);
+}
+
+struct DumpInstall {
+    DumpInstall()
+    {
+        const char* path = getenv("RE4_BRIDGE_DUMP");
+        if (path && *path) {
+            gDump = fopen(path, "w");
+            if (gDump) {
+                re4_add_frame_hook(dumpHook);
+            }
+        }
+    }
+} gDumpInstall;
+
+}  // namespace
+
+extern "C" {
+
+int re4_core_reserve(const char* dataDir, const char* moduleDir)
+{
+    if (gReserved) {
+        return 1;
+    }
+    re4_set_data_dir(dataDir ? dataDir : "");
+    re4_set_module_dir(moduleDir ? moduleDir : "");
+    if (!re4_mem1_init()) {
+        setMessage("MEM1 (0x80000000..0x83000000) is taken in this process");
+        pthread_mutex_lock(&gLock);
+        gState = RE4_CORE_FAILED;
+        pthread_mutex_unlock(&gLock);
+        return 0;
+    }
+    // The game tells its own data from offsets by bit 31 of the address
+    // (re4_check_game_address aborts; here the app shows the reason instead).
+    Dl_info info;
+    const void* base = (const void*) &re4_game_main;
+    if (dladdr(base, &info) && info.dli_fbase) {
+        base = info.dli_fbase;
+    }
+    if ((unsigned long) base < RE4_MEM1_BASE) {
+        char text[160];
+        snprintf(text, sizeof(text), "libre4_main loaded at %p, below 0x80000000: unsupported", base);
+        setMessage(text);
+        pthread_mutex_lock(&gLock);
+        gState = RE4_CORE_FAILED;
+        pthread_mutex_unlock(&gLock);
+        return 0;
+    }
+    gReserved = true;
+    setMessage("memory reserved");
+    return 1;
+}
+
+int re4_core_start(void)
+{
+    return re4_core_start_entry(re4_game_main);
+}
+
+int re4_core_start_entry(int (*entry)(void))
+{
+    gEntry = entry;
+    pthread_mutex_lock(&gLock);
+    bool ready = gReserved && gState == RE4_CORE_IDLE;
+    if (ready) {
+        gState = RE4_CORE_RUNNING;
+    }
+    pthread_mutex_unlock(&gLock);
+    if (!ready) {
+        return gState == RE4_CORE_RUNNING;
+    }
+    re4_add_frame_hook(frameHook);
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 8u << 20);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    pthread_t thread;
+    int err = pthread_create(&thread, &attr, gameThread, 0);
+    pthread_attr_destroy(&attr);
+    if (err != 0) {
+        setMessage("cannot create the game thread");
+        pthread_mutex_lock(&gLock);
+        gState = RE4_CORE_FAILED;
+        pthread_mutex_unlock(&gLock);
+        return 0;
+    }
+    setMessage("running");
+    return 1;
+}
+
+int re4_core_state(void)
+{
+    pthread_mutex_lock(&gLock);
+    int s = gState;
+    pthread_mutex_unlock(&gLock);
+    return s;
+}
+
+const char* re4_core_message(void)
+{
+    // a static copy: the caller may read it while the game writes a new one
+    static char copy[sizeof(gMessage)];
+    pthread_mutex_lock(&gLock);
+    memcpy(copy, gMessage, sizeof(copy));
+    pthread_mutex_unlock(&gLock);
+    return copy;
+}
+
+void re4_core_pad(const Re4CorePad* pad)
+{
+    re4_pad_live(pad);
+}
+
+const Re4CoreSnapshot* re4_core_acquire(void)
+{
+    pthread_mutex_lock(&gLock);
+    const Re4CoreSnapshot* s = 0;
+    if (gReady >= 0 && gReading < 0) {
+        gReading = gReady;
+        s = &gBuffers[gReading];
+    }
+    pthread_mutex_unlock(&gLock);
+    return s;
+}
+
+void re4_core_release(const Re4CoreSnapshot* snapshot)
+{
+    pthread_mutex_lock(&gLock);
+    if (gReading >= 0 && snapshot == &gBuffers[gReading]) {
+        gReading = -1;
+    }
+    pthread_mutex_unlock(&gLock);
+}
+
+int re4_core_log_tail(char* out, int size)
+{
+    return re4_log_tail(out, size);
+}
+
+}  // extern "C"

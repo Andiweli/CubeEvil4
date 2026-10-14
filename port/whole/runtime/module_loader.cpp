@@ -75,7 +75,13 @@ extern "C" void* re4_module_load(const char* name)
         return 0;
     }
     char path[1200];
-    snprintf(path, sizeof(path), "%s/libre4_%s.so", gModuleDir, name);
+    if (gModuleDir[0]) {
+        snprintf(path, sizeof(path), "%s/libre4_%s.so", gModuleDir, name);
+    } else {
+        // Android: libraries stay uncompressed in the APK; the linker finds
+        // them by name in the app's library path.
+        snprintf(path, sizeof(path), "libre4_%s.so", name);
+    }
     // RTLD_LOCAL: each module keeps its own copies of the units the original
     // RELs duplicated (em_wrap.cpp, st2.cpp, ...), exactly as on the GameCube.
     void* handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);

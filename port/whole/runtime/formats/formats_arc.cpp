@@ -107,7 +107,7 @@ void convertArchive(Blob& b, const Part& part)
         offs[i] = be32(b, 0x10 + i * 4);
     }
     swap32(b, 0, 4 + count);
-    noteArchive(b.data, b.name);
+    noteArchive(b.data, b.size, b.name, part);
     Seen seen;
     for (u32 i = 0; i < count && b.ok; i++) {
         u32 o = offs[i];
@@ -133,7 +133,7 @@ void convertArchive(Blob& b, const Part& part)
             return;
         }
         if (stop == o) {
-            noteEntry(b.data + o, entryTag, kEntryConverted);  // empty entry
+            noteEntry(b.data + o, entryTag, kEntryConverted, b.data, (int) i);  // empty entry
             continue;
         }
         char tag[5];
@@ -150,13 +150,13 @@ void convertArchive(Blob& b, const Part& part)
         }
         if (conv) {
             conv(e, part);
-            noteEntry(b.data + o, entryTag, e.ok ? kEntryConverted : kEntryIncomplete);
+            noteEntry(b.data + o, entryTag, e.ok ? kEntryConverted : kEntryIncomplete, b.data, (int) i);
             if (!e.ok) {
                 re4_log("formats: %s: conversion incomplete", label);
             }
         } else {
             reportTag(tag, b.name);
-            noteEntry(b.data + o, entryTag, kEntryNoConverter);
+            noteEntry(b.data + o, entryTag, kEntryNoConverter, b.data, (int) i);
         }
     }
     // The embedded REL module: OSLink converts its header too, but the game
@@ -174,7 +174,9 @@ void convertCodecArchive(Blob& b, const Part& part)
         return;
     }
     Blob arc = blob(b.data + 0x400, b.size - 0x400, b.name);
-    convertArchive(arc, part);
+    Part inner = part;
+    inner.fileOfs = part.fileOfs + 0x400;
+    convertArchive(arc, inner);
     b.ok = arc.ok;
 }
 

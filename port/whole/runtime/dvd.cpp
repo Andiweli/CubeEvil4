@@ -9,6 +9,9 @@
 //   <data>/disc1/...            second disc
 //
 // A folder with sys/ and files/ directly inside is accepted as disc 0 alone.
+// The import folder of the Android app counts from 1 (<data>/disc1 is the
+// first disc, <data>/disc2 the second); without a disc0 folder that layout is
+// used.
 //
 // As on the GameCube, the FST of the inserted disc is copied to the top of MEM1
 // (DVDGetFSTLocation) and the disc id to 0x80000000. Entry numbers are FST
@@ -193,7 +196,9 @@ bool loadDisc(int no)
         return true;
     }
     char path[1200];
-    snprintf(d.root, sizeof(d.root), "%s/disc%d", gDataDir, no);
+    snprintf(d.root, sizeof(d.root), "%s/disc0", gDataDir);
+    int first = isDirectory(d.root) ? 0 : 1;  // the app's folders: disc1, disc2
+    snprintf(d.root, sizeof(d.root), "%s/disc%d", gDataDir, no + first);
     if (!isDirectory(d.root)) {
         if (no != 0) {
             return false;

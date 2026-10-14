@@ -148,6 +148,10 @@ if [ "$game_ok" -eq 0 ]; then
 fi
 
 # ---- build and cloud checks --------------------------------------------------------------
+# optimised like the Android build (port/tools/whole_build_android.sh); RE4_OPT=
+# (empty) checks the unoptimised build instead
+export RE4_OPT="${RE4_OPT-2}"
+opt="${RE4_OPT:+-O$RE4_OPT}"
 targets=(i686)
 [ "$arm" -eq 1 ] && targets+=(armhf)
 if [ "$build" -eq 1 ]; then
@@ -162,7 +166,7 @@ fi
 
 # ---- format comparison with the disc files ---------------------------------------------
 section "2. Formatvergleich App-Leser gegen Kern-Umwandler mit Disc-Daten"
-cmp="$src/port/build/whole-i686/re4_format_compare"
+cmp="$src/port/build/whole-i686$opt/re4_format_compare"
 if [ -x "$cmp" ]; then
     "$cmp" --data "$layout" --room "r$room" > "$run/formatvergleich.txt" 2> "$run/formatvergleich.log"
     code=$?
@@ -208,8 +212,9 @@ trace_state() {
 
 # target, overall limit, limit until the main loop, stall limit (seconds)
 run_game() {
-    local t="$1" limit="$2" main_limit="$3" stall="$4" dir="$src/port/build/whole-$1"
+    local t="$1" limit="$2" main_limit="$3" stall="$4" dir="$src/port/build/whole-$1$opt"
     local log="$run/spiel-$t.log" trace="$run/trace-$t.jsonl" cov="$run/abdeckung-$t.tsv"
+    local bridge="$run/bruecke-$t.jsonl"
     local runner=() bad=0
     [ "$t" = armhf ] && runner=(env QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf qemu-arm)
     section "3. Spiellauf r$room ($t): Titelbild, Debug-Start, $frames Bilder ab der Hauptschleife"
@@ -219,11 +224,11 @@ run_game() {
         return
     fi
     echo "  (Fortschritt alle 30 s; Abbruch bei $stall s ohne neues Bild, ohne Hauptschleife nach $main_limit s, spätestens nach $limit s)"
-    rm -f "$cov" "$trace" "$trace.gz"
+    rm -f "$cov" "$trace" "$trace.gz" "$bridge"
     local start=$SECONDS
     (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
         RE4_PAD_SCRIPT="$pad_script" RE4_STOP_AFTER="$frames" \
-        RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" \
+        RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" RE4_BRIDGE_DUMP="$bridge" \
         "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1 &
     local pid=$!
     # watchdog: progress, stall (no new trace data), no main loop, overall limit
@@ -320,6 +325,36 @@ run_game() {
         say "Zustands-Trace: $lines Bilder; im letzten Bild $enemies Gegner"
         say "  letzte Zeile: $(echo "$last" | cut -c1-600)"
         gzip -f "$trace"
+    fi
+    # core bridge (what the app would draw): models and their disc sources
+    if [ -s "$bridge" ]; then
+        python3 - "$bridge" "$room" <<'PY' | tee -a "$report"
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
+room = "0x" + sys.argv[2].lower()
+inroom = [r for r in rows if r["Rno0"] == 3 and r["room"] == room]
+last = inroom[-1] if inroom else rows[-1]
+models = last["models"]
+drawn = [m for m in models if m["drawn"]]
+def known(m):
+    return m["infos"] and all(i["bin"] and i["tpl"] for i in m["infos"])
+unknown = [m for m in drawn if not known(m)]
+print(f"Brücke zur App (Bild {last['frame']}, Schritt {last['Rno0']}, Raum {last['room']}): "
+      f"{len(models)} Figuren, davon {len(drawn)} sichtbar, {len(drawn) - len(unknown)} mit bekannter "
+      f"Modell-Herkunft auf der Disc; {last['parts']} Körperteile; Kamera {last['camera']}")
+seen = set()
+for m in drawn:
+    key = (m["mgr"], m["id"], json.dumps(m["infos"]))
+    if key in seen:
+        continue
+    seen.add(key)
+    srcs = "; ".join(f"BIN {i['bin'] or '?'} TPL {i['tpl'] or '?'}" for i in m["infos"]) or "kein Modell"
+    print(f"  {'Gegner' if m['mgr'] == 0 else 'Objekt'} {m['id']} Typ {m['type']}, {m['parts']} Teile: {srcs}")
+if unknown:
+    print(f"  Hinweis: {len(unknown)} sichtbare Figuren ohne bekannte Herkunft (die App kann sie noch nicht zeichnen)")
+PY
+    else
+        say "Brücke zur App: keine Ausgabe (RE4_BRIDGE_DUMP)"
     fi
     if [ "$bad" -ne 0 ]; then
         say "Letzte 60 Zeilen des Spiel-Logs (ohne Tastenzeilen):"

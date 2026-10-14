@@ -10,6 +10,7 @@
 #include "formats.h"
 
 #include "dvd.h"
+#include "re4_core.h"
 #include "re4_runtime.h"
 
 #include <ctype.h>
@@ -182,11 +183,16 @@ struct EntryNote {
     const void* addr;
     char tag[4];
     int status;
+    const void* archive;  // noteArchive address, 0 = not in an archive
+    int entry;
 };
 
 struct ArchiveNote {
     const void* addr;
+    u32 size;
     char name[80];
+    char file[52];   // path below files/
+    u32 fileOfs;
 };
 
 const u32 kNotes = 8192;
@@ -204,7 +210,7 @@ u32 slotOf(const void* addr)
 
 }  // namespace
 
-void noteEntry(const void* addr, const char* tag, int status)
+void noteEntry(const void* addr, const char* tag, int status, const void* archive, int entry)
 {
     u32 s = slotOf(addr);
     for (u32 i = 0; i < kNotes; i++) {
@@ -213,6 +219,8 @@ void noteEntry(const void* addr, const char* tag, int status)
             e.addr = addr;
             memcpy(e.tag, tag, 4);
             e.status = status;
+            e.archive = archive;
+            e.entry = entry;
             return;
         }
     }
@@ -236,17 +244,22 @@ int entryStatus(const void* addr, char* tag)
     return 0;
 }
 
-void noteArchive(const void* addr, const char* name)
+void noteArchive(const void* addr, unsigned size, const char* name, const Part& part)
 {
-    for (u32 i = 0; i < 64; i++) {
+    ArchiveNote* a = 0;
+    for (u32 i = 0; i < 64 && !a; i++) {
         if (g_archives[i].addr == addr) {
-            snprintf(g_archives[i].name, sizeof(g_archives[i].name), "%s", name);
-            return;
+            a = &g_archives[i];
         }
     }
-    ArchiveNote& a = g_archives[g_nextArchive++ % 64];
-    a.addr = addr;
-    snprintf(a.name, sizeof(a.name), "%s", name);
+    if (!a) {
+        a = &g_archives[g_nextArchive++ % 64];
+    }
+    a->addr = addr;
+    a->size = size;
+    snprintf(a->name, sizeof(a->name), "%s", name);
+    snprintf(a->file, sizeof(a->file), "%s", part.name ? part.name : "");
+    a->fileOfs = part.fileOfs;
 }
 
 }  // namespace re4fmt
@@ -432,7 +445,41 @@ extern "C" void re4_formats_unpacked(void* dst, unsigned size)
     static char label[96];
     snprintf(label, sizeof(label), "%s (unpacked)", g_packedName[0] ? g_packedName : "yz2 stream");
     Blob b = blob(dst, size, label);
-    Part part = { label, 0, 0, TRANS_MRAM, 0, 0 };
+    Part part = { g_packedName[0] ? g_packedName : label, 0, 0, TRANS_MRAM, 0, 0xFFFFFFFFu };
     convertArchive(b, part);
     re4_log("formats: %s: archive, %u bytes%s", label, size, b.ok ? "" : " (incomplete)");
+}
+
+// Core bridge (runtime/re4_core.h): the disc source of the archive entry at
+// `addr`, from the notes of the converter. The notes are written while the
+// game loads (its own thread); the bridge reads them on the same thread.
+extern "C" int re4_formats_locate(const void* addr, Re4CoreSource* out)
+{
+    memset(out, 0, sizeof(*out));
+    out->entry = -1;
+    if (!addr) {
+        return 0;
+    }
+    u32 s = slotOf(addr);
+    for (u32 i = 0; i < kNotes; i++) {
+        const EntryNote& e = g_notes[(s + i) % kNotes];
+        if (e.addr == 0) {
+            return 0;
+        }
+        if (e.addr != addr) {
+            continue;
+        }
+        for (u32 k = 0; k < 64; k++) {
+            const ArchiveNote& a = g_archives[k];
+            if (a.addr && a.addr == e.archive) {
+                snprintf(out->file, sizeof(out->file), "%s", a.file);
+                out->fileOffset = a.fileOfs;
+                out->archiveSize = a.size;
+                out->entry = e.entry;
+                return out->file[0] != 0 && e.entry >= 0;
+            }
+        }
+        return 0;
+    }
+    return 0;
 }

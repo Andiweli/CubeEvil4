@@ -1,0 +1,24 @@
+--- a/src/game/model.cpp
++++ b/src/game/model.cpp
+@@ -278,7 +278,10 @@
+ 
+ // Parts `no` (-1: the model itself); NULL and a log when the chain is shorter. Defined here so
+ // that the callers below inline it while setPartsParent above calls it.
+-inline cParts* cModel::getPartsPtr(int idx)
++// port: not `inline` -- other units call it out of line (GCC 2.95 emitted it
++// because setPartsParent calls it before its definition); an optimising clang
++// inlines every call here and would emit no definition at all.
++cParts* cModel::getPartsPtr(int idx)
+ {
+     cParts* p = pList;
+     int cnt;
+--- a/src/game/objRocket.cpp
++++ b/src/game/objRocket.cpp
+@@ -483,3 +483,7 @@
+     destroy(p);
+     flag = f;
+ }
++// port: pl_wep.cpp calls ObjMgr.destroyNow with only the declaration in view;
++// the explicit instantiation keeps a definition when an optimising compiler
++// inlines the use above.
++template void cManager<cObj>::destroyNow(cObj* p);

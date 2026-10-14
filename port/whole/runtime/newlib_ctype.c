@@ -11,7 +11,9 @@
 #define X 0100
 #define B 0200
 
-const char _ctype_[1 + 256] = {
+/* The game's units see this as _ctype_ (re4_whole_prelude.h renames it:
+ * Android's C library exports a pointer named _ctype_). */
+const char re4_newlib_ctype_[1 + 256] = {
     0,
     C, C, C, C, C, C, C, C, C, C | S, C | S, C | S, C | S, C | S, C, C,
     C, C, C, C, C, C, C, C, C, C, C, C, C, C, C, C,

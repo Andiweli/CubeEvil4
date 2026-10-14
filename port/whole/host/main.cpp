@@ -8,6 +8,8 @@
 //   re4_host --self-test      call through a generated cross-module trampoline
 //   re4_host --runtime-test   OSLink, DVD and yz2 checks without disc data
 //                             (tests/runtime_tests.cpp)
+//   re4_host --core-test      the embedding interface of the Android app
+//                             without disc data (tests/core_tests.cpp)
 //
 // kill -USR1 <pid> prints a backtrace of the running context and of every OS
 // thread's last wait (with RE4_WAIT_TRACE=1): the hang search.
@@ -28,6 +30,7 @@
 #include <unistd.h>
 
 int re4_runtime_tests();
+int re4_core_tests();
 
 static void crashHandler(int sig)
 {
@@ -131,6 +134,9 @@ extern "C" __attribute__((visibility("default"))) int re4_host_main(int argc, ch
     }
     if (argc > 1 && strcmp(argv[1], "--runtime-test") == 0) {
         _exit(re4_runtime_tests() ? 1 : 0);
+    }
+    if (argc > 1 && strcmp(argv[1], "--core-test") == 0) {
+        _exit(re4_core_tests() ? 1 : 0);
     }
     // The game tests bit 31 of addresses of its own data (as on the GameCube).
     re4_check_game_address("libre4_main", (const void*) &re4_game_main);

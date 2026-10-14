@@ -4,11 +4,15 @@
 #   port/tools/whole_build.sh            # i686 and armhf
 #   port/tools/whole_build.sh i686       # one target
 #   RE4_JOBS=4 port/tools/whole_build.sh # at most 4 compile jobs (memory)
+#   RE4_OPT=2 port/tools/whole_build.sh  # optimised like the Android build
+#                                        # (build folders whole-<target>-O2)
 #
 # Per target: build (libre4_main.so, 114 module libraries, re4_host), then
 #   re4_host --self-test       cross-module trampolines pass arguments intact
 #   re4_host --check-modules   every module loads, every cross-module import resolves
 #   re4_host --runtime-test    OSLink, DVD folder and yz2 work without disc data
+#   re4_host --core-test       the embedding interface of the app (core thread,
+#                              controller, snapshots) without disc data
 #   re4_format_compare         the Formatumwandler against the app's checked
 #                              big-endian readers (synthetic samples, then the
 #                              same as a disc folder: test_whole_format_compare.py)
@@ -25,15 +29,16 @@ status=0
 # the runtime test checks the per-thread wait record of the hang search
 export RE4_WAIT_TRACE=1
 for t in "${targets[@]}"; do
-    build="$root/port/build/whole-$t"
-    log="$root/port/build/whole-$t.log"
+    name="whole-$t${RE4_OPT:+-O$RE4_OPT}"
+    build="$root/port/build/$name"
+    log="$root/port/build/$name.log"
     mkdir -p "$root/port/build"
     cmake -S "$root/port/whole" -B "$build" -G Ninja \
-        -DCMAKE_TOOLCHAIN_FILE="$root/port/whole/cmake/linux-$t.cmake" > "$log" 2>&1 &&
+        -DCMAKE_TOOLCHAIN_FILE="$root/port/whole/cmake/linux-$t.cmake" -DRE4_OPT_LEVEL="${RE4_OPT:-}" > "$log" 2>&1 &&
         ninja -C "$build" -k 0 ${RE4_JOBS:+-j "$RE4_JOBS"} >> "$log" 2>&1
     failed=$(grep -c '^FAILED' "$log")
     errors=$(grep -E ': error:|fatal error:|ld.lld: error' "$log" | sort -u | wc -l)
-    echo "$t: $failed failed build steps, $errors distinct errors (log: port/build/whole-$t.log)"
+    echo "$t${RE4_OPT:+ -O$RE4_OPT}: $failed failed build steps, $errors distinct errors (log: port/build/$name.log)"
     grep -h '^link plan:' "$log" | tail -1 | sed 's/^/  /'
     if [ "$failed" -ne 0 ] || [ "$errors" -ne 0 ]; then
         status=1
@@ -47,10 +52,10 @@ for t in "${targets[@]}"; do
         fi
         run=(env QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf qemu-arm)
     fi
-    for check in --self-test --check-modules --runtime-test; do
+    for check in --self-test --check-modules --runtime-test --core-test; do
         out=$(cd "$build" && timeout 300 "${run[@]}" ./re4_host "$check" 2>&1)
         code=$?
-        echo "  re4_host $check: exit $code | $(echo "$out" | grep -E 'self-test:|check-modules:|runtime-test' | tr '\n' ' ' | sed 's/\[re4\] //g')"
+        echo "  re4_host $check: exit $code | $(echo "$out" | grep -E 'self-test:|check-modules:|runtime-test|core-test' | tr '\n' ' ' | sed 's/\[re4\] //g')"
         [ "$code" -ne 0 ] && status=1
     done
     out=$(cd "$build" && timeout 300 "${run[@]}" ./re4_format_compare 2>&1)

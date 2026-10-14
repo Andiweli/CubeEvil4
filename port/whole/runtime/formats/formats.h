@@ -140,8 +140,12 @@ void convertEvs(Blob& b, const Part& part);          // EVS
 // Coverage (formats.cpp): what each archive entry became, for the
 // GetDataExt log (patch 0025, re4_formats_get_data).
 enum EntryStatus { kEntryConverted = 1, kEntryNoConverter = 2, kEntryIncomplete = 3 };
-void noteEntry(const void* addr, const char* tag, int status);
-void noteArchive(const void* addr, const char* name);
+// `entry`: index in the archive at `archive` (noteArchive); the core bridge
+// (re4_formats_locate) tells the app where a model's BIN/TPL came from.
+void noteEntry(const void* addr, const char* tag, int status, const void* archive = 0, int entry = -1);
+// An archive of `size` bytes from files/<part.name>, part.fileOfs bytes into
+// the file (0xFFFFFFFF: Yz2-packed, the archive is the unpacked file).
+void noteArchive(const void* addr, unsigned size, const char* name, const Part& part);
 // what noteEntry recorded (0 = nothing); tag, if given, receives its tag (4 chars)
 int entryStatus(const void* addr, char* tag = 0);
 
