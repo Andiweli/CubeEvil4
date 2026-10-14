@@ -3,7 +3,7 @@
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
-    <application android:name=".Re4Application" android:label="RE4 Decomp" android:icon="@drawable/ic_launcher"
+    <application android:name=".Re4Application" android:label="@string/app_label" android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher"
         android:banner="@drawable/tv_banner"
         android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false"
@@ -12,6 +12,8 @@
         <activity android:name=".StartupActivity" android:exported="false" android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden" />
         <activity android:name=".RoomCheckActivity" android:exported="false" />
+        <activity android:name=".CoreActivity" android:exported="false" android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation" />
         <activity android:name=".ControllerActivity" android:exported="false" android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden" />
         <activity android:name=".MainActivity" android:exported="true">

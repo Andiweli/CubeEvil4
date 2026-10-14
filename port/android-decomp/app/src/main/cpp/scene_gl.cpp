@@ -652,7 +652,7 @@ void DrawSceneGl(int w, int h, float horizontal, float vertical, float zoom,
   // bars hide part of that picture; crop those rows before adapting the
   // visible picture to the display. Ordinary scripted room cameras retain
   // their whole frame, and mirror RTT keeps its own original projection.
-  float aspect = eventCamera?1.3333334f:float(std::max(w, 1)) / std::max(h, 1), f = 1.7320508f;
+  float aspect = eventCamera && !(probe && probe->screenAspect && !event)?1.3333334f:float(std::max(w, 1)) / std::max(h, 1), f = 1.7320508f;
   if (probe)
     f = float(1. / std::tan(followPose.fovDegrees * 3.14159265358979323846 / 360.));
   if (aspect < 1)
@@ -1054,6 +1054,10 @@ void DrawSceneGl(int w, int h, float horizontal, float vertical, float zoom,
     if(event) {
       DrawEventEffectModelsGl(column,worldCenter,worldScale,*event,normalView);
       DrawEventActorsGl(column,worldCenter,worldScale,*event,normalView);
+      glUseProgram(program);
+    }
+    if(probe && probe->extraActors) {
+      probe->extraActors(column,worldCenter,worldScale,normalView);
       glUseProgram(program);
     }
     if(probe && probe->r100Secondary)for(const auto &a:probe->r100Secondary->actors()) {

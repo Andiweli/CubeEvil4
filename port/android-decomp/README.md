@@ -94,7 +94,19 @@ Der vollständige unveränderte Upstream liegt in `upstream/re4/`. Geprüfte nat
 
 Den Ordner **RE4-Android-Decomp** öffnen, Gradle synchronisieren und `app` bauen/starten.
 Android Studio erzeugt die lokale `local.properties`. Keine SDK-Pfade aus einem anderen Rechner übernehmen.
-Alternativ: `bash ./gradlew assembleDebug lintDebug` beziehungsweise `gradlew.bat assembleDebug lintDebug`.
+Alternativ: `bash ./gradlew assembleClassicDebug lintClassicDebug` beziehungsweise `gradlew.bat assembleClassicDebug lintClassicDebug`.
+
+**Zwei App-Varianten (seit K2, Build Variants in Android Studio):**
+
+| Variante | Inhalt |
+|---|---|
+| `classicDebug` (Standard) | die bisherige App „RE4 Decomp“ mit den eigenen Spielmodulen, ARM64, `com.ast.re4decomp` |
+| `coreDebug` | Kernmodus „RE4 Kern“: der Original-Spielkern (`port/whole`) übernimmt die ganze Spiellogik, die App zeichnet, liest den Controller und importiert die Discs; ARM32 (`armeabi-v7a`), ab Android 6.0, `com.ast.re4decomp.core`, wird neben der bisherigen App installiert und braucht einen eigenen, vollständigen Disc-Import |
+
+Für `coreDebug` vorher die Kern-Bibliotheken bauen (WSL/Linux, Android-NDK r28c):
+`port/tools/whole_build_android.sh` legt sie nach `app/src/core/jniLibs/armeabi-v7a/`
+(nicht im Repository). Bauen, installieren und auf dem Retroid prüfen in einem Schritt:
+`port/scripts/test-core-app.ps1`. Einzelheiten: `port/docs/whole-program-status.md`, Abschnitt K2.
 Signierschlüssel sind nicht enthalten; ein Debug-Build nutzt den lokalen Android-Debugschlüssel.
 
 API 21 folgt aus ARM64 und dem gewählten modernen NDK. GLES 3.0 erfordert keine höhere API.

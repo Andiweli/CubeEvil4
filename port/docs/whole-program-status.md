@@ -14,7 +14,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M4 Teil B: Booten mit echten Disc-Daten bis `gameRoomInit` (lokal, WSL2) | ✅ 13.10.2026 (i686 und armhf unter qemu) |
 | M4.5 Kern korrekt machen: C-Ersatz für Assembler, Byte-Aggregate, `__FILE__`-Länge | ✅ 14.10.2026 (Cloud, i686 und armhf) |
 | M5 Erster Raum r100 | ✅ 14.10.2026: lokal mit Disc-Daten (i686 in WSL2) 10 000 Bilder ab der Hauptschleife ohne Absturz, Abdeckung ohne „nein“, Formatvergleich 152 Dateien ohne Fehler. armhf mit Disc-Daten nicht gelaufen (`-Arm`, optional) |
-| K2 „Kern in die App“ (M6) | offen (Startprompt am Ende der Sitzung vom 14.10.2026, nach dem dritten lokalen Lauf erneuert) |
+| K2 „Kern in die App“ (M6) | ⏳ 14.10.2026: Cloud-Teil fertig (Einbettungs-Schnittstelle, App-Variante „core“, Zustandsbrücke, Prüfungen ohne Disc-Daten grün); NDK-Build, APK-Build und Retroid-Test stehen aus (lokal, `port/scripts/test-core-app.ps1`) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -34,6 +34,7 @@ erweitert.
 # neben dem ARM-Cross-Compiler.
 port/tools/whole_build.sh          # baut und prüft i686 und armhf
 RE4_JOBS=4 port/tools/whole_build.sh   # höchstens 4 Compiler gleichzeitig (Speicher)
+RE4_OPT=2 port/tools/whole_build.sh    # mit -O2 wie der Android-Build (Ordner whole-<ziel>-O2)
 ```
 
 Je Ziel: Build, dann drei Prüfungen von `re4_host` und der Formatvergleich
@@ -43,6 +44,7 @@ Je Ziel: Build, dann drei Prüfungen von `re4_host` und der Formatvergleich
 |---|---|
 | `--self-test` | Weiterleitungen zwischen Modulen geben Argumente korrekt weiter |
 | `--check-modules` | alle 114 Module laden, alle Querverweise lösen sich auf |
+| `--core-test` | Einbettungs-Schnittstelle der App ohne Disc-Daten (`port/whole/tests/core_tests.cpp`, `core_probe.cpp`): `bridge` Schnappschuss aus einem nachgebauten Gegner (EmMgr, Teile, Modell-Info, Kamera, Raum), `thread` Kern-Thread mit Testeinstieg, Controller über `re4_core_pad`, Dreifachpuffer |
 | `--runtime-test` | Plattformschicht ohne Disc-Daten (`port/whole/tests/runtime_tests.cpp`): `link` OSLink/OSUnlink mit synthetischem big-endian REL-Kopf und Testmodul; `dvd` DVD-API über einen synthetischen Zwei-Disc-Ordner; `yz2` Yz2 des Spiels + Kern mit den Testdaten `port/tests/yz2_fixtures.h`; `dvdq` die DVD-Warteschlange des Spiels liest eine synthetische mehrteilige Datei in den Spiel-Heap; `math` PS*/C_*-Matrixfunktionen, die C-Fassungen der Gekko-Assembler-Funktionen (Tabelle mit Bitmustern aus einem Python-Modell der Paired-Single-Befehle), Skinning `CalcSk1` mit GQR-Quantisierung, `EmRoutineSetW`, die big-endian Sichten, die Länge von `__FILE__`; `trace` Zustands-Trace, GetDataExt-Abdeckung, Ende des Test-Tastenskripts; `tasks` der Task-Scheduler des Spiels (`TaskExec`, `TaskSleep`, `TaskExit`, `iTaskExec`) auf der Thread-Emulation, dazu VI-Retraces |
 | `re4_format_compare` | Formatumwandler gegen die geprüften big-endian Leser der App, mit synthetischen Beispielen jedes verglichenen Formats; danach `port/tools/test_whole_format_compare.py`: dieselben Beispiele als Disc-Ordner (Raumdatei Yz2-gepackt, `.drs`-Container), Modus `--data` (siehe „Formatvergleich mit der App“) |
 
@@ -380,6 +382,135 @@ Dolphin-Extraktion, Port-Ordner oder App-Import-Ordner. In der Cloud nur mit
 einem künstlichen Disc-Ordner und einem nachgebauten `wsl.exe` unter
 PowerShell 7 durchgespielt.
 
+## K2 „Kern in die App“ (M6)
+
+### Cloud-Teil (14.10.2026)
+
+**Ablauf in der App (Variante „core“):**
+
+1. `JNI_OnLoad` (`app/src/main/cpp/core_mode.cpp`) lädt `libre4_main.so` mit
+   `dlopen(RTLD_NOW | RTLD_LOCAL)` (die Bibliotheken liegen unkomprimiert in
+   der APK, `libre4_platform.so` und `libc++_shared.so` lädt der Linker mit)
+   und ruft `re4_mem1_init`: MEM1 `0x80000000–0x83000000` ist reserviert,
+   bevor die App GL oder Java-Threads startet. Fehlt eine Bibliothek, zeigt
+   die App „core libraries missing (port/tools/whole_build_android.sh)“.
+2. `CoreActivity` ruft `re4_core_reserve(<Datenordner>, "")`: Datenordner
+   der App (`…/files/game` mit `disc1/`, `disc2/`), Module per bloßem Namen
+   `libre4_<modul>.so` aus der APK; prüft mit `dladdr` die Lage von
+   `libre4_main` (wie `re4_check_game_address`, ohne Abbruch, Meldung im
+   Overlay). Danach `re4_core_start`: eigener Thread (8 MB Stack), darin
+   `re4_os_run(re4_game_main)` als Boot-Thread der Thread-Emulation. Der
+   Bildtakt kommt wie unter Linux aus den VI-Retraces der Plattformschicht;
+   der GL-Thread wartet nie auf den Kern.
+3. Pro Spielbild (in `PADRead`, Bildhaken `re4_add_frame_hook`) schreibt der
+   Kern einen Schnappschuss (`re4_bridge_capture`, `runtime/core_bridge.cpp`)
+   in einen Dreifachpuffer; der GL-Thread holt den neuesten mit
+   `re4_core_acquire`/`re4_core_release`.
+4. Der Controller geht über `re4_core_pad` an PAD-Kanal 0
+   (`runtime/pad.cpp`, ersetzt das Test-Tastenskript, sobald es endet).
+   Belegung (Meilenstein 7 verfeinert sie): A→A, B→B, X→X, Y→Y, L1→L, R1→Z,
+   L2→L, R2→R, Start→START, Steuerkreuz/Hat→Steuerkreuz, linker/rechter
+   Stick → Haupt-/C-Stick (±100), analoge Schultertasten 0–255 (ab 85 %
+   zusätzlich digital L/R). SELECT blendet das Diagnose-Overlay ein/aus,
+   Zurück fragt „End the game?“ und beendet den Prozess (der Kern lässt sich
+   im selben Prozess nicht neu starten).
+
+**Schnittstelle** `port/whole/runtime/re4_core.h` (Version 1, reines C, gleiche
+Struktur-Größe auf 32 und 64 bit): `re4_core_reserve`, `re4_core_start`,
+`re4_core_state` (idle/running/ended/failed), `re4_core_message`,
+`re4_core_pad`, `re4_core_acquire`/`re4_core_release`, `re4_core_log_tail`
+(letzte 24 Log-Zeilen für das Overlay), für Tests `re4_core_start_entry`.
+Umgesetzt in `runtime/core_api.cpp` (in `libre4_main`).
+
+**Schnappschuss** (`Re4CoreSnapshot`, 323 644 Byte): Spielschritt
+`Rno0..3`, Raum, Disc, Kamera aus `pG->Camera` (Augpunkt, Ziel, Rollwinkel,
+Öffnungswinkel), bis 128 Modelle aus `EmMgr` (Gegner) und `ObjMgr` (Objekte):
+lebend (`be_flag & 0x201 == 1`), Zeichen-Bits `2|4`, Weltmatrix, je Teil die
+Weltmatrix `cParts::mat` und die Bindung (−`lt_inv_mat`-Verschiebung), bis
+4096 Teile. Für jede Modell-Info (`pModelInfo`) die Herkunft der BIN- und
+TPL-Daten auf der Disc (Datei, Archiv-Offset, Eintrag): Die Formatumwandler
+merken sich beim Laden jedes Archiv und jeden Eintrag
+(`re4_formats_locate`). Yz2-gepackte Archive (Raumdateien) haben keinen
+Datei-Offset; die App lädt Raummodelle über ihren Raumlader.
+
+**Zeichnen** (`app/src/main/cpp/core_scene.cpp`, `CoreScene`): bis zum ersten
+Raum (Schritt < 2) das Titelbild (größtes Bild der Titeldaten der App), danach
+der Raum über den Raumlader der App (`RoomRepository` entpackt `r%03x.das` und
+die Blockdateien, `core.das` für Himmel/Wasser) und der vorhandene
+GLES3-Renderer (`DrawSceneGl`) mit der Kamera des Kerns (4:3 wie das Original,
+auf den Bildschirm gestreckt wie bisher). Die Modelle des Kerns zeichnet ein
+neuer Haken `SceneProbe::extraActors` mit dem `GenericEventActor` der App: BIN
+und TPL liest die App selbst von der Disc (ihre geprüften big-endian Leser),
+die Pose kommt aus den Teile-Matrizen des Kerns. Display-Listen und Texel aus
+dem Spielspeicher werden dafür nicht gebraucht. Statusanzeige im Overlay:
+„frame, step, room, disc, models (drawn, missing), room loaded“ und die
+letzten Log-Zeilen.
+
+**App-Variante** (`app/build.gradle`, `flavorDimensions 'engine'`):
+`classic` = bisherige App (arm64-v8a, `com.ast.re4decomp`, Standard in
+Android Studio), `core` = Kernmodus (armeabi-v7a, `com.ast.re4decomp.core`,
+Name „RE4 Kern“, ab Android 6.0, CMake `-DRE4_CORE_MODE=ON`). Im Kernmodus startet „Start
+game“ die `CoreActivity` statt `StartupActivity`; Raumbrowser und
+Diagnosen (eigene Spielmodule `r100_scenario`, `enemy_encounter`,
+`event_playback` …) sind ausgeblendet und werden nie aufgerufen (sie bleiben
+im Code für `classic`). Der Disc-Import übernimmt im Kernmodus alle Dateien
+(auch andere Sprachen) und schreibt zusätzlich `sys/boot.bin` (0x440 Byte)
+und `sys/fst.bin` (Layout wie `runtime/dvd.cpp`); eine Disc gilt im
+Kernmodus nur mit `sys/fst.bin` als importiert. `runtime/dvd.cpp` nimmt
+`disc1/`, `disc2/` (App) wenn `disc0/` fehlt.
+
+**Android-Build des Kerns** `port/tools/whole_build_android.sh` (WSL/Linux,
+NDK r28c = 28.2.13676358 wie die App, `sudo port/tools/whole_setup_linux.sh
+--android` lädt es nach `/opt/android-ndk-r28c`): armeabi-v7a, API 21,
+`c++_shared`, `-O2`, 16-KB-Seiten. Prüft vor dem Kopieren: alle Bibliotheken
+gebaut, 114 Module, dieselben Platzhalter wie der Linux-Build (Patch 0027),
+die `re4_core_*`-Exporte. Kopiert nach `app/src/core/jniLibs/armeabi-v7a/`
+(nicht im Repository), Debug-Abschnitte entfernt.
+
+**Testschalter für die App:** Das Intent-Extra `coreSettings`
+(`"RE4_X=wert;…"`) setzt Umgebungsvariablen des Kerns vor dem Start
+(`RE4_START_ROOM`, `RE4_PAD_SCRIPT`, `RE4_PAD_UNTIL_ROOM` …;
+`state_trace.cpp` liest seine Schalter deshalb beim Kernstart neu).
+
+**Prüfungen in der Cloud (14.10.2026):**
+
+| Prüfung | Ergebnis |
+|---|---|
+| `port/tools/whole_build.sh` (i686, armhf unter qemu) inkl. `--core-test` | grün |
+| `RE4_OPT=2 port/tools/whole_build.sh` (wie Android) | grün, 209 Platzhalter wie `-O0` |
+| `core_scene_gl_check` (App-Renderer, EGL ohne Bildschirm, Mesa llvmpipe; synthetische Disc aus `tests/format_compare/samples.h`) | 31 Prüfungen: Pfade ohne Groß/Klein, Yz2-Quelle abgelehnt, Titel ohne Daten schwarz, Raum gebaut, Modell gezeichnet/versteckt, Teile-Matrizen bewegen das Modell |
+| `re4decomp_link_check` (die native App-Bibliothek der Variante core auf dem Host mit `--no-undefined`) | linkt |
+| Java der App (alle Klassen) gegen Android-API 34 mit `javac` | übersetzt; JNI-Namen (8) passen zu `core_mode.cpp` |
+| App-Hosttests 32 bit (i686, `-msse2 -mfpmath=sse`) | wie 64 bit: nur die 2 schon vorher fehlschlagenden Tests |
+
+**Nicht in der Cloud geprüft** (kein Android-NDK/SDK erreichbar,
+`dl.google.com` gesperrt): NDK-Build des Kerns, Gradle-/APK-Build,
+Gerätelauf, Bilder mit echten Disc-Daten.
+
+### Lokale Prüfungen für K2
+
+1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
+   Bilder: Der Kern schreibt mit `RE4_BRIDGE_SNAPSHOT` bis zu 8
+   Schnappschüsse (30 Bilder nach Beginn der Hauptschleife, dann alle 2500),
+   `core_snapshot_render` (`port/android-decomp/tools/`) zeichnet sie mit dem
+   App-Renderer und den Disc-Daten (Bericht Abschnitt 4, Ordner `bilder`).
+   Braucht die Mesa-Pakete aus `whole_setup_linux.sh`.
+2. `port/scripts/test-core-app.ps1`: (1) WSL: NDK einrichten, Kern bauen
+   (`whole_build_android.sh --source <Windows-Checkout> --into <App>`),
+   (2) Windows: `gradlew.bat :app:assembleCoreDebug`, (3) Retroid unter der
+   Sperre `Global\Retroid_ADB_Exclusive`: installieren (prüft
+   `primaryCpuAbi=armeabi-v7a`), mit Debug-Start r100 und der
+   Test-Tastenfolge starten (`-Manual`: Titelbild, selbst spielen),
+   Bildschirmfotos bei 15, 40, 70, 95 … s, Protokoll (`logcat` der App ab
+   Startzeit), App beenden. Bericht `Desktop\RE4-Kern-App\bericht.txt`.
+   Vorher in der App „RE4 Kern“ beide Discs importieren.
+
+Ziel des Gerätetests: Titelbild sichtbar, r100 mit Originalablauf (Ereignis
+s03, Tor, Hinterhalt). Grenzen dieses Stands: Effekte, Partikel, Schrift,
+Menüs und 2D-Anzeigen des Spiels zeichnet die Brücke noch nicht (das braucht
+den GX-Ersatz); Modelle ohne Disc-Herkunft (aus gepackten Raumdateien)
+erscheinen als „missing“. Ton fehlt (M8).
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -448,6 +579,7 @@ sie ersetzt.
 | `TaskFunc`: Klasse statt `void*` (`re4_task_func.h`, gleiche Größe) | GCC 2.95 wandelte Funktionszeiger still in `void*` um, modernes C++ nicht |
 | `(u16*) &pG->stage_no` → `(u16*) &pG->room_id`, `stage_prev` → `room_id_prev` (`ROOM_ID_ADDR`) | `G_ROOM_ID` und `RsfCheck(*(u16*) &pG->stage_no, …)` lesen die Raumnummer über die Adresse ihres ersten Bytes; auf little-endian liegt `stage_no` nach Patch 0016 am anderen Ende (auf der GameCube dieselbe Adresse) |
 | `new (p) T()` → `new (p) T` (`PLACEMENT_VALUE_INIT`) | C++11 füllt eine Klasse ohne eigenen Konstruktor bei `T()` erst mit Nullen; der GameCube-Compiler nicht. `em.cpp` setzt `subArc` vor `new (em) cEm10()` (Absturz in `Em12Set`, 14.10.2026). Prüfung: `port/tools/whole_value_init.py` |
+| Prelude: `#define _ctype_ re4_newlib_ctype_` (nach den System-Headern) | Bionic exportiert `_ctype_` als Zeiger, newlib (das Spiel, `t_movie`) als Feld; die Tabelle heißt jetzt `re4_newlib_ctype_` (`runtime/newlib_ctype.c`), Bionics Zeiger bleibt unberührt (K2) |
 | Prelude: `Re4BeBytes2` | Byte-Array-Sicht `b[0]` = hohes, `b[1]` = niedriges Byte eines Halbworts, unabhängig von der Host-Reihenfolge (Patch 0016: `cItem::lv8`, `SND_RND::b`) |
 
 Compiler-Schalter: `-std=gnu++11 -Wno-c++11-narrowing -fdelayed-template-parsing
@@ -482,6 +614,7 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0024 `pl_sub.cpp` | Bit 0x40 im ersten Byte von `cMotBase::pMod` (ungecachter Spiegel der GameCube) entfällt; auf little-endian träfe es ein anderes Objekt |
 | 0025 `read.cpp` | `GetDataExt` meldet jeden Fund an `re4_formats_get_data` (Abdeckungs-Log) |
 | 0026 `title.cpp` | Debug-Start: `RE4_START_ROOM` wählt den Raum im Debug-Startmenü vor, Titelmenü auf „Neues Spiel“ |
+| 0027 `model.cpp`, `objRocket.cpp` | Mit `-O2` (Android) gibt clang Inline-Funktionen, die nur in einer `.cpp` definiert sind, nicht aus; Module brauchen sie: `cModel::getPartsPtr` ohne `inline`, `cManager<cObj>::destroyNow` ausdrücklich instanziiert. Ohne den Patch zwei Platzhalter mehr als bei `-O0` |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -565,9 +698,12 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `yz2_decode.cpp` + `port/src/yz2_kernel.cpp` | `yz2Decode_Decode`: der geprüfte Kern des alten Ports unverändert, ein Adapter verbindet ihn mit `yz2code.cpp` des Spiels |
 | `mtx_ps.c` + `sdk_c/` | Matrix-/Vektor-/Quaternion-Mathematik (C-Fassungen des SDK) |
 | `byte_order.cpp` | Byte-Tausch-Helfer für Format-Umwandler |
-| `newlib_ctype.c` | newlib-Zeichentabelle `_ctype_` |
+| `newlib_ctype.c` | newlib-Zeichentabelle `_ctype_` (heißt seit K2 `re4_newlib_ctype_`, Prelude-Regel) |
 | `card.cpp` (M4 B) | Speicherkarte: beide Schächte leer, jeder `CARD*`-Aufruf liefert `CARD_RESULT_NOCARD` (wie das SDK bei leerem Schacht); das Spiel zeigt „keine Speicherkarte“ und läuft ohne Speichern weiter. Echtes Speichern: M10 |
-| `pad.cpp` (M4 B) | Controller: Kanal 0 angeschlossen, Kanäle 1–3 leer (ein zweiter Controller ließe den Titel die Logos überspringen). Tasten aus der Testfolge `RE4_PAD_SCRIPT` (`TASTEN@BILD` drückt 3 Bilder lang, `TASTEN@VON-BIS/ALLE` wiederholt; Tasten `A B X Y Z L R START UP DOWN LEFT RIGHT`, mit `+` verbunden; Bild = Zahl der `PADRead`-Aufrufe). Echte Eingabe: M7 |
+| `pad.cpp` (M4 B) | Controller: Kanal 0 angeschlossen, Kanäle 1–3 leer (ein zweiter Controller ließe den Titel die Logos überspringen). Tasten aus der Testfolge `RE4_PAD_SCRIPT` (`TASTEN@BILD` drückt 3 Bilder lang, `TASTEN@VON-BIS/ALLE` wiederholt; Tasten `A B X Y Z L R START UP DOWN LEFT RIGHT`, mit `+` verbunden; Bild = Zahl der `PADRead`-Aufrufe). Seit K2 zusätzlich `re4_pad_live` (Controller der App, sobald kein Testskript läuft) und Bildhaken `re4_add_frame_hook` (bis 4, je `PADRead`). Feinschliff der Eingabe: M7 |
+| `core_api.cpp` (K2) | Einbettungs-Schnittstelle `re4_core.h` für die App: Kern-Thread, Status, Controller, Dreifachpuffer der Schnappschüsse; Testausgaben `RE4_BRIDGE_DUMP`, `RE4_BRIDGE_SNAPSHOT` |
+| `core_bridge.cpp` (K2) | Schnappschuss des Spielzustands (Kamera, Raum, Modelle aus EmMgr/ObjMgr mit Teile-Matrizen und Disc-Herkunft); mit den Schaltern des Spielcodes gebaut |
+| `log.cpp` | Log (Linux: stderr, Android: logcat-Tag `re4`), seit K2 mit den letzten 24 Zeilen für das Overlay der App (`re4_log_tail`) |
 | `tex_palette.cpp` (M4 B) | `TEXGet` des SDK (`src/lib/texPalette.c` braucht sonst den SDK-Dateicache) |
 | `mem1.cpp` (M4 B) | zusätzlich `re4_check_game_address`: bricht mit Logmeldung ab, wenn `libre4_main` oder ein Modul unter `0x80000000` geladen wurde |
 
@@ -767,11 +903,8 @@ Der Platz sollte früh reserviert werden (beim Laden von `libre4_platform`).
 - **Hintergrund-Task (iTask):** läuft ohne Unterbrechung bis zum Ende. Für
   echtes Zeitscheiben-Verhalten `re4_interrupt_point()` in lange Schleifen
   (z. B. den Yz2-Kern über seinen Checkpoint) einbauen.
-- **Android-Einbindung:** `libre4_platform`, `libre4_main` und die Module in
-  das Android-Studio-Projekt; `_ctype_` kollidiert dort mit Bionics
-  gleichnamigem Zeiger (prüfen, nur Debug-Werkzeug `t_movie` liest ihn). Der
-  JNI-Start ruft `re4_check_game_address` für `libre4_main` und reserviert
-  MEM1 früh.
+- **Android-Einbindung:** erledigt im Cloud-Teil von K2 (siehe dort);
+  `_ctype_` über die Prelude-Regel umbenannt. Gerätetest steht aus.
 
 ## Bekannte Risiken für die Laufzeit (M4/M5)
 

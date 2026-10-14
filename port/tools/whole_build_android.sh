@@ -2,7 +2,15 @@
 # Builds the game core for the Android app (armeabi-v7a, the core mode of
 # RE4-Android-Decomp) with the NDK and copies the libraries into the app:
 #
-#   port/tools/whole_build_android.sh [--ndk DIR] [--opt N]
+#   port/tools/whole_build_android.sh [--ndk DIR] [--opt N] [--source REPO] [--into APP]
+#
+#   --source REPO  build the current commit of that checkout (for the Windows
+#                  checkout under /mnt/...: cloned once to ~/re4-kern/RE4 and
+#                  fetched, like whole_r100_check.sh; building on a Windows
+#                  drive would be slow)
+#   --into APP     copy the libraries into APP/src/core (default: the app of
+#                  the built checkout); port/scripts/test-core-app.ps1 passes
+#                  the Windows checkout's app folder
 #
 #   libre4_platform.so, libre4_main.so, libre4_<module>.so (114), libc++_shared.so
 #     -> port/android-decomp/app/src/core/jniLibs/armeabi-v7a/   (not in git)
@@ -22,13 +30,40 @@ set -u
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 ndk="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-/opt/android-ndk-r28c}}"
 opt=2
+source=""
+into=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --ndk) ndk="$2"; shift 2 ;;
         --opt) opt="$2"; shift 2 ;;
+        --source) source="$2"; shift 2 ;;
+        --into) into="$2"; shift 2 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
+if [ -n "$source" ]; then
+    work="$HOME/re4-kern"
+    root="$work/RE4"
+    mkdir -p "$work"
+    git_s() { git -c safe.directory='*' "$@"; }
+    if [ ! -d "$root/.git" ]; then
+        echo "Quelltext wird nach $root kopiert (einmalig) ..."
+        rm -rf "${root:?}"
+        git_s clone -q "$source" "$root" || { echo "git clone von $source fehlgeschlagen" >&2; exit 1; }
+    fi
+    git_s -C "$root" fetch -q "$source" HEAD || { echo "git fetch von $source fehlgeschlagen" >&2; exit 1; }
+    git_s -C "$root" checkout -q --detach FETCH_HEAD || exit 1
+    echo "Stand: $(git_s -C "$root" log -1 --format='%h %s')"
+fi
+if [ -z "${RE4_JOBS:-}" ]; then
+    # about 1.5 GB of memory per compile job (clang on the big units)
+    jobs=$(( $(awk '/MemTotal/ {print $2}' /proc/meminfo) / 1500000 ))
+    [ "$jobs" -gt "$(nproc)" ] && jobs=$(nproc)
+    [ "$jobs" -lt 1 ] && jobs=1
+    export RE4_JOBS=$jobs
+fi
+app="${into:-$root/port/android-decomp/app}"
+
 toolchain="$ndk/build/cmake/android.toolchain.cmake"
 if [ ! -f "$toolchain" ]; then
     echo "FEHLER: kein Android-NDK unter $ndk (einmal: sudo port/tools/whole_setup_linux.sh --android)" >&2
@@ -43,8 +78,8 @@ esac
 
 build="$root/port/build/whole-android-armv7"
 log="$build.log"
-out="$root/port/android-decomp/app/src/core/jniLibs/armeabi-v7a"
-assets="$root/port/android-decomp/app/src/core/assets"
+out="$app/src/core/jniLibs/armeabi-v7a"
+assets="$app/src/core/assets"
 mkdir -p "$root/port/build"
 echo "Build (Log: port/build/whole-android-armv7.log) ..."
 cmake -S "$root/port/whole" -B "$build" -G Ninja \

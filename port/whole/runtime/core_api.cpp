@@ -19,6 +19,7 @@
 extern "C" void re4_pad_live(const Re4CorePad* pad);
 extern "C" void re4_add_frame_hook(void (*hook)(unsigned));
 extern "C" int re4_log_tail(char* out, int size);
+extern "C" void re4_state_trace_reconfigure(void);
 
 namespace {
 
@@ -122,6 +123,44 @@ void dumpHook(unsigned frame)
     fflush(f);
 }
 
+// RE4_BRIDGE_SNAPSHOT=DIR (Linux checks with disc data): whole snapshots as
+// binary files (DIR/snapshot-<frame>.bin, the Re4CoreSnapshot bytes; the
+// layout is the same on 32 and 64 bit) once the game is in its main loop: 30
+// frames after it starts and every 2500 frames, at most 8. The app's host tool
+// core_snapshot_render draws them as the app would (pictures in the report).
+char gSnapDir[1024];
+unsigned gSnapCount;
+long gSnapFirst = -1;
+
+void snapshotHook(unsigned frame)
+{
+    if (gSnapCount >= 8) {
+        return;
+    }
+    Re4CoreSnapshot* s = &gDumpSnap;
+    re4_bridge_capture(s);
+    if (s->rno[0] != 3) {
+        return;
+    }
+    if (gSnapFirst < 0) {
+        gSnapFirst = frame;
+    }
+    if (frame != (unsigned) gSnapFirst + 30 && frame % 2500 != 0) {
+        return;
+    }
+    s->frame = frame;
+    s->serial = gSnapCount + 1;
+    char path[1100];
+    snprintf(path, sizeof(path), "%s/snapshot-%06u.bin", gSnapDir, frame);
+    if (FILE* f = fopen(path, "wb")) {
+        fwrite(s, sizeof(*s), 1, f);
+        fclose(f);
+        gSnapCount++;
+        re4_log("core: snapshot %s (%u models, %u parts, room r%03x)", path, (unsigned) s->nModels,
+                (unsigned) s->nParts, (unsigned) s->room);
+    }
+}
+
 struct DumpInstall {
     DumpInstall()
     {
@@ -131,6 +170,11 @@ struct DumpInstall {
             if (gDump) {
                 re4_add_frame_hook(dumpHook);
             }
+        }
+        const char* dir = getenv("RE4_BRIDGE_SNAPSHOT");
+        if (dir && *dir) {
+            snprintf(gSnapDir, sizeof(gSnapDir), "%s", dir);
+            re4_add_frame_hook(snapshotHook);
         }
     }
 } gDumpInstall;
@@ -192,6 +236,8 @@ int re4_core_start_entry(int (*entry)(void))
         return gState == RE4_CORE_RUNNING;
     }
     re4_add_frame_hook(frameHook);
+    // the app sets the test switches (RE4_PAD_UNTIL_ROOM ...) after loading
+    re4_state_trace_reconfigure();
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setstacksize(&attr, 8u << 20);

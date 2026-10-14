@@ -60,12 +60,27 @@ set_source_files_properties(hit_geometry.cpp leon_preview.cpp enemy_encounter.cp
 set_target_properties(re4_platform PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(re4_platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(re4_platform PRIVATE -Wall -Wextra -Werror -fno-fast-math)
+# Core mode (Gradle flavor "core", armeabi-v7a): the original game core
+# (port/whole) runs the game; core_mode.cpp/core_scene.cpp start it and draw
+# its state. The game core itself is built by port/tools/whole_build_android.sh
+# and packaged from app/src/core/jniLibs.
+option(RE4_CORE_MODE "core mode: the original game core runs the game" OFF)
+set(RE4_CORE_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../whole/runtime")
 if(ANDROID)
-    if(NOT ANDROID_ABI STREQUAL "arm64-v8a")
+    if(RE4_CORE_MODE)
+        if(NOT ANDROID_ABI STREQUAL "armeabi-v7a")
+            message(FATAL_ERROR "The core mode is armeabi-v7a only (the game core is 32-bit)")
+        endif()
+    elseif(NOT ANDROID_ABI STREQUAL "arm64-v8a")
         message(FATAL_ERROR "This port supports arm64-v8a only")
     endif()
     add_library(re4decomp SHARED android_bridge.cpp scene_gl.cpp event_focus_gl.cpp foot_shadow_gl.cpp environment_gl.cpp world_effects_gl.cpp actor_gl.cpp event_actor_gl.cpp event_mirror_gl.cpp)
     target_link_libraries(re4decomp PRIVATE re4_platform GLESv3 log)
+    if(RE4_CORE_MODE)
+        target_sources(re4decomp PRIVATE core_mode.cpp core_scene.cpp)
+        target_include_directories(re4decomp PRIVATE "${RE4_CORE_INCLUDE}")
+        target_link_libraries(re4decomp PRIVATE dl)
+    endif()
     target_link_options(re4decomp PRIVATE "-Wl,-z,max-page-size=16384")
     # Test APKs otherwise build the native resource parsers and motion engine
     # with -O0. Keep symbols/assertions, and the original floating-point rules,
@@ -244,6 +259,31 @@ else()
         target_link_libraries(m37_event_focus_gl_check PRIVATE re4_platform ${RE4_EGL_LIBRARY} ${RE4_GLES_LIBRARY})
         target_compile_options(m37_event_focus_gl_check PRIVATE -Wall -Wextra -Werror -UNDEBUG -ffp-contract=off)
         add_test(NAME m37_event_focus_gl_check COMMAND m37_event_focus_gl_check)
+        # The whole native library of the core flavor, linked on the host with
+        # --no-undefined (a stand-in liblog): every symbol the JNI code uses
+        # exists. Not run; the device test runs it.
+        find_package(JNI)
+        if(JNI_INCLUDE_DIRS)
+            enable_language(C)
+            add_library(re4decomp_link_check SHARED android_bridge.cpp scene_gl.cpp event_focus_gl.cpp foot_shadow_gl.cpp environment_gl.cpp world_effects_gl.cpp actor_gl.cpp event_actor_gl.cpp event_mirror_gl.cpp
+                core_mode.cpp core_scene.cpp ../../../../tools/host_android/android_log.c)
+            target_include_directories(re4decomp_link_check PRIVATE ${RE4_GLES_INCLUDE_DIR} "${RE4_CORE_INCLUDE}"
+                ../../../../tools/host_android ${JNI_INCLUDE_DIRS})
+            target_link_libraries(re4decomp_link_check PRIVATE re4_platform ${RE4_EGL_LIBRARY} ${RE4_GLES_LIBRARY} dl)
+            target_compile_definitions(re4decomp_link_check PRIVATE __ANDROID_API__=21)
+            target_link_options(re4decomp_link_check PRIVATE -Wl,--no-undefined)
+        endif()
+        # pictures of core snapshots (RE4_BRIDGE_SNAPSHOT) with the disc data:
+        # the local r100 check (port/tools/whole_r100_check.sh)
+        add_executable(core_snapshot_render ../../../../tools/core_snapshot_render.cpp core_scene.cpp scene_gl.cpp event_focus_gl.cpp foot_shadow_gl.cpp environment_gl.cpp world_effects_gl.cpp actor_gl.cpp event_actor_gl.cpp event_mirror_gl.cpp)
+        target_include_directories(core_snapshot_render PRIVATE ${RE4_GLES_INCLUDE_DIR} "${RE4_CORE_INCLUDE}")
+        target_link_libraries(core_snapshot_render PRIVATE re4_platform ${RE4_EGL_LIBRARY} ${RE4_GLES_LIBRARY})
+        target_compile_options(core_snapshot_render PRIVATE -Wall -Wextra -Werror)
+        # core mode renderer (core_scene.cpp) with a synthetic core frame
+        add_executable(core_scene_gl_check ../../../../tools/test_core_scene_gl.cpp core_scene.cpp scene_gl.cpp event_focus_gl.cpp foot_shadow_gl.cpp environment_gl.cpp world_effects_gl.cpp actor_gl.cpp event_actor_gl.cpp event_mirror_gl.cpp)
+        target_include_directories(core_scene_gl_check PRIVATE ${RE4_GLES_INCLUDE_DIR} "${RE4_CORE_INCLUDE}")
+        target_link_libraries(core_scene_gl_check PRIVATE re4_platform ${RE4_EGL_LIBRARY} ${RE4_GLES_LIBRARY})
+        target_compile_options(core_scene_gl_check PRIVATE -Wall -Wextra -Werror -UNDEBUG)
         add_executable(event_actor_gl_check ../../../../tools/test_event_actor_gl.cpp scene_gl.cpp event_focus_gl.cpp foot_shadow_gl.cpp environment_gl.cpp world_effects_gl.cpp actor_gl.cpp event_actor_gl.cpp event_mirror_gl.cpp)
         target_include_directories(event_actor_gl_check PRIVATE ${RE4_GLES_INCLUDE_DIR})
         target_link_libraries(event_actor_gl_check PRIVATE re4_platform ${RE4_EGL_LIBRARY} ${RE4_GLES_LIBRARY})

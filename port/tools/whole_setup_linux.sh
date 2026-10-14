@@ -4,7 +4,9 @@
 # clang/lld/cmake/ninja, the 32-bit x86 C/C++ libraries for the i686 test
 # build, the ARM32 cross toolchain/sysroot (g++-arm-linux-gnueabihf) and
 # qemu-user to run the ARM32 build, clang-tools (clang-query) for the
-# byte-view analysis. g++-multilib is not used because Ubuntu
+# byte-view analysis, Mesa's EGL/GLES3 (headless software rendering) for the
+# pictures of the app's core-mode renderer in the local r100 check (and the
+# app's GL host checks). g++-multilib is not used because Ubuntu
 # refuses it next to the ARM cross compiler. Run as root (sudo).
 #
 #   --android   also the Android NDK r28c (28.2.13676358, the version of the
@@ -16,7 +18,8 @@ android=0
 [ "${1:-}" = "--android" ] && android=1
 
 need=()
-for pkg in libc6-dev-i386 lib32gcc-13-dev lib32stdc++-13-dev g++-arm-linux-gnueabihf qemu-user python3; do
+for pkg in libc6-dev-i386 lib32gcc-13-dev lib32stdc++-13-dev g++-arm-linux-gnueabihf qemu-user python3 \
+    libgles-dev libegl-dev libegl-mesa0 libgl1-mesa-dri; do
   dpkg -s "$pkg" >/dev/null 2>&1 || need+=("$pkg")
 done
 command -v git >/dev/null 2>&1 || need+=(git)

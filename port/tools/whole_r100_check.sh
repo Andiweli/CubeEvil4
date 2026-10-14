@@ -214,7 +214,7 @@ trace_state() {
 run_game() {
     local t="$1" limit="$2" main_limit="$3" stall="$4" dir="$src/port/build/whole-$1$opt"
     local log="$run/spiel-$t.log" trace="$run/trace-$t.jsonl" cov="$run/abdeckung-$t.tsv"
-    local bridge="$run/bruecke-$t.jsonl"
+    local bridge="$run/bruecke-$t.jsonl" snaps="$run/schnappschuesse-$t"
     local runner=() bad=0
     [ "$t" = armhf ] && runner=(env QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf qemu-arm)
     section "3. Spiellauf r$room ($t): Titelbild, Debug-Start, $frames Bilder ab der Hauptschleife"
@@ -224,11 +224,12 @@ run_game() {
         return
     fi
     echo "  (Fortschritt alle 30 s; Abbruch bei $stall s ohne neues Bild, ohne Hauptschleife nach $main_limit s, spätestens nach $limit s)"
-    rm -f "$cov" "$trace" "$trace.gz" "$bridge"
+    rm -rf "$cov" "$trace" "$trace.gz" "$bridge" "$snaps"
+    mkdir -p "$snaps"
     local start=$SECONDS
     (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
         RE4_PAD_SCRIPT="$pad_script" RE4_STOP_AFTER="$frames" \
-        RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" RE4_BRIDGE_DUMP="$bridge" \
+        RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" RE4_BRIDGE_DUMP="$bridge" RE4_BRIDGE_SNAPSHOT="$snaps" \
         "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1 &
     local pid=$!
     # watchdog: progress, stall (no new trace data), no main loop, overall limit
@@ -362,9 +363,64 @@ PY
         overall=1
     fi
 }
+# ---- pictures: the core's snapshots drawn as the app's core mode draws them ---------------
+# (the app's renderer on a headless GLES3 context, port/android-decomp/tools/
+# core_snapshot_render.cpp; needs the Mesa EGL/GLES packages of
+# whole_setup_linux.sh)
+render_pictures() {
+    local snaps="$run/schnappschuesse-i686" pics="$run/bilder" tool_build="$src/port/build/app-host-gl"
+    section "4. Bilder der App-Brücke (wie der Kernmodus der App zeichnet)"
+    if ! ls "$snaps"/*.bin > /dev/null 2>&1; then
+        say "Keine Schnappschüsse (Hauptschleife nicht erreicht?)"
+        return
+    fi
+    mkdir -p "$pics"
+    if ! cmake -S "$src/port/android-decomp/app/src/main/cpp" -B "$tool_build" -G Ninja \
+        -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release \
+        -DRE4_BUILD_GL_CHECK=ON > "$run/bild-werkzeug.log" 2>&1 ||
+        ! ninja -C "$tool_build" ${RE4_JOBS:+-j "$RE4_JOBS"} core_snapshot_render >> "$run/bild-werkzeug.log" 2>&1; then
+        say "FEHLER: Bild-Werkzeug nicht gebaut (Log: bild-werkzeug.log; Pakete: sudo $src/port/tools/whole_setup_linux.sh)"
+        tail -n 20 "$run/bild-werkzeug.log" | sed 's/^/  /' | tee -a "$report"
+        return
+    fi
+    # the discs as the app imports them: disc1, disc2
+    local approot="$run/app-disc"
+    rm -rf "$approot"
+    mkdir -p "$approot"
+    if [ -d "$layout/disc0" ]; then
+        ln -s "$layout/disc0" "$approot/disc1"
+        [ -d "$layout/disc1" ] && ln -s "$layout/disc1" "$approot/disc2"
+    else
+        ln -s "$layout" "$approot/disc1"
+    fi
+    "$tool_build/core_snapshot_render" "$approot" "$pics" "$snaps"/*.bin 2> "$run/bild-werkzeug-lauf.log" |
+        sed 's/^/  /' | tee -a "$report"
+    rm -f "$pics"/room-*.dat
+    rm -rf "$approot"  # links to the disc folder: not copied with the report
+    # PPM -> PNG (python's zlib), for viewing on Windows
+    python3 - "$pics" <<'PY'
+import struct, sys, zlib
+from pathlib import Path
+for ppm in sorted(Path(sys.argv[1]).glob("*.ppm")):
+    data = ppm.read_bytes()
+    parts = data.split(b"\n", 3)
+    w, h = map(int, parts[1].split())
+    pixels = parts[3]
+    raw = b"".join(b"\0" + pixels[y * w * 3:(y + 1) * w * 3] for y in range(h))
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
+    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + \
+        chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b"")
+    ppm.with_suffix(".png").write_bytes(png)
+    ppm.unlink()
+PY
+    say "Bilder: $(ls "$pics"/*.png 2> /dev/null | wc -l) PNG-Dateien im Ordner bilder (bitte mitschicken)"
+}
+
 if [ "$game_ok" -eq 1 ]; then
     # limits in seconds: overall, until the main loop, without a new frame
     run_game i686 "${RE4_CHECK_LIMIT:-3600}" "${RE4_CHECK_MAIN_LIMIT:-600}" "${RE4_CHECK_STALL:-180}"
+    render_pictures
     [ "$arm" -eq 1 ] && run_game armhf 14400 5400 600
 fi
 

@@ -19,6 +19,8 @@ public final class MainActivity extends Activity implements ImportManager.Listen
   private final Handler main = new Handler(Looper.getMainLooper());
   private volatile boolean destroyed;
   private boolean loading, startupShown;
+  /** Core flavor: the original game core runs the game (CoreActivity). */
+  private boolean core;
   private ImportManager imports;
   private TextView status, discs, roomNote;
   private Button disc1, disc2, cancel, open;
@@ -28,16 +30,19 @@ public final class MainActivity extends Activity implements ImportManager.Listen
   private List<RoomCatalog.Entry> shown = Collections.emptyList();
   @Override public void onCreate(Bundle state) {
     super.onCreate(state); startupShown=state!=null&&state.getBoolean("startupShown",false); imports = ((Re4Application)getApplication()).imports;
+    core = getResources().getBoolean(R.bool.core_mode);
     LinearLayout body = new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL);
     int p = dp(20); body.setPadding(p, p, p, p);
     TextView title = new TextView(this); title.setText(R.string.app_title); title.setTextSize(25); body.addView(title);
-    TextView note = new TextView(this); note.setText(R.string.browser_notice);
+    TextView note = new TextView(this); note.setText(core ? R.string.core_notice : R.string.browser_notice);
     note.setPadding(0, dp(8), 0, dp(12)); body.addView(note);
     button(body,"Start game",this::startOriginalTitle);
-    button(body, getString(R.string.launch_rooms), () -> {
+    // The room browser opens the app's own game modules; the core mode has none.
+    Button browse = button(body, getString(R.string.launch_rooms), () -> {
       roomBrowser.setVisibility(roomBrowser.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
       if (roomBrowser.getVisibility() == View.VISIBLE) rooms.requestFocus();
     });
+    if (core) browse.setVisibility(View.GONE);
     roomBrowser = new LinearLayout(this); roomBrowser.setOrientation(LinearLayout.VERTICAL); roomBrowser.setVisibility(View.GONE); body.addView(roomBrowser);
     category = spinner(roomBrowser, Arrays.asList(getString(R.string.category_campaign), getString(R.string.category_extras), getString(R.string.category_all)));
     rooms = spinner(roomBrowser, Collections.emptyList()); mode = spinner(roomBrowser, Collections.singletonList(getString(R.string.mode_explore)));
@@ -59,7 +64,7 @@ public final class MainActivity extends Activity implements ImportManager.Listen
       v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom()); return insets;
     });
   }
-  private void startOriginalTitle(){if(!loading&&!imports.busy&&discReady(1)){startupShown=true;startActivity(new Intent(this,StartupActivity.class));}else importPanel.setVisibility(View.VISIBLE);}
+  private void startOriginalTitle(){if(!loading&&!imports.busy&&discReady(1)){startupShown=true;Intent start=new Intent(this,core?CoreActivity.class:StartupActivity.class);if(core)start.putExtra("coreSettings",getIntent().getStringExtra("coreSettings"));startActivity(start);}else importPanel.setVisibility(View.VISIBLE);}
   @Override protected void onSaveInstanceState(Bundle state){state.putBoolean("startupShown",startupShown);super.onSaveInstanceState(state);}
   private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
   private Button button(LinearLayout body, String label, Runnable action) {
@@ -94,7 +99,12 @@ public final class MainActivity extends Activity implements ImportManager.Listen
         : Collections.singletonList(getString(entry != null && !entry.walkable() && entry.explorable() ? R.string.mode_scene_only : R.string.mode_explore)));
     updateOpenState();
   }
-  private boolean discReady(int number) { return imports.root != null && DiscInstaller.ready(new File(imports.root, "disc" + number), number); }
+  private boolean discReady(int number) {
+    if (imports.root == null) return false;
+    File disc = new File(imports.root, "disc" + number);
+    // the core mounts the disc from sys/fst.bin: older imports must be repeated
+    return core ? DiscInstaller.coreReady(disc, number) : DiscInstaller.ready(disc, number);
+  }
   private void updateOpenState() {
     if (open == null) return;
     RoomCatalog.Entry entry = selectedRoom();
@@ -141,6 +151,11 @@ public final class MainActivity extends Activity implements ImportManager.Listen
     });
   }
   private void showMenu() {
+    if (core) {  // only the import: the diagnostics run the app's own modules
+      importPanel.setVisibility(importPanel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+      if (importPanel.getVisibility() == View.VISIBLE) disc1.requestFocus();
+      return;
+    }
     new AlertDialog.Builder(this).setTitle(R.string.browser_menu).setItems(new String[]{getString(R.string.browser_data), getString(R.string.browser_diagnostics)}, (dialog, which) -> {
       if (which == 0) { importPanel.setVisibility(importPanel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
         if (importPanel.getVisibility() == View.VISIBLE) disc1.requestFocus(); }

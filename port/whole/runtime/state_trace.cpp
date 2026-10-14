@@ -134,24 +134,33 @@ void frame(unsigned n)
     }
 }
 
-struct Install {
-    Install()
-    {
-        const char* path = getenv("RE4_TRACE");
-        if (path && *path) {
-            g_trace = fopen(path, "w");
-        }
-        const char* until = getenv("RE4_PAD_UNTIL_ROOM");
-        g_padUntilRoom = until && *until && *until != '0';
-        const char* stop = getenv("RE4_STOP_AFTER");
-        g_stopAfter = stop ? strtoul(stop, 0, 10) : 0;
-        if (g_trace || g_padUntilRoom || g_stopAfter) {
-            re4_set_frame_hook(frame);
-        }
+void configure()
+{
+    const char* path = getenv("RE4_TRACE");
+    if (path && *path && !g_trace) {
+        g_trace = fopen(path, "w");
     }
+    const char* until = getenv("RE4_PAD_UNTIL_ROOM");
+    g_padUntilRoom = until && *until && *until != '0';
+    const char* stop = getenv("RE4_STOP_AFTER");
+    g_stopAfter = stop ? strtoul(stop, 0, 10) : 0;
+    if (g_trace || g_padUntilRoom || g_stopAfter) {
+        re4_set_frame_hook(frame);
+    }
+}
+
+struct Install {
+    Install() { configure(); }
 } g_install;
 
 }  // namespace
+
+// Reads the switches again (the app sets them after the library is loaded,
+// runtime/core_api.cpp re4_core_start).
+extern "C" void re4_state_trace_reconfigure(void)
+{
+    configure();
+}
 
 // Starts (path) or ends (0) the trace at run time (runtime tests).
 extern "C" int re4_state_trace_open(const char* path)

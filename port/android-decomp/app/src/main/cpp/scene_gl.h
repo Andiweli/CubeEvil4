@@ -1,6 +1,7 @@
 #pragma once
 #include "scene.h"
 #include "follow_camera.h"
+#include <functional>
 namespace re4 {
 void CreateSceneGl(const StaticScene &scene);
 void DestroySceneGl(); // Only with the owning current GL context.
@@ -33,6 +34,12 @@ class GenericEventActor;
 class VillageBottles;
 class PlayerProjectiles;
 struct SceneProbe {
+  // Core mode (core_scene.cpp): the game core's models, drawn in the actor
+  // pass with the frame's camera matrix, world center/scale and normal view.
+  std::function<void(const float *,const std::array<float,3> &,float,bool)> extraActors;
+  // Core mode: the room camera (roomCamera) keeps the screen's aspect ratio;
+  // other script cameras keep the original 4:3 frame.
+  bool screenAspect{};
   bool gameplayDepthOfField{}; // Opt-in world pass, excludes menus/events.
   const PlayerProjectiles *projectiles=nullptr;
   const VillageBottles *villageBottles=nullptr;

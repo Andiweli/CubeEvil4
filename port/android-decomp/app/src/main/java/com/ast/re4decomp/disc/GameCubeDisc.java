@@ -25,8 +25,14 @@ public final class GameCubeDisc implements Closeable {
       this.size = size;
     }
   }
+  /**
+   * Core mode: the original game core reads every file through its own file
+   * system table, so nothing is left out of the import.
+   */
+  public static volatile boolean importEverything;
   private final RandomAccessFile input;
   private final long length;
+  private long fstOffset, fstSize;
   public final int discNumber;
   public final List<Entry> files;
   private final Map<String, Entry> byPath = new HashMap<>();
@@ -43,8 +49,9 @@ public final class GameCubeDisc implements Closeable {
       discNumber = (header[6] & 255) + 1;
       if (discNumber < 1 || discNumber > 2 || header[7] != 0)
         throw new IOException("Unsupported disc/revision");
-      long dol = be32(header, 0x420), fstOffset = be32(header, 0x424),
-           fstSize = be32(header, 0x428);
+      long dol = be32(header, 0x420);
+      fstOffset = be32(header, 0x424);
+      fstSize = be32(header, 0x428);
       if (fstSize < 12 || fstSize > 32 * 1024 * 1024)
         throw new IOException("Invalid FST size");
       byte[] fst = read(fstOffset, (int)fstSize);
@@ -167,13 +174,15 @@ public final class GameCubeDisc implements Closeable {
     }
   }
   public long extractionSize() {
-    long n = 0;
+    long n = 0x440 + fstSize;  // sys/boot.bin, sys/fst.bin
     for (Entry e : files)
       if (importFile(e))
         n += e.size;
     return n;
   }
   private static boolean importFile(Entry entry) {
+    if (importEverything)
+      return true;
     String path = entry.path.toLowerCase(Locale.ROOT);
     if (path.startsWith("files/font/") && path.endsWith("_j.fnt"))
       return false;
@@ -225,6 +234,11 @@ public final class GameCubeDisc implements Closeable {
         }
         manifest.write(hex(md.digest()) + "\t" + e.size + "\t" + e.path + "\n");
       }
+      // The disc header and the file system table, as Dolphin's "Extract
+      // Entire Disc" writes them: the original game core (core mode) mounts
+      // the disc from them (port/whole/runtime/dvd.cpp).
+      writeSystem(destination, "sys/boot.bin", 0, 0x440, manifest);
+      writeSystem(destination, "sys/fst.bin", fstOffset, (int)fstSize, manifest);
     }
     try (FileOutputStream w =
              new FileOutputStream(new File(destination, "ready.properties"))) {
@@ -233,6 +247,20 @@ public final class GameCubeDisc implements Closeable {
                   .getBytes(StandardCharsets.UTF_8));
       w.getFD().sync();
     }
+  }
+  private void writeSystem(File destination, String path, long offset, int size,
+                           Writer manifest) throws IOException {
+    byte[] bytes = read(offset, size);
+    File f = new File(destination, path);
+    if (!f.getParentFile().isDirectory() && !f.getParentFile().mkdirs())
+      throw new IOException("Could not create directory");
+    try (FileOutputStream w = new FileOutputStream(f)) {
+      w.write(bytes);
+      w.getFD().sync();
+    }
+    MessageDigest md = newDigest("SHA-256");
+    md.update(bytes);
+    manifest.write(hex(md.digest()) + "\t" + size + "\t" + path + "\n");
   }
   private String digest(long offset, long size, String algorithm,
                         Progress progress) throws IOException {

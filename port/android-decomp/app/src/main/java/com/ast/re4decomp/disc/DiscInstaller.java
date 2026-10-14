@@ -45,6 +45,14 @@ public final class DiscInstaller {
       return false;
     }
   }
+  /**
+   * Core mode: a complete import with the disc header and file system table
+   * (imports of older versions lack sys/fst.bin and must be repeated).
+   */
+  public static boolean coreReady(File disc, int number) {
+    return ready(disc, number) && new File(disc, "sys/fst.bin").isFile() &&
+        new File(disc, "sys/boot.bin").length() == 0x440;
+  }
   public static void install(File source, File root, int expectedDisc,
                              ReferenceCatalog catalog,
                              GameCubeDisc.Progress progress)
