@@ -34,8 +34,14 @@ Die App zeigt, was das Spiel selbst zeichnet (GX-Nachbildung: Logos, Titel,
 Menues, Anzeigen, Effekte). -Bridge zeigt zum Vergleich die fruehere Ansicht
 (der Spielzustand, von der App selbst gezeichnet).
 
+Das Skript prueft jede Sekunde, ob die App noch laeuft. Stuerzt sie ab, endet die
+Beobachtung sofort: das Protokoll und der Absturzbericht des Systems werden gesichert
+und die Absturzstelle in WSL mit den Bibliotheken des Kern-Builds in Funktionen und
+Quelltextzeilen uebersetzt (port/tools/android_symbolize.sh). Bitte bis "Fertig" warten.
+
 Ergebnis in -OutDir (Standard: Desktop\RE4-Kern-App): bericht.txt, logcat.txt,
-bild-*.png, kern-build.log, apk-build.log. Bitte bericht.txt und die Bilder schicken.
+bild-*.png, kern-build.log, apk-build.log, nach einem Absturz absturz-system.txt und
+absturz-stapel.txt. Bitte bericht.txt, logcat.txt und die Bilder schicken.
 
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File .\port\scripts\test-core-app.ps1
@@ -72,6 +78,9 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $report = Join-Path $OutDir 'bericht.txt'
 Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue
 Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyContinue | Remove-Item
+# results of an earlier run must not pass for this one's
+Get-ChildItem -LiteralPath $OutDir -Filter 'absturz-*.txt' -ErrorAction SilentlyContinue | Remove-Item
+Remove-Item -LiteralPath (Join-Path $OutDir 'logcat.txt') -ErrorAction SilentlyContinue
 function Say([string]$Text) {
     Write-Host $Text
     Add-Content -LiteralPath $report -Value $Text -Encoding UTF8
@@ -272,38 +281,78 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         Write-Host ''
     }
     & $Adb -s $Serial shell am force-stop $package
-    # device time in seconds (logcat -T accepts 'sssss.mmm'; no spaces through adb shell)
+    # device time in seconds (logcat -T accepts 'sssss.mmm'; no spaces through adb shell) and as
+    # the system's crash reports date their entries
     $since = ((& $Adb -s $Serial shell date +%s) -join '').Trim() + '.000'
+    $sinceText = ((& $Adb -s $Serial shell date +%Y-%m-%d_%H:%M:%S) -join '').Trim() -replace '_', ' '
     & $Adb -s $Serial shell input keyevent KEYCODE_WAKEUP
     $start = "am start -n $package/com.ast.re4decomp.MainActivity"
     if ($settings) { $start += " --es coreSettings '$settings'" }
     & $Adb -s $Serial shell $start | ForEach-Object { Say "   $_" }
-    Say "   gestartet ($(if ($Manual) { 'Titelbild, du steuerst' } else { "Debug-Start r$StartRoom mit Test-Tastenfolge" })), $Seconds s Beobachtung"
-    $shots = @(15, 40) + @(70..([math]::Max(70, $Seconds)) | Where-Object { ($_ - 70) % 25 -eq 0 })
-    $elapsed = 0
-    $firstPid = ''
-    foreach ($at in $shots) {
-        if ($at -gt $Seconds) { break }
-        Start-Sleep -Seconds ($at - $elapsed)
-        $elapsed = $at
+    Say "   gestartet ($(if ($Manual) { 'Titelbild, du steuerst' } else { "Debug-Start r$StartRoom mit Test-Tastenfolge" })), bis $Seconds s Beobachtung"
+    # Every second: is the app still running? Pictures at the planned times; a crash ends the
+    # observation at once, and the log is taken while the crash report is still in it.
+    $shots = @(@(15, 40) + @(70..([math]::Max(70, $Seconds)) | Where-Object { ($_ - 70) % 25 -eq 0 }) |
+        Where-Object { $_ -le $Seconds })
+    function Save-Shot([int]$At) {
         $remote = '/data/local/tmp/re4-core-shot.png'
         & $Adb -s $Serial shell screencap -p $remote
-        & $Adb -s $Serial pull $remote (Join-Path $OutDir ('bild-{0:D3}s.png' -f $at)) | Out-Null
+        & $Adb -s $Serial pull $remote (Join-Path $OutDir ('bild-{0:D3}s.png' -f $At)) | Out-Null
         & $Adb -s $Serial shell rm -f $remote
+    }
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    $firstPid = ''
+    $crashAt = -1
+    $nextShot = 0
+    while ($true) {
+        Start-Sleep -Seconds 1
+        $now = [int]$clock.Elapsed.TotalSeconds
         $alive = ((& $Adb -s $Serial shell pidof $package) -join '').Trim()
         if ($alive -and -not $firstPid) { $firstPid = $alive }
-        $appState = if (-not $alive) { 'LAEUFT NICHT MEHR' }
-                 elseif ($alive -ne $firstPid) { "NEU GESTARTET (PID $alive, vorher ${firstPid}: abgestuerzt?)" }
-                 else { "laeuft (PID $alive)" }
-        Say ("   {0,3} s: Bild aufgenommen, App {1}" -f $at, $appState)
+        $gone = if ($firstPid) { $alive -ne $firstPid } else { $now -ge 10 }
+        if ($gone) {
+            $crashAt = $now
+            Save-Shot $now
+            $what = if (-not $firstPid) { 'IST NIE GESTARTET' }
+                    elseif ($alive) { "WURDE NEU GESTARTET (PID $alive, vorher $firstPid)" }
+                    else { 'LAEUFT NICHT MEHR' }
+            Say ("   {0,3} s: App {1}: Beobachtung endet, Bild aufgenommen" -f $now, $what)
+            break
+        }
+        if ($nextShot -lt $shots.Count -and $now -ge $shots[$nextShot]) {
+            Save-Shot $shots[$nextShot]
+            Say ("   {0,3} s: Bild aufgenommen, App laeuft (PID {1})" -f $shots[$nextShot], $alive)
+            while ($nextShot -lt $shots.Count -and $now -ge $shots[$nextShot]) { $nextShot++ }
+        }
+        if ($now -ge $Seconds) { break }
     }
-    if ($Seconds -gt $elapsed) { Start-Sleep -Seconds ($Seconds - $elapsed) }
-    $log = & $Adb -s $Serial logcat -d -v threadtime -T $since
-    $appPid = ((& $Adb -s $Serial shell pidof $package) -join '').Trim()
-    $keep = $log | Where-Object { $_ -match ' (re4|RE4\w*|DEBUG|AndroidRuntime|libc|crash_dump\w*)\s*:' -or ($appPid -and $_ -match " $appPid ") }
+    if ($crashAt -ge 0) { Start-Sleep -Seconds 3 }  # the system is still writing the crash report
+    $log = @(& $Adb -s $Serial logcat -d -v threadtime -b main -b system -b crash -T $since)
+    # every line of the app's processes (their IDs from the core's own lines) and the system's
+    # crash lines
+    $pids = @{}
+    foreach ($p in ($firstPid -split '\s+')) { if ($p) { $pids[$p] = 1 } }
+    foreach ($line in $log) {
+        if ($line -match '^\S+\s+\S+\s+(\d+)\s+\d+\s+[VDIWEF]\s+(re4|RE4\w*)\s*:') { $pids[$Matches[1]] = 1 }
+    }
+    $keep = @($log | Where-Object {
+        $_ -match ' (re4|RE4\w*|DEBUG|AndroidRuntime|libc|crash_dump\w*|scudo)\s*:' -or
+        ($_ -match '^\S+\s+\S+\s+(\d+)\s' -and $pids.ContainsKey($Matches[1])) })
     $keep | Set-Content -LiteralPath (Join-Path $OutDir 'logcat.txt') -Encoding UTF8
+    # the system's own crash report (kept for days, also when the log has moved on)
+    $systemCrash = @()
+    if ($crashAt -ge 0) {
+        $box = @(& $Adb -s $Serial shell dumpsys dropbox --print data_app_native_crash)
+        $starts = @(for ($i = 0; $i -lt $box.Count; $i++) {
+            if ($box[$i] -match '^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) data_app_native_crash' -and $Matches[1] -ge $sinceText) { $i }
+        })
+        if ($starts.Count) {
+            $systemCrash = @($box[$starts[0]..($box.Count - 1)])
+            $systemCrash | Set-Content -LiteralPath (Join-Path $OutDir 'absturz-system.txt') -Encoding UTF8
+        }
+    }
     & $Adb -s $Serial shell am force-stop $package
-    Say "   Protokoll: $($keep.Count) Zeilen (logcat.txt); App beendet"
+    Say "   Protokoll: $($keep.Count) Zeilen (logcat.txt)$(if ($systemCrash.Count) { ', Absturzbericht des Systems (absturz-system.txt)' }); App beendet"
 
     Say ''
     Say '== Auswertung =='
@@ -330,15 +379,35 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     if ($shaderFail.Count) { Say "GX-Shader-FEHLER:                 $($shaderFail.Count) (Ausschnitt in logcat.txt)" }
     $presses = @($keep | Where-Object { $_ -match 're4\s*: pad: frame' })
     Say "Tastendruecke im Kern angekommen: $($presses.Count)"
-    if (Has 'Fatal signal|FATAL EXCEPTION|SIGSEGV|SIGABRT') {
-        Say 'ABSTURZ erkannt; Ausschnitt:'
-        $keep | Where-Object { $_ -match 'Fatal signal|FATAL|backtrace|#\d\d pc |Abort message' } | Select-Object -First 40 |
-            ForEach-Object { Say "  $_" }
+    if ($crashAt -ge 0 -or (Has 'Fatal signal|FATAL EXCEPTION|SIGSEGV|SIGABRT|SIGBUS')) {
+        Say "ABSTURZ$(if ($crashAt -ge 0) { " nach etwa $crashAt s" }); Ausschnitt:"
+        $crashLines = @(($keep + $systemCrash) | Where-Object {
+            $_ -match 'Fatal signal|FATAL|signal \d+ \(|Abort message|Cause:|fault addr|backtrace|#\d\d pc |FORTIFY|[Ss]cudo' })
+        $crashLines | Select-Object -First 60 | ForEach-Object { Say "  $_" }
+        if (-not $crashLines.Count) { Say '  (keine Absturzzeilen im Protokoll; letzte Zeilen der App unten)' }
+        # the backtrace as functions and source lines (the libraries with symbols of this PC)
+        $frames = @($keep | Where-Object { $_ -match '#\d+ pc [0-9a-f]+' })
+        if (-not $frames.Count) { $frames = @($systemCrash | Where-Object { $_ -match '#\d+ pc [0-9a-f]+' }) }
+        if ($frames.Count -and (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+            $stackFile = Join-Path $OutDir 'absturz-stapel.txt'
+            $frames | Set-Content -LiteralPath $stackFile -Encoding UTF8
+            $wslArgs = @()
+            if ($Distro) { $wslArgs = @('-d', $Distro) }
+            $toWsl = { param($p) ((& wsl.exe @wslArgs --exec wslpath -a ((Resolve-Path -LiteralPath $p).Path -replace '\\', '/')) | Select-Object -First 1).Trim() }
+            $old = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try {
+                $sym = @(& wsl.exe @wslArgs --exec bash "$(& $toWsl $repo)/port/tools/android_symbolize.sh" (& $toWsl $stackFile) 2>&1 |
+                    ForEach-Object { "$_" })
+            } finally { $ErrorActionPreference = $old }
+            Say 'Absturzstelle im Code:'
+            $sym | ForEach-Object { Say "  $_" }
+        }
     }
     Say 'Letzte 40 Zeilen des Kern-Protokolls (ohne Tastenzeilen):'
     $keep | Where-Object { $_ -match ' (re4|RE4Core)\s*:' -and $_ -notmatch 'pad: frame' } | Select-Object -Last 40 |
         ForEach-Object { Say "  $_" }
 }
 Say ''
-Say "Fertig. Bitte bericht.txt und die Bilder (bild-*.png) aus $OutDir schicken."
+Say "Fertig. Bitte bericht.txt, logcat.txt und die Bilder (bild-*.png) aus $OutDir schicken$(if (Test-Path -LiteralPath (Join-Path $OutDir 'absturz-system.txt')) { ', dazu absturz-system.txt' })."
 [Console]::OutputEncoding = $previousEncoding

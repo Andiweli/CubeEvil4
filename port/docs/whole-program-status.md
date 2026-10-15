@@ -1084,6 +1084,19 @@ Gerät: Die App stürzte sofort ab; Protokoll (`logcat.txt`) steht noch aus.
    Fehlt Disc 1 in der App „RE4 Kern“ (eigener Datenordner, ein Import der
    bisherigen App zählt nicht), startet das Skript die App, bittet um den
    Import und wartet darauf, ohne die App zu beenden.
+   Seit 15.10.2026: Das Skript fragt jede Sekunde, ob die App noch läuft.
+   Stürzt sie ab, endet die Beobachtung sofort (Bild, Protokoll mit den
+   Puffern main/system/crash und allen Zeilen der App-Prozesse, der
+   Absturzbericht des Systems aus `dumpsys dropbox` als
+   `absturz-system.txt`), und `port/tools/android_symbolize.sh` übersetzt
+   die Stapelzeilen in WSL mit den Bibliotheken des Kern-Builds (über die
+   Build-ID zugeordnet) in Funktion, Datei und Zeile. Ergebnisse früherer
+   Läufe (`logcat.txt`, `absturz-*.txt`) löscht es am Anfang. Anlass: Bei den
+   ersten Geräteläufen nach G1–G4 stürzte die App vor 15 s ab, das Skript
+   wurde vor dem Protokollschritt beendet, und im Ordner lag noch die
+   `logcat.txt` vom Vortag. Geprüft mit nachgebildetem `adb`/`wsl.exe` und
+   PowerShell 7 (Absturz nach 4 s erkannt, alter Dropbox-Eintrag
+   ausgelassen, Stapelzeile übersetzt).
 
 Ziel des Gerätetests: Titelbild sichtbar, r100 mit Originalablauf (Ereignis
 s03, Tor, Hinterhalt). Grenzen dieses Stands: Effekte, Partikel, Schrift,
