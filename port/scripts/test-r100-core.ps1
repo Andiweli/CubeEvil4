@@ -23,7 +23,7 @@ Die Disc-Daten werden nie ins Repository kopiert.
 
 Vorher den Branch aktualisieren:
   git fetch origin
-  git checkout claude/re4-android-decomp-core
+  git checkout claude/re4-android-decomp-k2
   git pull
 
 .EXAMPLE
