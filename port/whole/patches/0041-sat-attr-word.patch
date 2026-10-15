@@ -1,0 +1,39 @@
+--- a/src/game/at_sub.cpp
++++ b/src/game/at_sub.cpp
+@@ -534,7 +534,12 @@
+ // The attribute word of a polygon, read as two u16 halves (SAT_POLY::m_Status).
+ u32 Get_poly_attr(SAT_POLY* poly)
+ {
+-    return (((u16*) poly)[8] << 16) | ((u16*) poly)[9];
++    // port: patch 0041. The halves are the GameCube's view of the word (high
++    // half first); m_Status is a host-order word here (converted SAT/EAT
++    // files, createSat), so the halves came out swapped: fences read as
++    // ledges, walls as no-hit for the player, ground as water. The word
++    // itself is the same value on both.
++    return poly->m_Status;
+ }
+ 
+ // 1 when `p` is inside the XZ quadrilateral rect[0..3] (edge cross products from corners 0 and 2).
+--- a/src/game/atari.cpp
++++ b/src/game/atari.cpp
+@@ -1052,8 +1052,7 @@
+         }
+         for (j = s; j < e; j++) {
+             SAT_POLY* poly = (SAT_POLY*) (j * sizeof(SAT_POLY) + (u32) sat->poly_p);
+-            u32 attr = (((u16*) poly)[8] & 0xFF) << 16;
+-            attr |= ((u16*) poly)[9];
++            u32 attr = poly->m_Status & 0x00FFFFFF;  // port: patch 0041 (bits 0..23, as the halves read them)
+             u32 color;
+             int z;
+             if (attr != 0) {
+--- a/src/game/card.cpp
++++ b/src/game/card.cpp
+@@ -3602,7 +3602,7 @@
+ {
+     ID_UNIT* u = IdSys.unitPtr(1, IDC_SSCRN_NEAR_0);
+     HERMITE_1_PTR* h = u->curve[0];
+-    int n = ((s8*) h)[3];
++    int n = (s8) h->nPoint;  // port: patch 0041 (byte 3 is the low byte of nPoint on the GameCube)
+     int i;
+ 
+     if (pCard->getRno0() == 5) {

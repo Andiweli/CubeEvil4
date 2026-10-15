@@ -8,6 +8,12 @@
   wurde (mit Ergebnis), was als Nächstes kommt.
 - Vor jeder Grundsatzentscheidung (Architektur, Regeln dieser Datei ändern)
   nachfragen. Kleine technische Entscheidungen selbst treffen.
+- Braucht ein Schritt den Windows-PC oder den Retroid (Test, Bericht holen),
+  immer die genauen PowerShell-Befehle zum Kopieren mitschicken (Repository
+  `E:\Development\Android\RE4-Fixed`, Disc-Daten
+  `E:\Development\Android\RE4-Discdata`; Ergebnisse liegen auf dem Desktop in
+  `RE4-Kern-App` bzw. `RE4-Kern-Pruefung`). Entscheidung des
+  Projektinhabers, 15.10.2026.
 - Am Ende jedes Meilensteins den fertigen Startprompt für den nächsten
   Meilenstein als Codeblock zum Kopieren ausgeben. Er nennt den Branch, die
   empfohlene Intelligenzstufe und ob die Arbeit in der Cloud oder lokal auf dem

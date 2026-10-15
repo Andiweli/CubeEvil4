@@ -1283,6 +1283,49 @@ PC-Aufnahmen, App-Bibliothek gegen JNI gelinkt (`re4decomp_link_check`),
 Java der App übersetzt, beide PowerShell-Skripte mit einem nachgebildeten
 ADB. Nicht getestet: alles auf dem Gerät, die PC-Prüfung mit Disc-Daten.
 
+### Vierter Gerätelauf mit GX (15.10.2026, Retroid) und Analyse
+
+Stand `45205aa`: Der Skriptlauf lief die vollen 240 s ohne Absturz durch
+das Intro bis r100 (der Absturz nach 153 s ist weg). Gemeldet aus einem
+Spiel von Hand: Pixelflecken in Leons Haar (heller Hinterkopf), zu dunkle
+Glasscheiben, „CLIMB DOWN“ an Geländern und Fenstern (danach kurz keine
+Steuerung), kein Sprung durch Fenster, durchlaufbare dünne Bäume, ein
+Ganado springt durch die Hüttenwand, Ganados sterben „wie ins Wasser“,
+falsche Ganado-Reaktionen, Logo im Hauptmenü verblasst, START im Menü
+zweimal nötig, Schatten am Fenster in einer Zwischenszene fehlt, Leon
+verschwindet kurz vor Filmszenen.
+
+- **Kollision (Patch 0041):** `Get_poly_attr` (at_sub.cpp) liest das
+  Attributwort einer Kollisionsfläche als zwei Halbwörter, das obere zuerst.
+  Im Port liegt `SAT_POLY::m_Status` als Host-Wort vor (umgewandelte SAT/EAT,
+  `createSat`), die Hälften kamen vertauscht an: aus Zaun (0x20) wurde „hoch“
+  (0x200000), aus „Spieler kollidiert nicht“ (0x400000) „Route“ (0x40),
+  „Fallkante“ (0x100000) und „runter“ (0x10) tauschten, bei EAT die
+  Effektbits (Wasser-Spritzer beim Tod). `Get_poly_attr` liest jetzt das Wort
+  (auf dem GameCube derselbe Wert), ebenso die Debug-Anzeige in atari.cpp.
+  Das erklärt „CLIMB DOWN“ statt „JUMP OVER“, durchlaufbare Bäume, Ganados
+  durch Wände und den Wasser-Tod; nicht auf dem Gerät geprüft.
+- **Weitere schmale Sichten** über Zeiger statt `&x` (das Suchskript von
+  M4.5 fand nur `&x`): alle 21 Stellen durchgesehen. Richtig waren
+  `motion.cpp` (Byte 2 ist das u8-Flag der Sequenzdatei), die EMI-Bytes
+  (`EmiEntry::type`), `id_sys.cpp` (`FUNC_PATH_PTR::nPoint` ist ein Byte),
+  die Debug-Werkzeuge `t_flag`/`t_emlist`. Korrigiert: `card.cpp`
+  `CardID::save` (Byte 3 von `HERMITE_1_PTR::nPoint`, Patch 0041). Offen für
+  später: `r117.cpp` liest Byte 0xF9 eines Effekts (Raum r117).
+- **Alphakanal ohne Farbe:** Rund 1100–1900 Zeichenaufträge je Bild
+  schreiben mit `GXSetDstAlpha` nur Alpha (Farbe aus, Werte 0x33–0x96, eine
+  Maske für spätere Filter). Bisher galten sie als „ungenau“ und schrieben 0
+  (Protokoll: 4709 „inexact dst alpha“); ohne Farbschreiben schreibt jetzt
+  der Shader den Wert genau.
+- **Leons Haare im Spiel:** In der Aufnahme (Bild 4744) sind die Flecken
+  der dunkle Haaransatz des Kopfmodells (Gesichtstextur `00825100`), über
+  dem an diesen Stellen keine Haarfläche liegt (Kopf 13300–13509, Haar
+  13510–13669, Tiefe, Mischung, Alpha geprüft). Leons Haar bewegt sich über
+  die Stoff-Simulation (`pl_cloth.cpp`, `pendulum.cpp`); offen, ob sie die
+  Strähnen falsch legt.
+- **Titel:** „START zweimal“ und das verblassende Logo sind ohne Aufnahme
+  des Titelbilds offen.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1441,6 +1484,7 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0037 `main_mem.h`, `pl_class.cpp` | `VALID_PTR`/`VALID_PTR2` (Zeigerprüfung gegen MEM1) nehmen zusätzlich `re4_valid_port_ptr` (runtime/os_thread.cpp): Host-Stapel der OS-Threads und die statischen Daten der Spielbibliotheken (`libre4_*`), die auf dem GameCube ebenfalls in MEM1 lägen |
 | 0039 `card.cpp` | `CardFirstCheck` überspringt die Speicherkarten-Prüfung beim Start wie nach einem Reset, solange der Port keine Speicherkarte hat (`re4_skip_card_check`, runtime/card.cpp; `RE4_CARD_CHECK=1` behält sie für die Test-Tastenfolgen) |
 | 0040 `esp_sub.cpp` | `Esp1b_SpTrans` findet die Daten von `cEsp1b` über `sizeof(cEsp)` statt über `&pad_EC[0xC]`: MWCC legt den vptr ans Ende von `cEsp`, die Compiler des Ports an den Anfang; vorher las es die Punktzahl 4 Bytes daneben (Absturz im GX-Decoder auf dem Retroid nach 153 s) |
+| 0041 `at_sub.cpp`, `atari.cpp`, `card.cpp` | Das Attributwort einer Kollisionsfläche (`SAT_POLY::m_Status`) wird als Wort gelesen statt als zwei Halbwörter in GameCube-Reihenfolge (vorher vertauschte Hälften: Zäune als Fallkanten, Wände ohne Kollision, Boden als Wasser); `CardID::save` liest `nPoint` als Wert statt Byte 3 |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -1647,6 +1691,9 @@ vorn, auf ARM/x86 hinten.
   (0017).
 - **Wort-Zugriffe auf Byte-Strukturen** (`*(u32*) &farbe = 0xFF`): seit M4.5
   über `byte_views.json` (85 Stellen, siehe „M4.5“).
+- **Schmale Sichten über Zeiger** (`((u16*) poly)[8]`): das Suchskript
+  findet nur `&x`; die 21 Stellen mit Zeigervariablen sind von Hand
+  durchgesehen (Patch 0041, siehe „Vierter Gerätelauf mit GX“).
 - **Byte-Sichten in Disc-Strukturen** muss der Umwandler als Wort drehen
   (Patch 0016 legt sie für Host-Wörter aus): `ModelDataHead::x0` (gefunden
   vom Formatvergleich), `CRoomInfo::roomNo`, `ETS_DATA::no`, `SstList::no`,

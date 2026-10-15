@@ -608,13 +608,14 @@ struct GxRenderer::Impl {
     // blending, colour and alpha update
     const std::uint32_t c = bp[0x41];
     const bool alphaFormat = (bp[0x43] & 7) == 1; // RGBA6_Z24 keeps alpha
-    const bool alphaWrite = ((c >> 4) & 1) && alphaFormat;
-    glColorMask((c >> 3) & 1, (c >> 3) & 1, (c >> 3) & 1, alphaWrite);
+    const bool alphaWrite = ((c >> 4) & 1) && alphaFormat, colorWrite = (c >> 3) & 1;
+    glColorMask(colorWrite, colorWrite, colorWrite, alphaWrite);
     // destination alpha (GXSetDstAlpha, BP 0x42): the EFB alpha gets this
     // constant instead of the TEV alpha, which still drives the blending; the
     // shader writes it (PX alphaRef.z) unless the colour blending needs the
-    // TEV alpha, then the alpha blend factors make it (0 only: other values
-    // would need dual-source blending; counted in Stats().dstAlphaApprox)
+    // TEV alpha (colour written with SRC_ALPHA factors), then the alpha blend
+    // factors make it (0 only: other values would need dual-source blending;
+    // counted in Stats().dstAlphaApprox)
     const bool dstAlpha = alphaWrite && ((bp[0x42] >> 8) & 1);
     const int dstValue = static_cast<int>(bp[0x42] & 0xFF);
     int shaderAlpha = -1;
@@ -634,7 +635,7 @@ struct GxRenderer::Impl {
       glBlendEquation(GL_FUNC_ADD);
       if (!dstAlpha) {
         glBlendFunc(src[sf], dst[df]);
-      } else if (sf != 4 && sf != 5 && df != 4 && df != 5) {
+      } else if (!colorWrite || (sf != 4 && sf != 5 && df != 4 && df != 5)) {
         glBlendFuncSeparate(src[sf], dst[df], GL_ONE, GL_ZERO); // TEV alpha not needed: the shader writes it
         shaderAlpha = dstValue;
       } else {
