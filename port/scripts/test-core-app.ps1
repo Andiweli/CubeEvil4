@@ -40,6 +40,9 @@ die vollstaendigen Grafikdaten eines Bildes (hoechstens 6) und legt sie als
 gx-geraet.zip ab (zum Nachzeichnen in der Cloud, nicht ins Repository). Ein Druck
 auf den rechten Stick (R3) speichert jederzeit das naechste Bild ebenso (auch ohne
 -GxDump; nach einem Spiel ohne dieses Skript holt pull-gx-dumps.ps1 die Aufnahmen).
+-Scale waehlt die interne Aufloesung: 1 = 640x448 wie der GameCube, 2 = 1280x896
+(Standard, der sichtbare 16:9-Teil entspricht etwa 720p), 3 = 1920x1344 (etwa 1080p),
+4 = 2560x1792.
 Die Speicherkarten-Abfrage beim Start entfaellt (es gibt noch keine Speicherkarte);
 die Test-Tastenfolge behaelt sie, weil ihr Zeitplan darauf abgestimmt ist.
 
@@ -79,7 +82,8 @@ param(
     [string]$StartRoom = '120',
     [switch]$Bridge,
     [switch]$DebugHud,
-    [switch]$GxDump
+    [switch]$GxDump,
+    [int]$Scale = 0
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -245,6 +249,11 @@ if ($Bridge) {
 if ($DebugHud) {
     # the debug build's own displays (event counters, score, process bars); the app hides them by default
     $settings = if ($settings) { "$settings;RE4_DEBUG_HUD=1" } else { 'RE4_DEBUG_HUD=1' }
+}
+if ($Scale -gt 0) {
+    # internal resolution of the GX renderer (core_mode.cpp RE4_GX_SCALE, 1 to 4)
+    if ($Scale -gt 4) { throw '-Scale geht von 1 bis 4.' }
+    $settings = if ($settings) { "$settings;RE4_GX_SCALE=$Scale" } else { "RE4_GX_SCALE=$Scale" }
 }
 # GX dumps: every 20 s the full graphics data of one picture (for the analysis in the cloud)
 $dumpRemote = "/sdcard/Android/data/$package/files/gx-dumps"

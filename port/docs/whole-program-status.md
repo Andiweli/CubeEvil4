@@ -1468,7 +1468,8 @@ nach `DataDir`.
 - **Skripte:** `test-r100-core.ps1` nimmt `DataDir` standardmäßig aus dem
   Nachbarordner `RE4-Discdata`; `test-core-app.ps1` beendet die Beobachtung
   mit Q oder Strg+C und sammelt danach Protokolle und Aufnahmen ein, der
-  Bericht zeigt die R3-Zeilen.
+  Bericht zeigt die R3-Zeilen; `-Scale 1..4` wählt die interne Auflösung
+  (`RE4_GX_SCALE`; 2 = Standard, sichtbar etwa 720p, 3 = etwa 1080p).
 
 Getestet (Cloud): Kern-Build i686/armhf normal und `-O2` mit allen Prüfungen
 (neu: kurzer Tastendruck im Test `core-test`, Debug-Seite bei offenem
