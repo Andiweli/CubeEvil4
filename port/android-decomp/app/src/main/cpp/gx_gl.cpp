@@ -7,9 +7,12 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <unordered_map>
 #include <vector>
+
+#include <dlfcn.h>
 
 #ifdef __ANDROID__
 #include <android/log.h>
@@ -91,6 +94,7 @@ GLuint Link(const std::string &vs, const std::string &fs, std::string *log) {
 struct Program {
   GLuint id = 0;
   GLint mtx = -1;
+  mutable std::uint32_t lastMtx[3] = {~0u, ~0u, ~0u}; // uMtx as last set
 };
 
 struct KeyHash {
@@ -140,6 +144,7 @@ struct GxRenderer::Impl {
   GLuint vao = 0, vbo = 0, ibo = 0;
   GLuint xfUbo = 0, pxUbo = 0;
   GLuint copyProgram = 0, presentProgram = 0, paletteProgram = 0;
+  GLint presentRows = -1;
   GLint copyMode = -1, copyRect = -1, copySize = -1, copyHalf = -1;
   GLint paletteSize = -1, paletteKind = -1, paletteFormat = -1;
   GLuint quadVao = 0;
@@ -149,6 +154,33 @@ struct GxRenderer::Impl {
   std::unordered_map<std::uint32_t, Copy> copies;  // by destination address
   std::unordered_map<std::uint64_t, Texture> paletted; // copies read through a palette
   std::unordered_map<std::uint64_t, GLuint> samplers;
+
+  // --- what GL already has (per-draw work is skipped while it holds) --------
+  bool keyDirty = true;              // a register that shapes the shader changed
+  std::uint32_t keyLayout = ~0u;     // vertex layout of the cached key
+  ShaderKey key = {};
+  const Program *keyProgram = nullptr;
+  bool pxDirty = true;               // a register of the PX block changed
+  bool xfRegsDirty = true;           // colours, viewport or projection changed
+  std::uint32_t stateSig[9] = {};    // ApplyState's registers as last applied
+  bool stateValid = false;
+  GLuint unitTex[8] = {}, unitSampler[8] = {};
+  bool unitsValid = false;
+  bool vaoBound = false;
+  std::uint32_t attribMask = 0;      // enabled vertex attributes of vao
+  std::uint32_t attribLayout = ~0u, attribStride = 0, attribBase = ~0u;
+  // glDrawElementsBaseVertex (GLES 3.2 / OES / EXT): one attribute setup for
+  // all draws of a layout; null: pointers per draw
+  using DrawBaseVertex = void (*)(GLenum, GLsizei, GLenum, const void *, GLint);
+  DrawBaseVertex drawBaseVertex = nullptr;
+
+  // Other passes (uploads, copies, palettes, presenting) changed GL state.
+  void Touched() {
+    stateValid = false;
+    unitsValid = false;
+    vaoBound = false;
+    current = nullptr;
+  }
 
   // the texture bound to each map
   struct Bound {
@@ -169,6 +201,17 @@ struct GxRenderer::Impl {
   void BpWrite(std::uint32_t word, bool action) {
     const unsigned reg = word >> 24;
     const std::uint32_t value = word & 0xFFFFFF;
+    if (bp[reg] != value || !action) {
+      // registers the generated shader depends on (MakeKey)
+      if (reg == 0x00 || (reg >= 0x10 && reg <= 0x1F) || (reg >= 0x27 && reg <= 0x2F) ||
+          (reg >= 0xC0 && reg <= 0xDF) || reg == 0xF1 || reg == 0xF3 || (reg >= 0xF6 && reg <= 0xFD))
+        keyDirty = true;
+      // registers of the PX block (FillPixel)
+      if ((reg >= 0x06 && reg <= 0x0E) || reg == 0x25 || reg == 0x26 || (reg >= 0x30 && reg <= 0x3F) ||
+          (reg >= 0x80 && reg <= 0x87) || (reg >= 0xA0 && reg <= 0xA7) || (reg >= 0xE0 && reg <= 0xE7) ||
+          (reg >= 0xEE && reg <= 0xF3))
+        pxDirty = true;
+    }
     bp[reg] = value;
     if (reg >= 0xE0 && reg <= 0xE7) {
       const unsigned i = (reg - 0xE0) / 2;
@@ -208,39 +251,43 @@ struct GxRenderer::Impl {
   void XfWrite(std::uint32_t address, const std::uint32_t *words, std::uint32_t n) {
     for (std::uint32_t i = 0; i < n; i++) {
       const std::uint32_t a = address + i;
-      if (a < 0x800)
+      if (a < 0x800) {
         xfMem[a] = words[i];
-      else if (a >= 0x1000 && a < 0x1058)
-        xfReg[a - 0x1000] = words[i];
-      else
+        XfMemToBlock(a);
+      } else if (a >= 0x1000 && a < 0x1058) {
+        const std::uint32_t r = a - 0x1000;
+        xfReg[r] = words[i];
+        if (r == 0x09 || (r >= 0x0E && r <= 0x12) || r == 0x26 || r >= 0x3F)
+          keyDirty = true;
+        xfRegsDirty = true;
+      } else {
         continue;
+      }
       DirtyAddress(a);
     }
   }
 
-  void FillXf() {
-    for (int r = 0; r < 64; r++)
-      for (int c = 0; c < 4; c++)
-        xf.posTex[r][c] = AsFloat(xfMem[r * 4 + c]);
-    for (int r = 0; r < 32; r++) {
-      for (int c = 0; c < 3; c++)
-        xf.normal[r][c] = AsFloat(xfMem[0x400 + r * 3 + c]);
-      xf.normal[r][3] = 0.0f;
-    }
-    for (int r = 0; r < 64; r++)
-      for (int c = 0; c < 4; c++)
-        xf.post[r][c] = AsFloat(xfMem[0x500 + r * 4 + c]);
-    for (int l = 0; l < 8; l++) {
-      const std::uint32_t *w = xfMem + 0x600 + l * 16;
-      const std::uint32_t color = w[3];
-      for (int c = 0; c < 4; c++)
-        xf.light[l][0][c] = static_cast<float>((color >> (24 - 8 * c)) & 255) / 255.0f;
-      for (int part = 0; part < 4; part++) {
-        for (int c = 0; c < 3; c++)
-          xf.light[l][1 + part][c] = AsFloat(w[4 + part * 3 + c]);
-        xf.light[l][1 + part][3] = 0.0f;
+  // One word of XF memory into the XF block (FillXf for all of it).
+  void XfMemToBlock(std::uint32_t a) {
+    if (a < 0x100) {
+      xf.posTex[a / 4][a % 4] = AsFloat(xfMem[a]);
+    } else if (a >= 0x400 && a < 0x460) {
+      xf.normal[(a - 0x400) / 3][(a - 0x400) % 3] = AsFloat(xfMem[a]);
+    } else if (a >= 0x500 && a < 0x600) {
+      xf.post[(a - 0x500) / 4][(a - 0x500) % 4] = AsFloat(xfMem[a]);
+    } else if (a >= 0x600 && a < 0x680) {
+      const unsigned l = (a - 0x600) / 16, w = (a - 0x600) % 16;
+      if (w == 3) {
+        for (int c = 0; c < 4; c++)
+          xf.light[l][0][c] = static_cast<float>((xfMem[a] >> (24 - 8 * c)) & 255) / 255.0f;
+      } else if (w >= 4) {
+        xf.light[l][1 + (w - 4) / 3][(w - 4) % 3] = AsFloat(xfMem[a]);
       }
     }
+  }
+
+  // The XF registers of the block: material and ambient colours, viewport, projection.
+  void FillXfRegs() {
     const std::uint32_t colorRegs[4] = {xfReg[0x0C], xfReg[0x0D], xfReg[0x0A], xfReg[0x0B]};
     for (int i = 0; i < 4; i++)
       for (int c = 0; c < 4; c++)
@@ -256,6 +303,7 @@ struct GxRenderer::Impl {
     for (int i = 0; i < 6; i++)
       xf.proj[i / 4][i % 4] = AsFloat(xfReg[0x20 + i]);
     xf.proj[1][2] = static_cast<float>(xfReg[0x26]);
+    xfRegsDirty = false;
   }
 
   // --- textures ----------------------------------------------------------------
@@ -295,6 +343,7 @@ struct GxRenderer::Impl {
     const std::uint64_t key = static_cast<std::uint64_t>(t.keyHi) << 32 | t.keyLo;
     if (t.dataBytes == 0 || t.dataOffset + t.dataBytes > chunk.blobBytes)
       return;
+    Touched(); // binds the new texture
     Texture tex;
     tex.width = t.width;
     tex.height = t.height;
@@ -338,6 +387,7 @@ struct GxRenderer::Impl {
   // A texture copy read through a palette (C4/C8/C14X2 over a copy): the copy's
   // values looked up in TMEM's palette, on the GPU.
   GLuint PalettedCopy(const Copy &copy, const Re4GxTexture &t) {
+    Touched(); // its own pass
     const unsigned offset = (t.tlut & 0x3FF) << 9;
     const unsigned entries = std::min<unsigned>(GxPaletteEntries(t.format), (kTlutBytes - offset) / 2);
     const std::uint64_t key =
@@ -403,6 +453,7 @@ struct GxRenderer::Impl {
 
   void BindTexture(const Re4GxTexture &t, const Re4GxChunk &chunk) {
     const unsigned map = t.map & 7;
+    pxDirty = true; // the map's size is in the PX block
     Bound &b = bound[map];
     b.id = whiteTex;
     b.width = t.width ? t.width : 1;
@@ -432,6 +483,7 @@ struct GxRenderer::Impl {
   }
 
   void Forget(std::uint64_t key) {
+    Touched(); // a deleted texture is unbound
     auto it = textures.find(key);
     if (it != textures.end()) {
       glDeleteTextures(1, &it->second.id);
@@ -440,6 +492,7 @@ struct GxRenderer::Impl {
   }
 
   void DropTextures() {
+    Touched();
     for (auto &t : textures)
       glDeleteTextures(1, &t.second.id);
     textures.clear();
@@ -461,6 +514,13 @@ struct GxRenderer::Impl {
   }
 
   void ApplyState(unsigned primitive) {
+    // the registers below, as last applied: nothing to do while they hold
+    const std::uint32_t sig[9] = {bp[0x20],          bp[0x21],     bp[0x59], bp[0x40] & 0x1F, bp[0x41] & 0xFFFF,
+                                  bp[0x43] & 7,      (bp[0x00] >> 14) & 3, bp[0x22] & 0xFF, primitive};
+    if (stateValid && std::memcmp(sig, stateSig, sizeof(sig)) == 0)
+      return;
+    std::memcpy(stateSig, sig, sizeof(sig));
+    stateValid = true;
     glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
     glViewport(0, 0, kEfbWidth * scale, kEfbHeight * scale);
     // scissor: registers in EFB pixels + 342, minus the scissor offset (BP 0x59, in 2 pixels)
@@ -656,95 +716,149 @@ struct GxRenderer::Impl {
     (void)k;
   }
 
+  // Vertex attribute pointers of vao for a layout (re4_gx_frame.h) and stride,
+  // the first vertex at byte `base` of vbo; only changed enables are switched.
+  void SetAttributes(std::uint32_t layout, std::uint32_t stride, std::uint32_t base) {
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    const GLsizei s = static_cast<GLsizei>(stride);
+    const auto at = [&](unsigned offset) { return reinterpret_cast<const void *>(static_cast<std::uintptr_t>(base + offset)); };
+    std::uint32_t mask = 1;
+    unsigned off = 0;
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, s, at(off));
+    off += 12;
+    if (layout & RE4_GX_V_NORMAL) {
+      mask |= 1u << 1;
+      glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, s, at(off));
+      off += 12;
+      if (layout & RE4_GX_V_BINORMAL_TANGENT) {
+        mask |= 3u << 2;
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, s, at(off));
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, s, at(off + 12));
+        off += 24;
+      }
+    }
+    for (int c = 0; c < 2; c++) {
+      if (layout & (c == 0 ? RE4_GX_V_COLOR0 : RE4_GX_V_COLOR1)) {
+        mask |= 1u << (4 + c);
+        glVertexAttribPointer(4 + c, 4, GL_UNSIGNED_BYTE, GL_TRUE, s, at(off));
+        off += 4;
+      }
+    }
+    for (int t = 0; t < 8; t++) {
+      if (layout & (RE4_GX_V_TEX0 << t)) {
+        mask |= 1u << (6 + t);
+        glVertexAttribPointer(6 + t, 2, GL_FLOAT, GL_FALSE, s, at(off));
+        off += 8;
+      }
+    }
+    if (layout & RE4_GX_V_MATRIX) {
+      mask |= 1u << 14;
+      glVertexAttribIPointer(14, 3, GL_UNSIGNED_INT, s, at(off));
+    }
+    for (GLuint a = 0; a < 15; a++) {
+      const std::uint32_t bit = 1u << a;
+      if ((mask & bit) && !(attribMask & bit))
+        glEnableVertexAttribArray(a);
+      else if (!(mask & bit) && (attribMask & bit))
+        glDisableVertexAttribArray(a);
+    }
+    attribMask = mask;
+    attribLayout = layout;
+    attribStride = stride;
+    attribBase = base;
+  }
+
   void Draw(const Re4GxDraw &d, const Re4GxChunk &chunk) {
     if (d.indexCount == 0 || d.vertexOffset + static_cast<std::uint64_t>(d.vertexCount) * d.stride > chunk.vertexBytes ||
         d.indexOffset + d.indexCount > chunk.indexCount)
       return;
-    const ShaderKey k = MakeKey(d);
-    const Program *p = ProgramFor(k);
+    // the shader: the one of the last draw while no register that shapes it changed
+    if (keyDirty || d.layout != keyLayout) {
+      key = MakeKey(d);
+      keyProgram = ProgramFor(key);
+      keyLayout = d.layout;
+      keyDirty = false;
+    }
+    const Program *p = keyProgram;
     if (!p)
       return;
+    const ShaderKey &k = key;
     const unsigned primitive = d.primitive & 0xFF;
     ApplyState(primitive);
     const float pointSize = static_cast<float>((bp[0x22] >> 8) & 0xFF) / 6.0f * static_cast<float>(scale);
-    if (xf.proj[1][3] != pointSize)
-      Dirty(207, 208);
-    if (dirtyLo < dirtyHi) {
-      FillXf();
+    if (xf.proj[1][3] != pointSize) {
       xf.proj[1][3] = pointSize;
+      Dirty(207, 208);
+    }
+    if (xfRegsDirty)
+      FillXfRegs();
+    if (dirtyLo < dirtyHi) {
       glBindBuffer(GL_UNIFORM_BUFFER, xfUbo);
       glBufferSubData(GL_UNIFORM_BUFFER, dirtyLo * 16, (dirtyHi - dirtyLo) * 16,
                       reinterpret_cast<const std::uint8_t *>(&xf) + dirtyLo * 16);
       dirtyLo = static_cast<int>(sizeof(XfBlock) / 16);
       dirtyHi = 0;
     }
-    FillPixel(k);
-    if (!pxValid || std::memcmp(&px, &pxSent, sizeof(px)) != 0) {
-      glBindBuffer(GL_UNIFORM_BUFFER, pxUbo);
-      glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PixelBlock), &px);
-      pxSent = px;
-      pxValid = true;
+    if (pxDirty) {
+      FillPixel(k);
+      pxDirty = false;
+      if (!pxValid || std::memcmp(&px, &pxSent, sizeof(px)) != 0) {
+        glBindBuffer(GL_UNIFORM_BUFFER, pxUbo);
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PixelBlock), &px);
+        pxSent = px;
+        pxValid = true;
+      }
     }
     if (current != p) {
       glUseProgram(p->id);
       current = p;
     }
-    if (p->mtx >= 0)
+    if (p->mtx >= 0 && (p->lastMtx[0] != d.matrices[0] || p->lastMtx[1] != d.matrices[1] ||
+                        p->lastMtx[2] != d.matrices[2])) {
       glUniform3ui(p->mtx, d.matrices[0], d.matrices[1], d.matrices[2]);
+      std::memcpy(p->lastMtx, d.matrices, sizeof(p->lastMtx));
+    }
+    if (!unitsValid) {
+      for (int m = 0; m < 8; m++)
+        unitTex[m] = unitSampler[m] = ~0u;
+      unitsValid = true;
+    }
     for (int m = 0; m < 8; m++) {
       if (!(k.texMaps & (1u << m)))
         continue;
-      glActiveTexture(GL_TEXTURE0 + static_cast<GLenum>(m));
-      glBindTexture(GL_TEXTURE_2D, bound[m].id ? bound[m].id : whiteTex);
+      const GLuint id = bound[m].id ? bound[m].id : whiteTex;
+      if (unitTex[m] != id) {
+        glActiveTexture(GL_TEXTURE0 + static_cast<GLenum>(m));
+        glBindTexture(GL_TEXTURE_2D, id);
+        unitTex[m] = id;
+      }
       const std::uint32_t mode0 = bp[(m < 4 ? 0x80 : 0xA0) + (m & 3)], mode1 = bp[(m < 4 ? 0x84 : 0xA4) + (m & 3)];
-      glBindSampler(static_cast<GLuint>(m), Sampler(mode0, mode1, bound[m].levels));
-    }
-    // vertex attributes at the draw's vertices
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    for (GLuint a = 0; a < 15; a++)
-      glDisableVertexAttribArray(a);
-    const auto at = [&](unsigned offset) {
-      return reinterpret_cast<const void *>(static_cast<std::uintptr_t>(d.vertexOffset + offset));
-    };
-    const GLsizei stride = static_cast<GLsizei>(d.stride);
-    unsigned off = 0;
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, at(off));
-    off += 12;
-    if (d.layout & RE4_GX_V_NORMAL) {
-      glEnableVertexAttribArray(1);
-      glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, at(off));
-      off += 12;
-      if (d.layout & RE4_GX_V_BINORMAL_TANGENT) {
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, at(off));
-        glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, stride, at(off + 12));
-        off += 24;
+      const GLuint sampler = Sampler(mode0, mode1, bound[m].levels);
+      if (unitSampler[m] != sampler) {
+        glBindSampler(static_cast<GLuint>(m), sampler);
+        unitSampler[m] = sampler;
       }
     }
-    for (int c = 0; c < 2; c++) {
-      if (d.layout & (c == 0 ? RE4_GX_V_COLOR0 : RE4_GX_V_COLOR1)) {
-        glEnableVertexAttribArray(4 + c);
-        glVertexAttribPointer(4 + c, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, at(off));
-        off += 4;
-      }
+    // vertex attributes: with a base vertex the same setup serves every draw
+    // of a layout and stride (the vertex block starts at base + n * stride)
+    if (!vaoBound) {
+      glBindVertexArray(vao);
+      vaoBound = true;
     }
-    for (int t = 0; t < 8; t++) {
-      if (d.layout & (RE4_GX_V_TEX0 << t)) {
-        glEnableVertexAttribArray(6 + t);
-        glVertexAttribPointer(6 + t, 2, GL_FLOAT, GL_FALSE, stride, at(off));
-        off += 8;
-      }
+    std::uint32_t base = d.vertexOffset;
+    GLint baseVertex = 0;
+    if (drawBaseVertex && d.stride) {
+      base = d.vertexOffset % d.stride;
+      baseVertex = static_cast<GLint>(d.vertexOffset / d.stride);
     }
-    if (d.layout & RE4_GX_V_MATRIX) {
-      glEnableVertexAttribArray(14);
-      glVertexAttribIPointer(14, 3, GL_UNSIGNED_INT, stride, at(off));
-    }
+    if (d.layout != attribLayout || d.stride != attribStride || base != attribBase)
+      SetAttributes(d.layout, d.stride, base);
     const GLenum mode = primitive == RE4_GX_LINES ? GL_LINES : primitive == RE4_GX_POINTS ? GL_POINTS : GL_TRIANGLES;
-    glDrawElements(mode, static_cast<GLsizei>(d.indexCount), GL_UNSIGNED_SHORT,
-                   reinterpret_cast<const void *>(static_cast<std::uintptr_t>(d.indexOffset) * 2));
+    const void *indices = reinterpret_cast<const void *>(static_cast<std::uintptr_t>(d.indexOffset) * 2);
+    if (drawBaseVertex)
+      drawBaseVertex(mode, static_cast<GLsizei>(d.indexCount), GL_UNSIGNED_SHORT, indices, baseVertex);
+    else
+      glDrawElements(mode, static_cast<GLsizei>(d.indexCount), GL_UNSIGNED_SHORT, indices);
     stats.draws++;
     if (mode == GL_TRIANGLES)
       stats.triangles += d.indexCount / 3;
@@ -799,6 +913,7 @@ struct GxRenderer::Impl {
   }
 
   void EfbCopy(std::uint32_t control) {
+    Touched(); // its own pass
     const int x = static_cast<int>(bp[0x49] & 0x3FF), y = static_cast<int>((bp[0x49] >> 10) & 0x3FF);
     const int w = static_cast<int>(bp[0x4A] & 0x3FF) + 1, h = static_cast<int>((bp[0x4A] >> 10) & 0x3FF) + 1;
     const std::uint32_t dest = (bp[0x4B] & 0x1FFFFF) << 5;
@@ -953,9 +1068,10 @@ struct GxRenderer::Impl {
         "  int w = int(palSize.x);\n"
         "  o = texelFetch(pal, ivec2(index % w, index / w), 0);\n"
         "}\n";
+    // rows: XFB texture rows shown (offset, span; 0..1), row 0 at the top
     static const char kPresentFs[] = "#version 300 es\nprecision highp float;\n"
-                                     "uniform sampler2D src;\nin vec2 vUv;\nout vec4 o;\n"
-                                     "void main() { o = vec4(texture(src, vec2(vUv.x, 1.0 - vUv.y)).rgb, 1.0); }\n";
+                                     "uniform sampler2D src;\nuniform vec2 rows;\nin vec2 vUv;\nout vec4 o;\n"
+                                     "void main() { o = vec4(texture(src, vec2(vUv.x, rows.x + (1.0 - vUv.y) * rows.y)).rgb, 1.0); }\n";
     std::string log;
     copyProgram = Link(kQuadVs, kCopyFs, &log);
     if (!copyProgram) {
@@ -986,6 +1102,7 @@ struct GxRenderer::Impl {
     }
     glUseProgram(presentProgram);
     glUniform1i(glGetUniformLocation(presentProgram, "src"), 0);
+    presentRows = glGetUniformLocation(presentProgram, "rows");
     return true;
   }
 };
@@ -1000,6 +1117,26 @@ bool GxRenderer::Init(int scale, std::string *error) {
   if (!error)
     error = &dummy;
   m.scale = std::max(1, scale);
+  // glDrawElementsBaseVertex: GLES 3.2, or the OES / EXT extension
+  // (RE4_GX_BASEVERTEX=0 keeps the per-draw attribute setup)
+  {
+    const char *off = std::getenv("RE4_GX_BASEVERTEX");
+    const char *version = reinterpret_cast<const char *>(glGetString(GL_VERSION));
+    const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+    int major = 0, minor = 0;
+    if (version)
+      std::sscanf(version, "OpenGL ES %d.%d", &major, &minor);
+    void *f = nullptr;
+    if (!(off && *off == '0')) {
+      if (major > 3 || (major == 3 && minor >= 2))
+        f = dlsym(RTLD_DEFAULT, "glDrawElementsBaseVertex");
+      if (!f && ext && std::strstr(ext, "GL_OES_draw_elements_base_vertex"))
+        f = dlsym(RTLD_DEFAULT, "glDrawElementsBaseVertexOES");
+      if (!f && ext && std::strstr(ext, "GL_EXT_draw_elements_base_vertex"))
+        f = dlsym(RTLD_DEFAULT, "glDrawElementsBaseVertexEXT");
+    }
+    m.drawBaseVertex = reinterpret_cast<Impl::DrawBaseVertex>(f);
+  }
   const int w = kEfbWidth * m.scale, h = kEfbHeight * m.scale;
   glGenTextures(1, &m.efbColor);
   glBindTexture(GL_TEXTURE_2D, m.efbColor);
@@ -1058,6 +1195,7 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
   if (chunk.version != RE4_GX_FRAME_VERSION)
     return;
   m.stats.chunks++;
+  m.Touched();
   if (chunk.flags & RE4_GX_CHUNK_RESET) {
     m.stats.resets++;
     m.DropTextures();
@@ -1131,7 +1269,7 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
     glBindSampler(unit, 0);
   glActiveTexture(GL_TEXTURE0);
   glUseProgram(0);
-  m.current = nullptr;
+  m.Touched();
   m.SaveAndPlainState();
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -1144,13 +1282,18 @@ GLuint GxRenderer::Xfb(unsigned *width, unsigned *height) const {
   return impl_->haveXfb ? impl_->xfbTex : 0;
 }
 
-bool GxRenderer::Present(int x, int y, int w, int h) {
+bool GxRenderer::Present(int x, int y, int w, int h, unsigned top, unsigned rows) {
   Impl &m = *impl_;
   if (!m.haveXfb)
     return false;
   m.SaveAndPlainState();
   glViewport(x, y, w, h);
   glUseProgram(m.presentProgram);
+  const float lines = static_cast<float>(m.xfbHeight ? m.xfbHeight : 1);
+  if (rows == 0 || top + rows > m.xfbHeight)
+    glUniform2f(m.presentRows, 0.0f, 1.0f);
+  else
+    glUniform2f(m.presentRows, static_cast<float>(top) / lines, static_cast<float>(rows) / lines);
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, m.xfbTex);
   glBindSampler(0, 0);
@@ -1158,7 +1301,7 @@ bool GxRenderer::Present(int x, int y, int w, int h) {
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
   glUseProgram(0);
-  m.current = nullptr;
+  m.Touched();
   return true;
 }
 
@@ -1167,6 +1310,8 @@ GLuint GxRenderer::EfbColor() const { return impl_->efbColor; }
 int GxRenderer::Scale() const { return impl_->scale; }
 
 const GxStats &GxRenderer::Stats() const { return impl_->stats; }
+
+bool GxRenderer::BaseVertex() const { return impl_->drawBaseVertex != nullptr; }
 
 void GxRenderer::Release() {
   Impl &m = *impl_;

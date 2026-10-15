@@ -34,6 +34,11 @@ Die App zeigt, was das Spiel selbst zeichnet (GX-Nachbildung: Logos, Titel,
 Menues, Anzeigen, Effekte). -Bridge zeigt zum Vergleich die fruehere Ansicht
 (der Spielzustand, von der App selbst gezeichnet).
 
+Die App blendet die Debug-Anzeigen der Entwicklerfassung aus (-DebugHud zeigt sie)
+und schneidet die schwarzen Balken ab (Vollbild 16:9). -GxDump speichert alle 20 s
+die vollstaendigen Grafikdaten eines Bildes (hoechstens 6) und legt sie als
+gx-geraet.zip ab (zum Nachzeichnen in der Cloud, nicht ins Repository).
+
 Das Skript prueft jede Sekunde, ob die App noch laeuft. Stuerzt sie ab, endet die
 Beobachtung sofort: das Protokoll und der Absturzbericht des Systems werden gesichert
 und die Absturzstelle in WSL mit den Bibliotheken des Kern-Builds in Funktionen und
@@ -58,7 +63,7 @@ param(
     [string]$Serial = 'dbdcacc',
     [string]$Adb = '',
     [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'RE4-Kern-App'),
-    [int]$Seconds = 120,
+    [int]$Seconds = 240,
     [switch]$Manual,
     [switch]$SkipCore,
     [switch]$SkipApk,
@@ -68,7 +73,9 @@ param(
     [string]$JavaHome = '',
     [int]$ImportMinutes = 45,
     [string]$StartRoom = '120',
-    [switch]$Bridge
+    [switch]$Bridge,
+    [switch]$DebugHud,
+    [switch]$GxDump
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -80,6 +87,7 @@ Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue
 Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyContinue | Remove-Item
 # results of an earlier run must not pass for this one's
 Get-ChildItem -LiteralPath $OutDir -Filter 'absturz-*.txt' -ErrorAction SilentlyContinue | Remove-Item
+Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet.zip') -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'logcat.txt') -ErrorAction SilentlyContinue
 function Say([string]$Text) {
     Write-Host $Text
@@ -227,6 +235,16 @@ if ($Bridge) {
     # the earlier view: the core's state drawn by the app's own renderer
     $settings = if ($settings) { "$settings;RE4_VIEW=bridge" } else { 'RE4_VIEW=bridge' }
 }
+if ($DebugHud) {
+    # the debug build's own displays (event counters, score, process bars); the app hides them by default
+    $settings = if ($settings) { "$settings;RE4_DEBUG_HUD=1" } else { 'RE4_DEBUG_HUD=1' }
+}
+# GX dumps: every 20 s the full graphics data of one picture (for the analysis in the cloud)
+$dumpRemote = "/sdcard/Android/data/$package/files/gx-dumps"
+if ($GxDump) {
+    $dumpSetting = "RE4_GX_DUMP_DIR=$dumpRemote;RE4_GX_DUMP_EVERY=20"
+    $settings = if ($settings) { "$settings;$dumpSetting" } else { $dumpSetting }
+}
 . (Join-Path $PSScriptRoot 'Retroid-Adb-Exclusive.ps1')
 Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     if ((& $Adb -s $Serial get-state) -ne 'device' -or $LASTEXITCODE -ne 0) {
@@ -285,6 +303,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # the system's crash reports date their entries
     $since = ((& $Adb -s $Serial shell date +%s) -join '').Trim() + '.000'
     $sinceText = ((& $Adb -s $Serial shell date +%Y-%m-%d_%H:%M:%S) -join '').Trim() -replace '_', ' '
+    if ($GxDump) { & $Adb -s $Serial shell rm -rf $dumpRemote }
     & $Adb -s $Serial shell input keyevent KEYCODE_WAKEUP
     $start = "am start -n $package/com.ast.re4decomp.MainActivity"
     if ($settings) { $start += " --es coreSettings '$settings'" }
@@ -352,6 +371,21 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         }
     }
     & $Adb -s $Serial shell am force-stop $package
+    if ($GxDump) {
+        $dumpLocal = Join-Path $OutDir 'gx-geraet'
+        Remove-Item -LiteralPath $dumpLocal -Recurse -ErrorAction SilentlyContinue
+        & $Adb -s $Serial pull $dumpRemote $dumpLocal | Out-Null
+        $dumps = @(Get-ChildItem -LiteralPath $dumpLocal -Filter 'gx-geraet-*.bin' -ErrorAction SilentlyContinue)
+        if ($dumps.Count) {
+            $zip = Join-Path $OutDir 'gx-geraet.zip'
+            Remove-Item -LiteralPath $zip -ErrorAction SilentlyContinue
+            Compress-Archive -Path $dumps.FullName -DestinationPath $zip
+            Say "   GX-Daten vom Geraet: $($dumps.Count) Bilder (gx-geraet.zip, $([math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 1)) MB; bitte mitschicken)"
+        } else {
+            Say '   GX-Daten vom Geraet: keine (RE4_GX_DUMP_DIR)'
+        }
+        & $Adb -s $Serial shell rm -rf $dumpRemote
+    }
     Say "   Protokoll: $($keep.Count) Zeilen (logcat.txt)$(if ($systemCrash.Count) { ', Absturzbericht des Systems (absturz-system.txt)' }); App beendet"
 
     Say ''
@@ -375,6 +409,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     if ($gxReady) { Say "GX-Renderer:                      $(($gxReady -split 'RE4Core\s*:\s*')[-1])" }
     $gxStats = $keep | Where-Object { $_ -match 'RE4Core.*GX: \d+ chunks' } | Select-Object -Last 1
     if ($gxStats) { Say "GX zuletzt:                       $(($gxStats -split 'GX: ')[-1])" }
+    # the core's side: game time per picture and the part spent waiting for the renderer
+    $gxCore = $keep | Where-Object { $_ -match 'GX core: ' } | Select-Object -Last 1
+    if ($gxCore) { Say "GX im Kern zuletzt:               $(($gxCore -split 'GX core: ')[-1])" }
     $shaderFail = @($keep | Where-Object { $_ -match 'RE4GX.*shader failed' })
     if ($shaderFail.Count) { Say "GX-Shader-FEHLER:                 $($shaderFail.Count) (Ausschnitt in logcat.txt)" }
     $presses = @($keep | Where-Object { $_ -match 're4\s*: pad: frame' })

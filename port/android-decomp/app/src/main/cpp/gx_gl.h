@@ -52,12 +52,15 @@ public:
   // 0 before the first display copy.
   GLuint Xfb(unsigned *width, unsigned *height) const;
   // Draws the latest display copy into the current framebuffer's viewport
-  // (x, y, w, h), upright. False when there is none yet.
-  bool Present(int x, int y, int w, int h);
+  // (x, y, w, h), upright; rows > 0: only XFB rows top .. top + rows - 1
+  // (the letterbox cut off). False when there is none yet.
+  bool Present(int x, int y, int w, int h, unsigned top = 0, unsigned rows = 0);
   // EFB colour texture (tests): GameCube coordinates times the scale.
   GLuint EfbColor() const;
   int Scale() const;
   const GxStats &Stats() const;
+  // True when draws use glDrawElementsBaseVertex (one attribute setup per layout).
+  bool BaseVertex() const;
   // Frees the GL objects (context current).
   void Release();
 

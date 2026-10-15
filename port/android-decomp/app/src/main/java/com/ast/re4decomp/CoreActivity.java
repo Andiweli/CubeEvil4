@@ -31,7 +31,7 @@ import javax.microedition.khronos.opengles.GL10;
  * Core mode: the original game core runs the game (started once per process);
  * this Activity draws its frames, passes the controller as GameCube pad 0 and
  * prepares the room archive the game enters. SELECT shows/hides the
- * diagnostic overlay; Back ends the game (the core cannot be restarted inside
+ * diagnostic overlay (hidden at the start unless the core did not start); Back ends the game (the core cannot be restarted inside
  * the same process).
  */
 public final class CoreActivity extends Activity {
@@ -81,6 +81,8 @@ public final class CoreActivity extends Activity {
     FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
         FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
     root.addView(overlay, lp);
+    // hidden while the game runs (SELECT shows it); shown when the core did not start
+    overlay.setVisibility(startProblem.isEmpty() ? View.GONE : View.VISIBLE);
     setContentView(root);
     surface.setFocusable(true);
     surface.requestFocus();

@@ -198,6 +198,11 @@ const unsigned kFreeFrames = 300;
 unsigned g_freeRun;
 long g_freeAt = -1;
 unsigned long g_stopAfter;
+// RE4_DEBUG_HUD=0: the debug build's own displays off (debug_mode 0, as the
+// publicity build sets it in main.cpp): the event and score lines, the
+// process bars, the heap numbers, the debug text (EprintfDrawing) and the
+// green far fog of DBG_FOG_FAR_GREEN (game.cpp). The app sets it by default.
+bool g_hideDebugHud;
 unsigned long g_roomFrames;  // frames since the first main loop frame
 unsigned long g_loopFrames;  // of them in step 3
 
@@ -207,6 +212,9 @@ void frame(unsigned n)
     GLOBAL_WK* g = pG;
     if (!live(g)) {
         return;
+    }
+    if (g_hideDebugHud && g->debug_mode != 0) {
+        g->debug_mode = 0;
     }
     if (g_roomStart < 0 && g->Rno0 >= 2) {
         g_roomStart = (long) n;
@@ -277,7 +285,9 @@ void configure()
     const char* stop = getenv("RE4_STOP_AFTER");
     g_stopAfter = stop ? strtoul(stop, 0, 10) : 0;
     const char* freeScript = getenv("RE4_PAD_FREE_SCRIPT");
-    if (g_trace || g_padUntilRoom || g_stopAfter || g_place || (freeScript && *freeScript)) {
+    const char* hud = getenv("RE4_DEBUG_HUD");
+    g_hideDebugHud = hud && *hud == '0';
+    if (g_trace || g_padUntilRoom || g_stopAfter || g_place || g_hideDebugHud || (freeScript && *freeScript)) {
         re4_set_frame_hook(frame);
     }
 }

@@ -333,10 +333,31 @@ void dropQueueLocked()
     gNeedReset = true;
 }
 
+// Timing for the log: game time per chunk (display copy to display copy) and
+// the part of it the core waited for a free slot (the renderer is behind).
+long long gBoundaryAt;
+long long gFrameMs, gWaitMs;
+u32 gTimedChunks;
+
 // A display copy ends the chunk: queue it, start the next one if a renderer
 // still takes chunks. Waits while every slot is queued or being read.
 void chunkBoundary(u32 xfb, u32 width, u32 height)
 {
+    const long long start = nowMs();
+    if (gBoundaryAt && gWanted.load()) {
+        gFrameMs += start - gBoundaryAt;
+        if (++gTimedChunks == 600) {
+            re4_log("GX core: 600 chunks, %.1f ms each, of it %.1f ms waiting for the renderer", gFrameMs / 600.0,
+                    gWaitMs / 600.0);
+            gTimedChunks = 0;
+            gFrameMs = gWaitMs = 0;
+        }
+    }
+    gBoundaryAt = start;
+    struct WaitTimer {
+        long long from;
+        ~WaitTimer() { gWaitMs += nowMs() - from; }
+    } waited = {start};
     std::unique_lock<std::mutex> lock(gMutex);
     if (gCurrent >= 0) {
         Chunk* c = chunk();

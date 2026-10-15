@@ -1139,6 +1139,61 @@ Tonspuren-Verlauf (jedes Bild, in dem sich Tonspuren ändern; die Zeile
 „Tonspuren im letzten Bild“ wird jetzt als JSON gelesen, das alte Suchmuster
 schnitt sie an der ersten `]` ab).
 
+### Zweiter Gerätelauf mit GX (15.10.2026, Retroid) und Analyse
+
+Stand `38b0c6b`: Die App startet und zeigt das Intro über die
+GX-Nachbildung (Capcom-Logo, Autofahrt r120s00 mit Leon). Der Lauf endete
+nach den 120 s des Skripts (App lief bis zuletzt, Ereigniszähler bei
+1856/1970) – kein Absturz. Gemeldet: Debug-Anzeigen, kein Vollbild, sehr
+langsam (1–2 Bilder/s sichtbar), Renderfehler (Helligkeit, Leons Haare).
+
+- **Geschwindigkeit:** Das Protokoll zeigt etwa 20 Bildstücke/s mit je
+  rund 9000 Zeichenaufträgen; der Ereigniszähler lief mit etwa 20 statt 30
+  Bildern/s. Sichtbar waren weniger, weil die App je Anzeige bis zu 8
+  Bildstücke abarbeitete und nur das letzte zeigte. Jetzt: ein Bildstück je
+  Anzeige (jedes Bild des Spiels wird gezeigt; ist der Renderer langsamer,
+  wartet der Kern). Der Renderer überspringt, was GL schon hat:
+  Zustand (Scissor, Tiefe, Mischung, Seite, Linienbreite) nur bei Änderung
+  der Register, Shader-Schlüssel nur bei Änderung der formgebenden
+  BP/XF-Register, PX-Block nur bei Änderung seiner Register oder
+  Texturgrößen, Texturen und Sampler je Einheit, `uMtx` je Programm,
+  XF-Block wortweise statt ganz neu umgerechnet, Vertex-Attribute einmal je
+  Layout und Stride mit `glDrawElementsBaseVertex` (GLES 3.2/OES/EXT;
+  `RE4_GX_BASEVERTEX=0` schaltet es ab). Uploads, Kopien, Paletten und die
+  Anzeige setzen die Merker zurück (`Touched`). Prüfung: `gx_gl_check`
+  grün mit und ohne Base-Vertex; vier aufgezeichnete Bilder (61, 301, 601,
+  652) pixelgleich zum alten Renderer, beide Wege. Auf llvmpipe (rechnet in
+  Software) nur 10–15 % schneller, dort dominiert das Rastern; auf dem
+  Gerät zählt der Aufwand je GL-Aufruf (vorher etwa 50 je Zeichenauftrag,
+  jetzt meist unter 10). Messwerte im Protokoll: App „GX: … run x ms
+  (max y), shown z/s, base vertex yes/no“, Kern „GX core: … ms each, of it
+  … ms waiting for the renderer“ (Bericht: „GX zuletzt“, „GX im Kern“).
+- **Debug-Anzeigen:** `RE4_DEBUG_HUD=0` setzt `pG->debug_mode` auf 0, wie
+  die Vorführfassung (`main.cpp`, `SYS_PUBLICITY_VER`): keine
+  Ereignis-/Punktezeilen, Leistungsbalken, Heap-Zahlen, Debug-Texte
+  (`EprintfDrawing`), kein grüner Fernnebel (`DBG_FOG_FAR_GREEN`). Die App
+  setzt es als Standard (`-DebugHud` im Skript zeigt sie wieder), die
+  PC-Prüfung behält sie (die Zähler helfen bei der Analyse). Das
+  Diagnosefenster der App ist beim Start ausgeblendet (SELECT zeigt es).
+- **Vollbild:** Das Spiel zeichnet überall mit Balken; die Zeilen 56–391
+  der 448 ergeben auf einem 4:3-Fernseher genau 16:9. Die App zeigt nur
+  diese Zeilen in einem 16:9-Feld (`Present(…, top, rows)`);
+  `RE4_GX_ASPECT=4:3` zeigt das ganze Bild wie bisher.
+- **Haare/Helligkeit:** Ein Teil der dunklen Flächen auf den Bildern war
+  der halbdurchsichtige Hintergrund des Diagnosefensters (endet genau dort,
+  wo die Haare wieder hell werden). Andere Stellen (Bild bei 95 s) bleiben
+  offen; mit doppelter EFB-Auflösung zeichnet llvmpipe dieselben
+  aufgezeichneten Bilder wie mit einfacher (unter 2 % Abweichung, nur
+  Kanten), der Unterschied entsteht also auf dem Gerät. Zur Analyse
+  speichert die App mit `RE4_GX_DUMP_DIR` alle `RE4_GX_DUMP_EVERY`
+  Sekunden ein vollständiges Bildstück (sie meldet sich ab, das nächste
+  Stück beginnt mit vollem Zustand), höchstens 6; das Skript holt sie mit
+  `-GxDump` als `gx-geraet.zip` (nur hochladen, nie ins Repository).
+- Skript: Beobachtung standardmäßig 240 s.
+
+Nicht getestet: alles davon auf dem Gerät; `RE4_DEBUG_HUD` ohne eigenen
+Test (Wirkung nur im laufenden Spiel sichtbar).
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich

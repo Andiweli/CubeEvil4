@@ -10,12 +10,16 @@
 #include "core_scene.h"
 #include "gx_gl.h"
 #include "re4_gx_frame.h"
+#include "re4_gx_frame_io.h"
 
 #include <android/log.h>
 #include <dlfcn.h>
+#include <sys/stat.h>
 #include <jni.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cstdio>
 #include <cstdlib>
 #include <chrono>
 #include <memory>
@@ -106,6 +110,16 @@ std::chrono::steady_clock::time_point lastDraw;
 std::unique_ptr<re4gx::GxRenderer> gx;
 int gxMode = -1;  // -1 undecided, 0 bridge, 1 GX
 unsigned gxChunks = 0;
+// timing of the GX view since the last log line
+std::chrono::steady_clock::time_point gxSince;
+double gxRunMs = 0, gxRunMax = 0;
+unsigned gxRunCount = 0, gxFrames = 0, gxDraws = 0;
+// GX dumps for the diagnosis (RE4_GX_DUMP_DIR); -1: settings not read yet
+int gxDumpEvery = -1;
+std::string gxDumpDir;
+std::chrono::steady_clock::time_point gxDumpNext;
+bool gxDumpWanted = false;
+unsigned gxDumpCount = 0;
 
 // Runs the chunks the core has finished and shows the latest display copy.
 // False while there is nothing to show yet (the caller draws the bridge).
@@ -130,33 +144,91 @@ bool drawGx() {
     }
     LOG("GX renderer ready, EFB scale %d", scale);
   }
-  // in order; a slow display catches up on all finished chunks
-  for (int n = 0; n < 8; ++n) {
-    const Re4GxChunk *chunk = api.gxAcquire();
-    if (!chunk) break;
+  // one chunk per displayed frame: every picture the game makes is shown (a
+  // renderer slower than the game slows the game down, the core waits for it,
+  // instead of skipping pictures)
+  const auto now = std::chrono::steady_clock::now();
+  if (gxSince.time_since_epoch().count() == 0) gxSince = now;
+  gxFrames++;
+  // diagnosis (RE4_GX_DUMP_DIR, RE4_GX_DUMP_EVERY seconds, at most 6): the
+  // renderer detaches, so the next chunk starts over with the full state and
+  // every texture, and that chunk goes to a file (re4_gx_frame_io.h, drawn in
+  // the cloud with gx_chunk_render)
+  if (gxDumpEvery < 0) {
+    const char *dir = getenv("RE4_GX_DUMP_DIR");
+    const char *every = getenv("RE4_GX_DUMP_EVERY");
+    gxDumpDir = dir ? dir : "";
+    gxDumpEvery = gxDumpDir.empty() ? 0 : (every ? std::max(5, std::atoi(every)) : 20);
+    if (gxDumpEvery) {
+      mkdir(gxDumpDir.c_str(), 0775);
+      gxDumpNext = now + std::chrono::seconds(gxDumpEvery);
+      LOG("GX dumps every %d s into %s", gxDumpEvery, gxDumpDir.c_str());
+    }
+  }
+  if (gxDumpEvery && !gxDumpWanted && gxDumpCount < 6 && now >= gxDumpNext) {
+    api.gxDetach();
+    gxDumpWanted = true;
+    gxDumpNext = now + std::chrono::seconds(gxDumpEvery);
+  }
+  if (const Re4GxChunk *chunk = api.gxAcquire()) {
+    if (gxDumpWanted && (chunk->flags & RE4_GX_CHUNK_RESET)) {
+      gxDumpWanted = false;
+      char path[512];
+      std::snprintf(path, sizeof(path), "%s/gx-geraet-%02u.bin", gxDumpDir.c_str(), gxDumpCount++);
+      if (FILE *f = std::fopen(path, "wb")) {
+        const bool ok = re4gxio::Write(f, *chunk, gxChunks);
+        std::fclose(f);
+        LOG("GX dump %s (%u draws, chunk %u)%s", path, chunk->draws, gxChunks, ok ? "" : ": write failed");
+      }
+    }
     gx->Run(*chunk);
     api.gxRelease(chunk);
-    if ((++gxChunks % 600) == 1) {
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - now).count();
+    gxRunMs += ms;
+    gxRunMax = std::max(gxRunMax, ms);
+    gxRunCount++;
+    if ((++gxChunks % 300) == 1) {
       const auto &s = gx->Stats();
-      LOG("GX: %u chunks, %u draws, %u programs, %u textures, %u copies, %u missing, %u shader errors", s.chunks,
-          s.draws, s.programs, s.textures, s.textureCopies, s.missingTextures, s.shaderErrors);
+      const double seconds = std::chrono::duration<double>(now - gxSince).count();
+      LOG("GX: %u chunks, %u draws (%u per chunk), run %.1f ms (max %.1f), shown %.1f/s, %u programs, %u textures, "
+          "%u copies, %u missing, %u shader errors, base vertex %s",
+          s.chunks, s.draws, gxRunCount ? (s.draws - gxDraws) / gxRunCount : 0, gxRunCount ? gxRunMs / gxRunCount : 0.0,
+          gxRunMax, seconds > 0 ? gxFrames / seconds : 0.0, s.programs, s.textures, s.textureCopies,
+          s.missingTextures, s.shaderErrors, gx->BaseVertex() ? "yes" : "no");
+      gxDraws = s.draws;
+      gxRunMs = gxRunMax = 0;
+      gxRunCount = gxFrames = 0;
+      gxSince = now;
     }
   }
   unsigned xw = 0, xh = 0;
   if (!gx->Xfb(&xw, &xh)) return false;
-  // the 640-wide picture in a 4:3 frame of 480 lines (the XFB holds xh of them)
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glViewport(0, 0, width, height);
   glDisable(GL_SCISSOR_TEST);
   glClearColor(0, 0, 0, 1);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  int boxW = width, boxH = width * 3 / 4;
-  if (boxH > height) {
-    boxH = height;
-    boxW = height * 4 / 3;
+  const char *aspect = getenv("RE4_GX_ASPECT");
+  if (aspect && std::string(aspect) == "4:3") {
+    // the whole picture: 640 wide in a 4:3 frame of 480 lines (the XFB holds xh of them)
+    int boxW = width, boxH = width * 3 / 4;
+    if (boxH > height) {
+      boxH = height;
+      boxW = height * 4 / 3;
+    }
+    const int picH = boxH * static_cast<int>(xh) / 480;
+    gx->Present((width - boxW) / 2, (height - picH) / 2, boxW, picH);
+  } else {
+    // full screen: the game letterboxes everything (rows 56..391 of its 448,
+    // on a 4:3 television exactly 16:9); those rows fill a 16:9 box
+    const unsigned top = xh * 56 / 448, rows = xh * 336 / 448;
+    int boxW = width, boxH = width * 9 / 16;
+    if (boxH > height) {
+      boxH = height;
+      boxW = height * 16 / 9;
+    }
+    gx->Present((width - boxW) / 2, (height - boxH) / 2, boxW, boxH, top, rows);
   }
-  const int picH = boxH * static_cast<int>(xh) / 480;
-  gx->Present((width - boxW) / 2, (height - picH) / 2, boxW, picH);
   return true;
 }
 
@@ -179,6 +251,8 @@ Java_com_ast_re4decomp_CoreBridge_start(JNIEnv *env, jclass, jstring gameRoot, j
   const auto root = text(env, gameRoot);
   // the core's test switches: environment variables read when the game uses them
   if (api.state && api.state() == RE4_CORE_IDLE) {
+    // defaults of the app: no debug displays of the debug build (RE4_DEBUG_HUD=1 shows them)
+    setenv("RE4_DEBUG_HUD", "0", 0);
     std::string list = text(env, settings);
     std::size_t pos = 0;
     while (pos < list.size()) {
