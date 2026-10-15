@@ -96,6 +96,13 @@ void re4_os_exit_current(void* val);
 void re4_os_interrupt_begin(void);
 void re4_os_interrupt_end(void);
 int re4_os_in_interrupt(void);
+/* Runs the registered handler of hardware interrupt `interrupt`
+ * (__OSSetInterruptHandler) in interrupt context; 0 when there is none. */
+int re4_os_hw_interrupt(short interrupt);
+/* The emulated graphics processor (gx_fifo.cpp): its pending PE interrupts
+ * (draw done, token) are delivered when a thread starts waiting and with the
+ * video retraces, the moments the GP would have caught up on the GameCube. */
+void re4_gx_deliver_interrupts(void);
 /* Completions (DVD reads, ARAM DMAs) started inside an interrupt handler run
  * when the handler has returned: re4_os_defer queues one (0 when the queue is
  * full: complete at once), re4_os_deferred_set changes the value of a queued

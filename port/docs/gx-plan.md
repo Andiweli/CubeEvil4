@@ -1,0 +1,62 @@
+# GX nachbilden – Bauplan
+
+Entscheidung des Projektinhabers (15.10.2026): Die App zeigt, was das Spiel
+selbst über GX zeichnet. Bisher zeichnet die App die Räume und Figuren aus dem
+Spielzustand nach (Zustandsbrücke, `re4_core.h`); alles, was das Spiel nur über
+GX zeigt – Logos, Titelmenü, Untermenüs, Funk, Inventar, Lebensanzeige,
+Untertitel, Effekte, Spiegel, Wasser –, fehlt, und Modelle weichen ab (Auto im
+Intro). Fortschritt steht in `whole-program-status.md`.
+
+## Wie die GameCube zeichnet
+
+Das Spiel ruft die GX-Bibliothek des SDK (`src/lib/GX*.c`, liegt dekompiliert
+vor). Die Bibliothek schreibt Befehle in den **GX-FIFO** (eine
+Schreibadresse, `GXWGFifo` bei `0xCC008000`): Register des Grafikprozessors
+(CP: Punktformate, Feld-Adressen; XF: Matrizen, Licht, Texturkoordinaten,
+Bildausschnitt; BP: TEV-Stufen, Texturen, Mischen, Tiefe, Nebel, Kopieren)
+und Zeichenbefehle mit den Punktdaten. Modelle bringen fertige
+**Display-Listen** mit (dieselben Befehle als Datenblock, `GXCallDisplayList`).
+Am Ende eines Bildes kopiert `GXCopyDisp` das fertige Bild in den
+Bildspeicher, `VISetNextFrameBuffer` zeigt es an. Render-to-Texture
+(`GXCopyTex`: Spiegel, Wasser, Schatten, Filter) kopiert in eine Textur.
+
+## Weg im Port
+
+Die GX-Bibliothek wird **unverändert mitkompiliert**; nur ihre
+Hardware-Zugriffe werden beim Bauen umgelenkt (`whole_prepare.py`). Ein
+**Nachbau des Grafikprozessors** liest den FIFO-Strom und erzeugt daraus
+Zeichenaufträge, die der GL-Faden der App mit GLES3 ausführt. Damit gibt es
+einen einzigen Weg für alles, was das Spiel zeichnet, und die Registerwerte
+stammen aus dem Original-SDK.
+
+```
+Spiel ─GX-Aufrufe→ GX-Bibliothek (src/lib) ─FIFO-Bytes→ gx_fifo (Kern-Faden)
+   → Befehlsdecoder (CP/XF/BP, Punkte, Display-Listen) → Bildliste
+   → (Dreifachpuffer wie der Schnappschuss) → App, GL-Faden: GLES3-Ausgabe
+```
+
+Punkt- und Texturdaten werden beim Dekodieren auf dem Kern-Faden kopiert
+(das Spiel überschreibt seine Puffer im nächsten Bild); der GL-Faden liest
+keinen Spielspeicher.
+
+## Schritte
+
+| | Inhalt | Test (Cloud, ohne Disc-Daten) |
+|---|---|---|
+| G1 | FIFO einsammeln: Schreibzugriffe auf `GXWGFifo` (Spiel `include/gx.h`, SDK `GXVert.h`, `__gx.h`) werden beim Bauen zu `re4_gx_put_*`; GX-Bibliothek aus `src/lib` im Build, Register-Blöcke (CP/PE/PI/MEM) auf Speicher des Ports, Zeichen-fertig/Token-Unterbrechung des PE nachgebildet; die rund 97 GX-Platzhalter entfallen | GX-Aufrufe erzeugen die erwarteten Befehlsbytes (BP/XF/CP-Schreiben, Zeichenbefehl mit Punkten); `GXDrawDone` kehrt zurück |
+| G2 | Befehlsdecoder: CP (Punktbeschreibung, Formate, Feld-Adressen), XF (Matrizen, Normalen, Licht, Kanäle, Texturkoordinaten, Bildausschnitt, Projektion), BP (TEV, Texturen, TLUT, Mischen, Tiefe, Alpha, Nebel, Schere, Kopieren), Zeichenbefehle direkt und indiziert, Display-Listen | synthetische GX-Programme → erwartete Dreiecke, Punkte und Zustände |
+| G3 | GLES3-Ausgabe (App): Shader aus dem TEV-Zustand (bis 16 Stufen, Konstanten, Tauschtabellen, später indirekte Texturen), Licht pro Punkt, Texturkoordinaten-Erzeugung, Texturformate (Leser der App), TLUT, Mischen/Tiefe/Alpha/Nebel/Seite, Kopien in den Bildspeicher und in Texturen | Bildvergleich synthetischer Szenen (Mesa, offscreen) |
+| G4 | In der App: Kernmodus zeigt das GX-Bild statt der Zustandsbrücke (umschaltbar, Brücke bleibt für Diagnose); PC-Prüfung zeichnet GX-Bilder | lokal: Logos, Titelmenü, r120/r100 wie im Original; Gerätetest |
+| G5 | Rest: Bildeffekte (Filter, Unschärfe), `GXPeekZ`, Leistung (Zustands- und Shader-Cache), was die Bilder zeigen | lokal, Gerät |
+
+## Offene Punkte
+
+- Adressen: Der Grafikprozessor arbeitet mit physischen Adressen (MEM1 ab 0).
+  Spieldaten liegen im Port bei `0x80000000 + physisch`. Daten außerhalb von
+  MEM1 (statische Felder der Bibliotheken) brauchen eine Zuordnung (z. B. die
+  Standard-Textur von `GXInit`).
+- Zeichen-fertig: `GXDrawDone` wartet auf die PE-Unterbrechung; der Nachbau
+  arbeitet die Befehle sofort ab und meldet „fertig“ im Unterbrechungsweg des
+  Ports (`re4_os_interrupt_*`).
+- Bildtakt: das Spiel zeigt mit `VISetNextFrameBuffer`; die App holt die
+  Bildliste des zuletzt gezeigten Bildes.

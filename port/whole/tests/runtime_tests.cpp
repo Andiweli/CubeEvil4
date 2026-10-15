@@ -8,6 +8,8 @@
 //          synthetic fixtures of port/tests/yz2_fixtures.h
 //   dvdq   the game's own DVD queue (dvd.cpp) reading a synthetic headered file:
 //          big-endian part table (patch 0013), parts into the game heap
+//   gx     the SDK's GX library feeds the port's GX FIFO: register encodings,
+//          vertex sizes, display lists, PE interrupts (tests/gx_probe.cpp)
 //   stream the sound driver's stream code (snd_str*.cpp) plays two synthetic
 //          stream files with its refill in the audio frame (an interrupt):
 //          DVD reads and ARAM DMAs started there complete after the handler
@@ -687,6 +689,26 @@ static void testStream()
     report("stream", ok);
 }
 
+// --- GX: the FIFO of the emulated graphics processor -------------------------------
+
+extern "C" int re4probe_gx_test(void* fifo, void* list);
+
+// The SDK's GX library and the game's inline vertex functions feed the port's
+// GX FIFO (runtime/gx_fifo.cpp, tests/gx_probe.cpp). The FIFO and the display
+// list live in MEM1 as on the GameCube (the GP addresses memory physically).
+static void testGx()
+{
+    bool ok = true;
+    void* fifo = (void*) (unsigned long) 0x82800000u;
+    void* list = (void*) (unsigned long) 0x82810000u;
+    int failed = re4probe_gx_test(fifo, list);
+    if (failed) {
+        re4_log("  gx checks failed: 0x%x", failed);
+    }
+    CHECK(failed == 0);
+    report("gx", ok);
+}
+
 // --- matrix math ----------------------------------------------------------------
 
 typedef float TMtx[3][4];
@@ -1019,6 +1041,7 @@ int re4_runtime_tests()
     testYz2();
     testDvdQueue();
     testStream();
+    testGx();
     testMath();
     testTrace();
     testTasks();

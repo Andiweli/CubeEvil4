@@ -547,6 +547,12 @@ void OSSleepThread(OSThreadQueue* q)
     OSThread* t = gCurrent;
     t->state = kWaiting;
     enqueue(q, t);
+    // While the CPU waits the graphics processor catches up (gx_fifo.cpp): its
+    // "draw done" interrupt may wake this very thread (GXWaitDrawDone).
+    re4_gx_deliver_interrupts();
+    if (t->state == kReady) {
+        t->state = kRunning;
+    }
     reschedule();
 }
 

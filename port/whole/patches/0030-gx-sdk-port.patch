@@ -1,0 +1,293 @@
+diff -ru a/src/lib/GXInit.c b/src/lib/GXInit.c
+--- a/src/lib/GXInit.c	2026-10-15 06:54:47.464637741 +0000
++++ b/src/lib/GXInit.c	2026-10-15 06:55:12.317005533 +0000
+@@ -6,6 +6,7 @@
+ #include <dolphin/vi.h>
+ 
+ #include "__gx.h"
++#include "re4_gx_fifo.h" /* port: patch 0030 */
+ 
+ #if SDK_REVISION < 2
+ #define BUILD_DATE  "Apr  5 2004"
+@@ -73,10 +74,8 @@
+ 
+ static OSResetFunctionInfo GXResetFuncInfo = {__GXShutdown, 0x7F, NULL, NULL};
+ 
+-asm BOOL IsWriteGatherBufferEmpty(void) {
+-    sync
+-    mfspr r3, WPAR
+-    andi. r3, r3, 1
++BOOL IsWriteGatherBufferEmpty(void) {
++    return 1; /* port: patch 0030, every FIFO store is passed on at once */
+ }
+ 
+ static void EnableWriteGatherPipe(void) {
+@@ -260,10 +259,11 @@
+     
+     GXSetMisc(GX_MT_XF_FLUSH, 0);
+ 
+-    __piReg = OSPhysicalToUncached(0xC003000);
+-    __cpReg = OSPhysicalToUncached(0xC000000);
+-    __peReg = OSPhysicalToUncached(0xC001000);
+-    __memReg = OSPhysicalToUncached(0xC004000);
++    /* port: patch 0030, the register blocks are port memory (runtime/gx_fifo.cpp) */
++    __piReg = re4_gx_register_block(0xC003000);
++    __cpReg = re4_gx_register_block(0xC000000);
++    __peReg = re4_gx_register_block(0xC001000);
++    __memReg = re4_gx_register_block(0xC004000);
+     __GXFifoInit();
+     GXInitFifoBase(&FifoObj, base, size);
+     GXSetCPUFifo(&FifoObj);
+diff -ru a/src/lib/GXLight.c b/src/lib/GXLight.c
+--- a/src/lib/GXLight.c	2026-10-15 06:54:47.468506318 +0000
++++ b/src/lib/GXLight.c	2026-10-15 06:55:12.318922512 +0000
+@@ -3,6 +3,7 @@
+ #include <dolphin/os.h>
+ 
+ #include "__gx.h"
++#include "re4_gx_fifo.h" /* port: patch 0030 */
+ 
+ // GXLightObj private data
+ typedef struct {
+@@ -345,7 +346,21 @@
+ 		psq_st  pz_dx, 0(dest), 0, 0
+ 		psq_st  dy_dz, 0(dest), 0, 0
+ 	}
+-#endif  // clang-format on
++#else  // clang-format on
++    /* port: patch 0030, the light object into the FIFO (3 zero words, the
++     * colour, then attenuation, position and direction: 12 floats) */
++    const u32* words = (const u32*)lt_obj;
++    const f32* floats = (const f32*)lt_obj;
++    int i;
++
++    re4_gx_put_u32(0);
++    re4_gx_put_u32(0);
++    re4_gx_put_u32(0);
++    re4_gx_put_u32(words[3]);
++    for (i = 0; i < 12; i++) {
++        re4_gx_put_f32(floats[4 + i]);
++    }
++#endif
+ }
+ 
+ void GXLoadLightObjImm(const GXLightObj* lt_obj, GXLightID light) {
+diff -ru a/src/lib/GXMisc.c b/src/lib/GXMisc.c
+--- a/src/lib/GXMisc.c	2026-10-15 06:54:47.469914281 +0000
++++ b/src/lib/GXMisc.c	2026-10-15 06:55:12.319907786 +0000
+@@ -4,6 +4,7 @@
+ #include <dolphin/os.h>
+ 
+ #include "__gx.h"
++#include "re4_gx_fifo.h" /* port: patch 0030 */
+ 
+ static GXDrawSyncCallback TokenCB;
+ static GXDrawDoneCallback DrawDoneCB;
+@@ -258,40 +259,20 @@
+     GX_SET_PE_REG(0, reg);
+ }
+ 
++/* port: patch 0030, the EFB is not mapped into the game's memory
++ * (runtime/gx_fifo.cpp re4_gx_efb_peek) */
+ void GXPeekARGB(u16 x, u16 y, u32* color) {
+-    u32 addr = (u32)OSPhysicalToUncached(0x08000000);
+-
+-    SET_REG_FIELD(792, addr, 10, 2, x);
+-    SET_REG_FIELD(793, addr, 10, 12, y);
+-    SET_REG_FIELD(793, addr, 2, 22, 0);
+-    *color = *(u32*)addr;
++    *color = re4_gx_efb_peek(x, y, 0);
+ }
+ 
+ void GXPokeARGB(u16 x, u16 y, u32 color) {
+-    u32 addr = (u32)OSPhysicalToUncached(0x08000000);
+-
+-    SET_REG_FIELD(0x322, addr, 10, 2, x);
+-    SET_REG_FIELD(0x323, addr, 10, 12, y);
+-    SET_REG_FIELD(0x323, addr, 2, 22, 0);
+-    *(u32*)addr = color;
+ }
+ 
+ void GXPeekZ(u16 x, u16 y, u32* z) {
+-    u32 addr = (u32)OSPhysicalToUncached(0x08000000);
+-
+-    SET_REG_FIELD(812, addr, 10, 2, x);
+-    SET_REG_FIELD(813, addr, 10, 12, y);
+-    SET_REG_FIELD(813, addr, 2, 22, 1);
+-    *z = *(u32*)addr;
++    *z = re4_gx_efb_peek(x, y, 1);
+ }
+ 
+ void GXPokeZ(u16 x, u16 y, u32 z) {
+-    u32 addr = (u32)OSPhysicalToUncached(0x08000000);
+-
+-    SET_REG_FIELD(822, addr, 10, 2, x);
+-    SET_REG_FIELD(823, addr, 10, 12, y);
+-    SET_REG_FIELD(823, addr, 2, 22, 1);
+-    *(u32*)addr = z;
+ }
+ 
+ GXDrawSyncCallback GXSetDrawSyncCallback(GXDrawSyncCallback cb) {
+diff -ru a/src/lib/GXTransform.c b/src/lib/GXTransform.c
+--- a/src/lib/GXTransform.c	2026-10-15 06:54:47.466387243 +0000
++++ b/src/lib/GXTransform.c	2026-10-15 06:55:12.318077324 +0000
+@@ -3,6 +3,7 @@
+ #include <dolphin/os.h>
+ 
+ #include "__gx.h"
++#include "re4_gx_fifo.h" /* port: patch 0030 */
+ 
+ void GXProject(f32 x, f32 y, f32 z, const Mtx mtx, const f32* pm, const f32* vp, f32* sx, f32* sy, f32* sz) {
+     Vec peye;
+@@ -32,29 +33,21 @@
+     *sz = vp[5] + (wc * (zc * (vp[5] - vp[4])));
+ }
+ 
++/* port: patch 0030, the paired-single copies in C; `dest` is the FIFO
++ * (re4_gx_put_f32) except for Copy6Floats, which copies to memory */
+ static void WriteProjPS(const register f32 proj[6], register volatile void* dest) {
+-    register f32 p01, p23, p45;
++    int i;
+ 
+-    asm {
+-        psq_l  p01,  0(proj), 0, 0
+-        psq_l  p23,  8(proj), 0, 0
+-        psq_l  p45, 16(proj), 0, 0
+-        psq_st p01,  0(dest), 0, 0
+-        psq_st p23,  0(dest), 0, 0
+-        psq_st p45,  0(dest), 0, 0
++    for (i = 0; i < 6; i++) {
++        re4_gx_put_f32(proj[i]);
+     }
+ }
+ 
+ static void Copy6Floats(const register f32 src[6], register volatile f32* dest) {
+-    register f32 ps01, ps23, ps45;
++    int i;
+ 
+-    asm {
+-        psq_l  ps01,  0(src), 0, 0
+-        psq_l  ps23,  8(src), 0, 0
+-        psq_l  ps45, 16(src), 0, 0
+-        psq_st ps01,  0(dest), 0, 0
+-        psq_st ps23,  8(dest), 0, 0
+-        psq_st ps45, 16(dest), 0, 0
++    for (i = 0; i < 6; i++) {
++        dest[i] = src[i];
+     }
+ }
+ 
+@@ -136,89 +129,42 @@
+ }
+ 
+ static void WriteMTXPS4x3(const register f32 mtx[3][4], register volatile f32* dest) {
+-    register f32 a00_a01;
+-    register f32 a02_a03;
+-    register f32 a10_a11;
+-    register f32 a12_a13;
+-    register f32 a20_a21;
+-    register f32 a22_a23;
+-
+-    asm {
+-        psq_l a00_a01, 0x00(mtx), 0, qr0
+-        psq_l a02_a03, 0x08(mtx), 0, qr0
+-        psq_l a10_a11, 0x10(mtx), 0, qr0
+-        psq_l a12_a13, 0x18(mtx), 0, qr0
+-        psq_l a20_a21, 0x20(mtx), 0, qr0
+-        psq_l a22_a23, 0x28(mtx), 0, qr0
+-        psq_st a00_a01, 0(dest), 0, qr0
+-        psq_st a02_a03, 0(dest), 0, qr0
+-        psq_st a10_a11, 0(dest), 0, qr0
+-        psq_st a12_a13, 0(dest), 0, qr0
+-        psq_st a20_a21, 0(dest), 0, qr0
+-        psq_st a22_a23, 0(dest), 0, qr0
++    int r, c;
++
++    for (r = 0; r < 3; r++) {
++        for (c = 0; c < 4; c++) {
++            re4_gx_put_f32(mtx[r][c]);
++        }
+     }
+ }
+ 
+ static void WriteMTXPS3x3from3x4(register f32 mtx[3][4], register volatile f32* dest) {
+-    register f32 a00_a01;
+-    register f32 a02_a03;
+-    register f32 a10_a11;
+-    register f32 a12_a13;
+-    register f32 a20_a21;
+-    register f32 a22_a23;
+-
+-    asm {
+-        psq_l  a00_a01, 0x00(mtx), 0, qr0
+-        lfs    a02_a03, 0x08(mtx)
+-        psq_l  a10_a11, 0x10(mtx), 0, qr0
+-        lfs    a12_a13, 0x18(mtx)
+-        psq_l  a20_a21, 0x20(mtx), 0, qr0
+-        lfs    a22_a23, 0x28(mtx)
+-        psq_st a00_a01, 0(dest), 0, qr0
+-        stfs   a02_a03, 0(dest)
+-        psq_st a10_a11, 0(dest), 0, qr0
+-        stfs   a12_a13, 0(dest)
+-        psq_st a20_a21, 0(dest), 0, qr0
+-        stfs   a22_a23, 0(dest)
++    int r, c;
++
++    for (r = 0; r < 3; r++) {
++        for (c = 0; c < 3; c++) {
++            re4_gx_put_f32(mtx[r][c]);
++        }
+     }
+ }
+ 
+ static void WriteMTXPS3x3(register f32 mtx[3][3], register volatile f32* dest) {
+-    register f32 a00_a01;
+-    register f32 a02_a10;
+-    register f32 a11_a12;
+-    register f32 a20_a21;
+-    register f32 a22_nnn;
+-
+-    asm {
+-        psq_l a00_a01, 0x00(mtx), 0, qr0
+-        psq_l a02_a10, 0x08(mtx), 0, qr0
+-        psq_l a11_a12, 0x10(mtx), 0, qr0
+-        psq_l a20_a21, 0x18(mtx), 0, qr0
+-        lfs   a22_nnn, 0x20(mtx)
+-        psq_st a00_a01, 0(dest), 0, qr0
+-        psq_st a02_a10, 0(dest), 0, qr0
+-        psq_st a11_a12, 0(dest), 0, qr0
+-        psq_st a20_a21, 0(dest), 0, qr0
+-        stfs   a22_nnn, 0(dest)
++    int r, c;
++
++    for (r = 0; r < 3; r++) {
++        for (c = 0; c < 3; c++) {
++            re4_gx_put_f32(mtx[r][c]);
++        }
+     }
+ }
+ 
+ static void WriteMTXPS4x2(const register f32 mtx[2][4], register volatile f32* dest) {
+-    register f32 a00_a01;
+-    register f32 a02_a03;
+-    register f32 a10_a11;
+-    register f32 a12_a13;
+-
+-    asm {
+-        psq_l a00_a01, 0x00(mtx), 0, qr0
+-        psq_l a02_a03, 0x08(mtx), 0, qr0
+-        psq_l a10_a11, 0x10(mtx), 0, qr0
+-        psq_l a12_a13, 0x18(mtx), 0, qr0
+-        psq_st a00_a01, 0(dest), 0, qr0
+-        psq_st a02_a03, 0(dest), 0, qr0
+-        psq_st a10_a11, 0(dest), 0, qr0
+-        psq_st a12_a13, 0(dest), 0, qr0
++    int r, c;
++
++    for (r = 0; r < 2; r++) {
++        for (c = 0; c < 4; c++) {
++            re4_gx_put_f32(mtx[r][c]);
++        }
+     }
+ }
+ 

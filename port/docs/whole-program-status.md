@@ -15,6 +15,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M4.5 Kern korrekt machen: C-Ersatz für Assembler, Byte-Aggregate, `__FILE__`-Länge | ✅ 14.10.2026 (Cloud, i686 und armhf) |
 | M5 Erster Raum r100 | ✅ 14.10.2026: lokal mit Disc-Daten (i686 in WSL2) 10 000 Bilder ab der Hauptschleife ohne Absturz, Abdeckung ohne „nein“, Formatvergleich 152 Dateien ohne Fehler. armhf mit Disc-Daten nicht gelaufen (`-Arm`, optional) |
 | K2 „Kern in die App“ (M6) | ⏳ 14.10.2026: Cloud-Teil fertig (Einbettungs-Schnittstelle, App-Variante „core“, Zustandsbrücke, Prüfungen ohne Disc-Daten grün); NDK-Build, APK-Build und Retroid-Test stehen aus (lokal, `port/scripts/test-core-app.ps1`) |
+| G1 GX nachbilden: FIFO einsammeln (Teil von M6, `gx-plan.md`) | ✅ 15.10.2026 (Cloud): GX-Bibliothek aus `src/lib` im Build, FIFO-Strom im Port, PE-Unterbrechungen; Test `runtime-test gx` grün (i686, armhf, `-O2`). G2–G5 offen |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -850,8 +851,61 @@ Kern an (`PADRead`), das Overlay zeigte durchgehend „event“.
   liegen vor), Ausgabe über `GameAudio.java` (AudioTrack) der App.
 - **Logos, Titelmenü, Untermenüs, Anzeigen:** Das Spiel zeichnet sie mit GX
   (2D); GX ist noch Platzhalter, die App zeigt bis zum ersten Raum nur das
-  Titelbild. Entscheidung über den Weg (GX-Nachbildung oder Nachbau der
-  Bildschirme in der App) beim Projektinhaber angefragt.
+  Titelbild. Entscheidung (15.10.2026): GX nachbilden (`gx-plan.md`, G1
+  unten). Ton bleibt in der geplanten Reihenfolge (M7 Steuerung, M8 Ton, M9
+  Filme).
+
+### GX nachbilden, Schritt G1: FIFO einsammeln (15.10.2026, Cloud)
+
+Entscheidung des Projektinhabers (15.10.2026): GX nachbilden statt die
+Bildschirme in der App nachzubauen (Bauplan `port/docs/gx-plan.md`, Regel in
+`CLAUDE.md`). G1 ist der erste Schritt: Alles, was das Spiel an den
+Grafikprozessor schickt, kommt jetzt im Port an.
+
+- **GX-Bibliothek des SDK im Build** (`RE4_SDK_UNITS` in
+  `port/whole/CMakeLists.txt`: `GXAttr GXBump GXDisplayList GXDraw GXFifo
+  GXFrameBuf GXGeometry GXInit GXLight GXMisc GXPerf GXPixel GXTev GXTexture
+  GXTransform`), unverändert aus `src/lib` bis auf Patch 0030
+  (Assembler-Stellen in C). Die rund 97 GX-Platzhalter entfallen; die
+  Registerwerte stammen damit aus dem Original-SDK.
+- **FIFO:** Jeder Schreibzugriff auf `GXWGFifo` (SDK `GXVert.h`, `__gx.h`,
+  das Spiel in `gx.h`) wird beim Bauen zu `re4_gx_put_*` (neue Regel in
+  `whole_prepare.py`). `runtime/gx_fifo.cpp` sammelt die Bytes big-endian wie
+  die Hardware, zerlegt den Strom in Befehle (CP, XF, indiziertes XF, BP,
+  Display-Listen-Aufruf, Zeichenbefehle mit der Punktgröße aus
+  Punktbeschreibung und -format) und zählt sie; Unbekanntes wird gezählt
+  (Zeichen für einen Strom, der seine Rahmung verloren hat). Display-Listen:
+  Während `GXBeginDisplayList` schreibt der FIFO in den Speicher der Liste
+  (PI-Register wie auf der Hardware, Überlauf-Bit), `GXCallDisplayList` liest
+  sie über die physische Adresse (`0x80000000 + physisch`).
+- **Register-Blöcke** CP, PE, PI, MEM sind Speicher des Ports
+  (`re4_gx_register_block`). BP-Schreiben mit Maske (`0xFE`) werden
+  gespeichert; `PE_DONE` (`0x45`) und Token (`0x47/0x48`) lösen die
+  PE-Unterbrechungen 0x12 (Token) und 0x13 (fertig) aus, zugestellt beim
+  nächsten `OSSleepThread` und bei jedem VI-Retrace über die
+  Unterbrechungs-Rückrufe des SDK (`__OSSetInterruptHandler`, neu in
+  `dolphin_os.cpp`). Damit kehrt `GXDrawDone` zurück und der
+  Zeichen-Rückruf des Spiels bekommt sein Token.
+- **EFB lesen** (`GXPeekARGB/Z`): antwortet „nichts gezeichnet“ (Farbe 0,
+  Tiefe ganz hinten); echtes Lesen ist G5.
+- Noch wird nichts dekodiert oder gezeichnet: Die App zeigt weiter die
+  Zustandsbrücke. Nächster Schritt G2: Befehlsdecoder (Zustand aus
+  CP/XF/BP, Punkte in Zeichenaufträge).
+
+Test `re4_host --runtime-test gx` (`tests/gx_probe.cpp`, mit den Schaltern
+und Headern des Spiels gebaut): `GXInit` schreibt alle Register (mehr als 30
+BP, XF, nichts Unbekanntes); `GXSetBlendMode` ergibt das erwartete BP-Wort
+`0x41`; ein Dreieck aus Float-Punkten und ein Viereck aus s16-Punkten mit
+RGBA8-Farbe und Float-Texturkoordinaten ergeben 2 Zeichenbefehle mit 7
+Punkten; eine Display-Liste wird in den Speicher geschrieben (Größe Vielfaches
+von 32, enthält den Zeichenbefehl) und beim Aufruf genau einmal gezeichnet;
+das Token `0xADEB` erreicht den Rückruf, `GXDrawDone` kehrt zurück.
+Ergebnis: alle Laufzeittests grün in `whole_build.sh` (i686, armhf unter qemu,
+beide auch mit `-O2`), libc++-Prüfung 152/152. Platzhalter: 76 Funktionen
+(vorher 173), 0 Daten (vorher `GXWGFifo`). Nicht getestet: mit Disc-Daten
+(lokal) und auf dem Gerät – das Spiel nutzt jetzt die echte GX-Bibliothek,
+`test-r100-core.ps1` und `test-core-app.ps1` sollten zeigen, dass es so weit
+läuft wie vorher.
 
 ### Lokale Prüfungen für K2
 
@@ -950,6 +1004,7 @@ sie ersetzt.
 | `new (p) T()` → `new (p) T` (`PLACEMENT_VALUE_INIT`) | C++11 füllt eine Klasse ohne eigenen Konstruktor bei `T()` erst mit Nullen; der GameCube-Compiler nicht. `em.cpp` setzt `subArc` vor `new (em) cEm10()` (Absturz in `Em12Set`, 14.10.2026). Prüfung: `port/tools/whole_value_init.py` |
 | Prelude: `#define _ctype_ re4_newlib_ctype_` (nach den System-Headern) | Bionic exportiert `_ctype_` als Zeiger, newlib (das Spiel, `t_movie`) als Feld; die Tabelle heißt jetzt `re4_newlib_ctype_` (`runtime/newlib_ctype.c`), Bionics Zeiger bleibt unberührt (K2) |
 | Prelude: `Re4BeBytes2` | Byte-Array-Sicht `b[0]` = hohes, `b[1]` = niedriges Byte eines Halbworts, unabhängig von der Host-Reihenfolge (Patch 0016: `cItem::lv8`, `SND_RND::b`) |
+| `GXWGFifo.T = x` / `GXWGFifo->T = x` → `re4_gx_put_T(x)` (`GX_FIFO_STORE`, in `GXVert.h` als `re4_gx_put_##T`), Datei bekommt `#include "re4_gx_fifo.h"` | Die Schreibadresse `0xCC008000` des Grafikprozessors gibt es im Port nicht; der FIFO des Ports (`runtime/gx_fifo.cpp`) bekommt jeden Wert (G1) |
 
 Compiler-Schalter: `-std=gnu++11 -Wno-c++11-narrowing -fdelayed-template-parsing
 -fno-strict-aliasing -ffp-contract=off -fwrapv -w`. C++11 wird gebraucht,
@@ -986,6 +1041,7 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0028 `dvd.cpp` | `MemorySwap` meldet am Ende den getauschten Bereich (`re4_formats_memory_swapped`): Ereignisse leihen sich so den Archivspeicher eines Gegners, Untermenüs den Heap; die Herkunftsangaben der Brücke wandern mit |
 | 0029 `scroll.cpp` | `setObj` meldet für jedes Kulissen-Objekt, welchen SMD-Eintrag (Raum oder Block, Nummer) es zeigt (`re4_scroll_placed`): Die Brücke gibt das weiter, die App lässt versteckte und nicht geladene Kulisse weg, verschiebt bewegte und zeichnet Kulisse aus Raumskripten (r100: das Polizeiauto) wie die übrigen Modelle |
 | 0027 `model.cpp`, `objRocket.cpp` | Mit `-O2` (Android) gibt clang Inline-Funktionen, die nur in einer `.cpp` definiert sind, nicht aus; Module brauchen sie: `cModel::getPartsPtr` ohne `inline`, `cManager<cObj>::destroyNow` ausdrücklich instanziiert. Ohne den Patch zwei Platzhalter mehr als bei `-O0` |
+| 0030 `GXInit.c`, `GXTransform.c`, `GXLight.c`, `GXMisc.c` (SDK) | GX-Bibliothek im Port (G1): Register-Blöcke über `re4_gx_register_block` statt fester Hardware-Adressen, `IsWriteGatherBufferEmpty` ohne Assembler (immer leer), Matrix-/Projektions-/Licht-Ladefunktionen in C statt Paired-Single-Assembler (schreiben über `re4_gx_put_f32` in den FIFO), `GXPeek*`/`GXPoke*` über `re4_gx_efb_peek` statt EFB-Adresse. Dazu `-include re4_sdk_intrinsics.h` (`__rlwimi`, `__cntlzw`) für die SDK-Dateien und `-std=c99` für `GXDraw.c` |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -1037,6 +1093,8 @@ Datenobjekte sind genullt; Größe aus `config/G4BE08/symbols.txt`, sonst 4 KB.
 | Funktionen | 363 | 234: GX 97 (M6), AX/AXFX/AXART/MIX/SYN/SEQ/AI/ADX 77 (M8), CARD 17 (M10), mwPly 12 (M9), PAD 7 (M7), PPC-Leistungszähler 8, SN-PC-Host-I/O 7 (nur Entwicklerkonsole), OS 8 (IPL-Schrift `OSInitFont`/`OSGetFontEncode`/`OSGetFontTexture`, Stoppuhren, `OSResetSystem`), `TEXGet` | 209: wie Teil A ohne CARD, PAD und `TEXGet` (ersetzt durch `card.cpp`, `pad.cpp`, `tex_palette.cpp`) |
 | Daten | 9 | 1: `GXWGFifo` (GX-Schreib-FIFO, `mes.cpp` schreibt Eckpunkte direkt hinein; M6) | 1: unverändert |
 
+Seit G1 (15.10.2026): 76 Funktionen (Ton 59 für M8: ADX, AI, AXART, AXFX, MIX, SEQ, SYN, `AXSetCompressor`; OS 7: IPL-Schrift, Stoppuhren, `OSResetSystem`; SN-PC-Host-I/O 7; PPC-Leistungszähler 7), 0 Daten. GX, `mwPly` (`movie.cpp`) und die übrigen OS-Funktionen sind ersetzt.
+
 **Echter Ersatz statt Platzhalter** (`runtime/sn_runtime.cpp`): `_ctors`/`_dtors`
 (leer, weil der ELF-Lader Konstruktoren selbst ausführt), `__builtin_new`/
 `__builtin_delete` (GCC-2.95-Namen von `operator new/delete`),
@@ -1059,12 +1117,14 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 
 | Datei | Ersetzt |
 |---|---|
-| `dolphin_os.cpp` | `OSInit`, `OSReport` (zeilenweise ins Log), `OSPanic`, Konsolentyp/Speichergröße, `OSGetTime`/`OSGetTick` (40,5 MHz, Epoche 2000), Kalenderzeit, Interrupt-Sperren, Caches (no-op) |
+| `dolphin_os.cpp` | `OSInit`, `OSReport` (zeilenweise ins Log), `OSPanic`, Konsolentyp/Speichergröße, `OSGetTime`/`OSGetTick` (40,5 MHz, Epoche 2000), Kalenderzeit, Interrupt-Sperren, Caches (no-op); seit G1 Unterbrechungs-Rückrufe des SDK (`__OSSetInterruptHandler`, `re4_os_hw_interrupt`), Kontexte, Reset-Funktionen, Versionsnamen und die Gekko-Register `HID2`/`WPAR` als No-op |
 | SDK `OSAlloc.c`, `OSArena.c` | unverändert aus `src/lib`: Heap und Arena; `main_mem.cpp` liest die Heap-Deskriptoren direkt |
 | `os_thread.cpp` | `OSThread`, `OSSemaphore`: ein Host-Thread, strikte Prioritäten, Wechsel nur in OS-Aufrufen; jeder Thread hat einen Host-Stack (`port/src/stack_context.cpp` aus dem alten Port, neu mit ucontext für Linux x86, Boost.Context-Assembler für Linux ARM wie auf Android); ein Verteiler auf dem Stack des Startprogramms (`re4_os_run`). Spielsichtbar wie im SDK: `state`, `suspend`, Priorität, Warteschlangen, Stack-Magie `0xDEADBABE` |
 | `vi.cpp` | VI-Retrace alle 1/59,94 s Echtzeit, zugestellt an Interrupt-Punkten (Verteiler im Leerlauf, `VIWaitForRetrace`, Patch 0012, später lange Hintergrundarbeit); Thread-Wechsel aus dem Rückruf erst am Interrupt-Ende. `RE4_VI_FAST=1`: ohne Warten (Tests) |
 | `ax.cpp` (K2) | AX ohne Tonausgabe: 64 Stimmen mit den Vergaberegeln des SDK (`AXAlloc.c`), die Setter (`AXVPB.c`), Abspielposition je Audio-Rahmen nach Abtastrate (ADPCM mit Rahmenköpfen, PCM16, PCM8; Schleife oder Stopp am Ende), der Audio-Rahmen-Rückruf des Spiels 200-mal je Sekunde Spielzeit, zugestellt mit den VI-Retraces. Damit läuft der Tontreiber (`snd_main.cpp cb_audio_frame`): Stimmen werden frei, Sprach-Streams werden bereit. MIX, SYN, SEQ, AXFX, AI bleiben Platzhalter. Hörbarer Ton: M8 |
 | `movie.cpp` (K2) | Sofdec-Filme (`mwPly*`) bis M9: jeder Film endet sofort (PLAYEND, kein Bild), das Spiel macht danach weiter (r120: Autofahrt nach dem Vorfilm) |
+| `gx_fifo.cpp` (G1) | GX-FIFO und Register-Blöcke CP/PE/PI/MEM: Befehlsrahmung, Display-Listen aufnehmen und aufrufen, PE-Token/fertig als Unterbrechung (`re4_gx_deliver_interrupts`), EFB-Lesen antwortet „leer“. Dekodieren und Zeichnen folgen (G2–G4) |
+| SDK `GX*.c` (G1) | unverändert aus `src/lib` bis auf Patch 0030: die gesamte GX-Bibliothek |
 | `dvd.cpp` | `DVD*` über einen Ordner mit entpackten Disc-Dateien (siehe unten); Lesen sofort, Rückruf vor der Rückkehr; aus einem Interrupt heraus (Audio-Rahmen: Nachladen der Sprach-/Musik-Streams) bleibt der Auftrag „beschäftigt“, bis der Interrupt-Rückruf zurückgekehrt ist (`os_thread.cpp re4_os_defer`), Abbruch liefert dann −3; FST der eingelegten Disc oben in MEM1, Disc-ID bei `0x80000000`; Disc-Wechsel lädt den anderen Ordner |
 | `aram.cpp` | ARAM (16 MB) als Host-Puffer, `ARInit`/`ARAlloc` (Stapel ab `0x4000`), ARQ kopiert sofort und ruft den Rückruf (aus einem Interrupt heraus erst nach dessen Ende, wie `dvd.cpp`) |
 | `os_link.cpp` | `OSLink`/`OSUnlink` (siehe unten) |

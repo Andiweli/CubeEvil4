@@ -61,6 +61,8 @@ void deliver()
     }
     // the audio frames of this field (runtime/ax.cpp: the sound driver's tick)
     re4_ax_field();
+    // the graphics processor's interrupts of what it finished meanwhile
+    re4_gx_deliver_interrupts();
     re4_os_interrupt_end();
     gDelivering = false;
 }

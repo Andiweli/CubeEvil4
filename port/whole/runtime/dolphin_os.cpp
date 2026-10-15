@@ -185,6 +185,99 @@ int OSRestoreInterrupts(int level)
     return old;
 }
 
+// Hardware interrupt handlers (__OSSetInterruptHandler). The port's devices
+// raise them themselves: the emulated graphics processor its PE "draw done"
+// and "token" interrupts (gx_fifo.cpp, through re4_os_hw_interrupt).
+typedef void (*InterruptHandler)(short interrupt, void* context);
+static InterruptHandler gHandlers[32];
+
+InterruptHandler __OSSetInterruptHandler(short interrupt, InterruptHandler handler)
+{
+    if (interrupt < 0 || interrupt >= 32) {
+        return 0;
+    }
+    InterruptHandler old = gHandlers[interrupt];
+    gHandlers[interrupt] = handler;
+    return old;
+}
+
+InterruptHandler __OSGetInterruptHandler(short interrupt)
+{
+    return interrupt >= 0 && interrupt < 32 ? gHandlers[interrupt] : 0;
+}
+
+// Interrupt masks: every handler the port raises is delivered.
+unsigned __OSMaskInterrupts(unsigned mask)
+{
+    (void) mask;
+    return 0;
+}
+
+unsigned __OSUnmaskInterrupts(unsigned mask)
+{
+    (void) mask;
+    return 0;
+}
+
+// Runs the handler of `interrupt` as the hardware would: in interrupt
+// context (thread switches it asks for wait until it returns). 0 when none is
+// registered.
+int re4_os_hw_interrupt(short interrupt)
+{
+    InterruptHandler handler = __OSGetInterruptHandler(interrupt);
+    if (!handler) {
+        return 0;
+    }
+    re4_os_interrupt_begin();
+    handler(interrupt, 0);
+    re4_os_interrupt_end();
+    return 1;
+}
+
+// Exception contexts: the port switches no register state.
+void OSClearContext(void* context)
+{
+    (void) context;
+}
+
+void OSSetCurrentContext(void* context)
+{
+    (void) context;
+}
+
+// Reset callbacks (OSResetSystem is a stub) and library version strings.
+void OSRegisterResetFunction(void* info)
+{
+    (void) info;
+}
+
+void OSRegisterVersion(const char* id)
+{
+    (void) id;
+}
+
+// Gekko special registers of the write-gather pipe (HID2, WPAR): the port's
+// pipe passes every store on at once, so it is never busy.
+unsigned PPCMfhid2(void)
+{
+    return 0;
+}
+
+void PPCMthid2(unsigned value)
+{
+    (void) value;
+}
+
+unsigned PPCMfwpar(void)
+{
+    return 0;
+}
+
+void PPCMtwpar(unsigned value)
+{
+    (void) value;
+}
+
 // Soft-reset survival region (pRK): process memory survives anyway.
 void OSSetSaveRegion(void* start, void* end)
 {

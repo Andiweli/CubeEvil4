@@ -101,6 +101,28 @@ def local_data_alias(line: str, text: str):
 ROOM_ID_ADDR = re.compile(r"\(\s*u16\s*\*\s*\)\s*&\s*pG->(stage_no|stage_prev)\b")
 ROOM_ID_WORD = {"stage_no": "room_id", "stage_prev": "room_id_prev"}
 
+# Stores to the GX write-gather pipe (GXWGFifo, 0xCC008000) feed the
+# graphics processor: `GXWGFifo.T = x;` (SDK GXVert.h, __gx.h) and
+# `GXWGFifo->T = x;` (the game's gx.h) become re4_gx_put_T(x) (runtime/
+# gx_fifo.cpp, port/whole/include/re4_gx_fifo.h). In GXVert.h the member is
+# the macro parameter T itself: re4_gx_put_##T. Any other use of GXWGFifo
+# (an address taken) stays and is listed by the build when it is compiled.
+GX_FIFO_STORE = re.compile(r"\bGXWGFifo[ \t]*(?:\.|->)[ \t]*(\w+)[ \t]*=(?!=)[ \t]*([^;\n]*[^;\s])[ \t]*(;?)")
+GX_FIFO_TYPES = {"u8", "u16", "u32", "s8", "s16", "s32", "f32"}
+
+
+def gx_fifo_store(match: re.Match) -> str:
+    member, value, end = match.group(1), match.group(2).strip(), match.group(3)
+    name = f"re4_gx_put_{member}" if member in GX_FIFO_TYPES else f"re4_gx_put_##{member}"
+    return f"{name}({value}){end}"
+
+
+def rewrite_gx_fifo(text: str) -> str:
+    if "GXWGFifo" not in text or not GX_FIFO_STORE.search(text):
+        return text
+    text = GX_FIFO_STORE.sub(gx_fifo_store, text)
+    return '#include "re4_gx_fifo.h"\n' + text
+
 
 def rewrite(text: str) -> str:
     text = whole_asm_check.rewrite_copies(text)
@@ -115,6 +137,7 @@ def rewrite(text: str) -> str:
         text = PLACEMENT_VALUE_INIT.sub(r"new (\1) \2", text)
     if "pG->stage_" in text:
         text = ROOM_ID_ADDR.sub(lambda m: f"(u16*) &pG->{ROOM_ID_WORD[m.group(1)]}", text)
+    text = rewrite_gx_fifo(text)
     return text
 
 

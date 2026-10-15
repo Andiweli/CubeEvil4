@@ -42,6 +42,14 @@ Funktion extrahieren. Die Generatoren und Fingerprint-Manifeste in
 `port/tools/generate_*.py` und `port/config/*-sources.json` werden nicht
 erweitert. Sie werden abgelöst, sobald der Ganzprogramm-Build sie abdeckt.
 
+**GX nachbilden (Entscheidung des Projektinhabers, 15.10.2026):** Die App
+zeigt, was das Spiel selbst über die Grafikschnittstelle GX zeichnet (Logos,
+Titelmenü, Räume, Figuren, Effekte, Untermenüs, Anzeigen, Untertitel). Die
+GX-Bibliothek aus `src/lib/` wird mitkompiliert; ihre Befehle (der GX-FIFO)
+übersetzt ein Nachbau des Grafikprozessors nach GLES3. Die Zustandsbrücke
+(Modelle aus dem Spielzustand nachzeichnen) bleibt Übergang und Diagnose, bis
+GX alles zeigt. Plan und Schritte: `port/docs/gx-plan.md`.
+
 **ARM32 zuerst:** Erst `armeabi-v7a` spielbar machen, danach ARM64.
 Begründung und Zahlen: `port/docs/whole-program-probe.md`
 (ARM32: 133 Fehler, ARM64: zusätzlich ~2900 Zeiger-Kürzungen).
@@ -97,6 +105,8 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
 6. K2 „Kern in die App“: ARM32-Build von RE4-Android-Decomp mit den
    Kern-Bibliotheken, Zustandsbrücke zum GLES3-Renderer der App,
    Titelbild und r100 sichtbar
+6b. GX nachbilden (`port/docs/gx-plan.md`): Logos, Titelmenü und r100 so,
+   wie das Spiel sie zeichnet
 7. Steuerung (Retroid-Tasten, später Touch)
 8. Audio (CRI-ADX-Code aus `src/lib/` möglichst direkt mitkompilieren)
 9. Videos (SFD/MPV)

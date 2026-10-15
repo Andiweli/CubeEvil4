@@ -113,6 +113,7 @@ add_library(re4_platform_obj OBJECT
     runtime/card.cpp
     runtime/dolphin_os.cpp
     runtime/dvd.cpp
+    runtime/gx_fifo.cpp
     runtime/log.cpp
     runtime/mem1.cpp
     runtime/module_loader.cpp
@@ -183,7 +184,9 @@ string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_glue_obj>\n")
 # allocator, whose descriptors the game reads directly (main_mem.cpp), and the
 # C_* reference versions of the matrix/vector math (whole_prepare.py extracts
 # them into prepared/sdk_c; runtime/mtx_ps.c maps the PS* names to them).
-set(RE4_SDK_UNITS OSAlloc OSArena)
+set(RE4_SDK_UNITS OSAlloc OSArena
+    GXAttr GXBump GXDisplayList GXDraw GXFifo GXFrameBuf GXGeometry GXInit GXLight GXMisc
+    GXPerf GXPixel GXTev GXTexture GXTransform)
 set(RE4_SDK_SOURCES runtime/mtx_ps.c)
 foreach(unit IN LISTS RE4_SDK_UNITS)
     list(APPEND RE4_SDK_SOURCES "${RE4_TREE}/src/lib/${unit}.c")
@@ -195,7 +198,11 @@ add_library(re4_sdk_obj OBJECT ${RE4_SDK_SOURCES})
 target_include_directories(re4_sdk_obj BEFORE PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include" "${RE4_TREE}/include" "${RE4_TREE}/src/lib")
 target_compile_definitions(re4_sdk_obj PRIVATE SDK_REVISION=1 NDEBUG=1)
-target_compile_options(re4_sdk_obj PRIVATE -std=gnu99 -fno-strict-aliasing -fwrapv -w)
+target_compile_options(re4_sdk_obj PRIVATE -std=gnu99 -fno-strict-aliasing -fwrapv -w
+    -include "${CMAKE_CURRENT_SOURCE_DIR}/include/re4_sdk_intrinsics.h")
+# GXDraw.c has a file-scope array named `index`, which glibc's <strings.h>
+# (pulled in by <string.h> in GNU mode) declares as a function
+set_source_files_properties("${RE4_TREE}/src/lib/GXDraw.c" PROPERTIES COMPILE_OPTIONS "-std=c99")
 string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_sdk_obj>\n")
 
 # Reviewed native code of the earlier port, reused unchanged: the yz2 decode
@@ -360,7 +367,8 @@ set_target_properties(re4test_rel PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_C
 # game libraries, which therefore lie above 0x80000000 as on Android.
 if(NOT ANDROID)
     # tests/game_probe.cpp: checks that need the game's flags and headers
-    add_library(re4_probe_obj OBJECT tests/game_probe.cpp tests/core_probe.cpp tests/stream_probe.cpp)
+    add_library(re4_probe_obj OBJECT tests/game_probe.cpp tests/core_probe.cpp tests/stream_probe.cpp
+        tests/gx_probe.cpp)
     target_link_libraries(re4_probe_obj PRIVATE re4_game_flags)
     add_library(re4_hostlib SHARED host/main.cpp tests/runtime_tests.cpp tests/core_tests.cpp
         "${RE4_ROOT}/port/src/sha256.cpp"
