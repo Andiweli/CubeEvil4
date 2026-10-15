@@ -1139,6 +1139,15 @@ Tonspuren-Verlauf (jedes Bild, in dem sich Tonspuren ändern; die Zeile
 „Tonspuren im letzten Bild“ wird jetzt als JSON gelesen, das alte Suchmuster
 schnitt sie an der ersten `]` ab).
 
+### Sechster PC-Lauf (15.10.2026, WSL2): erstmals „ALLES OK“
+
+Stand `38b0c6b9`. Formatvergleich 155 Dateien ohne Fehler, 10.000 Bilder
+ohne Absturz. Der Funkspruch endet von selbst: Spieler frei bei Bild 3043
+(2428 nach dem Raumstart), danach lief Leon mit der Test-Tastenfolge 10409
+Einheiten (Steuerung OK). „Funkarchive“ bestätigt die Ursache: in
+`op/op01.das` tragen die 13 Ablauf-Tabellen das Kennzeichen `SEQ` und
+liefen vorher durch den Umwandler der Bewegungs-Ereignislisten.
+
 ### Zweiter Gerätelauf mit GX (15.10.2026, Retroid) und Analyse
 
 Stand `38b0c6b`: Die App startet und zeigt das Intro über die
