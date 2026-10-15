@@ -222,8 +222,36 @@ char gGxDir[1024];
 unsigned gGxCount;
 bool gGxAttached;
 
+// RE4_GX_DUMP_FREE="150,600": also these frames after the player became free
+// (state_trace.cpp), e.g. while the test script has the map open
+extern "C" long re4_trace_free_at(void);
+
+bool gxWantedAfterFree(unsigned frame)
+{
+    static const char* offsets = getenv("RE4_GX_DUMP_FREE");
+    long freeAt = re4_trace_free_at();
+    if (!offsets || !*offsets || freeAt < 0) {
+        return false;
+    }
+    for (const char* p = offsets; *p;) {
+        char* end = 0;
+        long o = strtol(p, &end, 10);
+        if (end == p) {
+            break;
+        }
+        if ((long) frame == freeAt + o) {
+            return true;
+        }
+        p = *end == ',' ? end + 1 : end;
+    }
+    return false;
+}
+
 bool gxWanted(unsigned frame)
 {
+    if (gxWantedAfterFree(frame)) {
+        return true;
+    }
     static const unsigned kEarly[] = {60, 300, 600, 900, 1200, 1500, 1800, 2400};
     for (unsigned f : kEarly) {
         if (frame == f) {

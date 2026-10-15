@@ -196,7 +196,8 @@ fi
 # the cursor (21 lines, wrapping; line 1 loads, 2 forces r120, 0x12 hard mode +
 # reset): at most one UP can arrive before the next A/START, so the cursor is
 # line 0 or 20, both the normal start. RE4_CARD_CHECK=1 keeps the memory card
-# dialog the app skips (patch 0039), so this timing stays the tested one.
+# dialog the app skips (patch 0039), RE4_ROOM_MENU=1 the debug start menu
+# (patch 0043; the default, named because this timing needs it).
 pad_script="UP@100-60000/60 A@115-60000/60 START@130-60000/60"
 # No key in the room until the player is free: the opening event and the
 # radio call that follows it must end on their own (the radio waits for its
@@ -204,7 +205,14 @@ pad_script="UP@100-60000/60 A@115-60000/60 START@130-60000/60"
 # Once free (no event, no sub screen for 300 frames; "run: player free" in the
 # log), Leon walks ahead for 10 s: the report shows how far he got.
 room_script=""
-free_script="STICKUP@30-330/1"
+# Before walking: the map (Z, as R1 on the Retroid) opens at free+30, a GX
+# picture is taken at free+200 (RE4_GX_DUMP_FREE; on the Retroid the map
+# stayed black) and B closes it at free+300; then Leon walks from free+450.
+# At free+5000 the soft reset of "game over" -> "no" (RE4_TEST_SOFT_RESET;
+# on the Retroid the screen stayed black): the title must come back.
+free_script="Z@30 B@300 STICKUP@450-750/1"
+map_dump=200
+soft_reset=5000
 # r100 only: once free the player is put in front of the first house, where
 # the room script puts him after the s03 event (r100.cpp r100_Sce_look),
 # facing the house; the walk then leads into the s03 trigger (the Retroid
@@ -246,7 +254,8 @@ run_game() {
     mkdir -p "$snaps" "$gxdump"
     local start=$SECONDS
     (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
-        RE4_CARD_CHECK=1 RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script" RE4_PAD_FREE_SCRIPT="$free_script" RE4_TEST_PLACE="$place" RE4_STOP_AFTER="$frames" \
+        RE4_CARD_CHECK=1 RE4_ROOM_MENU=1 RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script" RE4_PAD_FREE_SCRIPT="$free_script" RE4_TEST_PLACE="$place" RE4_STOP_AFTER="$frames" \
+        RE4_GX_DUMP_FREE="$map_dump" RE4_TEST_SOFT_RESET="free+$soft_reset" \
         RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" RE4_BRIDGE_DUMP="$bridge" RE4_BRIDGE_SNAPSHOT="$snaps" RE4_GX_DUMP="$gxdump" \
         "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1 &
     local pid=$!
@@ -309,6 +318,22 @@ run_game() {
     fi
     placed=$(grep -m1 "run: player placed" "$log" | sed 's/^\[re4\] //')
     [ -n "$placed" ] && say "Testhilfe:     $placed"
+    # the soft reset of "game over" -> "no": the title must come back (it
+    # reads title.dat anew); on the Retroid the screen stayed black
+    local reset
+    reset=$(grep -m1 "run: soft reset requested" "$log" | sed 's/^\[re4\] //')
+    if [ -n "$reset" ]; then
+        say "Soft-Reset:    $reset"
+        grep "run: after the soft reset\|SOFT_RESET" "$log" | sed 's/^\[re4\] /  /' | head -n 10 | tee -a "$report"
+        if sed -n '/run: soft reset requested/,$p' "$log" | grep -q "Read File: SS/.*/title.dat"; then
+            say "Titel nach dem Soft-Reset: ja (title.dat neu gelesen)"
+        else
+            say "Titel nach dem Soft-Reset: NEIN (das Spiel kehrt nicht zum Titel zurück)"
+            bad=1
+        fi
+    elif [ -n "$free" ]; then
+        say "Soft-Reset:    nicht erreicht (Lauf endete vorher; mehr Bilder: --frames)"
+    fi
     if grep -q "run: area " "$log"; then
         say "Auslöse-Bereiche des Raums (AEV, für RE4_TEST_PLACE):"
         grep "run: area " "$log" | sed 's/^\[re4\] run: /  /' | head -n 80 | tee -a "$report"
@@ -393,7 +418,7 @@ PY
             walk=$(python3 - "$trace" "$freeframe" <<'PY'
 import json, math, sys
 free = int(sys.argv[2])
-start, end, pos, why = free + 32, free + 330, {}, "Ende der Tastenfolge"
+start, end, pos, why = free + 452, free + 750, {}, "Ende der Tastenfolge"
 for line in open(sys.argv[1]):
     try:
         r = json.loads(line)
@@ -637,8 +662,23 @@ render_gx_pictures() {
     # draws them there; game data: never into the repository): the first
     # three and the first in the room
     local keep
+    # the picture with the map open (free + map_dump, the dump starts one or two frames later)
+    local freeframe mapfile=""
+    freeframe=$(grep -m1 "run: player free" "$run/spiel-i686.log" 2> /dev/null | sed -n 's/.* at frame \([0-9]*\).*/\1/p')
+    if [ -n "$freeframe" ]; then
+        for d in 0 1 2 3 4 5; do
+            f=$(printf '%s/gx-%06u.bin' "$dump" $((freeframe + map_dump + d)))
+            if [ -f "$f" ]; then mapfile="$f"; break; fi
+        done
+        if [ -n "$mapfile" ]; then
+            say "Karte offen (Z, Bild $((freeframe + map_dump))): $(basename "$mapfile" .bin).png"
+        else
+            say "Karte offen: kein GX-Bild aufgezeichnet"
+        fi
+    fi
     keep=$( (ls "$dump"/gx-*.bin | head -3; ls "$dump"/gx-*.bin | sed -n '4,99p' |
-        while read -r f; do [ "$(stat -c %s "$f")" -gt 2000000 ] && echo "$f"; done | head -1) | sort -u)
+        while read -r f; do [ "$(stat -c %s "$f")" -gt 2000000 ] && echo "$f"; done | head -1; echo "$mapfile") |
+        grep . | sort -u)
     python3 - "$run/gx-daten.zip" $keep <<'PY'
 import sys, zipfile
 from pathlib import Path

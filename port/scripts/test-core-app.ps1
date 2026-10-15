@@ -92,6 +92,7 @@ Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyCon
 # results of an earlier run must not pass for this one's
 Get-ChildItem -LiteralPath $OutDir -Filter 'absturz-*.txt' -ErrorAction SilentlyContinue | Remove-Item
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet.zip') -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet') -Recurse -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'logcat.txt') -ErrorAction SilentlyContinue
 function Say([string]$Text) {
     Write-Host $Text
@@ -233,8 +234,9 @@ if (-not $Adb) {
 $settings = ''
 if (-not $Manual) {
     # the timing of the PC check (port/tools/whole_r100_check.sh)
-    # (RE4_CARD_CHECK=1: with the memory card dialog the app otherwise skips, as the timing expects)
-    $settings = "RE4_START_ROOM=0x$StartRoom;RE4_CARD_CHECK=1;RE4_PAD_UNTIL_ROOM=1;RE4_PAD_SCRIPT=UP@100-60000/60 A@115-60000/60 START@130-60000/60"
+    # (RE4_CARD_CHECK=1: with the memory card dialog the app otherwise skips, RE4_ROOM_MENU=1:
+    # with the debug start menu after "new game" (the default, named because the timing needs it))
+    $settings = "RE4_START_ROOM=0x$StartRoom;RE4_CARD_CHECK=1;RE4_ROOM_MENU=1;RE4_PAD_UNTIL_ROOM=1;RE4_PAD_SCRIPT=UP@100-60000/60 A@115-60000/60 START@130-60000/60"
 }
 if ($Bridge) {
     # the earlier view: the core's state drawn by the app's own renderer
@@ -329,9 +331,22 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     $firstPid = ''
     $crashAt = -1
     $nextShot = 0
+    # Q (or Strg+C) ends the observation early; the log, the crash report and the
+    # pictures are still collected (Strg+C would otherwise stop the script before that)
+    $keys = $false
+    try { $keys = -not [Console]::IsInputRedirected; if ($keys) { [Console]::TreatControlCAsInput = $true } } catch { $keys = $false }
+    if ($keys) { Say '   Vorzeitig beenden: Taste Q druecken (Protokoll und Aufnahmen werden trotzdem geholt)' }
     while ($true) {
         Start-Sleep -Seconds 1
         $now = [int]$clock.Elapsed.TotalSeconds
+        if ($keys -and [Console]::KeyAvailable) {
+            $k = [Console]::ReadKey($true)
+            if ($k.Key -eq 'Q' -or ($k.Key -eq 'C' -and ($k.Modifiers -band [ConsoleModifiers]::Control))) {
+                Say ("   {0,3} s: Beobachtung von Hand beendet" -f $now)
+                Save-Shot $now
+                break
+            }
+        }
         $alive = ((& $Adb -s $Serial shell pidof $package) -join '').Trim()
         if ($alive -and -not $firstPid) { $firstPid = $alive }
         $gone = if ($firstPid) { $alive -ne $firstPid } else { $now -ge 10 }
@@ -351,6 +366,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         }
         if ($now -ge $Seconds) { break }
     }
+    if ($keys) { try { [Console]::TreatControlCAsInput = $false } catch { } }
     if ($crashAt -ge 0) { Start-Sleep -Seconds 3 }  # the system is still writing the crash report
     $log = @(& $Adb -s $Serial logcat -d -v threadtime -b main -b system -b crash -T $since)
     # every line of the app's processes (their IDs from the core's own lines) and the system's

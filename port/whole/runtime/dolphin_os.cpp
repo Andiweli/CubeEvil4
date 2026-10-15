@@ -348,6 +348,34 @@ int re4_debug_start_room_set(void)
     return debugStartRoom() != 0;
 }
 
+// The debug build asks for the start room after "new game" (title.cpp
+// titleExit): a debug menu with stage, room and jump point waits for A or
+// START. Patch 0043 calls this every frame of it (open 1) and once after it
+// (open 0). Its text needs debug_mode, which the app clears (RE4_DEBUG_HUD=0,
+// state_trace.cpp) except while the menu is open. RE4_ROOM_MENU=0 skips the
+// menu, as if A came at once (line 0, "DEBUG GAME" with the preset room).
+static int g_roomMenuOpen;
+
+int re4_title_room_menu(int open)
+{
+    static int shown = -1;
+    if (shown < 0) {
+        const char* v = getenv("RE4_ROOM_MENU");
+        shown = !(v && v[0] == '0');
+    }
+    open = open && shown;
+    if (open != g_roomMenuOpen) {
+        re4_log("title: debug start menu (room selection) %s", open ? "open" : "closed");
+    }
+    g_roomMenuOpen = open;
+    return open;
+}
+
+int re4_title_room_menu_open(void)
+{
+    return g_roomMenuOpen;
+}
+
 void re4_debug_start_room(unsigned short* room_id)
 {
     if (unsigned long room = debugStartRoom()) {

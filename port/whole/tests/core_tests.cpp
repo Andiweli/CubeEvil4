@@ -647,6 +647,18 @@ void testThread()
     static char tail[4096];
     re4_core_log_tail(tail, sizeof(tail));
     CHECK(strstr(tail, "core: running") != 0 && strstr(tail, "returned 7") != 0);
+    // a tap pressed and released between two frames reaches the game once
+    Re4CorePad tap = { 0x0300, 0, 0, 0, 0, 0, 0 };
+    Re4CorePad none = { 0, 0, 0, 0, 0, 0, 0 };
+    re4_core_pad(&none);
+    PadStatus pads[4];
+    PADRead(pads);
+    re4_core_pad(&tap);
+    re4_core_pad(&none);
+    PADRead(pads);
+    CHECK(pads[0].button == 0x0300 && pads[0].analogA == 0xFF);
+    PADRead(pads);
+    CHECK(pads[0].button == 0);
     report("thread", ok);
 }
 

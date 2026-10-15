@@ -1396,6 +1396,66 @@ Getestet (Cloud): Kern-Build i686/armhf normal und `-O2` mit allen Prüfungen
 (neu: Begrenzung der Umwandlung im Test `math`, gehaltenes Bild im Test `gx`),
 App-Renderer `gx_gl_check`. Nicht getestet: Gerät, PC-Prüfung mit Disc-Daten.
 
+### Sechster Gerätelauf mit GX (15.10.2026, Retroid) und Analyse
+
+Stand `1c16ab6`. Bestätigt vom Projektinhaber: Logo im Titel jetzt richtig,
+r101 (Dorf) erreichbar. Gemeldet: im Titel zweimal START nötig, nach dem
+zweiten Druck ruckt das Bild kurz nach rechts; manchmal ein leicht
+abgedunkelter Balken unten (Intro am Fenster, oft wenn Leon getroffen wird);
+Karte (Inventar oder R1) bleibt schwarz; r101 ruckelt stark; nach dem Tod und
+„nicht weiterspielen“ bleibt das Bild schwarz; `test-r100-core.ps1` fragte
+nach `DataDir`.
+
+- **Zweimal START = Raumauswahl (Patch 0043):** Nach „New Game“ zeigt die
+  Debug-Fassung ein Startmenü (`title.cpp` `titleExit`/`titleDebugMenu`:
+  Stage, Raum, Sprungpunkt, Gegnerliste …) und wartet auf A oder START.
+  Seine Zeilen sind Debug-Text (`eprintf`), den die App mit
+  `RE4_DEBUG_HUD=0` ausblendet: Das Menü war unsichtbar, der zweite Druck
+  bestätigte es. Auf Wunsch des Projektinhabers bleibt es (zum Testen
+  einzelner Räume) und ist jetzt sichtbar: Patch 0043 meldet das offene Menü
+  an die Laufzeit (`re4_title_room_menu`, runtime/dolphin_os.cpp), die
+  Debug-Anzeigen-Sperre (`state_trace.cpp`) lässt `debug_mode` dann
+  mindestens 1. `RE4_ROOM_MENU=0` überspringt das Menü wie ein sofortiges A
+  (Zeile 0 „DEBUG GAME“ mit dem voreingestellten Raum). Bedienung:
+  Steuerkreuz hoch/runter wählt die Zeile, links/rechts ändert den Wert
+  (STAGE, ROOM, JUMP_POINT), A oder START startet; Zeile 1 lädt, Zeile 2
+  startet r120, Zeile 18 (Wert 0x12) schaltet „hard mode“ mit Neustart; der
+  rechte Stick (C-Stick) verschiebt das Menü (die Kopfzeile mit dem
+  Raumnamen liegt bei y=44, über dem 16:9-Ausschnitt der App).
+  Das Bild-Rucken nach dem Bestätigen: Dort beginnt im Original das
+  Eröffnungsvideo (Meilenstein 9); nicht weiter untersucht.
+- **Kurze Tastendrücke:** Die App gab dem Spiel den Tastenstand im Moment von
+  `PADRead`; ein Druck kürzer als ein Spielbild (bei Rucklern länger) ging
+  verloren. `pad.cpp` merkt sich jetzt Drücke seit dem letzten `PADRead` und
+  meldet sie einmal (Test `core-test` Teil `thread`).
+- **Tod → schwarz:** „nicht weiterspielen“ setzt `SYS_SOFT_RESET`
+  (`game.cpp`), `systemSoftReset` (`main_sub.cpp`) schaltet das Bild schwarz,
+  bricht Lade- und ARAM-Aufträge ab, räumt die Heaps und kehrt zum Titel
+  zurück (liest `SS/eng/title.dat` neu). Die PC-Prüfung löst diesen Neustart
+  jetzt aus (`RE4_TEST_SOFT_RESET="free+5000"`, state_trace.cpp) und meldet,
+  ob der Titel neu geladen wird („Neustart nach Spielende“). Ergebnis steht
+  aus (PC-Lauf mit Disc-Daten).
+- **Karte schwarz:** Die PC-Prüfung öffnet die Karte mit Z (`RE4_PAD_FREE_SCRIPT`
+  `Z@30 B@300`) und schreibt die GX-Daten 200 Bilder nach dem Spielstart
+  (`RE4_GX_DUMP_FREE`, core_api.cpp); der Bericht zeichnet sie
+  („Karte offen“). Ergebnis steht aus.
+- **Dunkler Balken unten:** Verdacht auf die Filter 00/01 (Kontrast,
+  Tiefenschärfe), die das EFB in halber Größe kopieren
+  (`GXSetTexCopyDst(SCR_W/2, SCR_H/2, …)`) und zurückzeichnen. Braucht eine
+  R3-Aufnahme in dem Moment.
+- **r101 ruckelt:** Braucht das vollständige Protokoll (Zeiten für Kern und
+  GX-Renderer); die App-Prüfung lässt sich jetzt mit Q beenden und sammelt
+  trotzdem alles ein.
+- **Skripte:** `test-r100-core.ps1` nimmt `DataDir` standardmäßig aus dem
+  Nachbarordner `RE4-Discdata`; `test-core-app.ps1` beendet die Beobachtung
+  mit Q oder Strg+C und sammelt danach Protokolle und Aufnahmen ein, der
+  Bericht zeigt die R3-Zeilen.
+
+Getestet (Cloud): Kern-Build i686/armhf normal und `-O2` mit allen Prüfungen
+(neu: kurzer Tastendruck im Test `core-test`). Nicht getestet: Gerät,
+PC-Prüfung mit Disc-Daten (Karte, Neustart nach Spielende), das sichtbare
+Raumauswahl-Menü.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1563,6 +1623,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0040 `esp_sub.cpp` | `Esp1b_SpTrans` findet die Daten von `cEsp1b` über `sizeof(cEsp)` statt über `&pad_EC[0xC]`: MWCC legt den vptr ans Ende von `cEsp`, die Compiler des Ports an den Anfang; vorher las es die Punktzahl 4 Bytes daneben (Absturz im GX-Decoder auf dem Retroid nach 153 s) |
 | 0041 `at_sub.cpp`, `atari.cpp`, `card.cpp` | Das Attributwort einer Kollisionsfläche (`SAT_POLY::m_Status`) wird als Wort gelesen statt als zwei Halbwörter in GameCube-Reihenfolge (vorher vertauschte Hälften: Zäune als Fallkanten, Wände ohne Kollision, Boden als Wasser); `CardID::save` liest `nPoint` als Wert statt Byte 3 |
 | 0042 `src/lib/GXGeometry.c` | `GXSetCullMode` übernimmt das Ergebnis von `__rlwimi` (`hwMode = __rlwimi(...)`): MWCC fügt bei diesem Befehl in den ersten Operanden ein, die C-Fassung des Ports gibt das Ergebnis zurück und die Zeile verwarf es. Aus `GX_CULL_FRONT` (Standard aller Modelle) wurde „keine Rückseiten weglassen“: alles wurde beidseitig gezeichnet, die Doppelschichten von Leons Haar verdeckten sich gegenseitig (dunkle Flecken) |
+| 0043 `title.cpp` | Das Debug-Startmenü nach „New Game“ (`titleExit`, Raumauswahl) meldet sich bei der Laufzeit an (`re4_title_room_menu`, runtime/dolphin_os.cpp): solange es offen ist, lässt die Debug-Anzeigen-Sperre der App (`RE4_DEBUG_HUD=0`) `debug_mode` mindestens 1, damit seine Zeilen (Debug-Text) zu sehen sind; `RE4_ROOM_MENU=0` überspringt es wie ein sofortiges A |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

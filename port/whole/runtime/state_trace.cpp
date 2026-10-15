@@ -28,6 +28,10 @@
 //                          house, where the s03 event starts);
 //                          "free+F:x,y,z,a" counts from the moment the player
 //                          is free (below)
+//   RE4_TEST_SOFT_RESET="free+N"  N frames after the player is free, the
+//                          soft reset of "game over" -> "no"; the log follows
+//                          the game steps afterwards ("run: after the soft
+//                          reset"), the title should come back
 //   RE4_PAD_FREE_SCRIPT    pad.cpp: a test script started once the player is
 //                          free in the room: main loop, no event and no sub
 //                          screen for 300 frames in a row ("run: player free"
@@ -54,6 +58,7 @@ extern "C" void re4_set_frame_hook(void (*hook)(unsigned));
 extern "C" void re4_pad_script_stop(void);
 extern "C" void re4_pad_script_free(void);
 extern "C" void re4_log(const char* fmt, ...);
+extern "C" int re4_title_room_menu_open(void);
 
 namespace {
 
@@ -202,9 +207,18 @@ unsigned long g_stopAfter;
 // publicity build sets it in main.cpp): the event and score lines, the
 // process bars, the heap numbers, the debug text (EprintfDrawing) and the
 // green far fog of DBG_FOG_FAR_GREEN (game.cpp). The app sets it by default.
+// While the debug start menu is open (patch 0043) debug_mode stays at least 1:
+// its lines are debug text.
 bool g_hideDebugHud;
 unsigned long g_roomFrames;  // frames since the first main loop frame
 unsigned long g_loopFrames;  // of them in step 3
+// RE4_TEST_SOFT_RESET="free+N": N frames after the player is free, the soft
+// reset the game makes after "game over" -> "no" (game.cpp, System_flg
+// SYS_SOFT_RESET); the log then follows the game steps to the title
+long g_resetAfter = -1;
+long g_resetAt = -1;
+unsigned g_resetSteps;
+u8 g_resetStep;
 
 void frame(unsigned n)
 {
@@ -213,8 +227,12 @@ void frame(unsigned n)
     if (!live(g)) {
         return;
     }
-    if (g_hideDebugHud && g->debug_mode != 0) {
-        g->debug_mode = 0;
+    if (g_hideDebugHud) {
+        // the debug start menu (patch 0043) draws its lines with the debug text
+        int page = re4_title_room_menu_open() ? 1 : 0;
+        if ((g->debug_mode != 0) != (page != 0)) {
+            g->debug_mode = page;
+        }
     }
     if (g_roomStart < 0 && g->Rno0 >= 2) {
         g_roomStart = (long) n;
@@ -238,6 +256,18 @@ void frame(unsigned n)
         pPL->setAng(&ang);
         re4_log("run: player placed at (%.0f %.0f %.0f), facing %.2f, frame %u", (double) pos.x, (double) pos.y,
                 (double) pos.z, (double) g_placeAng, n);
+    }
+    if (g_resetAfter >= 0 && g_freeAt >= 0 && g_resetAt < 0 && (long) n == g_freeAt + g_resetAfter) {
+        g_resetAt = (long) n;
+        g_resetStep = g->Rno0;
+        SysFlagOn(g, SYS_SOFT_RESET);
+        re4_log("run: soft reset requested (RE4_TEST_SOFT_RESET) at frame %u, step %u", n, (unsigned) g->Rno0);
+    }
+    if (g_resetAt >= 0 && g->Rno0 != g_resetStep && g_resetSteps < 16) {
+        g_resetStep = g->Rno0;
+        g_resetSteps++;
+        re4_log("run: after the soft reset: step %u at frame %u (%ld frames later)", (unsigned) g->Rno0, n,
+                (long) n - g_resetAt);
     }
     if (g_padUntilRoom && g->Rno0 >= 2) {
         re4_pad_script_stop();
@@ -282,12 +312,17 @@ void configure()
             re4_log("run: RE4_TEST_PLACE \"%s\" not understood ([free+]F:x,y,z,a)", place);
         }
     }
+    const char* reset = getenv("RE4_TEST_SOFT_RESET");
+    if (reset && strncmp(reset, "free+", 5) == 0) {
+        g_resetAfter = strtol(reset + 5, 0, 10);
+    }
     const char* stop = getenv("RE4_STOP_AFTER");
     g_stopAfter = stop ? strtoul(stop, 0, 10) : 0;
     const char* freeScript = getenv("RE4_PAD_FREE_SCRIPT");
     const char* hud = getenv("RE4_DEBUG_HUD");
     g_hideDebugHud = hud && *hud == '0';
-    if (g_trace || g_padUntilRoom || g_stopAfter || g_place || g_hideDebugHud || (freeScript && *freeScript)) {
+    if (g_trace || g_padUntilRoom || g_stopAfter || g_place || g_hideDebugHud || g_resetAfter >= 0 ||
+        (freeScript && *freeScript)) {
         re4_set_frame_hook(frame);
     }
 }
@@ -297,6 +332,13 @@ struct Install {
 } g_install;
 
 }  // namespace
+
+// The frame the player became free (-1: not yet), for runtime/core_api.cpp
+// (RE4_GX_DUMP_FREE).
+extern "C" long re4_trace_free_at(void)
+{
+    return g_freeAt;
+}
 
 // Reads the switches again (the app sets them after the library is loaded,
 // runtime/core_api.cpp re4_core_start).

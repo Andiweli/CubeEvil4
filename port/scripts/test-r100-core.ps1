@@ -38,7 +38,7 @@ Falls Windows das Ausfuehren von Skripten sperrt.
 Zusaetzlich der ARM32-Build unter qemu (wie auf dem Retroid, aber langsam).
 #>
 param(
-    [Parameter(Mandatory = $true)][string]$DataDir,
+    [string]$DataDir = '',
     [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'RE4-Kern-Pruefung'),
     [int]$Frames = 10000,
     [string]$Room = '100',
@@ -54,6 +54,17 @@ $previousEncoding = [Console]::OutputEncoding
 
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
     throw 'WSL fehlt. Einmal in PowerShell als Administrator: wsl --install -d Ubuntu-24.04 , Rechner neu starten, dann dieses Skript erneut starten.'
+}
+# without -DataDir: the disc data folder next to the repository (RE4-Discdata,
+# as on the project owner's PC), else ask
+if (-not $DataDir) {
+    $guess = Join-Path (Split-Path -Parent $repo) 'RE4-Discdata'
+    if (Test-Path -LiteralPath $guess) {
+        $DataDir = $guess
+        Write-Host "Disc-Daten: $DataDir"
+    } else {
+        $DataDir = Read-Host 'Ordner mit den Disc-Daten'
+    }
 }
 if (-not (Test-Path -LiteralPath $DataDir)) { throw "Ordner mit den Disc-Daten nicht gefunden: $DataDir" }
 if ($Room -notmatch '^[0-5][0-9A-Fa-f]{2}$') { throw "Raum als drei Hex-Ziffern angeben, z. B. 100 (nicht: $Room)" }

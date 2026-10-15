@@ -834,6 +834,7 @@ const char* re4probe_file(void);
 unsigned re4probe_poly_attr(unsigned status);
 unsigned re4probe_cast_u8(float f);
 int re4probe_cast_s16(float f);
+int re4probe_debug_mode(int set);
 }
 
 static unsigned bitsOf(float f)
@@ -1044,6 +1045,7 @@ static void testMath()
 // --- state trace and coverage log ------------------------------------------------
 
 extern "C" int re4_state_trace_open(const char* path);
+extern "C" void re4_state_trace_reconfigure(void);
 struct TestPadStatus {  // dolphin/pad.h PADStatus
     unsigned short button;
     signed char stickX, stickY, substickX, substickY;
@@ -1119,6 +1121,27 @@ static void testTrace()
     PADRead(pads);
     PADRead(pads);
     CHECK(pads[0].button == 0 && pads[0].stickY == 0 && pads[0].stickX == 0);
+    // RE4_DEBUG_HUD=0 clears the debug page, except while the debug start menu
+    // is open (patch 0043): its lines are debug text; its PAGE line may change it
+    int savedPage = re4probe_debug_mode(-1);
+    setenv("RE4_DEBUG_HUD", "0", 1);
+    re4_state_trace_reconfigure();
+    re4probe_debug_mode(3);
+    PADRead(pads);
+    CHECK(re4probe_debug_mode(-1) == 0 && !re4_title_room_menu_open());
+    CHECK(re4_title_room_menu(1) == 1 && re4_title_room_menu_open() == 1);
+    PADRead(pads);
+    CHECK(re4probe_debug_mode(-1) == 1);
+    re4probe_debug_mode(5);
+    PADRead(pads);
+    CHECK(re4probe_debug_mode(-1) == 5);
+    CHECK(re4_title_room_menu(0) == 0);
+    PADRead(pads);
+    CHECK(re4probe_debug_mode(-1) == 0 && !re4_title_room_menu_open());
+    unsetenv("RE4_DEBUG_HUD");
+    re4_state_trace_open(0);  // the frame hook off again
+    re4_state_trace_reconfigure();
+    re4probe_debug_mode(savedPage);
     // GetDataExt on a host-order archive: one entry "CNS", one "SMD"
     unsigned arc[8] = {2, 0, 0, 0, 0x18, 0x1C, 0, 0};
     memcpy(&arc[6], "CNS\0SMD\0", 8);

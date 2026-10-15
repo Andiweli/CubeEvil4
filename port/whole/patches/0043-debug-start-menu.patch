@@ -1,0 +1,25 @@
+--- a/src/game/title.cpp
++++ b/src/game/title.cpp
+@@ -1349,6 +1349,7 @@
+ // Ada / Mercenaries start at their rooms with the chosen character / stage; sets the new-game
+ // flag (System_flg 0x2000), the next position and chains into GameTask.
+ extern "C" void re4_debug_start_room(unsigned short* room_id); /* port: runtime/dolphin_os.cpp */
++extern "C" int re4_title_room_menu(int open); /* port: runtime/dolphin_os.cpp (patch 0043) */
+ 
+ void titleExit(TITLE_WORK* w)
+ {
+@@ -1371,10 +1372,13 @@
+                 w->menu_x = 340;
+                 w->menu_y = 60;
+                 w->se_id = 0;
+-                while (!(Joy[0].trg & 0x1100)) {
++                /* port: the debug start menu (room selection); its text needs debug_mode, which the
++                   app clears (RE4_DEBUG_HUD=0) except while it is open; RE4_ROOM_MENU=0 skips it */
++                while (re4_title_room_menu(1) && !(Joy[0].trg & 0x1100)) {
+                     titleDebugMenu(w);
+                     TaskSleep(1);
+                 }
++                re4_title_room_menu(0);
+                 G_ROOM_ID = pRj->getRoomInfo(w->Stage, w->Room[w->Stage] + w->JumpPoint)->roomNo;
+                 pG->JumpPoint = w->JumpPoint;
+                 pG->em_list_no = w->em_list_no;

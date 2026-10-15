@@ -71,6 +71,15 @@ extern "C" int re4probe_cast_s16(float f)
     return (s16) f;
 }
 
+// The debug page (state_trace.cpp: RE4_DEBUG_HUD=0, patch 0043); set < 0 only reads.
+extern "C" int re4probe_debug_mode(int set)
+{
+    if (set >= 0) {
+        pG->debug_mode = (s8) set;
+    }
+    return pG->debug_mode;
+}
+
 extern "C" int re4probe_byte_views(void)
 {
     int failed = 0;

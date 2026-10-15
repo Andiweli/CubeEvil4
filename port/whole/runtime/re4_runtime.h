@@ -148,6 +148,11 @@ void re4_os_dump_threads(int fd);
  * room in the original debug start menu (patch 0026, title.cpp titleExit). */
 void re4_debug_start_room(unsigned short* room_id);
 int re4_debug_start_room_set(void);
+/* The debug start menu after "new game" (patch 0043): open 1 every frame it
+ * waits (returns 0 with RE4_ROOM_MENU=0: skipped), open 0 when it is done.
+ * re4_title_room_menu_open: 1 while it is shown (its text needs debug_mode). */
+int re4_title_room_menu(int open);
+int re4_title_room_menu_open(void);
 
 #ifdef __cplusplus
 }

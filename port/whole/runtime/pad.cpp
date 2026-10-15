@@ -217,11 +217,15 @@ void re4_add_frame_hook(void (*hook)(unsigned))
 static std::mutex g_liveLock;
 static Re4CorePad g_live;
 static bool g_hasLive;
+// buttons pressed since the last PADRead: a tap shorter than a game frame
+// (33 ms, longer while the game stutters) still reaches the game once
+static u16 g_pressed;
 
 void re4_pad_live(const Re4CorePad* pad)
 {
     std::lock_guard<std::mutex> lock(g_liveLock);
     if (pad) {
+        g_pressed |= pad->buttons & ~g_live.buttons;
         g_live = *pad;
         g_hasLive = true;
     } else {
@@ -270,7 +274,8 @@ u32 PADRead(PADStatus* status)
     if (!gScriptLen) {
         std::lock_guard<std::mutex> lock(g_liveLock);
         if (g_hasLive) {
-            status[0].button = g_live.buttons;
+            status[0].button = g_live.buttons | g_pressed;
+            g_pressed = 0;
             status[0].stickX = g_live.stickX;
             status[0].stickY = g_live.stickY;
             status[0].substickX = g_live.substickX;
@@ -278,8 +283,8 @@ u32 PADRead(PADStatus* status)
             status[0].triggerLeft = g_live.triggerL;
             status[0].triggerRight = g_live.triggerR;
             // analog A/B like a real pad: full when pressed
-            status[0].analogA = (g_live.buttons & 0x0100) ? 0xFF : 0;
-            status[0].analogB = (g_live.buttons & 0x0200) ? 0xFF : 0;
+            status[0].analogA = (status[0].button & 0x0100) ? 0xFF : 0;
+            status[0].analogB = (status[0].button & 0x0200) ? 0xFF : 0;
         }
     }
     // every change of the buttons (scripted or from the device)
