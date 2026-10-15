@@ -1,0 +1,54 @@
+--- a/src/lib/GXAttr.c
++++ b/src/lib/GXAttr.c
+@@ -1,5 +1,6 @@
+ #include <dolphin/gx.h>
+ #include <dolphin/os.h>
++#include "re4_gx_fifo.h" /* port: patch 0031 */
+ 
+ #include "__gx.h"
+ 
+@@ -518,7 +519,7 @@
+ 
+     CHECK_ATTRNAME5(966, attr);
+     cpAttr = attr - GX_VA_POS;
+-    phyAddr = (u32)base_ptr & 0x3FFFFFFF;
++    phyAddr = re4_gx_physical(base_ptr); /* port: patch 0031 */
+ 
+     GX_WRITE_SOME_REG2(8, cpAttr | 0xA0, phyAddr, cpAttr - 12);
+     GX_WRITE_SOME_REG3(8, cpAttr | 0xB0, stride, cpAttr - 12);
+--- a/src/lib/GXTexture.c
++++ b/src/lib/GXTexture.c
+@@ -1,5 +1,6 @@
+ #include <dolphin/gx.h>
+ #include <dolphin/os.h>
++#include "re4_gx_fifo.h" /* port: patch 0031 */
+ 
+ #include "__gx.h"
+ 
+@@ -220,7 +221,7 @@
+     SET_REG_FIELD(647, t->image0, 10, 10, height - 1);
+     SET_REG_FIELD(648, t->image0, 4, 20, format & 0xF);
+     ASSERTMSGLINEV(654, ((u32)image_ptr & 0x1F) == 0, "%s: %s pointer not aligned to 32B", "GXInitTexObj", "image");
+-    imageBase = (u32)((u32)image_ptr >> 5) & 0x01FFFFFF;
++    imageBase = (re4_gx_physical(image_ptr) >> 5) & 0x01FFFFFF; /* port: patch 0031 */
+     SET_REG_FIELD(656, t->image3, 21, 0, imageBase);
+ 
+     switch (format & 0xF) {
+@@ -329,7 +330,7 @@
+     ASSERTMSGLINE(835, obj, "Texture Object Pointer is null");
+     CHECK_GXBEGIN(837, "GXInitTexObjData");
+     ASSERTMSGLINEV(840, ((u32)image_ptr & 0x1F) == 0, "%s: %s pointer not aligned to 32B", "GXInitTexObjData", "image");
+-    imageBase = ((u32)image_ptr >> 5) & 0x01FFFFFF;
++    imageBase = (re4_gx_physical(image_ptr) >> 5) & 0x01FFFFFF; /* port: patch 0031 */
+     SET_REG_FIELD(843, t->image3, 21, 0, imageBase);
+ }
+ 
+@@ -668,7 +669,7 @@
+     ASSERTMSGLINEV(1356, ((u32)lut & 0x1F) == 0, "%s: %s pointer not aligned to 32B", "GXInitTlutObj", "Tlut");
+     t->tlut = 0;
+     SET_REG_FIELD(1359, t->tlut, 2, 10, fmt);
+-    SET_REG_FIELD(1360, t->loadTlut0, 21, 0, ((u32)lut & 0x3FFFFFFF) >> 5);
++    SET_REG_FIELD(1360, t->loadTlut0, 21, 0, re4_gx_physical(lut) >> 5); /* port: patch 0031 */
+     SET_REG_FIELD(1361, t->loadTlut0, 8, 24, 0x64);
+     t->numEntries = n_entries;
+ }

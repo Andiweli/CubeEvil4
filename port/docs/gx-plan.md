@@ -43,8 +43,8 @@ keinen Spielspeicher.
 
 | | Inhalt | Test (Cloud, ohne Disc-Daten) |
 |---|---|---|
-| G1 | FIFO einsammeln: Schreibzugriffe auf `GXWGFifo` (Spiel `include/gx.h`, SDK `GXVert.h`, `__gx.h`) werden beim Bauen zu `re4_gx_put_*`; GX-Bibliothek aus `src/lib` im Build, Register-Blöcke (CP/PE/PI/MEM) auf Speicher des Ports, Zeichen-fertig/Token-Unterbrechung des PE nachgebildet; die rund 97 GX-Platzhalter entfallen | GX-Aufrufe erzeugen die erwarteten Befehlsbytes (BP/XF/CP-Schreiben, Zeichenbefehl mit Punkten); `GXDrawDone` kehrt zurück |
-| G2 | Befehlsdecoder: CP (Punktbeschreibung, Formate, Feld-Adressen), XF (Matrizen, Normalen, Licht, Kanäle, Texturkoordinaten, Bildausschnitt, Projektion), BP (TEV, Texturen, TLUT, Mischen, Tiefe, Alpha, Nebel, Schere, Kopieren), Zeichenbefehle direkt und indiziert, Display-Listen | synthetische GX-Programme → erwartete Dreiecke, Punkte und Zustände |
+| G1 ✅ | FIFO einsammeln: Schreibzugriffe auf `GXWGFifo` (Spiel `include/gx.h`, SDK `GXVert.h`, `__gx.h`) werden beim Bauen zu `re4_gx_put_*`; GX-Bibliothek aus `src/lib` im Build, Register-Blöcke (CP/PE/PI/MEM) auf Speicher des Ports, Zeichen-fertig/Token-Unterbrechung des PE nachgebildet; die rund 97 GX-Platzhalter entfallen | GX-Aufrufe erzeugen die erwarteten Befehlsbytes (BP/XF/CP-Schreiben, Zeichenbefehl mit Punkten); `GXDrawDone` kehrt zurück |
+| G2 ✅ | Befehlsdecoder (`gx_decode.cpp`): CP (Punktbeschreibung, Formate, Feld-Adressen), XF (Speicher und Register, auch per Index geladen), BP, Zeichenbefehle direkt und indiziert, Display-Listen (auch CPU-gebaute in Host-Reihenfolge, Patch 0032), Texturen mit Inhalts-Schlüssel, Paletten, Bildpuffer-Kopien; Ausgabe als Bildstücke (`re4_gx_frame.h`). Transformation, Licht und Texturkoordinaten-Erzeugung macht der Renderer (G3, Shader) | synthetisches Bild über die SDK-Bibliothek → erwartete Punkte, Indizes, Texel, Paletten, Zustände (`runtime-test gx`) |
 | G3 | GLES3-Ausgabe (App): Shader aus dem TEV-Zustand (bis 16 Stufen, Konstanten, Tauschtabellen, später indirekte Texturen), Licht pro Punkt, Texturkoordinaten-Erzeugung, Texturformate (Leser der App), TLUT, Mischen/Tiefe/Alpha/Nebel/Seite, Kopien in den Bildspeicher und in Texturen | Bildvergleich synthetischer Szenen (Mesa, offscreen) |
 | G4 | In der App: Kernmodus zeigt das GX-Bild statt der Zustandsbrücke (umschaltbar, Brücke bleibt für Diagnose); PC-Prüfung zeichnet GX-Bilder | lokal: Logos, Titelmenü, r120/r100 wie im Original; Gerätetest |
 | G5 | Rest: Bildeffekte (Filter, Unschärfe), `GXPeekZ`, Leistung (Zustands- und Shader-Cache), was die Bilder zeigen | lokal, Gerät |
@@ -53,8 +53,9 @@ keinen Spielspeicher.
 
 - Adressen: Der Grafikprozessor arbeitet mit physischen Adressen (MEM1 ab 0).
   Spieldaten liegen im Port bei `0x80000000 + physisch`. Daten außerhalb von
-  MEM1 (statische Felder der Bibliotheken) brauchen eine Zuordnung (z. B. die
-  Standard-Textur von `GXInit`).
+  MEM1 (statische Felder der Bibliotheken) bekommen ein Fenster ab
+  `0x03000000` (`re4_gx_physical`, Patch 0031); Display-Listen-Aufrufe tragen
+  den Zeiger selbst.
 - Zeichen-fertig: `GXDrawDone` wartet auf die PE-Unterbrechung; der Nachbau
   arbeitet die Befehle sofort ab und meldet „fertig“ im Unterbrechungsweg des
   Ports (`re4_os_interrupt_*`).

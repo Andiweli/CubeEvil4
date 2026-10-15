@@ -15,7 +15,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M4.5 Kern korrekt machen: C-Ersatz für Assembler, Byte-Aggregate, `__FILE__`-Länge | ✅ 14.10.2026 (Cloud, i686 und armhf) |
 | M5 Erster Raum r100 | ✅ 14.10.2026: lokal mit Disc-Daten (i686 in WSL2) 10 000 Bilder ab der Hauptschleife ohne Absturz, Abdeckung ohne „nein“, Formatvergleich 152 Dateien ohne Fehler. armhf mit Disc-Daten nicht gelaufen (`-Arm`, optional) |
 | K2 „Kern in die App“ (M6) | ⏳ 14.10.2026: Cloud-Teil fertig (Einbettungs-Schnittstelle, App-Variante „core“, Zustandsbrücke, Prüfungen ohne Disc-Daten grün); NDK-Build, APK-Build und Retroid-Test stehen aus (lokal, `port/scripts/test-core-app.ps1`) |
-| G1 GX nachbilden: FIFO einsammeln (Teil von M6, `gx-plan.md`) | ✅ 15.10.2026 (Cloud): GX-Bibliothek aus `src/lib` im Build, FIFO-Strom im Port, PE-Unterbrechungen; Test `runtime-test gx` grün (i686, armhf, `-O2`). G2–G5 offen |
+| G1/G2 GX nachbilden: FIFO einsammeln, Befehlsdecoder (Teil von M6, `gx-plan.md`) | ✅ 15.10.2026 (Cloud): GX-Bibliothek aus `src/lib` im Build, FIFO-Strom im Port, PE-Unterbrechungen (G1); Decoder mit Bildstücken für den Renderer (G2). Test `runtime-test gx` grün (i686, armhf, `-O2`). G3–G5 offen |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -907,6 +907,56 @@ beide auch mit `-O2`), libc++-Prüfung 152/152. Platzhalter: 76 Funktionen
 `test-r100-core.ps1` und `test-core-app.ps1` sollten zeigen, dass es so weit
 läuft wie vorher.
 
+### GX nachbilden, Schritt G2: Befehlsdecoder (15.10.2026, Cloud)
+
+`runtime/gx_decode.cpp` arbeitet den Befehlsstrom sofort ab, sobald ein
+Befehl vollständig ist (der Grafikprozessor liest die Daten also, solange das
+Spiel sie noch so hat wie beim Senden). Er führt den Zustand von CP, XF
+(Matrizen, Licht, Register), BP und dem Paletten-Teil des TMEM und schreibt,
+solange ein Renderer Bildstücke abholt, die entschlüsselte Arbeit in
+**Bildstücke** (`runtime/re4_gx_frame.h`, eigenes Format für die App):
+
+- ein Stück endet mit jeder Bildkopie in den Bildspeicher (`GXCopyDisp`), also
+  einmal je Spielbild; es enthält die geänderten BP-/XF-Register,
+  Paletten-Ladungen, Zeichenaufträge (Punkte als Float/RGBA8 mit
+  Matrix-Indizes, Dreieckslisten statt Vierecken/Streifen/Fächern) und
+  Textur-Bindungen;
+- Texturen werden über einen Inhalts-Schlüssel (Prüfsumme der Texel, bei
+  Paletten-Texturen mit der Palette) nur einmal übertragen; was lange nicht
+  gebraucht wurde, wird vergessen (`FORGET`);
+- Kopien des Bildpuffers in eine Textur (`GXCopyTex`) hinterlassen eine Marke
+  am Ziel; eine Textur dort ist dann diese Kopie (der Renderer hat die Pixel);
+- Warteschlange mit 4 Plätzen: ist sie voll, wartet der Kern auf den Renderer
+  (ein langsamer Renderer bremst das Spiel wie ein langsamer Grafikchip); holt
+  er eine Sekunde lang nichts ab, wird verworfen und mit vollem Zustand neu
+  begonnen. Ohne Renderer (Linux-Prüfungen, bisherige Brücke) wird nichts
+  aufgezeichnet, nur der Zustand geführt.
+
+**Byte-Reihenfolge** (Bestandsaufnahme aller Stellen, an denen das Spiel dem
+Grafikprozessor Speicher übergibt): Befehlsströme (FIFO, aufgenommene und
+Disc-Display-Listen) sind big-endian; Punktfelder und per Index geladene
+Matrizen sind in Host-Reihenfolge (Formatumwandler, CPU-Puffer wie die
+Skinning-Ausgabe); Texel und Paletten bleiben big-endian. Vier Display-Listen
+baut das Spiel selbst mit CPU-Schreibzugriffen in Host-Reihenfolge (Sprite-Viereck
+`eff_sys.cpp`, Wasser-/Sandgitter `Espgen42/43/45.cpp`): Patch 0032 meldet sie
+an, der Decoder liest sie dann in Host-Reihenfolge. Zwei Felder liegen außerhalb
+von MEM1 (`g_EspCommonDisplayList`, Palette `CLUTdata` in `filter02.cpp`):
+Display-Listen-Aufrufe tragen den Zeiger selbst, für Felder, Texturen und
+Paletten gibt Patch 0031 dem Grafikprozessor über `re4_gx_physical` ein
+Adressfenster oberhalb von MEM1 (`0x03000000`).
+
+Test `runtime-test gx` (zusätzlich zu G1, `tests/gx_probe.cpp
+re4probe_gx_frame_test`): ein künstliches Bild über die SDK-Bibliothek –
+Matrix direkt und per Index, texturiertes Viereck mit s16-Positionen (Index,
+Host-Reihenfolge, Nachkommabits), RGBA8-Farben (16-bit-Index) und
+Float-Texturkoordinaten, Dreiecksstreifen, CPU-gebaute Display-Liste in
+Host-Reihenfolge, Palette und C4-Textur, Palette außerhalb von MEM1,
+Bildpuffer-Kopie als Textur, Bildkopie; erwartet werden genau diese Punkte,
+Indizes, Texel, Paletten und Zustände, beim zweiten Bild dieselbe Textur ohne
+erneute Daten, ohne Renderer kein Stück. Ergebnis: grün in `whole_build.sh`
+(i686, armhf, beide auch `-O2`), libc++ 153/153. Nicht getestet: mit
+Disc-Daten (lokal) – das kommt mit G4.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1042,6 +1092,8 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0029 `scroll.cpp` | `setObj` meldet für jedes Kulissen-Objekt, welchen SMD-Eintrag (Raum oder Block, Nummer) es zeigt (`re4_scroll_placed`): Die Brücke gibt das weiter, die App lässt versteckte und nicht geladene Kulisse weg, verschiebt bewegte und zeichnet Kulisse aus Raumskripten (r100: das Polizeiauto) wie die übrigen Modelle |
 | 0027 `model.cpp`, `objRocket.cpp` | Mit `-O2` (Android) gibt clang Inline-Funktionen, die nur in einer `.cpp` definiert sind, nicht aus; Module brauchen sie: `cModel::getPartsPtr` ohne `inline`, `cManager<cObj>::destroyNow` ausdrücklich instanziiert. Ohne den Patch zwei Platzhalter mehr als bei `-O0` |
 | 0030 `GXInit.c`, `GXTransform.c`, `GXLight.c`, `GXMisc.c` (SDK) | GX-Bibliothek im Port (G1): Register-Blöcke über `re4_gx_register_block` statt fester Hardware-Adressen, `IsWriteGatherBufferEmpty` ohne Assembler (immer leer), Matrix-/Projektions-/Licht-Ladefunktionen in C statt Paired-Single-Assembler (schreiben über `re4_gx_put_f32` in den FIFO), `GXPeek*`/`GXPoke*` über `re4_gx_efb_peek` statt EFB-Adresse. Dazu `-include re4_sdk_intrinsics.h` (`__rlwimi`, `__cntlzw`) für die SDK-Dateien und `-std=c99` für `GXDraw.c` |
+| 0031 `GXAttr.c`, `GXTexture.c` (SDK) | Zeiger an den Grafikprozessor über `re4_gx_physical` statt Maskieren (`GXSetArray`, `GXInitTexObj`, `GXInitTexObjData`, `GXInitTlutObj`): MEM1 wie auf der GameCube, Speicher des Ports außerhalb von MEM1 (statische Felder, `filter02.cpp CLUTdata`) über ein Fenster ab `0x03000000` (G2) |
+| 0032 `eff_sys.cpp`, `Espgen42.cpp`, `Espgen43.cpp`, `espgen45.cpp` | Display-Listen, die das Spiel mit CPU-Schreibzugriffen baut (Anzahl, Indizes, Floats in Host-Reihenfolge), werden vor `DCStoreRange` mit `re4_gx_host_order_list` angemeldet; der Decoder liest sie in Host-Reihenfolge, solange ihr Inhalt gleich bleibt (G2) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -1123,7 +1175,8 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `vi.cpp` | VI-Retrace alle 1/59,94 s Echtzeit, zugestellt an Interrupt-Punkten (Verteiler im Leerlauf, `VIWaitForRetrace`, Patch 0012, später lange Hintergrundarbeit); Thread-Wechsel aus dem Rückruf erst am Interrupt-Ende. `RE4_VI_FAST=1`: ohne Warten (Tests) |
 | `ax.cpp` (K2) | AX ohne Tonausgabe: 64 Stimmen mit den Vergaberegeln des SDK (`AXAlloc.c`), die Setter (`AXVPB.c`), Abspielposition je Audio-Rahmen nach Abtastrate (ADPCM mit Rahmenköpfen, PCM16, PCM8; Schleife oder Stopp am Ende), der Audio-Rahmen-Rückruf des Spiels 200-mal je Sekunde Spielzeit, zugestellt mit den VI-Retraces. Damit läuft der Tontreiber (`snd_main.cpp cb_audio_frame`): Stimmen werden frei, Sprach-Streams werden bereit. MIX, SYN, SEQ, AXFX, AI bleiben Platzhalter. Hörbarer Ton: M8 |
 | `movie.cpp` (K2) | Sofdec-Filme (`mwPly*`) bis M9: jeder Film endet sofort (PLAYEND, kein Bild), das Spiel macht danach weiter (r120: Autofahrt nach dem Vorfilm) |
-| `gx_fifo.cpp` (G1) | GX-FIFO und Register-Blöcke CP/PE/PI/MEM: Befehlsrahmung, Display-Listen aufnehmen und aufrufen, PE-Token/fertig als Unterbrechung (`re4_gx_deliver_interrupts`), EFB-Lesen antwortet „leer“. Dekodieren und Zeichnen folgen (G2–G4) |
+| `gx_fifo.cpp` (G1) | GX-FIFO und Register-Blöcke CP/PE/PI/MEM: Display-Listen aufnehmen, PE-Token/fertig als Unterbrechung (`re4_gx_deliver_interrupts`), Speicher wie ihn der Grafikprozessor sieht (MEM1 und Fenster für Port-Speicher, `re4_gx_physical`), EFB-Lesen antwortet „leer“ |
+| `gx_decode.cpp` (G2) | Befehlsdecoder: Zustand CP/XF/BP/TLUT, Punkte, Indizes, Texturen mit Inhalts-Schlüssel, Bildpuffer-Kopien, Bildstücke mit Warteschlange für den Renderer (`re4_gx_frame.h`, `re4_core_gx_acquire/release/detach`) |
 | SDK `GX*.c` (G1) | unverändert aus `src/lib` bis auf Patch 0030: die gesamte GX-Bibliothek |
 | `dvd.cpp` | `DVD*` über einen Ordner mit entpackten Disc-Dateien (siehe unten); Lesen sofort, Rückruf vor der Rückkehr; aus einem Interrupt heraus (Audio-Rahmen: Nachladen der Sprach-/Musik-Streams) bleibt der Auftrag „beschäftigt“, bis der Interrupt-Rückruf zurückgekehrt ist (`os_thread.cpp re4_os_defer`), Abbruch liefert dann −3; FST der eingelegten Disc oben in MEM1, Disc-ID bei `0x80000000`; Disc-Wechsel lädt den anderen Ordner |
 | `aram.cpp` | ARAM (16 MB) als Host-Puffer, `ARInit`/`ARAlloc` (Stapel ab `0x4000`), ARQ kopiert sofort und ruft den Rückruf (aus einem Interrupt heraus erst nach dessen Ende, wie `dvd.cpp`) |

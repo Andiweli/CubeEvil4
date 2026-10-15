@@ -1,0 +1,72 @@
+--- a/src/game/eff_sys.cpp
++++ b/src/game/eff_sys.cpp
+@@ -11,6 +11,7 @@
+ #include "main_mem.h"
+ #include "os_vi.h"
+ #include "db_log.h"
++#include "re4_gx_fifo.h"  // port: patch 0032
+ 
+ // EspDataLoad takes the data address as a `u32`, not a pointer, so that regclass puts the table
+ // offsets in BASE_REGS (r9/r11) instead of index registers starting at r0.
+@@ -219,6 +220,7 @@
+     *d = 0;
+     d++;
+     *d = 1;
++    re4_gx_host_order_list(g_EspCommonDisplayList, sizeof(g_EspCommonDisplayList));  // port: patch 0032, built with host-order stores
+     DCStoreRange(g_EspCommonDisplayList, sizeof(g_EspCommonDisplayList));
+ }
+ 
+--- a/src/game/Espgen42.cpp
++++ b/src/game/Espgen42.cpp
+@@ -11,6 +11,7 @@
+ #include "camera.h"
+ #include "os_vi.h"
+ #include "db_log.h"
++#include "re4_gx_fifo.h"  // port: patch 0032
+ #include "main_sub.h"
+ #include "joy.h"
+ #include <dolphin/base/PPCArch.h>
+@@ -1097,6 +1098,7 @@
+         DCStoreRange(p->pPosBuf, n3);
+         DCStoreRange(p->pSpdBuf, n3);
+     }
++    re4_gx_host_order_list(p->pDisplayList, p->Dpl_size);  // port: patch 0032, built with host-order stores
+     DCStoreRange(p->pDisplayList, p->Dpl_size);
+     return w;
+ }
+--- a/src/game/espgen45.cpp
++++ b/src/game/espgen45.cpp
+@@ -10,6 +10,7 @@
+ #include "camera.h"
+ #include "os_vi.h"
+ #include "db_log.h"
++#include "re4_gx_fifo.h"  // port: patch 0032
+ #include "main_sub.h"
+ #include "joy.h"
+ #include <dolphin/base/PPCArch.h>
+@@ -943,6 +944,7 @@
+         DCStoreRange(p->pPosBuf, n3);
+         DCStoreRange(p->pSpdBuf, n3);
+     }
++    re4_gx_host_order_list(p->pDisplayList, p->Dpl_size);  // port: patch 0032, built with host-order stores
+     DCStoreRange(p->pDisplayList, p->Dpl_size);
+     return w;
+ }
+--- a/src/game/Espgen43.cpp
++++ b/src/game/Espgen43.cpp
+@@ -11,6 +11,7 @@
+ #include "camera.h"
+ #include "os_vi.h"
+ #include "db_log.h"
++#include "re4_gx_fifo.h"  // port: patch 0032
+ 
+ // Byte-identical. AddSandPower's `stfs f1, Add_power` is an asm with a hard-register anti-dependence
+ // (see the COMPILER-DIFF note there); everything else is plain C.
+@@ -514,6 +515,7 @@
+         DCStoreRange(p->pHeightBuf, n2);
+         DCStoreRange(p->pNorBuf, n2);
+     }
++    re4_gx_host_order_list(p->pDisplayList, p->Dpl_size);  // port: patch 0032, built with host-order stores
+     DCStoreRange(p->pDisplayList, p->Dpl_size);
+     return w;
+ }

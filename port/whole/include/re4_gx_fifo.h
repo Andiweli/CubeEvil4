@@ -30,6 +30,21 @@ void re4_gx_put_f32(float v);
  * PE, 0x0C003000 PI, 0x0C004000 MEM). */
 void* re4_gx_register_block(unsigned int paddr);
 
+/* The physical address the graphics processor reads `pointer` at (patch
+ * 0031: GXSetArray, GXInitTexObj, GXInitTexObjData, GXInitTlutObj): MEM1
+ * pointers as on the GameCube, port memory outside MEM1 (static arrays of the
+ * libraries, e.g. filter02.cpp CLUTdata) through a window above MEM1. */
+unsigned int re4_gx_physical(const void* pointer);
+
+/* The pointer to a physical address (MEM1 or the window above). */
+void* re4_gx_cached(unsigned int physical);
+
+/* A display list the game built with CPU stores (patch 0032: the sprite quad
+ * in eff_sys.cpp, the water and sand grids in Espgen42/43/45): its counts,
+ * indices and floats are in host order. The graphics processor reads it so
+ * while its contents stay as registered. */
+void re4_gx_host_order_list(const void* list, unsigned int size);
+
 /* EFB access (GXPeekARGB, GXPeekZ, GXPoke*): the emulated frame buffer is
  * not readable from the game's side; a peek answers "nothing drawn" (colour
  * 0, depth far), a poke is ignored. */

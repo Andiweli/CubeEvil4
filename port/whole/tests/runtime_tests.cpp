@@ -692,6 +692,7 @@ static void testStream()
 // --- GX: the FIFO of the emulated graphics processor -------------------------------
 
 extern "C" int re4probe_gx_test(void* fifo, void* list);
+extern "C" int re4probe_gx_frame_test(void* fifo, void* mem);
 
 // The SDK's GX library and the game's inline vertex functions feed the port's
 // GX FIFO (runtime/gx_fifo.cpp, tests/gx_probe.cpp). The FIFO and the display
@@ -704,6 +705,12 @@ static void testGx()
     int failed = re4probe_gx_test(fifo, list);
     if (failed) {
         re4_log("  gx checks failed: 0x%x", failed);
+    }
+    CHECK(failed == 0);
+    // G2: the decoder turns a synthetic frame into the expected chunk
+    failed = re4probe_gx_frame_test(fifo, (void*) (unsigned long) 0x82820000u);
+    if (failed) {
+        re4_log("  gx frame checks failed: 0x%x", failed);
     }
     CHECK(failed == 0);
     report("gx", ok);
