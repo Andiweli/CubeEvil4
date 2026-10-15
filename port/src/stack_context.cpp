@@ -127,6 +127,17 @@ struct StackContext::Impl {
 StackContext::StackContext(std::size_t bytes, Entry entry, void* argument)
     : impl_(std::make_unique<Impl>(bytes, entry, argument)) {}
 StackContext::~StackContext() = default;
+bool StackContext::contains(const void* address) const {
+#ifdef _WIN32
+    (void)address;
+    return false;
+#else
+    if (impl_->mapping == MAP_FAILED) return false;
+    const auto* begin = static_cast<const char*>(impl_->mapping);
+    const auto* at = static_cast<const char*>(address);
+    return at >= begin && at < begin + impl_->mappingBytes;
+#endif
+}
 void StackContext::resume() {
 #ifdef _WIN32
     impl_->caller = GetCurrentFiber();

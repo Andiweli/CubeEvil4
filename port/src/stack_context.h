@@ -22,6 +22,8 @@ public:
     StackContext& operator=(const StackContext&) = delete;
     void resume();
     void yield();
+    // True when `address` lies on this context's stack (Windows: unknown, false).
+    bool contains(const void* address) const;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

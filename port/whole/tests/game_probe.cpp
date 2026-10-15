@@ -6,6 +6,10 @@
 #include "math_sub.h"
 #include "em.h"
 #include "dolphin/gx/GXStruct.h"
+#include "global.h"
+#include "main_mem.h"
+
+#include <stdlib.h>
 
 struct ProbeRoutine {  // the four routine bytes of cModel (r_no_0..3)
     u8 r_no_0;
@@ -90,4 +94,29 @@ extern "C" int re4probe_byte_views(void)
 extern "C" const char* re4probe_file(void)
 {
     return __FILE__;
+}
+
+// VALID_PTR (patch 0037): a stack variable of an OS thread (onThread: called
+// on one), the game's static data, MEM1 and what stays invalid. Returns a bit
+// mask of failed checks (0 = all passed).
+extern "C" int re4probe_valid_ptr(int onThread)
+{
+    int failed = 0;
+    volatile float local[3] = {1.0f, 2.0f, 3.0f};
+    if (onThread && !VALID_PTR(&local[1])) {
+        failed |= 0x1;
+    }
+    if (!VALID_PTR(&Global)) {
+        failed |= 0x2;
+    }
+    if (!VALID_PTR((void*) 0x80001000)) {
+        failed |= 0x4;
+    }
+    // host heap memory belongs to no game library and no stack
+    void* heap = malloc(64);
+    if (VALID_PTR((void*) 0) || VALID_PTR((void*) 0x1000) || VALID_PTR(heap)) {
+        failed |= 0x8;
+    }
+    free(heap);
+    return failed;
 }

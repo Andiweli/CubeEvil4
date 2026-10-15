@@ -1064,6 +1064,35 @@ jetzt richtig (Auto mit Dach, Polizisten, Leon). Zwei Fehler:
 
 Gerät: Die App stürzte sofort ab; Protokoll (`logcat.txt`) steht noch aus.
 
+### GX-Daten in der Cloud: weiße Bilder und Zeigerprüfungen (15.10.2026)
+
+Mit `gx-daten.zip` aus dem fünften PC-Lauf (Stand e035f750, mit `-Arm`;
+i686 und armhf/qemu je 10.000 Bilder ohne Absturz) zeichnet
+`gx_chunk_render` die Bilder 61, 301, 601 und 652 hier nach (die Dateien
+bleiben im Sitzungsordner, nie im Repository). Ein Schrittwerkzeug (EFB
+nach jedem Zeichenauftrag) zeigte: Schon der zweite Auftrag von Bild 301
+(Warnbildschirm) färbt das ganze EFB weiß. Seine TEV-Stufe hatte Wörter wie
+`0x8F10C0` (Register-ID im untersten Byte, Bias 3 = Vergleichsmodus): die
+Tabellen von `GXSetTevOp` sind Bitfeld-Strukturen, auf Little-Endian falsch
+gepackt (Patch 0036). Mit nachträglich korrigierten TEV-Wörtern zeigen die
+aufgezeichneten Daten den Warnbildschirm und die Autofahrt des Intros
+(einschließlich der Debug-Anzeigen der Entwicklerfassung); der Renderer
+selbst war also richtig. Test: runtime-test gx prüft `GXSetTevOp`
+(Modulate auf Stufe 0, Replace auf Stufe 1); ohne Patch 0036 schlägt er fehl.
+
+Dabei fiel die Bildschirmmeldung `cLightInfo::init2() PTR ERROR` auf (24-mal
+im PC-Lauf): `VALID_PTR` (127 Stellen in 31 Dateien) prüft gegen MEM1, die
+Aufrufer übergeben aber Stapelvariablen, die im Port auf Host-Stapeln
+liegen. Patch 0037 nimmt Host-Stapel und statische Daten der
+Spielbibliotheken hinzu. Test: runtime-test tasks (Stapelvariable eines
+OS-Threads, `Global`, MEM1 gültig; NULL, 0x1000, Host-Heap ungültig); ohne
+Patch 0037 schlägt er fehl. Offen: 17 weitere Stellen prüfen den
+MEM1-Bereich ohne `VALID_PTR` (eigene Ausdrücke); noch nicht durchgesehen.
+
+Noch unklar: der Absturz auf dem Retroid in den ersten 15 s (auch mit
+`-Bridge`, also im Kern), während armhf unter qemu durchläuft. Das
+Geräteskript sichert jetzt den Absturzbericht (siehe unten).
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1217,6 +1246,8 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0033 `GXTev.c`, `GXPixel.c`, `GXLight.c` (SDK) | Farben (`GXColor`) als Wort mit R im höchsten Byte zusammensetzen statt `*(u32*)&color` (TEV-, Konstant-, S10-, Material-/Umgebungs-, Nebel- und Lichtfarbe); little-endian vertauschte sonst die Kanäle |
 | 0034 `card.cpp`, `tv_mode.cpp`, `event.cpp` | Ein-/Ausblendfarben, die als `u32` an `FadeSet` gehen, in GameCube-Byte-Reihenfolge schreiben (`RE4_BE`) |
 | 0035 `sce_sys.cpp` | `SceSleep` außerhalb einer Szenario-Aufgabe wartet auf das nächste Halbbild (`re4_wait_interrupt`): Warteschleifen wie `SndStrStopBlock` (Ende des Funkspruchs) kommen sonst nie voran, weil der Ton-Interrupt nur an Unterbrechungspunkten läuft |
+| 0036 `GXTev.c` | Die Tabellen von `GXSetTevOp` (`TEVCOpTableST0/1`, `TEVAOpTableST0/1`) waren Bitfeld-Strukturen, die als ganze Wörter gelesen werden; MWCC (Big-Endian) belegt Bitfelder vom höchsten Bit an, Compiler für Little-Endian vom niedrigsten. Die Wörter werden jetzt Feld für Feld gebaut (`RE4_TEVC_WORD`, `RE4_TEVA_WORD`), Felder und Werte wie im Original |
+| 0037 `main_mem.h`, `pl_class.cpp` | `VALID_PTR`/`VALID_PTR2` (Zeigerprüfung gegen MEM1) nehmen zusätzlich `re4_valid_port_ptr` (runtime/os_thread.cpp): Host-Stapel der OS-Threads und die statischen Daten der Spielbibliotheken (`libre4_*`), die auf dem GameCube ebenfalls in MEM1 lägen |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

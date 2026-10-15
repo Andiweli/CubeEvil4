@@ -434,6 +434,7 @@ typedef void (*VIRetraceCallback)(unsigned);
 VIRetraceCallback VISetPostRetraceCallback(VIRetraceCallback cb);
 void VIWaitForRetrace(void);
 unsigned VIGetRetraceCount(void);
+int re4probe_valid_ptr(int onThread);  // tests/game_probe.cpp
 }
 
 namespace {
@@ -479,8 +480,11 @@ void onRetrace(unsigned count)
     gRetraceCalls++;
 }
 
+int gValidPtrOnThread = -1;
+
 int taskTestMain()
 {
+    gValidPtrOnThread = re4probe_valid_ptr(1);
     OSInit();
     SystemMemInit();
     TaskSchedulerInit();
@@ -517,6 +521,12 @@ static void testTasks()
         re4_log("  trace: %s", gTrace);
     }
     CHECK(TaskStatus(3) == 0 && TaskStatus(1) != 0);
+    // VALID_PTR (patch 0037) on an OS thread's stack and outside one
+    CHECK(gValidPtrOnThread == 0);
+    CHECK(re4probe_valid_ptr(0) == 0);
+    if (gValidPtrOnThread != 0) {
+        re4_log("  VALID_PTR failures: 0x%x", gValidPtrOnThread);
+    }
     CHECK(retraces == 3 && gRetraceCalls == 3 && gLastRetrace == VIGetRetraceCount());
     // hang search: every OS thread with the place it waits; task A sleeps in
     // TaskSleep (recorded when RE4_WAIT_TRACE=1, as whole_build.sh runs it)

@@ -1,0 +1,26 @@
+--- a/include/main_mem.h
++++ b/include/main_mem.h
+@@ -12,7 +12,11 @@
+ #define MEM_CALLOC(size, a, b) mem_calloc(size, __FILE__, __LINE__, a, b)
+ 
+ // Address inside the console main memory (MEM1: 0x80000000 to 0x82FFFFFF).
+-#define VALID_PTR(p) ((u32) (p) >= 0x80000000 && (u32) (p) <= 0x82FFFFFF)
++// port: patch 0037. On the GameCube the stacks and the static data lie in MEM1
++// too; in the port they are host stacks and the game libraries, which
++// re4_valid_port_ptr (runtime/os_thread.cpp) accepts.
++extern "C" int re4_valid_port_ptr(const void* p);
++#define VALID_PTR(p) (((u32) (p) >= 0x80000000 && (u32) (p) <= 0x82FFFFFF) || re4_valid_port_ptr((const void*) (p)))
+ // Size / address rounded up to the 32-byte DMA and cache-line unit.
+ #define ALIGN32(x) (((x) + 0x1F) & ~0x1F)
+ 
+--- a/src/game/pl_class.cpp
++++ b/src/game/pl_class.cpp
+@@ -44,7 +44,7 @@
+ u32 upDownCk(cPlayer* pl);
+ 
+ // cPlNeck's checks compile to the folded `addis 0x8000; cmplwi 0x02FFFFFF` range form.
+-#define VALID_PTR2(p) ((u32) (p) - 0x80000000 <= 0x02FFFFFF)
++#define VALID_PTR2(p) ((u32) (p) - 0x80000000 <= 0x02FFFFFF || re4_valid_port_ptr((const void*) (p))) /* port: patch 0037 */
+ 
+ 
+ 

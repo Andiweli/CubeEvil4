@@ -25,6 +25,8 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <link.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 #if !defined(__ANDROID__)
@@ -704,6 +706,73 @@ s32 OSSignalSemaphore(OSSemaphore* s)
 s32 OSGetSemaphoreCount(OSSemaphore* s)
 {
     return s->count;
+}
+
+// VALID_PTR (include/main_mem.h, patch 0037): the game checks pointers
+// against MEM1, where on the GameCube its stacks and static data lie too. In
+// the port the threads run on host stacks and the static data is in the game
+// libraries; both count as valid here. Called only for pointers outside MEM1.
+int re4_valid_port_ptr(const void* p)
+{
+    if (!p) {
+        return 0;
+    }
+    for (auto& entry : gHosts) {
+        if (entry.second && entry.second->context && entry.second->context->contains(p)) {
+            return 1;
+        }
+    }
+    // the libraries of the game (libre4_main, libre4_<module>): the spans
+    // found so far, else the loader's list
+    static uintptr_t spans[256][2];
+    static int spanCount;
+    uintptr_t a = (uintptr_t) p;
+    for (int i = 0; i < spanCount; i++) {
+        if (a >= spans[i][0] && a < spans[i][1]) {
+            return 1;
+        }
+    }
+    struct Search {
+        uintptr_t address, begin, end;
+        bool found;
+    } search = {a, 0, 0, false};
+    dl_iterate_phdr(
+        [](struct dl_phdr_info* info, size_t, void* data) -> int {
+            Search* s = (Search*) data;
+            if (!info->dlpi_name || !strstr(info->dlpi_name, "libre4_")) {
+                return 0;
+            }
+            uintptr_t lo = UINTPTR_MAX, hi = 0;
+            for (int i = 0; i < info->dlpi_phnum; i++) {
+                const ElfW(Phdr)& ph = info->dlpi_phdr[i];
+                if (ph.p_type == PT_LOAD) {
+                    uintptr_t b = info->dlpi_addr + ph.p_vaddr;
+                    if (b < lo) {
+                        lo = b;
+                    }
+                    if (b + ph.p_memsz > hi) {
+                        hi = b + ph.p_memsz;
+                    }
+                }
+            }
+            if (s->address >= lo && s->address < hi) {
+                s->begin = lo;
+                s->end = hi;
+                s->found = true;
+                return 1;
+            }
+            return 0;
+        },
+        &search);
+    if (!search.found) {
+        return 0;
+    }
+    if (spanCount < 256) {
+        spans[spanCount][0] = search.begin;
+        spans[spanCount][1] = search.end;
+        spanCount++;
+    }
+    return 1;
 }
 
 }  // extern "C"

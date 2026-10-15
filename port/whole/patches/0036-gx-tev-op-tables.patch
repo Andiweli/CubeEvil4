@@ -1,0 +1,126 @@
+--- a/src/lib/GXTev.c
++++ b/src/lib/GXTev.c
+@@ -3,84 +3,51 @@
+ 
+ #include "__gx.h"
+ 
+-static struct {
+-    u32 rid : 8;
+-    u32 dest : 2;
+-    u32 shift : 2;
+-    u32 clamp : 1;
+-    u32 sub : 1;
+-    u32 bias : 2;
+-    u32 sela : 4;
+-    u32 selb : 4;
+-    u32 selc : 4;
+-    u32 seld : 4;
+-} TEVCOpTableST0[5] = {
+-    {192, 0, 0, 1, 0, 0, 15, 8, 10, 15},   // modulate
+-    {192, 0, 0, 1, 0, 0, 10, 8, 9, 15},    // decal
+-    {192, 0, 0, 1, 0, 0, 10, 12, 8, 15},   // blend
+-    {192, 0, 0, 1, 0, 0, 15, 15, 15, 8},   // replace
+-    {192, 0, 0, 1, 0, 0, 15, 15, 15, 10},  // passclr
++/* port: patch 0036. These tables were bit-field structs that GXSetTevOp reads
++ * as whole words (*(u32*)): MWCC on the big-endian Gekko allocates bit-fields
++ * from the most significant bit, compilers for little-endian targets from the
++ * least, so the words came out scrambled (the TEV stages of GXSetTevOp were
++ * garbage). The words are built field by field as the GameCube holds them;
++ * the fields and values are the original ones. */
++#define RE4_TEVC_WORD(rid, dest, shift, clamp, sub, bias, a, b, c, d)                              \
++    ((u32) (rid) << 24 | (u32) (dest) << 22 | (u32) (shift) << 20 | (u32) (clamp) << 19 |           \
++     (u32) (sub) << 18 | (u32) (bias) << 16 | (u32) (a) << 12 | (u32) (b) << 8 | (u32) (c) << 4 |     \
++     (u32) (d))
++#define RE4_TEVA_WORD(rid, dest, shift, clamp, sub, bias, a, b, c, d, swap, mode)                  \
++    ((u32) (rid) << 24 | (u32) (dest) << 22 | (u32) (shift) << 20 | (u32) (clamp) << 19 |           \
++     (u32) (sub) << 18 | (u32) (bias) << 16 | (u32) (a) << 13 | (u32) (b) << 10 | (u32) (c) << 7 |    \
++     (u32) (d) << 4 | (u32) (swap) << 2 | (u32) (mode))
++
++static u32 TEVCOpTableST0[5] = {
++    RE4_TEVC_WORD(192, 0, 0, 1, 0, 0, 15, 8, 10, 15),   // modulate
++    RE4_TEVC_WORD(192, 0, 0, 1, 0, 0, 10, 8, 9, 15),    // decal
++    RE4_TEVC_WORD(192, 0, 0, 1, 0, 0, 10, 12, 8, 15),   // blend
++    RE4_TEVC_WORD(192, 0, 0, 1, 0, 0, 15, 15, 15, 8),   // replace
++    RE4_TEVC_WORD(192, 0, 0, 1, 0, 0, 15, 15, 15, 10),  // passclr
+ };
+ 
+-static struct {
+-    u32 rid : 8;
+-    u32 dest : 2;
+-    u32 shift : 2;
+-    u32 clamp : 1;
+-    u32 sub : 1;
+-    u32 bias : 2;
+-    u32 sela : 4;
+-    u32 selb : 4;
+-    u32 selc : 4;
+-    u32 seld : 4;
+-} TEVCOpTableST1[5] = {
+-    {192, 0, 0, 1, 0, 0, 15, 8, 0, 15},   // modulate
+-    {192, 0, 0, 1, 0, 0, 0, 8, 9, 15},    // decal
+-    {192, 0, 0, 1, 0, 0, 0, 12, 8, 15},   // blend
+-    {192, 0, 0, 1, 0, 0, 15, 15, 15, 8},  // replace
+-    {192, 0, 0, 1, 0, 0, 15, 15, 15, 0},  // passclr
++static u32 TEVCOpTableST1[5] = {
++    RE4_TEVC_WORD(192, 0, 0, 1, 0, 0, 15, 8, 0, 15),   // modulate
++    RE4_TEVC_WORD(192, 0, 0, 1, 0, 0, 0, 8, 9, 15),    // decal
++    RE4_TEVC_WORD(192, 0, 0, 1, 0, 0, 0, 12, 8, 15),   // blend
++    RE4_TEVC_WORD(192, 0, 0, 1, 0, 0, 15, 15, 15, 8),  // replace
++    RE4_TEVC_WORD(192, 0, 0, 1, 0, 0, 15, 15, 15, 0),  // passclr
+ };
+ 
+-static struct {
+-    u32 rid : 8;
+-    u32 dest : 2;
+-    u32 shift : 2;
+-    u32 clamp : 1;
+-    u32 sub : 1;
+-    u32 bias : 2;
+-    u32 sela : 3;
+-    u32 selb : 3;
+-    u32 selc : 3;
+-    u32 seld : 3;
+-    u32 swap : 2;
+-    u32 mode : 2;
+-} TEVAOpTableST0[5] = {
+-    {193, 0, 0, 1, 0, 0, 7, 4, 5, 7, 0, 0},  // modulate
+-    {193, 0, 0, 1, 0, 0, 7, 7, 7, 5, 0, 0},  // decal
+-    {193, 0, 0, 1, 0, 0, 7, 4, 5, 7, 0, 0},  // blend
+-    {193, 0, 0, 1, 0, 0, 7, 7, 7, 4, 0, 0},  // replace
+-    {193, 0, 0, 1, 0, 0, 7, 7, 7, 5, 0, 0},  // passclr
++static u32 TEVAOpTableST0[5] = {
++    RE4_TEVA_WORD(193, 0, 0, 1, 0, 0, 7, 4, 5, 7, 0, 0),  // modulate
++    RE4_TEVA_WORD(193, 0, 0, 1, 0, 0, 7, 7, 7, 5, 0, 0),  // decal
++    RE4_TEVA_WORD(193, 0, 0, 1, 0, 0, 7, 4, 5, 7, 0, 0),  // blend
++    RE4_TEVA_WORD(193, 0, 0, 1, 0, 0, 7, 7, 7, 4, 0, 0),  // replace
++    RE4_TEVA_WORD(193, 0, 0, 1, 0, 0, 7, 7, 7, 5, 0, 0),  // passclr
+ };
+ 
+-static struct {
+-    u32 rid : 8;
+-    u32 dest : 2;
+-    u32 shift : 2;
+-    u32 clamp : 1;
+-    u32 sub : 1;
+-    u32 bias : 2;
+-    u32 sela : 3;
+-    u32 selb : 3;
+-    u32 selc : 3;
+-    u32 seld : 3;
+-    u32 swap : 2;
+-    u32 mode : 2;
+-} TEVAOpTableST1[5] = {
+-    {193, 0, 0, 1, 0, 0, 7, 4, 0, 7, 0, 0},  // modulate
+-    {193, 0, 0, 1, 0, 0, 7, 7, 7, 0, 0, 0},  // decal
+-    {193, 0, 0, 1, 0, 0, 7, 4, 0, 7, 0, 0},  // blend
+-    {193, 0, 0, 1, 0, 0, 7, 7, 7, 4, 0, 0},  // replace
+-    {193, 0, 0, 1, 0, 0, 7, 7, 7, 0, 0, 0},  // passclr
++static u32 TEVAOpTableST1[5] = {
++    RE4_TEVA_WORD(193, 0, 0, 1, 0, 0, 7, 4, 0, 7, 0, 0),  // modulate
++    RE4_TEVA_WORD(193, 0, 0, 1, 0, 0, 7, 7, 7, 0, 0, 0),  // decal
++    RE4_TEVA_WORD(193, 0, 0, 1, 0, 0, 7, 4, 0, 7, 0, 0),  // blend
++    RE4_TEVA_WORD(193, 0, 0, 1, 0, 0, 7, 7, 7, 4, 0, 0),  // replace
++    RE4_TEVA_WORD(193, 0, 0, 1, 0, 0, 7, 7, 7, 0, 0, 0),  // passclr
+ };
+ 
+ #define SOME_SET_REG_MACRO(reg, size, shift, val)                                                   \

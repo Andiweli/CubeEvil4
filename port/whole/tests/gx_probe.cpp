@@ -147,6 +147,19 @@ extern "C" int re4probe_gx_test(void* fifo, void* list)
             failed |= 0x40;
         }
     }
+    // GXSetTevOp builds its register words from tables (patch 0036: words as
+    // the GameCube holds them, not bit-fields in the host's order)
+    {
+        GXSetTevOp(0, 0);  // GX_TEVSTAGE0, GX_MODULATE: BP 0xC0: a=ZERO b=TEXC c=RASC d=ZERO, clamp
+        bool c0 = (re4_gx_bp(0xC0) & 0xFFFFFF) == 0x08F8AFu;
+        bool a0 = (re4_gx_bp(0xC1) & 0xFFFFF0) == 0x08F2F0u;  // a=ZERO b=TEXA c=RASA d=ZERO
+        GXSetTevOp(1, 3);  // GX_TEVSTAGE1, GX_REPLACE: BP 0xC2: d=TEXC; 0xC3: d=TEXA
+        bool c1 = (re4_gx_bp(0xC2) & 0xFFFFFF) == 0x08FFF8u;
+        bool a1 = (re4_gx_bp(0xC3) & 0xFFFFF0) == 0x08FFC0u;
+        if (!c0 || !a0 || !c1 || !a1) {
+            failed |= 0x80;
+        }
+    }
     return failed;
 }
 
