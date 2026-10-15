@@ -1093,6 +1093,30 @@ Noch unklar: der Absturz auf dem Retroid in den ersten 15 s (auch mit
 `-Bridge`, also im Kern), während armhf unter qemu durchläuft. Das
 Geräteskript sichert jetzt den Absturzbericht (siehe unten).
 
+### Erster Gerätelauf mit Absturzbericht (15.10.2026, Retroid) und Analyse
+
+Stand `6e2288f1`. Das neue Geräteskript erkannte den Absturz nach 20 s
+(die App startete einmal neu und stürzte wieder ab) und übersetzte die
+Stapelzeilen: SIGBUS `BUS_ADRALN` (unausgerichteter Zugriff) in
+`GXInitFifoBase` (`src/lib/GXFifo.c:111`) aus `GXInit` ← `Render_init` ←
+`systemStartInit`, Adresse `…515`. `GXFifoObj` ist im SDK ein Byte-Feld
+(`u8 pad[128]`, Ausrichtung 1); das statische `FifoObj` lag im
+Android-Build an einer ungeraden Adresse, und clang fasst die vier
+Wort-Speicherungen in `GXInitFifoBase` zu `strd` zusammen, die auf ARM eine
+Wortausrichtung verlangen (der Kernel des Retroid korrigiert das für
+32-bit-Prozesse nicht). Im armhf-Linux-Build lag das Objekt zufällig
+ausgerichtet; qemu-arm meldet solche Zugriffe sonst ebenfalls (geprüft mit
+einem kleinen Programm: SIGBUS). **Patch 0038** richtet `GXFifoObj` auf
+32 Byte aus. Tests: `static_assert` in `tests/game_probe.cpp` (der Build
+scheitert ohne den Patch) und `runtime-test gx` prüft die Adresse, die
+`GXInit` zurückgibt. Durchsicht der übrigen SDK-Typen, die als Struktur
+gelesen werden: `GXTexObj`, `GXTlutObj`, `GXLightObj`, `GXTexRegion` sind
+`u32`-Felder (Ausrichtung 4), nur `GXFifoObj` war ein Byte-Feld.
+
+Fünfter PC-Lauf (Stand `6e2288f1`, mit `-Arm`): i686 und armhf je 10.000
+Bilder ohne Absturz; „Spieler frei: NEIN“ (Untermenü des Funkspruchs bleibt
+bis zum Ende offen), dazu unten.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1247,6 +1271,7 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0034 `card.cpp`, `tv_mode.cpp`, `event.cpp` | Ein-/Ausblendfarben, die als `u32` an `FadeSet` gehen, in GameCube-Byte-Reihenfolge schreiben (`RE4_BE`) |
 | 0035 `sce_sys.cpp` | `SceSleep` außerhalb einer Szenario-Aufgabe wartet auf das nächste Halbbild (`re4_wait_interrupt`): Warteschleifen wie `SndStrStopBlock` (Ende des Funkspruchs) kommen sonst nie voran, weil der Ton-Interrupt nur an Unterbrechungspunkten läuft |
 | 0036 `GXTev.c` | Die Tabellen von `GXSetTevOp` (`TEVCOpTableST0/1`, `TEVAOpTableST0/1`) waren Bitfeld-Strukturen, die als ganze Wörter gelesen werden; MWCC (Big-Endian) belegt Bitfelder vom höchsten Bit an, Compiler für Little-Endian vom niedrigsten. Die Wörter werden jetzt Feld für Feld gebaut (`RE4_TEVC_WORD`, `RE4_TEVA_WORD`), Felder und Werte wie im Original |
+| 0038 `GXFifo.h` | `GXFifoObj` (ein Byte-Feld, das das SDK als `__GXFifoObj` mit Zeigern und Zählern beschreibt) ist 32-Byte-ausgerichtet; vorher lag das statische `FifoObj` von `GXInit` im Android-Build an einer ungeraden Adresse, und die zusammengefassten Wort-Speicherbefehle (`strd`) brachen auf dem Retroid mit SIGBUS ab |
 | 0037 `main_mem.h`, `pl_class.cpp` | `VALID_PTR`/`VALID_PTR2` (Zeigerprüfung gegen MEM1) nehmen zusätzlich `re4_valid_port_ptr` (runtime/os_thread.cpp): Host-Stapel der OS-Threads und die statischen Daten der Spielbibliotheken (`libre4_*`), die auf dem GameCube ebenfalls in MEM1 lägen |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,

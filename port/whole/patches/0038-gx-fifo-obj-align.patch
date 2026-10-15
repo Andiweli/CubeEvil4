@@ -1,0 +1,17 @@
+--- a/include/dolphin/gx/GXFifo.h
++++ b/include/dolphin/gx/GXFifo.h
+@@ -8,9 +8,13 @@
+ extern "C" {
+ #endif
+ 
++/* port: patch 0038. The SDK casts this byte array to __GXFifoObj (pointers and
++ * u32 counters); with the byte array's alignment of 1 the object may lie at an
++ * odd address, and the combined word stores ARM compilers emit (strd, stm)
++ * fault there (SIGBUS in GXInitFifoBase on the Retroid). */
+ typedef struct {
+     u8 pad[128];
+-} GXFifoObj;
++} __attribute__((aligned(32))) GXFifoObj;
+ 
+ typedef void (*GXBreakPtCallback)(void);
+ 

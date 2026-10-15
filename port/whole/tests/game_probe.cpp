@@ -6,10 +6,14 @@
 #include "math_sub.h"
 #include "em.h"
 #include "dolphin/gx/GXStruct.h"
+#include "dolphin/gx/GXFifo.h"
 #include "global.h"
 #include "main_mem.h"
 
 #include <stdlib.h>
+
+// The SDK casts GXFifoObj (a byte array) to a struct of words (patch 0038).
+static_assert(__alignof__(GXFifoObj) >= 4, "GXFifoObj must be word aligned for ARM");
 
 struct ProbeRoutine {  // the four routine bytes of cModel (r_no_0..3)
     u8 r_no_0;

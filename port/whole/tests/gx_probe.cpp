@@ -50,7 +50,11 @@ extern "C" int re4probe_gx_test(void* fifo, void* list)
 {
     int failed = 0;
     unsigned s0[11], s1[11];
-    GXInit(fifo, 0x10000);
+    // the FIFO object GXInit uses: 32-byte aligned (patch 0038; the SDK stores
+    // words into it, which fault on ARM at an odd address)
+    if (((unsigned long) GXInit(fifo, 0x10000) & 31) != 0) {
+        failed |= 0x100;
+    }
     stats(s0);
     if (s0[kBp] < 30 || s0[kXf] == 0 || s0[kUnknown] != 0) {
         failed |= 0x1;  // GXInit programs every register
