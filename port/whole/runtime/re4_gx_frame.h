@@ -137,7 +137,10 @@ typedef struct Re4GxTexture {
 
 enum Re4GxChunkFlags {
     RE4_GX_CHUNK_RESET = 1u << 0, /* starts over (full state, textures sent anew) */
-    RE4_GX_CHUNK_XFB = 1u << 1    /* ends with a display copy */
+    RE4_GX_CHUNK_XFB = 1u << 1,   /* ends with a display copy */
+    RE4_GX_CHUNK_HOLD = 1u << 2   /* the VI does not switch to this display copy
+                                     (SYS_SCREEN_STOP): run it, keep showing the
+                                     picture before */
 };
 
 typedef struct Re4GxChunk {

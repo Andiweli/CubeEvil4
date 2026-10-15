@@ -78,7 +78,13 @@ int main(int argc, char **argv) {
       failures++;
       continue;
     }
-    renderer.Run(loaded.chunk);
+    // a held picture (RE4_GX_CHUNK_HOLD) was not on screen; drawn here anyway
+    Re4GxChunk chunk = loaded.chunk;
+    const bool held = (chunk.flags & RE4_GX_CHUNK_HOLD) != 0;
+    chunk.flags &= ~RE4_GX_CHUNK_HOLD;
+    renderer.Run(chunk);
+    if (held)
+      std::printf("%s: Bild war angehalten (nicht auf dem Bildschirm)\n", Stem(path).c_str());
     unsigned w = 0, h = 0;
     const GLuint xfb = renderer.Xfb(&w, &h);
     const re4gx::GxStats &s = renderer.Stats();

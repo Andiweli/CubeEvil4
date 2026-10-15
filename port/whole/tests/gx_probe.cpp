@@ -202,6 +202,8 @@ void re4_gx_put_u16(unsigned short v);
 unsigned re4_gx_xf(unsigned address);
 unsigned int re4_gx_physical(const void* pointer);
 void re4_gx_host_order_list(const void* list, unsigned int size);
+void VISetNextFrameBuffer(void* fb);
+void VIFlush(void);
 }
 
 namespace {
@@ -272,11 +274,18 @@ bool near(f32 a, f32 b)
 
 u16 sStaticPalette[16] __attribute__((aligned(32)));
 
-void copyDisp(void* xfb)
+// A frame's end as the game's Render_done / Render_swap: the display copy,
+// then the VI switched to it (unless the game holds the picture, as with
+// SYS_SCREEN_STOP) and VIFlush.
+void copyDisp(void* xfb, bool shown = true)
 {
     GXSetDispCopySrc(0, 0, 640, 448);
     GXSetDispCopyDst(640, 448);
     GXCopyDisp(xfb, 1);
+    if (shown) {
+        VISetNextFrameBuffer(xfb);
+    }
+    VIFlush();
 }
 
 void triangle()
@@ -558,6 +567,26 @@ extern "C" int re4probe_gx_frame_test(void* fifo, void* mem)
     re4_core_gx_release(c1);
     if (c2) {
         re4_core_gx_release(c2);
+    }
+    // a picture the VI does not switch to (Render_swap under SYS_SCREEN_STOP)
+    // is run but held; the next one shown is not
+    triangle();
+    copyDisp(xfb + 0x100, false);
+    const Re4GxChunk* c3 = re4_core_gx_acquire();
+    if (!c3 || c3->flags != (RE4_GX_CHUNK_XFB | RE4_GX_CHUNK_HOLD)) {
+        failed |= 0x2000;
+    }
+    if (c3) {
+        re4_core_gx_release(c3);
+    }
+    triangle();
+    copyDisp(xfb + 0x100);
+    const Re4GxChunk* c4 = re4_core_gx_acquire();
+    if (!c4 || c4->flags != RE4_GX_CHUNK_XFB) {
+        failed |= 0x2000;
+    }
+    if (c4) {
+        re4_core_gx_release(c4);
     }
     re4_core_gx_detach();
     copyDisp(xfb);  // no renderer: nothing is built

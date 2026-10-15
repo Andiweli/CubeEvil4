@@ -832,6 +832,8 @@ void re4probe_routine(unsigned char out[4]);
 int re4probe_byte_views(void);
 const char* re4probe_file(void);
 unsigned re4probe_poly_attr(unsigned status);
+unsigned re4probe_cast_u8(float f);
+int re4probe_cast_s16(float f);
 }
 
 static unsigned bitsOf(float f)
@@ -986,6 +988,10 @@ static bool testGameProbe()
     // collision attributes: fence 0x20 must not read as "up" 0x200000 (patch 0041)
     CHECK(re4probe_poly_attr(0x00100020u) == 0x00100020u);
     CHECK(re4probe_poly_attr(0x00400000u) == 0x00400000u);
+    // float to u8 / s16 clamps like the GameCube's quantised store
+    CHECK(re4probe_cast_u8(300.0f) == 255 && re4probe_cast_u8(-4.3f) == 0 && re4probe_cast_u8(252.7f) == 252);
+    CHECK(re4probe_cast_s16(70000.0f) == 32767 && re4probe_cast_s16(-70000.0f) == -32768 &&
+          re4probe_cast_s16(-4.3f) == -4);
     int views = re4probe_byte_views();
     if (views != 0) {
         re4_log("  byte views failed: mask 0x%x", views);

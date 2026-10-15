@@ -36,19 +36,22 @@ extern cEmMgr EmMgr;
 extern cObjMgr ObjMgr;
 
 extern "C" int re4_dvd_inserted_disc(void);
+extern "C" int re4_valid_port_ptr(const void* p);
 
 namespace {
-
-bool live(const void* p)
-{
-    // MEM1 (0x80000000..0x83000000) or a game library above it
-    return (unsigned long) p >= 0x80000000ul;
-}
 
 bool inMem1(const void* p)
 {
     unsigned long a = (unsigned long) p;
     return a >= 0x80000000ul && a < 0x83000000ul;
+}
+
+bool live(const void* p)
+{
+    // MEM1 (0x80000000..0x83000000, always mapped) or a game library; while a
+    // room is torn down a model info can still point anywhere (0xabc28685 on
+    // the Retroid, 579 s, entering r101)
+    return inMem1(p) || re4_valid_port_ptr(p);
 }
 
 // The SMD work of each scroll object, per ObjMgr slot. A slot a later object

@@ -125,7 +125,7 @@ bool gTlutLoaded[kTlutBytes >> 9];
 
 struct Stats {
     u32 bytes, commands, bp, cp, xf, xfIndexed, draws, vertices, calls, unknown, dlBytes;
-    u32 xfbCopies, texCopies, tlutLoads, textures, textureBytes, chunks, dropped, hostLists, skipped;
+    u32 xfbCopies, texCopies, tlutLoads, textures, textureBytes, chunks, dropped, hostLists, skipped, held;
 };
 Stats gStats;
 u32 gUnknownLogged;
@@ -212,7 +212,10 @@ struct Chunk {
 };
 
 const int kSlots = 4;
-enum SlotState { kFree, kFilling, kReady, kReading };
+// kPending: ended with a display copy, waits for the game to put it on screen
+// (VISetNextFrameBuffer before VIFlush) or not (SYS_SCREEN_STOP holds the old
+// picture while an event or a room is set up)
+enum SlotState { kFree, kFilling, kPending, kReady, kReading };
 Chunk gSlots[kSlots];
 SlotState gSlotState[kSlots];
 std::deque<int> gReady;
@@ -223,6 +226,8 @@ std::atomic<long long> gLastPoll(0);
 const long long kStallMs = 1000;
 
 int gCurrent = -1;  // slot being filled (core thread); -1: not recording
+int gPending = -1;  // slot waiting for the game's VIFlush (kPending); -1: none
+u32 gViNext;        // physical address of the XFB the VI shows next (0: never set)
 u32 gSequence;
 bool gNeedReset = true;
 
@@ -373,11 +378,43 @@ bool beginLocked()
     return true;
 }
 
+// Queues the pending chunk for the renderer (gMutex held). A picture the VI
+// does not switch to (the game skipped VISetNextFrameBuffer, Render_swap with
+// SYS_SCREEN_STOP) is drawn but not shown: RE4_GX_CHUNK_HOLD.
+void publishPendingLocked()
+{
+    if (gPending < 0) {
+        return;
+    }
+    if (!gWanted.load()) {
+        // the renderer went away meanwhile: nobody takes it
+        gSlotState[gPending] = kFree;
+        gStats.dropped++;
+        gPending = -1;
+        return;
+    }
+    Re4GxChunk& v = gSlots[gPending].view;
+    if (gViNext != 0 && gViNext != v.xfbAddress) {
+        v.flags |= RE4_GX_CHUNK_HOLD;
+        gStats.held++;
+    }
+    gSlotState[gPending] = kReady;
+    gReady.push_back(gPending);
+    gPending = -1;
+    gStats.chunks++;
+    gCv.notify_all();
+}
+
 void dropQueueLocked()
 {
     for (int s : gReady) {
         gSlotState[s] = kFree;
         gStats.dropped++;
+    }
+    if (gPending >= 0) {
+        gSlotState[gPending] = kFree;
+        gStats.dropped++;
+        gPending = -1;
     }
     gReady.clear();
     gNeedReset = true;
@@ -425,14 +462,14 @@ void chunkBoundary(u32 xfb, u32 width, u32 height)
         v.xfbAddress = xfb;
         v.xfbWidth = width;
         v.xfbHeight = height;
-        gSlotState[gCurrent] = kReady;
-        gReady.push_back(gCurrent);
+        // a copy without VIFlush since the last one: decided now
+        publishPendingLocked();
+        gSlotState[gCurrent] = kPending;
+        gPending = gCurrent;
         gCurrent = -1;
-        gStats.chunks++;
-        gCv.notify_all();
     }
     if (!gWanted.load()) {
-        if (!gReady.empty()) {
+        if (!gReady.empty() || gPending >= 0) {
             dropQueueLocked();
         }
         gNeedReset = true;
@@ -1442,6 +1479,23 @@ void re4_core_gx_release(const Re4GxChunk* chunk)
         }
     }
     gCv.notify_all();
+}
+
+// VI (runtime/vi.cpp): the XFB the game switches the picture to
+// (VISetNextFrameBuffer, virtual or physical address) ...
+void re4_gx_vi_next(const void* fb)
+{
+    std::lock_guard<std::mutex> lock(gMutex);
+    gViNext = (u32) (uintptr_t) fb & 0x03FFFFE0;  // as BP 0x4B holds a copy destination
+}
+
+// ... and VIFlush, which ends the game's frame (Render_swap): the display copy
+// made before it is shown, or held when the VI stays on the other XFB.
+void re4_gx_vi_flush(void)
+{
+    re4gx::drain();
+    std::lock_guard<std::mutex> lock(gMutex);
+    publishPendingLocked();
 }
 
 void re4_core_gx_detach(void)

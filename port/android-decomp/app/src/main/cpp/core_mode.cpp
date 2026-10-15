@@ -194,6 +194,15 @@ bool drawGx() {
         api.gxDetach();
         gxDumpWanted = true;
         LOG("GX dump asked for (controller)");
+        // where the player stands, for checks on the PC (RE4_TEST_PLACE)
+        for (const Re4CoreModel &mdl : frame.models) {
+          if (mdl.manager == 0 && mdl.id == 0) {
+            LOG("R3: room 0x%03x, player at %.0f %.0f %.0f, camera %.0f %.0f %.0f -> %.0f %.0f %.0f", frame.room,
+                mdl.matrix[3], mdl.matrix[7], mdl.matrix[11], frame.eye[0], frame.eye[1], frame.eye[2],
+                frame.target[0], frame.target[1], frame.target[2]);
+            break;
+          }
+        }
       }
     }
   }
@@ -218,9 +227,10 @@ bool drawGx() {
       const auto &s = gx->Stats();
       const double seconds = std::chrono::duration<double>(now - gxSince).count();
       LOG("GX: %u chunks, %u draws (%u per chunk), run %.1f ms (max %.1f), shown %.1f/s, %u programs, %u textures, "
-          "%u copies, %u missing, %u shader errors, %u inexact dst alpha, %u programs from the cache, base vertex %s",
+          "%u copies, %u held pictures, %u missing, %u shader errors, %u inexact dst alpha, %u programs from the cache, "
+          "base vertex %s",
           s.chunks, s.draws, gxRunCount ? (s.draws - gxDraws) / gxRunCount : 0, gxRunCount ? gxRunMs / gxRunCount : 0.0,
-          gxRunMax, seconds > 0 ? gxFrames / seconds : 0.0, s.programs, s.textures, s.textureCopies,
+          gxRunMax, seconds > 0 ? gxFrames / seconds : 0.0, s.programs, s.textures, s.textureCopies, s.heldCopies,
           s.missingTextures, s.shaderErrors, s.dstAlphaApprox, s.programsLoaded, gx->BaseVertex() ? "yes" : "no");
       gxDraws = s.draws;
       gxRunMs = gxRunMax = 0;

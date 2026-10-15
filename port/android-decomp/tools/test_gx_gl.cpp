@@ -371,6 +371,20 @@ void TestBasics(re4gx::GxRenderer &r) {
   Check(xfb && Near(TexPixel(xfb, 50, 40), 0, 255, 0), "display copy: the XFB holds the EFB (row 0 = top)");
   Check(r.Stats().draws == 2 && r.Stats().displayCopies == 2, "two draws, two display copies");
 
+  // a held picture (RE4_GX_CHUNK_HOLD: the VI stays on the XFB before, as
+  // with SYS_SCREEN_STOP): drawn and cleared, the XFB keeps the last one
+  {
+    Builder b;
+    Baseline(b);
+    b.flags |= RE4_GX_CHUNK_XFB | RE4_GX_CHUNK_HOLD;
+    Quad(b, 10, 20, 110, 70, 0, kRed);
+    DisplayCopy(b, true, kBlack);
+    r.Run(b.Chunk());
+  }
+  Check(Near(TexPixel(r.Xfb(nullptr, nullptr), 50, 40), 0, 255, 0) && r.Stats().heldCopies == 1,
+        "held picture: the XFB keeps the picture before");
+  Check(Near(EfbPixel(r, 50, 40), 0, 0, 0), "held picture: the display copy still clears the EFB");
+
   // culling: hardware mode 1 culls back faces; GX front faces are clockwise
   // on screen (y down)
   {

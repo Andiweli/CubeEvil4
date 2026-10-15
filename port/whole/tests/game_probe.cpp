@@ -58,6 +58,19 @@ extern "C" unsigned re4probe_poly_attr(unsigned status)
     return Get_poly_attr(&poly);
 }
 
+// Float to a small integer type in game code (-fno-strict-float-cast-overflow):
+// clamped to the type's range as ProDG's -mfast-cast psq_st conversion does
+// (the title logo's alpha went 300 -> 44 when it wrapped).
+extern "C" unsigned re4probe_cast_u8(float f)
+{
+    return (u8) f;
+}
+
+extern "C" int re4probe_cast_s16(float f)
+{
+    return (s16) f;
+}
+
 extern "C" int re4probe_byte_views(void)
 {
     int failed = 0;

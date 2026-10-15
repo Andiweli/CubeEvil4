@@ -154,6 +154,7 @@ VIRetraceCallback VISetPostRetraceCallback(VIRetraceCallback cb)
 void VISetNextFrameBuffer(void* fb)
 {
     gNextFrameBuffer = fb;
+    re4_gx_vi_next(fb);
 }
 
 void* VIGetNextFrameBuffer(void)
@@ -176,7 +177,12 @@ void VIConfigure(const void* renderMode)
     (void) renderMode;
 }
 
-void VIFlush(void) {}
+// The picture the game set up goes to the screen with the next retrace; the
+// GX decoder decides now whether the last display copy is shown or held.
+void VIFlush(void)
+{
+    re4_gx_vi_flush();
+}
 
 u32 VIGetTvFormat(void)
 {

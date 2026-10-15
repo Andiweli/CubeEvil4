@@ -1345,6 +1345,57 @@ Formatvergleich, Modul- und Kerntests); Geräteaufnahmen 4744 und 1160 mit
 erzwungenem Rückseiten-Weglassen im Renderer nachgezeichnet. Nicht
 getestet: Gerät und PC-Prüfung mit Disc-Daten.
 
+### Fünfter Gerätelauf mit GX (15.10.2026, Retroid) und Analyse
+
+Stand `880ef9a` (Patch 0042). Bestätigt vom Projektinhaber: Haare und
+Glasscheiben jetzt richtig, Gegner verhalten sich wie im Original. Der Lauf
+reichte von Hand bis zum Übergang nach r101 (Dorf) und stürzte dort nach
+579 s ab. Gemeldet: kurzes Flackern zwischen Szenen der Autofahrt,
+„Spiegelungen“ rechts neben den Gesichtern im Funkgerät, Leon in einem
+Baumstamm, Leon verschwindet vor einer Zwischensequenz und danach steht kurz
+der leere Raum da (Video), Logo im Titel verblasst.
+
+- **Absturz 579 s:** in der Zustandsbrücke (`core_bridge.cpp`
+  `captureModel`, Diagnose-Teil des Ports, nicht Spielcode) beim Raumwechsel
+  nach r101: `live()` ließ jede Adresse ab 0x80000000 gelten, eine
+  Modell-Info zeigte beim Abbau des Raums auf 0xabc28685. Jetzt nur MEM1 oder
+  Spielbibliothek (`re4_valid_port_ptr`).
+- **Leon verschwindet / leerer Raum (Video, je 4 Bilder):** Beim Start und
+  Ende einer Zwischensequenz setzt das Spiel `SYS_SCREEN_STOP`
+  (`event.cpp`, Raumskripte). `Render_swap` (`main_sub.cpp`) zeichnet dann
+  weiter, ruft aber `VISetNextFrameBuffer` nicht auf: Der Fernseher zeigt das
+  letzte Bild weiter, während das Spiel Figuren ausblendet und die Kamera
+  umsetzt. Der Port zeigte jede Display-Kopie sofort. Jetzt wartet ein
+  Bildstück mit Display-Kopie bis `VIFlush` (bzw. bis zur nächsten Kopie);
+  schaltet der VI nicht auf seinen XFB um, trägt es `RE4_GX_CHUNK_HOLD`: Die
+  App führt es aus (EFB, Löschen, Texturkopien), behält aber das sichtbare
+  Bild (`GxStats::heldCopies`, Protokoll „held pictures“). Prüfungen: Test
+  `gx` (gehaltenes und danach gezeigtes Bild), `gx_gl_check`. Erklärt
+  vermutlich auch das Flackern zwischen den Szenen der Autofahrt (jede
+  Ereignis-Szene beginnt und endet so); nicht auf dem Gerät geprüft.
+- **Logo im Titel:** Aufnahmen 787/846 (Titelmenü) gegen 599: Alle Teile
+  des Logos tragen dieselbe Alpha-Kurve der Id-Animation; die Werte springen
+  (0xC3 → 0x8D → 0x3A, ein Teil 0x9C → 0x71 → 0xFC). Das passt zu
+  überlaufenden Umwandlungen `(u8)(f32)` in `idSysMove02`
+  (`u->col[3] = (f32)(u8)(...)`) bei Kurvenwerten über 255, die das Original
+  bei 255 abschneidet (siehe Compiler-Schalter oben). Behoben durch
+  `-fno-strict-float-cast-overflow`; nicht auf dem Gerät geprüft. „START
+  zweimal“: Das Menü wählt mit A (`titleMenuSelect`); offen bis zur
+  Tastenbelegung (Meilenstein 7).
+- **Funkgerät:** Die Aufnahme 7483 zeigt die Gesichter im Renderer wie auf
+  dem Gerät, mit waagerechten Schlieren rechts neben den Köpfen
+  (Bildstörungs-Effekt der Übertragung). Ob das Original sie so stark zeigt,
+  ist offen; nach der Umwandlungs-Korrektur neu ansehen.
+- **Baum:** Kollision läuft über die SAT-Polygone (`atari.cpp`
+  `polySphereCk`, Blockbaum, `At_poly_sphere_ck`); Umwandler und Strukturen
+  geprüft, ohne Befund. Die App schreibt bei **R3** jetzt zusätzlich Raum,
+  Spielerposition und Kamera ins Protokoll („R3: room …, player at …“); mit
+  der Position lässt sich die Stelle am PC nachstellen (`RE4_TEST_PLACE`).
+
+Getestet (Cloud): Kern-Build i686/armhf normal und `-O2` mit allen Prüfungen
+(neu: Begrenzung der Umwandlung im Test `math`, gehaltenes Bild im Test `gx`),
+App-Renderer `gx_gl_check`. Nicht getestet: Gerät, PC-Prüfung mit Disc-Daten.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1458,8 +1509,15 @@ sie ersetzt.
 | `GXWGFifo.T = x` / `GXWGFifo->T = x` → `re4_gx_put_T(x)` (`GX_FIFO_STORE`, in `GXVert.h` als `re4_gx_put_##T`), Datei bekommt `#include "re4_gx_fifo.h"` | Die Schreibadresse `0xCC008000` des Grafikprozessors gibt es im Port nicht; der FIFO des Ports (`runtime/gx_fifo.cpp`) bekommt jeden Wert (G1) |
 
 Compiler-Schalter: `-std=gnu++11 -Wno-c++11-narrowing -fdelayed-template-parsing
--fno-strict-aliasing -ffp-contract=off -fwrapv -w`. C++11 wird gebraucht,
-damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
+-fno-strict-aliasing -ffp-contract=off -fwrapv -fno-strict-float-cast-overflow -w`.
+C++11 wird gebraucht, damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
+`-fno-strict-float-cast-overflow` (seit 15.10.2026): ProDG wandelt mit
+`-mfast-cast` Kommazahlen in u8/s8/u16/s16 über `psq_st` mit GQR2–5 um, und
+diese Umwandlung **begrenzt** auf den Wertebereich (300 → 255, −4 → 0). clang
+ließ überlaufen (300 → 44) bzw. reichte auf ARM den unbegrenzten Wert im
+Register weiter; mit dem Schalter begrenzt clang ebenso (Laufzeittest `math`).
+Bei u32/s32 bleibt ein Unterschied: ARM begrenzt negative Werte für u32 auf 0,
+die GameCube ließ sie überlaufen (schon vorher so, selten).
 
 ## Patches (`port/whole/patches/`)
 

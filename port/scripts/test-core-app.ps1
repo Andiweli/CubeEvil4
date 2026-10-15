@@ -422,6 +422,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     if ($gxCore) { Say "GX im Kern zuletzt:               $(($gxCore -split 'GX core: ')[-1])" }
     $shaderFail = @($keep | Where-Object { $_ -match 'RE4GX.*shader failed' })
     if ($shaderFail.Count) { Say "GX-Shader-FEHLER:                 $($shaderFail.Count) (Ausschnitt in logcat.txt)" }
+    # R3 (picture dump): where the player stood, for checks on the PC
+    $r3 = @($keep | Where-Object { $_ -match 'RE4Core.*R3: room' })
+    foreach ($line in $r3) { Say "R3-Aufnahme:                      $(($line -split 'R3: ')[-1])" }
     $presses = @($keep | Where-Object { $_ -match 're4\s*: pad: frame' })
     Say "Tastendruecke im Kern angekommen: $($presses.Count)"
     if ($crashAt -ge 0 -or (Has 'Fatal signal|FATAL EXCEPTION|SIGSEGV|SIGABRT|SIGBUS')) {

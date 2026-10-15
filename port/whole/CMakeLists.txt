@@ -77,6 +77,10 @@ target_compile_options(re4_game_flags INTERFACE
     -fno-strict-aliasing
     -ffp-contract=off
     -fwrapv
+    # ProDG's -mfast-cast converts float to u8/s8/u16/s16 with psq_st through
+    # GQR2-5, which clamps to the type's range; clang wraps (or on ARM keeps the
+    # unclamped value in the register). This flag makes clang clamp as well.
+    -fno-strict-float-cast-overflow
     -fno-strict-return
     -w
     -Wno-address-of-temporary

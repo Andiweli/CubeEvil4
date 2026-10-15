@@ -202,6 +202,7 @@ struct GxRenderer::Impl {
   GLuint xfbFbo = 0, xfbTex = 0;
   unsigned xfbWidth = 0, xfbHeight = 0;
   bool haveXfb = false;
+  bool holdXfb = false;  // this chunk's display copy is not shown (RE4_GX_CHUNK_HOLD)
   GLuint vao = 0, vbo = 0, ibo = 0;
   GLuint xfUbo = 0, pxUbo = 0;
   GLuint copyProgram = 0, presentProgram = 0, paletteProgram = 0;
@@ -1036,6 +1037,15 @@ struct GxRenderer::Impl {
     if (!toXfb)
       CopyMode(control, depth, &mode, &kind);
     const int ow = half ? std::max(1, w / 2) : w, oh = half ? std::max(1, h / 2) : h;
+    if (toXfb && holdXfb) {
+      // the VI stays on the picture before (RE4_GX_CHUNK_HOLD, SYS_SCREEN_STOP):
+      // nothing to show, only the clear of the EFB
+      stats.heldCopies++;
+      SaveAndPlainState();
+      glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
+      ClearAfterCopy(control, x, y, w, h);
+      return;
+    }
     GLuint target = 0;
     if (toXfb) {
       if (!xfbTex || xfbWidth != static_cast<unsigned>(w) || xfbHeight != static_cast<unsigned>(h)) {
@@ -1095,8 +1105,12 @@ struct GxRenderer::Impl {
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     current = nullptr;
     glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
-    // clear the copied region: colour if colour/alpha update is on, depth if
-    // depth update is on (GXCopyDisp/GXCopyTex set the registers for it)
+    ClearAfterCopy(control, x, y, w, h);
+  }
+
+  // clear the copied region: colour if colour/alpha update is on, depth if
+  // depth update is on (GXCopyDisp/GXCopyTex set the registers for it)
+  void ClearAfterCopy(std::uint32_t control, int x, int y, int w, int h) {
     if ((control >> 11) & 1) {
       const std::uint32_t c = bp[0x41];
       const bool color = (c >> 3) & 1, alpha = (c >> 4) & 1, zupdate = (bp[0x40] >> 4) & 1;
@@ -1307,6 +1321,7 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
     return;
   m.stats.chunks++;
   m.Touched();
+  m.holdXfb = (chunk.flags & RE4_GX_CHUNK_HOLD) != 0;
   if (chunk.flags & RE4_GX_CHUNK_RESET) {
     m.stats.resets++;
     m.DropTextures();

@@ -32,6 +32,7 @@ struct GxStats {
   unsigned textures = 0;         // textures decoded
   unsigned textureCopies = 0;    // EFB copies to a texture
   unsigned displayCopies = 0;    // EFB copies to the XFB
+  unsigned heldCopies = 0;       // of them not shown: the VI kept the picture before (RE4_GX_CHUNK_HOLD)
   unsigned resets = 0;
   unsigned missingTextures = 0;  // bound keys the renderer did not have
   unsigned shaderErrors = 0;
