@@ -200,6 +200,9 @@ struct Chunk {
     std::vector<u16> indices;
     std::vector<u8> blob;
     Re4GxChunk view;
+    // ops.size() right after the last draw record (0: none); a draw that
+    // follows it with nothing in between may join it (draw())
+    size_t lastDrawEnd = 0;
 
     void clear()
     {
@@ -208,6 +211,7 @@ struct Chunk {
         indices.clear();
         blob.clear();
         memset(&view, 0, sizeof(view));
+        lastDrawEnd = 0;
     }
 };
 
@@ -895,9 +899,31 @@ void draw(u8 op, u32 count, const u8* data, bool be)
     d.matrices[0] = f.defaults[0] | f.defaults[1] << 8 | f.defaults[2] << 16 | (u32) f.defaults[3] << 24;
     d.matrices[1] = f.defaults[4] | f.defaults[5] << 8 | f.defaults[6] << 16 | (u32) f.defaults[7] << 24;
     d.matrices[2] = f.defaults[8];
-    emit(RE4_GX_OP_DRAW, (const u32*) &d, sizeof(d) / 4);
-    c->view.draws++;
     c->view.vertexCount += count;
+    // A draw right after another one (no state op between them) with the same
+    // primitive class, vertex layout and default matrices joins it: one
+    // renderer draw instead of one per GXBegin (a forest frame of r100 has
+    // about 16 000 GXBegins and 470 such runs). The triangle order stays.
+    const u32 words = sizeof(Re4GxDraw) / 4;
+    if (c->lastDrawEnd && c->ops.size() == c->lastDrawEnd) {
+        Re4GxDraw last;
+        memcpy(&last, &c->ops[c->lastDrawEnd - words], sizeof(last));
+        if ((last.primitive & 0xFF) == primitive && last.layout == d.layout && last.stride == d.stride &&
+            memcmp(last.matrices, d.matrices, sizeof(d.matrices)) == 0 &&
+            last.vertexOffset + last.vertexCount * last.stride == base && last.indexOffset + last.indexCount == first &&
+            last.vertexCount + count <= 0x10000) {
+            for (size_t i = first; i < ix.size(); i++) {
+                ix[i] = (u16) (ix[i] + last.vertexCount);
+            }
+            last.vertexCount += count;
+            last.indexCount += d.indexCount;
+            memcpy(&c->ops[c->lastDrawEnd - words], &last, sizeof(last));
+            return;
+        }
+    }
+    emit(RE4_GX_OP_DRAW, (const u32*) &d, words);
+    c->lastDrawEnd = c->ops.size();
+    c->view.draws++;
 }
 
 // --- textures -------------------------------------------------------------------

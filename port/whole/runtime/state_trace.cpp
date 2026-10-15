@@ -207,8 +207,8 @@ unsigned long g_stopAfter;
 // publicity build sets it in main.cpp): the event and score lines, the
 // process bars, the heap numbers, the debug text (EprintfDrawing) and the
 // green far fog of DBG_FOG_FAR_GREEN (game.cpp). The app sets it by default.
-// While the debug start menu is open (patch 0043) debug_mode stays at least 1:
-// its lines are debug text.
+// While the debug start menu (patch 0043) or the tool menu (L + START,
+// db_menu.cpp) is open, debug_mode is left on: their lines are debug text.
 bool g_hideDebugHud;
 unsigned long g_roomFrames;  // frames since the first main loop frame
 unsigned long g_loopFrames;  // of them in step 3
@@ -227,8 +227,10 @@ void frame(unsigned n)
     if (!live(g)) {
         return;
     }
-    if (g_hideDebugHud) {
-        // the debug start menu (patch 0043) draws its lines with the debug text
+    // the debug start menu (patch 0043) draws its lines with the debug text;
+    // the tool menu (L + START in the game, db_menu.cpp DbMenuExec) sets its
+    // own page and puts the old one back when it closes (DBG_TEST_MODE)
+    if (g_hideDebugHud && !DbgFlagChk(g, DBG_TEST_MODE)) {
         int page = re4_title_room_menu_open() ? 1 : 0;
         if ((g->debug_mode != 0) != (page != 0)) {
             g->debug_mode = page;

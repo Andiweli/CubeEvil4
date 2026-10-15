@@ -439,7 +439,8 @@ extern "C" int re4probe_gx_frame_test(void* fifo, void* mem)
     }
     Parsed p;
     parse(c1, p);
-    if (!p.bpStateFirst || p.unknown != 0 || p.drawCount != 5) {
+    // five GXBegins, four draws: the display list joins the strip before it
+    if (!p.bpStateFirst || p.unknown != 0 || p.drawCount != 4) {
         failed |= 0x2;
     }
     // the matrix
@@ -482,33 +483,28 @@ extern "C" int re4probe_gx_frame_test(void* fifo, void* mem)
              t->dataBytes == 32 && t->flags == 0 && t->address == re4_gx_physical(texRgb) &&
              memcmp(c1->blob + t->dataOffset, texRgb, 32) == 0;
         // the strip and the list draw with it bound: no texture op until the C4 one
-        ok = ok && p.textureCount >= 2 && p.textureBefore[1] == 3;
+        ok = ok && p.textureCount >= 2 && p.textureBefore[1] == 2;
         if (!ok) {
             failed |= 0x10;
         }
     }
-    // the strip: every second triangle flipped back
+    // the strip: every second triangle flipped back; the host-order display
+    // list (same layout, nothing between them) joined to it, its indices
+    // counted on from the strip's five vertices
     if (p.drawCount >= 2) {
         const Re4GxDraw* d = p.draws[1];
-        static const u16 kStrip[9] = {0, 1, 2, 2, 1, 3, 2, 3, 4};
-        bool ok = d->indexCount == 9 && d->layout == 0 && d->stride == 12 && d->vertexCount == 5;
-        for (int i = 0; ok && i < 9; i++) {
+        static const u16 kStrip[12] = {0, 1, 2, 2, 1, 3, 2, 3, 4, 5, 6, 7};
+        bool ok = d->indexCount == 12 && d->layout == 0 && d->stride == 12 && d->vertexCount == 8 &&
+                  ((d->primitive >> 8) & 0xF8) == 0x98;
+        for (int i = 0; ok && i < 12; i++) {
             ok = c1->indices[d->indexOffset + i] == kStrip[i];
         }
         if (!ok) {
             failed |= 0x20;
         }
-    }
-    // the host-order display list
-    if (p.drawCount >= 3) {
-        const Re4GxDraw* d = p.draws[2];
-        bool ok = d->vertexCount == 3 && d->indexCount == 3;
-        if (ok) {
-            const f32* a = vertexFloats(c1, d, 0, 0);
-            const f32* c = vertexFloats(c1, d, 2, 0);
-            ok = near(a[0], 1.5f) && near(a[1], 2.5f) && near(a[2], 3.5f) && near(c[0], 8.0f) && near(c[2], 10.0f);
-        }
-        if (!ok) {
+        const f32* a = vertexFloats(c1, d, 5, 0);
+        const f32* c = vertexFloats(c1, d, 7, 0);
+        if (!near(a[0], 1.5f) || !near(a[1], 2.5f) || !near(a[2], 3.5f) || !near(c[0], 8.0f) || !near(c[2], 10.0f)) {
             failed |= 0x40;
         }
     }
@@ -542,7 +538,7 @@ extern "C" int re4probe_gx_frame_test(void* fifo, void* mem)
     // the EFB copy bound as a texture
     {
         const Re4GxTexture* t = p.textureCount >= 3 ? p.textures[2] : 0;
-        if (!t || p.textureBefore[2] != 4 || !(t->flags & RE4_GX_TEX_COPY) || t->dataBytes != 0 ||
+        if (!t || p.textureBefore[2] != 3 || !(t->flags & RE4_GX_TEX_COPY) || t->dataBytes != 0 ||
             t->address != re4_gx_physical(copyDest)) {
             failed |= 0x200;
         }

@@ -1443,18 +1443,39 @@ nach `DataDir`.
   Tiefenschärfe), die das EFB in halber Größe kopieren
   (`GXSetTexCopyDst(SCR_W/2, SCR_H/2, …)`) und zurückzeichnen. Braucht eine
   R3-Aufnahme in dem Moment.
-- **r101 ruckelt:** Braucht das vollständige Protokoll (Zeiten für Kern und
-  GX-Renderer); die App-Prüfung lässt sich jetzt mit Q beenden und sammelt
-  trotzdem alles ein.
+- **r101 ruckelt / Zeichenaufträge zusammengefasst:** Das Gerätebild 9131
+  (r100, Wald, `gx-geraet-03.bin` aus dem fünften Lauf) hat 15 931
+  Zeichenaufträge mit im Schnitt 7 Dreiecken: Der Decoder machte aus jedem
+  `GXBegin` einen eigenen GL-Aufruf. 15 465 davon folgen direkt auf einen
+  anderen mit gleichem Aufbau (keine Zustandsänderung dazwischen).
+  `gx_decode.cpp` `draw()` hängt so einen Auftrag jetzt an den vorigen an
+  (gleiche Primitivklasse, gleicher Punktaufbau und Standardmatrizen,
+  höchstens 65 536 Punkte, Reihenfolge der Dreiecke bleibt): 466 Aufträge
+  statt 15 931, im Autofahrt-Bild 7483 140 statt 2 214. Die vier Gerätebilder,
+  so zusammengefasst und mit dem App-Renderer gezeichnet, sind pixelgleich
+  mit den ursprünglichen. Auf llvmpipe (Software) kaum schneller, dort
+  zählt das Rastern; auf dem Gerät zählt der Aufwand je GL-Aufruf. Wirkung
+  auf dem Gerät nicht gemessen. Für r101 selbst fehlt noch das Protokoll;
+  die App-Prüfung lässt sich jetzt mit Q beenden und sammelt trotzdem alles
+  ein.
+- **Werkzeugmenü (L + START im Spiel):** Die Debug-Fassung öffnet mit
+  gehaltenem L und START das „TOOL MENU“ (`db_menu.cpp`: AREA JUMP, FLAG
+  EDIT, DEBUG OPTION → PLAYER mit INF BULLET, NO DEATH, WEAPON, LIFE …) und
+  hält das Spiel an. Auch das war Debug-Text und damit unsichtbar (das
+  Spiel stand still, ohne dass etwas zu sehen war). Die Debug-Anzeigen-Sperre
+  lässt `debug_mode` jetzt in Ruhe, solange `DBG_TEST_MODE` gesetzt ist; das
+  Menü setzt beim Schließen die alte Seite (0) selbst zurück. Nicht getestet.
 - **Skripte:** `test-r100-core.ps1` nimmt `DataDir` standardmäßig aus dem
   Nachbarordner `RE4-Discdata`; `test-core-app.ps1` beendet die Beobachtung
   mit Q oder Strg+C und sammelt danach Protokolle und Aufnahmen ein, der
   Bericht zeigt die R3-Zeilen.
 
 Getestet (Cloud): Kern-Build i686/armhf normal und `-O2` mit allen Prüfungen
-(neu: kurzer Tastendruck im Test `core-test`). Nicht getestet: Gerät,
+(neu: kurzer Tastendruck im Test `core-test`, Debug-Seite bei offenem
+Startmenü im Test `trace`, zusammengefasste Aufträge im Test `gx`),
+Bildvergleich der zusammengefassten Gerätebilder. Nicht getestet: Gerät,
 PC-Prüfung mit Disc-Daten (Karte, Neustart nach Spielende), das sichtbare
-Raumauswahl-Menü.
+Raumauswahl- und Werkzeugmenü.
 
 ### Lokale Prüfungen für K2
 
