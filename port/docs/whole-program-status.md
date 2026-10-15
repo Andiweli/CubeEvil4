@@ -1027,6 +1027,43 @@ Tests (Cloud, ohne Disc-Daten):
 Nicht getestet: mit Disc-Daten (PC-Prüfung, Abschnitt 5) und auf dem Gerät
 (`test-core-app.ps1`). Das sind die nächsten Schritte beim Projektinhaber.
 
+### Vierter PC-Lauf mit GX-Bildern (15.10.2026, WSL2) und Analyse
+
+Ergebnis des Laufs (`e4fcc0e2`): Formatvergleich 155 Dateien ohne Fehler;
+Hauptschleife bei Bild 621 (r100); die Bilder der Brücke zeigen das Intro
+jetzt richtig (Auto mit Dach, Polizisten, Leon). Zwei Fehler:
+
+- **Stillstand bei Bild 1913, Funkspruch:** Der Funk-Bildschirm
+  (`ss_term.cpp OpeMesMove`) beendet die Funk-Tonspur mit `SndStrStopBlock`:
+  Stopp anfordern, dann `do SceSleep(1); while (spielt)`. `SceSleep` schläft
+  nur in Szenario-Aufgaben; im Funk-Bildschirm kehrt es sofort zurück, die
+  Schleife dreht. Auf der GameCube blendet derweil der Ton-Interrupt die
+  Spur aus; im Port kommen Interrupts nur an Unterbrechungspunkten an, die
+  Schleife hat keinen. **Patch 0035:** `SceSleep` außerhalb einer
+  Szenario-Aufgabe wartet auf das nächste Halbbild (`re4_wait_interrupt`),
+  dabei laufen die Audio-Rahmen. Test `runtime-test stream`, neuer Fall
+  „stopped and waited for like the radio screen“: hängt ohne den Patch
+  (2000 Durchläufe ohne Ende), endet mit ihm nach 26 Halbbildern. Der
+  Zustands-Trace schreibt jetzt die Tonspuren mit (`"str"`, Bericht:
+  „Tonspuren im letzten Bild“).
+- **GX-Bilder fast ganz weiß:** Die GX-Bibliothek liest Farben (`GXColor`,
+  vier Bytes R G B A) an mehreren Stellen als ein 32-Bit-Wort
+  (`*(u32*)&color`, `GXCOLOR_AS_U32`); auf little-endian liegen die Bytes
+  dann verkehrt herum (Schwarz deckend wird Rot durchsichtig).
+  **Patch 0033** setzt das Wort aus den Bytes zusammen: TEV-Farben,
+  Konstantfarben, S10-Farben, Material-/Umgebungsfarbe, Nebelfarbe, und die
+  Lichtfarbe beim Laden des Lichtobjekts (Patch 0030). **Patch 0034:** sechs
+  Stellen im Spiel geben Ein-/Ausblendfarben als `u32` an `FadeSet`
+  (`card.cpp`, `tv_mode.cpp`, `event.cpp`); sie werden jetzt in
+  GameCube-Byte-Reihenfolge geschrieben (`RE4_BE`). Test `runtime-test gx`
+  prüft TEV-, Konstant-, Material-, Licht- und Nebelfarbe in den Registern:
+  schlägt ohne Patch 0033 fehl, mit ihm grün.
+- Damit die GX-Ausgabe künftig auch in der Cloud an echten Bildern geprüft
+  werden kann, legt die PC-Prüfung einige Bildstücke als `gx-daten.zip` in
+  den Bericht (nur zum Hochladen in die Sitzung, nie ins Repository).
+
+Gerät: Die App stürzte sofort ab; Protokoll (`logcat.txt`) steht noch aus.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1164,6 +1201,9 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0030 `GXInit.c`, `GXTransform.c`, `GXLight.c`, `GXMisc.c` (SDK) | GX-Bibliothek im Port (G1): Register-Blöcke über `re4_gx_register_block` statt fester Hardware-Adressen, `IsWriteGatherBufferEmpty` ohne Assembler (immer leer), Matrix-/Projektions-/Licht-Ladefunktionen in C statt Paired-Single-Assembler (schreiben über `re4_gx_put_f32` in den FIFO), `GXPeek*`/`GXPoke*` über `re4_gx_efb_peek` statt EFB-Adresse. Dazu `-include re4_sdk_intrinsics.h` (`__rlwimi`, `__cntlzw`) für die SDK-Dateien und `-std=c99` für `GXDraw.c` |
 | 0031 `GXAttr.c`, `GXTexture.c` (SDK) | Zeiger an den Grafikprozessor über `re4_gx_physical` statt Maskieren (`GXSetArray`, `GXInitTexObj`, `GXInitTexObjData`, `GXInitTlutObj`): MEM1 wie auf der GameCube, Speicher des Ports außerhalb von MEM1 (statische Felder, `filter02.cpp CLUTdata`) über ein Fenster ab `0x03000000` (G2) |
 | 0032 `eff_sys.cpp`, `Espgen42.cpp`, `Espgen43.cpp`, `espgen45.cpp` | Display-Listen, die das Spiel mit CPU-Schreibzugriffen baut (Anzahl, Indizes, Floats in Host-Reihenfolge), werden vor `DCStoreRange` mit `re4_gx_host_order_list` angemeldet; der Decoder liest sie in Host-Reihenfolge, solange ihr Inhalt gleich bleibt (G2) |
+| 0033 `GXTev.c`, `GXPixel.c`, `GXLight.c` (SDK) | Farben (`GXColor`) als Wort mit R im höchsten Byte zusammensetzen statt `*(u32*)&color` (TEV-, Konstant-, S10-, Material-/Umgebungs-, Nebel- und Lichtfarbe); little-endian vertauschte sonst die Kanäle |
+| 0034 `card.cpp`, `tv_mode.cpp`, `event.cpp` | Ein-/Ausblendfarben, die als `u32` an `FadeSet` gehen, in GameCube-Byte-Reihenfolge schreiben (`RE4_BE`) |
+| 0035 `sce_sys.cpp` | `SceSleep` außerhalb einer Szenario-Aufgabe wartet auf das nächste Halbbild (`re4_wait_interrupt`): Warteschleifen wie `SndStrStopBlock` (Ende des Funkspruchs) kommen sonst nie voran, weil der Ton-Interrupt nur an Unterbrechungspunkten läuft |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

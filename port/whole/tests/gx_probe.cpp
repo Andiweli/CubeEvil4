@@ -20,6 +20,7 @@ GXDrawSyncCallback GXSetDrawSyncCallback(GXDrawSyncCallback cb);
 void GXFlush(void);
 void re4_gx_stats(unsigned out[11]);
 unsigned re4_gx_bp(unsigned reg);
+unsigned re4_gx_xf(unsigned address);
 void re4_gx_deliver_interrupts(void);
 }
 
@@ -122,6 +123,30 @@ extern "C" int re4probe_gx_test(void* fifo, void* list)
     }
     GXDrawDone();  // would wait for ever without the finish interrupt
     GXSetDrawSyncCallback(0);
+    // colours reach the registers with R in the high byte, whatever the host's
+    // byte order (patch 0033): TEV colour, konstant colour, material colour,
+    // light colour, fog colour
+    {
+        GXColor c = {10, 20, 30, 40};
+        GXSetTevColor(1, c);  // GX_TEVREG0: BP 0xE2 (r, a), 0xE3 (b, g)
+        bool tev = (re4_gx_bp(0xE2) & 0x7FF) == 10 && ((re4_gx_bp(0xE2) >> 12) & 0x7FF) == 40 &&
+                   (re4_gx_bp(0xE3) & 0x7FF) == 30 && ((re4_gx_bp(0xE3) >> 12) & 0x7FF) == 20;
+        GXSetTevKColor(2, c);  // GX_KCOLOR2: BP 0xE4/0xE5 with the konst bit
+        bool konst = (re4_gx_bp(0xE4) & 0x7FF) == 10 && ((re4_gx_bp(0xE4) >> 12) & 0x7FF) == 40 &&
+                     (re4_gx_bp(0xE5) & 0x7FF) == 30 && ((re4_gx_bp(0xE5) >> 12) & 0x7FF) == 20;
+        GXSetChanMatColor(4, c);  // GX_COLOR0A0: XF 0x100C
+        bool mat = re4_gx_xf(0x100C) == 0x0A141E28u;
+        GXLightObj light;
+        memset(&light, 0, sizeof(light));
+        GXInitLightColor(&light, c);
+        GXLoadLightObjImm(&light, 1);  // GX_LIGHT0: XF 0x600, colour word at +3
+        bool lit = re4_gx_xf(0x603) == 0x0A141E28u;
+        GXSetFog(2, 0.0f, 1.0f, 0.1f, 1.0f, c);  // fog colour: BP 0xF2 = r g b
+        bool fog = (re4_gx_bp(0xF2) & 0xFFFFFF) == 0x0A141Eu;
+        if (!tev || !konst || !mat || !lit || !fog) {
+            failed |= 0x40;
+        }
+    }
     return failed;
 }
 

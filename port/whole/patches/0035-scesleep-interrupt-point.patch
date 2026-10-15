@@ -1,0 +1,25 @@
+--- a/src/game/sce_sys.cpp
++++ b/src/game/sce_sys.cpp
+@@ -312,11 +312,22 @@
+     return p;
+ }
+ 
++extern "C" void re4_wait_interrupt(void);  // port: runtime/vi.cpp
++
+ // TaskSleep, only from inside a scenario task.
+ void SceSleep(int ctr)
+ {
+     if (SceSys.checkCTaskRange() != 0) {
+         TaskSleep(ctr);
++    } else {
++        // port: patch 0035. Outside a scenario task this returns at once and
++        // the caller polls in a loop (SndStrStopBlock from the radio screen
++        // waits for the stream to fade out); on the GameCube the audio
++        // interrupt moves the stream on meanwhile. Here the CPU waits for the
++        // next retrace, which runs the audio frames up to it.
++        for (int i = 0; i < ctr && i < 60; i++) {
++            re4_wait_interrupt();
++        }
+     }
+ }
+ 

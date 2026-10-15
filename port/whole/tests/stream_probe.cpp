@@ -11,6 +11,9 @@
 
 #include <string.h>
 
+void SceSleep(int ctr);
+int SndStrStatusCk(u32 snd_id, u32 status);
+
 extern "C" {
 void re4_os_interrupt_begin(void);
 void re4_os_interrupt_end(void);
@@ -49,7 +52,8 @@ void arqDone(u32)
 // mode 0 plays it once to its end as SndStrPlayBlock does (request ready, wait
 // for status 2, request play); mode 1 stops it (request 8, as SndStrStopBlock
 // and the radio's OpeSndStrStop) after 20 fields of play; mode 2 stops it
-// while it is still buffering. The fields until ready
+// while it is still buffering; mode 3 stops it like mode 1 and waits for the
+// end the way SndStrStopBlock does (SceSleep loop outside a scenario task). The fields until ready
 // and until the stream work is gone are returned; the result is a bit mask of
 // failed checks (0 = passed).
 extern "C" int re4probe_stream_test(const char* name, int blocks, int mode, int* readyField, int* endField)
@@ -156,6 +160,20 @@ extern "C" int re4probe_stream_test(const char* name, int blocks, int mode, int*
         }
         if (mode == 1 && f == start + 20) {
             Snd_str_req(id, 8, 0, 0);
+        }
+        if (mode == 3 && f == start + 20) {
+            // the radio screen's stop (SndStrStopBlock): request, then
+            // SceSleep(1) until it no longer plays, outside a scenario task;
+            // only the interrupts delivered while it waits (patch 0035) move
+            // the fade on
+            Snd_str_req(id, 8, 0, 0);
+            int spins = 0;
+            do {
+                SceSleep(1);
+            } while (SndStrStatusCk(id, 0x10) != 0 && ++spins < 2000);
+            if (spins >= 2000) {
+                failed |= 0x1000;
+            }
         }
         field();
     }

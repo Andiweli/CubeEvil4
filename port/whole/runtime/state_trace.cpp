@@ -4,6 +4,7 @@
 // Zustands-Trace: one JSON line per game frame (RE4_TRACE=FILE):
 //
 //   {"frame":N,"Rno0":3,"room":"0x100","pl":[x,y,z],"rsf":["0x80000000"],
+//    "str":[{"w":0,"id":"0x..","be":"0x0013","rno":2,"req":"0x0","vol":..,"dvd":[busy,reqs,status],"dma":0,"err":0}],
 //    "em":[{"slot":1,"id":"0x12","r":[1,11,0,0],"hp":500,"pos":[x,y,z]}, ...]}
 //
 // Rno0 is the game task step (2 room init, 3 main loop), "rsf" the room save
@@ -38,6 +39,7 @@
 #include "cam_ctrl.h"
 #include "room_data.h"
 #include "sce_at.h"
+#include "snd_drv.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -111,6 +113,27 @@ void trace(unsigned n)
     }
     u16 room = g->room_id;
     fprintf(f, "{\"frame\":%u,\"Rno0\":%u,\"room\":\"0x%03x\"", n, (unsigned) g->Rno0, (unsigned) room);
+    // the sound streams (radio voice, music): status, state, requests, volume,
+    // DVD and DMA work in flight (a stream that never fades out holds the
+    // game in SndStrStopBlock)
+    {
+        bool any = false;
+        for (int i = 0; i < SND_STR_MAX; i++) {
+            const SND_STR& st = Snd_str_work[i];
+            if (st.be_flag == 0) {
+                continue;
+            }
+            fprintf(f, "%s{\"w\":%d,\"id\":\"0x%lx\",\"be\":\"0x%04x\",\"rno\":%d,\"req\":\"0x%lx\",\"vol\":%d,"
+                       "\"dvd\":[%d,%d,%lu],\"dma\":%d,\"err\":%u}",
+                    any ? "," : ",\"str\":[", i, (unsigned long) st.snd_id, (unsigned) st.be_flag, (int) st.rno,
+                    (unsigned long) st.req_flag, (int) st.now_vol, (int) st.dvd_busy, (int) st.dvd_req_num,
+                    (unsigned long) st.dvd_status, (int) st.dma_busy, (unsigned) st.err_flag);
+            any = true;
+        }
+        if (any) {
+            fprintf(f, "]");
+        }
+    }
     cPlayer* pl = pPL;
     if (live(pl)) {
         fprintf(f, ",\"pl\":");

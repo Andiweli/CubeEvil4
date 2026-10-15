@@ -1,0 +1,76 @@
+--- a/src/lib/GXTev.c
++++ b/src/lib/GXTev.c
+@@ -212,7 +212,7 @@
+     u32 regBG;
+ 
+     CHECK_GXBEGIN(740, "GXSetTevColor");
+-    rgba = *(u32*)&color;
++    rgba = (u32) color.r << 24 | (u32) color.g << 16 | (u32) color.b << 8 | color.a; /* port: patch 0033, RGBA as GameCube memory holds it */
+ 
+     regRA = (0xE0 + id * 2) << 24;
+     SET_REG_FIELD(745, regRA, 8, 0, rgba >> 24);
+@@ -242,8 +242,9 @@
+     ASSERTMSGLINE(780, color.a >= -1024 && color.a < 1024, "GXSetTevColorS10: Color not in range -1024 to +1023");
+ 
+     CHECK_GXBEGIN(782, "GXSetTevColorS10");
+-    sRG = *(u32*)&color;
+-    sBA = *((u32*)&color + 1);
++    /* port: patch 0033, the 16-bit components as GameCube memory holds them */
++    sRG = (u32) (u16) color.r << 16 | (u16) color.g;
++    sBA = (u32) (u16) color.b << 16 | (u16) color.a;
+ 
+     regRA = (0xE0 + id * 2) << 24;
+     SET_REG_FIELD(789, regRA, 11,  0, (sRG >> 16) & 0x7FF);
+@@ -267,7 +268,7 @@
+     u32 regBG;
+ 
+     CHECK_GXBEGIN(833, "GXSetTevKColor");
+-    rgba = *(u32*)&color;
++    rgba = (u32) color.r << 24 | (u32) color.g << 16 | (u32) color.b << 8 | color.a; /* port: patch 0033, RGBA as GameCube memory holds it */
+ 
+     regRA = (0xE0 + id * 2) << 24;
+     SET_REG_FIELD(838, regRA, 8, 0, rgba >> 24);
+--- a/src/lib/GXPixel.c
++++ b/src/lib/GXPixel.c
+@@ -98,7 +98,7 @@
+     SET_REG_FIELD(218, fog3, 3, 21, fsel);
+     SET_REG_FIELD(218, fog3, 8, 24, 0xF1);
+ 
+-    rgba = *(u32*)&color;
++    rgba = (u32) color.r << 24 | (u32) color.g << 16 | (u32) color.b << 8 | color.a; /* port: patch 0033, RGBA as GameCube memory holds it */
+     SET_REG_FIELD(222, fogclr, 24, 0, rgba >> 8);
+     SET_REG_FIELD(222, fogclr, 8, 24, 0xF2);
+ 
+@@ -115,7 +115,7 @@
+     u32 rgba;
+     u32 fogclr = 0xF2000000;
+ 
+-    rgba = *(u32*)&color;
++    rgba = (u32) color.r << 24 | (u32) color.g << 16 | (u32) color.b << 8 | color.a; /* port: patch 0033, RGBA as GameCube memory holds it */
+     SET_REG_FIELD(250, fogclr, 24, 0, rgba >> 8);
+     GX_WRITE_RAS_REG(fogclr);
+     __GXData->bpSentNot = 0;
+--- a/src/lib/GXLight.c
++++ b/src/lib/GXLight.c
+@@ -356,7 +356,10 @@
+     re4_gx_put_u32(0);
+     re4_gx_put_u32(0);
+     re4_gx_put_u32(0);
+-    re4_gx_put_u32(words[3]);
++    { /* port: patch 0033, the colour bytes in their order */
++        const u8* c = (const u8*)&words[3];
++        re4_gx_put_u32((u32) c[0] << 24 | (u32) c[1] << 16 | (u32) c[2] << 8 | c[3]);
++    }
+     for (i = 0; i < 12; i++) {
+         re4_gx_put_f32(floats[4 + i]);
+     }
+@@ -438,7 +441,8 @@
+     __GXData->bpSentNot = 1;
+ }
+ 
+-#define GXCOLOR_AS_U32(color) (*((u32*)&(color)))
++/* port: patch 0033, RGBA as GameCube memory holds it */
++#define GXCOLOR_AS_U32(color) ((u32) (color).r << 24 | (u32) (color).g << 16 | (u32) (color).b << 8 | (u32) (color).a)
+ 
+ void GXSetChanAmbColor(GXChannelID chan, GXColor amb_color) {
+     u32 reg;

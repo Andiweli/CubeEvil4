@@ -492,6 +492,10 @@ int taskTestMain()
         TaskScheduler();
         iTaskScheduler();
     }
+    // the video clock may have run since an earlier test (stream: SceSleep
+    // outside a scenario task waits for retraces): catch up first, so the
+    // three waits below see one retrace each
+    VIWaitForRetrace();
     VISetPostRetraceCallback(onRetrace);
     unsigned before = VIGetRetraceCount();
     for (int i = 0; i < 3; i++) {
@@ -681,7 +685,8 @@ static void testStream()
     } runs[] = {{"short.str", kShort, 0, "short stream"},
                 {"long.str", kLong, 0, "long stream"},
                 {"long.str", kLong, 1, "stopped while playing"},
-                {"long.str", kLong, 2, "stopped while buffering"}};
+                {"long.str", kLong, 2, "stopped while buffering"},
+                {"long.str", kLong, 3, "stopped and waited for like the radio screen"}};
     for (const auto& r : runs) {
         int ready = -1, end = -1;
         int failed = re4probe_stream_test(r.file, (int) r.blocks, r.mode, &ready, &end);

@@ -356,6 +356,11 @@ run_game() {
         enemies=$(echo "$last" | grep -o '"slot"' | wc -l)
         say "Zustands-Trace: $lines Bilder; im letzten Bild $enemies Gegner"
         say "  letzte Zeile: $(echo "$last" | cut -c1-600)"
+        # the sound streams of the last frame (status be, state rno, requests,
+        # volume, DVD busy/requests/status, DMA, errors)
+        local streams
+        streams=$(echo "$last" | grep -o '"str":\[[^]]*\]' | head -1)
+        [ -n "$streams" ] && say "  Tonspuren im letzten Bild: $streams"
         # control: how far Leon walked while the free script held the stick
         # (until an event took over, e.g. s03 at the first house)
         local freeframe walk
@@ -604,8 +609,22 @@ render_gx_pictures() {
     fi
     grep -i "shader failed" -A 3 "$run/gx-werkzeug-lauf.log" 2> /dev/null | head -20 | sed 's/^/  /' | tee -a "$report"
     ppm_to_png "$pics"
-    rm -rf "$dump"  # large; the pictures stay
+    # a few frames as data for the renderer work in the cloud (gx_chunk_render
+    # draws them there; game data: never into the repository): the first
+    # three and the first in the room
+    local keep
+    keep=$( (ls "$dump"/gx-*.bin | head -3; ls "$dump"/gx-*.bin | sed -n '4,99p' |
+        while read -r f; do [ "$(stat -c %s "$f")" -gt 2000000 ] && echo "$f"; done | head -1) | sort -u)
+    python3 - "$run/gx-daten.zip" $keep <<'PY'
+import sys, zipfile
+from pathlib import Path
+with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+    for f in sys.argv[2:]:
+        z.write(f, Path(f).name)
+PY
+    rm -rf "$dump"  # large; the pictures and gx-daten.zip stay
     say "GX-Bilder: $(ls "$pics"/*.png 2> /dev/null | wc -l) PNG-Dateien im Ordner bilder-gx (bitte mitschicken)"
+    say "GX-Daten: gx-daten.zip ($(du -h "$run/gx-daten.zip" | cut -f1), $(echo "$keep" | wc -w) Bilder als Daten; bitte mitschicken)"
 }
 
 if [ "$game_ok" -eq 1 ]; then
