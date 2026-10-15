@@ -120,6 +120,11 @@ std::string gxDumpDir;
 std::chrono::steady_clock::time_point gxDumpNext;
 bool gxDumpWanted = false;
 unsigned gxDumpCount = 0;
+// dumps asked for with the controller (R3, CoreBridge.gxDump), any time, at
+// most 40 in all; the folder comes with the request when no test set one
+std::mutex gxDumpLock;
+std::string gxDumpAskedDir;
+unsigned gxDumpAsked = 0;
 
 // Runs the chunks the core has finished and shows the latest display copy.
 // False while there is nothing to show yet (the caller draws the bridge).
@@ -142,7 +147,14 @@ bool drawGx() {
       gxMode = 0;
       return false;
     }
-    LOG("GX renderer ready, EFB scale %d", scale);
+    // linked shader programs from earlier runs (RE4_GX_PROGRAM_CACHE, set by CoreActivity)
+    const char *cache = getenv("RE4_GX_PROGRAM_CACHE");
+    bool cached = false;
+    if (cache && *cache) {
+      mkdir(cache, 0775);
+      cached = gx->SetProgramCache(cache);
+    }
+    LOG("GX renderer ready, EFB scale %d, program cache %s", scale, cached ? cache : "off");
   }
   // one chunk per displayed frame: every picture the game makes is shown (a
   // renderer slower than the game slows the game down, the core waits for it,
@@ -170,6 +182,21 @@ bool drawGx() {
     gxDumpWanted = true;
     gxDumpNext = now + std::chrono::seconds(gxDumpEvery);
   }
+  if (!gxDumpWanted && gxDumpCount < 40) {
+    std::lock_guard<std::mutex> lock(gxDumpLock);
+    if (gxDumpAsked) {
+      gxDumpAsked--;
+      if (gxDumpDir.empty()) {
+        gxDumpDir = gxDumpAskedDir;
+        mkdir(gxDumpDir.c_str(), 0775);
+      }
+      if (!gxDumpDir.empty()) {
+        api.gxDetach();
+        gxDumpWanted = true;
+        LOG("GX dump asked for (controller)");
+      }
+    }
+  }
   if (const Re4GxChunk *chunk = api.gxAcquire()) {
     if (gxDumpWanted && (chunk->flags & RE4_GX_CHUNK_RESET)) {
       gxDumpWanted = false;
@@ -191,10 +218,10 @@ bool drawGx() {
       const auto &s = gx->Stats();
       const double seconds = std::chrono::duration<double>(now - gxSince).count();
       LOG("GX: %u chunks, %u draws (%u per chunk), run %.1f ms (max %.1f), shown %.1f/s, %u programs, %u textures, "
-          "%u copies, %u missing, %u shader errors, base vertex %s",
+          "%u copies, %u missing, %u shader errors, %u inexact dst alpha, %u programs from the cache, base vertex %s",
           s.chunks, s.draws, gxRunCount ? (s.draws - gxDraws) / gxRunCount : 0, gxRunCount ? gxRunMs / gxRunCount : 0.0,
           gxRunMax, seconds > 0 ? gxFrames / seconds : 0.0, s.programs, s.textures, s.textureCopies,
-          s.missingTextures, s.shaderErrors, gx->BaseVertex() ? "yes" : "no");
+          s.missingTextures, s.shaderErrors, s.dstAlphaApprox, s.programsLoaded, gx->BaseVertex() ? "yes" : "no");
       gxDraws = s.draws;
       gxRunMs = gxRunMax = 0;
       gxRunCount = gxFrames = 0;
@@ -324,6 +351,14 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_status(JN
     result += "\n" + lines.substr(pos == 0 ? 0 : pos + 1);
   }
   return env->NewStringUTF(result.c_str());
+}
+
+// One GX dump of the next picture (diagnosis, see drawGx); `folder` is used
+// when no test switch named one.
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_gxDump(JNIEnv *env, jclass, jstring folder) {
+  std::lock_guard<std::mutex> lock(gxDumpLock);
+  gxDumpAskedDir = text(env, folder);
+  gxDumpAsked++;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_surfaceCreated(JNIEnv *, jclass) {

@@ -1,0 +1,20 @@
+--- a/src/game/card.cpp
++++ b/src/game/card.cpp
+@@ -2228,10 +2228,16 @@
+     TaskSleep(1);
+ }
+ 
++extern "C" int re4_skip_card_check(void);  // port: runtime/card.cpp
++
+ // Boot: chains the first-check card screen.
+ void CardFirstCheck()
+ {
+-    if (pRK->reset_flag != 0 && pRK->MemcardCheckDone == 1) {
++    // port: patch 0039. The port has no memory card yet (milestone 10): the
++    // boot check is skipped as after a reset, the same outcome as "continue
++    // without saving" on the no-card screen (RE4_CARD_CHECK=1 keeps the check
++    // for the test key sequences timed with it).
++    if ((pRK->reset_flag != 0 && pRK->MemcardCheckDone == 1) || re4_skip_card_check()) {
+         pG->CardStatus |= 0x80000000;
+         TaskExit();
+     }

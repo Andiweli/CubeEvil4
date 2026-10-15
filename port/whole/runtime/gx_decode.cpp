@@ -34,6 +34,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <stdio.h>
 #include <string.h>
 #include <unordered_map>
 #include <vector>
@@ -128,6 +129,55 @@ struct Stats {
 };
 Stats gStats;
 u32 gUnknownLogged;
+
+// The last commands of the stream (depth 0), logged once when an unknown
+// command shows that the stream lost its place: which command was read with
+// a wrong length, and in what vertex format.
+struct Recent {
+    u8 op;
+    u32 bytes, count, vertexSize, vcdLo, vcdHi, vatA;
+};
+Recent gRecent[16];
+u32 gRecentAt;
+bool gDesyncLogged;
+
+void remember(u8 op, size_t bytes, u32 count, u32 vertexSize)
+{
+    Recent& r = gRecent[gRecentAt++ % 16];
+    r.op = op;
+    r.bytes = (u32) bytes;
+    r.count = count;
+    r.vertexSize = vertexSize;
+    r.vcdLo = gGp.vcdLo;
+    r.vcdHi = gGp.vcdHi;
+    r.vatA = gGp.vatA[op & 7];
+}
+
+void logRecent(const u8* p, size_t n)
+{
+    if (gDesyncLogged) {
+        return;
+    }
+    gDesyncLogged = true;
+    re4_log("GX: the command stream lost its place; the commands before (oldest first):");
+    for (u32 i = 0; i < 16; i++) {
+        const Recent& r = gRecent[(gRecentAt + i) % 16];
+        if (r.bytes == 0) {
+            continue;
+        }
+        if (r.op >= 0x80 && r.op < 0xC0) {
+            re4_log("GX:   draw 0x%02x: %u vertices of %u bytes (%u bytes), VCD %08x %08x, VAT A %08x", r.op, r.count,
+                    r.vertexSize, r.bytes, r.vcdLo, r.vcdHi, r.vatA);
+        } else {
+            re4_log("GX:   command 0x%02x (%u bytes)", r.op, r.bytes);
+        }
+    }
+    char bytes[3 * 16 + 1] = {0};
+    for (size_t i = 0; i < n && i < 16; i++) {
+        snprintf(bytes + 3 * i, 4, "%02x ", p[i]);
+    }
+    re4_log("GX:   then: %s", bytes);
+}
 
 // Display lists the game builds with CPU stores, in host order (patch 0031).
 struct HostList {
@@ -1302,6 +1352,9 @@ size_t command(const u8* p, size_t n, size_t* need, bool be, int depth)
         draw(op, count, p + 3, be);
         return *need;
     }
+    if (depth == 0) {
+        logRecent(p, n);
+    }
     if (gUnknownLogged++ < 8) {
         re4_log("GX: unknown command 0x%02x, skipped", op);
     }
@@ -1323,11 +1376,16 @@ void drain()
 {
     for (;;) {
         size_t need = 1;
-        size_t used = command(gStream.data() + gRead, gStream.size() - gRead, &need, true, 0);
+        const size_t avail = gStream.size() - gRead;
+        const u8 op = avail ? gStream[gRead] : 0;
+        const bool isDraw = op >= 0x80 && op < 0xC0 && avail >= 3;
+        const u32 count = isDraw ? rd16(gStream.data() + gRead + 1, true) : 0;
+        size_t used = command(gStream.data() + gRead, avail, &need, true, 0);
         if (used == 0) {
             gNeed = need;
             break;
         }
+        remember(op, used, count, isDraw ? vertexSize(op & 7) : 0);
         gRead += used;
     }
     if (gRead == gStream.size()) {

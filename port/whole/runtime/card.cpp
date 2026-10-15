@@ -3,7 +3,14 @@
 // for an empty slot, so the game takes its "no memory card" paths (boot check:
 // card.cpp cCard::firstCheck00 -> MES_NO_CARD_START). Asynchronous calls fail
 // immediately and, as in the SDK, do not call their callback.
+//
+// The boot check itself is skipped (patch 0039, re4_skip_card_check): its
+// screen only asks to continue without saving. RE4_CARD_CHECK=1 keeps it (the
+// test key sequences of whole_r100_check.sh and test-core-app.ps1 are timed
+// with it).
 #include "re4_runtime.h"
+
+#include <stdlib.h>
 
 namespace {
 
@@ -16,6 +23,16 @@ const s32 kNoCard = -3;  // CARD_RESULT_NOCARD
 }  // namespace
 
 extern "C" {
+
+int re4_skip_card_check(void)
+{
+    const char* keep = getenv("RE4_CARD_CHECK");
+    if (keep && keep[0] == '1') {
+        return 0;
+    }
+    re4_log("card: boot check skipped (no memory card until milestone 10; RE4_CARD_CHECK=1 keeps it)");
+    return 1;
+}
 
 void CARDInit(void) {}
 

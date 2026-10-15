@@ -506,7 +506,9 @@ std::string GxFragmentShader(const ShaderKey &k) {
       out += "  prev.rgb = (prev.rgb * (256 - ifog) + ivec3(fogParam[1].xyz) * ifog) >> 8;\n";
     }
   }
-  out += "  oColor = vec4(prev) / 255.0;\n}\n";
+  out += "  oColor = vec4(prev) / 255.0;\n";
+  // destination alpha (GXSetDstAlpha) when the renderer lets the shader write it
+  out += "  if (alphaRef.z >= 0) oColor.a = float(alphaRef.z) / 255.0;\n}\n";
   return out;
 }
 

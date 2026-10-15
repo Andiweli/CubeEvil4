@@ -17,6 +17,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -59,8 +60,11 @@ public final class CoreActivity extends Activity {
     ImportManager imports = ((Re4Application) getApplication()).imports;
     // test switches of the core (port/scripts/test-core-app.ps1 passes them)
     String settings = getIntent().getStringExtra("coreSettings");
+    // linked shader programs kept between runs (no compile stutter the second time)
+    String programs = "RE4_GX_PROGRAM_CACHE=" + new File(getCacheDir(), "gx-programs").getAbsolutePath();
+    settings = settings == null || settings.isEmpty() ? programs : settings + ";" + programs;
     startProblem = imports.root == null ? "No data folder"
-        : CoreBridge.start(imports.root.getAbsolutePath(), settings == null ? "" : settings);
+        : CoreBridge.start(imports.root.getAbsolutePath(), settings);
 
     FrameLayout root = new FrameLayout(this);
     surface = new GLSurfaceView(this);
@@ -191,6 +195,18 @@ public final class CoreActivity extends Activity {
     if (e.getKeyCode() == KeyEvent.KEYCODE_BUTTON_SELECT) {
       if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0)
         overlay.setVisibility(overlay.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+      return true;
+    }
+    // R3 (right stick pressed): the graphics data of the next picture for the
+    // diagnosis in the cloud (files/gx-dumps, test-core-app.ps1 / pull-gx-dumps.ps1 fetch them)
+    if (e.getKeyCode() == KeyEvent.KEYCODE_BUTTON_THUMBR) {
+      if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0) {
+        File dir = getExternalFilesDir(null);
+        if (dir != null) {
+          CoreBridge.gxDump(new File(dir, "gx-dumps").getAbsolutePath());
+          Toast.makeText(this, "Grafik-Aufnahme gespeichert", Toast.LENGTH_SHORT).show();
+        }
+      }
       return true;
     }
     int bit = gcButton(e.getKeyCode());

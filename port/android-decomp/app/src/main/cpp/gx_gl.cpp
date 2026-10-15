@@ -63,7 +63,7 @@ GLuint Compile(GLenum type, const std::string &source, std::string *log) {
   return s;
 }
 
-GLuint Link(const std::string &vs, const std::string &fs, std::string *log) {
+GLuint Link(const std::string &vs, const std::string &fs, std::string *log, bool retrievable = false) {
   GLuint v = Compile(GL_VERTEX_SHADER, vs, log);
   if (!v)
     return 0;
@@ -75,6 +75,8 @@ GLuint Link(const std::string &vs, const std::string &fs, std::string *log) {
   GLuint p = glCreateProgram();
   glAttachShader(p, v);
   glAttachShader(p, f);
+  if (retrievable)
+    glProgramParameteri(p, GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE);
   glLinkProgram(p);
   glDeleteShader(v);
   glDeleteShader(f);
@@ -89,6 +91,65 @@ GLuint Link(const std::string &vs, const std::string &fs, std::string *log) {
     return 0;
   }
   return p;
+}
+
+// Linked programs kept on disk (GxRenderer::SetProgramCache): one file per
+// shader pair, named by a hash of both sources and the driver; a binary the
+// driver no longer takes is linked anew.
+struct ProgramFile {
+  char magic[4];
+  std::uint32_t format, bytes;
+  std::uint64_t check; // a second hash of the sources
+};
+
+GLuint LoadProgram(const std::string &path, std::uint64_t check) {
+  FILE *f = std::fopen(path.c_str(), "rb");
+  if (!f)
+    return 0;
+  ProgramFile head{};
+  std::vector<std::uint8_t> binary;
+  bool ok = std::fread(&head, sizeof(head), 1, f) == 1 && std::memcmp(head.magic, "RE4P", 4) == 0 &&
+            head.check == check && head.bytes > 0 && head.bytes < (64u << 20);
+  if (ok) {
+    binary.resize(head.bytes);
+    ok = std::fread(binary.data(), 1, binary.size(), f) == binary.size();
+  }
+  std::fclose(f);
+  if (!ok)
+    return 0;
+  GLuint p = glCreateProgram();
+  glProgramBinary(p, head.format, binary.data(), static_cast<GLsizei>(binary.size()));
+  GLint linked = 0;
+  glGetProgramiv(p, GL_LINK_STATUS, &linked);
+  if (!linked) {
+    glDeleteProgram(p);
+    return 0;
+  }
+  return p;
+}
+
+void StoreProgram(const std::string &path, std::uint64_t check, GLuint p) {
+  GLint bytes = 0;
+  glGetProgramiv(p, GL_PROGRAM_BINARY_LENGTH, &bytes);
+  if (bytes <= 0)
+    return;
+  std::vector<std::uint8_t> binary(static_cast<std::size_t>(bytes));
+  GLenum format = 0;
+  GLsizei written = 0;
+  glGetProgramBinary(p, bytes, &written, &format, binary.data());
+  if (written <= 0)
+    return;
+  const std::string temp = path + ".part";
+  FILE *f = std::fopen(temp.c_str(), "wb");
+  if (!f)
+    return;
+  ProgramFile head{{'R', 'E', '4', 'P'}, format, static_cast<std::uint32_t>(written), check};
+  const bool ok = std::fwrite(&head, sizeof(head), 1, f) == 1 &&
+                  std::fwrite(binary.data(), 1, static_cast<std::size_t>(written), f) == static_cast<std::size_t>(written);
+  if (std::fclose(f) == 0 && ok)
+    std::rename(temp.c_str(), path.c_str());
+  else
+    std::remove(temp.c_str());
 }
 
 struct Program {
@@ -162,7 +223,9 @@ struct GxRenderer::Impl {
   const Program *keyProgram = nullptr;
   bool pxDirty = true;               // a register of the PX block changed
   bool xfRegsDirty = true;           // colours, viewport or projection changed
-  std::uint32_t stateSig[9] = {};    // ApplyState's registers as last applied
+  std::uint32_t stateSig[10] = {};   // ApplyState's registers as last applied
+  std::string programCache;          // folder of linked programs ("" = none)
+  std::string driverTag;             // GL renderer and version: binaries only for this driver
   bool stateValid = false;
   GLuint unitTex[8] = {}, unitSampler[8] = {};
   bool unitsValid = false;
@@ -515,8 +578,8 @@ struct GxRenderer::Impl {
 
   void ApplyState(unsigned primitive) {
     // the registers below, as last applied: nothing to do while they hold
-    const std::uint32_t sig[9] = {bp[0x20],          bp[0x21],     bp[0x59], bp[0x40] & 0x1F, bp[0x41] & 0xFFFF,
-                                  bp[0x43] & 7,      (bp[0x00] >> 14) & 3, bp[0x22] & 0xFF, primitive};
+    const std::uint32_t sig[10] = {bp[0x20],     bp[0x21],     bp[0x59],       bp[0x40] & 0x1F, bp[0x41] & 0xFFFF,
+                                   bp[0x43] & 7, (bp[0x00] >> 14) & 3, bp[0x22] & 0xFF, primitive, bp[0x42] & 0x1FF};
     if (stateValid && std::memcmp(sig, stateSig, sizeof(sig)) == 0)
       return;
     std::memcpy(stateSig, sig, sizeof(sig));
@@ -545,19 +608,40 @@ struct GxRenderer::Impl {
     // blending, colour and alpha update
     const std::uint32_t c = bp[0x41];
     const bool alphaFormat = (bp[0x43] & 7) == 1; // RGBA6_Z24 keeps alpha
-    glColorMask((c >> 3) & 1, (c >> 3) & 1, (c >> 3) & 1, ((c >> 4) & 1) && alphaFormat);
+    const bool alphaWrite = ((c >> 4) & 1) && alphaFormat;
+    glColorMask((c >> 3) & 1, (c >> 3) & 1, (c >> 3) & 1, alphaWrite);
+    // destination alpha (GXSetDstAlpha, BP 0x42): the EFB alpha gets this
+    // constant instead of the TEV alpha, which still drives the blending; the
+    // shader writes it (PX alphaRef.z) unless the colour blending needs the
+    // TEV alpha, then the alpha blend factors make it (0 only: other values
+    // would need dual-source blending; counted in Stats().dstAlphaApprox)
+    const bool dstAlpha = alphaWrite && ((bp[0x42] >> 8) & 1);
+    const int dstValue = static_cast<int>(bp[0x42] & 0xFF);
+    int shaderAlpha = -1;
     if ((c >> 11) & 1) { // subtract: dst - src
       glEnable(GL_BLEND);
-      glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
-      glBlendFunc(GL_ONE, GL_ONE);
+      glBlendEquationSeparate(GL_FUNC_REVERSE_SUBTRACT, dstAlpha ? GL_FUNC_ADD : GL_FUNC_REVERSE_SUBTRACT);
+      glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, dstAlpha ? GL_ZERO : GL_ONE);
+      if (dstAlpha)
+        shaderAlpha = dstValue;
     } else if (c & 1) {
       static const GLenum src[8] = {GL_ZERO,      GL_ONE,           GL_DST_COLOR, GL_ONE_MINUS_DST_COLOR,
                                     GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_DST_ALPHA, GL_ONE_MINUS_DST_ALPHA};
       static const GLenum dst[8] = {GL_ZERO,      GL_ONE,           GL_SRC_COLOR, GL_ONE_MINUS_SRC_COLOR,
                                     GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_DST_ALPHA, GL_ONE_MINUS_DST_ALPHA};
+      const unsigned sf = (c >> 8) & 7, df = (c >> 5) & 7;
       glEnable(GL_BLEND);
       glBlendEquation(GL_FUNC_ADD);
-      glBlendFunc(src[(c >> 8) & 7], dst[(c >> 5) & 7]);
+      if (!dstAlpha) {
+        glBlendFunc(src[sf], dst[df]);
+      } else if (sf != 4 && sf != 5 && df != 4 && df != 5) {
+        glBlendFuncSeparate(src[sf], dst[df], GL_ONE, GL_ZERO); // TEV alpha not needed: the shader writes it
+        shaderAlpha = dstValue;
+      } else {
+        glBlendFuncSeparate(src[sf], dst[df], GL_ZERO, GL_ZERO);
+        if (dstValue != 0)
+          stats.dstAlphaApprox++;
+      }
     } else if ((c >> 1) & 1) { // logic operations: the common ones
       const unsigned op = (c >> 12) & 15;
       glEnable(GL_BLEND);
@@ -570,8 +654,16 @@ struct GxRenderer::Impl {
         glBlendFunc(GL_ONE, GL_ONE);
       else // copy and the rest
         glBlendFunc(GL_ONE, GL_ZERO);
+      if (dstAlpha && op != 0 && op != 5 && op != 15)
+        shaderAlpha = dstValue;
     } else {
       glDisable(GL_BLEND);
+      if (dstAlpha)
+        shaderAlpha = dstValue;
+    }
+    if (px.alphaRef[2] != shaderAlpha) {
+      px.alphaRef[2] = shaderAlpha;
+      pxDirty = true;
     }
     // culling: only triangles (hardware 1 = back, 2 = front, 3 = all)
     const unsigned cull = (bp[0x00] >> 14) & 3;
@@ -636,7 +728,25 @@ struct GxRenderer::Impl {
     Program p;
     std::string log;
     const std::string vs = GxVertexShader(k), fs = GxFragmentShader(k);
-    p.id = Link(vs, fs, &log);
+    std::string cachePath;
+    std::uint64_t check = 0;
+    if (!programCache.empty()) {
+      std::uint64_t h = Fnv(driverTag.data(), driverTag.size());
+      h = Fnv(vs.data(), vs.size(), h);
+      h = Fnv(fs.data(), fs.size(), h ^ 0x5Au);
+      check = Fnv(fs.data(), fs.size(), Fnv(vs.data(), vs.size(), 0x9E3779B97F4A7C15ull));
+      char name[32];
+      std::snprintf(name, sizeof(name), "/%016llx.bin", static_cast<unsigned long long>(h));
+      cachePath = programCache + name;
+      p.id = LoadProgram(cachePath, check);
+      if (p.id)
+        stats.programsLoaded++;
+    }
+    if (!p.id) {
+      p.id = Link(vs, fs, &log, !cachePath.empty());
+      if (p.id && !cachePath.empty())
+        StoreProgram(cachePath, check, p.id);
+    }
     if (!p.id) {
       stats.shaderErrors++;
       if (stats.shaderErrors <= 4)
@@ -1312,6 +1422,20 @@ int GxRenderer::Scale() const { return impl_->scale; }
 const GxStats &GxRenderer::Stats() const { return impl_->stats; }
 
 bool GxRenderer::BaseVertex() const { return impl_->drawBaseVertex != nullptr; }
+
+bool GxRenderer::SetProgramCache(const std::string &folder) {
+  Impl &m = *impl_;
+  m.programCache.clear();
+  GLint formats = 0;
+  glGetIntegerv(GL_NUM_PROGRAM_BINARY_FORMATS, &formats);
+  if (folder.empty() || formats <= 0)
+    return false;
+  const char *renderer = reinterpret_cast<const char *>(glGetString(GL_RENDERER));
+  const char *version = reinterpret_cast<const char *>(glGetString(GL_VERSION));
+  m.driverTag = std::string(renderer ? renderer : "") + "|" + (version ? version : "");
+  m.programCache = folder;
+  return true;
+}
 
 void GxRenderer::Release() {
   Impl &m = *impl_;

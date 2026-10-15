@@ -30,6 +30,8 @@ public final class CoreBridge {
   public static native void roomPrepared(int room, String decodedPath, String error);
   /** Diagnostic text: core state, frame, room, models, last log lines. */
   public static native String status();
+  /** Saves the graphics data of the next picture into `folder` (diagnosis; R3). */
+  public static native void gxDump(String folder);
   public static native void surfaceCreated();
   public static native void resize(int width, int height);
   public static native void draw();

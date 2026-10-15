@@ -9,11 +9,15 @@
 #include "dolphin/gx/GXFifo.h"
 #include "global.h"
 #include "main_mem.h"
+#include "esp.h"
 
 #include <stdlib.h>
 
 // The SDK casts GXFifoObj (a byte array) to a struct of words (patch 0038).
 static_assert(__alignof__(GXFifoObj) >= 4, "GXFifoObj must be word aligned for ARM");
+// A subclass's work starts at the end of cEsp, 0xF8 as on the GameCube, with
+// the vptr first here and last there (patch 0040 finds it by this size).
+static_assert(sizeof(cEsp) == 0xF8, "cEsp must keep the GameCube size");
 
 struct ProbeRoutine {  // the four routine bytes of cModel (r_no_0..3)
     u8 r_no_0;

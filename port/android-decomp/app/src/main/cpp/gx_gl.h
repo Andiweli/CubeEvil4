@@ -28,12 +28,14 @@ namespace re4gx {
 struct GxStats {
   unsigned chunks = 0, draws = 0, triangles = 0;
   unsigned programs = 0;         // shaders built
+  unsigned programsLoaded = 0;   // of them taken from the program cache
   unsigned textures = 0;         // textures decoded
   unsigned textureCopies = 0;    // EFB copies to a texture
   unsigned displayCopies = 0;    // EFB copies to the XFB
   unsigned resets = 0;
   unsigned missingTextures = 0;  // bound keys the renderer did not have
   unsigned shaderErrors = 0;
+  unsigned dstAlphaApprox = 0;   // draws whose constant destination alpha is not 0 and not exact
 };
 
 class GxRenderer {
@@ -61,6 +63,10 @@ public:
   const GxStats &Stats() const;
   // True when draws use glDrawElementsBaseVertex (one attribute setup per layout).
   bool BaseVertex() const;
+  // Keeps the linked shader programs in `folder` (it exists) and takes them
+  // from there next time instead of compiling (the stutter of a new effect);
+  // false when the driver has no program binaries (nothing is kept then).
+  bool SetProgramCache(const std::string &folder);
   // Frees the GL objects (context current).
   void Release();
 

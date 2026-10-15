@@ -37,7 +37,11 @@ Menues, Anzeigen, Effekte). -Bridge zeigt zum Vergleich die fruehere Ansicht
 Die App blendet die Debug-Anzeigen der Entwicklerfassung aus (-DebugHud zeigt sie)
 und schneidet die schwarzen Balken ab (Vollbild 16:9). -GxDump speichert alle 20 s
 die vollstaendigen Grafikdaten eines Bildes (hoechstens 6) und legt sie als
-gx-geraet.zip ab (zum Nachzeichnen in der Cloud, nicht ins Repository).
+gx-geraet.zip ab (zum Nachzeichnen in der Cloud, nicht ins Repository). Ein Druck
+auf den rechten Stick (R3) speichert jederzeit das naechste Bild ebenso (auch ohne
+-GxDump; nach einem Spiel ohne dieses Skript holt pull-gx-dumps.ps1 die Aufnahmen).
+Die Speicherkarten-Abfrage beim Start entfaellt (es gibt noch keine Speicherkarte);
+die Test-Tastenfolge behaelt sie, weil ihr Zeitplan darauf abgestimmt ist.
 
 Das Skript prueft jede Sekunde, ob die App noch laeuft. Stuerzt sie ab, endet die
 Beobachtung sofort: das Protokoll und der Absturzbericht des Systems werden gesichert
@@ -229,7 +233,8 @@ if (-not $Adb) {
 $settings = ''
 if (-not $Manual) {
     # the timing of the PC check (port/tools/whole_r100_check.sh)
-    $settings = "RE4_START_ROOM=0x$StartRoom;RE4_PAD_UNTIL_ROOM=1;RE4_PAD_SCRIPT=UP@100-60000/60 A@115-60000/60 START@130-60000/60"
+    # (RE4_CARD_CHECK=1: with the memory card dialog the app otherwise skips, as the timing expects)
+    $settings = "RE4_START_ROOM=0x$StartRoom;RE4_CARD_CHECK=1;RE4_PAD_UNTIL_ROOM=1;RE4_PAD_SCRIPT=UP@100-60000/60 A@115-60000/60 START@130-60000/60"
 }
 if ($Bridge) {
     # the earlier view: the core's state drawn by the app's own renderer
@@ -303,7 +308,8 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # the system's crash reports date their entries
     $since = ((& $Adb -s $Serial shell date +%s) -join '').Trim() + '.000'
     $sinceText = ((& $Adb -s $Serial shell date +%Y-%m-%d_%H:%M:%S) -join '').Trim() -replace '_', ' '
-    if ($GxDump) { & $Adb -s $Serial shell rm -rf $dumpRemote }
+    # dumps of this run only (periodic with -GxDump, any time with R3 on the controller)
+    & $Adb -s $Serial shell rm -rf $dumpRemote
     & $Adb -s $Serial shell input keyevent KEYCODE_WAKEUP
     $start = "am start -n $package/com.ast.re4decomp.MainActivity"
     if ($settings) { $start += " --es coreSettings '$settings'" }
@@ -371,21 +377,23 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         }
     }
     & $Adb -s $Serial shell am force-stop $package
-    if ($GxDump) {
-        $dumpLocal = Join-Path $OutDir 'gx-geraet'
-        Remove-Item -LiteralPath $dumpLocal -Recurse -ErrorAction SilentlyContinue
-        & $Adb -s $Serial pull $dumpRemote $dumpLocal | Out-Null
-        $dumps = @(Get-ChildItem -LiteralPath $dumpLocal -Filter 'gx-geraet-*.bin' -ErrorAction SilentlyContinue)
-        if ($dumps.Count) {
-            $zip = Join-Path $OutDir 'gx-geraet.zip'
-            Remove-Item -LiteralPath $zip -ErrorAction SilentlyContinue
-            Compress-Archive -Path $dumps.FullName -DestinationPath $zip
-            Say "   GX-Daten vom Geraet: $($dumps.Count) Bilder (gx-geraet.zip, $([math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 1)) MB; bitte mitschicken)"
-        } else {
-            Say '   GX-Daten vom Geraet: keine (RE4_GX_DUMP_DIR)'
-        }
-        & $Adb -s $Serial shell rm -rf $dumpRemote
+    $dumpLocal = Join-Path $OutDir 'gx-geraet'
+    Remove-Item -LiteralPath $dumpLocal -Recurse -ErrorAction SilentlyContinue
+    # (no dumps: adb reports a missing folder on stderr, which 'Stop' must not turn into an error)
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & $Adb -s $Serial pull $dumpRemote $dumpLocal 2>&1 | Out-Null
+    $ErrorActionPreference = $previousPreference
+    $dumps = @(Get-ChildItem -LiteralPath $dumpLocal -Filter 'gx-geraet-*.bin' -ErrorAction SilentlyContinue)
+    if ($dumps.Count) {
+        $zip = Join-Path $OutDir 'gx-geraet.zip'
+        Remove-Item -LiteralPath $zip -ErrorAction SilentlyContinue
+        Compress-Archive -Path $dumps.FullName -DestinationPath $zip
+        Say "   GX-Daten vom Geraet: $($dumps.Count) Bilder (gx-geraet.zip, $([math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 1)) MB; bitte mitschicken)"
+    } elseif ($GxDump) {
+        Say '   GX-Daten vom Geraet: keine (RE4_GX_DUMP_DIR)'
     }
+    & $Adb -s $Serial shell rm -rf $dumpRemote
     Say "   Protokoll: $($keep.Count) Zeilen (logcat.txt)$(if ($systemCrash.Count) { ', Absturzbericht des Systems (absturz-system.txt)' }); App beendet"
 
     Say ''
@@ -446,5 +454,5 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         ForEach-Object { Say "  $_" }
 }
 Say ''
-Say "Fertig. Bitte bericht.txt, logcat.txt und die Bilder (bild-*.png) aus $OutDir schicken$(if (Test-Path -LiteralPath (Join-Path $OutDir 'absturz-system.txt')) { ', dazu absturz-system.txt' })."
+Say "Fertig. Bitte bericht.txt, logcat.txt und die Bilder (bild-*.png) aus $OutDir schicken$(if (Test-Path -LiteralPath (Join-Path $OutDir 'absturz-system.txt')) { ', dazu absturz-system.txt' })$(if (Test-Path -LiteralPath (Join-Path $OutDir 'gx-geraet.zip')) { ', dazu gx-geraet.zip' })."
 [Console]::OutputEncoding = $previousEncoding

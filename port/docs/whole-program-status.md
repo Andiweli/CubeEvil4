@@ -1203,6 +1203,86 @@ langsam (1–2 Bilder/s sichtbar), Renderfehler (Helligkeit, Leons Haare).
 Nicht getestet: alles davon auf dem Gerät; `RE4_DEBUG_HUD` ohne eigenen
 Test (Wirkung nur im laufenden Spiel sichtbar).
 
+### Dritter Gerätelauf mit GX (15.10.2026, Retroid) und Analyse
+
+Gemeldet (Skriptlauf mit `-GxDump` und ein Spiel von Hand, Intro mit
+START übersprungen): leichter Grünton vor dem Menü, Filmintro fehlt,
+Laderuckler, gröbere/flackernde Pixel in Leons Haaren, Autoscheiben von
+außen zu dunkel, Absturz nach 153 s mitten im Intro (r120s01), kein Ton;
+im Spiel ein kräftiger Orangeschleier über allem, flackernde Flächen,
+Leon verschwindet kurz beim Wechsel Spiel → Filmszene, Steuerung
+anpassen, Speicherkarten-Abfrage beim Start überflüssig.
+
+- **Absturz 153 s (Patch 0040):** Stapel `re4gx::command` ←
+  `callDisplayList` ← `drain` ← `re4_gx_put_f32` ← `Esp1b_SpTrans`, davor
+  „GX: unknown command 0x3f …“ (Float-Bytes als Befehle): Der Befehlsstrom
+  war aus dem Tritt, ein Zufallswert als `CALL_DL`-Adresse führte zum
+  Zugriff ins Leere. Ursache: `Esp1b_SpTrans` findet die Daten des
+  Unterobjekts über `&esp->pad_EC[0xC]`, also das Ende von `cEsp` unter
+  MWCC, das den vptr ans Ende legt (0xF4). Die Compiler des Ports legen
+  ihn an den Anfang; die Adresse lag 4 Bytes in den Daten, `div` war eine
+  Gleitkommazahl als Ganzzahl, `div * 4 * div` passte nicht mehr in die
+  16-Bit-Punktzahl von `GXBegin`. Jetzt `(u8*) esp + sizeof(cEsp)` (in
+  beiden Layouts dieselbe Stelle); `game_probe.cpp` prüft
+  `sizeof(cEsp) == 0xF8`. Andere Zugriffe dieser Art (`pad_…[]`,
+  `(u8*) this + 0x…`) gibt es im Spielcode nicht.
+- **Decoder abgesichert:** `listMemory` nimmt Zeiger außerhalb von MEM1
+  nur noch an, wenn Anfang und Ende in Spielspeicher liegen
+  (`re4_valid_port_ptr`: Bibliotheken, Thread-Stapel); sonst meldet der
+  Decoder die Liste als „not in memory“ statt abzustürzen. Beim ersten
+  unbekannten Befehl schreibt er die 16 letzten Befehle (Draws mit Anzahl,
+  Punktgröße, VCD, VAT) und die Bytes danach ins Protokoll („GX: the
+  command stream lost its place …“).
+- **Orangeschleier:** Am Bildende legt das Spiel ein Leuchten über das
+  Bild: Kopie des EFB-Alphakanals (A8, halbe Größe, dreimal verkleinert,
+  verwischt) und additiv mit Eckpunktfarbe (0x28, 0x19, 0x0C) mal 2
+  zurück. Das Leuchten soll nur dort entstehen, wo Lichtquellen Alpha
+  schreiben; fast alle anderen Zeichenaufträge setzen mit `GXSetDstAlpha`
+  (BP 0x42) Alpha 0. Das kannte der Renderer nicht, Alpha blieb 1 und das
+  ganze Bild bekam +(80, 50, 24). Jetzt: Mit `GXSetDstAlpha` schreibt der
+  Shader die Konstante (PX `alphaRef.z`), wenn die Mischung die TEV-Alpha
+  nicht braucht; braucht sie sie (SRC_ALPHA-Faktoren), setzen die
+  Alpha-Mischfaktoren den Wert 0 (der Fall des Spiels). Andere Werte dann
+  zählt `Stats().dstAlphaApprox` (Protokoll „inexact dst alpha“). Geprüft
+  mit den PC-Daten (Bild 652): Bildpunkt (320,100) bleibt nach dem Filter
+  `1a1a16` statt `6a4c2e`. Der leichte Grünton von Wolken und Logo vor dem
+  Menü gehört zum Original (Titelbild), die Geräteaufnahmen 00–05 haben
+  keinen Schleier mehr.
+- **Leons Haare:** Die Geräteaufnahmen zeigen die Fehler auch auf
+  llvmpipe (also Renderer-Logik, nicht Adreno), aber nur klein: einzelne
+  dunkle Strähnen der Unterschicht (`00823100`) liegen über hellen.
+  Geprüft und richtig: Texturen (CMPR, I4-Maske), Texturkoordinaten,
+  Sampler, Koordinatenskalen, Tiefenformat, Projektion der Baumschatten.
+  Die großen schwarzen Rechtecke vom Gerätefoto (70 s) sind in keiner
+  Aufnahme; offen. Dafür speichert die App jetzt auf **R3** (rechter Stick
+  gedrückt) jederzeit das nächste Bildstück (`CoreBridge.gxDump`, bis zu
+  40, Ordner `files/gx-dumps`); `test-core-app.ps1` holt sie immer mit,
+  nach einem Spiel ohne Skript `port/scripts/pull-gx-dumps.ps1`.
+- **Ruckler:** Neue Shader kosten auf dem Gerät bis zu einige hundert ms.
+  Der Renderer legt gelinkte Programme jetzt als Binärdatei ab
+  (`SetProgramCache`, Ordner `cache/gx-programs`, Name = Hash beider
+  Quelltexte und des Treibers, `RE4_GX_PROGRAM_CACHE`) und lädt sie beim
+  nächsten Mal mit `glProgramBinary` statt zu übersetzen; ein abgelehntes
+  Binary wird neu gelinkt. Geprüft mit llvmpipe: zweiter Lauf 30 von 30
+  Programmen aus dem Speicher, Bild bytegleich. Protokoll: „programs from
+  the cache“. Der erste Lauf ruckelt weiterhin.
+- **Speicherkarte (Patch 0039):** `CardFirstCheck` überspringt die
+  Startprüfung wie nach einem Reset (`re4_skip_card_check`, runtime/
+  card.cpp) – derselbe Ausgang wie „ohne Speichern fortfahren“ auf dem
+  Bildschirm „keine Speicherkarte“. `RE4_CARD_CHECK=1` behält sie; die
+  Test-Tastenfolgen (`whole_r100_check.sh`, `test-core-app.ps1` ohne
+  `-Manual`) setzen es, weil ihr Zeitplan darauf abgestimmt ist.
+- Filmintro (Meilenstein 9) und Ton (Meilenstein 8) fehlen erwartungsgemäß.
+  Steuerung: Meilenstein 7. Offen ohne Daten: Leon verschwindet kurz beim
+  Szenenwechsel, flackernde Flächen, dunkle Autoscheiben (die Aufnahmen mit
+  R3 an genau diesen Stellen helfen).
+
+Getestet (Cloud): Kern-Build i686/armhf normal und `-O2` mit allen
+Prüfungen (siehe unten), `gx_gl_check`, Renderer mit den Geräte- und
+PC-Aufnahmen, App-Bibliothek gegen JNI gelinkt (`re4decomp_link_check`),
+Java der App übersetzt, beide PowerShell-Skripte mit einem nachgebildeten
+ADB. Nicht getestet: alles auf dem Gerät, die PC-Prüfung mit Disc-Daten.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1359,6 +1439,8 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0036 `GXTev.c` | Die Tabellen von `GXSetTevOp` (`TEVCOpTableST0/1`, `TEVAOpTableST0/1`) waren Bitfeld-Strukturen, die als ganze Wörter gelesen werden; MWCC (Big-Endian) belegt Bitfelder vom höchsten Bit an, Compiler für Little-Endian vom niedrigsten. Die Wörter werden jetzt Feld für Feld gebaut (`RE4_TEVC_WORD`, `RE4_TEVA_WORD`), Felder und Werte wie im Original |
 | 0038 `GXFifo.h` | `GXFifoObj` (ein Byte-Feld, das das SDK als `__GXFifoObj` mit Zeigern und Zählern beschreibt) ist 32-Byte-ausgerichtet; vorher lag das statische `FifoObj` von `GXInit` im Android-Build an einer ungeraden Adresse, und die zusammengefassten Wort-Speicherbefehle (`strd`) brachen auf dem Retroid mit SIGBUS ab |
 | 0037 `main_mem.h`, `pl_class.cpp` | `VALID_PTR`/`VALID_PTR2` (Zeigerprüfung gegen MEM1) nehmen zusätzlich `re4_valid_port_ptr` (runtime/os_thread.cpp): Host-Stapel der OS-Threads und die statischen Daten der Spielbibliotheken (`libre4_*`), die auf dem GameCube ebenfalls in MEM1 lägen |
+| 0039 `card.cpp` | `CardFirstCheck` überspringt die Speicherkarten-Prüfung beim Start wie nach einem Reset, solange der Port keine Speicherkarte hat (`re4_skip_card_check`, runtime/card.cpp; `RE4_CARD_CHECK=1` behält sie für die Test-Tastenfolgen) |
+| 0040 `esp_sub.cpp` | `Esp1b_SpTrans` findet die Daten von `cEsp1b` über `sizeof(cEsp)` statt über `&pad_EC[0xC]`: MWCC legt den vptr ans Ende von `cEsp`, die Compiler des Ports an den Anfang; vorher las es die Punktzahl 4 Bytes daneben (Absturz im GX-Decoder auf dem Retroid nach 153 s) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -1674,3 +1756,8 @@ Der Platz sollte früh reserviert werden (beim Laden von `libre4_platform`).
 - Unions mit Byte-Sichten in Dateien, die das Suchskript nicht erfasst
   (benannte Strukturtypen als Union-Mitglieder), können fehlen; `EspGenPrm`
   wurde von Hand gefunden.
+- Klassen mit virtuellen Funktionen: MWCC legt den vptr hinter die Felder
+  der Klasse, in der er entsteht (`cEsp`: 0xF4), die Compiler des Ports an
+  den Anfang. Direkte Feldzugriffe stimmen trotzdem; Code, der über feste
+  Abstände oder Füllfelder zu anderen Feldern rechnet, nicht (Patch 0040).
+  `sizeof` bleibt gleich, wenn der vptr in die Klasse fällt.
