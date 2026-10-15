@@ -164,6 +164,26 @@ extern "C" int re4probe_gx_test(void* fifo, void* list)
             failed |= 0x80;
         }
     }
+    // GXSetCullMode swaps front and back for the hardware (patch 0042: the
+    // __rlwimi of the swap was dropped, GX_CULL_FRONT came out as no culling);
+    // the gen mode register (BP 0x00, bits 14-15) goes out with the next draw
+    {
+        static const int modes[4][2] = {{1, 2}, {2, 1}, {0, 0}, {3, 3}};  // GX mode, hardware field
+        GXClearVtxDesc();
+        GXSetVtxDesc(9, 1);
+        GXSetVtxAttrFmt(0, 9, 1, 4, 0);
+        for (int i = 0; i < 4; i++) {
+            GXSetCullMode(modes[i][0]);
+            GXBegin(0x90, 0, 3);
+            GXPosition3f32(0.0f, 0.0f, 0.0f);
+            GXPosition3f32(1.0f, 0.0f, 0.0f);
+            GXPosition3f32(0.0f, 1.0f, 0.0f);
+            if (((re4_gx_bp(0x00) >> 14) & 3) != (unsigned) modes[i][1]) {
+                failed |= 0x200;
+            }
+        }
+        GXSetCullMode(0);
+    }
     return failed;
 }
 

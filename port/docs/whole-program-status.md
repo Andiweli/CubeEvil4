@@ -1317,14 +1317,33 @@ verschwindet kurz vor Filmszenen.
   Maske für spätere Filter). Bisher galten sie als „ungenau“ und schrieben 0
   (Protokoll: 4709 „inexact dst alpha“); ohne Farbschreiben schreibt jetzt
   der Shader den Wert genau.
-- **Leons Haare im Spiel:** In der Aufnahme (Bild 4744) sind die Flecken
-  der dunkle Haaransatz des Kopfmodells (Gesichtstextur `00825100`), über
-  dem an diesen Stellen keine Haarfläche liegt (Kopf 13300–13509, Haar
-  13510–13669, Tiefe, Mischung, Alpha geprüft). Leons Haar bewegt sich über
-  die Stoff-Simulation (`pl_cloth.cpp`, `pendulum.cpp`); offen, ob sie die
-  Strähnen falsch legt.
+- **Leons Haare im Spiel (Patch 0042):** Leons Haar besteht aus
+  Doppelschichten: jede Strähne zweimal mit denselben Punkten, die Innenseite
+  mit nach innen zeigenden Normalen und umgekehrtem Umlauf (Bild 4744: Haar
+  16451–16602, z. B. 16517 innen / 16536 außen). Auf dem GameCube lässt
+  `GX_CULL_FRONT` jeweils die abgewandte Schicht weg. Im Port hatte **kein**
+  Zeichenauftrag Rückseiten-Weglassen (BP 0x00 Bits 14–15 überall 0):
+  `GXSetCullMode` verwarf das Ergebnis von `__rlwimi`. Beide Schichten wurden
+  gezeichnet; wo die Strähnen nicht ganz eben liegen, gewann die dunkle
+  Innenseite die Tiefenprüfung (dunkle Rechtecke, flackernd bei Bewegung).
+  Geprüft mit der Geräteaufnahme: mit Rückseiten-Weglassen (Hardwarewert 2,
+  wie `GX_CULL_FRONT`) ist das Haar glatt und hell wie im Original, die
+  Szene sonst unverändert; mit Wert 1 stünde alles „von innen“ da (die
+  Richtung im Renderer stimmt also). Ebenso verschwinden die Blöcke in den
+  Stirnsträhnen der Autoszene (Bild 1160). Der Test `gx` prüft jetzt alle
+  vier Werte. Betrifft vermutlich auch zu dunkle Scheiben und flackernde
+  Flächen (doppelt gezeichnete Rückseiten), Schatten auf Modellen
+  (`shadow.cpp` nutzt ebenfalls `GX_CULL_FRONT`) und Spiegel; auf dem Gerät
+  zu prüfen. Die Stoff-Simulation (`pendulum.cpp`) ist nicht die Ursache
+  (Mathe-Ersatz, Strukturlage `cParts`/`PEN_INFO` geprüft).
 - **Titel:** „START zweimal“ und das verblassende Logo sind ohne Aufnahme
   des Titelbilds offen.
+
+Getestet (Cloud): Kern-Build i686/armhf normal und `-O2`, alle Prüfungen
+grün (Laufzeittest `gx` mit der neuen Prüfung der Rückseiten-Werte,
+Formatvergleich, Modul- und Kerntests); Geräteaufnahmen 4744 und 1160 mit
+erzwungenem Rückseiten-Weglassen im Renderer nachgezeichnet. Nicht
+getestet: Gerät und PC-Prüfung mit Disc-Daten.
 
 ### Lokale Prüfungen für K2
 
@@ -1485,6 +1504,7 @@ damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 | 0039 `card.cpp` | `CardFirstCheck` überspringt die Speicherkarten-Prüfung beim Start wie nach einem Reset, solange der Port keine Speicherkarte hat (`re4_skip_card_check`, runtime/card.cpp; `RE4_CARD_CHECK=1` behält sie für die Test-Tastenfolgen) |
 | 0040 `esp_sub.cpp` | `Esp1b_SpTrans` findet die Daten von `cEsp1b` über `sizeof(cEsp)` statt über `&pad_EC[0xC]`: MWCC legt den vptr ans Ende von `cEsp`, die Compiler des Ports an den Anfang; vorher las es die Punktzahl 4 Bytes daneben (Absturz im GX-Decoder auf dem Retroid nach 153 s) |
 | 0041 `at_sub.cpp`, `atari.cpp`, `card.cpp` | Das Attributwort einer Kollisionsfläche (`SAT_POLY::m_Status`) wird als Wort gelesen statt als zwei Halbwörter in GameCube-Reihenfolge (vorher vertauschte Hälften: Zäune als Fallkanten, Wände ohne Kollision, Boden als Wasser); `CardID::save` liest `nPoint` als Wert statt Byte 3 |
+| 0042 `src/lib/GXGeometry.c` | `GXSetCullMode` übernimmt das Ergebnis von `__rlwimi` (`hwMode = __rlwimi(...)`): MWCC fügt bei diesem Befehl in den ersten Operanden ein, die C-Fassung des Ports gibt das Ergebnis zurück und die Zeile verwarf es. Aus `GX_CULL_FRONT` (Standard aller Modelle) wurde „keine Rückseiten weglassen“: alles wurde beidseitig gezeichnet, die Doppelschichten von Leons Haar verdeckten sich gegenseitig (dunkle Flecken) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -1808,3 +1828,7 @@ Der Platz sollte früh reserviert werden (beim Laden von `libre4_platform`).
   den Anfang. Direkte Feldzugriffe stimmen trotzdem; Code, der über feste
   Abstände oder Füllfelder zu anderen Feldern rechnet, nicht (Patch 0040).
   `sizeof` bleibt gleich, wenn der vptr in die Klasse fällt.
+- PowerPC-Befehle als Funktionen (`re4_sdk_intrinsics.h`): MWCC schreibt bei
+  `__rlwimi` in den ersten Operanden, die C-Fassung gibt das Ergebnis nur
+  zurück. Ein Aufruf als eigene Anweisung (Ergebnis nicht zugewiesen) wirkt im
+  Port nicht. In `src/` gab es genau eine solche Stelle (Patch 0042).

@@ -1,0 +1,15 @@
+--- a/src/lib/GXGeometry.c
++++ b/src/lib/GXGeometry.c
+@@ -116,7 +116,11 @@
+     }
+ #else
+     hwMode = (mode >> 1) & 1;
+-    __rlwimi(hwMode, mode, 1, 30, 30);
++    /* port: patch 0042. MWCC's __rlwimi inserts into its first operand in place
++     * (rlwimi rA,rS,SH,MB,ME); the port's C version returns the result, which
++     * this statement dropped: GX_CULL_FRONT became GX_CULL_NONE, every model was
++     * drawn two-sided and the double layers of Leon's hair fought in depth. */
++    hwMode = __rlwimi(hwMode, mode, 1, 30, 30);
+ #endif
+ 
+     SET_REG_FIELD(570, __GXData->genMode, 2, 14, hwMode);
