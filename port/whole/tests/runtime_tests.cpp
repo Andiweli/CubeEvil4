@@ -831,6 +831,7 @@ float re4probe_fabsf(float x);
 void re4probe_routine(unsigned char out[4]);
 int re4probe_byte_views(void);
 const char* re4probe_file(void);
+unsigned re4probe_poly_attr(unsigned status);
 }
 
 static unsigned bitsOf(float f)
@@ -982,6 +983,9 @@ static bool testGameProbe()
     unsigned char r[4];
     re4probe_routine(r);
     CHECK(r[0] == 1 && r[1] == 0x2E && r[2] == 3 && r[3] == 4);  // EmRoutineSetW, patch 0023
+    // collision attributes: fence 0x20 must not read as "up" 0x200000 (patch 0041)
+    CHECK(re4probe_poly_attr(0x00100020u) == 0x00100020u);
+    CHECK(re4probe_poly_attr(0x00400000u) == 0x00400000u);
     int views = re4probe_byte_views();
     if (views != 0) {
         re4_log("  byte views failed: mask 0x%x", views);

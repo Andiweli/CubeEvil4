@@ -10,6 +10,7 @@
 #include "global.h"
 #include "main_mem.h"
 #include "esp.h"
+#include "at_sub.h"
 
 #include <stdlib.h>
 
@@ -48,6 +49,15 @@ extern "C" void re4probe_routine(unsigned char out[4])
 }
 
 // Returns a bit mask of failed checks (0 = all passed).
+// The attribute word of a collision polygon as the hit checks see it (patch
+// 0041): the stored word, in either byte order of the host.
+extern "C" unsigned re4probe_poly_attr(unsigned status)
+{
+    SAT_POLY poly = {};
+    poly.m_Status = status;
+    return Get_poly_attr(&poly);
+}
+
 extern "C" int re4probe_byte_views(void)
 {
     int failed = 0;
