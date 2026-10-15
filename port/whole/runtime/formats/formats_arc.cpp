@@ -93,7 +93,24 @@ bool looksLikeArchive(Blob& b)
     return first >= 0x10 + count * 8 && first <= b.size;
 }
 
+namespace {
+
+// A converter chosen by the entry's position instead of its tag (nullptr:
+// by tag), for archives whose readers index the entries (codec archives).
+typedef Converter (*PickConverter)(u32 index, u32 count);
+
+void convertArchiveWith(Blob& b, const Part& part, PickConverter pick);
+
+}  // namespace
+
 void convertArchive(Blob& b, const Part& part)
+{
+    convertArchiveWith(b, part, nullptr);
+}
+
+namespace {
+
+void convertArchiveWith(Blob& b, const Part& part, PickConverter pick)
 {
     if (!looksLikeArchive(b)) {
         fits(b, 0, 0xFFFFFFFFu, "archive header");
@@ -142,9 +159,9 @@ void convertArchive(Blob& b, const Part& part)
         char label[160];
         snprintf(label, sizeof(label), "%s #%u %s", b.name, (unsigned) i, tag);
         Blob e = blob(b.data + o, stop - o, label);
-        Converter conv = 0;
+        Converter conv = pick ? pick(i, count) : 0;
         for (const TagRule& t : kTags) {
-            if (strcmp(t.tag, tag) == 0) {
+            if (!conv && strcmp(t.tag, tag) == 0) {
                 conv = t.convert;
             }
         }
@@ -181,6 +198,31 @@ void convertArchive(Blob& b, const Part& part)
     }
 }
 
+// SsTermMain::OpeMesSeq (include/ss_main.h): u16 be_flag, s16 No, int Frame,
+// int NoMes, int Timer; the table ends with Timer -1.
+void convertOpeMesSeq(Blob& b, const Part&)
+{
+    for (u32 o = 0; o + 16 <= b.size; o += 16) {
+        swap16(b, o, 2);
+        swap32(b, o + 4, 3);
+        s32 timer;
+        memcpy(&timer, b.data + o + 12, 4);
+        if (timer == -1) {
+            break;
+        }
+    }
+}
+
+// Codec archives (op/opNN.das): SsTermMain::OpeMesTblInit takes the first
+// half of the entries as message data and the second half as sequence tables
+// (SS_ARC_PTR(arc, 4 + n) is entry n): op01 13 + 13, op02 6 + 6, op03 5 + 5.
+Converter pickCodecEntry(u32 index, u32 count)
+{
+    return count % 2 == 0 && index >= count / 2 ? convertOpeMesSeq : nullptr;
+}
+
+}  // namespace
+
 // Codec messages (ss_term.cpp opArc): an archive 0x400 bytes into the file;
 // the game reads nothing before it.
 void convertCodecArchive(Blob& b, const Part& part)
@@ -191,7 +233,23 @@ void convertCodecArchive(Blob& b, const Part& part)
     Blob arc = blob(b.data + 0x400, b.size - 0x400, b.name);
     Part inner = part;
     inner.fileOfs = part.fileOfs + 0x400;
-    convertArchive(arc, inner);
+    if (looksLikeArchive(arc)) {
+        // the entry tags, for the report (the halves: messages, sequences)
+        u32 count = be32(arc, 0);
+        char tags[2][64] = {{0}, {0}};
+        for (u32 i = 0; i < count; i++) {
+            char* list = tags[count % 2 == 0 && i >= count / 2];
+            char tag[5] = {0};
+            memcpy(tag, arc.data + 0x10 + count * 4 + i * 4, 4);
+            if (!strstr(list, tag) && strlen(list) + 6 < sizeof(tags[0])) {
+                strcat(list, list[0] ? " " : "");
+                strcat(list, tag);
+            }
+        }
+        re4_log("formats: %s: codec archive, %u entries: messages [%s], sequences [%s]", b.name,
+                (unsigned) count, tags[0], tags[1]);
+    }
+    convertArchiveWith(arc, inner, pickCodecEntry);
     b.ok = arc.ok;
 }
 

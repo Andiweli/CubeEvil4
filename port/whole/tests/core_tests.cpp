@@ -72,6 +72,40 @@ extern "C" unsigned char* re4_aram(void);
 
 Re4CoreSnapshot gSnap;
 
+// Codec archives (op/opNN.das): the second half of the entries are the radio
+// call's sequence tables (SsTermMain::OpeMesSeq), whatever their tag says.
+void testCodec()
+{
+    bool ok = true;
+    unsigned char* file = (unsigned char*) (unsigned long) 0x82200000u;
+    memset(file, 0, 0x800);
+    unsigned char* arc = file + 0x400;
+    put32be(arc + 0x00, 2);
+    put32be(arc + 0x10, 0x20);
+    put32be(arc + 0x14, 0x30);
+    memcpy(arc + 0x18, "XMS\0SEQ\0", 8);  // a tag that names a motion sequence
+    const unsigned rec[2][5] = {{1, 2, 0, 5, 30}, {0, 0, 300, 0xFFFFFFFFu, 0xFFFFFFFFu}};
+    for (int r = 0; r < 2; r++) {
+        unsigned char* p = arc + 0x30 + r * 16;
+        p[0] = 0, p[1] = (unsigned char) rec[r][0];
+        p[2] = 0, p[3] = (unsigned char) rec[r][1];
+        put32be(p + 4, rec[r][2]);
+        put32be(p + 8, rec[r][3]);
+        put32be(p + 12, rec[r][4]);
+    }
+    Header h = { 0, 0x450, 0, 0, 0, 0, 0, 0 };
+    re4_formats_part_loaded("op/op01.das", 0, 0, &h, 0x82200000u);
+    struct Seq {
+        unsigned short be_flag;
+        short no;
+        int frame, mes, timer;
+    } seq[2];
+    memcpy(seq, arc + 0x30, sizeof(seq));
+    CHECK(seq[0].be_flag == 1 && seq[0].no == 2 && seq[0].frame == 0 && seq[0].mes == 5 && seq[0].timer == 30);
+    CHECK(seq[1].frame == 300 && seq[1].mes == -1 && seq[1].timer == -1);
+    report("codec", ok);
+}
+
 void testBridge()
 {
     bool ok = true;
@@ -622,6 +656,7 @@ int re4_core_tests()
 {
     gFailures = 0;
     testBridge();
+    testCodec();
     testThread();
     testSound();
     testCamera();

@@ -1114,8 +1114,30 @@ gelesen werden: `GXTexObj`, `GXTlutObj`, `GXLightObj`, `GXTexRegion` sind
 `u32`-Felder (Ausrichtung 4), nur `GXFifoObj` war ein Byte-Feld.
 
 Fünfter PC-Lauf (Stand `6e2288f1`, mit `-Arm`): i686 und armhf je 10.000
-Bilder ohne Absturz; „Spieler frei: NEIN“ (Untermenü des Funkspruchs bleibt
-bis zum Ende offen), dazu unten.
+Bilder ohne Absturz; „Spieler frei: NEIN“: das Untermenü des Funkspruchs
+öffnet bei Bild 1876 und bleibt bis zum Ende offen. Das Spiel-Log zeigt den
+Ablauf: Funkarchiv `op/op01.das` geladen, „SND: STREAM 1 STOP“ (Klingelton
+beendet, Patch 0035 wirkt), etwa 9 s später „SND: STREAM 0 STOP“ (die
+Sprachaufnahme lief durch). Der Funk-Bildschirm (`ss_term.cpp OpeMesMove`)
+schließt aber nur, wenn seine Ablauf-Tabelle (`OpeMesSeq`: Bild, Meldung,
+Anzeigedauer; Ende bei Dauer −1) den letzten Eintrag erreicht. Diese Tabellen
+stehen im Funkarchiv: `SS_ARC_PTR(arc, n)` liest das n-te Wort des
+Archivkopfs, `OP_ARC_PTR(wk, 4 + i)` ist also Eintrag i; `OpeMesTblInit`
+nimmt die erste Hälfte der Einträge als Meldungen, die zweite als
+Ablauf-Tabellen (op01 13 + 13, op02 6 + 6, op03 5 + 5). Der Umwandler
+wandelte die Einträge nur nach ihrem Kennzeichen; für die Ablauf-Tabellen
+meldete er keinen fehlenden Umwandler, sie liefen also durch einen
+vorhandenen (vermutlich `SEQ`, die Bewegungs-Ereignisliste: nur das erste
+16-Bit-Wort und die Schlüssel gedreht), die Bildnummern blieben
+big-endian und wurden riesig. **Jetzt:** `convertCodecArchive` wandelt die
+zweite Hälfte als `OpeMesSeq` (`convertOpeMesSeq`, unabhängig vom
+Kennzeichen) und schreibt die Kennzeichen beider Hälften ins Log (Bericht:
+„Funkarchive“). Test `core-test codec`: ein Funkarchiv mit einer
+Ablauf-Tabelle unter dem Kennzeichen `SEQ`; schlägt mit dem alten Umwandler
+fehl. Noch nicht mit Disc-Daten geprüft. Der Bericht zeigt dazu den
+Tonspuren-Verlauf (jedes Bild, in dem sich Tonspuren ändern; die Zeile
+„Tonspuren im letzten Bild“ wird jetzt als JSON gelesen, das alte Suchmuster
+schnitt sie an der ersten `]` ab).
 
 ### Lokale Prüfungen für K2
 

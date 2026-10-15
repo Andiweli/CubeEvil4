@@ -345,6 +345,11 @@ run_game() {
     else
         say "Umwandler-Meldungen: keine"
     fi
+    # the radio archives: which tags their message and sequence halves carry
+    if grep -q "codec archive" "$log"; then
+        say "Funkarchive:"
+        grep "codec archive" "$log" | sed 's/^\[re4\] formats: /  /' | sort -u | head -5 | tee -a "$report"
+    fi
     local stubs
     stubs=$(grep -h "stub called:" "$log" | sed 's/^\[re4\] stub called: //' | sort -u)
     say "Aufgerufene Stubs (Funktionen ohne Umsetzung): $(echo -n "$stubs" | grep -c .)"
@@ -356,11 +361,29 @@ run_game() {
         enemies=$(echo "$last" | grep -o '"slot"' | wc -l)
         say "Zustands-Trace: $lines Bilder; im letzten Bild $enemies Gegner"
         say "  letzte Zeile: $(echo "$last" | cut -c1-600)"
-        # the sound streams of the last frame (status be, state rno, requests,
-        # volume, DVD busy/requests/status, DMA, errors)
-        local streams
-        streams=$(echo "$last" | grep -o '"str":\[[^]]*\]' | head -1)
-        [ -n "$streams" ] && say "  Tonspuren im letzten Bild: $streams"
+        # the sound streams (status be, state rno, requests, volume, DVD
+        # busy/requests/status, DMA, errors): the last frame, then every frame
+        # where the set of streams (id, status, state) changes, up to 40 lines
+        # (the radio call: ring tone stopped, voice ready, playing, ended)
+        python3 - "$trace" <<'PY' | tee -a "$report"
+import json, sys
+last, prev, lines = None, None, []
+for raw in open(sys.argv[1], encoding="utf-8", errors="replace"):
+    try:
+        row = json.loads(raw)
+    except ValueError:
+        continue
+    streams = row.get("str", [])
+    last = streams
+    key = [(s.get("w"), s.get("id"), s.get("be"), s.get("rno")) for s in streams]
+    if key != prev:
+        lines.append("    Bild %s: %s" % (row.get("frame"), json.dumps(streams, separators=(",", ":"))))
+        prev = key
+if last:
+    print("  Tonspuren im letzten Bild: " + json.dumps(last, separators=(",", ":")))
+print("  Tonspuren-Verlauf (Bilder mit Änderungen):")
+print("\n".join(lines[:40]) if any(l.split(": ", 1)[1] != "[]" for l in lines) else "    (keine Tonspur im ganzen Lauf)")
+PY
         # control: how far Leon walked while the free script held the stick
         # (until an event took over, e.g. s03 at the first house)
         local freeframe walk
