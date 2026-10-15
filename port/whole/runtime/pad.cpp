@@ -190,7 +190,7 @@ void PADControlMotor(long, u32) {}
 // state trace (runtime/state_trace.cpp, re4_set_frame_hook replaces it) and
 // the core bridge (runtime/core_api.cpp, re4_add_frame_hook).
 static void (*g_frameHook)(unsigned);
-static void (*g_moreHooks[4])(unsigned);
+static void (*g_moreHooks[8])(unsigned);
 
 void re4_set_frame_hook(void (*hook)(unsigned))
 {

@@ -3,8 +3,13 @@
 // built by port/tools/whole_build_android.sh), reserves the GameCube main
 // memory at 0x80000000 as early as the process allows (JNI_OnLoad, before any
 // GL work), starts the game in its own thread, passes the controller and draws
-// the published frames with CoreScene.
+// what the game draws: the GX chunks of the core's emulated graphics processor
+// with the GX renderer (gx_gl.cpp, port/docs/gx-plan.md step G4), and until
+// the first display copy (or with the setting RE4_VIEW=bridge) the published
+// state frames with CoreScene.
 #include "core_scene.h"
+#include "gx_gl.h"
+#include "re4_gx_frame.h"
 
 #include <android/log.h>
 #include <dlfcn.h>
@@ -33,6 +38,9 @@ struct CoreApi {
   const Re4CoreSnapshot *(*acquire)(void){};
   void (*release)(const Re4CoreSnapshot *){};
   int (*logTail)(char *, int){};
+  const Re4GxChunk *(*gxAcquire)(void){};
+  void (*gxRelease)(const Re4GxChunk *){};
+  void (*gxDetach)(void){};
 } api;
 
 template <class F> bool bind(F &slot, const char *name) {
@@ -62,6 +70,9 @@ void loadCore() {
   ok = bind(api.acquire, "re4_core_acquire") && ok;
   ok = bind(api.release, "re4_core_release") && ok;
   ok = bind(api.logTail, "re4_core_log_tail") && ok;
+  ok = bind(api.gxAcquire, "re4_core_gx_acquire") && ok;
+  ok = bind(api.gxRelease, "re4_core_gx_release") && ok;
+  ok = bind(api.gxDetach, "re4_core_gx_detach") && ok;
   if (!ok) {
     LOG("%s", api.error.c_str());
     api.main = nullptr;
@@ -89,6 +100,65 @@ std::unique_ptr<re4::CoreScene> scene;
 re4::CoreFrame frame;  // GL thread
 int width = 1, height = 1;
 std::chrono::steady_clock::time_point lastDraw;
+
+// GX view (GL thread): on unless RE4_VIEW=bridge; EFB scale from RE4_GX_SCALE
+// (default 2: 1280x1056)
+std::unique_ptr<re4gx::GxRenderer> gx;
+int gxMode = -1;  // -1 undecided, 0 bridge, 1 GX
+unsigned gxChunks = 0;
+
+// Runs the chunks the core has finished and shows the latest display copy.
+// False while there is nothing to show yet (the caller draws the bridge).
+bool drawGx() {
+  if (gxMode < 0) {
+    const char *view = getenv("RE4_VIEW");
+    gxMode = (view && std::string(view) == "bridge") || !api.gxAcquire ? 0 : 1;
+    LOG("view: %s", gxMode ? "GX" : "bridge");
+  }
+  if (gxMode == 0) return false;
+  if (!gx) {
+    const char *scaleText = getenv("RE4_GX_SCALE");
+    int scale = scaleText ? std::atoi(scaleText) : 2;
+    if (scale < 1 || scale > 4) scale = 2;
+    gx = std::make_unique<re4gx::GxRenderer>();
+    std::string error;
+    if (!gx->Init(scale, &error)) {
+      LOG("GX renderer: %s; the bridge draws", error.c_str());
+      gx.reset();
+      gxMode = 0;
+      return false;
+    }
+    LOG("GX renderer ready, EFB scale %d", scale);
+  }
+  // in order; a slow display catches up on all finished chunks
+  for (int n = 0; n < 8; ++n) {
+    const Re4GxChunk *chunk = api.gxAcquire();
+    if (!chunk) break;
+    gx->Run(*chunk);
+    api.gxRelease(chunk);
+    if ((++gxChunks % 600) == 1) {
+      const auto &s = gx->Stats();
+      LOG("GX: %u chunks, %u draws, %u programs, %u textures, %u copies, %u missing, %u shader errors", s.chunks,
+          s.draws, s.programs, s.textures, s.textureCopies, s.missingTextures, s.shaderErrors);
+    }
+  }
+  unsigned xw = 0, xh = 0;
+  if (!gx->Xfb(&xw, &xh)) return false;
+  // the 640-wide picture in a 4:3 frame of 480 lines (the XFB holds xh of them)
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glViewport(0, 0, width, height);
+  glDisable(GL_SCISSOR_TEST);
+  glClearColor(0, 0, 0, 1);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  int boxW = width, boxH = width * 3 / 4;
+  if (boxH > height) {
+    boxH = height;
+    boxW = height * 4 / 3;
+  }
+  const int picH = boxH * static_cast<int>(xh) / 480;
+  gx->Present((width - boxW) / 2, (height - picH) / 2, boxW, picH);
+  return true;
+}
 
 re4::CoreScene *currentScene() {
   std::lock_guard<std::mutex> lock(sceneLock);
@@ -185,6 +255,10 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_status(JN
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_surfaceCreated(JNIEnv *, jclass) {
   if (auto *s = currentScene()) s->contextCreated();
   lastDraw = {};
+  // a new GL context: the renderer's objects are gone; the core starts over
+  // (full state, every texture again) once chunks are taken again
+  gx.reset();
+  if (api.gxDetach) api.gxDetach();
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_resize(JNIEnv *, jclass, jint w,
@@ -207,6 +281,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_draw(JNIEnv 
                              ? 0.0
                              : std::chrono::duration<double>(now - lastDraw).count();
   lastDraw = now;
+  if (drawGx()) return;
   try {
     s->draw(frame, width, height, seconds);
   } catch (const std::exception &e) {

@@ -15,7 +15,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M4.5 Kern korrekt machen: C-Ersatz für Assembler, Byte-Aggregate, `__FILE__`-Länge | ✅ 14.10.2026 (Cloud, i686 und armhf) |
 | M5 Erster Raum r100 | ✅ 14.10.2026: lokal mit Disc-Daten (i686 in WSL2) 10 000 Bilder ab der Hauptschleife ohne Absturz, Abdeckung ohne „nein“, Formatvergleich 152 Dateien ohne Fehler. armhf mit Disc-Daten nicht gelaufen (`-Arm`, optional) |
 | K2 „Kern in die App“ (M6) | ⏳ 14.10.2026: Cloud-Teil fertig (Einbettungs-Schnittstelle, App-Variante „core“, Zustandsbrücke, Prüfungen ohne Disc-Daten grün); NDK-Build, APK-Build und Retroid-Test stehen aus (lokal, `port/scripts/test-core-app.ps1`) |
-| G1/G2 GX nachbilden: FIFO einsammeln, Befehlsdecoder (Teil von M6, `gx-plan.md`) | ✅ 15.10.2026 (Cloud): GX-Bibliothek aus `src/lib` im Build, FIFO-Strom im Port, PE-Unterbrechungen (G1); Decoder mit Bildstücken für den Renderer (G2). Test `runtime-test gx` grün (i686, armhf, `-O2`). G3–G5 offen |
+| G1–G4 GX nachbilden (Teil von M6, `gx-plan.md`) | ⏳ 15.10.2026 (Cloud): GX-Bibliothek aus `src/lib`, FIFO, PE-Unterbrechungen (G1); Befehlsdecoder mit Bildstücken (G2); GLES3-Renderer in der App (G3); App zeigt standardmäßig das GX-Bild, PC-Prüfung zeichnet GX-Bilder (G4). Alle Cloud-Tests grün; mit Disc-Daten und auf dem Gerät noch nicht getestet. G5 offen |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -957,6 +957,76 @@ erneute Daten, ohne Renderer kein Stück. Ergebnis: grün in `whole_build.sh`
 (i686, armhf, beide auch `-O2`), libc++ 153/153. Nicht getestet: mit
 Disc-Daten (lokal) – das kommt mit G4.
 
+### GX nachbilden, Schritte G3 und G4: Renderer in der App (15.10.2026, Cloud)
+
+**G3 – GLES3-Renderer** (`port/android-decomp/app/src/main/cpp/gx_gl.cpp`,
+`gx_gl_shader.cpp`, `gx_texture.cpp`): führt die Bildstücke des Kerns aus.
+
+- eigener Bildpuffer (EFB) 640×528 mal Faktor (Farbe und Tiefe), GameCube-Zeile
+  0 = GL-Zeile 0, dadurch ohne Spiegelungen bei Kopien, Schere und Bildausschnitt;
+- Shader werden aus dem Zustand erzeugt und zwischengespeichert: Vertex-Teil mit
+  XF-Transformation (Matrix-Indizes je Punkt oder Standard), Licht (8 Lichter,
+  Richtung/Spot/Glanz, Diffus-Funktionen, Material/Umgebung aus Register oder
+  Punktfarbe), Texturkoordinaten-Erzeugung (Matrizen 2×4/3×4, Quellen Position/
+  Normale/Farbe/Texturkoordinaten, Prägung, zweite Transformation mit
+  Normalisieren); Fragment-Teil mit bis zu 16 TEV-Stufen in 8-Bit-Ganzzahl-
+  Rechnung wie die Hardware (Rundung, Vorzeichen-11-Bit-Register, Vergleichsmodi,
+  Konstanten, Tauschtabellen), indirekte Texturen (Matrizen, dynamisch S/T,
+  Umbruch, Bump-Alpha), Alpha-Test, Nebel (4 Formeln, perspektivisch und
+  orthografisch);
+- Mischen, Tiefe, Farb-/Alpha-Schreibmaske, Seiten-Kappen, Schere, Linien-
+  und Punktgröße aus den BP-Registern; alle GX-Texturformate (I4 … CMPR,
+  Paletten IA8/RGB565/RGB5A3), Mipmaps, Sampler aus den Texturmodi;
+- Bildpuffer-Kopien: in Texturen (Farb-, Intensitäts-, Kanal- und
+  Tiefenformate, 2×2-Filter, Löschen nach dem Kopieren) und in das Anzeigebild
+  (XFB); Kopien, die als Paletten-Textur gelesen werden (Wärmesicht,
+  `filter07`/`filter02`), laufen durch die Palette.
+- Noch nicht nachgebildet (G5): Ziel-Alpha (`GXSetDstAlpha`), Z-Texturen,
+  die meisten Logik-Operationen, `GXPeekZ`, Linienbreite über 1 Pixel hängt am
+  Grafiktreiber.
+
+**G4 – in der App und in der PC-Prüfung:**
+
+- Kernmodus (`core_mode.cpp`): Die App holt jedes Bild alle fertigen
+  Bildstücke, führt sie aus und zeigt die letzte Bildkopie im 4:3-Rahmen
+  (640 breit, Zeilen aus 480). Bis zur ersten Bildkopie (und mit der
+  Einstellung `RE4_VIEW=bridge`) zeichnet weiter die Zustandsbrücke.
+  EFB-Faktor `RE4_GX_SCALE` (Standard 2). Neuer GL-Kontext: der Kern beginnt
+  von vorn (voller Zustand, alle Texturen neu). `test-core-app.ps1 -Bridge`
+  zeigt zum Vergleich die frühere Ansicht; der Bericht nennt Ansicht,
+  GX-Zähler und Shader-Fehler.
+- PC-Prüfung (`whole_r100_check.sh`, `test-r100-core.ps1`): Der Kern schreibt
+  mit `RE4_GX_DUMP` bis zu 24 Bilder als Bildstück-Dateien
+  (`re4_gx_frame_io.h`; früh: Bild 60 … 2400 für Logos/Titel/Menü, dann der
+  Raum-Zeitplan der Schnappschüsse und alle 2500); das Werkzeug
+  `gx_chunk_render` (App-Renderer auf Mesa) zeichnet sie, Bericht Abschnitt 5,
+  Ordner `bilder-gx`.
+
+Tests (Cloud, ohne Disc-Daten):
+- `gx_gl_check` (`tools/test_gx_gl.cpp`): Texturdecoder gegen den geprüften
+  TPL-Leser der App für alle 11 Formate (13×9 Texel, keine ganzen Kacheln) –
+  gleich; gezeichnete Bildstücke: Löschen per Bildkopie, Punktfarben,
+  Ausrichtung, Seiten-Kappen (im Uhrzeigersinn = Vorderseite), Tiefentest,
+  Mischen, Alpha-Test, Textur über die TEV (Texel oben links, nächster
+  Nachbar), Textur erneut nur per Schlüssel, Konstantfarbe, Lerp mit
+  Hardware-Rundung, Vergleichsmodus, Subtraktion mit Faktor 2, Richtungslicht
+  mit Umgebungslicht, Bildpuffer-Kopie als Textur, Paletten-Textur, linearer
+  Nebel; 60 zufällige TEV-Aufbauten (Eingänge, Vergleiche, Faktoren,
+  Tauschtabellen, Konstanten, indirekte Stufen): alle 70 Shader übersetzen.
+  Ergebnis: 0 Fehler.
+- Durchgehend: Das künstliche Bild von `runtime-test gx` (echter Decoder des
+  Kerns) als Datei (`RE4_GX_TEST_DUMP`) mit `gx_chunk_render` gezeichnet:
+  5 Zeichenaufträge, 2 Texturen, 1 Kopie, Shader fehlerfrei.
+- `runtime-test gx` zusätzlich: Warteschlange zwischen Spiel- und
+  Renderer-Thread (60 Bilder in Reihenfolge, keins verworfen; ein Renderer,
+  der nichts mehr abholt, hält das Spiel höchstens etwa eine Sekunde auf;
+  danach beginnt das nächste Stück von vorn).
+- Bisherige App-Prüfungen unverändert grün (`core_scene_gl_check` 85,
+  Bindungs-Prüfung `re4decomp_link_check` mit `core_mode.cpp`).
+
+Nicht getestet: mit Disc-Daten (PC-Prüfung, Abschnitt 5) und auf dem Gerät
+(`test-core-app.ps1`). Das sind die nächsten Schritte beim Projektinhaber.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1187,7 +1257,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `newlib_ctype.c` | newlib-Zeichentabelle `_ctype_` (heißt seit K2 `re4_newlib_ctype_`, Prelude-Regel) |
 | `card.cpp` (M4 B) | Speicherkarte: beide Schächte leer, jeder `CARD*`-Aufruf liefert `CARD_RESULT_NOCARD` (wie das SDK bei leerem Schacht); das Spiel zeigt „keine Speicherkarte“ und läuft ohne Speichern weiter. Echtes Speichern: M10 |
 | `pad.cpp` (M4 B) | Controller: Kanal 0 angeschlossen, Kanäle 1–3 leer (ein zweiter Controller ließe den Titel die Logos überspringen). Tasten aus der Testfolge `RE4_PAD_SCRIPT` (`TASTEN@BILD` drückt 3 Bilder lang, `TASTEN@VON-BIS/ALLE` wiederholt; Tasten `A B X Y Z L R START UP DOWN LEFT RIGHT`, mit `+` verbunden; Bild = Zahl der `PADRead`-Aufrufe). Seit K2 zusätzlich `re4_pad_live` (Controller der App, sobald kein Testskript läuft) und Bildhaken `re4_add_frame_hook` (bis 4, je `PADRead`). Feinschliff der Eingabe: M7 |
-| `core_api.cpp` (K2) | Einbettungs-Schnittstelle `re4_core.h` für die App: Kern-Thread, Status, Controller, Dreifachpuffer der Schnappschüsse; Testausgaben `RE4_BRIDGE_DUMP`, `RE4_BRIDGE_SNAPSHOT` |
+| `core_api.cpp` (K2) | Einbettungs-Schnittstelle `re4_core.h` für die App: Kern-Thread, Status, Controller, Dreifachpuffer der Schnappschüsse; Testausgaben `RE4_BRIDGE_DUMP`, `RE4_BRIDGE_SNAPSHOT`, `RE4_GX_DUMP` (GX-Bildstücke als Dateien, `re4_gx_frame_io.h`) |
 | `core_bridge.cpp` (K2) | Schnappschuss des Spielzustands (Kamera, Raum, Modelle aus EmMgr/ObjMgr mit Teile-Matrizen und Disc-Herkunft); mit den Schaltern des Spielcodes gebaut |
 | `log.cpp` | Log (Linux: stderr, Android: logcat-Tag `re4`), seit K2 mit den letzten 24 Zeilen für das Overlay der App (`re4_log_tail`) |
 | `tex_palette.cpp` (M4 B) | `TEXGet` des SDK (`src/lib/texPalette.c` braucht sonst den SDK-Dateicache) |

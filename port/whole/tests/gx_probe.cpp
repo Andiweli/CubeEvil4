@@ -127,7 +127,11 @@ extern "C" int re4probe_gx_test(void* fifo, void* list)
 
 // --- G2: the decoder and the chunks for the renderer ----------------------------
 
-#include "../runtime/re4_gx_frame.h"
+#define RE4_GX_FRAME_IO_WRITE_ONLY  // game flags: no STL here
+#include "../runtime/re4_gx_frame_io.h"
+
+#include <stdio.h>
+#include <stdlib.h>
 
 extern "C" {
 void GXLoadPosMtxIndx(u16 index, u32 id);
@@ -356,6 +360,12 @@ extern "C" int re4probe_gx_frame_test(void* fifo, void* mem)
         c1->xfbAddress != re4_gx_physical(xfb) || c1->xfbWidth != 640 || c1->xfbHeight != 448) {
         return failed | 0x2;
     }
+    if (const char* dump = getenv("RE4_GX_TEST_DUMP")) {  // the renderer's host tools can draw it
+        if (FILE* f = fopen(dump, "wb")) {
+            re4gxio::Write(f, *c1, 0);
+            fclose(f);
+        }
+    }
     Parsed p;
     parse(c1, p);
     if (!p.bpStateFirst || p.unknown != 0 || p.drawCount != 5) {
@@ -494,4 +504,17 @@ extern "C" int re4probe_gx_frame_test(void* fifo, void* mem)
     }
     re4_core_gx_detach();
     return failed;
+}
+
+// `frames` frames of one triangle each, ended by a display copy (the queue
+// test of runtime_tests.cpp runs the renderer side in another thread).
+extern "C" void re4probe_gx_produce(void* fifo, void* xfb, int frames, int init)
+{
+    if (init) {
+        GXInit(fifo, 0x10000);
+    }
+    for (int i = 0; i < frames; i++) {
+        triangle();
+        copyDisp(xfb);
+    }
 }

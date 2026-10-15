@@ -231,7 +231,7 @@ trace_state() {
 run_game() {
     local t="$1" limit="$2" main_limit="$3" stall="$4" dir="$src/port/build/whole-$1$opt"
     local log="$run/spiel-$t.log" trace="$run/trace-$t.jsonl" cov="$run/abdeckung-$t.tsv"
-    local bridge="$run/bruecke-$t.jsonl" snaps="$run/schnappschuesse-$t"
+    local bridge="$run/bruecke-$t.jsonl" snaps="$run/schnappschuesse-$t" gxdump="$run/gx-$t"
     local runner=() bad=0
     [ "$t" = armhf ] && runner=(env QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf qemu-arm)
     section "3. Spiellauf r$room ($t): Titelbild, Debug-Start, $frames Bilder ab der Hauptschleife"
@@ -241,12 +241,12 @@ run_game() {
         return
     fi
     echo "  (Fortschritt alle 30 s; Abbruch bei $stall s ohne neues Bild, ohne Hauptschleife nach $main_limit s, spätestens nach $limit s)"
-    rm -rf "$cov" "$trace" "$trace.gz" "$bridge" "$snaps"
-    mkdir -p "$snaps"
+    rm -rf "$cov" "$trace" "$trace.gz" "$bridge" "$snaps" "$gxdump"
+    mkdir -p "$snaps" "$gxdump"
     local start=$SECONDS
     (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
         RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script" RE4_PAD_FREE_SCRIPT="$free_script" RE4_TEST_PLACE="$place" RE4_STOP_AFTER="$frames" \
-        RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" RE4_BRIDGE_DUMP="$bridge" RE4_BRIDGE_SNAPSHOT="$snaps" \
+        RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" RE4_BRIDGE_DUMP="$bridge" RE4_BRIDGE_SNAPSHOT="$snaps" RE4_GX_DUMP="$gxdump" \
         "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1 &
     local pid=$!
     # watchdog: progress, stall (no new trace data), no main loop, overall limit
@@ -502,6 +502,26 @@ PY
         overall=1
     fi
 }
+# PPM -> PNG (python's zlib), for viewing on Windows
+ppm_to_png() {
+    python3 - "$1" <<'PY'
+import struct, sys, zlib
+from pathlib import Path
+for ppm in sorted(Path(sys.argv[1]).glob("*.ppm")):
+    data = ppm.read_bytes()
+    parts = data.split(b"\n", 3)
+    w, h = map(int, parts[1].split())
+    pixels = parts[3]
+    raw = b"".join(b"\0" + pixels[y * w * 3:(y + 1) * w * 3] for y in range(h))
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
+    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + \
+        chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b"")
+    ppm.with_suffix(".png").write_bytes(png)
+    ppm.unlink()
+PY
+}
+
 # ---- pictures: the core's snapshots drawn as the app's core mode draws them ---------------
 # (the app's renderer on a headless GLES3 context, port/android-decomp/tools/
 # core_snapshot_render.cpp; needs the Mesa EGL/GLES packages of
@@ -554,30 +574,45 @@ render_pictures() {
              {keep=0; key=$4" "$6" "$8; if (!(key in seen) && ($6 == "00" || $0 ~ /joints [2-9][0-9]|joints [0-9][0-9][0-9]/)) {seen[key]=1; keep=1; print "    " $0}}' |
         head -80 | tee -a "$report"
     rm -rf "$approot"  # links to the disc folder: not copied with the report
-    # PPM -> PNG (python's zlib), for viewing on Windows
-    python3 - "$pics" <<'PY'
-import struct, sys, zlib
-from pathlib import Path
-for ppm in sorted(Path(sys.argv[1]).glob("*.ppm")):
-    data = ppm.read_bytes()
-    parts = data.split(b"\n", 3)
-    w, h = map(int, parts[1].split())
-    pixels = parts[3]
-    raw = b"".join(b"\0" + pixels[y * w * 3:(y + 1) * w * 3] for y in range(h))
-    def chunk(kind, body):
-        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
-    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + \
-        chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b"")
-    ppm.with_suffix(".png").write_bytes(png)
-    ppm.unlink()
-PY
+    ppm_to_png "$pics"
     say "Bilder: $(ls "$pics"/*.png 2> /dev/null | wc -l) PNG-Dateien im Ordner bilder (bitte mitschicken)"
+}
+
+# ---- pictures through the GX emulation: what the game itself draws (logos,
+# title, menus, displays, effects), drawn with the app's GX renderer
+# (port/android-decomp/tools/gx_chunk_render.cpp; frames from RE4_GX_DUMP)
+render_gx_pictures() {
+    local dump="$run/gx-i686" pics="$run/bilder-gx" tool_build="$src/port/build/app-host-gl"
+    section "5. Bilder über die GX-Nachbildung (was das Spiel selbst zeichnet)"
+    if ! ls "$dump"/*.bin > /dev/null 2>&1; then
+        say "Keine GX-Bilder aufgezeichnet (Spiel nicht weit genug gelaufen?)"
+        return
+    fi
+    mkdir -p "$pics"
+    if ! cmake -S "$src/port/android-decomp/app/src/main/cpp" -B "$tool_build" -G Ninja \
+        -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release \
+        -DRE4_BUILD_GL_CHECK=ON > "$run/gx-werkzeug.log" 2>&1 ||
+        ! ninja -C "$tool_build" ${RE4_JOBS:+-j "$RE4_JOBS"} gx_chunk_render >> "$run/gx-werkzeug.log" 2>&1; then
+        say "FEHLER: GX-Bild-Werkzeug nicht gebaut (Log: gx-werkzeug.log; Pakete: sudo $src/port/tools/whole_setup_linux.sh)"
+        tail -n 20 "$run/gx-werkzeug.log" | sed 's/^/  /' | tee -a "$report"
+        return
+    fi
+    if ! "$tool_build/gx_chunk_render" "$pics" "$dump"/*.bin 2> "$run/gx-werkzeug-lauf.log" | sed 's/^/  /' |
+        tee -a "$report"; then
+        say "FEHLER: GX-Bilder (Log: gx-werkzeug-lauf.log)"
+        overall=1
+    fi
+    grep -i "shader failed" -A 3 "$run/gx-werkzeug-lauf.log" 2> /dev/null | head -20 | sed 's/^/  /' | tee -a "$report"
+    ppm_to_png "$pics"
+    rm -rf "$dump"  # large; the pictures stay
+    say "GX-Bilder: $(ls "$pics"/*.png 2> /dev/null | wc -l) PNG-Dateien im Ordner bilder-gx (bitte mitschicken)"
 }
 
 if [ "$game_ok" -eq 1 ]; then
     # limits in seconds: overall, until the main loop, without a new frame
     run_game i686 "${RE4_CHECK_LIMIT:-3600}" "${RE4_CHECK_MAIN_LIMIT:-600}" "${RE4_CHECK_STALL:-180}"
     render_pictures
+    render_gx_pictures
     [ "$arm" -eq 1 ] && run_game armhf 14400 5400 600
 fi
 

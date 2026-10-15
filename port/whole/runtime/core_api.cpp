@@ -8,6 +8,7 @@
 // in another, the reader holds the third, so neither side ever waits for the
 // other's work and a reader never sees a half-written frame.
 #include "re4_core.h"
+#include "re4_gx_frame_io.h"
 #include "re4_runtime.h"
 
 #include <dlfcn.h>
@@ -210,6 +211,67 @@ void snapshotHook(unsigned frame)
     }
 }
 
+// RE4_GX_DUMP=DIR (Linux checks with disc data): chosen frames as the GX
+// renderer of the app gets them (DIR/gx-<frame>.bin, re4_gx_frame_io.h): some
+// frames of the start (logos, title), the room schedule of the snapshots and
+// every 2500 frames, at most 24. The hook takes chunks only around those
+// frames: the first chunk after attaching starts over (RESET), so each file
+// holds the whole state and its textures. The app's host tool
+// gx_chunk_render draws them (pictures in the report).
+char gGxDir[1024];
+unsigned gGxCount;
+bool gGxAttached;
+
+bool gxWanted(unsigned frame)
+{
+    static const unsigned kEarly[] = {60, 300, 600, 900, 1200, 1500, 1800, 2400};
+    for (unsigned f : kEarly) {
+        if (frame == f) {
+            return true;
+        }
+    }
+    if (frame % 2500 == 0) {
+        return true;
+    }
+    if (gSnapFirst >= 0) {
+        for (unsigned after : kSnapAfterStart) {
+            if (frame == (unsigned) gSnapFirst + after) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void gxDumpHook(unsigned frame)
+{
+    if (gGxAttached) {
+        if (const Re4GxChunk* c = re4_core_gx_acquire()) {
+            if (c->flags & RE4_GX_CHUNK_RESET) {
+                char path[1100];
+                snprintf(path, sizeof(path), "%s/gx-%06u.bin", gGxDir, frame);
+                if (FILE* f = fopen(path, "wb")) {
+                    bool ok = re4gxio::Write(f, *c, frame);
+                    fclose(f);
+                    if (ok) {
+                        gGxCount++;
+                        re4_log("core: GX frame %s (%u draws, %u vertices, %u texture bytes)", path,
+                                (unsigned) c->draws, (unsigned) c->vertexCount, (unsigned) c->textureBytes);
+                    }
+                }
+            }
+            re4_core_gx_release(c);
+            re4_core_gx_detach();
+            gGxAttached = false;
+        }
+        return;
+    }
+    if (gGxCount < 24 && gxWanted(frame + 1)) {
+        re4_core_gx_acquire();  // attaches; the chunk after the next display copy starts over
+        gGxAttached = true;
+    }
+}
+
 struct DumpInstall {
     DumpInstall()
     {
@@ -224,6 +286,11 @@ struct DumpInstall {
         if (dir && *dir) {
             snprintf(gSnapDir, sizeof(gSnapDir), "%s", dir);
             re4_add_frame_hook(snapshotHook);
+        }
+        const char* gx = getenv("RE4_GX_DUMP");
+        if (gx && *gx) {
+            snprintf(gGxDir, sizeof(gGxDir), "%s", gx);
+            re4_add_frame_hook(gxDumpHook);
         }
     }
 } gDumpInstall;

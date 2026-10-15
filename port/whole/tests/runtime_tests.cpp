@@ -23,6 +23,7 @@
 //          through PADRead, and the coverage log of GetDataExt (patch 0025)
 //   tasks  the game's own task scheduler (scheduler.cpp: TaskExec, TaskSleep,
 //          TaskExit, iTaskExec) on the OS thread emulation, plus VI retraces
+#include "re4_gx_frame.h"
 #include "re4_runtime.h"
 #include "re4_ppc.h"
 #include "re4/port/sha256.h"
@@ -34,6 +35,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <atomic>
+#include <chrono>
+#include <thread>
 #include <string>
 #include <vector>
 
@@ -693,6 +698,7 @@ static void testStream()
 
 extern "C" int re4probe_gx_test(void* fifo, void* list);
 extern "C" int re4probe_gx_frame_test(void* fifo, void* mem);
+extern "C" void re4probe_gx_produce(void* fifo, void* xfb, int frames, int init);
 
 // The SDK's GX library and the game's inline vertex functions feed the port's
 // GX FIFO (runtime/gx_fifo.cpp, tests/gx_probe.cpp). The FIFO and the display
@@ -713,6 +719,61 @@ static void testGx()
         re4_log("  gx frame checks failed: 0x%x", failed);
     }
     CHECK(failed == 0);
+    // the queue between the game thread and a renderer thread: 60 frames
+    // arrive in order (the first starts over), none dropped; a renderer that
+    // stops taking chunks does not hold the game up for long (the queue is
+    // dropped after a second), and the next chunk it takes starts over
+    {
+        void* xfb = (void*) (unsigned long) 0x82830000u;
+        std::atomic<bool> stop(false);
+        std::atomic<int> received(0), outOfOrder(0), resets(0);
+        re4_core_gx_acquire();  // attach
+        re4probe_gx_produce(fifo, xfb, 1, 1);  // the boundary where recording starts
+        std::thread renderer([&] {
+            unsigned last = 0;
+            while (!stop.load() && received.load() < 60) {
+                const Re4GxChunk* c = re4_core_gx_acquire();
+                if (!c) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                    continue;
+                }
+                if (last && c->sequence != last + 1) {
+                    outOfOrder++;
+                }
+                if (c->flags & RE4_GX_CHUNK_RESET) {
+                    resets++;
+                }
+                last = c->sequence;
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));  // a slow renderer
+                re4_core_gx_release(c);
+                received++;
+            }
+        });
+        re4probe_gx_produce(fifo, xfb, 60, 0);
+        renderer.join();
+        CHECK(received.load() == 60 && outOfOrder.load() == 0 && resets.load() == 1);
+        // nobody takes chunks now: the producer must not wait for ever
+        auto t0 = std::chrono::steady_clock::now();
+        re4probe_gx_produce(fifo, xfb, 12, 0);
+        double waited = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        CHECK(waited < 3.0);
+        const Re4GxChunk* first = 0;
+        for (int i = 0; i < 4 && !first; i++) {  // attach again; the next chunk starts over
+            first = re4_core_gx_acquire();
+            if (!first) {
+                re4probe_gx_produce(fifo, xfb, 1, 0);
+            }
+        }
+        CHECK(first && (first->flags & RE4_GX_CHUNK_RESET));
+        if (first) {
+            re4_core_gx_release(first);
+        }
+        re4_core_gx_detach();
+        if (received.load() != 60 || outOfOrder.load() || resets.load() != 1 || waited >= 3.0) {
+            re4_log("  gx queue: %d received, %d out of order, %d resets, %.2f s waited", received.load(),
+                    outOfOrder.load(), resets.load(), waited);
+        }
+    }
     report("gx", ok);
 }
 

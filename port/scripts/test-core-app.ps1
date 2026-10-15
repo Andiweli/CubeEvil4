@@ -30,6 +30,10 @@ steuert. Den Vorfilm ueberspringt der Kern noch (Filme: Meilenstein 9).
 -StartRoom 100 springt direkt nach r100 (nur die kurze Ankunft). -Manual
 startet ohne Tastenfolge (Titelbild, du spielst selbst).
 
+Die App zeigt, was das Spiel selbst zeichnet (GX-Nachbildung: Logos, Titel,
+Menues, Anzeigen, Effekte). -Bridge zeigt zum Vergleich die fruehere Ansicht
+(der Spielzustand, von der App selbst gezeichnet).
+
 Ergebnis in -OutDir (Standard: Desktop\RE4-Kern-App): bericht.txt, logcat.txt,
 bild-*.png, kern-build.log, apk-build.log. Bitte bericht.txt und die Bilder schicken.
 
@@ -57,7 +61,8 @@ param(
     [string]$Distro = '',
     [string]$JavaHome = '',
     [int]$ImportMinutes = 45,
-    [string]$StartRoom = '120'
+    [string]$StartRoom = '120',
+    [switch]$Bridge
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -209,6 +214,10 @@ if (-not $Manual) {
     # the timing of the PC check (port/tools/whole_r100_check.sh)
     $settings = "RE4_START_ROOM=0x$StartRoom;RE4_PAD_UNTIL_ROOM=1;RE4_PAD_SCRIPT=UP@100-60000/60 A@115-60000/60 START@130-60000/60"
 }
+if ($Bridge) {
+    # the earlier view: the core's state drawn by the app's own renderer
+    $settings = if ($settings) { "$settings;RE4_VIEW=bridge" } else { 'RE4_VIEW=bridge' }
+}
 . (Join-Path $PSScriptRoot 'Retroid-Adb-Exclusive.ps1')
 Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     if ((& $Adb -s $Serial get-state) -ne 'device' -or $LASTEXITCODE -ne 0) {
@@ -310,6 +319,15 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # moment the player is free (no event, no sub screen for 300 frames)
     $free = $keep | Where-Object { $_ -match 'run: player free' } | Select-Object -First 1
     Say "Intro und Funkspruch beendet:     $(if ($free) { 'ja (' + (($free -split 'run: ')[-1]) + ')' } else { 'NEIN (Spieler nie frei)' })"
+    # the view: GX emulation (what the game draws) or the bridge
+    $view = $keep | Where-Object { $_ -match 'RE4Core.*view: ' } | Select-Object -First 1
+    Say "Ansicht:                          $(if ($view) { ($view -split 'view: ')[-1] } else { '?' })"
+    $gxReady = $keep | Where-Object { $_ -match 'GX renderer (ready|:)' } | Select-Object -First 1
+    if ($gxReady) { Say "GX-Renderer:                      $(($gxReady -split 'RE4Core\s*:\s*')[-1])" }
+    $gxStats = $keep | Where-Object { $_ -match 'RE4Core.*GX: \d+ chunks' } | Select-Object -Last 1
+    if ($gxStats) { Say "GX zuletzt:                       $(($gxStats -split 'GX: ')[-1])" }
+    $shaderFail = @($keep | Where-Object { $_ -match 'RE4GX.*shader failed' })
+    if ($shaderFail.Count) { Say "GX-Shader-FEHLER:                 $($shaderFail.Count) (Ausschnitt in logcat.txt)" }
     $presses = @($keep | Where-Object { $_ -match 're4\s*: pad: frame' })
     Say "Tastendruecke im Kern angekommen: $($presses.Count)"
     if (Has 'Fatal signal|FATAL EXCEPTION|SIGSEGV|SIGABRT') {
