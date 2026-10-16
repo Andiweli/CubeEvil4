@@ -21,6 +21,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
 | Reihenfolge | Entscheidung des Projektinhabers (16.10.2026): erst M9 Videos und M10 Speichern/Laden, danach der Raum-Rundgang (10b) |
+| Geplant für M11 | Entscheidung des Projektinhabers (17.10.2026): Karten-Import/Export (`.gci`) in einem App-Menü, das SELECT nach einer Sekunde Halten öffnet („M10 Speichern/Laden“, letzter Abschnitt). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -1837,9 +1838,11 @@ Offen, mitgenommen in die nächsten Meilensteine:
   behoben (vierzehnter Gerätelauf), Gerätetest steht aus.
 - Flackern im Untermenü „FILES“ laut Projektinhaber; in den R3-Folgen und
   Bildschirmfotos nicht zu sehen (Beschreibung oder Video fehlt).
-- Baum-Kollision in r100 (G17), Titel: START zweimal / Logo verblasst (G14),
-  Leon kurz unsichtbar beim Szenenwechsel (G12): beim nächsten Gerätelauf
-  prüfen, ob noch vorhanden.
+- Titel: START zweimal / Logo verblasst (G14), Leon kurz unsichtbar beim
+  Szenenwechsel (G12): beim nächsten Gerätelauf prüfen, ob noch vorhanden.
+- Baum-Kollision in r100 (G17, Leon läuft in einen dünnen Baumstamm):
+  **gestrichen**, wird nach Entscheidung des Projektinhabers (17.10.2026)
+  nicht weiter verfolgt.
 - 60 Bilder/s und Grafikoptionen: Meilenstein 11.
 
 ### Werkzeuge zur Fehlersuche auf dem Gerät (Stand 16.10.2026)
@@ -2659,10 +2662,36 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
   Formatieren (nur noch für kaputte Karten), Speichern an der
   Schreibmaschine, Laden im Titel und im Pausemenü, Systemdaten über einen
   Neustart, Spielstände mit Banner und Symbol.
-- **Offen / nicht nachgebildet:** `.gci`-Import/Export (eigener Schritt bei
-  Bedarf), Schacht B, Karte während des Spiels wechseln, `OSResetSystem`
+- **Offen / nicht nachgebildet:** `.gci`-Import/Export (geplant für M11,
+  siehe unten), Schacht B, Karte während des Spiels wechseln, `OSResetSystem`
   (Neustart-Angebot bei „kein Platz“; bei 251 freien Blöcken nicht zu
   erreichen).
+
+### Entscheidung des Projektinhabers (17.10.2026): Karten-Import/Export im SELECT-Menü
+
+Der Import und Export von Spielständen (`.gci`, eine Datei je Spielstand
+wie bei Dolphin) kommt in ein **Menü der App, das sich öffnet, wenn man
+SELECT eine Sekunde lang hält** (wie im früheren Android-Port des
+Projektinhabers). Eingeplant für **M11 Android-Feinschliff**; das Menü kann
+dort auch die Grafikoptionen aufnehmen. Hinweise für die Umsetzung:
+
+- SELECT ist keine GameCube-Taste, das Spiel braucht sie nicht. Im
+  Kernmodus schaltet SELECT heute die Diagnose-Anzeige
+  (`CoreInput.java`, `APP_OVERLAY`); kurzes Drücken kann das weiter tun,
+  langes Halten öffnet das Menü. Vorbild für Menüs mit Controller-Bedienung:
+  `CheatDialog.java`/`GameScreenDialog.java` (ARM64-Modus, dort öffnet
+  SELECT das Cheat-Menü sofort, `ControllerActivity.java` „1 << 7“).
+- Die Kartendatei liegt in der Byte-Reihenfolge des Geräts (Entscheidung
+  16.10.2026). Für den Austausch mit Dolphin oder einer echten GameCube-Karte
+  muss der Umwandler die Karten-Strukturen (Verzeichniseintrag) **und** den
+  Inhalt der Spielstände (`bh4_system`, `bh4_dataNN`, Aufbau in
+  `src/game/card.cpp`, CRCs neu rechnen) in GameCube-Reihenfolge bringen.
+  `port/tools/memcard_list.py` kennt die Felder schon. Zu Beginn von M11
+  klären: nur Sicherung zwischen Geräten mit dem Port oder auch Austausch mit
+  Dolphin/GameCube.
+- Vorschlag (noch nicht gebaut): Während das Menü offen ist, hält der Kern
+  an; ein Import schreibt nur, wenn kein Kartenzugriff des Spiels läuft, und
+  das Spiel liest die Karte bei der nächsten Prüfung neu (Lade-Bildschirm).
 
 **Nicht geprüft (Stand des Abschnitts „Prüfungen (Cloud)“):** die PC-Prüfung mit Disc-Daten
 (Abschnitt 7: die Bildschirme des Spiels beim Speichern und Laden, das

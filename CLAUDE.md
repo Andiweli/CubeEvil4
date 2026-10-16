@@ -126,7 +126,9 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
 10b. Raum-Rundgang: viele Räume per Raumauswahl anspielen, Abstürze und
    Grafikfehler sammeln (Entscheidung des Projektinhabers, 16.10.2026: nach
    Ton, Videos und Speichern/Laden)
-11. Android-Feinschliff: Grafikoptionen (`port/docs/graphics-settings.md`), Leistung
+11. Android-Feinschliff: Grafikoptionen (`port/docs/graphics-settings.md`), Leistung,
+   App-Menü über SELECT (1 Sekunde halten) mit Speicherkarten-Import/Export `.gci`
+   (Entscheidung des Projektinhabers, 17.10.2026)
 12. ARM64: Zeiger-Kürzungen beheben
 
 ## Git
