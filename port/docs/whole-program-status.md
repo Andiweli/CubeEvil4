@@ -17,6 +17,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | K2 „Kern in die App“ (M6) | ✅ 16.10.2026 (Retroid): ARM32-App mit den Kern-Bibliotheken, Titel, r100, r101, Untermenüs und Karte spielbar; Abschluss und offene Punkte: „Abschluss M6/M6b“ |
 | M6b GX nachbilden (`gx-plan.md`) | ✅ 16.10.2026 (Retroid): das Bild kommt aus der GX-Nachbildung (Logos, Titel, Räume, Figuren, Effekte, Menüs, Anzeigen); r100 und r101 flüssig bei etwa 1080p (`-Scale 3`) |
 | M7 Steuerung | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m7-steuerung`): alle Tasten, Sticks und L2/R2 kommen als GameCube-Controller an (Original-`PADClamp`, Belegung nach Beschriftung), Menüs bedienbar, Vibration spürbar; Touch später („M7 Steuerung“) |
+| M8 Audio | 🔶 16.10.2026: Cloud-Teil (Branch `claude/re4-m8-audio`): SDK-Ton unverändert auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; Gerätetest steht aus („M8 Audio“) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -2009,6 +2010,109 @@ Vibration funktioniert.
   Beanstandung), R3 in diesem Lauf (unverändert), der Tausch-Schalter.
 - „Räume aufgebaut: keiner“ im Bericht betrifft nur die frühere Brücken-Ansicht
   (`-Bridge`), nicht die GX-Ansicht.
+
+## M8 Audio
+
+### Bestandsaufnahme (16.10.2026, Cloud)
+
+- **Vorher:** `runtime/ax.cpp` (K2) bildete die AX-Bibliothek selbst nach
+  (Stimmen-Vergabe, Setter, Abspielposition je Audio-Rahmen) und erzeugte
+  keine Töne; MIX, SYN, SEQ, AXART, AXFX, AI und ADX waren Platzhalter
+  (Gerätelauf M7: 30 Platzhalter aufgerufen, u. a. `AXARTInit`, `MIXInit`,
+  `SYNInit`, `SEQRunAudioFrame`, `AXFXReverbHiInit`, `AIInit`).
+- **Tontreiber des Spiels** (`snd_*.cpp`, Capcom): `AIInit`, `AXInitEx(1)`
+  (Dreifachpuffer), `MIXInit`, `AXARTInit`, `SYNInit`, `SEQInit`,
+  `AXSetCompressor(1)`, `AXSetMode` 0 (Stereo) oder 2 (DPL2) je nach Option;
+  Stimmen über AX und MIX (Lautstärke, Pan, Surround-Pan, Aux A/B), Musik über
+  SYN/SEQ (MIDI mit Wavetables im ARAM), Streams (Sprache, Funk, Musik) als
+  ADPCM-Stimmen über einen ARAM-Ring, den `snd_str*.cpp` per DVD/ARQ nachlädt;
+  Effekte auf den Aux-Bussen (`snd_efx.cpp`: ReverbHi, ReverbStd, Chorus,
+  Delay, ReverbHiDpl2). Scheitert ein `AXFX…Init`, hängt das Spiel keinen
+  Effekt ein (trockener Ton).
+- **ADX** (CRI) nutzt das Spiel nur für Filme (`sofdec.cpp`, ADXT mono) und
+  die DVD-Hilfe `ADXM_ExecMain`: gehört zu M9.
+- **SDK-Quellen** in `src/lib`: AX, MIX, SYN, SEQ, AXART reines C; die
+  Effekte haben Gekko-Assembler (`reverb_hi.c` DoCrossTalk/HandleReverb,
+  `reverb_std.c` HandleReverb, `reverb_hi_4ch.c` HandleReverbDpl2,
+  `chorus.c` do_src1/do_src2). Der DSP-Microcode (`DSPCode.c`) ist
+  DSP-Maschinencode.
+- **App:** Die bisherige App (classic) spielt eigene Mischungen über
+  `GameAudio.java` (AudioTrack 48 kHz); im Kernmodus gab es keine
+  Tonausgabe.
+
+### Umsetzung (16.10.2026, Cloud)
+
+- **SDK unverändert mitkompiliert:** AX, AXAlloc, AXAux, AXCL, AXComp,
+  AXOut, AXProf, AXSPB, AXVPB, DSPCode, mix, syn*, seq, axart*, axfx, delay,
+  chorus, reverb_hi, reverb_hi_4ch, reverb_std (`CMakeLists.txt`,
+  `RE4_SDK_UNITS`). `runtime/ax.cpp` entfällt. Platzhalter 76 → 27 (Ton nur
+  noch ADX, M9).
+- **`runtime/dsp.cpp` – der DSP mit dem AX-Microcode:** `DSPAddTask` bootet
+  sofort (init-Rückruf), Post 0xBABE0180 + Adresse der Befehlsliste
+  (`AXCL.c __AXNextFrame`) führt die Liste aus, danach der resume-Rückruf wie
+  beim DSP-Interrupt. Befehle: 0x00 Studio (Startwerte der neun Mischpuffer
+  mit den Entknack-Rampen aus `AXSPB.c`; das SDK schreibt jeden Startwert als
+  ein 32-bit-Wort über Hi/Lo, so wird er gelesen), 0x07/0x11 Surround des
+  letzten Blocks in links/rechts (gleich-/gegenphasig), 0x02/0x03 alle
+  Stimmen der PB-Liste je Millisekunde (PB-Updates, Lesen aus dem ARAM:
+  DSP-ADPCM mit Rahmenkopf, PCM16 big-endian, PCM8; Ende: Schleife mit dem
+  ADPCM-Schleifenkontext, Streams (`type` 1) behalten ihre Historie, sonst
+  Stopp am Endpunkt; Abtastraten-Umsetzung: keine / linear / statt der
+  ROM-Polyphasenfilter eine 4-Punkt-Kubik; Hüllkurve `ve`, Tiefpass,
+  Mischen in L/R/S, Aux A L/R/S, Aux B L/R/S mit Rampen nach `mixerCtrl`,
+  Entknack-Werte `dpop`), 0x04/0x05 Aux-Bus zum CPU-Effekt und dessen
+  Ergebnis von vor zwei Blöcken in die Hauptmischung, 0x13/0x10 DPL2 auf
+  Stereo heruntergemischt, 0x12 Kompressor (nicht nachgebildet, wie bei
+  Dolphin), 0x0E Ausgabe (Surround an die CPU, links/rechts 16 bit,
+  rechts zuerst). Nicht nachgebildet: ITD (`AXSetVoiceItdOn`), Kompressor,
+  die exakten Polyphasen-Koeffizienten (liegen im DSP-ROM, nicht auf der
+  Disc). Eine endende Stimme verliert die letzten 1–2 Abtastwerte, die noch
+  in der Umsetzung stecken.
+- **`runtime/ai.cpp` – AI und Tonausgabe:** 200 Blöcke je Sekunde Spielzeit
+  mit den VI-Halbbildern (vorher `re4_ax_field`, jetzt `re4_ai_field`), je
+  Block der gerade gestartete in einen Ring (512 ms), dann der
+  DMA-Rückruf (AXOut: der DSP mischt den nächsten, der Audio-Rahmen des
+  Spiels). `AIReset` setzt wie im SDK nur das Init-Kennzeichen. Leser für die
+  App (`re4_audio_read`): hält etwa 60 ms im Ring, passt die Rate um höchstens
+  0,5 % an (Drift zwischen Spiel- und Geräteuhr, Schübe der
+  Halbbild-Zustellung), springt nach einer Pause der App vor. Protokoll alle
+  10 s „audio: … blocks, … ms waiting, … lost, … ran dry, … skips; DSP …
+  lists, … voices“ („ran dry“ zählt Aussetzer, nicht das Warten auf den
+  ersten Ton). `RE4_AUDIO_WAV=datei` schreibt den Ton zusätzlich als WAV
+  (32 kHz stereo), `RE4_AUDIO_WAV_SECONDS=N` begrenzt auf N s.
+- **Patch 0047 `axfx-asm-in-c`:** C-Fassungen der fünf Assembler-Funktionen
+  (gleiche Schritte, gleiche Reihenfolge, einfache Genauigkeit; `fctiwz` =
+  abschneiden, `fctiw` = runden) und das fehlende `return` in
+  `AXFXDelayInit` (der Gekko gab in r3 das Ergebnis von `AXFXDelaySettings`
+  zurück, das Spiel prüft es). Gefunden beim Übersetzen: Im Original speichert
+  `HandleReverb` des hohen Halls (auch der DPL2-Fassung) den weitergerückten
+  Zeiger der Vorverzögerung nicht in `preDelayPtr`, sondern in die
+  Verzögerungsleitung selbst (Byte 0x1B8); die Vorverzögerung wirkt deshalb
+  nur einen Abtastwert lang. Die C-Fassung tut dasselbe (ohne den
+  Streu-Schreibzugriff), damit es klingt wie auf dem GameCube.
+- **App:** `CoreAudio.java` (eigener Thread, AudioTrack 32 kHz stereo,
+  256 Frames je Schreibvorgang; Lautstärketasten = Spiellautstärke),
+  gestartet in `onResume`, gestoppt in `onPause`; `CoreBridge.audio` →
+  `re4_core_audio` (API-Version 10); Overlay-Zeile „sound: …“; Protokoll
+  `RE4Audio`.
+- **Prüfskripte:** `whole_r100_check.sh` (PC mit Disc-Daten) nimmt die ersten
+  240 s Spielzeit als `ton-<ziel>.wav` auf und zeigt Pegel je 10 s
+  (`port/tools/audio_wav_report.py`); `test-core-app.ps1` meldet die
+  Tonzähler und die Tonausgabe, `-AudioWav N` nimmt N s auf dem Gerät auf
+  (`ton.wav`, bis 12 MB in `senden.zip`).
+
+### Prüfungen (Cloud, 16.10.2026)
+
+| Prüfung | Ergebnis |
+|---|---|
+| Kern-Test „ax“: SDK-Stimmen-Vergabe; PCM16 1:1 nach links voll, rechts halb, Stopp am Ende; DSP-ADPCM (drei Rahmen, eigene Köpfe) bitgenau gegen die dokumentierte Formel; Schleife; Rate 0,5 linear = 80 Abtastwerte je Block; Hüllkurve; Aux A über einen CPU-Effekt zurück in die Hauptmischung; Leser der App; AI-Takt 200 Blöcke je 60 Halbbilder | bestanden |
+| Kern-Test „axfx“: hoher Hall (Übersprechen 8500/1500, trockener Anteil sofort, kein Hall vor dem kürzesten Kamm, abklingender Nachhall, Surround still), normaler Hall mit 10 ms Vorverzögerung, Chorus auf Sinus, Delay 50 ms = 9 Blöcke | bestanden |
+| Laufzeittest „stream“ (Streamcode des Spiels über das echte AX und den DSP-Nachbau) | bestanden |
+| `whole_build.sh` i686 und armhf (qemu), normal und `RE4_OPT=2` | grün, 27 Platzhalter |
+| native App-Bibliothek (`re4decomp_link_check`), Java gegen nachgebildete Android-Klassen | linkt, 11 JNI-Namen passen; übersetzt |
+
+Nicht geprüft: Ton mit echten Disc-Daten (PC-Prüfung oder Gerät), Klang,
+Lautstärke, Latenz, Rechenzeit auf dem Retroid.
 
 ## Aufbau
 
