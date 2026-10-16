@@ -205,6 +205,7 @@ unsigned int re4_gx_physical(const void* pointer);
 void re4_gx_host_order_list(const void* list, unsigned int size);
 void VISetNextFrameBuffer(void* fb);
 void VIFlush(void);
+void VISetBlack(int black);
 }
 
 namespace {
@@ -584,6 +585,28 @@ extern "C" int re4probe_gx_frame_test(void* fifo, void* mem)
     }
     if (c4) {
         re4_core_gx_release(c4);
+    }
+    // VISetBlack (applied with VIFlush): the picture is run but shown black,
+    // until the black is lifted
+    VISetBlack(1);
+    triangle();
+    copyDisp(xfb);
+    const Re4GxChunk* c5 = re4_core_gx_acquire();
+    if (!c5 || c5->flags != (RE4_GX_CHUNK_XFB | RE4_GX_CHUNK_BLACK)) {
+        failed |= 0x4000;
+    }
+    if (c5) {
+        re4_core_gx_release(c5);
+    }
+    VISetBlack(0);
+    triangle();
+    copyDisp(xfb);
+    const Re4GxChunk* c6 = re4_core_gx_acquire();
+    if (!c6 || c6->flags != RE4_GX_CHUNK_XFB) {
+        failed |= 0x4000;
+    }
+    if (c6) {
+        re4_core_gx_release(c6);
     }
     re4_core_gx_detach();
     copyDisp(xfb);  // no renderer: nothing is built

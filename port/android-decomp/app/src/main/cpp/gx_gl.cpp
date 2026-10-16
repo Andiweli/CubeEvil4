@@ -216,6 +216,7 @@ struct GxRenderer::Impl {
   unsigned xfbWidth = 0, xfbHeight = 0;
   bool haveXfb = false;
   bool holdXfb = false;  // this chunk's display copy is not shown (RE4_GX_CHUNK_HOLD)
+  bool viBlack = false;  // the VI shows black (RE4_GX_CHUNK_BLACK, VISetBlack): Present draws black
   GLuint vao = 0, vbo = 0, ibo = 0;
   GLuint xfUbo = 0, pxUbo = 0;
   GLuint copyProgram = 0, presentProgram = 0, paletteProgram = 0;
@@ -1551,6 +1552,8 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
   m.stats.chunks++;
   m.Touched();
   m.holdXfb = (chunk.flags & RE4_GX_CHUNK_HOLD) != 0;
+  if (chunk.flags & RE4_GX_CHUNK_XFB)
+    m.viBlack = (chunk.flags & RE4_GX_CHUNK_BLACK) != 0;
   if (chunk.flags & RE4_GX_CHUNK_RESET) {
     m.stats.resets++;
     m.DropTextures();
@@ -1652,6 +1655,16 @@ bool GxRenderer::Present(int x, int y, int w, int h, unsigned top, unsigned rows
   if (!m.haveXfb)
     return false;
   m.SaveAndPlainState();
+  if (m.viBlack) {
+    // VISetBlack: the GameCube's video output is black, whatever the XFB holds
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(x, y, w, h);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDisable(GL_SCISSOR_TEST);
+    m.Touched();
+    return true;
+  }
   glViewport(x, y, w, h);
   glUseProgram(m.presentProgram);
   const float lines = static_cast<float>(m.xfbHeight ? m.xfbHeight : 1);

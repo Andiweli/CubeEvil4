@@ -111,6 +111,9 @@ void re4_gx_deliver_interrupts(void);
  * copy into an XFB the VI does not switch to is held (RE4_GX_CHUNK_HOLD). */
 void re4_gx_vi_next(const void* fb);
 void re4_gx_vi_flush(void);
+/* VISetBlack, applied with VIFlush (vi.cpp): the chunks are shown black
+ * (RE4_GX_CHUNK_BLACK) while it holds. */
+void re4_gx_vi_black(int black);
 /* Completions (DVD reads, ARAM DMAs) started inside an interrupt handler run
  * when the handler has returned: re4_os_defer queues one (0 when the queue is
  * full: complete at once), re4_os_deferred_set changes the value of a queued

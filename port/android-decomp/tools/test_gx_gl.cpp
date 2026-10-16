@@ -27,6 +27,7 @@
 #include <cstring>
 #include <random>
 #include <string>
+#include <array>
 #include <vector>
 
 namespace {
@@ -384,6 +385,47 @@ void TestBasics(re4gx::GxRenderer &r) {
   Check(Near(TexPixel(r.Xfb(nullptr, nullptr), 50, 40), 0, 255, 0) && r.Stats().heldCopies == 1,
         "held picture: the XFB keeps the picture before");
   Check(Near(EfbPixel(r, 50, 40), 0, 0, 0), "held picture: the display copy still clears the EFB");
+
+  // VISetBlack (RE4_GX_CHUNK_BLACK): the chunk runs, the screen shows black
+  // until a chunk without the flag
+  {
+    GLuint tex = 0, fbo = 0;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glGenFramebuffers(1, &fbo);
+    auto shown = [&](re4gx::GxRenderer &rr) {
+      glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+      glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+      glClear(GL_COLOR_BUFFER_BIT);
+      rr.Present(0, 0, 64, 64);
+      glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+      std::uint8_t px[4] = {0, 0, 0, 0};
+      glReadPixels(5, 58, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);  // near the top left: the green quad
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
+      return std::array<int, 3>{px[0], px[1], px[2]};
+    };
+    for (int black = 1; black >= 0; black--) {
+      Builder b;
+      Baseline(b);
+      b.flags |= RE4_GX_CHUNK_XFB | (black ? RE4_GX_CHUNK_BLACK : 0);
+      Quad(b, 0, 0, 640, 448, 0, kGreen);
+      DisplayCopy(b, true, kBlack);
+      r.Run(b.Chunk());
+      auto px = shown(r);
+      if (black) {
+        Check(px[0] == 0 && px[1] == 0 && px[2] == 0, "VISetBlack: the screen shows black");
+        Check(Near(TexPixel(r.Xfb(nullptr, nullptr), 50, 40), 0, 255, 0), "VISetBlack: the XFB holds the picture");
+      } else {
+        Check(px[1] > 200 && px[0] < 40, "black lifted: the picture shows again");
+      }
+      if ((black && (px[0] || px[1] || px[2])) || (!black && px[1] <= 200))
+        std::fprintf(stderr, "  shown: %d %d %d\n", px[0], px[1], px[2]);
+    }
+    glDeleteFramebuffers(1, &fbo);
+    glDeleteTextures(1, &tex);
+  }
 
   // culling: hardware mode 1 culls back faces; GX front faces are clockwise
   // on screen (y down)

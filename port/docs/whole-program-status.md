@@ -18,7 +18,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M6b GX nachbilden (`gx-plan.md`) | ✅ 16.10.2026 (Retroid): das Bild kommt aus der GX-Nachbildung (Logos, Titel, Räume, Figuren, Effekte, Menüs, Anzeigen); r100 und r101 flüssig bei etwa 1080p (`-Scale 3`) |
 | M7 Steuerung | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m7-steuerung`): alle Tasten, Sticks und L2/R2 kommen als GameCube-Controller an (Original-`PADClamp`, Belegung nach Beschriftung), Menüs bedienbar, Vibration spürbar; Touch später („M7 Steuerung“) |
 | M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Gerätelauf von M9 („M8 Audio“) |
-| M9 Videos | Cloud-Teil fertig (16.10.2026, Branch `claude/re4-m9-videos`): die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib` mitkompiliert, `runtime/movie.cpp` entfällt; ein synthetischer Film läuft im Test mit Bild, Stereo-Ton, Takt und Ende (i686, armhf, `-O2`), die Farben über die GX-Nachbildung stimmen; Helligkeits-Option wirkt. Gerätetest (16.10.2026): Vorfilm, Demo-Film mit Ton und Abbruch mit START laufen; PC-Prüfung: alle 13 Filme der Discs ganz ohne Fehler. Danach behoben, **noch nicht auf dem Gerät geprüft:** abgebrochene Töne (SYN, Patch 0056), Ruckler (Bildtakt an den Bildschirm-Vsync gekoppelt) („M9 Videos“) |
+| M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
 | Reihenfolge | Entscheidung des Projektinhabers (16.10.2026): erst M9 Videos und M10 Speichern/Laden, danach der Raum-Rundgang (10b) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -2337,6 +2337,46 @@ Geräts es gezeichnet hat (`gx-geraet-NN-KK.bmp` in `gx-geraet.zip`, auch über
 `pull-gx-dumps.ps1`); der Vergleich mit dem Cloud-Bild derselben Daten zeigt
 dann, welche Zeichnung abweicht.
 
+### Zweiter Gerätelauf mit Filmen (16.10.2026, Stand `6c2e7d9`): M9 erreicht
+
+- **Test A** (r120, `-Seconds 480 -Scale 3`): Vorfilm ganz (76,0 s, 2278
+  Bilder, 0 ausgelassen), laut Projektinhaber **ohne Ruckler**. Je 5 s genau
+  300 Schritte (der Takt folgt dem 60-Hz-Bildschirm), Ton 2000 Blöcke je
+  9,99 s statt 10,0 s (0,1 % schneller, wie erwartet), „ran dry“ 19 statt 49.
+  **Abgebrochene Töne: 0**, höchste AX-Schätzung 108 746 von 1 620 000 Takten
+  (vorher 3,7 Milliarden). In r100 Kern 33,3 ms je Bild, 0 ms Warten auf den
+  Renderer, 60 gezeigt je Sekunde; die R3-Folge im FILES-Menü kostete kurz
+  Zeit (Renderer höchstens 843 ms beim Speichern der Bilder).
+- **Test B** (`-Manual`): Demo-Film nach etwa 15 s mit Ton, Abbruch mit START,
+  **Helligkeitsregler wirkt** (heller und dunkler). Gemeldet: Vor dem
+  Demo-Film blendet der Titel aus, erscheint für einen Bruchteil einer Sekunde
+  noch einmal, dann kommt der Film.
+- **Titel blitzt vor dem Film auf → `VISetBlack`:** `title.cpp` schaltet vor
+  dem Film mit `systemVISetBlack(1)` den Videoausgang schwarz und nimmt die
+  Blende weg (`FadeKill`); der Film hebt das Schwarz mit seinem ersten Bild auf
+  (`cSofdec::draw`). Im Port tat `VISetBlack` nichts, also war das eine Bild
+  des Titels ohne Blende zu sehen. Jetzt gilt es ab dem nächsten `VIFlush`
+  wie auf dem GameCube (`vi.cpp`); die Bildstücke tragen
+  `RE4_GX_CHUNK_BLACK`, und der Renderer zeigt dann Schwarz (`gx_gl.cpp
+  Present`), das Bild selbst wird weiter gezeichnet. Betrifft auch Raumwechsel
+  und Filmende. Tests: `gx_probe` (Kennung gesetzt und wieder weg),
+  `gx_gl_check` (schwarz gezeigt, danach wieder das Bild; ohne die Änderung
+  schlägt der Test fehl). Auf dem Gerät noch nicht geprüft.
+- **FILES-Flackern ist Filmkorn des Originals:** Die R3-Folge (12 Bilder,
+  gx-geraet-00-00 bis -11) zeigt das Flackern auf dem Gerät **und** in der
+  Cloud gleich (Bildpunkte im Rahmen der Dateiliste wechseln mit Periode 2,
+  z. B. 93 ↔ 86; Gerät gegen Cloud im Mittel 0,2 Stufen Abweichung). Die
+  Bildstücke unterscheiden sich in Zeichnung 7 und 15: Textur 0 ist abwechselnd
+  0x721c60 und 0x719060, zwei I4-Texturen 320 × 224 mit Zufallsrauschen (zwei
+  Bilder einer Texturanimation hintereinander in einer Datei). Die
+  Texturanimation des ID-Systems (`id_sys.cpp idSysMove04`) schaltet jedes Bild
+  eine Textur weiter, hier zwischen den beiden. Das ist der Körnungseffekt des
+  Menüs, auf dem GameCube genauso; auf dem Röhrenfernseher (480i, unscharf)
+  fiel er weniger auf. Die frühere Aussage „in den Daten nicht zu sehen“
+  (zehnter Gerätelauf) war falsch. Kein Fehler des Ports; eine Option zum
+  Beruhigen (die beiden Rauschbilder mischen) passt zu M11
+  (Grafikoptionen).
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -2579,7 +2619,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | SDK `OSAlloc.c`, `OSArena.c` | unverändert aus `src/lib`: Heap und Arena; `main_mem.cpp` liest die Heap-Deskriptoren direkt |
 | SDK `Padclamp.c` (M7) | unverändert aus `src/lib`: `PADClamp`, die Totzonen und Bereiche des Original-Controllers; `PadRead` des Spiels ruft es auf den Rohwerten von `pad.cpp` auf |
 | `os_thread.cpp` | `OSThread`, `OSSemaphore`: ein Host-Thread, strikte Prioritäten, Wechsel nur in OS-Aufrufen; jeder Thread hat einen Host-Stack (`port/src/stack_context.cpp` aus dem alten Port, neu mit ucontext für Linux x86, Boost.Context-Assembler für Linux ARM wie auf Android); ein Verteiler auf dem Stack des Startprogramms (`re4_os_run`). Spielsichtbar wie im SDK: `state`, `suspend`, Priorität, Warteschlangen, Stack-Magie `0xDEADBABE` |
-| `vi.cpp` | VI-Retrace alle 1/59,94 s Echtzeit, zugestellt an Interrupt-Punkten (Verteiler im Leerlauf, `VIWaitForRetrace`, Patch 0012, später lange Hintergrundarbeit); Thread-Wechsel aus dem Rückruf erst am Interrupt-Ende. `RE4_VI_FAST=1`: ohne Warten (Tests). Seit M9 `re4_cri_timer`: die Zeitbasis der CRI-Uhr (`OSGetTime`, mit `RE4_VI_FAST` die zugestellten Halbbilder), und die Halbbilder folgen dem Vsync des Bildschirms der App (`re4_vi_vsync`, 60/120 Hz; `RE4_VI_VSYNC=0` aus) |
+| `vi.cpp` | VI-Retrace alle 1/59,94 s Echtzeit, zugestellt an Interrupt-Punkten (Verteiler im Leerlauf, `VIWaitForRetrace`, Patch 0012, später lange Hintergrundarbeit); Thread-Wechsel aus dem Rückruf erst am Interrupt-Ende. `RE4_VI_FAST=1`: ohne Warten (Tests). Seit M9 `re4_cri_timer`: die Zeitbasis der CRI-Uhr (`OSGetTime`, mit `RE4_VI_FAST` die zugestellten Halbbilder), die Halbbilder folgen dem Vsync des Bildschirms der App (`re4_vi_vsync`, 60/120 Hz; `RE4_VI_VSYNC=0` aus), und `VISetBlack` gilt ab dem nächsten `VIFlush` (Bildstücke mit `RE4_GX_CHUNK_BLACK`) |
 | SDK AX, MIX, SYN, SEQ, AXART, AXFX (M8) | unverändert aus `src/lib` bis auf Patch 0047 (Effekte in C); ersetzt `ax.cpp` (K2) |
 | `dsp.cpp` (M8) | der DSP mit dem AX-Microcode: Befehlslisten von `AXCL.c`, Stimmen dekodieren und mischen, Aux-Busse, Ausgabe (siehe „M8 Audio“) |
 | `ai.cpp` (M8) | AI: 200 Tonblöcke je Sekunde Spielzeit mit den VI-Halbbildern, Ring für die Tonausgabe der App (`re4_audio_read`), `RE4_AUDIO_WAV` |

@@ -297,9 +297,14 @@ void* VIGetCurrentFrameBuffer(void)
     return gCurrentFrameBuffer;
 }
 
+// VISetBlack: the VI outputs black from the next VIFlush on, as on the
+// GameCube (the game hides a frame it does not want seen: the title without its
+// fade before a demo movie, room changes). The GX chunks carry it to the app.
+static bool gBlackNext;
+
 void VISetBlack(int black)
 {
-    (void) black;
+    gBlackNext = black != 0;
 }
 
 void VIConfigure(const void* renderMode)
@@ -311,6 +316,7 @@ void VIConfigure(const void* renderMode)
 // GX decoder decides now whether the last display copy is shown or held.
 void VIFlush(void)
 {
+    re4_gx_vi_black(gBlackNext);
     re4_gx_vi_flush();
 }
 

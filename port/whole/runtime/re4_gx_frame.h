@@ -141,8 +141,11 @@ enum Re4GxChunkFlags {
     RE4_GX_CHUNK_HOLD = 1u << 2,  /* the VI does not switch to this display copy
                                      (SYS_SCREEN_STOP): run it, keep showing the
                                      picture before */
-    RE4_GX_CHUNK_MARK = 1u << 3   /* the core marked it (re4_gx_mark: a hit on the
+    RE4_GX_CHUNK_MARK = 1u << 3,  /* the core marked it (re4_gx_mark: a hit on the
                                      player); the chunk after it starts over */
+    RE4_GX_CHUNK_BLACK = 1u << 4  /* the VI shows black (VISetBlack): run it, show
+                                     black instead of its picture until a chunk
+                                     without the flag */
 };
 
 typedef struct Re4GxChunk {

@@ -232,6 +232,7 @@ const long long kStallMs = 1000;
 int gCurrent = -1;  // slot being filled (core thread); -1: not recording
 int gPending = -1;  // slot waiting for the game's VIFlush (kPending); -1: none
 u32 gViNext;        // physical address of the XFB the VI shows next (0: never set)
+bool gViBlack;      // the VI outputs black (VISetBlack, from VIFlush on): RE4_GX_CHUNK_BLACK
 u32 gSequence;
 bool gNeedReset = true;
 
@@ -414,6 +415,9 @@ void publishPendingLocked()
     if (gViNext != 0 && gViNext != v.xfbAddress) {
         v.flags |= RE4_GX_CHUNK_HOLD;
         gStats.held++;
+    }
+    if (gViBlack) {
+        v.flags |= RE4_GX_CHUNK_BLACK;
     }
     gSlotState[gPending] = kReady;
     gReady.push_back(gPending);
@@ -1748,6 +1752,14 @@ void re4_gx_vi_next(const void* fb)
 {
     std::lock_guard<std::mutex> lock(gMutex);
     gViNext = (u32) (uintptr_t) fb & 0x03FFFFE0;  // as BP 0x4B holds a copy destination
+}
+
+// VISetBlack as VIFlush applies it (vi.cpp): the pictures from now on are
+// black on screen until it is lifted
+void re4_gx_vi_black(int black)
+{
+    std::lock_guard<std::mutex> lock(gMutex);
+    gViBlack = black != 0;
 }
 
 // ... and VIFlush, which ends the game's frame (Render_swap): the display copy

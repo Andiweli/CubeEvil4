@@ -118,7 +118,8 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
    (Retroid, 16.10.2026; Touch später)
 8. ✅ Audio: SDK-Tonbibliotheken aus `src/lib/` unverändert, DSP/AI nachgebaut
    (Retroid, 16.10.2026; CRI-ADX gehört zu den Filmen)
-9. Videos (SFD/MPV)
+9. ✅ Videos (SFD/MPV): CRI-Middleware aus `src/lib`, Bild über GX, ADX-Ton,
+   START überspringt (Retroid und PC-Prüfung, 16.10.2026)
 10. Speichern/Laden
 10b. Raum-Rundgang: viele Räume per Raumauswahl anspielen, Abstürze und
    Grafikfehler sammeln (Entscheidung des Projektinhabers, 16.10.2026: nach
