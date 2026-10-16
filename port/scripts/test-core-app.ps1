@@ -57,10 +57,10 @@ Beobachtung sofort: das Protokoll und der Absturzbericht des Systems werden gesi
 und die Absturzstelle in WSL mit den Bibliotheken des Kern-Builds in Funktionen und
 Quelltextzeilen uebersetzt (port/tools/android_symbolize.sh). Bitte bis "Fertig" warten.
 
-Wird Leon getroffen, markiert der Kern das Bild dieses Moments; die App speichert die
-naechsten 24 Bilder so, wie der Bildschirm sie zeigt (Ordner treffer; -HitShots: fuer
-wie viele Treffer, Standard 3) und die Grafikdaten von 4 Bildern ab dort (-HitDumps,
-Standard 1; 0 schaltet jeweils aus).
+Mit -HitShots N markiert der Kern bei den ersten N Treffern auf Leon das Bild dieses
+Moments; die App speichert die naechsten 24 Bilder so, wie der Bildschirm sie zeigt
+(Ordner treffer), mit -HitDumps N dazu die Grafikdaten von 4 Bildern ab dort (Standard
+jeweils 0 = aus; die Aufnahme laesst das Spiel kurz ruckeln).
 
 Zum Schicken packt das Skript senden.zip: bericht.txt, logcat.txt, profil-*.txt,
 Absturzberichte und die Bilder als kleine JPEGs (meist unter 5 MB). gx-geraet.zip
@@ -99,8 +99,8 @@ param(
     [switch]$DebugHud,
     [switch]$GxDump,
     [int]$Scale = 0,
-    [int]$HitDumps = 1,
-    [int]$HitShots = 3
+    [int]$HitDumps = 0,
+    [int]$HitShots = 0
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)

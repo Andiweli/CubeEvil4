@@ -1781,6 +1781,34 @@ und 16 Bildstücke nach dem ersten Treffer (`gx-geraet-00..02`).
 - `gx_chunk_render` zeichnet mit `RE4_GX_SCALE=N` in der Auflösung der App
   und liest das XFB in voller Größe zurück.
 
+### Vierzehnter Gerätelauf (16.10.2026, Retroid, Stand `623afd6`): Balken gefunden
+
+Drei markierte Treffer (zwei Würgegriffe, ein Axthieb), je 24 Bilder vom
+Bildschirm (`treffer-NN-KK`), GX-Daten zum ersten Treffer und eine R3-Folge.
+Laut Projektinhaber zeigen `treffer-03-00` bis `-03` den Balken und rechts
+einen dunkleren Bereich: Nach dem Axthieb liegt ein Nachbild über dem Bild,
+ab Zeile 345 (von 448) ist das Bild deutlich dunkler.
+
+- **Ursache:** Mehrere Effekte des Spiels kopieren die Bildzeilen 56–447 halb
+  (`GXCopyTex`, 256×196) und lesen davon als Textur 256×168, also genau die
+  sichtbaren Zeilen 56–391 (auf dem GameCube liegen die Texel der Kopie
+  zeilenweise im Speicher, die kleinere Textur liest die ersten 168 Zeilen):
+  das Nachbild bei Treffern, das Hitzeflimmern über den Feuern in r101, die
+  Überblendung im Titelbild (Ashleys Gesicht) und bei den Totenköpfen. Der
+  Renderer rechnete Texelkoordinaten auf die Texturgröße (168) um, die
+  GL-Kopie hat aber 196 Zeilen: Das Bild war um 196/168 gestreckt, und ab
+  Zeile 56 + 336·168/196 = 344 kamen die schwarzen Zeilen unter dem Bild
+  dazu (gemessen auf dem Gerät: 345).
+- **Behoben (`gx_gl.cpp` `BindTexture`):** Hat eine Textur dieselbe Breite
+  wie die Kopie an ihrer Adresse, gehen ihre Texelkoordinaten nach der Höhe
+  der Kopie. Nachgezeichnet: Titelbild ohne dunklen Streifen, Gesicht an der
+  richtigen Stelle; Hitzeflimmern unten heller. Vergleich aller 51
+  bisherigen Geräteaufnahmen vorher/nachher: Änderungen nur in Bildern mit
+  diesem Kopiermuster. Auf dem Gerät nicht getestet. Vermutlich ist das auch
+  das „dunkle Glas“ im Titel (G14).
+- Die Treffer-Aufnahme ist im Testskript wieder aus (`-HitShots`,
+  `-HitDumps`, Standard 0), weil sie das Spiel kurz ruckeln lässt.
+
 ### Abschluss M6/M6b (16.10.2026)
 
 Erreicht und auf dem Retroid geprüft: die App „RE4 Kern“ (armeabi-v7a) startet
@@ -1792,8 +1820,8 @@ Kern unter 33 ms nach dem schnelleren Decoder).
 
 Offen, mitgenommen in die nächsten Meilensteine:
 
-- Dunkler halbtransparenter Balken unten bei Treffern (Aufnahme nach Treffer
-  vorbereitet, Auswertung steht aus).
+- Dunkler halbtransparenter Balken unten bei Treffern: Ursache gefunden und
+  behoben (vierzehnter Gerätelauf), Gerätetest steht aus.
 - Flackern im Untermenü „FILES“ laut Projektinhaber; in den R3-Folgen und
   Bildschirmfotos nicht zu sehen (Beschreibung oder Video fehlt).
 - Baum-Kollision in r100 (G17), Titel: START zweimal / Logo verblasst (G14),

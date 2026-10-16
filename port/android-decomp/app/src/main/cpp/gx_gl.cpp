@@ -722,6 +722,14 @@ struct GxRenderer::Impl {
         return;
       }
       b.id = GxIsPaletted(t.format) ? PalettedCopy(it->second, t) : it->second.id;
+      // a texture of the copy's width but another height reads the copy's
+      // rows one to one, as the texels lie in memory (the heat haze over the
+      // fires of r101 copies rows 56-447 and reads 336 of them as 256x168):
+      // texel coordinates go by the copy's size, not by the texture's; scaled
+      // to it, the rows below the picture (black) showed as a dark band
+      if (it->second.width == b.width && it->second.height) {
+        b.height = it->second.height;
+      }
       return;
     }
     const std::uint64_t key = static_cast<std::uint64_t>(t.keyHi) << 32 | t.keyLo;
