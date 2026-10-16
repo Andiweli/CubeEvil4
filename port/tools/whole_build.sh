@@ -58,6 +58,18 @@ for t in "${targets[@]}"; do
     fi
     # the generated stubs against the list of the repository (port/whole/stubs-expected.txt)
     python3 "$root/port/tools/whole_stub_check.py" "$build/generated/link_report.json" || status=1
+    # code built with the game's flags inside libre4_platform (re4_formats_obj) must not
+    # call the file functions Android's C library wraps for _FORTIFY_SOURCE: the wrappers
+    # call __open_real and friends, renames the prelude's empty __asm__ loses, and the
+    # Android link fails (M10). Such code goes through runtime/host_file.cpp.
+    fortified=$(find "$build/CMakeFiles/re4_formats_obj.dir" -name '*.o' -exec nm -u {} + 2> /dev/null |
+        awk 'NF == 2 {print $2}' | sort -u |
+        grep -xE 'open|open64|openat|openat64|creat|read|write|pread|pread64|pwrite|pwrite64|readlink|readlinkat|getcwd|umask|poll|ppoll|recv|recvfrom|send|sendto|strlcpy|strlcat' |
+        tr '\n' ' ')
+    if [ -n "$fortified" ]; then
+        echo "  FEHLER: game-flag code in libre4_platform calls $fortified(Android fortify: use runtime/host_file.cpp)"
+        status=1
+    fi
     run=()
     if [ "$t" = armhf ]; then
         if ! command -v qemu-arm > /dev/null; then

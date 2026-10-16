@@ -67,6 +67,16 @@ void re4_check_game_address(const char* what, const void* addr);
  * each with sys/fst.bin, sys/boot.bin and files/. Set by the launcher. */
 void re4_set_data_dir(const char* dir);
 const char* re4_data_dir(void);
+
+/* File access for code built with the game's flags (host_file.cpp): there the
+ * C library's renames of open/pread/pwrite do not work (empty __asm__). Open
+ * makes the folders on the way; read/write return the bytes moved or -1. */
+int re4_host_file_open(const char* path);
+long re4_host_file_read(int fd, void* data, unsigned long length, unsigned long long offset);
+long re4_host_file_write(int fd, const void* data, unsigned long length, unsigned long long offset);
+void re4_host_file_sync(int fd);
+void re4_host_file_close(int fd);
+const char* re4_host_file_error(void);
 /* Disc number in the virtual drive (0/1), -1 when no disc folder was found. */
 int re4_dvd_inserted_disc(void);
 

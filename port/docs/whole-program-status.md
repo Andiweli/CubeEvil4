@@ -2557,6 +2557,33 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
   Neustart, Optionen erhalten, Laden im Titel. Formatieren über den Dialog
   des Spiels und alles auf dem Gerät stehen aus.
 
+### Erster Android-Build mit Karte (16.10.2026, Stand `3fdd5a6`): Linkfehler
+
+- **Gemeldet:** Der Kern-Build für den Gerätetest brach ab:
+  `ld.lld: undefined symbol: __open_real`, `__pread64_real`,
+  `__pwrite64_real` (Plan: 50 statt 47 Platzhalter).
+- **Ursache:** Das NDK baut mit `_FORTIFY_SOURCE` (Prüfung von Pufferlängen
+  in der C-Bibliothek). Bionic ersetzt dann `open`, `pread64`, `pwrite64`
+  durch geprüfte Inline-Fassungen, die die echten Funktionen über
+  umbenannte Deklarationen (`__open_real` = `open` per `__asm__`) rufen.
+  `memcard.cpp` wird mit den Schaltern des Spiels gebaut, deren Prelude
+  `__asm__` leer macht; die Umbenennung fiel weg, und in `libre4_platform`
+  (gelinkt mit `--no-undefined`) fehlten die Namen. Unter Linux tritt das
+  nicht auf (glibc ruft dort echte `__*_chk`-Funktionen), darum blieb es in
+  der Cloud unbemerkt.
+- **Behoben:** Die Dateizugriffe der Karte (Öffnen mit Ordnern, Lesen,
+  Schreiben, `fsync`, Schließen) liegen in `runtime/host_file.cpp`, gebaut
+  mit den Schaltern der Plattform; `memcard.cpp` ruft sie über
+  `re4_host_file_*` (`re4_runtime.h`) und nutzt nur noch Speicher-, Text-
+  und Uhrfunktionen, die auf Android schon immer gelinkt haben.
+  **Neue Prüfung in `whole_build.sh`:** Die Objekte von `re4_formats_obj`
+  dürfen keine der von Bionic so umgeleiteten Funktionen rufen (`open`,
+  `read`, `write`, `pread*`, `pwrite*`, `readlink`, `getcwd`, `umask`,
+  `poll`, `recv*`, `send*`, `strlcpy/strlcat`); mit dem alten `memcard.cpp`
+  meldet sie `open pread64 pwrite64`, mit dem neuen nichts.
+  `whole_build.sh` i686 und armhf grün; der Android-Build läuft erst wieder
+  beim Projektinhaber.
+
 **Nicht geprüft (Stand dieses Abschnitts):** die PC-Prüfung mit Disc-Daten
 (Abschnitt 7: die Bildschirme des Spiels beim Speichern und Laden, das
 Formatieren über den Dialog), der Android-Build (das NDK ist in der Cloud
@@ -2835,6 +2862,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | SDK `CARD*.c` (M10) | unverändert aus `src/lib` bis auf Patch 0057: die gesamte Speicherkarten-Bibliothek, gelinkt in `libre4_main` (wie im Original Teil von `main.dol`); ersetzt `card.cpp` (M4 B: beide Schächte leer) |
 | `exi.cpp` (M10) | EXI (die Schnittstelle der Speicherkarten-Schächte) in C wie `EXIBios.c`: Sperren mit Warteschlange, Auswahl, Sofort- und DMA-Übertragungen, Probe, Anstecken, Kennung; das Ende einer Übertragung und der „fertig“-Interrupt der Karte kommen an den Interrupt-Punkten (`re4_exi_deliver`: Leerlauf, `OSSleepThread`), im Interrupt-Kontext |
 | `memcard.cpp` (M10) | die Karte in Schacht A: Memory Card 251 (2 MB, 8-KB-Blöcke) als Datei mit den Befehlen der echten Karte (Lesen 0x52, Seite schreiben 0xF2, Block löschen 0xF1, alles löschen 0xF4, Status, Hersteller); Status „entsperrt“ (kein DSP-Handshake); jede Änderung sofort in die Datei, 1 s danach `fsync`; SRAM (`__OSLockSram*`, Flash-ID aus dem Kartenkopf abgeleitet); `RE4_MEMCARD` (siehe „M10“); Log der Dateien auf der Karte und der Schritte des Kartenbildschirms (Patch 0058) |
+| `host_file.cpp` (M10) | Dateizugriffe für Code mit den Schaltern des Spiels (Kartendatei): Öffnen samt Ordnern, Lesen/Schreiben an einer Stelle, `fsync`, Schließen; dort wirken die Umbenennungen der C-Bibliothek (64-bit-Dateistellen, Android-Fortify) |
 | `alarm.cpp` (M10) | `OSAlarm` (Zeitüberwachung der CARD-Befehle: 100 ms je Seite, 2 s je Block), fällig an den Interrupt-Punkten |
 | `pad.cpp` (M4 B) | Controller: Kanal 0 angeschlossen, Kanäle 1–3 leer (ein zweiter Controller ließe den Titel die Logos überspringen). Tasten aus der Testfolge `RE4_PAD_SCRIPT` (`TASTEN@BILD` drückt 3 Bilder lang, `TASTEN@VON-BIS/ALLE` wiederholt; Tasten `A B X Y Z L R START UP DOWN LEFT RIGHT`, mit `+` verbunden; Bild = Zahl der `PADRead`-Aufrufe). Seit K2 zusätzlich `re4_pad_live` (Controller der App, sobald kein Testskript läuft) und Bildhaken `re4_add_frame_hook` (bis 4, je `PADRead`). Seit M7: Rohwerte wie die Hardware (das eigene No-op-`PADClamp` ist entfernt, siehe SDK `Padclamp.c`), `PADControlMotor` merkt den Rüttelmotor je Bild (`re4_core_rumble`) |
 | `core_api.cpp` (K2) | Einbettungs-Schnittstelle `re4_core.h` für die App: Kern-Thread, Status, Controller, Dreifachpuffer der Schnappschüsse; Testausgaben `RE4_BRIDGE_DUMP`, `RE4_BRIDGE_SNAPSHOT`, `RE4_GX_DUMP` (GX-Bildstücke als Dateien, `re4_gx_frame_io.h`) |

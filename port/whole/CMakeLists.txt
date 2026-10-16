@@ -118,6 +118,7 @@ add_library(re4_platform_obj OBJECT
     runtime/dvd.cpp
     runtime/gx_fifo.cpp
     runtime/gx_decode.cpp
+    runtime/host_file.cpp
     runtime/log.cpp
     runtime/mem1.cpp
     runtime/module_loader.cpp

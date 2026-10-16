@@ -16,7 +16,7 @@
 // The file holds the card as the port's library writes it: directory, FAT
 // and the game's save data in host byte order (decision of the project
 // owner, 16.10.2026: a card for the port, not GameCube/Dolphin compatible).
-// Every program and erase is written through to the file at once (pwrite);
+// Every program and erase is written through to the file at once;
 // a second after the last one it is synced (re4_memcard_flush).
 //
 //   RE4_MEMCARD unset   <data dir>/memcard/card-a.bin (made, unformatted, when missing)
@@ -34,20 +34,16 @@
 #include "dolphin/os/OSRtc.h"
 #include "re4_runtime.h"
 
-#include <errno.h>
 #include <stdio.h>
-#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <time.h>
-#include <unistd.h>
 
 // (no C++ containers: this file is built with the game's flags and headers,
 // re4_formats_obj, where libc++'s allocator does not compile. There the
-// prelude's empty __asm__ also drops the C library's redirections of the
-// file offset functions to their 64-bit symbols while off_t stays 64 bits
-// wide: pread64 / pwrite64 by name, which are declared with a 64-bit offset.)
+// prelude's empty __asm__ also drops the C library's renames of the file
+// functions (64-bit offsets on Linux, the fortified open/pread/pwrite of
+// Android), so the card file is reached through runtime/host_file.cpp.)
 
 extern "C" {
 // CARDFormat.c stores __VIRegs[55] (DTV status) in the header (re4_card_port.h)
@@ -93,29 +89,17 @@ long long nowNs()
     return (long long) ts.tv_sec * 1000000000LL + ts.tv_nsec;
 }
 
-void makeDirs(const char* path)
-{
-    char dir[512];
-    for (size_t i = 1; path[i] && i < sizeof(dir); i++) {
-        if (path[i] == '/') {
-            memcpy(dir, path, i);
-            dir[i] = 0;
-            mkdir(dir, 0775);
-        }
-    }
-}
-
 void persist(u32 offset, u32 length)
 {
     Card& c = gCard;
     if (c.fd < 0) {
         return;
     }
-    if (pwrite64(c.fd, &c.mem[offset], length, (long long) offset) != (ssize_t) length) {
+    if (re4_host_file_write(c.fd, &c.mem[offset], length, offset) != (long) length) {
         static bool logged;
         if (!logged) {
             logged = true;
-            re4_log("memcard: writing %s failed (%s)", c.path, strerror(errno));
+            re4_log("memcard: writing %s failed (%s)", c.path, re4_host_file_error());
         }
         return;
     }
@@ -183,15 +167,14 @@ void insert(const char* path)
     snprintf(c.path, sizeof(c.path), "%s", path);
     c.mem = (u8*) malloc(kCardBytes);
     memset(c.mem, 0xFF, kCardBytes);
-    makeDirs(c.path);
-    c.fd = open(c.path, O_RDWR | O_CREAT, 0664);
+    c.fd = re4_host_file_open(c.path);
     if (c.fd < 0) {
-        re4_log("memcard: %s cannot be opened (%s), slot A empty", c.path, strerror(errno));
+        re4_log("memcard: %s cannot be opened (%s), slot A empty", c.path, re4_host_file_error());
         deriveFlashId();
         return;
     }
-    ssize_t got = pread64(c.fd, c.mem, kCardBytes, 0);
-    if (got != (ssize_t) kCardBytes) {
+    long got = re4_host_file_read(c.fd, c.mem, kCardBytes, 0);
+    if (got != (long) kCardBytes) {
         // new (or short) file: the rest is erased flash, as a new card
         if (got < 0) {
             got = 0;
@@ -308,9 +291,9 @@ void eject()
     Card& c = gCard;
     if (c.fd >= 0) {
         if (c.dirty) {
-            fsync(c.fd);
+            re4_host_file_sync(c.fd);
         }
-        close(c.fd);
+        re4_host_file_close(c.fd);
     }
     free(c.mem);
     c = Card();
@@ -474,7 +457,7 @@ void re4_memcard_flush(int force)
     if (!force && nowNs() - c.lastWrite < 1000000000LL) {
         return;
     }
-    fsync(c.fd);
+    re4_host_file_sync(c.fd);
     c.dirty = false;
     re4_log("memcard: %s saved (%u pages written, %u sectors erased so far)", c.path, c.writes, c.erases);
     logDirectory();
