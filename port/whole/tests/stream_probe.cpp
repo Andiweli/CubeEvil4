@@ -17,7 +17,7 @@ int SndStrStatusCk(u32 snd_id, u32 status);
 extern "C" {
 void re4_os_interrupt_begin(void);
 void re4_os_interrupt_end(void);
-void re4_ax_field(void);
+void re4_ai_field(void);
 unsigned char* re4_aram(void);
 }
 
@@ -36,7 +36,7 @@ u8 pattern(u32 off)
 void field()
 {
     re4_os_interrupt_begin();
-    re4_ax_field();
+    re4_ai_field();
     re4_os_interrupt_end();
 }
 

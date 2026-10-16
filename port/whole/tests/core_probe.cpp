@@ -335,13 +335,22 @@ static_assert(2 * sizeof(cParts) <= 0x1000, "the fake parts overlap the model in
 static_assert(sizeof(cModelInfo) <= 0x400 && sizeof(cModelData) <= 0x100, "the fake infos overlap");
 
 
-// AX without sound (runtime/ax.cpp): voices, play positions, the audio frame.
-// Returns the number of failed checks (each logged).
+// Sound (M8): the SDK's AX library (src/lib/AX*.c, unchanged) on the DSP of
+// runtime/dsp.cpp and the AI of runtime/ai.cpp: voices with the SDK's
+// allocation, PCM16 and DSP-ADPCM from ARAM (decoded exactly), volume, pan,
+// envelope, loops, rate conversion, an aux bus through a CPU effect, the AI
+// clock. Returns the number of failed checks (each logged).
 #include "dolphin/ax.h"
 
-extern "C" void re4_log(const char* fmt, ...);
-extern "C" void re4_ax_field(void);
-extern "C" void re4_ax_frame(void);
+extern "C" {
+void re4_log(const char* fmt, ...);
+void re4_ai_field(void);
+void re4_ai_block(void);
+unsigned re4_ai_blocks(void);
+int re4_audio_take(short* out, int frames);
+unsigned char* re4_aram(void);
+void AIInit(unsigned char* stack);
+}
 
 static int gAxDrops;
 static int gAxFrames;
@@ -354,12 +363,12 @@ static void axFrame()
     gAxFrames++;
 }
 
-#define AX_CHECK(cond)                                           \
-    do {                                                         \
-        if (!(cond)) {                                           \
+#define AX_CHECK(cond)                                                     \
+    do {                                                                   \
+        if (!(cond)) {                                                     \
             re4_log("core-test ax: %s:%d: %s", __FILE__, __LINE__, #cond); \
-            failed++;                                            \
-        }                                                        \
+            failed++;                                                      \
+        }                                                                  \
     } while (0)
 
 static u32 axCurrent(AXVPB* v)
@@ -367,76 +376,274 @@ static u32 axCurrent(AXVPB* v)
     return ((u32) v->pb.addr.currentAddressHi << 16) | v->pb.addr.currentAddressLo;
 }
 
+// `blocks` AI blocks; their output (left/right pairs) into `out` (at most `max` frames)
+static int axRun(int blocks, short* out, int max)
+{
+    int got = 0;
+    for (int i = 0; i < blocks; i++) {
+        re4_ai_block();
+        static short block[2 * 160];
+        int n = re4_audio_take(block, 160);
+        for (int k = 0; k < n && got < max; k++, got++) {
+            out[got * 2] = block[k * 2];
+            out[got * 2 + 1] = block[k * 2 + 1];
+        }
+    }
+    return got;
+}
+
+static int firstNonZero(const short* out, int frames)
+{
+    for (int i = 0; i < frames; i++) {
+        if (out[i * 2] || out[i * 2 + 1]) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void putPcm16(u32 byteAddr, int n, int (*f)(int))
+{
+    unsigned char* a = re4_aram() + byteAddr;
+    for (int i = 0; i < n; i++) {
+        int v = f(i);
+        a[i * 2] = (unsigned char) (v >> 8);
+        a[i * 2 + 1] = (unsigned char) v;
+    }
+}
+
+static int ramp8(int i)
+{
+    return i * 8;
+}
+static int dc3000(int)
+{
+    return 3000;
+}
+static int saw(int i)
+{
+    return (i % 100) * 300 - 15000;
+}
+
+static void pcmVoice(AXVPB* v, u32 sampleAddr, u32 count, u16 vl, u16 vr, int loop)
+{
+    AXPBADDR addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.format = 10;
+    addr.loopFlag = (u16) (loop >= 0);
+    u32 loopAt = sampleAddr + (loop >= 0 ? (u32) loop : 0);
+    addr.loopAddressHi = (u16) (loopAt >> 16);
+    addr.loopAddressLo = (u16) loopAt;
+    u32 end = sampleAddr + count - 1;
+    addr.endAddressHi = (u16) (end >> 16);
+    addr.endAddressLo = (u16) end;
+    addr.currentAddressHi = (u16) (sampleAddr >> 16);
+    addr.currentAddressLo = (u16) sampleAddr;
+    AXSetVoiceType(v, 0);
+    AXSetVoiceAddr(v, &addr);
+    AXSetVoiceSrcType(v, AX_SRC_TYPE_NONE);
+    AXPBVE ve = { 0x8000, 0 };
+    AXSetVoiceVe(v, &ve);
+    AXPBMIX mix;
+    memset(&mix, 0, sizeof(mix));
+    mix.vL = vl;
+    mix.vR = vr;
+    AXSetVoiceMix(v, &mix);
+}
+
+// DSP-ADPCM as documented: sample = ((nibble << scale) << 11 + c1 * yn1 + c2 * yn2 + 1024) >> 11
+static int adpcmRef(const unsigned char* frames, int count, const s16 coef[8][2], int ps, s16* out)
+{
+    int yn1 = 0, yn2 = 0, n = 0;
+    for (int f = 0; n < count; f++) {
+        const unsigned char* fr = frames + f * 8;
+        if (f > 0) {
+            ps = fr[0];
+        }
+        for (int k = 0; k < 14 && n < count; k++) {
+            int b = fr[1 + k / 2];
+            int nib = (k & 1) ? (b & 15) : (b >> 4);
+            if (nib >= 8) {
+                nib -= 16;
+            }
+            int c = (ps >> 4) & 7;
+            int v = (((nib << (ps & 15)) << 11) + coef[c][0] * yn1 + coef[c][1] * yn2 + 1024) >> 11;
+            v = v > 32767 ? 32767 : v < -32768 ? -32768 : v;
+            out[n++] = (s16) v;
+            yn2 = yn1;
+            yn1 = v;
+        }
+    }
+    return n;
+}
+
+static int gAuxSeen;
+static void auxEffect(void* data, void*)
+{
+    s32** bus = (s32**) data;  // AX_AUX_DATA: l, r, s
+    for (int i = 0; i < 160; i++) {
+        if (bus[0][i] > gAuxSeen) {
+            gAuxSeen = bus[0][i];
+        }
+        bus[0][i] = 1000;
+        bus[1][i] = 0;
+        bus[2][i] = 0;
+    }
+}
+
 extern "C" int re4probe_ax_test(void)
 {
     int failed = 0;
-    AXInitEx(0);
+    static short out[2 * 160 * 40];
+    AIInit(0);
+    AXInitEx(1);  // triple buffering, as snd_main.cpp starts it
     AXCallback old = AXRegisterCallback(axFrame);
-    // 64 voices; the 65th of a higher priority takes the oldest of the lowest
+    re4_audio_take(out, 160 * 40);  // whatever an earlier test left
+
+    // the SDK's allocation: 64 voices; the 65th of a higher priority takes the
+    // oldest of the lowest, its callback runs with the next frame
     AXVPB* v[64];
     for (int i = 0; i < 64; i++) {
         v[i] = AXAcquireVoice(i < 2 ? 1 : 5, axDrop, i);
         AX_CHECK(v[i] != 0);
     }
-    AX_CHECK(AXAcquireVoice(1, axDrop, 99) == 0);  // nothing below priority 1
+    AX_CHECK(AXAcquireVoice(1, axDrop, 99) == 0);
     AXVPB* taken = AXAcquireVoice(10, axDrop, 100);
-    AX_CHECK(taken == v[0] && gAxDrops == 1 && taken->userContext == 100 && taken->pb.state == 0);
+    AX_CHECK(taken == v[0] && taken->userContext == 100);
+    axRun(1, out, 160);
+    AX_CHECK(gAxDrops == 1 && gAxFrames >= 1);
     for (int i = 1; i < 64; i++) {
         AXFreeVoice(v[i]);
     }
-    // ADPCM: 14 samples per 16 nibbles; 160 samples at ratio 1.0 per frame
+    AXFreeVoice(taken);
+    axRun(3, out, 160 * 3);
+
+    // PCM16 at 1:1 into left (full) and right (half), stops at its end
+    putPcm16(0x10000, 4000, ramp8);
+    AXVPB* p = AXAcquireVoice(5, 0, 0);
+    pcmVoice(p, 0x8000, 4000, 0x8000, 0x4000, -1);
+    AXSetVoiceState(p, 1);
+    int got = axRun(32, out, 160 * 32);
+    int at = firstNonZero(out, got);
+    AX_CHECK(at >= 0 && at <= 2 * 160 + 4);
+    // (the last samples still in the rate converter when the voice stops are lost)
+    bool exact = at >= 0;
+    for (int j = 0; exact && j < 3990; j++) {
+        exact = out[(at + j) * 2] == 8 * (j + 1) && out[(at + j) * 2 + 1] == (8 * (j + 1)) >> 1;
+    }
+    AX_CHECK(exact);
+    AX_CHECK(at >= 0 && at + 3999 < got && out[(at + 3999) * 2] == 0);
+    AX_CHECK(p->pb.state == 0 && axCurrent(p) == 0x8000 + 3999);
+
+    // DSP-ADPCM: three frames, the first with the PB's header, then their own
+    static unsigned char frames[3 * 8];
+    for (int f = 0; f < 3; f++) {
+        frames[f * 8] = f == 0 ? 0x13 : (f == 1 ? 0x02 : 0x24);
+        for (int k = 1; k < 8; k++) {
+            frames[f * 8 + k] = (unsigned char) (f * 37 + k * 29 + 11);
+        }
+    }
+    memcpy(re4_aram() + 0x20000, frames, sizeof(frames));
+    AXPBADPCM ad;
+    memset(&ad, 0, sizeof(ad));
+    s16 coef[8][2] = { { 0, 0 }, { 0x0800, -0x0400 }, { 0x0600, 0 }, { 0, 0 },
+                       { 0x0C00, -0x0600 }, { 0, 0 }, { 0, 0 }, { 0, 0 } };
+    for (int c = 0; c < 8; c++) {
+        ad.a[c][0] = (u16) coef[c][0];
+        ad.a[c][1] = (u16) coef[c][1];
+    }
+    ad.pred_scale = 0x13;
+    s16 ref[42];
+    adpcmRef(frames, 42, coef, 0x13, ref);
     AXPBADDR addr;
     memset(&addr, 0, sizeof(addr));
     addr.format = 0;
-    addr.currentAddressLo = 2;          // sample 0
-    addr.endAddressHi = 0;
-    addr.endAddressLo = 0x10 * 99 + 15;  // last sample of frame 99 (1400 samples)
-    AXSetVoiceAddr(taken, &addr);
-    AXSetVoiceSrcType(taken, AX_SRC_TYPE_LINEAR);
-    AXSetVoiceSrcRatio(taken, 1.0f);
-    AXSetVoiceState(taken, 1);
-    re4_ax_frame();
-    // 160 samples: frame 11 (154), sample 6 -> nibble 8
-    AX_CHECK(axCurrent(taken) == 11 * 16 + 2 + 6);
-    AX_CHECK(gAxFrames == 1);
-    // ratio 0.5: 80 samples
-    AXSetVoiceSrcRatio(taken, 0.5f);
-    re4_ax_frame();
-    AX_CHECK(axCurrent(taken) == (240 / 14) * 16 + 2 + 240 % 14);
-    // no loop: stops at the end address
-    AXSetVoiceSrcRatio(taken, 4.0f);  // 640 samples a frame
-    for (int i = 0; i < 4; i++) {
-        re4_ax_frame();
+    u32 start = 0x20000 * 2 + 2, end = 0x20000 * 2 + 2 * 16 + 15;
+    addr.currentAddressHi = (u16) (start >> 16);
+    addr.currentAddressLo = (u16) start;
+    addr.endAddressHi = (u16) (end >> 16);
+    addr.endAddressLo = (u16) end;
+    AXSetVoiceAddr(p, &addr);
+    AXSetVoiceAdpcm(p, &ad);
+    AXSetVoiceState(p, 1);
+    got = axRun(6, out, 160 * 6);
+    at = -1;
+    for (int i = 0; i < got && at < 0; i++) {
+        if (out[i * 2] == ref[0] && out[(i + 1) * 2] == ref[1] && out[(i + 2) * 2] == ref[2]) {
+            at = i;
+        }
     }
-    AX_CHECK(taken->pb.state == 0 && axCurrent(taken) == 0x10 * 99 + 15);
-    // loop: wraps to the loop address
-    AXSetVoiceCurrentAddr(taken, 2);
-    AXSetVoiceLoopAddr(taken, 0x10 * 50 + 2);  // sample 700
-    AXSetVoiceLoop(taken, 1);
-    AXSetVoiceState(taken, 1);
-    AXSetVoiceSrcRatio(taken, 4.0f);
-    re4_ax_frame();  // 640
-    re4_ax_frame();  // 1280
-    re4_ax_frame();  // 1920 -> 700 + (1920 - 1400) = 1220 (the loop is 700 samples)
-    AX_CHECK(taken->pb.state == 1 && axCurrent(taken) == (1220 / 14) * 16 + 2 + 1220 % 14);
-    // PCM16: sample addresses
-    AXVPB* pcm = AXAcquireVoice(3, 0, 0);
-    memset(&addr, 0, sizeof(addr));
-    addr.format = 10;
-    addr.endAddressLo = 1000;
-    AXSetVoiceAddr(pcm, &addr);
-    AXSetVoiceSrcType(pcm, AX_SRC_TYPE_NONE);  // no resampling: 1.0
-    AXSetVoiceState(pcm, 1);
-    re4_ax_frame();
-    AX_CHECK(axCurrent(pcm) == 160 && pcm->pb.adpcm.gain == 0x0800);
-    // the audio frames of video fields: 200 per second, 3 or 4 per field
-    int before = gAxFrames;
+    exact = at >= 0 && at + 42 <= got;
+    for (int j = 0; exact && j < 42; j++) {
+        exact = out[(at + j) * 2] == ref[j];
+    }
+    AX_CHECK(exact);
+    AX_CHECK(p->pb.state == 0);
+
+    // a loop keeps playing: the saw of 100 samples, looped over its second half
+    putPcm16(0x30000, 200, saw);
+    pcmVoice(p, 0x18000, 200, 0x8000, 0x8000, 100);
+    AXSetVoiceState(p, 1);
+    got = axRun(10, out, 160 * 10);
+    exact = true;
+    for (int i = 1000; exact && i < 1500; i++) {
+        exact = out[i * 2] == out[(i + 100) * 2] && out[i * 2] == out[i * 2 + 1];
+    }
+    AX_CHECK(exact && p->pb.state == 1 && out[1200 * 2] != out[1250 * 2]);
+
+    // rate conversion: linear at 0.5 moves 80 samples a block
+    AXSetVoiceSrcType(p, AX_SRC_TYPE_LINEAR);
+    AXSetVoiceSrcRatio(p, 0.5f);
+    AXSetVoiceLoopAddr(p, 0x18000);
+    AXSetVoiceEndAddr(p, 0x18000 + 0xFFF);
+    putPcm16(0x30000, 0x1000, saw);
+    AXSetVoiceCurrentAddr(p, 0x18000);
+    axRun(2, out, 320);
+    u32 a0 = axCurrent(p);
+    axRun(10, out, 1600);
+    u32 a1 = axCurrent(p);
+    AX_CHECK(a1 - a0 >= 798 && a1 - a0 <= 802);
+    AXSetVoiceState(p, 0);
+    axRun(4, out, 640);  // the depop fade of the stopped voice
+
+    // the volume envelope ramps the voice in
+    putPcm16(0x40000, 4000, dc3000);
+    pcmVoice(p, 0x20000, 4000, 0x8000, 0, -1);
+    AXPBVE ve = { 0, 16 };
+    AXSetVoiceVe(p, &ve);
+    AXSetVoiceState(p, 1);
+    got = axRun(10, out, 1600);
+    at = firstNonZero(out, got);
+    AX_CHECK(at >= 0 && out[(at + 1000) * 2] > out[(at + 100) * 2] && out[(at + 100) * 2] > 0 &&
+             out[(at + 1000) * 2] < 3000);
+    AXSetVoiceState(p, 0);
+    axRun(3, out, 480);
+
+    // aux A: the voice only on the aux bus; the effect (on the CPU) sees it and
+    // returns a constant that ends up in the main mix
+    gAuxSeen = 0;
+    AXRegisterAuxACallback(auxEffect, 0);
+    pcmVoice(p, 0x20000, 4000, 0, 0, -1);
+    AXPBMIX mix;
+    memset(&mix, 0, sizeof(mix));
+    mix.vAuxAL = 0x8000;
+    AXSetVoiceMix(p, &mix);
+    AXSetVoiceState(p, 1);
+    got = axRun(8, out, 160 * 8);
+    AX_CHECK(gAuxSeen == 3000);
+    AX_CHECK(out[(got - 1) * 2] == 1000 && out[(got - 1) * 2 + 1] == 0);
+    AXRegisterAuxACallback(0, 0);
+    AXSetVoiceState(p, 0);
+    AXFreeVoice(p);
+    axRun(4, out, 640);
+
+    // the AI clock: 200 blocks per second of video fields
+    unsigned before = re4_ai_blocks();
     for (int i = 0; i < 60; i++) {
-        re4_ax_field();
+        re4_ai_field();
     }
-    AX_CHECK(gAxFrames - before == 200 || gAxFrames - before == 201);
-    AXFreeVoice(pcm);
-    AXFreeVoice(taken);
+    AX_CHECK(re4_ai_blocks() - before == 200 || re4_ai_blocks() - before == 201);
+    re4_audio_take(out, 160 * 40);
     AXRegisterCallback(old);
     return failed;
 }

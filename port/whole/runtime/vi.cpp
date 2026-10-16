@@ -60,8 +60,8 @@ void deliver()
     if (gPost) {
         gPost(gRetraceCount);
     }
-    // the audio frames of this field (runtime/ax.cpp: the sound driver's tick)
-    re4_ax_field();
+    // the audio blocks of this field (runtime/ai.cpp: AX, the sound driver's tick)
+    re4_ai_field();
     // the graphics processor's interrupts of what it finished meanwhile
     re4_gx_deliver_interrupts();
     re4_os_interrupt_end();

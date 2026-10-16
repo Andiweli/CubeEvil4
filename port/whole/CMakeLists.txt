@@ -146,7 +146,8 @@ string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_platform_obj>\n")
 # converters use the original structure definitions. Small SDK replacements
 # that need the game's structures sit here too.
 add_library(re4_formats_obj OBJECT
-    runtime/ax.cpp
+    runtime/ai.cpp
+    runtime/dsp.cpp
     runtime/movie.cpp
     runtime/tex_palette.cpp
     runtime/formats/formats.cpp
@@ -188,12 +189,18 @@ string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_glue_obj>\n")
 # Portable C parts of the Dolphin SDK (src/lib), compiled unchanged: the heap
 # allocator, whose descriptors the game reads directly (main_mem.cpp), the
 # controller dead zones (Padclamp: the game's PadRead calls PADClamp on the raw
-# values of runtime/pad.cpp), and the C_* reference versions of the
-# matrix/vector math (whole_prepare.py extracts them into prepared/sdk_c;
-# runtime/mtx_ps.c maps the PS* names to them).
+# values of runtime/pad.cpp), GX, the sound libraries, and the C_* reference
+# versions of the matrix/vector math (whole_prepare.py extracts them into
+# prepared/sdk_c; runtime/mtx_ps.c maps the PS* names to them).
 set(RE4_SDK_UNITS OSAlloc OSArena Padclamp
     GXAttr GXBump GXDisplayList GXDraw GXFifo GXFrameBuf GXGeometry GXInit GXLight GXMisc
-    GXPerf GXPixel GXTev GXTexture GXTransform)
+    GXPerf GXPixel GXTev GXTexture GXTransform
+    # sound (M8): AX on the DSP of runtime/dsp.cpp and the AI of runtime/ai.cpp,
+    # the mixer, synthesizer, sequencer, articulation and the AXFX effects
+    AX AXAlloc AXAux AXCL AXComp AXOut AXProf AXSPB AXVPB DSPCode
+    mix syn synctrl synenv synlfo synmix synpitch synsample synvoice synwt seq
+    axart axart3d axartcents axartenv axartlfo axartlpf axartsound
+    axfx delay)
 set(RE4_SDK_SOURCES runtime/mtx_ps.c)
 foreach(unit IN LISTS RE4_SDK_UNITS)
     list(APPEND RE4_SDK_SOURCES "${RE4_TREE}/src/lib/${unit}.c")

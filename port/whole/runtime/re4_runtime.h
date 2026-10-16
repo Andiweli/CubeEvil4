@@ -121,11 +121,24 @@ int re4_os_defer(Re4Deferred fn, void* object, int value);
 int re4_os_deferred_set(Re4Deferred fn, void* object, int value);
 void re4_os_run_deferred(void);
 
-/* AX (ax.cpp): the audio frames of one video field (200 per second; vi.cpp
- * calls it with every retrace), one audio frame, and the frames so far. */
-void re4_ax_field(void);
-void re4_ax_frame(void);
-unsigned re4_ax_frames(void);
+/* AI (ai.cpp): the audio blocks of one video field (5 ms each, 200 per
+ * second; vi.cpp calls it with every retrace), one block at once (tests), the
+ * blocks so far. Each block runs AX's DMA callback (the DSP mixes the next,
+ * runtime/dsp.cpp; the game's audio frame) and goes to the sound output. */
+void re4_ai_field(void);
+void re4_ai_block(void);
+unsigned re4_ai_blocks(void);
+/* The sound output (ai.cpp): stereo frames at 32 kHz for the device (any
+ * thread; always fills `out`, returns the frames the game played), and the
+ * counters for the log (blocks, frames waiting, blocks lost while the app did
+ * not read, reads that ran dry, skips after a pause). */
+int re4_audio_read(short* out, int frames);
+/* The frames waiting in the ring as they are (tests). */
+int re4_audio_take(short* out, int frames);
+void re4_audio_stats(unsigned* blocks, unsigned* fill, unsigned* overruns, unsigned* underruns,
+                     unsigned* skips);
+/* The DSP (dsp.cpp): command lists run, voice milliseconds mixed. */
+void re4_dsp_stats(unsigned* lists, unsigned* voiceMs);
 
 /* Interrupts (vi.cpp). re4_interrupt_point delivers the retraces that are due
  * (cheap when none is); re4_os_idle / re4_wait_interrupt wait for the next one. */
