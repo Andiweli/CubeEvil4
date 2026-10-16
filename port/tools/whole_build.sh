@@ -8,6 +8,7 @@
 #                                        # (build folders whole-<target>-O2)
 #
 # Per target: build (libre4_main.so, 114 module libraries, re4_host), then
+#   whole_stub_check.py        the generated stubs as port/whole/stubs-expected.txt lists them
 #   re4_host --self-test       cross-module trampolines pass arguments intact
 #   re4_host --check-modules   every module loads, every cross-module import resolves
 #   re4_host --runtime-test    OSLink, DVD folder and yz2 work without disc data
@@ -53,6 +54,8 @@ for t in "${targets[@]}"; do
         status=1
         continue
     fi
+    # the generated stubs against the list of the repository (port/whole/stubs-expected.txt)
+    python3 "$root/port/tools/whole_stub_check.py" "$build/generated/link_report.json" || status=1
     run=()
     if [ "$t" = armhf ]; then
         if ! command -v qemu-arm > /dev/null; then

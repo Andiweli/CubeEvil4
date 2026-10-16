@@ -2464,6 +2464,17 @@ entfernt: `ADXF_GetFnameRangeEx`, `ADXSJD_*` 4, `ADXSTM_GetNumSctIbuf`,
 Datenobjekt `sjuni_vtbl` (`sj_uni.c`, nur von toten Funktionen benutzt); dazu
 OS 8, SN-PC-Host-I/O 7, PPC 8. Im Filmtest wird keiner davon aufgerufen.
 
+Die erwartete Liste steht seit M9 in `port/whole/stubs-expected.txt`;
+`port/tools/whole_stub_check.py` prüft jeden Build dagegen (`whole_build.sh`
+streng, `whole_build_android.sh` nur auf zusätzliche Platzhalter). Vorher
+verglich der Android-Build mit dem ersten Linux-Build-Ordner unter
+`port/build`; auf dem PC war das ein alter Stand von vor M8 (76
+Platzhalter), deshalb brach der erste Gerätelauf von M9 mit „only stubbed on
+Android“ für die 22 CRI-Namen ab, obwohl der Kern fehlerfrei gebaut war.
+Ändert sich die Liste absichtlich, im selben Commit
+`whole_stub_check.py BUILD/generated/link_report.json --write` ausführen und
+die neuen Einträge kommentieren.
+
 **Echter Ersatz statt Platzhalter** (`runtime/sn_runtime.cpp`): `_ctors`/`_dtors`
 (leer, weil der ELF-Lader Konstruktoren selbst ausführt), `__builtin_new`/
 `__builtin_delete` (GCC-2.95-Namen von `operator new/delete`),

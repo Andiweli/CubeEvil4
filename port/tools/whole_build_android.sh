@@ -23,9 +23,11 @@
 # checked on Linux with RE4_OPT=2 port/tools/whole_build.sh.
 #
 # Checks before copying: every library built, no module below the expected
-# count, the same list of generated stubs as the Linux build (an optimising
-# compiler may drop definitions other libraries need; patch 0027), and the
-# core's entry points exported.
+# count, no generated stub beyond port/whole/stubs-expected.txt (the list the
+# Linux builds are checked against; an optimising compiler may drop
+# definitions other libraries need, patch 0027), and the core's entry points
+# exported. (Until M9 the list came from a Linux build folder next to it,
+# which on the PC could be an old one.)
 set -u
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 ndk="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-/opt/android-ndk-r28c}}"
@@ -117,28 +119,9 @@ done
 echo "  module libraries: $count"
 [ "$count" -lt 114 ] && { echo "FEHLER: weniger als 114 Modul-Bibliotheken"; status=1; }
 
-# the generated stubs must be the same as in the Linux build (whole_build.sh)
-python3 - "$build/generated/link_report.json" "$root/port/build" <<'PY' || status=1
-import json, sys
-from pathlib import Path
-def stubs(path):
-    s = json.load(open(path))["stubs"]
-    return set(s["functions"] if isinstance(s, dict) else s)
-mine = stubs(sys.argv[1])
-refs = sorted(Path(sys.argv[2]).glob("whole-*/generated/link_report.json"))
-refs = [r for r in refs if "android" not in str(r)]
-if not refs:
-    print(f"  stubs: {len(mine)} (no Linux build to compare with)")
-    sys.exit(0)
-ref = stubs(refs[0])
-extra, missing = sorted(mine - ref), sorted(ref - mine)
-print(f"  stubs: {len(mine)}, Linux build {refs[0].parent.parent.name}: {len(ref)}")
-for name in extra:
-    print(f"  FEHLER: only stubbed on Android: {name}")
-for name in missing:
-    print(f"  note: stubbed on Linux only: {name}")
-sys.exit(1 if extra else 0)
-PY
+# the generated stubs: the list of the repository (port/whole/stubs-expected.txt,
+# which whole_build.sh checks the Linux builds against); no Android-only stub
+python3 "$root/port/tools/whole_stub_check.py" "$build/generated/link_report.json" --android || status=1
 
 readelf=$(ls "$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-readelf 2> /dev/null | head -1)
 strip=$(ls "$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-strip 2> /dev/null | head -1)

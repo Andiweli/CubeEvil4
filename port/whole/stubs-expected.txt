@@ -1,0 +1,62 @@
+# Generated stubs the whole-program build is expected to have (generated/stubs.cpp).
+# port/tools/whole_stub_check.py compares every build with this list: whole_build.sh
+# (Linux) strictly, whole_build_android.sh for stubs only Android has. When a
+# change adds or removes stubs on purpose, update this file in the same commit
+# (port/tools/whole_stub_check.py BUILD/generated/link_report.json --write).
+# Status file: "Platzhalter".
+
+# CRI middleware: dead code of src/lib refers to functions the original linker had removed (M9)
+function ADXF_GetFnameRangeEx
+function ADXSJD_GetDecDtLen
+function ADXSJD_GetFmtBps
+function ADXSJD_GetHdrLen
+function ADXSJD_SetKeyString
+function ADXSTM_GetNumSctIbuf
+function MWSFCRE_ATTACH_PICUSRBUF
+function SFD_Finish
+function SFD_GetPaStat
+function SFX_CnvFrmZ16
+function SFX_CnvFrmZ32
+function SFX_GetCnvBottomUp
+function SFX_GetCompoMode
+function SFX_GetOutZoffset
+function SFX_GetOutZscale
+function SFX_SetCnvBottomUp
+function SFX_SetOutZoffset
+function SFX_SetOutZscale
+function mwPlyEntryFnameCore
+function mwPlyEntryFnameSub
+function mwPlyReleaseSub
+function mwPlyStartSub
+
+# OS: IPL font (error screens only), stopwatches, OSResetSystem
+function OSGetFontEncode
+function OSGetFontTexture
+function OSInitFont
+function OSInitStopwatch
+function OSResetStopwatch
+function OSResetSystem
+function OSStartStopwatch
+function OSStopStopwatch
+
+# SN PC host I/O (development console only)
+function PCclose
+function PCcreat
+function PCinit
+function PClseek
+function PCopen
+function PCread
+function PCwrite
+
+# PPC performance counters
+function PPCMfpmc1
+function PPCMtmmcr0
+function PPCMtmmcr1
+function PPCMtmsr
+function PPCMtpmc1
+function PPCMtpmc2
+function PPCMtpmc3
+function PPCMtpmc4
+
+# sj_uni.c: used by dead functions only
+data sjuni_vtbl
