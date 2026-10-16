@@ -50,15 +50,16 @@ Die Bilder des Kerns folgen dem Bildschirmtakt (60 Hz), damit Filme nicht ruckel
 4 = 2560x1792.
 Speicherkarte (Meilenstein 10): Steckplatz A ist eine Datei im Speicher der App
 (Android/data/com.ast.re4decomp.core/files/game/memcard/card-a.bin, 2 MB wie eine
-Memory Card 251); der Start prueft sie wie der GameCube (formatieren, Systemdatei anlegen).
+Memory Card 251); der Start prueft sie wie der GameCube (Karte lesen, Systemdatei mit den Optionen).
 Gespeichert wird an der Schreibmaschine, geladen im Titel ("Load"). Die Optionen (Helligkeit,
 Steuerung, Ton) stehen in der Systemdatei; das Spiel schreibt sie wie auf dem GameCube nur
 zusammen mit einem Spielstand (Schreibmaschine) und liest sie beim Start. Die Test-Tastenfolge
 laeuft OHNE Karte (RE4_MEMCARD=none: ihr Zeitplan ist auf den "keine Karte"-Dialog
 abgestimmt, deine Spielstaende bleiben unberuehrt); mit -Manual spielst du mit der Karte.
 Eine neue Karte ist wie eine aus dem Laden formatiert und leer (Entscheidung des
-Projektinhabers, 17.10.2026); die Frage zum Formatieren kommt nur bei einer kaputten Karte,
-die Meldung "Systemdatei wird geladen" beim Start entfaellt (RE4_CARD_BOOT_MESSAGE=1 zeigt sie).
+Projektinhabers, 17.10.2026); die Frage zum Formatieren kommt nur bei einer kaputten Karte.
+Beim Start entfallen die Meldung "Systemdatei wird geladen" und die Frage "Systemdatei anlegen?"
+(die Systemdatei entsteht still); RE4_CARD_BOOT_MESSAGE=1 verhaelt sich wie das Original.
 -NewCard startet mit einer neuen Karte, -BlankCard mit einer unformatierten (Test des
 Formatieren-Dialogs); die bisherige wird vorher als speicherkarte-a-vorher.bin gesichert.
 In Ja/Nein-Fragen steht der Pfeil wie im Original zuerst auf der zweiten Antwort (meist "Nein").

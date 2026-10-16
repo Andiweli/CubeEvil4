@@ -1,0 +1,61 @@
+# The boot check of the memory card (M10), without the GameCube's questions
+# (decisions of the project owner, 17.10.2026): cCard::firstCheck10 shows
+# "loading the system file" for at least 30 frames while it reads
+# bh4_system, and when the card has no system file, createSysfile asks
+# whether to make one, shows "saving the system file" and then "system file
+# saved" for 15 frames. Now the system file is made without asking (as with
+# "yes") and without these messages; RE4_CARD_BOOT_MESSAGE=1
+# (runtime/memcard.cpp re4_card_boot_message) brings back the original
+# behaviour. Reading, writing and the error messages stay as they are.
+--- a/src/game/card.cpp
++++ b/src/game/card.cpp
+@@ -2013,6 +2013,8 @@
+     }
+ }
+ 
++extern "C" int re4_card_boot_message(void); /* port: runtime/memcard.cpp */
++
+ // Rno0 == 1 (first check): reads the system file (sysfileRead) and applies its settings; a
+ // missing / broken one leads to the create-system-file prompt or the error screen.
+ void cCard::firstCheck10()
+@@ -2023,8 +2025,9 @@
+     sprintf(m_Name, "%s", "bh4_system");
+     switch (m_Rno1) {
+     case 0:
+-        m_Timer = 30;
+-        if (m_SlotNo != 2) {
++        /* port: "loading the system file" only with RE4_CARD_BOOT_MESSAGE=1 */
++        m_Timer = re4_card_boot_message() ? 30 : 0;
++        if (m_SlotNo != 2 && re4_card_boot_message()) {
+             cardMesSet(MES_SYSFILE_LOADING, 0, 0);
+         }
+         m_RetryCtr = 0;
+@@ -2891,6 +2894,12 @@
+     sprintf(m_Name, "bh4_system");
+     switch (m_Rno1) {
+     case 0:
++        if (!re4_card_boot_message()) {
++            /* port: made without asking, as "yes" (RE4_CARD_BOOT_MESSAGE=1 asks) */
++            SysFlagOn(pG, SYS_CARD_ACCESS);
++            m_Rno1 = 2;
++            break;
++        }
+         cardMesSet(MES_SYS_MAKE_CONFIRM, 0, 0x800000);
+         cMes.SetCursor(0, 1);
+         m_Rno1++;
+@@ -2996,9 +3005,13 @@
+         ret = fileClose(&m_Slot[m_SlotNo]);
+         if (ret == 0) {
+         } else if (ret > 0) {
+-            m_Timer = 0xF;
+             m_Rno1++;
+-            cardMesSet(MES_SYS_SAVE_DONE, 0, 0);
++            if (re4_card_boot_message()) {
++                m_Timer = 0xF;
++                cardMesSet(MES_SYS_SAVE_DONE, 0, 0);
++            } else {
++                m_Timer = 0; /* port: no "system file saved" (RE4_CARD_BOOT_MESSAGE=1 shows it) */
++            }
+         } else if (ret < 0) {
+             errorSet(-0x205);
+         }

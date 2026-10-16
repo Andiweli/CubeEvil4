@@ -537,8 +537,10 @@ void re4_memcard_flush(int force)
     logDirectory();
 }
 
-// Whether the boot check shows "loading the system file" (patch 0060): only
-// with RE4_CARD_BOOT_MESSAGE=1, as the original does.
+// Whether the boot check talks as the original does (patch 0060): "loading
+// the system file", and the question, "saving" and "saved" when it makes the
+// system file. Only with RE4_CARD_BOOT_MESSAGE=1; otherwise it reads and
+// makes the system file silently (decisions of the project owner, 17.10.2026).
 int re4_card_boot_message(void)
 {
     const char* v = getenv("RE4_CARD_BOOT_MESSAGE");
