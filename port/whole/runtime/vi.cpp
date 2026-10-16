@@ -8,8 +8,18 @@
 // checkpoints of long background work. A retrace is due every NTSC field
 // (1/59.94 s) of real time; RE4_VI_FAST=1 delivers the next one immediately
 // whenever the game waits (tests, no pacing).
+//
+// Locked to the display (M9): the app reports each vsync of its display
+// (re4_vi_vsync, Choreographer). A display within 0.5 % of 59.94 Hz (60 Hz,
+// or 120 Hz with two vsyncs a field) then sets the field: one retrace per
+// vsync (or two), shortly after it. A 60 Hz panel and the 59.94 Hz of the
+// GameCube drift one picture apart every 16.7 s, which showed as a short
+// stutter in movies (a picture held three vsyncs). The game then runs 0.1 %
+// faster; the app's sound output takes up such a difference. Without vsyncs
+// for 250 ms (app paused, Linux) or RE4_VI_VSYNC=0: the NTSC field again.
 #include "re4_runtime.h"
 
+#include <atomic>
 #include <stdlib.h>
 #include <time.h>
 
@@ -19,6 +29,13 @@ typedef unsigned u32;
 typedef void (*VIRetraceCallback)(u32 retraceCount);
 
 const long long kFieldNs = 1000000000LL * 1001 / 60000;
+
+// the display's vsync (re4_vi_vsync): the newest time and the smoothed period
+std::atomic<long long> gVsyncAt{0};
+std::atomic<long long> gVsyncPeriod{0};
+bool gVsyncOff;
+const long long kVsyncStale = 250000000LL;  // ns without a vsync: the own clock
+const long long kVsyncLead = 1000000LL;     // the retrace this long after the vsync
 
 VIRetraceCallback gPre;
 VIRetraceCallback gPost;
@@ -44,8 +61,96 @@ void start()
         gStarted = true;
         const char* fast = getenv("RE4_VI_FAST");
         gFast = fast && *fast && *fast != '0';
+        const char* vsync = getenv("RE4_VI_VSYNC");
+        gVsyncOff = vsync && *vsync == '0';
         gNextRetrace = nowNs() + kFieldNs;
     }
+}
+
+}  // namespace
+
+// The field for the display with vsyncs `period` apart, the last at `at`
+// (0: none): a whole number of vsyncs within 0.5 % of the NTSC field, else 0.
+extern "C" long long re4_vi_locked_field(long long now, long long at, long long period)
+{
+    if (at <= 0 || period <= 0 || now - at > kVsyncStale) {
+        return 0;
+    }
+    long long n = (kFieldNs + period / 2) / period;
+    if (n < 1 || n > 4) {
+        return 0;
+    }
+    long long field = n * period;
+    long long off = field > kFieldNs ? field - kFieldNs : kFieldNs - field;
+    return off * 200 <= kFieldNs ? field : 0;
+}
+
+// The next retrace `next` (on the own grid of `field`) moved a little toward
+// kVsyncLead after the vsync grid (`at`, `period`): at most 1/50 of a field per
+// retrace, an eighth of the distance, so it follows the display smoothly.
+extern "C" long long re4_vi_lock_phase(long long next, long long field, long long at, long long period)
+{
+    long long target = at + kVsyncLead;
+    long long e = (next - target) % period;
+    if (e < 0) {
+        e += period;
+    }
+    if (e > period / 2) {
+        e -= period;
+    }
+    long long step = e / 8, limit = field / 50;
+    if (step > limit) {
+        step = limit;
+    } else if (step < -limit) {
+        step = -limit;
+    }
+    return next - step;
+}
+
+// A vsync of the display at `ns` (CLOCK_MONOTONIC, any thread): the period is
+// smoothed over the intervals (a late callback counts as several vsyncs).
+extern "C" void re4_vi_vsync(long long ns)
+{
+    long long last = gVsyncAt.exchange(ns);
+    if (last <= 0 || ns <= last) {
+        return;
+    }
+    long long d = ns - last, p = gVsyncPeriod.load();
+    if (p == 0) {
+        if (d >= 4000000 && d <= 34000000) {
+            gVsyncPeriod.store(d);
+        }
+        return;
+    }
+    long long n = (d + p / 2) / p;
+    if (n >= 1 && n <= 4) {
+        long long one = d / n;
+        gVsyncPeriod.store(p + (one - p) / 16);
+    } else if (d > 0 && d < p / 2) {
+        gVsyncPeriod.store(0);  // much shorter than thought: start over
+    }
+}
+
+namespace {
+
+long long fieldNs(long long now)
+{
+    if (gVsyncOff) {
+        return kFieldNs;
+    }
+    long long f = re4_vi_locked_field(now, gVsyncAt.load(), gVsyncPeriod.load());
+    return f ? f : kFieldNs;
+}
+
+// the retrace after the one due at gNextRetrace, seen at `now`
+long long nextRetrace(long long now)
+{
+    long long field = fieldNs(now);
+    long long next = now + field - (now - gNextRetrace) % field;
+    if (field != kFieldNs) {
+        next = re4_vi_lock_phase(next, field, gVsyncAt.load(), gVsyncPeriod.load());
+    }
+    return next;
 }
 
 void deliver()
@@ -83,11 +188,11 @@ int re4_interrupt_point(void)
     }
     // Retraces missed while the CPU was busy are counted at once; the clock
     // then restarts from now instead of catching up further.
-    int due = (int) ((now - gNextRetrace) / kFieldNs) + 1;
+    int due = (int) ((now - gNextRetrace) / fieldNs(now)) + 1;
     if (due > 4) {
         due = 4;
     }
-    gNextRetrace = now + kFieldNs - (now - gNextRetrace) % kFieldNs;
+    gNextRetrace = nextRetrace(now);
     for (int i = 0; i < due; i++) {
         deliver();
     }

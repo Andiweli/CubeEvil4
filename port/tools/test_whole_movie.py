@@ -17,7 +17,9 @@ game/sofdec.cpp does (tests/movie_probe.cpp). Then:
     GX renderer has the colours of the decoded frame (if it is built),
   - the same movie in fast mode (RE4_VI_FAST, as the PC check runs the game:
     fields at once, the CRI clock counts them) still plays to its end, at
-    the movie's frame rate and in sync.
+    the movie's frame rate and in sync,
+  - and with fields at 60.0 Hz (a 60 Hz display the retraces follow,
+    runtime/vi.cpp): every frame stays exactly two fields.
 
     test_whole_movie.py BUILD_DIR [runner ...]     (runner: e.g. qemu-arm)
 Exit code 0 = passed; skipped (exit 0) without ffmpeg.
@@ -287,6 +289,25 @@ def main():
             failures.append(f"fast mode: frame pacing {per:.2f} fields per frame")
         if lag is None or abs(lag) > 0.15:
             failures.append("fast mode: sound and picture apart")
+
+        # fields at 60.0 Hz (the retraces locked to a 60 Hz display): the sound
+        # and with it the movie's clock follow the fields, the frames stay even
+        hyuv, hwav = work / "hz60.yuv", work / "hz60.wav"
+        env = {k: v for k, v in os.environ.items() if k != "RE4_VI_FAST"}
+        env.update(RE4_DATA_DIR=str(data), RE4_MOVIE_HZ="60")
+        proc = subprocess.run([*runner, str(build / "re4_host"), "--movie-test", "movie/test.sfd", str(hyuv),
+                               str(hwav), str(fields)], cwd=build, env=env, capture_output=True, timeout=600)
+        hframes = read_frames(hyuv)
+        uneven = lambda fr: sum(1 for a, b in zip(fr[1:], fr[2:]) if b[1] - a[1] != 2)
+        # as even as at 59.94 Hz; under qemu the steps come too late for real
+        # time (the run at 59.94 Hz is uneven as well): then only the end counts
+        base = uneven(frames)
+        timed = base <= 5
+        print(f"  60 Hz fields: {len(hframes)} frames, {uneven(hframes)} not two fields apart "
+              f"(at 59.94 Hz: {base}{'' if timed else ', too slow for real time: not judged'}), "
+              f"exit {proc.returncode}")
+        if proc.returncode != 0 or len(hframes) < len(ref_frames) * 0.9 or (timed and uneven(hframes) > base + 2):
+            failures.append("60 Hz fields: the movie did not play evenly")
     finally:
         if os.environ.get("RE4_MOVIE_KEEP"):
             print(f"  kept: {work}")

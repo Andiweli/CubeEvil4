@@ -49,6 +49,7 @@ struct CoreApi {
   const Re4GxChunk *(*gxAcquire)(void){};
   void (*gxRelease)(const Re4GxChunk *){};
   void (*gxDetach)(void){};
+  void (*vsync)(int64_t){};  // optional (cores since M9)
 } api;
 
 template <class F> bool bind(F &slot, const char *name) {
@@ -84,6 +85,7 @@ void loadCore() {
   ok = bind(api.gxAcquire, "re4_core_gx_acquire") && ok;
   ok = bind(api.gxRelease, "re4_core_gx_release") && ok;
   ok = bind(api.gxDetach, "re4_core_gx_detach") && ok;
+  api.vsync = reinterpret_cast<void (*)(int64_t)>(dlsym(api.main, "re4_core_vsync"));
   if (!ok) {
     LOG("%s", api.error.c_str());
     api.main = nullptr;
@@ -339,7 +341,13 @@ bool drawGx() {
           gxDumpSeriesPart, chunk->sequence, gxDumpSeriesSequence);
       gxDumpSeriesLeft = 0;
     }
+    // a series also keeps each picture as this GPU drew it (gx-geraet-NN-KK.bmp):
+    // flicker the cloud renderer does not show is then this device's (FILES, M9)
+    char seriesShot[512];
+    seriesShot[0] = 0;
     if (gxDumpSeriesLeft) {
+      std::snprintf(seriesShot, sizeof(seriesShot), "%s/gx-geraet-%02u-%02u.bmp", gxDumpDir.c_str(),
+                    gxDumpSeriesIndex, gxDumpSeriesPart);
       std::snprintf(path, sizeof(path), "%s/gx-geraet-%02u-%02u.bin", gxDumpDir.c_str(), gxDumpSeriesIndex,
                     gxDumpSeriesPart++);
       gxDumpSeriesSequence = chunk->sequence;
@@ -354,6 +362,9 @@ bool drawGx() {
     }
     gx->Run(*chunk);
     api.gxRelease(chunk);
+    if (seriesShot[0]) {
+      SaveShot(seriesShot);
+    }
     if (gxHitShotsLeft) {
       char shot[512];
       std::snprintf(shot, sizeof(shot), "%s/treffer-%02u-%02u.bmp", gxDumpDir.c_str(), gxHitCount,
@@ -505,6 +516,12 @@ extern "C" JNIEXPORT jint JNICALL Java_com_ast_re4decomp_CoreBridge_audio(JNIEnv
   }
   env->ReleasePrimitiveArrayCritical(pcm, out, 0);
   return got;
+}
+
+// A vsync of the display (CoreActivity, the Choreographer's frame time in ns of
+// System.nanoTime = CLOCK_MONOTONIC): the core's retraces follow the display.
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_vsync(JNIEnv *, jclass, jlong ns) {
+  if (api.vsync) api.vsync(static_cast<int64_t>(ns));
 }
 
 // The room the game is in (for the Java room loader), -1 outside a room.

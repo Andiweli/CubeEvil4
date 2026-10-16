@@ -18,7 +18,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M6b GX nachbilden (`gx-plan.md`) | ✅ 16.10.2026 (Retroid): das Bild kommt aus der GX-Nachbildung (Logos, Titel, Räume, Figuren, Effekte, Menüs, Anzeigen); r100 und r101 flüssig bei etwa 1080p (`-Scale 3`) |
 | M7 Steuerung | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m7-steuerung`): alle Tasten, Sticks und L2/R2 kommen als GameCube-Controller an (Original-`PADClamp`, Belegung nach Beschriftung), Menüs bedienbar, Vibration spürbar; Touch später („M7 Steuerung“) |
 | M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Gerätelauf von M9 („M8 Audio“) |
-| M9 Videos | Cloud-Teil fertig (16.10.2026, Branch `claude/re4-m9-videos`): die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib` mitkompiliert, `runtime/movie.cpp` entfällt; ein synthetischer Film läuft im Test mit Bild, Stereo-Ton, Takt und Ende (i686, armhf, `-O2`), die Farben über die GX-Nachbildung stimmen; Helligkeits-Option wirkt. **Offen:** Gerätetest (Vorfilm, Demo-Filme, START) und PC-Prüfung mit allen Filmen der Disc („M9 Videos“) |
+| M9 Videos | Cloud-Teil fertig (16.10.2026, Branch `claude/re4-m9-videos`): die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib` mitkompiliert, `runtime/movie.cpp` entfällt; ein synthetischer Film läuft im Test mit Bild, Stereo-Ton, Takt und Ende (i686, armhf, `-O2`), die Farben über die GX-Nachbildung stimmen; Helligkeits-Option wirkt. Gerätetest (16.10.2026): Vorfilm, Demo-Film mit Ton und Abbruch mit START laufen; PC-Prüfung: alle 13 Filme der Discs ganz ohne Fehler. Danach behoben, **noch nicht auf dem Gerät geprüft:** abgebrochene Töne (SYN, Patch 0056), Ruckler (Bildtakt an den Bildschirm-Vsync gekoppelt) („M9 Videos“) |
 | Reihenfolge | Entscheidung des Projektinhabers (16.10.2026): erst M9 Videos und M10 Speichern/Laden, danach der Raum-Rundgang (10b) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -50,8 +50,8 @@ Je Ziel: Build, dann drei Prüfungen von `re4_host` und der Formatvergleich
 | `--self-test` | Weiterleitungen zwischen Modulen geben Argumente korrekt weiter |
 | `--check-modules` | alle 114 Module laden, alle Querverweise lösen sich auf |
 | `--core-test` | Einbettungs-Schnittstelle der App ohne Disc-Daten (`port/whole/tests/core_tests.cpp`, `core_probe.cpp`): `bridge` Schnappschuss aus einem nachgebauten Gegner (EmMgr, Teile, Modell-Info, Kamera, Raum), `thread` Kern-Thread mit Testeinstieg, Controller über `re4_core_pad`, Dreifachpuffer |
-| `--runtime-test` | Plattformschicht ohne Disc-Daten (`port/whole/tests/runtime_tests.cpp`): `link` OSLink/OSUnlink mit synthetischem big-endian REL-Kopf und Testmodul; `dvd` DVD-API über einen synthetischen Zwei-Disc-Ordner; `yz2` Yz2 des Spiels + Kern mit den Testdaten `port/tests/yz2_fixtures.h`; `dvdq` die DVD-Warteschlange des Spiels liest eine synthetische mehrteilige Datei in den Spiel-Heap; `stream` der Stream-Code des Tontreibers spielt synthetische Stream-Dateien (Nachladen im Audio-Rahmen, Aufträge aus dem Interrupt enden erst danach); `math` PS*/C_*-Matrixfunktionen, die C-Fassungen der Gekko-Assembler-Funktionen (Tabelle mit Bitmustern aus einem Python-Modell der Paired-Single-Befehle), Skinning `CalcSk1` mit GQR-Quantisierung, `EmRoutineSetW`, die big-endian Sichten, die Länge von `__FILE__`; `trace` Zustands-Trace, GetDataExt-Abdeckung, Ende des Test-Tastenskripts; `tasks` der Task-Scheduler des Spiels (`TaskExec`, `TaskSleep`, `TaskExit`, `iTaskExec`) auf der Thread-Emulation, dazu VI-Retraces |
-| `--movie-test` (M9) | `port/tools/test_whole_movie.py`: ein synthetischer Sofdec-Film (ffmpeg: MPEG-1 mit B-Bildern, Stereo-ADX mit zwei Tönen; `port/tools/make_test_sfd.py`) durch die CRI-Middleware wie `cSofdec` (`tests/movie_probe.cpp`): Bilder gegen ffmpeg, Reihenfolge, Takt, Ton je Kanal, Ton/Bild-Abstand, Bild 10 durch den GX-Renderer der App (wenn `port/build/app-host-gl` gebaut ist), derselbe Film im Schnelllauf (`RE4_VI_FAST`) |
+| `--runtime-test` | Plattformschicht ohne Disc-Daten (`port/whole/tests/runtime_tests.cpp`): `link` OSLink/OSUnlink mit synthetischem big-endian REL-Kopf und Testmodul; `dvd` DVD-API über einen synthetischen Zwei-Disc-Ordner; `yz2` Yz2 des Spiels + Kern mit den Testdaten `port/tests/yz2_fixtures.h`; `dvdq` die DVD-Warteschlange des Spiels liest eine synthetische mehrteilige Datei in den Spiel-Heap; `stream` der Stream-Code des Tontreibers spielt synthetische Stream-Dateien (Nachladen im Audio-Rahmen, Aufträge aus dem Interrupt enden erst danach); `math` PS*/C_*-Matrixfunktionen, die C-Fassungen der Gekko-Assembler-Funktionen (Tabelle mit Bitmustern aus einem Python-Modell der Paired-Single-Befehle), Skinning `CalcSk1` mit GQR-Quantisierung, `EmRoutineSetW`, die big-endian Sichten, die Länge von `__FILE__`; `trace` Zustands-Trace, GetDataExt-Abdeckung, Ende des Test-Tastenskripts; `tasks` der Task-Scheduler des Spiels (`TaskExec`, `TaskSleep`, `TaskExit`, `iTaskExec`) auf der Thread-Emulation, dazu VI-Retraces; `vsync` (seit M9) die Retraces folgen dem Vsync eines 60-Hz-Bildschirms |
+| `--movie-test` (M9) | `port/tools/test_whole_movie.py`: ein synthetischer Sofdec-Film (ffmpeg: MPEG-1 mit B-Bildern, Stereo-ADX mit zwei Tönen; `port/tools/make_test_sfd.py`) durch die CRI-Middleware wie `cSofdec` (`tests/movie_probe.cpp`): Bilder gegen ffmpeg, Reihenfolge, Takt, Ton je Kanal, Ton/Bild-Abstand, Bild 10 durch den GX-Renderer der App (wenn `port/build/app-host-gl` gebaut ist), derselbe Film im Schnelllauf (`RE4_VI_FAST`) und mit 60,0-Hz-Halbbildern (Bildschirmtakt) |
 | `re4_format_compare` | Formatumwandler gegen die geprüften big-endian Leser der App, mit synthetischen Beispielen jedes verglichenen Formats; danach `port/tools/test_whole_format_compare.py`: dieselben Beispiele als Disc-Ordner (Raumdatei Yz2-gepackt, `.drs`-Container), Modus `--data` (siehe „Formatvergleich mit der App“) |
 
 Danach einmal `port/tools/test_whole_disc_folder.py` (Disc-Ordner-Werkzeug mit
@@ -2243,6 +2243,7 @@ Waffe bricht vereinzelt ab.
 
 | Prüfung | Ergebnis |
 |---|---|
+| Kern-Test „ax“ mit SYN-Stimmen (Patch 0056), Laufzeittest „vsync“, Filmtest mit 60,0-Hz-Halbbildern (alle 120 Bilder genau zwei Halbbilder) | bestanden (i686; armhf: unter qemu zu langsam für Echtzeit, dort zählt nur das Ende) |
 | Kern-Test „movie“: drei synthetische Packs, `mwPlyGetHdrInf` 320 × 240, Arbeitsspeicher ≥ 320 · 240 · 3 | bestanden |
 | Filmtest (4 s, 320 × 240, 29,97 Bilder/s, MPEG-1 mit B-Bildern, ADX stereo 48 kHz) in Echtzeit | 120 von 120 Bildern in Reihenfolge, schlechtestes Bild 75,9 dB gegen ffmpeg, 2,03 Halbbilder je Bild, Ende (PLAYEND) nach 249 Halbbildern, 0 ausgelassen, 0 CRI-Fehler; Ton: beide Töne auf ihrem Kanal (0,97/0,93, Übersprechen 0,000), Ton 40 ms nach dem ersten Bild |
 | Filmbild über die GX-Nachbildung (`drawTex` des Spiels durch `gx_chunk_render`) | 24,0 dB gegen die BT.601-Umrechnung, mittlere Abweichung R +0,3 G +0,5 B +0,8 (Kanten weichen ab: die Farbanteile filtert die Textureinheit bilinear) |
@@ -2260,6 +2261,81 @@ Spiel sie nicht nutzt: die ARGB8888-Umwandler (melden sich einmal im Log),
 die WAV/AIFF/AU-Wege von ADX (ohne Byte-Reihenfolge-Korrektur). Aufrufe über
 Funktionszeiger mit falscher Argumentzahl findet `whole_ir_signatures.py`
 nicht.
+
+### Erster Gerätelauf und PC-Prüfung mit Filmen (16.10.2026, Stand `af34ae0`)
+
+- **Erster Versuch:** Der Android-Build brach nach fehlerfreiem Bauen bei der
+  Platzhalter-Prüfung ab (alter Vergleichs-Ordner, siehe „Platzhalter“);
+  behoben mit `port/whole/stubs-expected.txt`.
+- **Gerätetest A** (`-Seconds 480 -Scale 3 -AudioWav 60`, r120): Vorfilm
+  `opening.sfd` ganz gelaufen (76,0 s, 2278 Bilder, 4567 Schritte, 0
+  ausgelassen, Status 3), danach Autofahrt und r100. Während des Films Kern
+  16,7 ms je Bildstück (10 ms frei), Renderer 2–3 ms (höchstens 13), 60,0
+  gezeigt je Sekunde; Ton des Films in `ton.wav` sauber (−18 dBFS, 3
+  übersteuerte Werte). Laut Projektinhaber vereinzelte kleine Ruckler, auch
+  außerhalb der Bildschirmfotos. **6 × „ISS Voice Drop“** in r100.
+- **Gerätetest B** (`-Manual`): Demo-Film nach etwa 15 s auf dem Titel mit
+  Ton (`demo0.sfd` ganz, 61,4 s, 1839 Bilder, 0 ausgelassen), der zweite
+  (`demo1.sfd`) mit START abgebrochen („skipped (START)“), 0 Voice Drops.
+  Helligkeit nicht geprüft.
+- **PC-Prüfung** (`test-r100-core.ps1`, „ALLES OK“): alle 13 Filme beider
+  Discs ganz im Schnelllauf (Disc 1: `adaend_c`, `adaend_m`, `demo0`,
+  `demo1`, `opening`, `r214_ev`, `r229_ev`; Disc 2: `adaend_c`, `adaend_m`,
+  `demo0`, `demo1`, `ending` mit 6475 Bildern, `r333_ev`), jeder mit Status 3,
+  0 ausgelassen, 0 CRI-Fehler, 512 × 336; ein Schritt 0,5–0,8 ms im Mittel
+  (i686). Standbilder richtig (Farben, Untertitel, Abspann). `e3_jpn.sfd` und
+  `dmy.sfd` gibt es auf der Disc nicht; `demo0` und `demo1` sind gleich.
+
+**Abgebrochene Töne: Ursache gefunden (Patch 0056).** Die SYN-Bibliothek
+(Synthesizer für die Sequenz-Klänge des Spiels, `snd_seq*.cpp`) schrieb
+32-bit-Werte als ein Wort über zwei u16-Felder des AX-Parameterblocks
+(`synsample.c`: Schleifen-Kennung und Format, Abspiel-, Schleifen- und
+Endadresse, Verstärkung; `synpitch.c __SYNUpdateSrc`: das
+Abtastraten-Verhältnis). Auf little-endian waren die Hälften vertauscht: die
+Adressen lagen weit außerhalb des ARAM (SYN-Stimmen blieben stumm), und der
+Bruchteil des Verhältnisses wurde zum ganzzahligen Teil. AX liest damit
+`__AXSrcCycles[ratioHi]` weit hinter der 5-Einträge-Tabelle (auf dem GameCube
+hätte ein Index ≥ 5 die folgenden Mischtabellen getroffen) und schätzte über
+3 Milliarden DSP-Takte („AX estimate at most 3678218915“ im Protokoll),
+also stoppte AX Stimmen. Das erklärt auch die abgebrochenen Schüsse aus M8
+(das vierfache Budget hatte die Folgen nur verringert). Prüfung: Kern-Test
+„ax“ setzt SYN-Stimmen auf (ADPCM mit Schleife, PCM16, PCM8) und ändert die
+Tonhöhe; ohne Patch 11 Fehler, mit Patch bestanden. Gefunden hat das nicht
+der IR-Vergleich (die Typen stimmen), sondern die Schätzung im Protokoll.
+Für M10: `CARDFormat.c` und `CARDUnlock.c` schreiben ebenso Wörter in
+Byte-Felder.
+
+**Ruckler: Bildtakt an den Bildschirm gekoppelt.** Die Protokolle zeigen
+keinen Engpass (Kern und Renderer mit Reserve, 0 ausgelassene Filmbilder,
+gleichmäßige Abstände). Der Kern lieferte aber 59,94 Bildstücke je Sekunde
+(NTSC), der Bildschirm zeigt 60: Alle 16,7 s fehlte dem Renderer ein neues
+Bild, ein Filmbild stand drei statt zwei Bildwechsel lang (im 76-s-Vorfilm
+etwa viermal, im Spiel ebenso). Jetzt meldet die App jeden Vsync
+(`Choreographer`, `CoreBridge.vsync` → `re4_core_vsync`), und `vi.cpp` legt
+die Halbbilder auf den Bildschirmtakt, wenn er höchstens 0,5 % von 59,94 Hz
+abweicht (60 Hz; 120 Hz mit zwei Vsyncs je Halbbild): eine Retrace je Vsync,
+1 ms danach, die Lage wird sanft nachgeführt (höchstens 1/50 Halbbild je
+Retrace). Das Spiel läuft dann 0,1 % schneller; die Tonausgabe der App gleicht
+das aus, und die Filmuhr folgt dem Ton, also den Halbbildern (Filmtest mit
+60,0-Hz-Halbbildern: jedes Bild genau zwei Halbbilder). Ohne Vsync für
+250 ms (App pausiert, Linux) oder mit `RE4_VI_VSYNC=0` wieder der eigene
+NTSC-Takt. Laufzeittest „vsync“: Rechnung (60/59,94/120 Hz angenommen, 50/90
+Hz abgelehnt, Lage wandert zu 1 ms) und echter Takt (Vsync-Gitter 8 ms
+neben den Retraces: die Retraces wandern auf 1 ms nach dem Vsync; mit
+`RE4_VI_VSYNC=0` schlägt der Test fehl). Auf dem Gerät nicht getestet.
+
+**FILES-Flackern** (Video des Projektinhabers, 37 Bilder bei 30 Bildern/s):
+Ausgewertet zeigt sich ein Wechsel von Bild zu Bild genau im Rahmen der
+Dateiliste (Holzrand oben, links, rechts, unten und die Leiste unter
+„Village Files“): dieselben Bildpunkte springen jedes zweite Videobild um
+etwa 15–25 Helligkeitsstufen hin und her (z. B. 85 ↔ 103). Leons Animation
+und das pulsierende „Village Files“ sind gewollt. In den R3-Folgen aus dem
+zehnten Gerätelauf (in der Cloud nachgezeichnet) war nichts davon zu sehen,
+die Ursache liegt also vermutlich im Zeichnen auf dem Gerät (Treiber). Neu:
+Eine R3-Folge speichert jetzt zusätzlich jedes Bild so, wie die GPU des
+Geräts es gezeichnet hat (`gx-geraet-NN-KK.bmp` in `gx-geraet.zip`, auch über
+`pull-gx-dumps.ps1`); der Vergleich mit dem Cloud-Bild derselben Daten zeigt
+dann, welche Zeichnung abweicht.
 
 ## Aufbau
 
@@ -2402,6 +2478,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0053 CRI `mpv_dec.c`, `sfd_lib.c`, `mwsfdsvr.c`, `adx_sjd.c`, `adx_rnaa.c`, `mwstm.c` | Werte, die auf dem GameCube zufällig im Register standen: Zahl übersprungener Makroblöcke, Bildrate des Sofdec-Zeitgebers, Player der Nachschub-Prüfung, Größe für den ADX-Kopf; zwei Weiterleitungen geben das Ergebnis zurück, das die Aufrufer prüfen |
 | 0054 `sofdec.cpp` | Fortschritt des Films ins Log (`re4_movie_status`/`re4_movie_end`, runtime/movie_status.cpp); die vier TEV-Konstantfarben der YUV→RGB-Umrechnung (`setTevPrm`) in GameCube-Byte-Reihenfolge (`RE4_BE`), sonst vertauschte Kanäle |
 | 0055 `title.cpp` | Blendfarben der Titelbilder (Logos, Titel, Demo-Filme) als Wort in GameCube-Reihenfolge (`RE4_BE`) wie Patch 0034; sonst ist `0x000000FF` (deckendes Schwarz) ein durchsichtiges Rot und die Blenden fehlen |
+| 0056 SDK `synsample.c`, `synpitch.c` | SYN schreibt 32-bit-Werte des AX-Parameterblocks (Adressen, Schleife/Format, Verstärkung, Abtastraten-Verhältnis) mit der hohen Hälfte zuerst wie das Wort des GameCube (`RE4_PB_WORD`, zwei Halbwörter); vorher vertauschte Hälften: SYN-Stimmen außerhalb des ARAM und eine riesige DSP-Schätzung, AX stoppte Stimmen („ISS Voice Drop“) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -2502,7 +2579,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | SDK `OSAlloc.c`, `OSArena.c` | unverändert aus `src/lib`: Heap und Arena; `main_mem.cpp` liest die Heap-Deskriptoren direkt |
 | SDK `Padclamp.c` (M7) | unverändert aus `src/lib`: `PADClamp`, die Totzonen und Bereiche des Original-Controllers; `PadRead` des Spiels ruft es auf den Rohwerten von `pad.cpp` auf |
 | `os_thread.cpp` | `OSThread`, `OSSemaphore`: ein Host-Thread, strikte Prioritäten, Wechsel nur in OS-Aufrufen; jeder Thread hat einen Host-Stack (`port/src/stack_context.cpp` aus dem alten Port, neu mit ucontext für Linux x86, Boost.Context-Assembler für Linux ARM wie auf Android); ein Verteiler auf dem Stack des Startprogramms (`re4_os_run`). Spielsichtbar wie im SDK: `state`, `suspend`, Priorität, Warteschlangen, Stack-Magie `0xDEADBABE` |
-| `vi.cpp` | VI-Retrace alle 1/59,94 s Echtzeit, zugestellt an Interrupt-Punkten (Verteiler im Leerlauf, `VIWaitForRetrace`, Patch 0012, später lange Hintergrundarbeit); Thread-Wechsel aus dem Rückruf erst am Interrupt-Ende. `RE4_VI_FAST=1`: ohne Warten (Tests). Seit M9 `re4_cri_timer`: die Zeitbasis der CRI-Uhr (`OSGetTime`, mit `RE4_VI_FAST` die zugestellten Halbbilder) |
+| `vi.cpp` | VI-Retrace alle 1/59,94 s Echtzeit, zugestellt an Interrupt-Punkten (Verteiler im Leerlauf, `VIWaitForRetrace`, Patch 0012, später lange Hintergrundarbeit); Thread-Wechsel aus dem Rückruf erst am Interrupt-Ende. `RE4_VI_FAST=1`: ohne Warten (Tests). Seit M9 `re4_cri_timer`: die Zeitbasis der CRI-Uhr (`OSGetTime`, mit `RE4_VI_FAST` die zugestellten Halbbilder), und die Halbbilder folgen dem Vsync des Bildschirms der App (`re4_vi_vsync`, 60/120 Hz; `RE4_VI_VSYNC=0` aus) |
 | SDK AX, MIX, SYN, SEQ, AXART, AXFX (M8) | unverändert aus `src/lib` bis auf Patch 0047 (Effekte in C); ersetzt `ax.cpp` (K2) |
 | `dsp.cpp` (M8) | der DSP mit dem AX-Microcode: Befehlslisten von `AXCL.c`, Stimmen dekodieren und mischen, Aux-Busse, Ausgabe (siehe „M8 Audio“) |
 | `ai.cpp` (M8) | AI: 200 Tonblöcke je Sekunde Spielzeit mit den VI-Halbbildern, Ring für die Tonausgabe der App (`re4_audio_read`), `RE4_AUDIO_WAV` |

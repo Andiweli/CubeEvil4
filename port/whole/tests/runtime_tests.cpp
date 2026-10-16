@@ -432,6 +432,7 @@ extern "C" {
 void OSInit(void);
 typedef void (*VIRetraceCallback)(unsigned);
 VIRetraceCallback VISetPostRetraceCallback(VIRetraceCallback cb);
+void VIInit(void);
 void VIWaitForRetrace(void);
 unsigned VIGetRetraceCount(void);
 int re4probe_valid_ptr(int onThread);  // tests/game_probe.cpp
@@ -1202,6 +1203,86 @@ static void testTrace()
     report("trace", ok);
 }
 
+// The retrace clock locked to the display (vi.cpp, M9): the arithmetic, then
+// a vsync thread at 60.0 Hz whose grid lies 8 ms after the retraces: the
+// retraces must move to just after its vsyncs.
+long long gVsyncT0;
+std::atomic<bool> gVsyncRun;
+const long long kP60 = 1000000000LL / 60;
+
+static long long monoNs()
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long) ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+
+static long long gRetraceAt[90];
+
+int vsyncTestMain()
+{
+    VIInit();
+    VIWaitForRetrace();
+    long long r0 = monoNs();
+    gVsyncT0 = r0 + 8000000;
+    gVsyncRun = true;
+    std::thread vsync([] {
+        for (int k = 0; gVsyncRun; k++) {
+            long long at = gVsyncT0 + k * kP60;
+            struct timespec ts = {(time_t) (at / 1000000000LL), (long) (at % 1000000000LL)};
+            clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, 0);
+            re4_vi_vsync(at);  // the frame time, as the Choreographer reports it
+        }
+    });
+    for (int i = 0; i < 90; i++) {
+        VIWaitForRetrace();
+        gRetraceAt[i] = monoNs();
+    }
+    gVsyncRun = false;
+    vsync.join();
+    return 0;
+}
+
+static void testVsync()
+{
+    bool ok = true;
+    const long long ntsc = 1000000000LL * 1001 / 60000, now = 5000000000LL;
+    CHECK(re4_vi_locked_field(now, now - 1000000, kP60) == kP60);           // 60 Hz
+    CHECK(re4_vi_locked_field(now, now - 1000000, ntsc) == ntsc);           // 59.94 Hz
+    CHECK(re4_vi_locked_field(now, now - 1000000, kP60 / 2) == kP60 / 2 * 2);  // 120 Hz: two vsyncs
+    CHECK(re4_vi_locked_field(now, now - 1000000, 1000000000LL / 90) == 0);   // 90 Hz: own clock
+    CHECK(re4_vi_locked_field(now, now - 1000000, 1000000000LL / 50) == 0);   // 50 Hz
+    CHECK(re4_vi_locked_field(now, now - 300000000, kP60) == 0);              // stale
+    CHECK(re4_vi_locked_field(now, 0, kP60) == 0);
+    // the phase walks to 1 ms after the vsync, in small steps
+    long long next = 9000000;
+    for (int i = 0; i < 120; i++) {
+        long long moved = re4_vi_lock_phase(next, kP60, 0, kP60);
+        CHECK(moved - next <= kP60 / 50 && next - moved <= kP60 / 50);
+        next = moved + kP60;
+    }
+    long long phase = next % kP60;
+    CHECK(phase > 900000 && phase < 1100000);
+    if (!ok) {
+        re4_log("  vsync: phase %lld ns after 120 fields", phase);
+    }
+    // the real clock
+    re4_os_run(vsyncTestMain);
+    int near = 0;
+    long long sum = 0;
+    for (int i = 60; i < 90; i++) {
+        long long ph = ((gRetraceAt[i] - gVsyncT0) % kP60 + kP60) % kP60;
+        sum += ph;
+        near += ph < 3500000;
+    }
+    CHECK(near >= 24);
+    if (near < 24) {
+        re4_log("  vsync: %d of 30 retraces within 3.5 ms after a vsync (mean phase %.1f ms)", near,
+                sum / 30 / 1e6);
+    }
+    report("vsync", ok);
+}
+
 int re4_runtime_tests()
 {
     gFailures = 0;
@@ -1214,6 +1295,7 @@ int re4_runtime_tests()
     testMath();
     testTrace();
     testTasks();
+    testVsync();
     re4_log("runtime-test: %d failed", gFailures);
     return gFailures;
 }

@@ -38,6 +38,11 @@ public final class CoreBridge {
    * `pcm` (silence while there is none); returns the frames from the game.
    */
   public static native int audio(short[] pcm, int frames);
+  /**
+   * A vsync of the display (the Choreographer's frame time, System.nanoTime):
+   * the game's video retraces follow the display (no drift against 60 Hz).
+   */
+  public static native void vsync(long frameTimeNanos);
   /** The room the game is in (stage << 8 | room), -1 outside a room. */
   public static native int wantedRoom();
   /** The decoded room archive for a room (RoomRepository), or the error. */

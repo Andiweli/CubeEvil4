@@ -40,13 +40,15 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     & $Adb -s $Serial pull $remote $local 2>&1 | Out-Null
     $ErrorActionPreference = $previousPreference
     $dumps = @(Get-ChildItem -LiteralPath $local -Filter 'gx-geraet-*.bin' -ErrorAction SilentlyContinue)
+    # the pictures of R3 series as the GPU drew them (gx-geraet-NN-KK.bmp) go along
+    $shots = @(Get-ChildItem -LiteralPath $local -Filter 'gx-geraet-*.bmp' -ErrorAction SilentlyContinue)
     if (-not $dumps.Count) {
         Write-Host 'Keine Grafik-Aufnahmen auf dem Retroid (im Spiel R3 druecken, dann dieses Skript).'
         return
     }
     $zip = Join-Path $OutDir 'gx-geraet.zip'
     Remove-Item -LiteralPath $zip -ErrorAction SilentlyContinue
-    Compress-Archive -Path $dumps.FullName -DestinationPath $zip
+    Compress-Archive -Path (@($dumps.FullName) + @($shots | ForEach-Object { $_.FullName })) -DestinationPath $zip
     Write-Host ("{0} Grafik-Aufnahmen in {1} ({2} MB). Bitte mitschicken." -f $dumps.Count, $zip,
         [math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 1))
     if (-not $Keep) { & $Adb -s $Serial shell rm -rf $remote }

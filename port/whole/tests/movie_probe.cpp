@@ -317,13 +317,17 @@ extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const
     // RE4_MOVIE_FAST=1 (with RE4_VI_FAST=1, as the PC check runs the game):
     // the fields as vi.cpp delivers them, at once, the CRI clock counts them
     bool fast = getenv("RE4_MOVIE_FAST") != NULL;
+    // RE4_MOVIE_HZ=60: fields at another rate, as on a 60 Hz display the
+    // retraces follow it (runtime/vi.cpp); the CRI clock stays real time
+    double hz = getenv("RE4_MOVIE_HZ") ? atof(getenv("RE4_MOVIE_HZ")) : 0.0;
+    long long fieldNs = hz > 1.0 ? (long long) (1e9 / hz) : 1000000000LL * 1001 / 60000;
     // RE4_MOVIE_EVERY=N: a frame record at most every N fields (stills of a
     // whole movie; the count in the end line stays the frames handed out)
     int every = getenv("RE4_MOVIE_EVERY") ? atoi(getenv("RE4_MOVIE_EVERY")) : 0, nextRecord = 0;
     struct timespec start;
     clock_gettime(CLOCK_MONOTONIC, &start);
     for (; f < maxFields; f++) {
-        long long due = (long long) f * 1000000000LL * 1001 / 60000;
+        long long due = (long long) f * fieldNs;
         for (; !fast;) {
             struct timespec now;
             clock_gettime(CLOCK_MONOTONIC, &now);

@@ -173,6 +173,12 @@ void re4_keep_vtable(void* object);
 /* Time the game thread slept waiting for the next video retrace, in all (ns):
  * what is left of each frame (runtime/vi.cpp). */
 long long re4_idle_ns(void);
+/* The display's vsync (vi.cpp, from the app through re4_core_vsync; ns of
+ * CLOCK_MONOTONIC): the retraces follow a display near 60 Hz. The two helpers
+ * are the arithmetic of it (exported for the runtime test). */
+void re4_vi_vsync(long long ns);
+long long re4_vi_locked_field(long long now, long long at, long long period);
+long long re4_vi_lock_phase(long long next, long long field, long long at, long long period);
 /* The CRI middleware's clock (uty_tmr.c, patch 0048; runtime/vi.cpp): the
  * time base as OSGetTime, with RE4_VI_FAST=1 the fields delivered instead. */
 long long re4_cri_timer(void);

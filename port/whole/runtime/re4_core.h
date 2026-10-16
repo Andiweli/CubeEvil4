@@ -201,6 +201,11 @@ void re4_core_pad(const Re4CorePad* pad);
  * the last four frames (bit 0 the newest), bits 8-31 = frames so far (the app
  * stops vibrating when they stand still). */
 unsigned re4_core_rumble(void);
+/* A vsync of the device's display at `ns` (CLOCK_MONOTONIC, e.g. the
+ * Choreographer's frame time), any thread, every vsync while the game is
+ * shown: the game's retraces follow a display near 60 Hz (runtime/vi.cpp).
+ * Optional for the app (an older core does not have it). */
+void re4_core_vsync(int64_t ns);
 /* The game's sound for the device: `frames` stereo frames (left, right) at
  * 32 kHz, 16 bit; always fills `out` (silence while the game has none) and
  * returns how many came from the game. Any thread (the app's audio thread);

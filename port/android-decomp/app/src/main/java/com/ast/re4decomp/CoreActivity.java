@@ -19,6 +19,7 @@ import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.util.Log;
+import android.view.Choreographer;
 import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -390,12 +391,24 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     rumbleLevel = 0;
   }
 
+  // every vsync of the display while the game is shown: the core's retraces
+  // follow it (runtime/vi.cpp), so the pictures do not drift against 60 Hz
+  private final Choreographer.FrameCallback vsyncTick = new Choreographer.FrameCallback() {
+    @Override public void doFrame(long frameTimeNanos) {
+      if (!resumed) return;
+      CoreBridge.vsync(frameTimeNanos);
+      Choreographer.getInstance().postFrameCallback(this);
+    }
+  };
+
   @Override
   protected void onResume() {
     super.onResume();
     hideSystemUi();
     surface.onResume();
     resumed = true;
+    Choreographer.getInstance().removeFrameCallback(vsyncTick);
+    Choreographer.getInstance().postFrameCallback(vsyncTick);
     InputManager im = (InputManager) getSystemService(Context.INPUT_SERVICE);
     if (im != null) im.registerInputDeviceListener(this, main);
     main.removeCallbacks(rumbleTick);
@@ -406,6 +419,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   @Override
   protected void onPause() {
     resumed = false;
+    Choreographer.getInstance().removeFrameCallback(vsyncTick);
     // the sound pauses with the app (the core skips what it played meanwhile)
     audio.stop();
     main.removeCallbacks(rumbleTick);

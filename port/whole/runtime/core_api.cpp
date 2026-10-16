@@ -429,6 +429,11 @@ unsigned re4_core_rumble(void)
     return re4_pad_rumble();
 }
 
+void re4_core_vsync(int64_t ns)
+{
+    re4_vi_vsync((long long) ns);
+}
+
 int re4_core_audio(int16_t* out, int frames)
 {
     return re4_audio_read(out, frames);

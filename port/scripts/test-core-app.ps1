@@ -42,7 +42,9 @@ die vollstaendigen Grafikdaten eines Bildes (hoechstens 6) und legt sie als
 gx-geraet.zip ab (zum Nachzeichnen in der Cloud, nicht ins Repository). Ein Druck
 auf den rechten Stick (R3) speichert jederzeit die naechsten 12 Bilder ebenso (eine
 Folge, damit Flackern sichtbar wird; auch ohne -GxDump; nach einem Spiel ohne
-dieses Skript holt pull-gx-dumps.ps1 die Aufnahmen).
+dieses Skript holt pull-gx-dumps.ps1 die Aufnahmen), dazu jedes dieser Bilder so, wie
+die GPU des Geraets es gezeichnet hat (gx-geraet-NN-KK.bmp, ebenfalls in gx-geraet.zip).
+Die Bilder des Kerns folgen dem Bildschirmtakt (60 Hz), damit Filme nicht ruckeln.
 -Scale waehlt die interne Aufloesung: 1 = 640x448 wie der GameCube, 2 = 1280x896
 (Standard, der sichtbare 16:9-Teil entspricht etwa 720p), 3 = 1920x1344 (etwa 1080p),
 4 = 2560x1792.
@@ -532,12 +534,14 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         $shots | ForEach-Object { Move-Item -LiteralPath $_.FullName -Destination $shotDir -Force }
         Say "   Bilder nach Treffern: $($shots.Count) (Ordner treffer, kommen klein in senden.zip)"
     }
-    $dumps = @(Get-ChildItem -LiteralPath $dumpLocal -Filter 'gx-geraet-*.bin' -ErrorAction SilentlyContinue)
+    # the GX data and, for R3 series, each picture as the device's GPU drew it (gx-geraet-NN-KK.bmp)
+    $dumps = @(Get-ChildItem -LiteralPath $dumpLocal -Filter 'gx-geraet-*' -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -in '.bin', '.bmp' })
     if ($dumps.Count) {
         $zip = Join-Path $OutDir 'gx-geraet.zip'
         Remove-Item -LiteralPath $zip -ErrorAction SilentlyContinue
         Compress-Archive -Path $dumps.FullName -DestinationPath $zip
-        Say "   GX-Daten vom Geraet: $($dumps.Count) Bilder (gx-geraet.zip, $([math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 1)) MB)"
+        Say "   GX-Daten vom Geraet: $($dumps.Count) Dateien (gx-geraet.zip, $([math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 1)) MB)"
         # the zip holds them; the folder would only double the size of the results
         Remove-Item -LiteralPath $dumpLocal -Recurse -ErrorAction SilentlyContinue
     } elseif ($GxDump) {
@@ -626,7 +630,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # sounds the driver lost (AX stopped their voice: over its DSP budget or taken by another)
     $drops = @($keep | Where-Object { $_ -match 'ISS Voice Drop' })
     $limit = $keep | Where-Object { $_ -match 'dsp: AX may use' } | Select-Object -First 1
-    Say "Abgebrochene Toene (Voice Drop):  $($drops.Count)$(if ($limit) { ' (' + (($limit -split 'dsp: ')[-1]) + ')' })"
+    $budget = ''
+    if ($limit -match 'AX may use (\d+) DSP cycles.*DSP: (\d+)') { $budget = " (AX-Budget $($Matches[1]) DSP-Takte je Rahmen, GameCube $($Matches[2]))" }
+    Say "Abgebrochene Toene (Voice Drop):  $($drops.Count)$budget"
     # the movies (milestone 9, runtime/movie_status.cpp): start, every 5 s, end or START
     $movies = @($keep | Where-Object { $_ -match 're4\s*: movie: ' })
     $movieDone = @($movies | Where-Object { $_ -match 'movie: .* (ended|skipped \(START\)),' })

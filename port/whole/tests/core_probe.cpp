@@ -341,8 +341,12 @@ static_assert(sizeof(cModelInfo) <= 0x400 && sizeof(cModelData) <= 0x100, "the f
 // envelope, loops, rate conversion, an aux bus through a CPU effect, the AI
 // clock. Returns the number of failed checks (each logged).
 #include "dolphin/ax.h"
+#include "dolphin/syn.h"
 
 extern "C" {
+void __SYNSetupSample(SYNVOICE* voice);
+void __SYNSetupSrc(SYNVOICE* voice);
+void __SYNUpdateSrc(SYNVOICE* voice);
 void re4_log(const char* fmt, ...);
 void re4_ai_field(void);
 void re4_ai_block(void);
@@ -674,6 +678,78 @@ extern "C" int re4probe_ax_test(void)
         }
         AXSetMaxDspCycles(4 * 405000);
         gAxDrops = 0;
+    }
+
+    // SYN, the synthesizer of the game's sequenced sounds (snd_seq*.cpp): the
+    // voice set-up (synsample.c) and the pitch update (synpitch.c) write the
+    // parameter block as the GameCube did, 32-bit values high half first
+    // (patch 0056); before, the halves were swapped on this host (sample
+    // addresses far outside ARAM, the ratio's fraction as its integer part:
+    // AX read its cycle table out of bounds and stopped voices)
+    {
+        static SYNSYNTH synth;
+        memset(&synth, 0, sizeof(synth));
+        synth.aramBaseByte = 0x30000;
+        synth.aramBaseWord = 0x30000 >> 1;
+        synth.aramBaseNibble = 0x30000 << 1;
+        synth.zeroBaseByte = 0x100;
+        synth.zeroBaseWord = 0x100 >> 1;
+        synth.zeroBaseNibble = 0x100 << 1;
+        WTREGION region;
+        memset(&region, 0, sizeof(region));
+        region.loopStart = 30;   // samples: 2 frames + 2 -> nibble 0x24
+        region.loopLength = 100;
+        WTSAMPLE sample;
+        memset(&sample, 0, sizeof(sample));
+        sample.format = SYN_SAMPLE_FORMAT_ADPCM;
+        sample.sampleRate = 32000;
+        sample.offset = 0x40;  // nibbles
+        sample.length = 500;
+        WTADPCM adpcm;
+        memset(&adpcm, 0, sizeof(adpcm));
+        adpcm.a[0][0] = 0x0800;
+        adpcm.a[7][1] = 0x1234;
+        adpcm.pred_scale = 0x12;
+        adpcm.loop_pred_scale = 0x34;
+        static SYNVOICE voice;
+        memset(&voice, 0, sizeof(voice));
+        voice.axvpb = AXAcquireVoice(15, axDrop, 0);
+        voice.synth = &synth;
+        voice.region = &region;
+        voice.sample = &sample;
+        voice.adpcm = &adpcm;
+        AX_CHECK(voice.axvpb != 0);
+        if (voice.axvpb) {
+            AXPB& pb = voice.axvpb->pb;
+            __SYNSetupSample(&voice);
+            u32 start = (0x30000 << 1) + 0x40;
+            AX_CHECK(pb.addr.loopFlag == 1 && pb.addr.format == 0);
+            AX_CHECK(axCurrent(voice.axvpb) == start + 2);
+            AX_CHECK((((u32) pb.addr.loopAddressHi << 16) | pb.addr.loopAddressLo) == start + 2 * 16 + 2 + 2);
+            u32 end = start + (129 / 14) * 16 + 2 + 129 % 14;  // last loop sample: 30 + 100 - 1
+            AX_CHECK((((u32) pb.addr.endAddressHi << 16) | pb.addr.endAddressLo) == end);
+            AX_CHECK(pb.adpcm.a[0][0] == 0x0800 && pb.adpcm.a[7][1] == 0x1234 && pb.adpcm.pred_scale == 0x12);
+            AX_CHECK(pb.adpcmLoop.loop_pred_scale == 0x34);
+            sample.format = SYN_SAMPLE_FORMAT_PCM16;
+            __SYNSetupSample(&voice);
+            AX_CHECK(pb.addr.loopFlag == 1 && pb.addr.format == 10);
+            AX_CHECK(axCurrent(voice.axvpb) == (0x30000 >> 1) + 0x40);
+            AX_CHECK(pb.adpcm.gain == 0x0800);
+            sample.format = SYN_SAMPLE_FORMAT_PCM8;
+            region.loopStart = region.loopLength = 0;
+            __SYNSetupSample(&voice);
+            AX_CHECK(pb.addr.loopFlag == 0 && pb.addr.format == 0x19);
+            AX_CHECK((((u32) pb.addr.loopAddressHi << 16) | pb.addr.loopAddressLo) == 0x100);
+            AX_CHECK(pb.adpcm.gain == 0x0100);
+            // pitch: 1.5 = 0x18000 as ratio 1 + 0x8000/65536
+            voice.srcRatio = 1.5f;
+            __SYNSetupSrc(&voice);
+            AX_CHECK(pb.src.ratioHi == 1 && pb.src.ratioLo == 0x8000);
+            voice.srcRatio = 0.75f;
+            __SYNUpdateSrc(&voice);
+            AX_CHECK(pb.src.ratioHi == 0 && pb.src.ratioLo == 0xC000);
+            AXFreeVoice(voice.axvpb);
+        }
     }
 
     // the AI clock: 200 blocks per second of video fields
