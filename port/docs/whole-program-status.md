@@ -19,7 +19,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M7 Steuerung | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m7-steuerung`): alle Tasten, Sticks und L2/R2 kommen als GameCube-Controller an (Original-`PADClamp`, Belegung nach Beschriftung), Menüs bedienbar, Vibration spürbar; Touch später („M7 Steuerung“) |
 | M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Gerätelauf von M9 („M8 Audio“) |
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
-| M10 Speichern/Laden | in Arbeit (Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App), Startprüfung wieder echt; Cloud-Tests bestanden, **PC-Prüfung mit Disc-Daten und Gerätetest stehen aus** („M10 Speichern/Laden“) |
+| M10 Speichern/Laden | in Arbeit (Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App), Startprüfung wieder echt; Cloud-Tests und PC-Prüfung mit Disc-Daten bestanden (Systemdatei anlegen, in r100 speichern, Neustart mit erhaltenen Optionen, im Titel laden), **Gerätetest steht aus** („M10 Speichern/Laden“) |
 | Reihenfolge | Entscheidung des Projektinhabers (16.10.2026): erst M9 Videos und M10 Speichern/Laden, danach der Raum-Rundgang (10b) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -2530,6 +2530,32 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
   und prüft nur den Speicherkarten-Teil.
 - **Für das Gerät:** Auch dort steht der Pfeil zuerst auf der zweiten Antwort;
   vor A nach oben (bzw. links) auf „Ja“ gehen.
+
+### Zweite PC-Prüfung mit Karte (16.10.2026, Stand `3fdd5a6`, `-OnlyCard`): „ALLES OK“
+
+- Build (i686 `-O2`) und Cloud-Prüfungen grün (der synthetische Filmtest
+  übersprungen: ffmpeg fehlte in WSL; `whole_setup_linux.sh` installiert es
+  jetzt mit).
+- **Lauf A:** Startprüfung mit leerer, formatierter Karte: Kartenprüfung,
+  Ergebnis „Steckplatz A 0x0“, Systemdatei angelegt (Schritte 0–10, 320 Seiten
+  geschrieben, 5 Blöcke gelöscht), Titel, Debug-Start r100. Spieler frei bei
+  Bild 3043; Speicherbildschirm bei 3103 (Helligkeit 72): Kartenprüfung,
+  Liste, Datei 1 gespeichert (Schritte 0–9), danach die Systemdatei (Schritte
+  0–10), geschlossen bei Bild 3267. Karte danach: `bh4_system` (1 Block),
+  `bh4_data00` (8 Blöcke), 242 Blöcke frei.
+- **Lauf B (Neustart):** Startprüfung liest die Systemdatei („0x300 saves
+  system file“), **Optionen: Helligkeit 72** (vorher 64). Titel „Load“,
+  Datei 1 geladen (Schritte 0–5) bei Bild 768: Raum r100, 1-mal gespeichert;
+  Hauptschleife ab Bild 794 in r100, Spieler frei, 600 Bilder ohne Fehler.
+- **Karte** (`memcard_list.py`, auch die geschickte `speicherkarte-a.bin` in
+  der Cloud gelesen): Kopf, Verzeichnis und FAT gültig; Systemdatei
+  „resident evil 4 / Systemfile“, CRC richtig, Sprache 1, Land 1 (USA),
+  Helligkeit 72; Spielstand „resident evil 4 / FILE 01“, beide CRCs richtig,
+  Version 0x116, Datum 2026-10-16 23:55:57 (Ortszeit), Raum r100, Banner
+  RGB5A3 und C8-Symbol an den erwarteten Stellen.
+- Damit ist auf dem PC (i686) geprüft: Systemdatei anlegen, Speichern,
+  Neustart, Optionen erhalten, Laden im Titel. Formatieren über den Dialog
+  des Spiels und alles auf dem Gerät stehen aus.
 
 **Nicht geprüft (Stand dieses Abschnitts):** die PC-Prüfung mit Disc-Daten
 (Abschnitt 7: die Bildschirme des Spiels beim Speichern und Laden, das

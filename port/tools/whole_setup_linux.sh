@@ -6,8 +6,9 @@
 # qemu-user to run the ARM32 build, clang-tools (clang-query) for the
 # byte-view analysis, Mesa's EGL/GLES3 (headless software rendering) for the
 # pictures of the app's core-mode renderer in the local r100 check (and the
-# app's GL host checks). g++-multilib is not used because Ubuntu
-# refuses it next to the ARM cross compiler. Run as root (sudo).
+# app's GL host checks), ffmpeg for the synthetic movie test. g++-multilib
+# is not used because Ubuntu refuses it next to the ARM cross compiler. Run
+# as root (sudo).
 #
 #   --android   also the Android NDK r28c (28.2.13676358, the version of the
 #               app) under /opt/android-ndk-r28c for whole_build_android.sh;
@@ -28,6 +29,8 @@ command -v clang >/dev/null 2>&1 || need+=(clang)
 command -v ld.lld >/dev/null 2>&1 || need+=(lld)
 command -v cmake >/dev/null 2>&1 || need+=(cmake)
 command -v ninja >/dev/null 2>&1 || need+=(ninja-build)
+# ffmpeg: the synthetic test movie of port/tools/test_whole_movie.py (skipped without it)
+command -v ffmpeg >/dev/null 2>&1 || need+=(ffmpeg)
 # clang-query for port/tools/whole_byte_views.py (only to re-run that analysis)
 command -v clang-query >/dev/null 2>&1 || command -v clang-query-18 >/dev/null 2>&1 || need+=(clang-tools)
 if [ "$android" -eq 1 ]; then
