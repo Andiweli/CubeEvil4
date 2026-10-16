@@ -318,6 +318,28 @@ run_game() {
     fi
     placed=$(grep -m1 "run: player placed" "$log" | sed 's/^\[re4\] //')
     [ -n "$placed" ] && say "Testhilfe:     $placed"
+    # the camera of the debug start (patch 0044): the Retroid crashed at the
+    # first camera cut (examining the skulls in r100)
+    local camera
+    camera=$(grep -m1 "run: camera after the room start" "$log" | sed 's/^\[re4\] run: //')
+    if [ -n "$camera" ]; then
+        say "Kamera:        $camera"
+        case "$camera" in *DESTROYED*) bad=1 ;; esac
+    fi
+    # sub screens (radio, map with Z): the map stayed black on the Retroid and
+    # could not be closed
+    if grep -q "run: sub screen" "$log"; then
+        say "Untermenüs:    $(grep "run: sub screen" "$log" | sed 's/^\[re4\] run: sub screen //' | head -n 8 | paste -sd ',' - | sed 's/,/, /g')"
+        if grep -q "Read File: SS/.*/ss_map.dat" "$log"; then
+            say "Kartendatei:   gelesen (ss_map.dat)"
+        elif [ -n "$free" ]; then
+            say "Kartendatei:   NICHT gelesen (Karte nicht geöffnet oder Laden hängt)"
+        fi
+        if [ "$(grep "run: sub screen" "$log" | tail -n 1 | grep -c ' open ')" = 1 ]; then
+            say "Untermenü am Ende noch OFFEN (ließ sich nicht schließen)"
+            bad=1
+        fi
+    fi
     # the soft reset of "game over" -> "no": the title must come back (it
     # reads title.dat anew); on the Retroid the screen stayed black
     local reset

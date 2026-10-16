@@ -239,6 +239,26 @@ void frame(unsigned n)
     if (g_roomStart < 0 && g->Rno0 >= 2) {
         g_roomStart = (long) n;
     }
+    // the room camera once the first room runs: a fall camera CameraControl::roomInit
+    // built must survive the fill of its storage (patch 0044; before, its vtable
+    // pointer read 0x09090909 and the next camera cut crashed)
+    static bool cameraLogged;
+    if (!cameraLogged && g->Rno0 == 3) {
+        cameraLogged = true;
+        const void* proc = CamCtrl.m_pProc;
+        re4_log("run: camera after the room start: routine %u, camera object %s", (unsigned) CamCtrl.r0,
+                !proc ? "none" : *(const u32*) proc == 0x09090909u ? "DESTROYED (storage filled over it)" : "intact");
+    }
+    // sub screens (inventory, map, radio): when they open and close (the map
+    // stayed black on the Retroid and could not be closed)
+    static bool subOpen;
+    static unsigned subChanges;
+    bool sub = StaFlagChk(g, STA_SUB_SCRN) != 0;
+    if (sub != subOpen && subChanges < 40) {
+        subChanges++;
+        re4_log("run: sub screen %s at frame %u", sub ? "open" : "closed", n);
+    }
+    subOpen = sub;
     if (g_roomStart >= 0 && g_freeAt < 0) {
         bool free = g->Rno0 == 3 && !StaFlagChk(g, STA_EVENT) && !StaFlagChk(g, STA_SUB_SCRN);
         g_freeRun = free ? g_freeRun + 1 : 0;

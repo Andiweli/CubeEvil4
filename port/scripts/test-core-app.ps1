@@ -450,6 +450,17 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # R3 (picture dump): where the player stood, for checks on the PC
     $r3 = @($keep | Where-Object { $_ -match 'RE4Core.*R3: room' })
     foreach ($line in $r3) { Say "R3-Aufnahme:                      $(($line -split 'R3: ')[-1])" }
+    # the room camera after the first room start (patch 0044) and the sub screens
+    # (inventory, map, radio) opening and closing: the map stayed black
+    $camera = $keep | Where-Object { $_ -match 'run: camera after the room start' } | Select-Object -First 1
+    if ($camera) { Say "Kamera nach dem Raumstart:        $(($camera -split 'room start: ')[-1])" }
+    $subs = @($keep | Where-Object { $_ -match 'run: sub screen (open|closed)' })
+    if ($subs.Count) {
+        Say "Untermenues (auf/zu):             $((($subs | Select-Object -Last 8) | ForEach-Object { ($_ -split 'sub screen ')[-1] }) -join ', ')"
+        if ($subs[-1] -match 'sub screen open') { Say "Untermenue am Ende noch OFFEN (Karte/Inventar liess sich nicht schliessen)" }
+    }
+    $mapRead = @($keep | Where-Object { $_ -match 'Read File: SS/.*/ss_map.dat' })
+    if ($mapRead.Count) { Say "Kartendatei gelesen:              $($mapRead.Count)x" }
     $presses = @($keep | Where-Object { $_ -match 're4\s*: pad: frame' })
     Say "Tastendruecke im Kern angekommen: $($presses.Count)"
     if ($crashAt -ge 0 -or (Has 'Fatal signal|FATAL EXCEPTION|SIGSEGV|SIGABRT|SIGBUS')) {

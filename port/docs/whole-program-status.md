@@ -1478,6 +1478,44 @@ Bildvergleich der zusammengefassten Gerätebilder. Nicht getestet: Gerät,
 PC-Prüfung mit Disc-Daten (Karte, Neustart nach Spielende), das sichtbare
 Raumauswahl- und Werkzeugmenü.
 
+### Siebter Gerätelauf mit GX (16.10.2026, Retroid) und Analyse
+
+Stand `06dead6` (zusammengefasste Zeichenaufträge, sichtbares
+Raumauswahl-Menü), interne Auflösung `-Scale 3` (etwa 1080p). Start über das
+Raumauswahl-Menü direkt nach r100. Absturz nach 105 s beim Untersuchen der
+Totenköpfe unter der Treppe. Laut Projektinhaber funktioniert dasselbe beim
+normalen Start (über r120); die Karte (L1/R1) bleibt weiterhin schwarz und
+lässt sich nicht schließen (nicht in diesem Protokoll).
+
+- **Leistung in r100 bei 1080p:** Kern 33,9 ms je Bild (0,7 ms Warten auf
+  den Renderer), Renderer 6,1 ms je Bild bei 332 Aufträgen (vorher 10–15 ms
+  bei 8 000–15 000 Aufträgen und doppelter statt dreifacher Auflösung);
+  einzelne Spitzen bis 216 ms beim ersten Auftreten neuer Shader.
+- **Absturz (Patch 0044):** `r100_mes_gaikotu` → `SceUpCut` → `CutCall` →
+  `switchCamera` → `delete m_pProc` mit Fehleradresse 0x0909090d: der
+  vtable-Zeiger des Kamera-Objekts war 0x09090909, das Füllmuster aus
+  `CameraControl::roomInit` (`memset(m_Free, 9, …)`). `roomInit` setzt
+  `m_pProc = NULL`, ruft dann `Check()` – das bei `d.y <= 500` (Hüfte nicht
+  über den Füßen, beim Direktstart noch ohne berechnete Teile) die
+  Fall-Kamera `CameraLookAt` in `m_Free` baut – und füllt erst danach
+  `m_Free`. Damit zeigte `m_pProc` auf ein überschriebenes Objekt; der
+  nächste Kamera-Schnitt mit Kamerafahrt (Typ 6/7) löschte es. Auf dem
+  GameCube wäre das genauso abgestürzt; dort trat es offenbar nicht auf
+  (beim normalen Start läuft `roomInit` nicht in diesem Zustand). Patch 0044
+  füllt `m_Free` vor `Check()`. Diagnose: „run: camera after the room start
+  …“ (state_trace.cpp), im PC-Bericht „Kamera:“, im Gerätebericht „Kamera
+  nach dem Raumstart“.
+- **Karte schwarz, nicht schließbar:** Die Karte liest beim Öffnen
+  `SS/<Sprache>/ss_map.dat` (`SsMapInit::move`, Zustand 2/3) und wartet auf
+  das Ende des Lesens; erst danach reagiert sie auf B/Z. Ein Lesen, das nie
+  fertig wird, erklärt beides. Neu im Protokoll: „run: sub screen open/closed
+  at frame …“; die PC-Prüfung meldet „Untermenüs“, „Kartendatei“ und ein am
+  Ende noch offenes Untermenü, der Gerätebericht ebenso. Ursache noch offen.
+
+Getestet (Cloud): Kern-Build i686/armhf normal und `-O2` mit allen
+Prüfungen; Berichtszeilen der PC-Prüfung mit einem nachgebauten Protokoll.
+Nicht getestet: Gerät, PC-Prüfung mit Disc-Daten.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1646,6 +1684,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0041 `at_sub.cpp`, `atari.cpp`, `card.cpp` | Das Attributwort einer Kollisionsfläche (`SAT_POLY::m_Status`) wird als Wort gelesen statt als zwei Halbwörter in GameCube-Reihenfolge (vorher vertauschte Hälften: Zäune als Fallkanten, Wände ohne Kollision, Boden als Wasser); `CardID::save` liest `nPoint` als Wert statt Byte 3 |
 | 0042 `src/lib/GXGeometry.c` | `GXSetCullMode` übernimmt das Ergebnis von `__rlwimi` (`hwMode = __rlwimi(...)`): MWCC fügt bei diesem Befehl in den ersten Operanden ein, die C-Fassung des Ports gibt das Ergebnis zurück und die Zeile verwarf es. Aus `GX_CULL_FRONT` (Standard aller Modelle) wurde „keine Rückseiten weglassen“: alles wurde beidseitig gezeichnet, die Doppelschichten von Leons Haar verdeckten sich gegenseitig (dunkle Flecken) |
 | 0043 `title.cpp` | Das Debug-Startmenü nach „New Game“ (`titleExit`, Raumauswahl) meldet sich bei der Laufzeit an (`re4_title_room_menu`, runtime/dolphin_os.cpp): solange es offen ist, lässt die Debug-Anzeigen-Sperre der App (`RE4_DEBUG_HUD=0`) `debug_mode` mindestens 1, damit seine Zeilen (Debug-Text) zu sehen sind; `RE4_ROOM_MENU=0` überspringt es wie ein sofortiges A |
+| 0044 `cam_ctrl.cpp` | `CameraControl::roomInit` füllt den Platz für Kamera-Objekte (`m_Free`, Muster 9) vor `Check()` statt danach: `Check()` kann dort die Fall-Kamera bauen, deren vtable-Zeiger das Füllen sonst überschrieb; der nächste Kamera-Schnitt (`switchCamera` → `delete m_pProc`) stürzte ab (Direktstart von r100, Totenköpfe untersuchen) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

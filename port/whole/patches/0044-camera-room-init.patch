@@ -1,0 +1,20 @@
+--- a/src/game/cam_ctrl.cpp
++++ b/src/game/cam_ctrl.cpp
+@@ -1080,12 +1080,16 @@
+     }
+     m_pExtraCamera = 0;
+     m_pProc = NULL;
++    /* port: the placement storage is filled before Check(), which can build the fall camera
++       (CameraLookAt) in it; filled afterwards, as in the original, that object's vtable pointer
++       became 0x09090909 and the next `delete m_pProc` crashed (debug start of r100, then
++       examining the skulls: switchCamera) */
++    memset(m_Free, 9, sizeof(m_Free));
+     m_Inter.frame = 0;
+     Check();
+     Move();
+     CameraMove();
+     QuakeInit();
+-    memset(m_Free, 9, sizeof(m_Free));
+     g_pToolCamData = NULL;
+ }
+ 
