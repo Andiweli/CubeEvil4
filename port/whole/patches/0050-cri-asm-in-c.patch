@@ -1,0 +1,2249 @@
+# CRI middleware (M9): the paired-single asm of the MPEG decoder in C,
+# translated instruction by instruction by port/tools/whole_ppc_to_c.py
+# (mpv_umc.c merge kernels and GQR set-up, dct_fsri.c IDCT), the Y8 / C4:4
+# texture conversion of cftyp422_ppc.c with its GameCube word order; the
+# unused ARGB8888 tile converters report once instead.
+--- a/src/lib/mpv_umc.c
++++ b/src/lib/mpv_umc.c
+@@ -247,442 +247,464 @@
+ /* average the two predictions in oi[] with the IDCT blocks into the output blocks oi_rt[] */
+ void mpvumc_BiMakeMb(MPVUMC_WORK *wk, MPVUMC_OUTBLK *ob, Sint32 cbp)
+ {
+-	asm {
+-		lis r6, mpvumc_ps_one@ha
+-		lwz r8, 0x4(r3)
+-		addi r6, r6, mpvumc_ps_one@l
+-		lwz r7, 0x8(r3)
+-		psq_l f8, 0x0(r6), 1, 0
+-		addi r9, r4, 0x4
+-		lwz r3, 0xc(r3)
+-		li r10, 0x0
+-		ps_merge11 f8, f8, f8
+-L_80206618:
+-		cmpwi r5, 0x0
+-		lwz r4, 0x0(r9)
+-		lwz r6, 0x4(r9)
+-		addi r9, r9, 0x8
+-		blt L_802067C4
+-		clrlwi. r0, r4, 27
+-		bne L_80206700
+-		li r0, 0x4
+-		mtctr r0
+-		addi r8, r8, 0x80
+-L_80206640:
+-		dcbz r0, r4
+-		psq_l f0, 0x0(r7), 0, 4
+-		psq_l f4, 0x0(r3), 0, 4
+-		psq_l f1, 0x2(r7), 0, 4
+-		psq_l f5, 0x2(r3), 0, 4
+-		psq_l f2, 0x4(r7), 0, 4
+-		psq_l f6, 0x4(r3), 0, 4
+-		psq_l f3, 0x6(r7), 0, 4
+-		psq_l f7, 0x6(r3), 0, 4
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		ps_add f0, f0, f8
+-		ps_add f1, f1, f8
+-		ps_add f2, f2, f8
+-		ps_add f3, f3, f8
+-		psq_st f0, 0x0(r4), 0, 5
+-		psq_st f1, 0x2(r4), 0, 5
+-		psq_st f2, 0x4(r4), 0, 5
+-		psq_st f3, 0x6(r4), 0, 5
+-		add r4, r4, r6
+-		dcbz r0, r4
+-		psq_l f0, 0x8(r7), 0, 4
+-		psq_l f4, 0x8(r3), 0, 4
+-		psq_l f1, 0xa(r7), 0, 4
+-		psq_l f5, 0xa(r3), 0, 4
+-		psq_l f2, 0xc(r7), 0, 4
+-		psq_l f6, 0xc(r3), 0, 4
+-		psq_l f3, 0xe(r7), 0, 4
+-		psq_l f7, 0xe(r3), 0, 4
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		ps_add f0, f0, f8
+-		ps_add f1, f1, f8
+-		ps_add f2, f2, f8
+-		ps_add f3, f3, f8
+-		psq_st f0, 0x0(r4), 0, 5
+-		psq_st f1, 0x2(r4), 0, 5
+-		psq_st f2, 0x4(r4), 0, 5
+-		psq_st f3, 0x6(r4), 0, 5
+-		add r4, r4, r6
+-		addi r7, r7, 0x10
+-		addi r3, r3, 0x10
+-		bdnz L_80206640
+-		b L_802069D8
+-L_80206700:
+-		li r0, 0x4
+-		mtctr r0
+-		addi r8, r8, 0x80
+-L_8020670C:
+-		psq_l f0, 0x0(r7), 0, 4
+-		psq_l f4, 0x0(r3), 0, 4
+-		psq_l f1, 0x2(r7), 0, 4
+-		psq_l f5, 0x2(r3), 0, 4
+-		psq_l f2, 0x4(r7), 0, 4
+-		psq_l f6, 0x4(r3), 0, 4
+-		psq_l f3, 0x6(r7), 0, 4
+-		psq_l f7, 0x6(r3), 0, 4
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		ps_add f0, f0, f8
+-		ps_add f1, f1, f8
+-		ps_add f2, f2, f8
+-		ps_add f3, f3, f8
+-		psq_st f0, 0x0(r4), 0, 5
+-		psq_st f1, 0x2(r4), 0, 5
+-		psq_st f2, 0x4(r4), 0, 5
+-		psq_st f3, 0x6(r4), 0, 5
+-		add r4, r4, r6
+-		psq_l f0, 0x8(r7), 0, 4
+-		psq_l f4, 0x8(r3), 0, 4
+-		psq_l f1, 0xa(r7), 0, 4
+-		psq_l f5, 0xa(r3), 0, 4
+-		psq_l f2, 0xc(r7), 0, 4
+-		psq_l f6, 0xc(r3), 0, 4
+-		psq_l f3, 0xe(r7), 0, 4
+-		psq_l f7, 0xe(r3), 0, 4
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		ps_add f0, f0, f8
+-		ps_add f1, f1, f8
+-		ps_add f2, f2, f8
+-		ps_add f3, f3, f8
+-		psq_st f0, 0x0(r4), 0, 5
+-		psq_st f1, 0x2(r4), 0, 5
+-		psq_st f2, 0x4(r4), 0, 5
+-		psq_st f3, 0x6(r4), 0, 5
+-		add r4, r4, r6
+-		addi r7, r7, 0x10
+-		addi r3, r3, 0x10
+-		bdnz L_8020670C
+-		b L_802069D8
+-L_802067C4:
+-		clrlwi. r0, r4, 27
+-		bne L_802068D8
+-		li r0, 0x4
+-		mtctr r0
+-L_802067D4:
+-		dcbz r0, r4
+-		psq_l f0, 0x0(r7), 0, 4
+-		psq_l f4, 0x0(r3), 0, 4
+-		psq_l f1, 0x2(r7), 0, 4
+-		psq_l f5, 0x2(r3), 0, 4
+-		psq_l f2, 0x4(r7), 0, 4
+-		psq_l f6, 0x4(r3), 0, 4
+-		psq_l f3, 0x6(r7), 0, 4
+-		psq_l f7, 0x6(r3), 0, 4
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		psq_l f4, 0x0(r8), 0, 5
+-		psq_l f5, 0x4(r8), 0, 5
+-		psq_l f6, 0x8(r8), 0, 5
+-		psq_l f7, 0xc(r8), 0, 5
+-		ps_add f0, f0, f8
+-		ps_add f1, f1, f8
+-		ps_add f2, f2, f8
+-		ps_add f3, f3, f8
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		psq_st f0, 0x0(r4), 0, 5
+-		psq_st f1, 0x2(r4), 0, 5
+-		psq_st f2, 0x4(r4), 0, 5
+-		psq_st f3, 0x6(r4), 0, 5
+-		add r4, r4, r6
+-		dcbz r0, r4
+-		psq_l f0, 0x8(r7), 0, 4
+-		psq_l f4, 0x8(r3), 0, 4
+-		psq_l f1, 0xa(r7), 0, 4
+-		psq_l f5, 0xa(r3), 0, 4
+-		psq_l f2, 0xc(r7), 0, 4
+-		psq_l f6, 0xc(r3), 0, 4
+-		psq_l f3, 0xe(r7), 0, 4
+-		psq_l f7, 0xe(r3), 0, 4
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		psq_l f4, 0x10(r8), 0, 5
+-		psq_l f5, 0x14(r8), 0, 5
+-		psq_l f6, 0x18(r8), 0, 5
+-		psq_l f7, 0x1c(r8), 0, 5
+-		ps_add f0, f0, f8
+-		ps_add f1, f1, f8
+-		ps_add f2, f2, f8
+-		ps_add f3, f3, f8
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		psq_st f0, 0x0(r4), 0, 5
+-		psq_st f1, 0x2(r4), 0, 5
+-		psq_st f2, 0x4(r4), 0, 5
+-		psq_st f3, 0x6(r4), 0, 5
+-		add r4, r4, r6
+-		addi r7, r7, 0x10
+-		addi r3, r3, 0x10
+-		addi r8, r8, 0x20
+-		bdnz L_802067D4
+-		b L_802069D8
+-L_802068D8:
+-		li r0, 0x4
+-		mtctr r0
+-L_802068E0:
+-		psq_l f0, 0x0(r7), 0, 4
+-		psq_l f4, 0x0(r3), 0, 4
+-		psq_l f1, 0x2(r7), 0, 4
+-		psq_l f5, 0x2(r3), 0, 4
+-		psq_l f2, 0x4(r7), 0, 4
+-		psq_l f6, 0x4(r3), 0, 4
+-		psq_l f3, 0x6(r7), 0, 4
+-		psq_l f7, 0x6(r3), 0, 4
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		psq_l f4, 0x0(r8), 0, 5
+-		psq_l f5, 0x4(r8), 0, 5
+-		psq_l f6, 0x8(r8), 0, 5
+-		psq_l f7, 0xc(r8), 0, 5
+-		ps_add f0, f0, f8
+-		ps_add f1, f1, f8
+-		ps_add f2, f2, f8
+-		ps_add f3, f3, f8
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		psq_st f0, 0x0(r4), 0, 5
+-		psq_st f1, 0x2(r4), 0, 5
+-		psq_st f2, 0x4(r4), 0, 5
+-		psq_st f3, 0x6(r4), 0, 5
+-		add r4, r4, r6
+-		psq_l f0, 0x8(r7), 0, 4
+-		psq_l f4, 0x8(r3), 0, 4
+-		psq_l f1, 0xa(r7), 0, 4
+-		psq_l f5, 0xa(r3), 0, 4
+-		psq_l f2, 0xc(r7), 0, 4
+-		psq_l f6, 0xc(r3), 0, 4
+-		psq_l f3, 0xe(r7), 0, 4
+-		psq_l f7, 0xe(r3), 0, 4
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		psq_l f4, 0x10(r8), 0, 5
+-		psq_l f5, 0x14(r8), 0, 5
+-		psq_l f6, 0x18(r8), 0, 5
+-		psq_l f7, 0x1c(r8), 0, 5
+-		ps_add f0, f0, f8
+-		ps_add f1, f1, f8
+-		ps_add f2, f2, f8
+-		ps_add f3, f3, f8
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		psq_st f0, 0x0(r4), 0, 5
+-		psq_st f1, 0x2(r4), 0, 5
+-		psq_st f2, 0x4(r4), 0, 5
+-		psq_st f3, 0x6(r4), 0, 5
+-		add r4, r4, r6
+-		addi r7, r7, 0x10
+-		addi r3, r3, 0x10
+-		addi r8, r8, 0x20
+-		bdnz L_802068E0
+-L_802069D8:
+-		addi r10, r10, 0x1
+-		slwi r5, r5, 1
+-		cmpwi r10, 0x6
+-		blt L_80206618
++	/* port: the asm block in C (port/tools/whole_ppc_to_c.py) */
++	{
++		Uint32 r0, r3, r4, r5, r6, r7, r8, r9, r10;
++		re4_ps f0, f1, f2, f3, f4, f5, f6, f7, f8;
++		Uint32 ctr = 0, ca = 0;
++		Sint32 cr0 = 0;
++		r3 = (Uint32)(wk);
++		r4 = (Uint32)(ob);
++		r5 = (Uint32)(cbp);
++		r6 = (Uint32)((Uint8 *)&mpvumc_ps_one);
++		r8 = *(Uint32 *)(r3 + (Uint32)(4));
++		r6 = r6 + (Uint32)(0);
++		r7 = *(Uint32 *)(r3 + (Uint32)(8));
++		re4_psq_l(&f8, (void *)(r6 + (Uint32)(0)), 1, re4_cri_gqr[0]);
++		r9 = r4 + (Uint32)(4);
++		r3 = *(Uint32 *)(r3 + (Uint32)(12));
++		r10 = (Uint32)(0);
++		{ Float32 a0_ = f8.ps1, a1_ = f8.ps1; f8.ps0 = a0_; f8.ps1 = a1_; }
++	bi_L_80206618:;
++		cr0 = (Sint32)r5 < (Sint32)(0) ? -1 : (Sint32)r5 > (Sint32)(0) ? 1 : 0;
++		r4 = *(Uint32 *)(r9 + (Uint32)(0));
++		r6 = *(Uint32 *)(r9 + (Uint32)(4));
++		r9 = r9 + (Uint32)(8);
++		if (cr0 < 0) goto bi_L_802067C4;
++		r0 = r4 & 0x1fu;
++		cr0 = (Sint32)(r0) < 0 ? -1 : (Sint32)(r0) > 0 ? 1 : 0;
++		if (cr0 != 0) goto bi_L_80206700;
++		r0 = (Uint32)(4);
++		ctr = r0;
++		r8 = r8 + (Uint32)(128);
++	bi_L_80206640:;
++		__dcbz(0u, r4);
++		re4_psq_l(&f0, (void *)(r7 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f4, (void *)(r3 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f1, (void *)(r7 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f5, (void *)(r3 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f2, (void *)(r7 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f6, (void *)(r3 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f3, (void *)(r7 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f7, (void *)(r3 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		{ Float32 a0_ = f0.ps0 + f8.ps0, a1_ = f0.ps1 + f8.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f8.ps0, a1_ = f1.ps1 + f8.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f8.ps0, a1_ = f2.ps1 + f8.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f8.ps0, a1_ = f3.ps1 + f8.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_st(&f0, (void *)(r4 + (Uint32)(0)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f1, (void *)(r4 + (Uint32)(2)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f2, (void *)(r4 + (Uint32)(4)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f3, (void *)(r4 + (Uint32)(6)), 0, re4_cri_gqr[5]);
++		r4 = r4 + r6;
++		__dcbz(0u, r4);
++		re4_psq_l(&f0, (void *)(r7 + (Uint32)(8)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f4, (void *)(r3 + (Uint32)(8)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f1, (void *)(r7 + (Uint32)(10)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f5, (void *)(r3 + (Uint32)(10)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f2, (void *)(r7 + (Uint32)(12)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f6, (void *)(r3 + (Uint32)(12)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f3, (void *)(r7 + (Uint32)(14)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f7, (void *)(r3 + (Uint32)(14)), 0, re4_cri_gqr[4]);
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		{ Float32 a0_ = f0.ps0 + f8.ps0, a1_ = f0.ps1 + f8.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f8.ps0, a1_ = f1.ps1 + f8.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f8.ps0, a1_ = f2.ps1 + f8.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f8.ps0, a1_ = f3.ps1 + f8.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_st(&f0, (void *)(r4 + (Uint32)(0)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f1, (void *)(r4 + (Uint32)(2)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f2, (void *)(r4 + (Uint32)(4)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f3, (void *)(r4 + (Uint32)(6)), 0, re4_cri_gqr[5]);
++		r4 = r4 + r6;
++		r7 = r7 + (Uint32)(16);
++		r3 = r3 + (Uint32)(16);
++		if (--ctr != 0) goto bi_L_80206640;
++		goto bi_L_802069D8;
++	bi_L_80206700:;
++		r0 = (Uint32)(4);
++		ctr = r0;
++		r8 = r8 + (Uint32)(128);
++	bi_L_8020670C:;
++		re4_psq_l(&f0, (void *)(r7 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f4, (void *)(r3 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f1, (void *)(r7 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f5, (void *)(r3 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f2, (void *)(r7 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f6, (void *)(r3 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f3, (void *)(r7 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f7, (void *)(r3 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		{ Float32 a0_ = f0.ps0 + f8.ps0, a1_ = f0.ps1 + f8.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f8.ps0, a1_ = f1.ps1 + f8.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f8.ps0, a1_ = f2.ps1 + f8.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f8.ps0, a1_ = f3.ps1 + f8.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_st(&f0, (void *)(r4 + (Uint32)(0)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f1, (void *)(r4 + (Uint32)(2)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f2, (void *)(r4 + (Uint32)(4)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f3, (void *)(r4 + (Uint32)(6)), 0, re4_cri_gqr[5]);
++		r4 = r4 + r6;
++		re4_psq_l(&f0, (void *)(r7 + (Uint32)(8)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f4, (void *)(r3 + (Uint32)(8)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f1, (void *)(r7 + (Uint32)(10)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f5, (void *)(r3 + (Uint32)(10)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f2, (void *)(r7 + (Uint32)(12)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f6, (void *)(r3 + (Uint32)(12)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f3, (void *)(r7 + (Uint32)(14)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f7, (void *)(r3 + (Uint32)(14)), 0, re4_cri_gqr[4]);
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		{ Float32 a0_ = f0.ps0 + f8.ps0, a1_ = f0.ps1 + f8.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f8.ps0, a1_ = f1.ps1 + f8.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f8.ps0, a1_ = f2.ps1 + f8.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f8.ps0, a1_ = f3.ps1 + f8.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_st(&f0, (void *)(r4 + (Uint32)(0)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f1, (void *)(r4 + (Uint32)(2)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f2, (void *)(r4 + (Uint32)(4)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f3, (void *)(r4 + (Uint32)(6)), 0, re4_cri_gqr[5]);
++		r4 = r4 + r6;
++		r7 = r7 + (Uint32)(16);
++		r3 = r3 + (Uint32)(16);
++		if (--ctr != 0) goto bi_L_8020670C;
++		goto bi_L_802069D8;
++	bi_L_802067C4:;
++		r0 = r4 & 0x1fu;
++		cr0 = (Sint32)(r0) < 0 ? -1 : (Sint32)(r0) > 0 ? 1 : 0;
++		if (cr0 != 0) goto bi_L_802068D8;
++		r0 = (Uint32)(4);
++		ctr = r0;
++	bi_L_802067D4:;
++		__dcbz(0u, r4);
++		re4_psq_l(&f0, (void *)(r7 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f4, (void *)(r3 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f1, (void *)(r7 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f5, (void *)(r3 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f2, (void *)(r7 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f6, (void *)(r3 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f3, (void *)(r7 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f7, (void *)(r3 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_l(&f4, (void *)(r8 + (Uint32)(0)), 0, re4_cri_gqr[5]);
++		re4_psq_l(&f5, (void *)(r8 + (Uint32)(4)), 0, re4_cri_gqr[5]);
++		re4_psq_l(&f6, (void *)(r8 + (Uint32)(8)), 0, re4_cri_gqr[5]);
++		re4_psq_l(&f7, (void *)(r8 + (Uint32)(12)), 0, re4_cri_gqr[5]);
++		{ Float32 a0_ = f0.ps0 + f8.ps0, a1_ = f0.ps1 + f8.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f8.ps0, a1_ = f1.ps1 + f8.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f8.ps0, a1_ = f2.ps1 + f8.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f8.ps0, a1_ = f3.ps1 + f8.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_st(&f0, (void *)(r4 + (Uint32)(0)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f1, (void *)(r4 + (Uint32)(2)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f2, (void *)(r4 + (Uint32)(4)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f3, (void *)(r4 + (Uint32)(6)), 0, re4_cri_gqr[5]);
++		r4 = r4 + r6;
++		__dcbz(0u, r4);
++		re4_psq_l(&f0, (void *)(r7 + (Uint32)(8)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f4, (void *)(r3 + (Uint32)(8)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f1, (void *)(r7 + (Uint32)(10)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f5, (void *)(r3 + (Uint32)(10)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f2, (void *)(r7 + (Uint32)(12)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f6, (void *)(r3 + (Uint32)(12)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f3, (void *)(r7 + (Uint32)(14)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f7, (void *)(r3 + (Uint32)(14)), 0, re4_cri_gqr[4]);
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_l(&f4, (void *)(r8 + (Uint32)(16)), 0, re4_cri_gqr[5]);
++		re4_psq_l(&f5, (void *)(r8 + (Uint32)(20)), 0, re4_cri_gqr[5]);
++		re4_psq_l(&f6, (void *)(r8 + (Uint32)(24)), 0, re4_cri_gqr[5]);
++		re4_psq_l(&f7, (void *)(r8 + (Uint32)(28)), 0, re4_cri_gqr[5]);
++		{ Float32 a0_ = f0.ps0 + f8.ps0, a1_ = f0.ps1 + f8.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f8.ps0, a1_ = f1.ps1 + f8.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f8.ps0, a1_ = f2.ps1 + f8.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f8.ps0, a1_ = f3.ps1 + f8.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_st(&f0, (void *)(r4 + (Uint32)(0)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f1, (void *)(r4 + (Uint32)(2)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f2, (void *)(r4 + (Uint32)(4)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f3, (void *)(r4 + (Uint32)(6)), 0, re4_cri_gqr[5]);
++		r4 = r4 + r6;
++		r7 = r7 + (Uint32)(16);
++		r3 = r3 + (Uint32)(16);
++		r8 = r8 + (Uint32)(32);
++		if (--ctr != 0) goto bi_L_802067D4;
++		goto bi_L_802069D8;
++	bi_L_802068D8:;
++		r0 = (Uint32)(4);
++		ctr = r0;
++	bi_L_802068E0:;
++		re4_psq_l(&f0, (void *)(r7 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f4, (void *)(r3 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f1, (void *)(r7 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f5, (void *)(r3 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f2, (void *)(r7 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f6, (void *)(r3 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f3, (void *)(r7 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f7, (void *)(r3 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_l(&f4, (void *)(r8 + (Uint32)(0)), 0, re4_cri_gqr[5]);
++		re4_psq_l(&f5, (void *)(r8 + (Uint32)(4)), 0, re4_cri_gqr[5]);
++		re4_psq_l(&f6, (void *)(r8 + (Uint32)(8)), 0, re4_cri_gqr[5]);
++		re4_psq_l(&f7, (void *)(r8 + (Uint32)(12)), 0, re4_cri_gqr[5]);
++		{ Float32 a0_ = f0.ps0 + f8.ps0, a1_ = f0.ps1 + f8.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f8.ps0, a1_ = f1.ps1 + f8.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f8.ps0, a1_ = f2.ps1 + f8.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f8.ps0, a1_ = f3.ps1 + f8.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_st(&f0, (void *)(r4 + (Uint32)(0)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f1, (void *)(r4 + (Uint32)(2)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f2, (void *)(r4 + (Uint32)(4)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f3, (void *)(r4 + (Uint32)(6)), 0, re4_cri_gqr[5]);
++		r4 = r4 + r6;
++		re4_psq_l(&f0, (void *)(r7 + (Uint32)(8)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f4, (void *)(r3 + (Uint32)(8)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f1, (void *)(r7 + (Uint32)(10)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f5, (void *)(r3 + (Uint32)(10)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f2, (void *)(r7 + (Uint32)(12)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f6, (void *)(r3 + (Uint32)(12)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f3, (void *)(r7 + (Uint32)(14)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f7, (void *)(r3 + (Uint32)(14)), 0, re4_cri_gqr[4]);
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_l(&f4, (void *)(r8 + (Uint32)(16)), 0, re4_cri_gqr[5]);
++		re4_psq_l(&f5, (void *)(r8 + (Uint32)(20)), 0, re4_cri_gqr[5]);
++		re4_psq_l(&f6, (void *)(r8 + (Uint32)(24)), 0, re4_cri_gqr[5]);
++		re4_psq_l(&f7, (void *)(r8 + (Uint32)(28)), 0, re4_cri_gqr[5]);
++		{ Float32 a0_ = f0.ps0 + f8.ps0, a1_ = f0.ps1 + f8.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f8.ps0, a1_ = f1.ps1 + f8.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f8.ps0, a1_ = f2.ps1 + f8.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f8.ps0, a1_ = f3.ps1 + f8.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_st(&f0, (void *)(r4 + (Uint32)(0)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f1, (void *)(r4 + (Uint32)(2)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f2, (void *)(r4 + (Uint32)(4)), 0, re4_cri_gqr[5]);
++		re4_psq_st(&f3, (void *)(r4 + (Uint32)(6)), 0, re4_cri_gqr[5]);
++		r4 = r4 + r6;
++		r7 = r7 + (Uint32)(16);
++		r3 = r3 + (Uint32)(16);
++		r8 = r8 + (Uint32)(32);
++		if (--ctr != 0) goto bi_L_802068E0;
++	bi_L_802069D8:;
++		r10 = r10 + (Uint32)(1);
++		r5 = r5 << 1;
++		cr0 = (Sint32)r10 < (Sint32)(6) ? -1 : (Sint32)r10 > (Sint32)(6) ? 1 : 0;
++		if (cr0 < 0) goto bi_L_80206618;
++		(void)ctr; (void)ca; (void)cr0;
+ 	}
+ }
+ 
+ /* add the IDCT blocks to the prediction in oi[] into the output blocks oi_rt[] */
+ void mpvumc_OneMakeMb(MPVUMC_WORK *wk, MPVUMC_OUTBLK *ob, Sint32 cbp)
+ {
+-	asm {
+-		lwz r6, 0x4(r3)
+-		addi r7, r4, 0x4
+-		lwz r3, 0x8(r3)
+-		li r9, 0x0
+-L_802069FC:
+-		cmpwi r5, 0x0
+-		lwz r4, 0x0(r7)
+-		lwz r8, 0x4(r7)
+-		addi r7, r7, 0x8
+-		blt L_80206B08
+-		clrlwi. r0, r4, 27
+-		addi r6, r6, 0x80
+-		srwi r0, r8, 3
+-		bne L_80206AA4
+-		dcbz r0, r4
+-		slwi r0, r0, 3
+-		lfd f8, 0x0(r3)
+-		add r8, r4, r0
+-		lfd f9, 0x8(r3)
+-		lfd f10, 0x10(r3)
+-		lfd f11, 0x18(r3)
+-		stfd f8, 0x0(r4)
+-		dcbz r0, r8
+-		stfd f9, 0x0(r8)
+-		add r8, r8, r0
+-		dcbz r0, r8
+-		stfd f10, 0x0(r8)
+-		add r8, r8, r0
+-		dcbz r0, r8
+-		stfd f11, 0x0(r8)
+-		add r8, r8, r0
+-		dcbz r0, r8
+-		lfd f9, 0x28(r3)
+-		lfd f10, 0x30(r3)
+-		lfd f11, 0x38(r3)
+-		lfd f8, 0x20(r3)
+-		stfd f8, 0x0(r8)
+-		add r8, r8, r0
+-		dcbz r0, r8
+-		stfd f9, 0x0(r8)
+-		add r8, r8, r0
+-		dcbz r0, r8
+-		stfd f10, 0x0(r8)
+-		add r8, r8, r0
+-		dcbz r0, r8
+-		stfd f11, 0x0(r8)
+-		b L_80206B00
+-L_80206AA4:
+-		lfd f8, 0x0(r3)
+-		slwi r0, r0, 3
+-		lfd f9, 0x8(r3)
+-		add r8, r4, r0
+-		lfd f10, 0x10(r3)
+-		lfd f11, 0x18(r3)
+-		stfd f8, 0x0(r4)
+-		stfd f9, 0x0(r8)
+-		add r8, r8, r0
+-		stfd f10, 0x0(r8)
+-		add r8, r8, r0
+-		stfd f11, 0x0(r8)
+-		add r8, r8, r0
+-		lfd f9, 0x28(r3)
+-		lfd f10, 0x30(r3)
+-		lfd f11, 0x38(r3)
+-		lfd f8, 0x20(r3)
+-		stfd f8, 0x0(r8)
+-		add r8, r8, r0
+-		stfd f9, 0x0(r8)
+-		add r8, r8, r0
+-		stfd f10, 0x0(r8)
+-		stfdx f11, r8, r0
+-L_80206B00:
+-		addi r3, r3, 0x40
+-		b L_80206C54
+-L_80206B08:
+-		clrlwi. r0, r4, 27
+-		bne L_80206BB8
+-		li r0, 0x4
+-		mtctr r0
+-L_80206B18:
+-		dcbz r0, r4
+-		psq_l f0, 0x0(r6), 0, 3
+-		psq_l f4, 0x0(r3), 0, 4
+-		psq_l f1, 0x4(r6), 0, 3
+-		psq_l f5, 0x2(r3), 0, 4
+-		psq_l f2, 0x8(r6), 0, 3
+-		psq_l f6, 0x4(r3), 0, 4
+-		psq_l f3, 0xc(r6), 0, 3
+-		psq_l f7, 0x6(r3), 0, 4
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		psq_st f0, 0x0(r4), 0, 4
+-		psq_st f1, 0x2(r4), 0, 4
+-		psq_st f2, 0x4(r4), 0, 4
+-		psq_st f3, 0x6(r4), 0, 4
+-		add r4, r4, r8
+-		dcbz r0, r4
+-		psq_l f0, 0x10(r6), 0, 3
+-		psq_l f4, 0x8(r3), 0, 4
+-		psq_l f1, 0x14(r6), 0, 3
+-		psq_l f5, 0xa(r3), 0, 4
+-		psq_l f2, 0x18(r6), 0, 3
+-		psq_l f6, 0xc(r3), 0, 4
+-		psq_l f3, 0x1c(r6), 0, 3
+-		psq_l f7, 0xe(r3), 0, 4
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		psq_st f0, 0x0(r4), 0, 4
+-		psq_st f1, 0x2(r4), 0, 4
+-		psq_st f2, 0x4(r4), 0, 4
+-		psq_st f3, 0x6(r4), 0, 4
+-		add r4, r4, r8
+-		addi r3, r3, 0x10
+-		addi r6, r6, 0x20
+-		bdnz L_80206B18
+-		b L_80206C54
+-L_80206BB8:
+-		li r0, 0x4
+-		mtctr r0
+-L_80206BC0:
+-		psq_l f0, 0x0(r6), 0, 3
+-		psq_l f4, 0x0(r3), 0, 4
+-		psq_l f1, 0x4(r6), 0, 3
+-		psq_l f5, 0x2(r3), 0, 4
+-		psq_l f2, 0x8(r6), 0, 3
+-		psq_l f6, 0x4(r3), 0, 4
+-		psq_l f3, 0xc(r6), 0, 3
+-		psq_l f7, 0x6(r3), 0, 4
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		psq_st f0, 0x0(r4), 0, 4
+-		psq_st f1, 0x2(r4), 0, 4
+-		psq_st f2, 0x4(r4), 0, 4
+-		psq_st f3, 0x6(r4), 0, 4
+-		add r4, r4, r8
+-		psq_l f0, 0x10(r6), 0, 3
+-		psq_l f4, 0x8(r3), 0, 4
+-		psq_l f1, 0x14(r6), 0, 3
+-		psq_l f5, 0xa(r3), 0, 4
+-		psq_l f2, 0x18(r6), 0, 3
+-		psq_l f6, 0xc(r3), 0, 4
+-		psq_l f3, 0x1c(r6), 0, 3
+-		psq_l f7, 0xe(r3), 0, 4
+-		ps_add f0, f0, f4
+-		ps_add f1, f1, f5
+-		ps_add f2, f2, f6
+-		ps_add f3, f3, f7
+-		psq_st f0, 0x0(r4), 0, 4
+-		psq_st f1, 0x2(r4), 0, 4
+-		psq_st f2, 0x4(r4), 0, 4
+-		psq_st f3, 0x6(r4), 0, 4
+-		add r4, r4, r8
+-		addi r3, r3, 0x10
+-		addi r6, r6, 0x20
+-		bdnz L_80206BC0
+-L_80206C54:
+-		addi r9, r9, 0x1
+-		slwi r5, r5, 1
+-		cmpwi r9, 0x6
+-		blt L_802069FC
++	/* port: the asm block in C (port/tools/whole_ppc_to_c.py) */
++	{
++		Uint32 r0, r3, r4, r5, r6, r7, r8, r9;
++		re4_ps f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11;
++		Uint32 ctr = 0, ca = 0;
++		Sint32 cr0 = 0;
++		r3 = (Uint32)(wk);
++		r4 = (Uint32)(ob);
++		r5 = (Uint32)(cbp);
++		r6 = *(Uint32 *)(r3 + (Uint32)(4));
++		r7 = r4 + (Uint32)(4);
++		r3 = *(Uint32 *)(r3 + (Uint32)(8));
++		r9 = (Uint32)(0);
++	one_L_802069FC:;
++		cr0 = (Sint32)r5 < (Sint32)(0) ? -1 : (Sint32)r5 > (Sint32)(0) ? 1 : 0;
++		r4 = *(Uint32 *)(r7 + (Uint32)(0));
++		r8 = *(Uint32 *)(r7 + (Uint32)(4));
++		r7 = r7 + (Uint32)(8);
++		if (cr0 < 0) goto one_L_80206B08;
++		r0 = r4 & 0x1fu;
++		cr0 = (Sint32)(r0) < 0 ? -1 : (Sint32)(r0) > 0 ? 1 : 0;
++		r6 = r6 + (Uint32)(128);
++		r0 = r8 >> 3;
++		if (cr0 != 0) goto one_L_80206AA4;
++		__dcbz(0u, r4);
++		r0 = r0 << 3;
++		__builtin_memcpy(&f8.raw, (void *)(r3 + (Uint32)(0)), 8);
++		r8 = r4 + r0;
++		__builtin_memcpy(&f9.raw, (void *)(r3 + (Uint32)(8)), 8);
++		__builtin_memcpy(&f10.raw, (void *)(r3 + (Uint32)(16)), 8);
++		__builtin_memcpy(&f11.raw, (void *)(r3 + (Uint32)(24)), 8);
++		__builtin_memcpy((void *)(r4 + (Uint32)(0)), &f8.raw, 8);
++		__dcbz(0u, r8);
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f9.raw, 8);
++		r8 = r8 + r0;
++		__dcbz(0u, r8);
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f10.raw, 8);
++		r8 = r8 + r0;
++		__dcbz(0u, r8);
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f11.raw, 8);
++		r8 = r8 + r0;
++		__dcbz(0u, r8);
++		__builtin_memcpy(&f9.raw, (void *)(r3 + (Uint32)(40)), 8);
++		__builtin_memcpy(&f10.raw, (void *)(r3 + (Uint32)(48)), 8);
++		__builtin_memcpy(&f11.raw, (void *)(r3 + (Uint32)(56)), 8);
++		__builtin_memcpy(&f8.raw, (void *)(r3 + (Uint32)(32)), 8);
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f8.raw, 8);
++		r8 = r8 + r0;
++		__dcbz(0u, r8);
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f9.raw, 8);
++		r8 = r8 + r0;
++		__dcbz(0u, r8);
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f10.raw, 8);
++		r8 = r8 + r0;
++		__dcbz(0u, r8);
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f11.raw, 8);
++		goto one_L_80206B00;
++	one_L_80206AA4:;
++		__builtin_memcpy(&f8.raw, (void *)(r3 + (Uint32)(0)), 8);
++		r0 = r0 << 3;
++		__builtin_memcpy(&f9.raw, (void *)(r3 + (Uint32)(8)), 8);
++		r8 = r4 + r0;
++		__builtin_memcpy(&f10.raw, (void *)(r3 + (Uint32)(16)), 8);
++		__builtin_memcpy(&f11.raw, (void *)(r3 + (Uint32)(24)), 8);
++		__builtin_memcpy((void *)(r4 + (Uint32)(0)), &f8.raw, 8);
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f9.raw, 8);
++		r8 = r8 + r0;
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f10.raw, 8);
++		r8 = r8 + r0;
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f11.raw, 8);
++		r8 = r8 + r0;
++		__builtin_memcpy(&f9.raw, (void *)(r3 + (Uint32)(40)), 8);
++		__builtin_memcpy(&f10.raw, (void *)(r3 + (Uint32)(48)), 8);
++		__builtin_memcpy(&f11.raw, (void *)(r3 + (Uint32)(56)), 8);
++		__builtin_memcpy(&f8.raw, (void *)(r3 + (Uint32)(32)), 8);
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f8.raw, 8);
++		r8 = r8 + r0;
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f9.raw, 8);
++		r8 = r8 + r0;
++		__builtin_memcpy((void *)(r8 + (Uint32)(0)), &f10.raw, 8);
++		__builtin_memcpy((void *)(r8 + r0), &f11.raw, 8);
++	one_L_80206B00:;
++		r3 = r3 + (Uint32)(64);
++		goto one_L_80206C54;
++	one_L_80206B08:;
++		r0 = r4 & 0x1fu;
++		cr0 = (Sint32)(r0) < 0 ? -1 : (Sint32)(r0) > 0 ? 1 : 0;
++		if (cr0 != 0) goto one_L_80206BB8;
++		r0 = (Uint32)(4);
++		ctr = r0;
++	one_L_80206B18:;
++		__dcbz(0u, r4);
++		re4_psq_l(&f0, (void *)(r6 + (Uint32)(0)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f4, (void *)(r3 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f1, (void *)(r6 + (Uint32)(4)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f5, (void *)(r3 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f2, (void *)(r6 + (Uint32)(8)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f6, (void *)(r3 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f3, (void *)(r6 + (Uint32)(12)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f7, (void *)(r3 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_st(&f0, (void *)(r4 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_st(&f1, (void *)(r4 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_st(&f2, (void *)(r4 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_st(&f3, (void *)(r4 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		r4 = r4 + r8;
++		__dcbz(0u, r4);
++		re4_psq_l(&f0, (void *)(r6 + (Uint32)(16)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f4, (void *)(r3 + (Uint32)(8)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f1, (void *)(r6 + (Uint32)(20)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f5, (void *)(r3 + (Uint32)(10)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f2, (void *)(r6 + (Uint32)(24)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f6, (void *)(r3 + (Uint32)(12)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f3, (void *)(r6 + (Uint32)(28)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f7, (void *)(r3 + (Uint32)(14)), 0, re4_cri_gqr[4]);
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_st(&f0, (void *)(r4 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_st(&f1, (void *)(r4 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_st(&f2, (void *)(r4 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_st(&f3, (void *)(r4 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		r4 = r4 + r8;
++		r3 = r3 + (Uint32)(16);
++		r6 = r6 + (Uint32)(32);
++		if (--ctr != 0) goto one_L_80206B18;
++		goto one_L_80206C54;
++	one_L_80206BB8:;
++		r0 = (Uint32)(4);
++		ctr = r0;
++	one_L_80206BC0:;
++		re4_psq_l(&f0, (void *)(r6 + (Uint32)(0)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f4, (void *)(r3 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f1, (void *)(r6 + (Uint32)(4)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f5, (void *)(r3 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f2, (void *)(r6 + (Uint32)(8)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f6, (void *)(r3 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f3, (void *)(r6 + (Uint32)(12)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f7, (void *)(r3 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_st(&f0, (void *)(r4 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_st(&f1, (void *)(r4 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_st(&f2, (void *)(r4 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_st(&f3, (void *)(r4 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		r4 = r4 + r8;
++		re4_psq_l(&f0, (void *)(r6 + (Uint32)(16)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f4, (void *)(r3 + (Uint32)(8)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f1, (void *)(r6 + (Uint32)(20)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f5, (void *)(r3 + (Uint32)(10)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f2, (void *)(r6 + (Uint32)(24)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f6, (void *)(r3 + (Uint32)(12)), 0, re4_cri_gqr[4]);
++		re4_psq_l(&f3, (void *)(r6 + (Uint32)(28)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f7, (void *)(r3 + (Uint32)(14)), 0, re4_cri_gqr[4]);
++		{ Float32 a0_ = f0.ps0 + f4.ps0, a1_ = f0.ps1 + f4.ps1; f0.ps0 = a0_; f0.ps1 = a1_; }
++		{ Float32 a0_ = f1.ps0 + f5.ps0, a1_ = f1.ps1 + f5.ps1; f1.ps0 = a0_; f1.ps1 = a1_; }
++		{ Float32 a0_ = f2.ps0 + f6.ps0, a1_ = f2.ps1 + f6.ps1; f2.ps0 = a0_; f2.ps1 = a1_; }
++		{ Float32 a0_ = f3.ps0 + f7.ps0, a1_ = f3.ps1 + f7.ps1; f3.ps0 = a0_; f3.ps1 = a1_; }
++		re4_psq_st(&f0, (void *)(r4 + (Uint32)(0)), 0, re4_cri_gqr[4]);
++		re4_psq_st(&f1, (void *)(r4 + (Uint32)(2)), 0, re4_cri_gqr[4]);
++		re4_psq_st(&f2, (void *)(r4 + (Uint32)(4)), 0, re4_cri_gqr[4]);
++		re4_psq_st(&f3, (void *)(r4 + (Uint32)(6)), 0, re4_cri_gqr[4]);
++		r4 = r4 + r8;
++		r3 = r3 + (Uint32)(16);
++		r6 = r6 + (Uint32)(32);
++		if (--ctr != 0) goto one_L_80206BC0;
++	one_L_80206C54:;
++		r9 = r9 + (Uint32)(1);
++		r5 = r5 << 1;
++		cr0 = (Sint32)r9 < (Sint32)(6) ? -1 : (Sint32)r9 > (Sint32)(6) ? 1 : 0;
++		if (cr0 < 0) goto one_L_802069FC;
++		(void)ctr; (void)ca; (void)cr0;
+ 	}
+ }
+ 
+@@ -831,106 +853,118 @@
+  * instead of `li`: the inline assembler hoists an `li` above the preceding independent `addi`) */
+ void mpvumc_OutputIntra6blk(Uint8 *blk, MPVUMC_OUTBLK *ob, Uint8 *clip)
+ {
+-	asm {
+-		addi r4, r4, 0x4
+-		addi r5, 0, 0x6
+-L_80207050:
+-		lwz r7, 0x0(r4)
+-		lwz r6, 0x4(r4)
+-		addi r4, r4, 0x8
+-		clrlwi. r0, r7, 27
+-		bne L_80207118
+-		li r0, 0x2
+-		mtctr r0
+-L_8020706C:
+-		dcbz r0, r7
+-		psq_l f0, 0x0(r3), 0, 3
+-		psq_l f1, 0x4(r3), 0, 3
+-		psq_l f2, 0x8(r3), 0, 3
+-		psq_l f3, 0xc(r3), 0, 3
+-		psq_st f0, 0x0(r7), 0, 3
+-		psq_st f1, 0x2(r7), 0, 3
+-		psq_st f2, 0x4(r7), 0, 3
+-		psq_st f3, 0x6(r7), 0, 3
+-		add r7, r7, r6
+-		dcbz r0, r7
+-		psq_l f0, 0x10(r3), 0, 3
+-		psq_l f1, 0x14(r3), 0, 3
+-		psq_l f2, 0x18(r3), 0, 3
+-		psq_l f3, 0x1c(r3), 0, 3
+-		psq_st f0, 0x0(r7), 0, 3
+-		psq_st f1, 0x2(r7), 0, 3
+-		psq_st f2, 0x4(r7), 0, 3
+-		psq_st f3, 0x6(r7), 0, 3
+-		add r7, r7, r6
+-		dcbz r0, r7
+-		psq_l f0, 0x20(r3), 0, 3
+-		psq_l f1, 0x24(r3), 0, 3
+-		psq_l f2, 0x28(r3), 0, 3
+-		psq_l f3, 0x2c(r3), 0, 3
+-		psq_st f0, 0x0(r7), 0, 3
+-		psq_st f1, 0x2(r7), 0, 3
+-		psq_st f2, 0x4(r7), 0, 3
+-		psq_st f3, 0x6(r7), 0, 3
+-		add r7, r7, r6
+-		dcbz r0, r7
+-		psq_l f0, 0x30(r3), 0, 3
+-		psq_l f1, 0x34(r3), 0, 3
+-		psq_l f2, 0x38(r3), 0, 3
+-		psq_l f3, 0x3c(r3), 0, 3
+-		psq_st f0, 0x0(r7), 0, 3
+-		psq_st f1, 0x2(r7), 0, 3
+-		psq_st f2, 0x4(r7), 0, 3
+-		psq_st f3, 0x6(r7), 0, 3
+-		add r7, r7, r6
+-		addi r3, r3, 0x40
+-		bdnz L_8020706C
+-		b L_802071B8
+-L_80207118:
+-		li r0, 0x2
+-		mtctr r0
+-L_80207120:
+-		psq_l f0, 0x0(r3), 0, 3
+-		psq_l f1, 0x4(r3), 0, 3
+-		psq_l f2, 0x8(r3), 0, 3
+-		psq_l f3, 0xc(r3), 0, 3
+-		psq_st f0, 0x0(r7), 0, 3
+-		psq_st f1, 0x2(r7), 0, 3
+-		psq_st f2, 0x4(r7), 0, 3
+-		psq_st f3, 0x6(r7), 0, 3
+-		add r7, r7, r6
+-		psq_l f0, 0x10(r3), 0, 3
+-		psq_l f1, 0x14(r3), 0, 3
+-		psq_l f2, 0x18(r3), 0, 3
+-		psq_l f3, 0x1c(r3), 0, 3
+-		psq_st f0, 0x0(r7), 0, 3
+-		psq_st f1, 0x2(r7), 0, 3
+-		psq_st f2, 0x4(r7), 0, 3
+-		psq_st f3, 0x6(r7), 0, 3
+-		add r7, r7, r6
+-		psq_l f0, 0x20(r3), 0, 3
+-		psq_l f1, 0x24(r3), 0, 3
+-		psq_l f2, 0x28(r3), 0, 3
+-		psq_l f3, 0x2c(r3), 0, 3
+-		psq_st f0, 0x0(r7), 0, 3
+-		psq_st f1, 0x2(r7), 0, 3
+-		psq_st f2, 0x4(r7), 0, 3
+-		psq_st f3, 0x6(r7), 0, 3
+-		add r7, r7, r6
+-		psq_l f0, 0x30(r3), 0, 3
+-		psq_l f1, 0x34(r3), 0, 3
+-		psq_l f2, 0x38(r3), 0, 3
+-		psq_l f3, 0x3c(r3), 0, 3
+-		psq_st f0, 0x0(r7), 0, 3
+-		psq_st f1, 0x2(r7), 0, 3
+-		psq_st f2, 0x4(r7), 0, 3
+-		psq_st f3, 0x6(r7), 0, 3
+-		add r7, r7, r6
+-		addi r3, r3, 0x40
+-		bdnz L_80207120
+-L_802071B8:
+-		subic. r5, r5, 0x1
+-		bgt L_80207050
++	/* port: the asm block in C (port/tools/whole_ppc_to_c.py) */
++	{
++		Uint32 r0, r3, r4, r5, r6, r7;
++		re4_ps f0, f1, f2, f3;
++		Uint32 ctr = 0, ca = 0;
++		Sint32 cr0 = 0;
++		r3 = (Uint32)(blk);
++		r4 = (Uint32)(ob);
++		r5 = (Uint32)(clip);
++		r4 = r4 + (Uint32)(4);
++		r5 = 0u + (Uint32)(6);
++	intra_L_80207050:;
++		r7 = *(Uint32 *)(r4 + (Uint32)(0));
++		r6 = *(Uint32 *)(r4 + (Uint32)(4));
++		r4 = r4 + (Uint32)(8);
++		r0 = r7 & 0x1fu;
++		cr0 = (Sint32)(r0) < 0 ? -1 : (Sint32)(r0) > 0 ? 1 : 0;
++		if (cr0 != 0) goto intra_L_80207118;
++		r0 = (Uint32)(2);
++		ctr = r0;
++	intra_L_8020706C:;
++		__dcbz(0u, r7);
++		re4_psq_l(&f0, (void *)(r3 + (Uint32)(0)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f1, (void *)(r3 + (Uint32)(4)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f2, (void *)(r3 + (Uint32)(8)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f3, (void *)(r3 + (Uint32)(12)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f0, (void *)(r7 + (Uint32)(0)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f1, (void *)(r7 + (Uint32)(2)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f2, (void *)(r7 + (Uint32)(4)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f3, (void *)(r7 + (Uint32)(6)), 0, re4_cri_gqr[3]);
++		r7 = r7 + r6;
++		__dcbz(0u, r7);
++		re4_psq_l(&f0, (void *)(r3 + (Uint32)(16)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f1, (void *)(r3 + (Uint32)(20)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f2, (void *)(r3 + (Uint32)(24)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f3, (void *)(r3 + (Uint32)(28)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f0, (void *)(r7 + (Uint32)(0)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f1, (void *)(r7 + (Uint32)(2)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f2, (void *)(r7 + (Uint32)(4)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f3, (void *)(r7 + (Uint32)(6)), 0, re4_cri_gqr[3]);
++		r7 = r7 + r6;
++		__dcbz(0u, r7);
++		re4_psq_l(&f0, (void *)(r3 + (Uint32)(32)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f1, (void *)(r3 + (Uint32)(36)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f2, (void *)(r3 + (Uint32)(40)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f3, (void *)(r3 + (Uint32)(44)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f0, (void *)(r7 + (Uint32)(0)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f1, (void *)(r7 + (Uint32)(2)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f2, (void *)(r7 + (Uint32)(4)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f3, (void *)(r7 + (Uint32)(6)), 0, re4_cri_gqr[3]);
++		r7 = r7 + r6;
++		__dcbz(0u, r7);
++		re4_psq_l(&f0, (void *)(r3 + (Uint32)(48)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f1, (void *)(r3 + (Uint32)(52)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f2, (void *)(r3 + (Uint32)(56)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f3, (void *)(r3 + (Uint32)(60)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f0, (void *)(r7 + (Uint32)(0)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f1, (void *)(r7 + (Uint32)(2)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f2, (void *)(r7 + (Uint32)(4)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f3, (void *)(r7 + (Uint32)(6)), 0, re4_cri_gqr[3]);
++		r7 = r7 + r6;
++		r3 = r3 + (Uint32)(64);
++		if (--ctr != 0) goto intra_L_8020706C;
++		goto intra_L_802071B8;
++	intra_L_80207118:;
++		r0 = (Uint32)(2);
++		ctr = r0;
++	intra_L_80207120:;
++		re4_psq_l(&f0, (void *)(r3 + (Uint32)(0)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f1, (void *)(r3 + (Uint32)(4)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f2, (void *)(r3 + (Uint32)(8)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f3, (void *)(r3 + (Uint32)(12)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f0, (void *)(r7 + (Uint32)(0)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f1, (void *)(r7 + (Uint32)(2)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f2, (void *)(r7 + (Uint32)(4)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f3, (void *)(r7 + (Uint32)(6)), 0, re4_cri_gqr[3]);
++		r7 = r7 + r6;
++		re4_psq_l(&f0, (void *)(r3 + (Uint32)(16)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f1, (void *)(r3 + (Uint32)(20)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f2, (void *)(r3 + (Uint32)(24)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f3, (void *)(r3 + (Uint32)(28)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f0, (void *)(r7 + (Uint32)(0)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f1, (void *)(r7 + (Uint32)(2)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f2, (void *)(r7 + (Uint32)(4)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f3, (void *)(r7 + (Uint32)(6)), 0, re4_cri_gqr[3]);
++		r7 = r7 + r6;
++		re4_psq_l(&f0, (void *)(r3 + (Uint32)(32)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f1, (void *)(r3 + (Uint32)(36)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f2, (void *)(r3 + (Uint32)(40)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f3, (void *)(r3 + (Uint32)(44)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f0, (void *)(r7 + (Uint32)(0)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f1, (void *)(r7 + (Uint32)(2)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f2, (void *)(r7 + (Uint32)(4)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f3, (void *)(r7 + (Uint32)(6)), 0, re4_cri_gqr[3]);
++		r7 = r7 + r6;
++		re4_psq_l(&f0, (void *)(r3 + (Uint32)(48)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f1, (void *)(r3 + (Uint32)(52)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f2, (void *)(r3 + (Uint32)(56)), 0, re4_cri_gqr[3]);
++		re4_psq_l(&f3, (void *)(r3 + (Uint32)(60)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f0, (void *)(r7 + (Uint32)(0)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f1, (void *)(r7 + (Uint32)(2)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f2, (void *)(r7 + (Uint32)(4)), 0, re4_cri_gqr[3]);
++		re4_psq_st(&f3, (void *)(r7 + (Uint32)(6)), 0, re4_cri_gqr[3]);
++		r7 = r7 + r6;
++		r3 = r3 + (Uint32)(64);
++		if (--ctr != 0) goto intra_L_80207120;
++	intra_L_802071B8:;
++		ca = r5 >= (Uint32)(1);
++		r5 = r5 - (Uint32)(1);
++		cr0 = (Sint32)(r5) < 0 ? -1 : (Sint32)(r5) > 0 ? 1 : 0;
++		if (cr0 > 0) goto intra_L_80207050;
++		(void)ctr; (void)ca; (void)cr0;
+ 	}
+ }
+ 
+@@ -960,16 +994,21 @@
+  * scale 2^-63 (the 0..255 -> 0..1 range) */
+ void MPVUMC_SetGqr(void)
+ {
+-	asm {
+-		li r0, 0x4
+-		oris r0, r0, 0x4
+-		mtspr GQR4, r0
+-		li r0, 0x4
+-		oris r0, r0, 0x7
+-		mtspr GQR3, r0
+-		li r0, 0x3f04
+-		oris r0, r0, 0x3f07
+-		mtspr GQR5, r0
++	/* port: the asm block in C (port/tools/whole_ppc_to_c.py) */
++	{
++		Uint32 r0;
++		Uint32 ctr = 0, ca = 0;
++		Sint32 cr0 = 0;
++		r0 = (Uint32)(4);
++		r0 = r0 | ((Uint32)(4) << 16);
++		re4_cri_gqr[4] = r0;
++		r0 = (Uint32)(4);
++		r0 = r0 | ((Uint32)(7) << 16);
++		re4_cri_gqr[3] = r0;
++		r0 = (Uint32)(16132);
++		r0 = r0 | ((Uint32)(16135) << 16);
++		re4_cri_gqr[5] = r0;
++		(void)ctr; (void)ca; (void)cr0;
+ 	}
+ }
+ 
+--- a/src/lib/dct_fsri.c
++++ b/src/lib/dct_fsri.c
+@@ -59,7 +59,7 @@
+ 	/* the kernel's paired-single registers: the constants c1..c6 (loop-invariant) and the
+ 	 * temporaries, all allocated by the compiler (no hard register in the asm: the C paths share
+ 	 * f0/f7 and r5/r7 with them) */
+-	register __vec2x32float__ x0, c1, c2, c3, c4, c5, c6, x7, x8, x9, x10, x11, x12, x13, x31;
++	__vec2x32float__ x0, c1, c2, c3, c4, c5, c6, x7, x8, x9, x10, x11, x12, x13, x31; /* port: re4_ps pairs (no register: passed by address) */
+ 	Sint32 i;
+ 	int k;
+ 	Float32 dc;
+@@ -68,13 +68,25 @@
+ 
+ 	work = pa->work;
+ 	p = B0TableOrg;
+-	asm {
+-		psq_lu c1, 0x0(p), 0, 0
+-		psq_lu c2, 0x8(p), 0, 0
+-		psq_lu c3, 0x8(p), 0, 0
+-		psq_lu c4, 0x8(p), 0, 0
+-		psq_lu c5, 0x8(p), 0, 0
+-		psq_lu c6, 0x8(p), 0, 0
++	/* port: the asm block in C (port/tools/whole_ppc_to_c.py) */
++	{
++		Uint32 ctr = 0, ca = 0;
++		Sint32 cr0 = 0;
++		Uint32 v_p = (Uint32)(p);
++		v_p += (Uint32)(0);
++		re4_psq_l(&c1, (void *)(v_p), 0, re4_cri_gqr[0]);
++		v_p += (Uint32)(8);
++		re4_psq_l(&c2, (void *)(v_p), 0, re4_cri_gqr[0]);
++		v_p += (Uint32)(8);
++		re4_psq_l(&c3, (void *)(v_p), 0, re4_cri_gqr[0]);
++		v_p += (Uint32)(8);
++		re4_psq_l(&c4, (void *)(v_p), 0, re4_cri_gqr[0]);
++		v_p += (Uint32)(8);
++		re4_psq_l(&c5, (void *)(v_p), 0, re4_cri_gqr[0]);
++		v_p += (Uint32)(8);
++		re4_psq_l(&c6, (void *)(v_p), 0, re4_cri_gqr[0]);
++		p = (__typeof__(p))v_p;
++		(void)ctr; (void)ca; (void)cr0;
+ 	}
+ 	blk = pa->blk;
+ 	tbl = pa->tbl;
+@@ -95,148 +107,197 @@
+ 				}
+ 			} else {
+ 				o = tbl[0];
+-				asm {
+-		subi src, blk, 0x8
+-		subi dst, work, 0x8
+-		li cnt, 0x4
+-L_80215114:
+-		psq_lu x0, 0x8(src), 0, 0
+-		psq_lu x7, 0x8(src), 0, 0
+-		psq_lu x8, 0x8(src), 0, 0
+-		psq_lu x9, 0x8(src), 0, 0
+-		psq_lu x10, 0x8(src), 0, 0
+-		psq_lu x11, 0x8(src), 0, 0
+-		psq_lu x12, 0x8(src), 0, 0
+-		psq_lu x13, 0x8(src), 0, 0
+-		ps_sub x31, x8, x12
+-		ps_add x12, x8, x12
+-		ps_sub x8, x0, x10
+-		ps_mul x31, x31, c1
+-		ps_add x10, x0, x10
+-		ps_sub x31, x31, x12
+-		ps_sub x0, x10, x12
+-		ps_add x12, x10, x12
+-		ps_sub x10, x8, x31
+-		ps_add x31, x8, x31
+-		ps_sub x8, x11, x9
+-		ps_add x9, x11, x9
+-		ps_sub x11, x7, x13
+-		ps_add x13, x7, x13
+-		ps_sub x7, x13, x9
+-		ps_add x9, x13, x9
+-		ps_sub x13, x8, x11
+-		ps_mul x11, x11, c3
+-		ps_mul x8, x8, c2
+-		ps_mul x13, x13, c4
+-		ps_mul x7, x7, c1
+-		ps_sub x11, x11, x13
+-		ps_sub x8, x8, x13
+-		ps_sub x13, x12, x9
+-		ps_sub x11, x11, x9
+-		ps_add x9, x12, x9
+-		ps_sub x7, x7, x11
+-		ps_sub x12, x31, x11
+-		ps_add x11, x31, x11
+-		ps_sub x8, x8, x7
+-		ps_sub x31, x0, x8
+-		ps_add x8, x0, x8
+-		ps_sub x0, x10, x7
+-		ps_add x7, x10, x7
+-		ps_merge00 x10, x9, x11
+-		psq_stu x10, 0x8(dst), 0, 0
+-		ps_merge00 x10, x7, x8
+-		psq_stu x10, 0x8(dst), 0, 0
+-		ps_merge00 x10, x31, x0
+-		psq_stu x10, 0x8(dst), 0, 0
+-		ps_merge00 x10, x12, x13
+-		psq_stu x10, 0x8(dst), 0, 0
+-		ps_merge11 x10, x9, x11
+-		psq_stu x10, 0x8(dst), 0, 0
+-		ps_merge11 x10, x7, x8
+-		psq_stu x10, 0x8(dst), 0, 0
+-		ps_merge11 x10, x31, x0
+-		psq_stu x10, 0x8(dst), 0, 0
+-		ps_merge11 x10, x12, x13
+-		subic. cnt, cnt, 0x1
+-		psq_stu x10, 0x8(dst), 0, 0
+-		bgt L_80215114
+-		mr dst, o
+-		mr src, work
+-		li cnt, 0x4
+-L_80215210:
+-		psq_lu x0, 0x0(src), 0, 0
+-		psq_lu x11, 0x20(src), 0, 0
+-		psq_lu x12, 0x20(src), 0, 0
+-		psq_lu x9, 0x20(src), 0, 0
+-		psq_lu x31, 0x20(src), 0, 0
+-		psq_lu x8, 0x20(src), 0, 0
+-		psq_lu x13, 0x20(src), 0, 0
+-		psq_lu x7, 0x20(src), 0, 0
+-		ps_sub x10, x12, x13
+-		ps_add x13, x12, x13
+-		ps_sub x12, x0, x31
+-		ps_mul x10, x10, c1
+-		ps_add x31, x0, x31
+-		ps_sub x10, x10, x13
+-		ps_sub x0, x31, x13
+-		ps_add x13, x31, x13
+-		ps_sub x31, x12, x10
+-		ps_add x10, x12, x10
+-		ps_sub x12, x8, x9
+-		ps_add x9, x8, x9
+-		ps_sub x8, x11, x7
+-		ps_add x7, x11, x7
+-		ps_sub x11, x7, x9
+-		ps_add x9, x7, x9
+-		ps_sub x7, x12, x8
+-		ps_mul x8, x8, c3
+-		ps_mul x12, x12, c2
+-		ps_mul x7, x7, c4
+-		ps_mul x11, x11, c1
+-		ps_sub x8, x8, x7
+-		ps_sub x12, x12, x7
+-		ps_sub x7, x13, x9
+-		ps_sub x8, x8, x9
+-		ps_add x9, x13, x9
+-		ps_sub x11, x11, x8
+-		ps_sub x13, x10, x8
+-		ps_add x8, x10, x8
+-		ps_sub x12, x12, x11
+-		ps_sub x10, x0, x12
+-		ps_add x12, x0, x12
+-		ps_sub x0, x31, x11
+-		ps_add x11, x31, x11
+-		ps_sel x31, x9, c5, c6
+-		ps_add x9, x9, x31
+-		ps_sel x31, x8, c5, c6
+-		ps_add x8, x8, x31
+-		ps_sel x31, x11, c5, c6
+-		ps_add x11, x11, x31
+-		psq_stu x9, 0x0(dst), 0, 7
+-		ps_sel x31, x12, c5, c6
+-		ps_add x12, x12, x31
+-		psq_stu x8, 0x10(dst), 0, 7
+-		ps_sel x31, x10, c5, c6
+-		psq_stu x11, 0x10(dst), 0, 7
+-		ps_add x10, x10, x31
+-		psq_stu x12, 0x10(dst), 0, 7
+-		ps_sel x31, x0, c5, c6
+-		ps_add x0, x0, x31
+-		ps_sel x31, x13, c5, c6
+-		psq_stu x10, 0x10(dst), 0, 7
+-		ps_add x13, x13, x31
+-		psq_stu x0, 0x10(dst), 0, 7
+-		ps_sel x31, x7, c5, c6
+-		psq_stu x13, 0x10(dst), 0, 7
+-		ps_add x7, x7, x31
+-		subic. cnt, cnt, 0x1
+-		psq_stu x7, 0x10(dst), 0, 7
+-		ble done
+-		subi src, src, 0xd8
+-		subi dst, dst, 0x6c
+-		b L_80215210
+-		done:
+-				}
++				/* port: the asm block in C (port/tools/whole_ppc_to_c.py) */
++	{
++		Uint32 ctr = 0, ca = 0;
++		Sint32 cr0 = 0;
++		Uint32 v_blk = (Uint32)(blk);
++		Uint32 v_cnt = (Uint32)(cnt);
++		Uint32 v_dst = (Uint32)(dst);
++		Uint32 v_o = (Uint32)(o);
++		Uint32 v_src = (Uint32)(src);
++		Uint32 v_work = (Uint32)(work);
++		v_src = v_blk - (Uint32)(8);
++		v_dst = v_work - (Uint32)(8);
++		v_cnt = (Uint32)(4);
++	idct_L_80215114:;
++		v_src += (Uint32)(8);
++		re4_psq_l(&x0, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(8);
++		re4_psq_l(&x7, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(8);
++		re4_psq_l(&x8, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(8);
++		re4_psq_l(&x9, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(8);
++		re4_psq_l(&x10, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(8);
++		re4_psq_l(&x11, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(8);
++		re4_psq_l(&x12, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(8);
++		re4_psq_l(&x13, (void *)(v_src), 0, re4_cri_gqr[0]);
++		{ Float32 a0_ = x8.ps0 - x12.ps0, a1_ = x8.ps1 - x12.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 + x12.ps0, a1_ = x8.ps1 + x12.ps1; x12.ps0 = a0_; x12.ps1 = a1_; }
++		{ Float32 a0_ = x0.ps0 - x10.ps0, a1_ = x0.ps1 - x10.ps1; x8.ps0 = a0_; x8.ps1 = a1_; }
++		{ Float32 a0_ = x31.ps0 * c1.ps0, a1_ = x31.ps1 * c1.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		{ Float32 a0_ = x0.ps0 + x10.ps0, a1_ = x0.ps1 + x10.ps1; x10.ps0 = a0_; x10.ps1 = a1_; }
++		{ Float32 a0_ = x31.ps0 - x12.ps0, a1_ = x31.ps1 - x12.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		{ Float32 a0_ = x10.ps0 - x12.ps0, a1_ = x10.ps1 - x12.ps1; x0.ps0 = a0_; x0.ps1 = a1_; }
++		{ Float32 a0_ = x10.ps0 + x12.ps0, a1_ = x10.ps1 + x12.ps1; x12.ps0 = a0_; x12.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 - x31.ps0, a1_ = x8.ps1 - x31.ps1; x10.ps0 = a0_; x10.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 + x31.ps0, a1_ = x8.ps1 + x31.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		{ Float32 a0_ = x11.ps0 - x9.ps0, a1_ = x11.ps1 - x9.ps1; x8.ps0 = a0_; x8.ps1 = a1_; }
++		{ Float32 a0_ = x11.ps0 + x9.ps0, a1_ = x11.ps1 + x9.ps1; x9.ps0 = a0_; x9.ps1 = a1_; }
++		{ Float32 a0_ = x7.ps0 - x13.ps0, a1_ = x7.ps1 - x13.ps1; x11.ps0 = a0_; x11.ps1 = a1_; }
++		{ Float32 a0_ = x7.ps0 + x13.ps0, a1_ = x7.ps1 + x13.ps1; x13.ps0 = a0_; x13.ps1 = a1_; }
++		{ Float32 a0_ = x13.ps0 - x9.ps0, a1_ = x13.ps1 - x9.ps1; x7.ps0 = a0_; x7.ps1 = a1_; }
++		{ Float32 a0_ = x13.ps0 + x9.ps0, a1_ = x13.ps1 + x9.ps1; x9.ps0 = a0_; x9.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 - x11.ps0, a1_ = x8.ps1 - x11.ps1; x13.ps0 = a0_; x13.ps1 = a1_; }
++		{ Float32 a0_ = x11.ps0 * c3.ps0, a1_ = x11.ps1 * c3.ps1; x11.ps0 = a0_; x11.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 * c2.ps0, a1_ = x8.ps1 * c2.ps1; x8.ps0 = a0_; x8.ps1 = a1_; }
++		{ Float32 a0_ = x13.ps0 * c4.ps0, a1_ = x13.ps1 * c4.ps1; x13.ps0 = a0_; x13.ps1 = a1_; }
++		{ Float32 a0_ = x7.ps0 * c1.ps0, a1_ = x7.ps1 * c1.ps1; x7.ps0 = a0_; x7.ps1 = a1_; }
++		{ Float32 a0_ = x11.ps0 - x13.ps0, a1_ = x11.ps1 - x13.ps1; x11.ps0 = a0_; x11.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 - x13.ps0, a1_ = x8.ps1 - x13.ps1; x8.ps0 = a0_; x8.ps1 = a1_; }
++		{ Float32 a0_ = x12.ps0 - x9.ps0, a1_ = x12.ps1 - x9.ps1; x13.ps0 = a0_; x13.ps1 = a1_; }
++		{ Float32 a0_ = x11.ps0 - x9.ps0, a1_ = x11.ps1 - x9.ps1; x11.ps0 = a0_; x11.ps1 = a1_; }
++		{ Float32 a0_ = x12.ps0 + x9.ps0, a1_ = x12.ps1 + x9.ps1; x9.ps0 = a0_; x9.ps1 = a1_; }
++		{ Float32 a0_ = x7.ps0 - x11.ps0, a1_ = x7.ps1 - x11.ps1; x7.ps0 = a0_; x7.ps1 = a1_; }
++		{ Float32 a0_ = x31.ps0 - x11.ps0, a1_ = x31.ps1 - x11.ps1; x12.ps0 = a0_; x12.ps1 = a1_; }
++		{ Float32 a0_ = x31.ps0 + x11.ps0, a1_ = x31.ps1 + x11.ps1; x11.ps0 = a0_; x11.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 - x7.ps0, a1_ = x8.ps1 - x7.ps1; x8.ps0 = a0_; x8.ps1 = a1_; }
++		{ Float32 a0_ = x0.ps0 - x8.ps0, a1_ = x0.ps1 - x8.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		{ Float32 a0_ = x0.ps0 + x8.ps0, a1_ = x0.ps1 + x8.ps1; x8.ps0 = a0_; x8.ps1 = a1_; }
++		{ Float32 a0_ = x10.ps0 - x7.ps0, a1_ = x10.ps1 - x7.ps1; x0.ps0 = a0_; x0.ps1 = a1_; }
++		{ Float32 a0_ = x10.ps0 + x7.ps0, a1_ = x10.ps1 + x7.ps1; x7.ps0 = a0_; x7.ps1 = a1_; }
++		{ Float32 a0_ = x9.ps0, a1_ = x11.ps0; x10.ps0 = a0_; x10.ps1 = a1_; }
++		v_dst += (Uint32)(8);
++		re4_psq_st(&x10, (void *)(v_dst), 0, re4_cri_gqr[0]);
++		{ Float32 a0_ = x7.ps0, a1_ = x8.ps0; x10.ps0 = a0_; x10.ps1 = a1_; }
++		v_dst += (Uint32)(8);
++		re4_psq_st(&x10, (void *)(v_dst), 0, re4_cri_gqr[0]);
++		{ Float32 a0_ = x31.ps0, a1_ = x0.ps0; x10.ps0 = a0_; x10.ps1 = a1_; }
++		v_dst += (Uint32)(8);
++		re4_psq_st(&x10, (void *)(v_dst), 0, re4_cri_gqr[0]);
++		{ Float32 a0_ = x12.ps0, a1_ = x13.ps0; x10.ps0 = a0_; x10.ps1 = a1_; }
++		v_dst += (Uint32)(8);
++		re4_psq_st(&x10, (void *)(v_dst), 0, re4_cri_gqr[0]);
++		{ Float32 a0_ = x9.ps1, a1_ = x11.ps1; x10.ps0 = a0_; x10.ps1 = a1_; }
++		v_dst += (Uint32)(8);
++		re4_psq_st(&x10, (void *)(v_dst), 0, re4_cri_gqr[0]);
++		{ Float32 a0_ = x7.ps1, a1_ = x8.ps1; x10.ps0 = a0_; x10.ps1 = a1_; }
++		v_dst += (Uint32)(8);
++		re4_psq_st(&x10, (void *)(v_dst), 0, re4_cri_gqr[0]);
++		{ Float32 a0_ = x31.ps1, a1_ = x0.ps1; x10.ps0 = a0_; x10.ps1 = a1_; }
++		v_dst += (Uint32)(8);
++		re4_psq_st(&x10, (void *)(v_dst), 0, re4_cri_gqr[0]);
++		{ Float32 a0_ = x12.ps1, a1_ = x13.ps1; x10.ps0 = a0_; x10.ps1 = a1_; }
++		ca = v_cnt >= (Uint32)(1);
++		v_cnt = v_cnt - (Uint32)(1);
++		cr0 = (Sint32)(v_cnt) < 0 ? -1 : (Sint32)(v_cnt) > 0 ? 1 : 0;
++		v_dst += (Uint32)(8);
++		re4_psq_st(&x10, (void *)(v_dst), 0, re4_cri_gqr[0]);
++		if (cr0 > 0) goto idct_L_80215114;
++		v_dst = v_o;
++		v_src = v_work;
++		v_cnt = (Uint32)(4);
++	idct_L_80215210:;
++		v_src += (Uint32)(0);
++		re4_psq_l(&x0, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(32);
++		re4_psq_l(&x11, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(32);
++		re4_psq_l(&x12, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(32);
++		re4_psq_l(&x9, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(32);
++		re4_psq_l(&x31, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(32);
++		re4_psq_l(&x8, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(32);
++		re4_psq_l(&x13, (void *)(v_src), 0, re4_cri_gqr[0]);
++		v_src += (Uint32)(32);
++		re4_psq_l(&x7, (void *)(v_src), 0, re4_cri_gqr[0]);
++		{ Float32 a0_ = x12.ps0 - x13.ps0, a1_ = x12.ps1 - x13.ps1; x10.ps0 = a0_; x10.ps1 = a1_; }
++		{ Float32 a0_ = x12.ps0 + x13.ps0, a1_ = x12.ps1 + x13.ps1; x13.ps0 = a0_; x13.ps1 = a1_; }
++		{ Float32 a0_ = x0.ps0 - x31.ps0, a1_ = x0.ps1 - x31.ps1; x12.ps0 = a0_; x12.ps1 = a1_; }
++		{ Float32 a0_ = x10.ps0 * c1.ps0, a1_ = x10.ps1 * c1.ps1; x10.ps0 = a0_; x10.ps1 = a1_; }
++		{ Float32 a0_ = x0.ps0 + x31.ps0, a1_ = x0.ps1 + x31.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		{ Float32 a0_ = x10.ps0 - x13.ps0, a1_ = x10.ps1 - x13.ps1; x10.ps0 = a0_; x10.ps1 = a1_; }
++		{ Float32 a0_ = x31.ps0 - x13.ps0, a1_ = x31.ps1 - x13.ps1; x0.ps0 = a0_; x0.ps1 = a1_; }
++		{ Float32 a0_ = x31.ps0 + x13.ps0, a1_ = x31.ps1 + x13.ps1; x13.ps0 = a0_; x13.ps1 = a1_; }
++		{ Float32 a0_ = x12.ps0 - x10.ps0, a1_ = x12.ps1 - x10.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		{ Float32 a0_ = x12.ps0 + x10.ps0, a1_ = x12.ps1 + x10.ps1; x10.ps0 = a0_; x10.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 - x9.ps0, a1_ = x8.ps1 - x9.ps1; x12.ps0 = a0_; x12.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 + x9.ps0, a1_ = x8.ps1 + x9.ps1; x9.ps0 = a0_; x9.ps1 = a1_; }
++		{ Float32 a0_ = x11.ps0 - x7.ps0, a1_ = x11.ps1 - x7.ps1; x8.ps0 = a0_; x8.ps1 = a1_; }
++		{ Float32 a0_ = x11.ps0 + x7.ps0, a1_ = x11.ps1 + x7.ps1; x7.ps0 = a0_; x7.ps1 = a1_; }
++		{ Float32 a0_ = x7.ps0 - x9.ps0, a1_ = x7.ps1 - x9.ps1; x11.ps0 = a0_; x11.ps1 = a1_; }
++		{ Float32 a0_ = x7.ps0 + x9.ps0, a1_ = x7.ps1 + x9.ps1; x9.ps0 = a0_; x9.ps1 = a1_; }
++		{ Float32 a0_ = x12.ps0 - x8.ps0, a1_ = x12.ps1 - x8.ps1; x7.ps0 = a0_; x7.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 * c3.ps0, a1_ = x8.ps1 * c3.ps1; x8.ps0 = a0_; x8.ps1 = a1_; }
++		{ Float32 a0_ = x12.ps0 * c2.ps0, a1_ = x12.ps1 * c2.ps1; x12.ps0 = a0_; x12.ps1 = a1_; }
++		{ Float32 a0_ = x7.ps0 * c4.ps0, a1_ = x7.ps1 * c4.ps1; x7.ps0 = a0_; x7.ps1 = a1_; }
++		{ Float32 a0_ = x11.ps0 * c1.ps0, a1_ = x11.ps1 * c1.ps1; x11.ps0 = a0_; x11.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 - x7.ps0, a1_ = x8.ps1 - x7.ps1; x8.ps0 = a0_; x8.ps1 = a1_; }
++		{ Float32 a0_ = x12.ps0 - x7.ps0, a1_ = x12.ps1 - x7.ps1; x12.ps0 = a0_; x12.ps1 = a1_; }
++		{ Float32 a0_ = x13.ps0 - x9.ps0, a1_ = x13.ps1 - x9.ps1; x7.ps0 = a0_; x7.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 - x9.ps0, a1_ = x8.ps1 - x9.ps1; x8.ps0 = a0_; x8.ps1 = a1_; }
++		{ Float32 a0_ = x13.ps0 + x9.ps0, a1_ = x13.ps1 + x9.ps1; x9.ps0 = a0_; x9.ps1 = a1_; }
++		{ Float32 a0_ = x11.ps0 - x8.ps0, a1_ = x11.ps1 - x8.ps1; x11.ps0 = a0_; x11.ps1 = a1_; }
++		{ Float32 a0_ = x10.ps0 - x8.ps0, a1_ = x10.ps1 - x8.ps1; x13.ps0 = a0_; x13.ps1 = a1_; }
++		{ Float32 a0_ = x10.ps0 + x8.ps0, a1_ = x10.ps1 + x8.ps1; x8.ps0 = a0_; x8.ps1 = a1_; }
++		{ Float32 a0_ = x12.ps0 - x11.ps0, a1_ = x12.ps1 - x11.ps1; x12.ps0 = a0_; x12.ps1 = a1_; }
++		{ Float32 a0_ = x0.ps0 - x12.ps0, a1_ = x0.ps1 - x12.ps1; x10.ps0 = a0_; x10.ps1 = a1_; }
++		{ Float32 a0_ = x0.ps0 + x12.ps0, a1_ = x0.ps1 + x12.ps1; x12.ps0 = a0_; x12.ps1 = a1_; }
++		{ Float32 a0_ = x31.ps0 - x11.ps0, a1_ = x31.ps1 - x11.ps1; x0.ps0 = a0_; x0.ps1 = a1_; }
++		{ Float32 a0_ = x31.ps0 + x11.ps0, a1_ = x31.ps1 + x11.ps1; x11.ps0 = a0_; x11.ps1 = a1_; }
++		{ Float32 a0_ = x9.ps0 >= 0.0f ? c5.ps0 : c6.ps0, a1_ = x9.ps1 >= 0.0f ? c5.ps1 : c6.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		{ Float32 a0_ = x9.ps0 + x31.ps0, a1_ = x9.ps1 + x31.ps1; x9.ps0 = a0_; x9.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 >= 0.0f ? c5.ps0 : c6.ps0, a1_ = x8.ps1 >= 0.0f ? c5.ps1 : c6.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		{ Float32 a0_ = x8.ps0 + x31.ps0, a1_ = x8.ps1 + x31.ps1; x8.ps0 = a0_; x8.ps1 = a1_; }
++		{ Float32 a0_ = x11.ps0 >= 0.0f ? c5.ps0 : c6.ps0, a1_ = x11.ps1 >= 0.0f ? c5.ps1 : c6.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		{ Float32 a0_ = x11.ps0 + x31.ps0, a1_ = x11.ps1 + x31.ps1; x11.ps0 = a0_; x11.ps1 = a1_; }
++		v_dst += (Uint32)(0);
++		re4_psq_st(&x9, (void *)(v_dst), 0, re4_cri_gqr[7]);
++		{ Float32 a0_ = x12.ps0 >= 0.0f ? c5.ps0 : c6.ps0, a1_ = x12.ps1 >= 0.0f ? c5.ps1 : c6.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		{ Float32 a0_ = x12.ps0 + x31.ps0, a1_ = x12.ps1 + x31.ps1; x12.ps0 = a0_; x12.ps1 = a1_; }
++		v_dst += (Uint32)(16);
++		re4_psq_st(&x8, (void *)(v_dst), 0, re4_cri_gqr[7]);
++		{ Float32 a0_ = x10.ps0 >= 0.0f ? c5.ps0 : c6.ps0, a1_ = x10.ps1 >= 0.0f ? c5.ps1 : c6.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		v_dst += (Uint32)(16);
++		re4_psq_st(&x11, (void *)(v_dst), 0, re4_cri_gqr[7]);
++		{ Float32 a0_ = x10.ps0 + x31.ps0, a1_ = x10.ps1 + x31.ps1; x10.ps0 = a0_; x10.ps1 = a1_; }
++		v_dst += (Uint32)(16);
++		re4_psq_st(&x12, (void *)(v_dst), 0, re4_cri_gqr[7]);
++		{ Float32 a0_ = x0.ps0 >= 0.0f ? c5.ps0 : c6.ps0, a1_ = x0.ps1 >= 0.0f ? c5.ps1 : c6.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		{ Float32 a0_ = x0.ps0 + x31.ps0, a1_ = x0.ps1 + x31.ps1; x0.ps0 = a0_; x0.ps1 = a1_; }
++		{ Float32 a0_ = x13.ps0 >= 0.0f ? c5.ps0 : c6.ps0, a1_ = x13.ps1 >= 0.0f ? c5.ps1 : c6.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		v_dst += (Uint32)(16);
++		re4_psq_st(&x10, (void *)(v_dst), 0, re4_cri_gqr[7]);
++		{ Float32 a0_ = x13.ps0 + x31.ps0, a1_ = x13.ps1 + x31.ps1; x13.ps0 = a0_; x13.ps1 = a1_; }
++		v_dst += (Uint32)(16);
++		re4_psq_st(&x0, (void *)(v_dst), 0, re4_cri_gqr[7]);
++		{ Float32 a0_ = x7.ps0 >= 0.0f ? c5.ps0 : c6.ps0, a1_ = x7.ps1 >= 0.0f ? c5.ps1 : c6.ps1; x31.ps0 = a0_; x31.ps1 = a1_; }
++		v_dst += (Uint32)(16);
++		re4_psq_st(&x13, (void *)(v_dst), 0, re4_cri_gqr[7]);
++		{ Float32 a0_ = x7.ps0 + x31.ps0, a1_ = x7.ps1 + x31.ps1; x7.ps0 = a0_; x7.ps1 = a1_; }
++		ca = v_cnt >= (Uint32)(1);
++		v_cnt = v_cnt - (Uint32)(1);
++		cr0 = (Sint32)(v_cnt) < 0 ? -1 : (Sint32)(v_cnt) > 0 ? 1 : 0;
++		v_dst += (Uint32)(16);
++		re4_psq_st(&x7, (void *)(v_dst), 0, re4_cri_gqr[7]);
++		if (cr0 <= 0) goto idct_done;
++		v_src = v_src - (Uint32)(216);
++		v_dst = v_dst - (Uint32)(108);
++		goto idct_L_80215210;
++	idct_done:;
++		cnt = (__typeof__(cnt))v_cnt;
++		dst = (__typeof__(dst))v_dst;
++		src = (__typeof__(src))v_src;
++		(void)ctr; (void)ca; (void)cr0;
++	}
+ 			}
+ 		}
+ 		cbp <<= 1;
+@@ -298,10 +359,15 @@
+ // Programs GQR7 for the 16-bit pixel stores of the column pass (before each frame decode).
+ void DCT_FsriSetGqr(void)
+ {
+-	asm {
+-		li r0, 0x7
+-		oris r0, r0, 0x7
+-		mtspr GQR7, r0
++	/* port: the asm block in C (port/tools/whole_ppc_to_c.py) */
++	{
++		Uint32 r0;
++		Uint32 ctr = 0, ca = 0;
++		Sint32 cr0 = 0;
++		r0 = (Uint32)(7);
++		r0 = r0 | ((Uint32)(7) << 16);
++		re4_cri_gqr[7] = r0;
++		(void)ctr; (void)ca; (void)cr0;
+ 	}
+ }
+ 
+--- a/src/lib/cftyp422_ppc.c
++++ b/src/lib/cftyp422_ppc.c
+@@ -5,6 +5,8 @@
+  * version keep-alive from Init). */
+ #include "cri_xpt.h"
+ 
++extern void OSReport(const char *msg, ...); /* port: the unported converters report once */
++
+ /* the version string is the first .rodata object; named so cnvStatic's asm can address the pool */
+ static const Char8 cft_version_str[] = "\nCRI CFT/GC Ver.1.57 Build:Sep 22 2004 10:34:37\n";
+ const Char8 *volatile CFT_version = cft_version_str;
+@@ -163,13 +165,16 @@
+ } CFT_ARGBDST;
+ 
+ /* one row of a CbCr 4x4 IA8 tile (Cb, Cr byte pairs, two words) */
++/* port: the four chroma bytes of each plane as a GameCube word (first byte in the
++ * most significant bits) and the interleaved words stored the same way, so the
++ * texture holds Cb0 Cr0 Cb1 Cr1 as on the GameCube */
+ #define CFTYP_C44_ROW(c, cb, cr)                                                              \
+-	crv = *(cr)++;                                                                         \
+-	cbv = *(cb)++;                                                                         \
+-	*++(c) = (cbv & 0xFF000000) | ((crv >> 8) & 0x00FF0000) | ((cbv >> 8) & 0xFF00) |      \
+-		 ((crv >> 16) & 0xFF);                                                         \
+-	*++(c) = ((cbv << 16) & 0xFF000000) | ((crv << 8) & 0x00FF0000) | ((cbv << 8) & 0xFF00) | \
+-		 (crv & 0xFF)
++	crv = re4_be32((cr)++);                                                                \
++	cbv = re4_be32((cb)++);                                                                \
++	re4_set_be32(++(c), (cbv & 0xFF000000) | ((crv >> 8) & 0x00FF0000) | ((cbv >> 8) & 0xFF00) | \
++		 ((crv >> 16) & 0xFF));                                                        \
++	re4_set_be32(++(c), ((cbv << 16) & 0xFF000000) | ((crv << 8) & 0x00FF0000) | ((cbv << 8) & 0xFF00) | \
++		 (crv & 0xFF))
+ 
+ /* Y plane as 8x4 I8 tiles (four 8-byte rows per tile), CbCr as 4x4 IA8 tiles. The dcbz/dcbt
+  * index is a register variable (ofs = 8 / 4) named as the asm operand: a hard r0 in the asm would
+@@ -235,16 +240,16 @@
+ 		y3 = (Float64 *)(yw3 + (Uint32)y0);
+ 		n = cnt;
+ 		while (n-- > 0) {
+-			asm { dcbz d, ofs }
++			__dcbz(d, ofs); /* port: asm dcbz */
+ 			w0 = *y0;
+ 			w1 = *y1;
+ 			w2 = *y2;
+ 			w3 = *y3;
+-			asm { dcbt y0, ofs }
+-			asm { stfdu w0, 8(d) }
+-			asm { stfdu w1, 8(d) }
+-			asm { stfdu w2, 8(d) }
+-			asm { stfdu w3, 8(d) }
++			__dcbt(y0, ofs); /* port: asm dcbt */
++			*++d = w0; /* port: asm stfdu */
++			*++d = w1; /* port: asm stfdu */
++			*++d = w2; /* port: asm stfdu */
++			*++d = w3; /* port: asm stfdu */
+ 			y0++;
+ 			y3++;
+ 			y2++;
+@@ -274,7 +279,7 @@
+ 		cbp2 = (Uint32 *)(o2 + (Uint32)cbp0);
+ 		cbp3 = (Uint32 *)(o3 + (Uint32)cbp0);
+ 		for (n = 0; n < cnt; n++) {
+-			asm { dcbz c, ofs }
++			__dcbz(c, ofs); /* port: asm dcbz */
+ 			CFTYP_C44_ROW(c, cbp0, crp0);
+ 			CFTYP_C44_ROW(c, cbp1, crp1);
+ 			CFTYP_C44_ROW(c, cbp2, crp2);
+@@ -305,322 +310,14 @@
+  * CodeWarrior 2.4.7 has no paired-single intrinsics, so the bodies are kept as asm. */
+ void cnvDynamicYcc420plnToArgb8888(CFT_YCC420PLN *src, CFT_ARGBDST *dst, Float32 *tbl)
+ {
+-	Uint32 slot[8];
+-
+-	asm {
+-		addi r12, r5, 0x1000
+-		addi r31, r5, 0x2000
+-		mfspr r0, GQR4
+-		li r7, 0x4
+-		lis r6, gqr_save@ha
+-		oris r7, r7, 0x4
+-		stw r0, gqr_save@l(r6)
+-		mtspr GQR4, r7
+-		lwz r16, 0xc(r3)
+-		lwz r7, 0x8(r4)
+-		li r0, 0x0
+-		srawi r8, r16, 2
+-		lwz r6, 0xc(r4)
+-		lwz r17, 0x0(r4)
+-		addze r4, r8
+-		stw r4, slot[1]
+-		srawi r4, r7, 2
+-		addze r4, r4
+-		lwz r15, 0x10(r3)
+-		stw r4, slot[0]
+-		subf r4, r16, r6
+-		srawi r4, r4, 2
+-		li r7, 0x0
+-		addze r9, r4
+-		lwz r10, 0x4(r3)
+-		lwz r11, 0x8(r3)
+-		srwi r8, r16, 2
+-		lwz r6, 0x0(r3)
+-		mr r3, r17
+-		stw r7, slot[2]
+-		srwi r15, r15, 1
+-		addi r4, r17, 0x20
+-		slwi r9, r9, 4
+-		mulli r7, r8, 0xc
+-		slwi r26, r8, 2
+-		slwi r27, r8, 3
+-		stw r7, slot[4]
+-		slwi r7, r15, 1
+-		stw r7, slot[3]
+-		slwi r7, r15, 2
+-		stw r7, slot[5]
+-		slwi r7, r9, 2
+-		stw r7, slot[6]
+-		b L_801FC090
+-L_801FBC88:
+-		lwz r9, slot[3]
+-		mr r7, r10
+-		mr r8, r11
+-		add r29, r9, r11
+-		add r30, r9, r10
+-		lwz r9, slot[1]
+-		mtctr r9
+-		cmpwi r9, 0x0
+-		ble L_801FC064
+-L_801FBCAC:
+-		lwz r16, 0x0(r6)
+-		lhz r9, 0x0(r7)
+-		lhz r22, 0x0(r8)
+-		dcbz r3, r0
+-		dcbz r4, r0
+-		rlwinm r19, r16, 20, 20, 27
+-		clrlslwi r25, r16, 24, 4
+-		rlwinm r17, r22, 28, 20, 27
+-		add r17, r31, r17
+-		rlwinm r15, r16, 12, 20, 27
+-		rlwinm r21, r16, 28, 20, 27
+-		add r16, r5, r15
+-		add r20, r5, r19
+-		clrlslwi r22, r22, 24, 4
+-		add r23, r31, r22
+-		rlwinm r18, r9, 28, 20, 27
+-		add r18, r12, r18
+-		clrlslwi r22, r9, 24, 4
+-		add r24, r12, r22
+-		add r28, r5, r25
+-		add r22, r5, r21
+-		lfs f6, 0x4(r16)
+-		lfs f7, 0x4(r20)
+-		lfs f12, 0x4(r17)
+-		ps_merge11 f1, f6, f7
+-		lfs f10, 0xc(r18)
+-		lfs f31, 0x8(r17)
+-		lfs f30, 0x8(r18)
+-		lfs f8, 0x4(r22)
+-		ps_add f27, f1, f12
+-		lfs f9, 0x4(r28)
+-		ps_add f31, f31, f30
+-		lfsx f0, r5, r15
+-		ps_add f23, f1, f10
+-		lfs f29, 0x8(r23)
+-		lfs f28, 0x8(r24)
+-		ps_add f25, f1, f31
+-		ps_merge11 f2, f8, f9
+-		lfs f13, 0x4(r23)
+-		ps_add f29, f29, f28
+-		lfs f11, 0xc(r24)
+-		ps_merge00 f19, f25, f23
+-		lfsx f3, r5, r19
+-		ps_merge10 f21, f0, f27
+-		lfsx f4, r5, r21
+-		ps_add f26, f2, f13
+-		lfsx f5, r5, r25
+-		ps_add f22, f2, f11
+-		ps_add f24, f2, f29
+-		ps_merge10 f20, f4, f26
+-		ps_merge11 f27, f3, f27
+-		ps_merge00 f18, f24, f22
+-		ps_merge11 f26, f5, f26
+-		ps_merge11 f23, f25, f23
+-		ps_merge11 f22, f24, f22
+-		psq_st f21, 0x0(r3), 0, 4
+-		psq_st f27, 0x2(r3), 0, 4
+-		psq_st f20, 0x4(r3), 0, 4
+-		psq_st f26, 0x6(r3), 0, 4
+-		psq_st f19, 0x0(r4), 0, 4
+-		psq_st f23, 0x2(r4), 0, 4
+-		psq_st f18, 0x4(r4), 0, 4
+-		psq_st f22, 0x6(r4), 0, 4
+-		extrwi r15, r9, 8, 16
+-		lfs f31, 0x8(r17)
+-		lwzx r16, r6, r26
+-		rlwinm r17, r16, 12, 20, 27
+-		add r9, r5, r17
+-		lfsx f0, r5, r17
+-		lfs f6, 0x4(r9)
+-		extrwi r9, r16, 8, 8
+-		slwi r18, r9, 4
+-		slwi r19, r15, 4
+-		add r9, r5, r18
+-		rlwinm r17, r16, 28, 20, 27
+-		lfs f7, 0x4(r9)
+-		clrlslwi r15, r16, 24, 4
+-		add r19, r12, r19
+-		add r16, r5, r17
+-		ps_merge11 f1, f6, f7
+-		add r9, r5, r15
+-		lfs f30, 0x8(r19)
+-		lfs f29, 0x8(r23)
+-		ps_add f31, f31, f30
+-		lfs f8, 0x4(r16)
+-		lfs f9, 0x4(r9)
+-		ps_add f27, f1, f12
+-		ps_add f29, f29, f28
+-		lfsx f3, r5, r18
+-		ps_merge11 f2, f8, f9
+-		lfsx f4, r5, r17
+-		ps_merge10 f21, f0, f27
+-		lfsx f5, r5, r15
+-		ps_add f25, f1, f31
+-		ps_add f26, f2, f13
+-		ps_add f23, f1, f10
+-		ps_add f24, f2, f29
+-		ps_add f22, f2, f11
+-		ps_merge10 f20, f4, f26
+-		ps_merge00 f19, f25, f23
+-		ps_merge00 f18, f24, f22
+-		ps_merge11 f27, f3, f27
+-		ps_merge11 f26, f5, f26
+-		ps_merge11 f23, f25, f23
+-		ps_merge11 f22, f24, f22
+-		psq_st f21, 0x8(r3), 0, 4
+-		psq_st f27, 0xa(r3), 0, 4
+-		psq_st f20, 0xc(r3), 0, 4
+-		psq_st f26, 0xe(r3), 0, 4
+-		psq_st f19, 0x8(r4), 0, 4
+-		psq_st f23, 0xa(r4), 0, 4
+-		psq_st f18, 0xc(r4), 0, 4
+-		psq_st f22, 0xe(r4), 0, 4
+-		add r6, r6, r27
+-		lwz r16, 0x0(r6)
+-		lhz r9, 0x0(r30)
+-		rlwinm r24, r16, 12, 20, 27
+-		rlwinm r20, r16, 20, 20, 27
+-		lhz r22, 0x0(r29)
+-		rlwinm r18, r16, 28, 20, 27
+-		rlwinm r15, r9, 28, 20, 27
+-		add r23, r5, r24
+-		add r21, r12, r15
+-		rlwinm r17, r22, 28, 20, 27
+-		add r28, r31, r17
+-		add r19, r5, r20
+-		add r17, r5, r18
+-		lfs f6, 0x4(r23)
+-		lfsx f0, r5, r24
+-		clrlwi r15, r9, 24
+-		lfs f12, 0x4(r28)
+-		clrlwi r23, r22, 24
+-		lfs f10, 0xc(r21)
+-		lfs f31, 0x8(r28)
+-		lfs f30, 0x8(r21)
+-		lfs f7, 0x4(r19)
+-		lfsx f3, r5, r20
+-		lfs f8, 0x4(r17)
+-		lfsx f4, r5, r18
+-		slwi r17, r23, 4
+-		ps_merge11 f1, f6, f7
+-		add r18, r31, r17
+-		clrlslwi r16, r16, 24, 4
+-		slwi r17, r15, 4
+-		ps_add f31, f31, f30
+-		add r17, r12, r17
+-		add r15, r5, r16
+-		lfs f29, 0x8(r18)
+-		lfs f9, 0x4(r15)
+-		ps_add f27, f1, f12
+-		lfs f28, 0x8(r17)
+-		ps_add f25, f1, f31
+-		ps_merge11 f2, f8, f9
+-		lfs f13, 0x4(r18)
+-		ps_add f29, f29, f28
+-		lfs f11, 0xc(r17)
+-		ps_merge10 f21, f0, f27
+-		ps_add f26, f2, f13
+-		ps_add f23, f1, f10
+-		lfsx f5, r5, r16
+-		ps_add f24, f2, f29
+-		ps_add f22, f2, f11
+-		ps_merge10 f20, f4, f26
+-		ps_merge00 f19, f25, f23
+-		ps_merge00 f18, f24, f22
+-		ps_merge11 f27, f3, f27
+-		ps_merge11 f26, f5, f26
+-		ps_merge11 f23, f25, f23
+-		ps_merge11 f22, f24, f22
+-		psq_st f21, 0x10(r3), 0, 4
+-		psq_st f27, 0x12(r3), 0, 4
+-		psq_st f20, 0x14(r3), 0, 4
+-		psq_st f26, 0x16(r3), 0, 4
+-		psq_st f19, 0x10(r4), 0, 4
+-		psq_st f23, 0x12(r4), 0, 4
+-		psq_st f18, 0x14(r4), 0, 4
+-		psq_st f22, 0x16(r4), 0, 4
+-		clrlslwi r15, r22, 24, 4
+-		add r18, r31, r15
+-		clrlslwi r9, r9, 24, 4
+-		lwzx r16, r6, r26
+-		add r17, r12, r9
+-		lfs f31, 0x8(r28)
+-		rlwinm r23, r16, 12, 20, 27
+-		rlwinm r21, r16, 20, 20, 27
+-		clrlslwi r15, r16, 24, 4
+-		rlwinm r19, r16, 28, 20, 27
+-		add r22, r5, r23
+-		add r20, r5, r21
+-		add r16, r5, r19
+-		add r9, r5, r15
+-		lfs f6, 0x4(r22)
+-		ps_add f31, f31, f30
+-		lfs f7, 0x4(r20)
+-		lfs f8, 0x4(r16)
+-		ps_merge11 f1, f6, f7
+-		lfs f9, 0x4(r9)
+-		lfs f29, 0x8(r18)
+-		lfs f28, 0x8(r17)
+-		ps_merge11 f2, f8, f9
+-		lfs f13, 0x4(r18)
+-		ps_add f29, f29, f28
+-		lfs f11, 0xc(r17)
+-		ps_add f27, f1, f12
+-		lfsx f0, r5, r23
+-		lfsx f3, r5, r21
+-		ps_add f26, f2, f13
+-		ps_merge10 f21, f0, f27
+-		lfsx f4, r5, r19
+-		ps_add f25, f1, f31
+-		lfsx f5, r5, r15
+-		ps_add f23, f1, f10
+-		ps_merge10 f20, f4, f26
+-		ps_add f24, f2, f29
+-		ps_add f22, f2, f11
+-		ps_merge00 f19, f25, f23
+-		ps_merge11 f27, f3, f27
+-		ps_merge00 f18, f24, f22
+-		ps_merge11 f26, f5, f26
+-		ps_merge11 f23, f25, f23
+-		ps_merge11 f22, f24, f22
+-		psq_st f21, 0x18(r3), 0, 4
+-		psq_st f27, 0x1a(r3), 0, 4
+-		psq_st f20, 0x1c(r3), 0, 4
+-		psq_st f26, 0x1e(r3), 0, 4
+-		psq_st f19, 0x18(r4), 0, 4
+-		psq_st f23, 0x1a(r4), 0, 4
+-		psq_st f18, 0x1c(r4), 0, 4
+-		psq_st f22, 0x1e(r4), 0, 4
+-		addi r6, r6, 0x4
+-		addi r4, r4, 0x40
+-		subf r6, r27, r6
+-		addi r7, r7, 0x2
+-		addi r30, r30, 0x2
+-		addi r8, r8, 0x2
+-		addi r29, r29, 0x2
+-		addi r3, r3, 0x40
+-		bdnz L_801FBCAC
+-L_801FC064:
+-		lwz r7, slot[4]
+-		add r6, r6, r7
+-		lwz r7, slot[5]
+-		add r10, r10, r7
+-		add r11, r11, r7
+-		lwz r7, slot[6]
+-		add r3, r3, r7
+-		add r4, r4, r7
+-		lwz r7, slot[2]
+-		addi r7, r7, 0x1
+-		stw r7, slot[2]
+-L_801FC090:
+-		lwz r8, slot[2]
+-		lwz r7, slot[0]
+-		cmpw r8, r7
+-		blt L_801FBC88
+-		lis r3, gqr_save@ha
+-		lwz r0, gqr_save@l(r3)
+-		mtspr GQR4, r0
++	/* port: the paired-single tile converter stays out (its asm reads the planes
++	 * with GameCube word loads); RE4 draws movies through the Y8 / C4:4 path
++	 * (cSofdec m_draw_mode 0) and never converts to ARGB8888. */
++	static Sint32 reported;
++
++	if (!reported) {
++		reported = 1;
++		OSReport("cft: cnvDynamicYcc420plnToArgb8888 is not ported (unused by the game)\n");
+ 	}
+ }
+ 
+@@ -645,286 +342,14 @@
+ 
+ void cnvStaticYcc420plnToArgb8888(CFT_YCC420PLN *src, CFT_ARGBDST *dst)
+ {
+-	Uint32 slot[8];
+-
+-	asm {
+-		lis r6, gqr_save@ha
+-		lis r5, cft_version_str + 0x50@ha
+-		addi r0, r6, gqr_save@l
+-		lfs f21, cft_version_str + 0x50@l(r5)
+-		stw r0, slot[2]
+-		mfspr r0, GQR4
+-		li r6, 0x4
+-		lwz r5, slot[2]
+-		oris r6, r6, 0x4
+-		stw r0, 0x0(r5)
+-		mtspr GQR4, r6
+-		lwz r7, 0xc(r3)
+-		li r29, 0x0
+-		lwz r6, 0x8(r4)
+-		li r22, 0x0
+-		srawi r0, r7, 2
+-		lwz r5, 0xc(r4)
+-		addze r0, r0
+-		lwz r9, 0x0(r4)
+-		stw r0, slot[1]
+-		srawi r0, r6, 2
+-		addze r0, r0
+-		subf r4, r7, r5
+-		stw r0, slot[0]
+-		srawi r0, r4, 2
+-		lwz r4, 0x10(r3)
+-		addze r0, r0
+-		lwz r21, 0x4(r3)
+-		mr r31, r9
+-		lwz r20, 0x8(r3)
+-		srwi r8, r7, 2
+-		lwz r28, 0x0(r3)
+-		srwi r10, r4, 1
+-		addi r30, r9, 0x20
+-		slwi r12, r0, 4
+-		lwz r3, slot[2]
+-		mulli r0, r8, 0xc
+-		slwi r4, r8, 2
+-		addi r11, r3, 0x1020
+-		addi r9, r3, 0x4
+-		addi r7, r3, 0x804
+-		stw r0, slot[3]
+-		addi r6, r3, 0x404
+-		addi r5, r3, 0xc04
+-		slwi r3, r8, 3
+-		slwi r8, r10, 2
+-		slwi r0, r10, 1
+-		stw r8, slot[4]
+-		slwi r8, r12, 2
+-		stw r8, slot[5]
+-		b L_801FC5B4
+-L_801FC254:
+-		lwz r8, slot[1]
+-		mr r27, r21
+-		mr r26, r20
+-		add r18, r0, r20
+-		add r19, r0, r21
+-		mtctr r8
+-		cmpwi r8, 0x0
+-		ble L_801FC590
+-L_801FC274:
+-		lwz r25, 0x0(r28)
+-		lhz r24, 0x0(r27)
+-		lhz r23, 0x0(r26)
+-		dcbz r31, r29
+-		dcbz r30, r29
+-		rlwinm r12, r25, 10, 22, 29
+-		rlwinm r10, r23, 26, 22, 29
+-		rlwinm r8, r24, 26, 22, 29
+-		clrlslwi r23, r23, 24, 2
+-		clrlslwi r17, r24, 24, 2
+-		rlwinm r15, r25, 18, 22, 29
+-		rlwinm r16, r25, 26, 22, 29
+-		clrlslwi r25, r25, 24, 2
+-		lfsx f0, r11, r12
+-		lfsx f3, r11, r15
+-		lfsx f8, r9, r10
+-		ps_merge11 f1, f0, f3
+-		lfsx f6, r7, r8
+-		lfsx f10, r6, r10
+-		lfsx f11, r5, r8
+-		ps_add f31, f1, f8
+-		lfsx f4, r11, r16
+-		lfsx f5, r11, r25
+-		ps_add f10, f10, f11
+-		lfsx f12, r6, r23
+-		ps_add f27, f1, f6
+-		lfsx f13, r5, r17
+-		ps_add f29, f1, f10
+-		ps_merge10 f25, f21, f31
+-		lfsx f9, r9, r23
+-		ps_merge11 f2, f4, f5
+-		lfsx f7, r7, r17
+-		ps_add f12, f12, f13
+-		ps_merge00 f23, f29, f27
+-		ps_add f30, f2, f9
+-		ps_add f28, f2, f12
+-		ps_add f26, f2, f7
+-		ps_merge10 f24, f21, f30
+-		ps_merge11 f31, f21, f31
+-		ps_merge00 f22, f28, f26
+-		ps_merge11 f30, f21, f30
+-		ps_merge11 f27, f29, f27
+-		ps_merge11 f26, f28, f26
+-		psq_st f25, 0x0(r31), 0, 4
+-		psq_st f31, 0x2(r31), 0, 4
+-		psq_st f24, 0x4(r31), 0, 4
+-		psq_st f30, 0x6(r31), 0, 4
+-		psq_st f23, 0x0(r30), 0, 4
+-		psq_st f27, 0x2(r30), 0, 4
+-		psq_st f22, 0x4(r30), 0, 4
+-		psq_st f26, 0x6(r30), 0, 4
+-		clrlwi r16, r24, 24
+-		lwzx r25, r28, r4
+-		lfsx f8, r9, r10
+-		rlwinm r15, r25, 10, 22, 29
+-		rlwinm r12, r25, 18, 22, 29
+-		lfsx f10, r6, r10
+-		extrwi r10, r25, 8, 16
+-		lfsx f0, r11, r15
+-		lfsx f6, r7, r8
+-		lfsx f11, r5, r8
+-		lfsx f3, r11, r12
+-		ps_merge11 f1, f0, f3
+-		slwi r12, r10, 2
+-		slwi r10, r16, 2
+-		clrlslwi r8, r25, 24, 2
+-		lfsx f4, r11, r12
+-		ps_add f10, f10, f11
+-		lfsx f5, r11, r8
+-		ps_add f31, f1, f8
+-		lfsx f12, r6, r23
+-		ps_add f29, f1, f10
+-		lfsx f13, r5, r10
+-		ps_add f27, f1, f6
+-		ps_merge10 f25, f21, f31
+-		ps_merge11 f2, f4, f5
+-		lfsx f9, r9, r23
+-		ps_add f12, f12, f13
+-		lfsx f7, r7, r10
+-		ps_merge00 f23, f29, f27
+-		ps_add f30, f2, f9
+-		ps_add f28, f2, f12
+-		ps_add f26, f2, f7
+-		ps_merge10 f24, f21, f30
+-		ps_merge11 f31, f21, f31
+-		ps_merge00 f22, f28, f26
+-		ps_merge11 f30, f21, f30
+-		ps_merge11 f27, f29, f27
+-		ps_merge11 f26, f28, f26
+-		psq_st f25, 0x8(r31), 0, 4
+-		psq_st f31, 0xa(r31), 0, 4
+-		psq_st f24, 0xc(r31), 0, 4
+-		psq_st f30, 0xe(r31), 0, 4
+-		psq_st f23, 0x8(r30), 0, 4
+-		psq_st f27, 0xa(r30), 0, 4
+-		psq_st f22, 0xc(r30), 0, 4
+-		psq_st f26, 0xe(r30), 0, 4
+-		add r28, r28, r3
+-		lwz r25, 0x0(r28)
+-		lhz r24, 0x0(r19)
+-		lhz r23, 0x0(r18)
+-		rlwinm r17, r25, 10, 22, 29
+-		rlwinm r12, r24, 26, 22, 29
+-		clrlslwi r8, r24, 24, 2
+-		rlwinm r24, r23, 26, 22, 29
+-		clrlslwi r10, r23, 24, 2
+-		rlwinm r23, r25, 18, 22, 29
+-		rlwinm r16, r25, 26, 22, 29
+-		clrlslwi r15, r25, 24, 2
+-		lfsx f0, r11, r17
+-		lfsx f3, r11, r23
+-		lfsx f8, r9, r24
+-		ps_merge11 f1, f0, f3
+-		lfsx f6, r7, r12
+-		lfsx f10, r6, r24
+-		lfsx f11, r5, r12
+-		ps_add f31, f1, f8
+-		lfsx f4, r11, r16
+-		lfsx f5, r11, r15
+-		ps_add f10, f10, f11
+-		lfsx f12, r6, r10
+-		ps_add f27, f1, f6
+-		lfsx f13, r5, r8
+-		ps_add f29, f1, f10
+-		ps_merge10 f25, f21, f31
+-		lfsx f9, r9, r10
+-		ps_merge11 f2, f4, f5
+-		lfsx f7, r7, r8
+-		ps_add f12, f12, f13
+-		ps_merge00 f23, f29, f27
+-		ps_add f30, f2, f9
+-		ps_add f28, f2, f12
+-		ps_add f26, f2, f7
+-		ps_merge10 f24, f21, f30
+-		ps_merge11 f31, f21, f31
+-		ps_merge00 f22, f28, f26
+-		ps_merge11 f30, f21, f30
+-		ps_merge11 f27, f29, f27
+-		ps_merge11 f26, f28, f26
+-		psq_st f25, 0x10(r31), 0, 4
+-		psq_st f31, 0x12(r31), 0, 4
+-		psq_st f24, 0x14(r31), 0, 4
+-		psq_st f30, 0x16(r31), 0, 4
+-		psq_st f23, 0x10(r30), 0, 4
+-		psq_st f27, 0x12(r30), 0, 4
+-		psq_st f22, 0x14(r30), 0, 4
+-		psq_st f26, 0x16(r30), 0, 4
+-		lwzx r25, r28, r4
+-		lfsx f8, r9, r24
+-		rlwinm r16, r25, 10, 22, 29
+-		rlwinm r15, r25, 18, 22, 29
+-		lfsx f0, r11, r16
+-		rlwinm r16, r25, 26, 22, 29
+-		lfsx f3, r11, r15
+-		clrlslwi r15, r25, 24, 2
+-		lfsx f10, r6, r24
+-		ps_merge11 f1, f0, f3
+-		lfsx f11, r5, r12
+-		lfsx f4, r11, r16
+-		lfsx f5, r11, r15
+-		ps_add f10, f10, f11
+-		ps_add f31, f1, f8
+-		lfsx f6, r7, r12
+-		ps_merge11 f2, f4, f5
+-		lfsx f9, r9, r10
+-		ps_add f29, f1, f10
+-		lfsx f7, r7, r8
+-		ps_add f27, f1, f6
+-		lfsx f12, r6, r10
+-		lfsx f13, r5, r8
+-		ps_add f30, f2, f9
+-		ps_merge10 f25, f21, f31
+-		ps_add f12, f12, f13
+-		ps_merge10 f24, f21, f30
+-		ps_merge00 f23, f29, f27
+-		ps_add f28, f2, f12
+-		ps_add f26, f2, f7
+-		ps_merge11 f31, f21, f31
+-		ps_merge11 f30, f21, f30
+-		ps_merge00 f22, f28, f26
+-		ps_merge11 f27, f29, f27
+-		ps_merge11 f26, f28, f26
+-		psq_st f25, 0x18(r31), 0, 4
+-		psq_st f31, 0x1a(r31), 0, 4
+-		psq_st f24, 0x1c(r31), 0, 4
+-		psq_st f30, 0x1e(r31), 0, 4
+-		psq_st f23, 0x18(r30), 0, 4
+-		psq_st f27, 0x1a(r30), 0, 4
+-		psq_st f22, 0x1c(r30), 0, 4
+-		psq_st f26, 0x1e(r30), 0, 4
+-		addi r28, r28, 0x4
+-		subf r28, r3, r28
+-		addi r31, r31, 0x40
+-		addi r30, r30, 0x40
+-		addi r27, r27, 0x2
+-		addi r19, r19, 0x2
+-		addi r26, r26, 0x2
+-		addi r18, r18, 0x2
+-		bdnz L_801FC274
+-L_801FC590:
+-		lwz r8, slot[3]
+-		addi r22, r22, 0x1
+-		add r28, r28, r8
+-		lwz r8, slot[4]
+-		add r21, r21, r8
+-		add r20, r20, r8
+-		lwz r8, slot[5]
+-		add r31, r31, r8
+-		add r30, r30, r8
+-L_801FC5B4:
+-		lwz r8, slot[0]
+-		cmpw r22, r8
+-		blt L_801FC254
+-		lwz r3, slot[2]
+-		lwz r0, 0x0(r3)
+-		mtspr GQR4, r0
++	/* port: the paired-single tile converter stays out (its asm reads the planes
++	 * with GameCube word loads); RE4 draws movies through the Y8 / C4:4 path
++	 * (cSofdec m_draw_mode 0) and never converts to ARGB8888. */
++	static Sint32 reported;
++
++	if (!reported) {
++		reported = 1;
++		OSReport("cft: cnvStaticYcc420plnToArgb8888 is not ported (unused by the game)\n");
+ 	}
+ }
+ 

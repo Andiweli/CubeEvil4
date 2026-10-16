@@ -16,6 +16,8 @@
 #   re4_format_compare         the Formatumwandler against the app's checked
 #                              big-endian readers (synthetic samples, then the
 #                              same as a disc folder: test_whole_format_compare.py)
+#   test_whole_movie.py        a synthetic Sofdec movie (ffmpeg) through the CRI
+#                              middleware: frames against ffmpeg, pacing, sound
 # armhf runs under qemu-arm when it is installed. Then the port's runtime files
 # are compiled against libc++, the NDK's C++ library (whole_libcxx_check.py:
 # what only the Android build would notice), and the disc folder tool is
@@ -75,6 +77,11 @@ for t in "${targets[@]}"; do
     out=$(python3 "$root/port/tools/test_whole_format_compare.py" "$build" "${run[@]}" 2>&1)
     code=$?
     echo "  re4_format_compare --data (synthetic disc folder): exit $code | $(echo "$out" | tail -1)"
+    [ "$code" -ne 0 ] && { echo "$out" | sed 's/^/    /'; status=1; }
+    # a synthetic Sofdec movie through the CRI middleware (needs ffmpeg)
+    out=$(python3 "$root/port/tools/test_whole_movie.py" "$build" "${run[@]}" 2>&1)
+    code=$?
+    echo "  re4_host --movie-test (synthetic movie): exit $code | $(echo "$out" | grep -E '^  (frames|sound|A/V):' | sed 's/^  //' | tr '\n' ';') $(echo "$out" | tail -1)"
     [ "$code" -ne 0 ] && { echo "$out" | sed 's/^/    /'; status=1; }
 done
 first="$root/port/build/whole-${targets[0]}${RE4_OPT:+-O$RE4_OPT}"

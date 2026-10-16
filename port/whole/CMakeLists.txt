@@ -148,7 +148,6 @@ string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_platform_obj>\n")
 add_library(re4_formats_obj OBJECT
     runtime/ai.cpp
     runtime/dsp.cpp
-    runtime/movie.cpp
     runtime/tex_palette.cpp
     runtime/formats/formats.cpp
     runtime/formats/formats_arc.cpp
@@ -219,6 +218,40 @@ target_compile_options(re4_sdk_obj PRIVATE -std=gnu99 -fno-strict-aliasing -fwra
 set_source_files_properties("${RE4_TREE}/src/lib/GXDraw.c" PROPERTIES COMPILE_OPTIONS "-std=c99")
 string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_sdk_obj>\n")
 
+# CRI middleware (M9): ADX, Sofdec MPEG video and the CVFS file interfaces in
+# configure.py's CRI_LIBS order. Built by CRI with `-char signed`; the codeless
+# register pins are dropped by whole_prepare.py, the remaining asm and the
+# byte-order dependent reads are reviewed patches (0048-0051). Calls without a
+# prototype compile as in CodeWarrior (int result, see the status file).
+set(RE4_CRI_UNITS
+    adx_tlk adx_tsvr adx_rnaa lsc lsc_ini lsc_svr sj_rbf sj_utl sj_err svm ax_rna rna_res
+    adx_inis adx_sjd adx_bahx adx_bsc adx_bsps adx_amp adx_crs adx_dcd adx_errs adx_fsvr
+    adx_stmc adx_xpnd adx_mgc adx_dcd5 adx_fini adx_fs cri_cvfs lsc_err lsc_crs sj_crs sj_mem
+    sj_uni rna_err rna_crs adx_bwav adx_baif adx_bau adx_fcch adx_insh adx_sfa adx_sje adx_sugc
+    adx_gc adx_dcd3 mwsfdfrm mwsfdsvm mwsfdsfx mwsfdcre mwsfdlib mwsfdply mwsfdset mwsfdsvr
+    mwsfdsst mwsfx_ARGB8888PLN mwsfx_Y84C44 sud_lib sfx_set sfx_cnv sfx_lib sfx_alp sfx_zmv
+    sfx_sud sfx_cnv_to_ARGB8888PLN sfx_cnv_to_Y84C44 sfx_YCC420PLN_to_ARGB8888PLN
+    sfx_YCC420PLN_to_Y84C44 sfd_adxt sfd_aoap sfd_buf sfd_con sfd_cre sfd_hds sfd_lib sfd_mem
+    sfd_mps sfd_mpv sfd_mpvf sfd_pl2 sfd_ply sfd_pts sfd_see sfd_set sfd_tim sfd_trn sfd_uo
+    sfd_vom sfd_tmr sfd_tst sfh_main cmptime memsetd muldiv muldivr uty_tmr mwsfdrna mwsfdrsc
+    mwsfdsl mwstm mwsfdsee cftyp422_ppc cftfx cftcoladj sfx_inf mcp_not mps_dec mps_del mps_get
+    mps_lib mpv_deli mpv_emp mpv_err mpv_frm mpv_get mpv_hdec mpv_lib mpv_vlc mpv_umc mpv_mcy
+    mpv_m2v mpvabdec memcpyd uty_ppc dct_fsri mpv_bdec mpv_cdec mpv_cmc mpv_dec mpv_mc dct_ac
+    dct_ver pl2link pl2enc cft_common mfci gcci gcci_sub)
+set(RE4_CRI_SOURCES "")
+foreach(unit IN LISTS RE4_CRI_UNITS)
+    list(APPEND RE4_CRI_SOURCES "${RE4_TREE}/src/lib/${unit}.c")
+endforeach()
+add_library(re4_cri_obj OBJECT ${RE4_CRI_SOURCES})
+target_include_directories(re4_cri_obj BEFORE PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include" "${RE4_TREE}/include" "${RE4_TREE}/src/lib"
+    "${RE4_TREE}/src/lib/cri")
+target_compile_definitions(re4_cri_obj PRIVATE SDK_REVISION=1 NDEBUG=1)
+target_compile_options(re4_cri_obj PRIVATE -std=gnu99 -fsigned-char -fno-strict-aliasing -fwrapv
+    -ffp-contract=off -w -Wno-error=implicit-function-declaration
+    -include "${CMAKE_CURRENT_SOURCE_DIR}/include/re4_cri_port.h")
+string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_cri_obj>\n")
+
 # Reviewed native code of the earlier port, reused unchanged: the yz2 decode
 # loop (port/src/yz2_kernel.cpp) behind yz2Decode_Decode. Its yz2_structs.inc
 # holds the original structs of src/game/yz2code.cpp plus the kernel's bounds
@@ -267,9 +300,9 @@ endforeach()
 set(RE4_GEN "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/link_objects.txt" CONTENT "${RE4_LINK_OBJECTS}")
 set(RE4_GEN_FILES "${RE4_GEN}/stubs.cpp" "${RE4_GEN}/modules.cpp" "${RE4_GEN}/link_report.json")
-set(RE4_OBJ_DEPS re4_main_obj re4_gamehooks_obj re4_platform_obj re4_formats_obj re4_glue_obj re4_sdk_obj re4_reuse_obj
+set(RE4_OBJ_DEPS re4_main_obj re4_gamehooks_obj re4_platform_obj re4_formats_obj re4_glue_obj re4_sdk_obj re4_cri_obj re4_reuse_obj
     "$<TARGET_OBJECTS:re4_main_obj>" "$<TARGET_OBJECTS:re4_gamehooks_obj>" "$<TARGET_OBJECTS:re4_platform_obj>" "$<TARGET_OBJECTS:re4_formats_obj>"
-    "$<TARGET_OBJECTS:re4_glue_obj>" "$<TARGET_OBJECTS:re4_sdk_obj>" "$<TARGET_OBJECTS:re4_reuse_obj>")
+    "$<TARGET_OBJECTS:re4_glue_obj>" "$<TARGET_OBJECTS:re4_sdk_obj>" "$<TARGET_OBJECTS:re4_cri_obj>" "$<TARGET_OBJECTS:re4_reuse_obj>")
 foreach(mod IN LISTS RE4_MODULES)
     list(APPEND RE4_GEN_FILES "${RE4_GEN}/imports/${mod}.cpp" "${RE4_GEN}/imports/${mod}.S")
     list(APPEND RE4_OBJ_DEPS re4_mod_${mod}_obj "$<TARGET_OBJECTS:re4_mod_${mod}_obj>")
@@ -325,6 +358,9 @@ add_library(re4_main SHARED
     $<TARGET_OBJECTS:re4_main_obj>
     $<TARGET_OBJECTS:re4_gamehooks_obj>
     $<TARGET_OBJECTS:re4_glue_obj>
+    # the CRI middleware was part of main.dol: its references into code the
+    # original linker dropped resolve to the generated stubs like the game's
+    $<TARGET_OBJECTS:re4_cri_obj>
     "${RE4_GEN}/stubs.cpp")
 add_dependencies(re4_main re4_link_plan)
 target_include_directories(re4_main PRIVATE runtime)
@@ -382,7 +418,7 @@ set_target_properties(re4test_rel PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_C
 if(NOT ANDROID)
     # tests/game_probe.cpp: checks that need the game's flags and headers
     add_library(re4_probe_obj OBJECT tests/game_probe.cpp tests/core_probe.cpp tests/stream_probe.cpp
-        tests/gx_probe.cpp)
+        tests/gx_probe.cpp tests/movie_probe.cpp)
     target_link_libraries(re4_probe_obj PRIVATE re4_game_flags)
     add_library(re4_hostlib SHARED host/main.cpp tests/runtime_tests.cpp tests/core_tests.cpp
         "${RE4_ROOT}/port/src/sha256.cpp"

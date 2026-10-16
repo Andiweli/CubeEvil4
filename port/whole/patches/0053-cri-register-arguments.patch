@@ -1,0 +1,132 @@
+# CRI middleware (M9): calls that relied on a value the GameCube code left in a
+# register. The skipped-macroblock count, the refresh rate of the Sofdec timer,
+# the player handle of the supply check and the size for the ADX header decoder
+# are passed as the callees read them; two forwarding functions return the
+# result their callers use (found by comparing every declaration of the CRI
+# units with its definition in LLVM IR, see the status file).
+--- a/src/lib/mpv_dec.c
++++ b/src/lib/mpv_dec.c
+@@ -245,7 +245,9 @@
+ 			break;
+ 		}
+ 		if (first == 0 && n > 1) {
+-			mpv->skip_func(mpv);
++			/* port: MPVUMC_PpicSkipped / BpicSkipped take the increment as a second
++			 * argument, which the GameCube code left in r4 */
++			((void (*)(MPV mpv, Sint32 n))mpv->skip_func)(mpv, n);
+ 			MPVDEC_RESET_DC(mpv);
+ 		}
+ 		MPVDEC_MBTYPE(mpv, mpvvlc_b_mbtype, 6);
+@@ -394,7 +396,9 @@
+ 			break;
+ 		}
+ 		if (first == 0 && n > 1) {
+-			mpv->skip_func(mpv);
++			/* port: MPVUMC_PpicSkipped / BpicSkipped take the increment as a second
++			 * argument, which the GameCube code left in r4 */
++			((void (*)(MPV mpv, Sint32 n))mpv->skip_func)(mpv, n);
+ 			MPVDEC_ResetMv(&mpv->fwd);
+ 			MPVDEC_ResetDc(mpv);
+ 		}
+--- a/src/lib/sfd_lib.c
++++ b/src/lib/sfd_lib.c
+@@ -13,7 +13,7 @@
+ extern void UTY_MemsetDword(Uint32 *dst, Uint32 val, Uint32 ndw);
+ extern void MEM_Copy(void *dst, const void *src, Uint32 nbytes);
+ extern const Sint32 SFPLY_cond_dfl[SFD_COND_NUM];
+-extern void SFTIM_Init(void *work);
++extern void SFTIM_Init(void *work, Sint32 vrate); /* port: sfd_tim.c takes the refresh rate too */
+ extern void SFBUF_Init(void *work);
+ extern Sint32 SFTRN_Init(SFTRN_TRIF_TBL *dst, SFTRN_TRIF_TBL *src);
+ extern void SFPLY_Init(void);
+@@ -154,7 +154,8 @@
+ 	SFLIB_libwork.prm1 = p1;
+ 	SFLIB_libwork.x198 = 0;
+ 	SFLIB_InitErrInf(&SFLIB_libwork.err);
+-	SFTIM_Init(SFLIB_libwork.tim);
++	/* port: the refresh rate (1/1000 Hz) the GameCube code left in r4 (p1) */
++	SFTIM_Init(SFLIB_libwork.tim, p1);
+ 	SFBUF_Init(&SFLIB_libwork.buf);
+ 	SFLIB_libwork.x1fc = 0;
+ 	SFLIB_libwork.x200 = 0;
+--- a/src/lib/mwsfdsvr.c
++++ b/src/lib/mwsfdsvr.c
+@@ -28,7 +28,7 @@
+ extern void MWSFCRE_SetSupplySj(MWPLY mwply);
+ extern void mwPlySfdStart(MWPLY mwply);
+ extern void mwSfdPause(MWPLY mwply, Sint32 sw);
+-extern void mwPlyChkSupply(void);
++extern void mwPlyChkSupply(MWPLY mwply); /* port: mwsfdply.c takes the handle */
+ extern void MWSFSFX_DecideCompoMode(MWPLY mwply);
+ extern void MWSFSEE_ChkSupply(MWPLY mwply);
+ 
+@@ -395,7 +395,7 @@
+ 				mwply->linkstm_req = 0;
+ 			}
+ 		} else {
+-			mwPlyChkSupply();
++			mwPlyChkSupply(mwply); /* port: the handle, as mwsfdply.c reads it */
+ 		}
+ 		if (SFD_GetHnStat(sfd) == 6) {
+ 			mwply->stat = MWSFD_STAT_PLAYEND;
+--- a/src/lib/adx_sjd.c
++++ b/src/lib/adx_sjd.c
+@@ -60,7 +60,7 @@
+ extern void ADXB_ExecHndl(ADXB adxb);
+ extern Sint32 ADXB_GetStat(ADXB adxb);
+ extern void ADXB_EntryData(ADXB adxb, Uint8 *data, Sint32 len);
+-extern Sint32 ADXB_DecodeHeader(ADXB adxb, Uint8 *data);
++extern Sint32 ADXB_DecodeHeader(ADXB adxb, Uint8 *data, Sint32 bsize); /* port: adx_bsc.c takes the size */
+ extern void ADXB_SetDefPrm(ADXB adxb);
+ extern Sint32 ADXB_GetFormat(ADXB adxb);
+ extern Sint32 ADXB_GetSfreq(ADXB adxb);
+@@ -588,7 +588,8 @@
+ 		SJ_UngetChunk(sji, SJ_CK_DATA, &ck);
+ 		return;
+ 	}
+-	hdrlen = ADXB_DecodeHeader(adxb, ck.data);
++	/* port: the header decoder checks the bytes available (third argument) */
++	hdrlen = ADXB_DecodeHeader(adxb, ck.data, ck.len);
+ 	if (hdrlen == 0 || hdrlen > ck.len) {
+ 		SJ_UngetChunk(sji, SJ_CK_DATA, &ck);
+ 		return;
+--- a/src/lib/adx_rnaa.c
++++ b/src/lib/adx_rnaa.c
+@@ -8,7 +8,7 @@
+ 
+ extern void AXRNA_SetAdjsfreqFlg(AXRNA rna, Sint32 flg);
+ extern void AXRNA_SetStmHdInfo(AXRNA rna, void *hdinfo);
+-extern void AXRNA_DiscardData(AXRNA rna, Sint32 nsmpl);
++extern Sint32 AXRNA_DiscardData(AXRNA rna, Sint32 nsmpl); /* port: ax_rna.c returns a count */
+ extern void AXRNA_SetBitPerSmpl(AXRNA rna, Sint32 bps);
+ extern void AXRNA_SetOutPan(AXRNA rna, Sint32 ch, Sint32 pan);
+ extern void AXRNA_SetOutVol(AXRNA rna, Sint32 vol);
+@@ -45,9 +45,11 @@
+ }
+ 
+ // Forwards a discard request (AXRNA does not implement it).
+-void ADXRNA_DiscardData(AXRNA rna, Sint32 nsmpl)
++/* port: adx_tlk.c uses the result, which on the GameCube was AXRNA_DiscardData's
++ * left in r3 */
++Sint32 ADXRNA_DiscardData(AXRNA rna, Sint32 nsmpl)
+ {
+-	AXRNA_DiscardData(rna, nsmpl);
++	return AXRNA_DiscardData(rna, nsmpl);
+ }
+ 
+ // Forwards the PCM bit depth.
+--- a/src/lib/mwstm.c
++++ b/src/lib/mwstm.c
+@@ -17,9 +17,10 @@
+ }
+ 
+ // Starts streaming the bound range.
+-void MWSTM_ReqStart(ADXSTM stm)
++/* port: mwsfdsvr.c checks the result (-1: failed), on the GameCube ADXSTM_Start's left in r3 */
++Sint32 MWSTM_ReqStart(ADXSTM stm)
+ {
+-	ADXSTM_Start(stm);
++	return ADXSTM_Start(stm);
+ }
+ 
+ // Unbinds, binds the new file range (no-wait) and sets the end-of-stream at its length.

@@ -831,38 +831,65 @@ extern "C" int re4probe_axfx_test(void)
     return failed;
 }
 
-// Movies until milestone 9 (runtime/movie.cpp): the player cSofdec gets ends
-// at once, through the same calls game/sofdec.cpp makes (the interface table
-// of the handle, the frame record). Returns a bit mask of failed checks.
+// Movies (M9): the CRI middleware of src/lib analyses the head of a Sofdec
+// file the way cSofdec::initApp asks it to (mwPlyGetHdrInf): the pack size
+// from three pack headers and the picture size from the MPEG-1 sequence header
+// of the video stream. The size reaches the game's view of the result
+// (include/mwply.h, patch 0052). The whole player with a synthetic movie:
+// port/tools/test_whole_movie.py (re4_host --movie-test). Returns a bit mask
+// of failed checks.
 #include "mwply.h"
 
 extern "C" int re4probe_movie_test(void)
 {
+    static bool initialised;
+    if (!initialised) {
+        initialised = true;
+        MWS_PLY_INIT_SFD prm;  // SofdecInit
+        memset(&prm, 0, sizeof(prm));
+        prm.disp_cycle = 59.94f;
+        prm.x04 = 1;
+        prm.x08 = 1;
+        prm.x0C = 1;
+        mwPlyInitSfdFx(&prm);
+    }
+    static u8 head[3 * 0x800];
+    memset(head, 0, sizeof(head));
+    static const u8 pack[12] = {0, 0, 1, 0xBA, 0x21, 0, 1, 0, 1, 0x81, 0x86, 0xA1};
+    for (int i = 0; i < 3; i++) {
+        u8* p = head + i * 0x800;
+        memcpy(p, pack, sizeof(pack));
+        // one PES packet over the rest of the pack: stream 0xE0 (video), then padding 0xBE
+        p[12] = 0;
+        p[13] = 0;
+        p[14] = 1;
+        p[15] = i == 0 ? 0xE0 : 0xBE;
+        p[16] = (0x800 - 18) >> 8;
+        p[17] = (0x800 - 18) & 0xFF;
+        memset(p + 18, 0xFF, 0x800 - 18);
+        if (i == 0) {
+            static const u8 seq[] = {0x0F, 0, 0, 1, 0xB3, 0x14, 0x00, 0xF0, 0x14, 0xFF, 0xFF, 0xE0, 0x18};
+            memcpy(p + 18, seq, sizeof(seq));  // no PTS (0x0F), 320 x 240, 29.97 Hz
+        }
+    }
     int failed = 0;
-    MWS_PLY_CPRM_SFD cprm;
-    memset(&cprm, 0, sizeof(cprm));
-    cprm.wksize = mwPlyCalcWorkCprmSfd(&cprm);
-    MWPLY hn = mwPlyCreateSofdec(&cprm);
-    if (hn == 0 || hn->vtbl == 0) {
-        return 0x1;  // cSofdec::appMain calls through hn->vtbl
-    }
-    mwPlyStartFname(hn, "movie/opening.sfd");
-    MWS_FRM frm;
-    memset(&frm, 0xCD, sizeof(frm));
-    mwPlyGetCurFrm(hn, &frm);
-    if (frm.bufadr != 0) {
-        failed |= 0x2;  // no frame to convert (loadMvFrmFx is skipped)
-    }
-    if (mwPlyGetStat(hn) != MWE_PLY_STAT_PLAYEND) {
-        failed |= 0x4;  // appMain ends the movie on PLAYEND
-    }
     MWS_SFD_HDRINF info;
     memset(&info, 0xCD, sizeof(info));
-    mwPlyGetHdrInf(0, 0, &info);
-    if (info.width != 512 || info.height != 448) {
-        failed |= 0x8;
+    mwPlyGetHdrInf(head, (int) sizeof(head), &info);
+    if (info.width != 320 || info.height != 240) {
+        re4_log("  movie header: %d x %d", info.width, info.height);
+        failed |= 0x1;
     }
-    mwPlyPause(hn, 1);
-    mwPlyDestroy(hn);
+    MWS_PLY_CPRM_SFD cprm;
+    memset(&cprm, 0, sizeof(cprm));
+    cprm.ftype = 1;
+    cprm.max_bps = 8000000;
+    cprm.nfrm_pool_wk = 4;
+    cprm.max_width = 320;
+    cprm.max_height = 240;
+    cprm.max_stm = 2;
+    if (mwPlyCalcWorkCprmSfd(&cprm) < 320 * 240 * 3) {
+        failed |= 0x2;  // the work holds the frame pool
+    }
     return failed;
 }

@@ -515,6 +515,13 @@ int DVDCancelAsync(DVDCommandBlock* block, DVDCBCallback callback)
     return 1;
 }
 
+// The synchronous form (gcci.c, the CRI file interface): as DVDCancelAsync.
+s32 DVDCancel(volatile DVDCommandBlock* block)
+{
+    re4_os_deferred_set(finishRead, (void*) block, kResultCanceled);
+    return 0;
+}
+
 s32 DVDCancelAll(void)
 {
     return 0;

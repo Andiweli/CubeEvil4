@@ -126,6 +126,7 @@ def rewrite_gx_fifo(text: str) -> str:
 
 def rewrite(text: str) -> str:
     text = whole_asm_check.rewrite_copies(text)
+    text = whole_asm_check.drop_register_pins(text)
     original = text
     text = "\n".join(local_data_alias(line, original) or line if "asm" in line else line
                      for line in text.split("\n"))

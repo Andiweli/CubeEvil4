@@ -1,0 +1,191 @@
+# CRI middleware (M9): platform parts of the CRI sources. The time base through
+# OSGetTime, no GQR save/restore (the decoder kernels are C, re4_cri_gqr),
+# HID2 without the locked cache, no big-endian self-check (the byte-order
+# dependent reads are patch 0051), the IDCT table addresses in C, sscanf as
+# the C library declares it.
+--- a/src/lib/uty_tmr.c
++++ b/src/lib/uty_tmr.c
+@@ -9,18 +9,11 @@
+ static Uint32 utytmr_work[6];
+ 
+ /* time base read (upper, lower, upper again until stable) */
++/* port: the time base is OSGetTime (the same bus clock / 4, runtime/dolphin_os.cpp) */
++extern Sint64 OSGetTime(void);
+ static Sint64 utytmr_read(void)
+ {
+-	register Uint32 hi, lo, hi2;
+-	asm {
+-	loop:
+-		mftb hi, 269
+-		mftb lo, 268
+-		mftb hi2, 269
+-		cmpw hi2, hi
+-		bne loop
+-	}
+-	return ((Sint64)hi << 32) | lo;
++	return OSGetTime();
+ }
+ 
+ /* dead-stripped by the linker; they own the .rodata constants (int->float magic, 1000.0f, 1000000.0f;
+--- a/src/lib/uty_ppc.c
++++ b/src/lib/uty_ppc.c
+@@ -8,40 +8,19 @@
+ 	Uint32 gqr[6];
+ } UTY_GQR;
+ 
++/* port: the graphics quantisation registers of the CRI kernels translated to C
++ * (patch 0050, re4_cri_port.h re4_psq_l / re4_psq_st), apart from the game's. */
++unsigned int re4_cri_gqr[8];
++
++/* port: the paired-single kernels these calls protected are C (patch 0050) and
++ * read no quantisation registers, so there is nothing to save or restore. */
++
+ // Restores GQR2..7 from the save block.
+-asm void UTY_PopGqr(register UTY_GQR *gqr)
++void UTY_PopGqr(UTY_GQR *gqr)
+ {
+-	nofralloc
+-	lwz r0, 8(r3)
+-	lwz r4, 12(r3)
+-	lwz r5, 16(r3)
+-	lwz r6, 20(r3)
+-	lwz r7, 24(r3)
+-	lwz r3, 28(r3)
+-	mtspr 914, r0
+-	mtspr 915, r4
+-	mtspr 916, r5
+-	mtspr 917, r6
+-	mtspr 918, r7
+-	mtspr 919, r3
+-	blr
+ }
+ 
+ // Saves GQR2..7 into the save block.
+-asm void UTY_PushGqr(register UTY_GQR *gqr)
++void UTY_PushGqr(UTY_GQR *gqr)
+ {
+-	nofralloc
+-	mfspr r0, 914
+-	mfspr r4, 915
+-	mfspr r5, 916
+-	mfspr r6, 917
+-	mfspr r7, 918
+-	mfspr r8, 919
+-	stw r0, 8(r3)
+-	stw r4, 12(r3)
+-	stw r5, 16(r3)
+-	stw r6, 20(r3)
+-	stw r7, 24(r3)
+-	stw r8, 28(r3)
+-	blr
+ }
+--- a/src/lib/mpv_lib.c
++++ b/src/lib/mpv_lib.c
+@@ -297,7 +297,7 @@
+ 	MPVM2V_Destroy(p);
+ 	if (mpvlib_libwork.hid2 & MPV_HID2_LCE) {
+ 		for (i = 0; i < MPV_OBJ_SIZE; i += 0x20) {
+-			asm { dcbi p, i }
++			/* port: dcbi of the locked cache (never: HID2 reads 0) */
+ 		}
+ 	}
+ 	p->stat = MPV_STAT_STOP;
+@@ -409,8 +409,7 @@
+ 	}
+ 	if (mpvlib_libwork.hid2 & MPV_HID2_LCE) {
+ 		for (i = 0; i < MPV_OBJ_SIZE; i += 0x20) {
+-			asm { dcbi hn, i }
+-			asm { dcbz_l hn, i }
++			/* port: dcbi / dcbz_l of the locked cache (never: HID2 reads 0) */
+ 		}
+ 	}
+ 	mpv = mpvlib_InitHn(mpv);
+@@ -429,7 +428,7 @@
+ 	ixa = mpvlib_libwork.ixa;
+ 	if (mpvlib_libwork.hid2 & MPV_HID2_LCE) {
+ 		for (i = 0; i < MPV_IXA_SIZE; i += 0x20) {
+-			asm { dcbi ixa, i }
++			/* port: dcbi of the locked cache (never: HID2 reads 0) */
+ 		}
+ 	}
+ }
+@@ -510,11 +509,8 @@
+ 	} else if (MPVDEC_CheckVersion("1.933", MPV_OBJ_SIZE_REAL, 0x80) != 0) {
+ 		ret = MPVERR_SetCode(NULL, 0xFF03FF07);
+ 	} else {
+-		if (*(const Uint8 *)&test_wrok != 1) {
+-			for (;;) {
+-				((void (*)(void))-1)();
+-			}
+-		}
++		/* port: the big-endian self-check is left out; the stream reads that
++		 * relied on the GameCube's byte order go through re4_be32 (patch 0051) */
+ 		ret = 0;
+ 	}
+ 	if (ret != 0) {
+@@ -525,7 +521,7 @@
+ 		}
+ 	}
+ 
+-	asm { mfspr r0, 920 ; stw r0, hid2 }
++	hid2 = 0; /* port: HID2 without the locked cache enable (no L1 lock cache) */
+ 	if (mpvlib_use_lc == 0) {
+ 		hid2 &= ~MPV_HID2_LCE;
+ 	}
+@@ -540,8 +536,7 @@
+ 	ixa = (MPV_IXA *)(hn_end + 0x3A0);
+ 	if (mpvlib_libwork.hid2 & MPV_HID2_LCE) {
+ 		for (i = 0; i < MPV_IXA_SIZE; i += 0x20) {
+-			asm { dcbi ixa, i }
+-			asm { dcbz_l ixa, i }
++			/* port: dcbi / dcbz_l of the locked cache (never: HID2 reads 0) */
+ 		}
+ 	}
+ 	UTY_MemcpyDword(mpvlib_libwork.cond, mpvlib_cond_dfl, MPV_COND_NUM);
+--- a/src/lib/mps_lib.c
++++ b/src/lib/mps_lib.c
+@@ -239,11 +239,9 @@
+ 	Sint32 ret;
+ 
+ 	cri_verstr_ptr = MPSLIB_version_str;
+-	if (*(const Uint8 *)&test_wrok != 1) {
+-		for (;;) {
+-			((void (*)(void))-1)();
+-		}
+-	}
++	/* port: the big-endian self-check is left out; the stream reads that relied on
++	 * the GameCube's byte order go through re4_be32 (patch 0051) */
++	(void)test_wrok;
+ 	MPSLIB_libwork = (MPSLIB_WORK *)work;
+ 	UTY_MemsetDword(work, 0, (sizeof(MPSLIB_WORK) + (num_hn - 1) * sizeof(MPS_OBJ)) / 4);
+ 	lw = MPSLIB_libwork;
+--- a/src/lib/dct_ac.c
++++ b/src/lib/dct_ac.c
+@@ -92,10 +92,12 @@
+ 	Float64 w;
+ 	Float64 v;
+ 
+-	asm { lis hi, dctac_i_const@ha; addi bss, hi, dctac_i_const@l } // COMPILER-DIFF: M2
+-	*(const Char8 **)(bss + 0x400) = DCT_GetVerStr(); /* dctac_version_dummy through the pool */
+-	asm { addi ip, bss, __ArenaHi@l } // COMPILER-DIFF: M2 (`addi ip, bss, 0` with a relocation, see above)
+-	asm { addi fp, bss, 0x200 } // COMPILER-DIFF: M2
++	/* port: the pool addresses in C (the port's .bss layout is its own) */
++	(void)bss;
++	(void)hi;
++	dctac_version_dummy = DCT_GetVerStr();
++	ip = &dctac_i_const[0][0];
++	fp = &dctac_f_const[0][0];
+ 	for (i = 0; i < 8; i++) {
+ 		if (i == 0) {
+ 			c = 0.3535533905932738;
+--- a/src/lib/sfx_zmv.c
++++ b/src/lib/sfx_zmv.c
+@@ -43,7 +43,7 @@
+ } SFXZ_WORK;
+ 
+ extern Sint32 SFX_GetCcirFx(void);
+-extern Sint32 sscanf(const Char8 *s, const Char8 *fmt, ...);
++extern int sscanf(const Char8 *s, const Char8 *fmt, ...); /* port: the C library's int */
+ 
+ SFXZ_WORK sfxz_work;
+ 

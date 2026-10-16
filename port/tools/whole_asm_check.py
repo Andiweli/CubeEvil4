@@ -279,6 +279,62 @@ def rewrite_copies(text: str) -> str:
     return "".join(out)
 
 
+# CodeWarrior inline asm blocks (`asm { ... }`, the CRI middleware sources in
+# src/lib) whose only instructions are register moves: the register pins of the
+# decompilation (COMPILER-DIFF M1: `mr i, i`, `mr r6, c1`, `mr r11, p; mr p,
+# r11`). They leave every C variable with its own value, so they are dropped
+# (an empty statement keeps an `if`/`else` arm well formed). Any other asm
+# block stays and must be replaced by a reviewed patch: clang rejects it.
+MWCC_ASM_BLOCK = re.compile(r"\basm\s*\{")
+MWCC_MR = re.compile(r"^mr\s+(\w+)\s*,\s*(\w+)$")
+PHYSICAL_REGISTER = re.compile(r"^[rf]\d+$")
+
+
+def brace_end(text: str, start: int) -> int:
+    """Index after the brace group opening at text[start]."""
+    depth, i, n = 0, start, len(text)
+    while i < n:
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return n
+
+
+def register_pin(body: str) -> bool:
+    instructions = [x.strip() for x in re.split(r"[;\n]", body) if x.strip()]
+    if not instructions or not all(MWCC_MR.match(x) for x in instructions):
+        return False
+    value = {}
+    for x in instructions:
+        dst, src = MWCC_MR.match(x).groups()
+        value[dst] = value.get(src, src)
+    return all(PHYSICAL_REGISTER.match(dst) or src == dst for dst, src in value.items())
+
+
+def drop_register_pins(text: str) -> str:
+    """Codeless CodeWarrior register pins -> empty statements (whole_prepare.py)."""
+    if "asm" not in text or not MWCC_ASM_BLOCK.search(text):
+        return text
+    masked = mask_comments(text)
+    out, last = [], 0
+    for m in MWCC_ASM_BLOCK.finditer(masked):
+        if m.start() < last:
+            continue
+        end = brace_end(masked, m.end() - 1)
+        body = masked[m.end():end - 1]
+        if not register_pin(body):
+            continue
+        out.append(text[last:m.start()])
+        out.append("/* port: register pin */;" + "\n" * body.count("\n"))
+        last = end
+    out.append(text[last:])
+    return "".join(out)
+
+
 INCLUDE = re.compile(r'^\s*#\s*include\s*([<"])([^>"]+)[>"]', re.M)
 
 

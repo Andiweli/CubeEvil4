@@ -1,0 +1,25 @@
+# Movies (M9): the size fields of mwPlyGetHdrInf as the game reads them on a
+# little-endian host (the low halves of the words the CRI library writes).
+--- a/include/mwply.h
++++ b/include/mwply.h
+@@ -62,12 +62,15 @@
+ } MWS_PLY_CPRM_SFD;
+ 
+ // mwPlyGetHdrInf output
++// port: the CRI library writes width and height as words at 0x08 / 0x0C
++// (src/lib/cri/mwsfd.h MWSFD_HDRINF); the GameCube read their low halves at
++// 0x0A / 0x0E, which on a little-endian host are the halves at 0x08 / 0x0C.
+ typedef struct {
+-    u8 pad_0[0xA];
+-    s16 width;   // 0x0A
+-    u8 pad_C[2];
+-    s16 height;  // 0x0E
+-    u8 pad_10[0x2C - 0x10];
++    u8 pad_0[0x8];
++    s16 width;   // 0x08
++    u8 pad_A[2];
++    s16 height;  // 0x0C
++    u8 pad_E[0x2C - 0xE];
+ } MWS_SFD_HDRINF;
+ 
+ // mwPlyGetCurFrm output
