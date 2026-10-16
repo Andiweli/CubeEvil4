@@ -18,6 +18,7 @@
 # --work       working folder, default ~/re4-kern
 # --out        where the report and the logs go, default WORK/runs/<time>
 # --arm        also build ARM32 and run the game under qemu-arm (slow)
+# --card-only  after the build only the memory card runs (section 7)
 #
 # Steps: build and the cloud checks (whole_build.sh), the format comparison
 # with the disc files (re4_format_compare --data), then the game from the
@@ -43,6 +44,7 @@ source=""
 work="$HOME/re4-kern"
 arm=0
 build=1
+card_only=0
 while [ $# -gt 0 ]; do
     case "$1" in
     --data) data="$2"; shift 2 ;;
@@ -53,6 +55,7 @@ while [ $# -gt 0 ]; do
     --work) work="$2"; shift 2 ;;
     --arm) arm=1; shift ;;
     --no-build) build=0; shift ;;
+    --card-only) card_only=1; shift ;;
     *) echo "unbekannte Angabe: $1" >&2; exit 2 ;;
     esac
 done
@@ -190,9 +193,11 @@ if [ "$build" -eq 1 ]; then
 fi
 
 # ---- format comparison with the disc files ---------------------------------------------
-section "2. Formatvergleich App-Leser gegen Kern-Umwandler mit Disc-Daten"
 cmp="$src/port/build/whole-i686$opt/re4_format_compare"
-if [ -x "$cmp" ]; then
+[ "$card_only" -eq 0 ] && section "2. Formatvergleich App-Leser gegen Kern-Umwandler mit Disc-Daten"
+if [ "$card_only" -eq 1 ]; then
+    : # --card-only: straight to the memory card
+elif [ -x "$cmp" ]; then
     "$cmp" --data "$layout" --room "r$room" > "$run/formatvergleich.txt" 2> "$run/formatvergleich.log"
     code=$?
     tee -a "$report" < "$run/formatvergleich.txt"
@@ -945,7 +950,9 @@ run_memcard() {
     [ "$bad" -ne 0 ] && overall=1
 }
 
-if [ "$game_ok" -eq 1 ]; then
+if [ "$game_ok" -eq 1 ] && [ "$card_only" -eq 1 ]; then
+    run_memcard
+elif [ "$game_ok" -eq 1 ]; then
     # limits in seconds: overall, until the main loop, without a new frame
     run_game i686 "${RE4_CHECK_LIMIT:-3600}" "${RE4_CHECK_MAIN_LIMIT:-600}" "${RE4_CHECK_STALL:-180}"
     render_pictures

@@ -2525,7 +2525,9 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
   wenn A keinen Spielstand schrieb. Strg+C beendet jetzt die ganze Prüfung,
   beendet das laufende Spiel und kopiert Bericht und Logs bis dahin nach
   `RE4-Kern-Pruefung`. Die Logik der Kartenläufe ist mit einem nachgemachten
-  `re4_host` geprüft (Erfolg, Hänger mit Zeitgrenze, Strg+C).
+  `re4_host` geprüft (Erfolg, Hänger mit Zeitgrenze, Strg+C). Neu:
+  `test-r100-core.ps1 -OnlyCard` (`whole_r100_check.sh --card-only`) baut
+  und prüft nur den Speicherkarten-Teil.
 - **Für das Gerät:** Auch dort steht der Pfeil zuerst auf der zweiten Antwort;
   vor A nach oben (bzw. links) auf „Ja“ gehen.
 

@@ -38,6 +38,10 @@ powershell -ExecutionPolicy Bypass -File .\port\scripts\test-r100-core.ps1 -Data
 Falls Windows das Ausfuehren von Skripten sperrt.
 
 .EXAMPLE
+.\port\scripts\test-r100-core.ps1 -DataDir 'D:\RE4\Disc' -OnlyCard
+Nur bauen und den Speicherkarten-Teil pruefen (Abschnitt 7, wenige Minuten).
+
+.EXAMPLE
 .\port\scripts\test-r100-core.ps1 -DataDir 'D:\RE4\Disc' -Arm
 Zusaetzlich der ARM32-Build unter qemu (wie auf dem Retroid, aber langsam).
 #>
@@ -47,6 +51,7 @@ param(
     [int]$Frames = 10000,
     [string]$Room = '100',
     [switch]$Arm,
+    [switch]$OnlyCard,
     [switch]$SkipSetup,
     [string]$Distro = ''
 )
@@ -99,6 +104,7 @@ if (-not $SkipSetup) {
 
 $checkArgs = @('--source', $repoWsl, '--data', $dataWsl, '--out', $outWsl, '--frames', "$Frames", '--room', $Room)
 if ($Arm) { $checkArgs += '--arm' }
+if ($OnlyCard) { $checkArgs += '--card-only' }
 Write-Host 'Pruefung laeuft (Build beim ersten Mal 10 bis 30 Minuten, danach schneller) ...'
 & wsl.exe @wslBase --exec bash "$repoWsl/port/tools/whole_r100_check.sh" @checkArgs
 $code = $LASTEXITCODE
