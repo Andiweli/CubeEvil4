@@ -34,7 +34,8 @@ function mwPlyStartSub
 function __CARDGetStatusEx
 function __CARDSetStatusExAsync
 
-# OS: IPL font (error screens only), stopwatches, OSResetSystem
+# OS: IPL font (error screens only; OSGetFontEncode 0 = ANSI, also the card encoding of CARDInit),
+# stopwatches, OSResetSystem
 function OSGetFontEncode
 function OSGetFontTexture
 function OSInitFont

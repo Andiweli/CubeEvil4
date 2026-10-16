@@ -14,6 +14,10 @@
 //   - a new start of the app (the card file read again, the SRAM flash ID
 //     derived anew): mount, check and the files' contents as written
 //   - no card in slot A: probe and mount say "no card"
+//   - the synchronous calls (CARDMount, CARDFormat, CARDCreate, CARDWrite,
+//     CARDRead, CARDDelete) on an OS thread of the port's scheduler
+//     (re4_os_run): they sleep in __CARDSync until the card's interrupts,
+//     delivered when the thread goes to sleep, wake them
 //
 // The asynchronous calls are waited for as the game's card task does: the
 // result code polled, the pending EXI interrupts delivered in between (in
@@ -33,6 +37,7 @@ void CRCInit();  // src/game/card.cpp
 u32 CRCCalc(u8* bufPtr, u32 nByte);
 
 extern "C" {
+int re4_os_run(int (*entry)());  // runtime/os_thread.cpp
 s32 CARDFormatAsync(s32 chan, CARDCallback callback);
 void re4_memcard_open(const char* path);
 void re4_exi_deliver(void);
@@ -186,6 +191,33 @@ s32 freeBlocks()
     return bytes / 0x2000;
 }
 
+char gSyncPath[256];
+
+// The synchronous API on the boot thread of the OS emulation.
+int syncMain()
+{
+    int before = gFailures;
+    re4_memcard_open(gSyncPath);
+    CHECK(CARDMount(0, gWork, 0) == CARD_RESULT_BROKEN);
+    CHECK(CARDFormat(0) == CARD_RESULT_READY);
+    CHECK(CARDCheck(0) == CARD_RESULT_READY);
+    CARDFileInfo fi;
+    CHECK(CARDCreate(0, "bh4_data05", kDataSize, &fi) == CARD_RESULT_READY);
+    fill(gBuf, kDataSize, 7);
+    CHECK(CARDWrite(&fi, gBuf, (s32) kDataSize, 0) == CARD_RESULT_READY);
+    CHECK(CARDClose(&fi) == CARD_RESULT_READY);
+    CHECK(CARDOpen(0, "bh4_data05", &fi) == CARD_RESULT_READY);
+    memset(gRead, 0, kDataSize);
+    CHECK(CARDRead(&fi, gRead, (s32) kDataSize, 0) == CARD_RESULT_READY);
+    CHECK(memcmp(gRead, gBuf, kDataSize) == 0);
+    CHECK(CARDClose(&fi) == CARD_RESULT_READY);
+    CHECK(freeBlocks() == 251 - 8);
+    CHECK(CARDDelete(0, "bh4_data05") == CARD_RESULT_READY);
+    CHECK(freeBlocks() == 251);
+    CHECK(CARDUnmount(0) == CARD_RESULT_READY);
+    return gFailures - before;
+}
+
 }  // namespace
 
 // The card checks; the number of failed checks.
@@ -261,6 +293,12 @@ extern "C" int re4probe_card_test(void)
     readFile("bh4_data00", kDataSize, 3);
     CHECK(CARDUnmount(0) == CARD_RESULT_READY);
 
+    // the synchronous calls on an OS thread, on a card of their own
+    snprintf(gSyncPath, sizeof(gSyncPath), "%s.sync", path);
+    unlink(gSyncPath);
+    re4_os_run(syncMain);
+    unlink(gSyncPath);
+
     // no card in slot A
     re4_memcard_open(0);
     CHECK(CARDProbeEx(0, 0, 0) == CARD_RESULT_NOCARD);
@@ -270,4 +308,26 @@ extern "C" int re4probe_card_test(void)
     }
     re4_log("card-test: %d failed", gFailures);
     return gFailures;
+}
+
+// re4_host --memcard-format FILE: FILE becomes a formatted, empty card (made
+// when missing; what was on it is gone). 1 on success.
+extern "C" int re4probe_card_format(const char* path)
+{
+    re4_mem1_init();
+    re4_memcard_open(path);
+    CARDInit();
+    s32 r = mount();
+    if (r == CARD_RESULT_READY || r == CARD_RESULT_BROKEN || r == CARD_RESULT_ENCODING) {
+        r = finish(CARDFormatAsync(0, callback));
+    }
+    if (r == CARD_RESULT_READY) {
+        r = check();
+    }
+    s32 blocks = r == CARD_RESULT_READY ? freeBlocks() : 0;
+    CARDUnmount(0);
+    re4_memcard_open(0);  // the file synced and closed
+    re4_log("memcard-format: %s %s (%d blocks free)", path, r == CARD_RESULT_READY ? "formatted" : "FAILED",
+            (int) blocks);
+    return r == CARD_RESULT_READY && blocks == 251;
 }

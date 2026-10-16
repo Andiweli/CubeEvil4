@@ -36,6 +36,16 @@
 //                          free in the room: main loop, no event and no sub
 //                          screen for 300 frames in a row ("run: player free"
 //                          in the log)
+//   RE4_TEST_SAVE="free+N[,B][,stop]"  N frames after the player is free,
+//                          the save screen of a typewriter opens (CardSave
+//                          of sce_at.cpp: card task in slot 1, mode 1), first
+//                          setting the brightness option to B (the PC check
+//                          finds it again after a restart: the system file);
+//                          "stop": the run ends (exit code 0) when the screen
+//                          has closed again
+//
+// Always logged (the memory card, M10): the end of the boot card check with
+// the options then in force, and a save loaded from the card.
 #include "types.h"
 #include "em.h"
 #include "global.h"
@@ -44,6 +54,9 @@
 #include "room_data.h"
 #include "sce_at.h"
 #include "snd_drv.h"
+#include "card.h"
+#include "main.h"
+#include "scheduler.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,6 +75,7 @@ extern "C" void re4_pad_script_free(void);
 extern "C" void re4_log(const char* fmt, ...);
 extern "C" int re4_title_room_menu_open(void);
 extern "C" void re4_gx_mark(void);
+extern "C" void re4_memcard_flush(int force);
 
 namespace {
 
@@ -222,6 +236,10 @@ long g_resetAfter = -1;
 long g_resetAt = -1;
 unsigned g_resetSteps;
 u8 g_resetStep;
+// RE4_TEST_SAVE="free+N[,B]": the save screen N frames after the player is free
+long g_saveAfter = -1;
+int g_saveBrightness = -1;
+bool g_saveOpened, g_saveStop, g_saveRunning;
 std::atomic<unsigned> g_playerHits(0);  // re4_core_player_hits
 
 void frame(unsigned n)
@@ -325,6 +343,55 @@ void frame(unsigned n)
         re4_log("run: after the soft reset: step %u at frame %u (%ld frames later)", (unsigned) g->Rno0, n,
                 (long) n - g_resetAt);
     }
+    // the memory card (M10): the boot check's end with the options of the
+    // system file, a save loaded from the card
+    static bool checkDone;
+    if (!checkDone && (g->CardStatus & 0x80000000u) && live(pSys)) {
+        checkDone = true;
+        re4_log("run: memory card check done at frame %u (CardStatus 0x%08x): options language %u, brightness %u, "
+                "controller layout %u, sound mode %u, config 0x%08x",
+                n, (unsigned) g->CardStatus, (unsigned) pSys->language, (unsigned) pSys->brightness,
+                (unsigned) pSys->pad_type, (unsigned) pSys->SndMode, (unsigned) pSys->Config_flg);
+    }
+    static bool loaded;
+    if ((g->CardStatus & 4) && !loaded) {
+        re4_log("run: save loaded from the memory card at frame %u: room r%03x, saved %u times, brightness %u", n,
+                (unsigned) g->room_id, (unsigned) g->save_cnt, live(pSys) ? (unsigned) pSys->brightness : 0u);
+    }
+    loaded = (g->CardStatus & 4) != 0;
+    if (g_saveOpened && TaskStatus(1) != 0) {
+        g_saveRunning = true;
+    } else if (g_saveRunning) {
+        g_saveRunning = false;
+        re4_log("run: save screen closed at frame %u (CardStatus 0x%08x, saved %u times)", n, (unsigned) g->CardStatus,
+                (unsigned) g->save_cnt);
+        if (g_saveStop) {
+            re4_log("run: stopped after the save (RE4_TEST_SAVE)");
+            re4_memcard_flush(1);
+            if (g_trace) {
+                fflush(g_trace);
+            }
+            fflush(stdout);
+            fflush(stderr);
+            _exit(0);
+        }
+    }
+    if (g_saveAfter >= 0 && g_freeAt >= 0 && !g_saveOpened && (long) n >= g_freeAt + g_saveAfter && g->Rno0 == 3) {
+        if (TaskStatus(1) == 0) {
+            g_saveOpened = true;
+            if (g_saveBrightness >= 0 && live(pSys)) {
+                pSys->brightness = (u8) g_saveBrightness;
+            }
+            // CardSave(0, 1) without its TaskSleep (this hook runs in PADRead)
+            g->terminal_no = 0;
+            TaskExec(1, (TaskFunc) CardMainTask, (void*) 1);
+            re4_log("run: save screen opened (RE4_TEST_SAVE) at frame %u in room r%03x, player at (%.0f %.0f %.0f), "
+                    "brightness %u, saved %u times so far",
+                    n, (unsigned) g->room_id, live(pPL) ? (double) pPL->pos.x : 0.0, live(pPL) ? (double) pPL->pos.y : 0.0,
+                    live(pPL) ? (double) pPL->pos.z : 0.0, live(pSys) ? (unsigned) pSys->brightness : 0u,
+                    (unsigned) g->save_cnt);
+        }
+    }
     if (g_padUntilRoom && g->Rno0 >= 2) {
         re4_pad_script_stop();
         g_padUntilRoom = false;
@@ -342,6 +409,7 @@ void frame(unsigned n)
         re4_log("run: stopped after %lu frames from the main loop on (%lu in step 3), room r%03x, step %u "
                 "(RE4_STOP_AFTER)",
                 g_roomFrames, g_loopFrames, (unsigned) g->room_id, (unsigned) g->Rno0);
+        re4_memcard_flush(1);
         if (g_trace) {
             fflush(g_trace);
         }
@@ -372,15 +440,23 @@ void configure()
     if (reset && strncmp(reset, "free+", 5) == 0) {
         g_resetAfter = strtol(reset + 5, 0, 10);
     }
+    const char* save = getenv("RE4_TEST_SAVE");
+    if (save && strncmp(save, "free+", 5) == 0) {
+        char* end = 0;
+        g_saveAfter = strtol(save + 5, &end, 10);
+        if (end && *end == ',' && end[1] != 's') {
+            g_saveBrightness = (int) strtol(end + 1, &end, 0);
+        }
+        g_saveStop = end && strstr(end, ",stop") != 0;
+    }
     const char* stop = getenv("RE4_STOP_AFTER");
     g_stopAfter = stop ? strtoul(stop, 0, 10) : 0;
     const char* freeScript = getenv("RE4_PAD_FREE_SCRIPT");
     const char* hud = getenv("RE4_DEBUG_HUD");
     g_hideDebugHud = hud && *hud == '0';
-    if (g_trace || g_padUntilRoom || g_stopAfter || g_place || g_hideDebugHud || g_resetAfter >= 0 ||
-        (freeScript && *freeScript)) {
-        re4_set_frame_hook(frame);
-    }
+    // (always: the memory card lines)
+    (void) freeScript;
+    re4_set_frame_hook(frame);
 }
 
 struct Install {
@@ -415,12 +491,9 @@ extern "C" int re4_state_trace_open(const char* path)
         fclose(g_trace);
         g_trace = 0;
     }
-    re4_set_frame_hook(0);
     if (path) {
         g_trace = fopen(path, "w");
-        if (g_trace) {
-            re4_set_frame_hook(frame);
-        }
     }
+    re4_set_frame_hook(frame);  // (the hook stays: the memory card lines)
     return g_trace != 0;
 }

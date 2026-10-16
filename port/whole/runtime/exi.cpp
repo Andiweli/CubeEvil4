@@ -57,7 +57,20 @@ struct Channel {
 };
 
 Channel gChannel[kChannels];
-bool gDelivering;
+bool gInHandler;  // an EXI handler is running (no delivery from inside it)
+
+// One handler in interrupt context. The guard covers the handler only: the
+// end of the interrupt may switch to another thread (a woken one of higher
+// priority, or away from the one that is going to sleep), which must be able
+// to deliver the rest.
+void handler(EXICallback cb, s32 chan)
+{
+    re4_os_interrupt_begin();
+    gInHandler = true;
+    cb(chan, 0);
+    gInHandler = false;
+    re4_os_interrupt_end();
+}
 
 bool cardSlot(s32 chan, u32 dev)
 {
@@ -111,10 +124,9 @@ void re4_exi_raise(int chan)
 // none is left; the card file is synced a second after its last write.
 void re4_exi_deliver(void)
 {
-    if (gDelivering) {
+    if (gInHandler) {
         return;
     }
-    gDelivering = true;
     for (int round = 0; round < 100000; round++) {
         bool any = false;
         for (int chan = 0; chan < kChannels; chan++) {
@@ -126,18 +138,14 @@ void re4_exi_deliver(void)
                 c.tcCallback = 0;
                 c.state &= ~(kStateDma | kStateImm);
                 if (cb) {
-                    re4_os_interrupt_begin();
-                    cb(chan, 0);
-                    re4_os_interrupt_end();
+                    handler(cb, chan);
                 }
             }
             if (c.exiPending) {
                 c.exiPending = false;
                 any = true;
                 if (c.exiCallback) {
-                    re4_os_interrupt_begin();
-                    c.exiCallback(chan, 0);
-                    re4_os_interrupt_end();
+                    handler(c.exiCallback, chan);
                 }
             }
         }
@@ -147,7 +155,6 @@ void re4_exi_deliver(void)
     }
     re4_alarm_deliver();
     re4_memcard_flush(0);
-    gDelivering = false;
 }
 
 void EXIInit(void) {}

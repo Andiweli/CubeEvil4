@@ -1,0 +1,24 @@
+# The memory card screen (M10): every frame of cCard::MainLoop reports its
+# mode and step to the port (runtime/memcard.cpp re4_card_screen), which logs
+# the changes ("card: ..."): the boot check, the save and load screens, the
+# error messages with their codes, format and file creation. Diagnosis only,
+# the screen's behaviour is unchanged.
+--- a/src/game/card.cpp
++++ b/src/game/card.cpp
+@@ -2112,6 +2112,8 @@
+     return (pG->CardStatus & 0x80000000) != 0;
+ }
+ 
++extern "C" void re4_card_screen(int mode, int rno0, int rno1, int err, int saveNo, unsigned status); /* port: runtime/memcard.cpp */
++
+ // The card screen task body: initialise for mode `arg` (0 load, 1 save, 2 first check), then run
+ // the Rno0 state of the mode's column every frame (slotSelect / inSlotCheck / dataSelect /
+ // load-save / exit / errorDisp / format / fileDelete / system save) until exitFlag, with the id
+@@ -2146,6 +2148,7 @@
+         }
+         TaskSleep(1);
+         (this->*tbl[m_Rno0][arg])();
++        re4_card_screen(arg, m_Rno0, m_Rno1, m_ErrCode, m_SaveNo, m_Slot[0].Status); /* port: the steps in the log */
+         if (dispFlag == 1) {
+             screenTrans();
+         }

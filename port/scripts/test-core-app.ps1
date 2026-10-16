@@ -48,8 +48,17 @@ Die Bilder des Kerns folgen dem Bildschirmtakt (60 Hz), damit Filme nicht ruckel
 -Scale waehlt die interne Aufloesung: 1 = 640x448 wie der GameCube, 2 = 1280x896
 (Standard, der sichtbare 16:9-Teil entspricht etwa 720p), 3 = 1920x1344 (etwa 1080p),
 4 = 2560x1792.
-Die Speicherkarten-Abfrage beim Start entfaellt (es gibt noch keine Speicherkarte);
-die Test-Tastenfolge behaelt sie, weil ihr Zeitplan darauf abgestimmt ist.
+Speicherkarte (Meilenstein 10): Steckplatz A ist eine Datei im Speicher der App
+(Android/data/com.ast.re4decomp.core/files/game/memcard/card-a.bin, 2 MB wie eine
+Memory Card 251); der Start prueft sie wie der GameCube (formatieren, Systemdatei anlegen).
+Gespeichert wird an der Schreibmaschine, geladen im Titel ("Load"). Die Optionen (Helligkeit,
+Steuerung, Ton) stehen in der Systemdatei; das Spiel schreibt sie wie auf dem GameCube nur
+zusammen mit einem Spielstand (Schreibmaschine) und liest sie beim Start. Die Test-Tastenfolge
+laeuft OHNE Karte (RE4_MEMCARD=none: ihr Zeitplan ist auf den "keine Karte"-Dialog
+abgestimmt, deine Spielstaende bleiben unberuehrt); mit -Manual spielst du mit der Karte.
+-NewCard startet mit einer neuen, unformatierten Karte (die bisherige wird vorher als
+speicherkarte-a-vorher.bin gesichert). Nach jedem Lauf holt das Skript die Karte
+(speicherkarte-a.bin, kommt mit in senden.zip) und listet im Bericht, was darauf ist.
 
 Steuerung (Meilenstein 7) wie beim GameCube: A, B, X, Y nach Beschriftung, linker Stick =
 Steuerstick, rechter Stick = C-Stick, Steuerkreuz, START, R2 = R (Waffe anlegen), L2 = L
@@ -123,7 +132,8 @@ param(
     [int]$Scale = 0,
     [int]$HitDumps = 0,
     [int]$HitShots = 0,
-    [int]$AudioWav = 0
+    [int]$AudioWav = 0,
+    [switch]$NewCard
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -138,6 +148,7 @@ Get-ChildItem -LiteralPath $OutDir -Filter 'absturz-*.txt' -ErrorAction Silently
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet.zip') -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'senden.zip') -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'treffer') -Recurse -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $OutDir 'speicherkarte-a.bin') -ErrorAction SilentlyContinue
 Get-ChildItem -LiteralPath $OutDir -Filter 'profil-*' -ErrorAction SilentlyContinue | Remove-Item
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet') -Recurse -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'logcat.txt') -ErrorAction SilentlyContinue
@@ -380,6 +391,22 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     $sinceText = ((& $Adb -s $Serial shell date +%Y-%m-%d_%H:%M:%S) -join '').Trim() -replace '_', ' '
     # dumps of this run only (periodic with -GxDump, any time with R3 on the controller)
     & $Adb -s $Serial shell rm -rf $dumpRemote
+    # the memory card of slot A (runtime/memcard.cpp); -NewCard: a new, unformatted one (the
+    # app makes it when the file is missing), the old one kept on the PC
+    $cardRemote = "$game/memcard/card-a.bin"
+    if ($NewCard) {
+        $backup = Join-Path $OutDir 'speicherkarte-a-vorher.bin'
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & $Adb -s $Serial pull $cardRemote $backup 2>&1 | Out-Null
+        & $Adb -s $Serial shell rm -f $cardRemote 2>&1 | Out-Null
+        $ErrorActionPreference = $previousPreference
+        if (Test-Path -LiteralPath $backup) {
+            Say "   Neue Speicherkarte: die bisherige ist gesichert ($backup)"
+        } else {
+            Say '   Neue Speicherkarte (bisher gab es keine)'
+        }
+    }
     & $Adb -s $Serial shell input keyevent KEYCODE_WAKEUP
     $start = "am start -n $package/com.ast.re4decomp.MainActivity"
     if ($settings) { $start += " --es coreSettings '$settings'" }
@@ -549,6 +576,11 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         Say '   GX-Daten vom Geraet: keine (RE4_GX_DUMP_DIR)'
     }
     & $Adb -s $Serial shell rm -rf $dumpRemote
+    # the memory card after the run (a copy; it stays on the device)
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & $Adb -s $Serial pull $cardRemote (Join-Path $OutDir 'speicherkarte-a.bin') 2>&1 | Out-Null
+    $ErrorActionPreference = $previousPreference
     if ($AudioWav -gt 0) {
         $previousPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
@@ -648,6 +680,43 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # the CRI middleware reports errors as "E<number>: ..." (the game's callback then waits forever)
     $criErrors = @($keep | Where-Object { $_ -match 'OSReport: E\d{7,8}' })
     if ($criErrors.Count) { Say "CRI-FEHLER (Film):                $($criErrors.Count), zuerst: $(($criErrors[0] -split 'OSReport: ')[-1])" }
+    # the memory card (milestone 10, runtime/memcard.cpp, patch 0058): the card, its files, the
+    # steps of the game's card screens, the options after the boot check, a loaded save
+    $cardLines = @($keep | Where-Object { $_ -match 're4\s*: memcard: ' })
+    foreach ($line in @($cardLines | Where-Object { $_ -match 'memcard: (/|slot A)' } | Select-Object -First 2)) {
+        Say "Speicherkarte:                    $(($line -split 'memcard: ')[-1])"
+    }
+    $files = @($cardLines | Where-Object { $_ -match 'memcard: files: ' })
+    foreach ($line in $files) { Say "  Dateien: $(($line -split 'files: ')[-1])" }
+    $checkDone = $keep | Where-Object { $_ -match 'run: memory card check done' } | Select-Object -First 1
+    Say "Startpruefung der Karte:          $(if ($checkDone) { ($checkDone -split 'run: memory card check done ')[-1] } else { 'nicht beendet (Titel nicht erreicht?)' })"
+    $screens = @($keep | Where-Object { $_ -match 're4\s*: card: ' })
+    if ($screens.Count) {
+        Say "Kartenbildschirm (Schritte, letzte 40 von $($screens.Count)):"
+        $screens | Select-Object -Last 40 | ForEach-Object { Say "  $(($_ -split 're4\s*: card: ')[-1])" }
+    }
+    foreach ($line in @($keep | Where-Object { $_ -match 'run: save loaded from the memory card' })) {
+        Say "Spielstand geladen:               $(($line -split 'memory card ')[-1])"
+    }
+    $resets = @($keep | Where-Object { $_ -match 'stub called: OSResetSystem' })
+    if ($resets.Count) { Say 'Hinweis: das Spiel wollte die Konsole neu starten (OSResetSystem, z. B. "kein Platz" -> Neustart)' }
+    $cardFile = Join-Path $OutDir 'speicherkarte-a.bin'
+    if (Test-Path -LiteralPath $cardFile) {
+        Say "Karte vom Geraet:                 speicherkarte-a.bin ($([math]::Round((Get-Item -LiteralPath $cardFile).Length / 1MB, 1)) MB, kommt mit in senden.zip)"
+        if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
+            $wslArgs = @()
+            if ($Distro) { $wslArgs = @('-d', $Distro) }
+            $toWsl = { param($p) ((& wsl.exe @wslArgs --exec wslpath -a ((Resolve-Path -LiteralPath $p).Path -replace '\\', '/')) | Select-Object -First 1).Trim() }
+            $old = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try {
+                @(& wsl.exe @wslArgs --exec python3 "$(& $toWsl $repo)/port/tools/memcard_list.py" (& $toWsl $cardFile) 2>&1 |
+                    ForEach-Object { "$_" }) | ForEach-Object { Say "  $_" }
+            } finally { $ErrorActionPreference = $old }
+        }
+    } else {
+        Say 'Karte vom Geraet:                 keine (noch keine Kartendatei oder -Manual nicht benutzt)'
+    }
     $output = $keep | Where-Object { $_ -match 'RE4Audio\s*: sound' } | Select-Object -First 1
     Say "Tonausgabe der App:               $(if ($output) { ($output -split 'RE4Audio\s*:\s*')[-1] } else { 'NICHT gestartet' })"
     $wav = Join-Path $OutDir 'ton.wav'
@@ -705,7 +774,7 @@ $send = Join-Path $OutDir 'senden.zip'
 $staging = Join-Path $OutDir 'senden'
 Remove-Item -LiteralPath $staging -Recurse -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $staging | Out-Null
-foreach ($pattern in @('bericht.txt', 'logcat.txt', 'profil-*.txt', 'absturz-*.txt', 'kern-build.log')) {
+foreach ($pattern in @('bericht.txt', 'logcat.txt', 'profil-*.txt', 'absturz-*.txt', 'kern-build.log', 'speicherkarte-a.bin')) {
     Get-ChildItem -LiteralPath $OutDir -Filter $pattern -ErrorAction SilentlyContinue |
         ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $staging }
 }

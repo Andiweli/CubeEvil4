@@ -2,8 +2,9 @@
 // its timeout (CARDBios.c SetupTimeoutAlarm: 100 ms for a page program, 2 s
 // for a sector erase) and cancels it when the card's interrupt comes. The
 // port runs a due alarm's handler as the decrementer interrupt would, at the
-// interrupt points (runtime/vi.cpp re4_os_idle, before the CPU idles) and
-// tells the idle loop when the next one is due. The time is OSGetTime (real
+// interrupt points (runtime/exi.cpp re4_exi_deliver: before the CPU idles and
+// when a thread goes to sleep, so at least once per field): a timeout of the
+// card library fires within a field of its time. The time is OSGetTime (real
 // time, the bus clock / 4). The game itself uses no alarms.
 #include "dolphin/os.h"
 #include "dolphin/os/OSAlarm.h"
@@ -12,7 +13,8 @@
 namespace {
 
 OSAlarm* gQueue;  // armed alarms, by fire time
-bool gDelivering;
+bool gInHandler;  // an alarm handler is running (as runtime/exi.cpp: the guard
+                  // covers the handler, not the end of the interrupt)
 
 void unlink(OSAlarm* a)
 {
@@ -130,10 +132,9 @@ BOOL OSCheckAlarmQueue(void)
 // The alarms due now run (interrupt context); the time of the next one, or 0.
 long long re4_alarm_deliver(void)
 {
-    if (gDelivering) {
+    if (gInHandler) {
         return gQueue ? gQueue->fire : 0;
     }
-    gDelivering = true;
     for (int guard = 0; guard < 64 && gQueue && gQueue->fire <= OSGetTime(); guard++) {
         OSAlarm* a = gQueue;
         OSAlarmHandler handler = a->handler;
@@ -143,11 +144,12 @@ long long re4_alarm_deliver(void)
         }
         if (handler) {
             re4_os_interrupt_begin();
+            gInHandler = true;
             handler(a, 0);
+            gInHandler = false;
             re4_os_interrupt_end();
         }
     }
-    gDelivering = false;
     return gQueue ? gQueue->fire : 0;
 }
 

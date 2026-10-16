@@ -19,6 +19,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M7 Steuerung | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m7-steuerung`): alle Tasten, Sticks und L2/R2 kommen als GameCube-Controller an (Original-`PADClamp`, Belegung nach Beschriftung), Menüs bedienbar, Vibration spürbar; Touch später („M7 Steuerung“) |
 | M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Gerätelauf von M9 („M8 Audio“) |
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
+| M10 Speichern/Laden | in Arbeit (Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App), Startprüfung wieder echt; Cloud-Tests bestanden, **PC-Prüfung mit Disc-Daten und Gerätetest stehen aus** („M10 Speichern/Laden“) |
 | Reihenfolge | Entscheidung des Projektinhabers (16.10.2026): erst M9 Videos und M10 Speichern/Laden, danach der Raum-Rundgang (10b) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -49,7 +50,8 @@ Je Ziel: Build, dann drei Prüfungen von `re4_host` und der Formatvergleich
 |---|---|
 | `--self-test` | Weiterleitungen zwischen Modulen geben Argumente korrekt weiter |
 | `--check-modules` | alle 114 Module laden, alle Querverweise lösen sich auf |
-| `--core-test` | Einbettungs-Schnittstelle der App ohne Disc-Daten (`port/whole/tests/core_tests.cpp`, `core_probe.cpp`): `bridge` Schnappschuss aus einem nachgebauten Gegner (EmMgr, Teile, Modell-Info, Kamera, Raum), `thread` Kern-Thread mit Testeinstieg, Controller über `re4_core_pad`, Dreifachpuffer |
+| `--core-test` | Einbettungs-Schnittstelle der App ohne Disc-Daten (`port/whole/tests/core_tests.cpp`, `core_probe.cpp`): `bridge` Schnappschuss aus einem nachgebauten Gegner (EmMgr, Teile, Modell-Info, Kamera, Raum), `thread` Kern-Thread mit Testeinstieg, Controller über `re4_core_pad`, Dreifachpuffer; seit M10 `card` die CARD-Bibliothek auf einer Kartendatei (`tests/card_probe.cpp`, siehe „M10 Speichern/Laden“) |
+| `memcard_list.py` (M10) | liest die Karte des Kern-Tests zurück (`RE4_CARD_TEST_FILE`): Dateien, Banner/Symbol, die Prüfsummen des Spiels (`--expect-system --expect-save 0`) |
 | `--runtime-test` | Plattformschicht ohne Disc-Daten (`port/whole/tests/runtime_tests.cpp`): `link` OSLink/OSUnlink mit synthetischem big-endian REL-Kopf und Testmodul; `dvd` DVD-API über einen synthetischen Zwei-Disc-Ordner; `yz2` Yz2 des Spiels + Kern mit den Testdaten `port/tests/yz2_fixtures.h`; `dvdq` die DVD-Warteschlange des Spiels liest eine synthetische mehrteilige Datei in den Spiel-Heap; `stream` der Stream-Code des Tontreibers spielt synthetische Stream-Dateien (Nachladen im Audio-Rahmen, Aufträge aus dem Interrupt enden erst danach); `math` PS*/C_*-Matrixfunktionen, die C-Fassungen der Gekko-Assembler-Funktionen (Tabelle mit Bitmustern aus einem Python-Modell der Paired-Single-Befehle), Skinning `CalcSk1` mit GQR-Quantisierung, `EmRoutineSetW`, die big-endian Sichten, die Länge von `__FILE__`; `trace` Zustands-Trace, GetDataExt-Abdeckung, Ende des Test-Tastenskripts; `tasks` der Task-Scheduler des Spiels (`TaskExec`, `TaskSleep`, `TaskExit`, `iTaskExec`) auf der Thread-Emulation, dazu VI-Retraces; `vsync` (seit M9) die Retraces folgen dem Vsync eines 60-Hz-Bildschirms |
 | `--movie-test` (M9) | `port/tools/test_whole_movie.py`: ein synthetischer Sofdec-Film (ffmpeg: MPEG-1 mit B-Bildern, Stereo-ADX mit zwei Tönen; `port/tools/make_test_sfd.py`) durch die CRI-Middleware wie `cSofdec` (`tests/movie_probe.cpp`): Bilder gegen ffmpeg, Reihenfolge, Takt, Ton je Kanal, Ton/Bild-Abstand, Bild 10 durch den GX-Renderer der App (wenn `port/build/app-host-gl` gebaut ist), derselbe Film im Schnelllauf (`RE4_VI_FAST`) und mit 60,0-Hz-Halbbildern (Bildschirmtakt) |
 | `re4_format_compare` | Formatumwandler gegen die geprüften big-endian Leser der App, mit synthetischen Beispielen jedes verglichenen Formats; danach `port/tools/test_whole_format_compare.py`: dieselben Beispiele als Disc-Ordner (Raumdatei Yz2-gepackt, `.drs`-Container), Modus `--data` (siehe „Formatvergleich mit der App“) |
@@ -2377,6 +2379,132 @@ dann, welche Zeichnung abweicht.
   Beruhigen (die beiden Rauschbilder mischen) passt zu M11
   (Grafikoptionen).
 
+## M10 Speichern/Laden
+
+### Bestandsaufnahme (16.10.2026, Cloud)
+
+- **Vorher:** `runtime/card.cpp` meldete beide Schächte leer, Patch 0039
+  übersprang die Prüfung beim Start; Speichern ging nicht.
+- **Dateien des Spiels** (`card.cpp`): Spielstände `bh4_data00` bis
+  `bh4_data19` (je 8 Blöcke = 0x10000 Bytes, benutzt 0xEAFC) und die
+  Systemdatei `bh4_system` (1 Block, benutzt 0x1E7C). Aufbau beider: Kommentar
+  bei 0x0/0x20 („resident evil 4“, „FILE NN“ bzw. „Systemfile“), Banner 96 × 32
+  RGB5A3 bei 0x40, ein C8-Symbol bei 0x1840 mit Palette bei 0x1C40 (aus der
+  TPL des Untermenü-Archivs; die Bildpunkte bleiben big-endian wie auf der
+  Disc, die Formatumwandler drehen nur die Köpfe). Spielstand: bei 0x2000 der
+  Kopf `SaveInfo` (CRC über die folgenden 0x1FC Bytes, Kennung 0x116,
+  Kalenderzeit, Art, Raum, Kapitel), ab 0x2034 der Spielzustand (aus `pG`
+  0x36F8 Bytes), Gegenstände 0x572C, Räume 0x6930, Untermenü 0xE7D0, Händler
+  0xE7D4, CRC-32 der Datei bei 0xEAF8. Systemdatei: `SYSTEM_SAVE_WORK` bei
+  0x1E40 (Sprache, Land, Helligkeit, Steuerungsbelegung, Tonart, Söldner-
+  Wertungen), CRC bei 0x1E78. CRC: MSB zuerst, Polynom 0x04C11DB7, Start 0
+  (`CRCCalc`).
+- **Byte-Reihenfolge:** Das Spiel kopiert seinen Speicher, wie er ist (im Port
+  Host-Reihenfolge), und rechnet die CRC über die Bytes. Innerhalb des Ports
+  passt das immer zusammen; ein GameCube-Spielstand sähe anders aus.
+- **Wann:** Speichern an der Schreibmaschine (AT-Typ 8, `sce_at.cpp` →
+  `CardSave`), am Kapitelende (`sce_com.cpp`), Söldner (`CardSysSave`).
+  **Die Systemdatei (Optionen) schreibt das Spiel nur beim Start (wenn sie
+  fehlt) und nach jedem Spielstand; gelesen wird sie nur beim Start.** Wer nur
+  die Optionen ändert und neu startet, verliert sie also, wie auf dem
+  GameCube. Laden: Titel („Load“), Pausemenü (`option.cpp`), Debug-Startmenü
+  Zeile 1.
+- **SDK:** 15 Dateien `src/lib/CARD*.c`; das Spiel nutzt nur Schacht A
+  (Arbeitsbereich 0xA000) und verlangt 8-KB-Blöcke. `CARDFormat.c` und
+  `CARDUnlock.c` schreiben 32-bit-Wörter in Byte-Felder (Hinweis aus M9): beim
+  Formatieren landen Zähler, Sprache und Zeit in Host-Reihenfolge im
+  Kartenkopf, und `CARDCheck.c` liest sie genauso zurück; `CARDUnlock.c` läuft
+  nicht (siehe unten).
+
+### Entscheidung des Projektinhabers (16.10.2026)
+
+Kartenformat **nur für den Port**: Die Kartendatei hat die Byte-Reihenfolge
+des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
+`.gci` (Import/Export) kann später als eigener Schritt kommen.
+
+### Umsetzung (16.10.2026, Cloud)
+
+- **CARD-Bibliothek unverändert mitkompiliert** (`RE4_CARD_UNITS`, Ziel
+  `re4_card_obj`, gelinkt in `libre4_main`) mit `re4_card_port.h` (die
+  OS-Bytes 0x800030E3/0x800030C0 in MEM1, ein leerer VI-Registerblock für
+  `CARDFormat`) und Patch 0057 (Befehlsbytes, siehe „Patches“).
+- **Hardware darunter:** `runtime/exi.cpp` (EXI wie `EXIBios.c`),
+  `runtime/memcard.cpp` (die Karte mit den Befehlen einer Memory Card 251, so
+  wie Dolphin sie nachbildet), `runtime/alarm.cpp` (`OSAlarm` für die
+  Zeitüberwachung der Befehle). Übertragungen geschehen sofort; was die
+  Hardware per Interrupt meldet (DMA-Ende, „Karte fertig“), kommt an den
+  Interrupt-Punkten (Leerlauf in `vi.cpp`, `OSSleepThread`) im
+  Interrupt-Kontext, so lange, bis nichts mehr ansteht (ein Block lesen sind 16
+  Übertragungen, schreiben 64 Seiten). Die Sperre gegen verschachtelte
+  Zustellung gilt nur während des Rückrufs: am Ende des Interrupts darf auf
+  eine andere Aufgabe umgeschaltet werden, die den Rest zustellt (sonst Hänger,
+  wenn die schlafende Aufgabe gerade zustellte).
+- **Die Karte:** Kennung 0x10 (16 Mbit, 8-KB-Blöcke), Status „entsperrt“ von
+  Anfang an, also kein DSP-Handshake (`CARDUnlock.c` läuft nicht, wie bei
+  Dolphin). Die Flash-ID im SRAM, die `CARDCheck` gegen den Kartenkopf prüft,
+  wird beim Einstecken aus dem Kopf abgeleitet (wie Dolphins
+  `SetCardFlashID`); eine unformatierte Karte bekommt eine feste. Jede
+  geschriebene Seite und jeder gelöschte Block geht sofort in die Datei
+  (`pwrite64`), eine Sekunde nach dem letzten Schreiben `fsync`.
+  `RE4_MEMCARD` nicht gesetzt: `<Datenordner>/memcard/card-a.bin` (fehlt sie,
+  entsteht eine neue, unformatierte Karte); `RE4_MEMCARD=none`: Schacht A leer;
+  sonst der angegebene Pfad. In der App ist das
+  `Android/data/com.ast.re4decomp.core/files/game/memcard/card-a.bin` (ein
+  neuer Disc-Import lässt sie stehen). Schacht B bleibt leer.
+- **Startprüfung echt:** Patch 0039 und `runtime/card.cpp` entfallen. Die
+  automatischen Läufe (`whole_r100_check.sh` Hauptlauf und Filme,
+  `test-core-app.ps1` ohne `-Manual`) setzen `RE4_MEMCARD=none`: ihr Zeitplan
+  ist auf den „keine Karte“-Dialog abgestimmt, und es entsteht keine
+  Kartendatei im Disc-Ordner bzw. die Spielstände der App bleiben unberührt.
+- **Uhr:** `OSGetTime` zählt jetzt in Ortszeit wie die Uhr der Konsole (die
+  Spielstände zeigen das Speicherdatum).
+- **Dateifunktionen im Spielcode:** Der Prelude macht `__asm__` leer; damit
+  fallen in Dateien mit den Schaltern des Spiels auch die Umleitungen der
+  C-Bibliothek auf die 64-bit-Dateifunktionen weg, `off_t` bleibt aber 64 Bit
+  breit (`lseek` sah im Test die Datei als 0 Bytes groß). `memcard.cpp`
+  nimmt deshalb `pread64`/`pwrite64` beim Namen. Die übrigen Dateien mit
+  Spielschaltern nutzen nur `fopen`/`fseek` (unbetroffen).
+- **Protokoll:** „memcard: …“ (Kartendatei, Dateien auf der Karte bei jeder
+  Änderung), „card: …“ (Schritte des Kartenbildschirms, Patch 0058, mit
+  Fehlercodes), „run: memory card check done … options …“ (Ende der
+  Startprüfung mit den Optionen) und „run: save loaded from the memory card“
+  (`state_trace.cpp`, immer an).
+- **Testhilfen:** `RE4_TEST_SAVE="free+N[,B][,stop]"` öffnet N Bilder nach
+  „Spieler frei“ den Speicherbildschirm wie eine Schreibmaschine (vorher
+  Helligkeit = B; `stop`: Ende, wenn er wieder zu ist); `re4_host
+  --memcard-format DATEI` legt eine formatierte, leere Karte an;
+  `port/tools/memcard_list.py` listet eine Kartendatei (Dateien, Banner,
+  Symbol, Kommentar, die CRCs und Inhalte von Systemdatei und Spielständen).
+- **PC-Prüfung** (`whole_r100_check.sh` Abschnitt 7): Lauf A mit einer
+  frisch formatierten Karte: Startprüfung legt die Systemdatei an (A = ja),
+  neues Spiel in r100, dort speichern (Datei 1, Helligkeit vorher 72), Ende;
+  Lauf B mit derselben Karte: Startprüfung liest die Systemdatei (Helligkeit
+  72), Titel „Load“, Datei 1 laden, r100 läuft weiter; danach
+  `memcard_list.py` mit `--expect-system --expect-save 0`.
+- **Gerätetest** (`test-core-app.ps1`): holt nach jedem Lauf die Karte
+  (`speicherkarte-a.bin`, auch in `senden.zip`) und listet sie im Bericht
+  (über WSL), dazu die „card:“-Schritte, das Ende der Startprüfung mit den
+  Optionen und geladene Spielstände; `-NewCard` startet mit einer neuen,
+  unformatierten Karte (die alte wird vorher gesichert).
+
+### Prüfungen (Cloud, 16.10.2026)
+
+| Prüfung | Ergebnis |
+|---|---|
+| Kern-Test „card“ (`tests/card_probe.cpp`): neue Kartendatei (2 MB, unformatiert, Mount meldet „kaputt“), Formatieren, `CARDCheck`, 251 Blöcke und Kodierung ANSI frei, Seriennummer; `bh4_system` (1 Block) und `bh4_data00` (8 Blöcke) anlegen, schreiben, Status wie `makeCardStatus` (Banner RGB5A3, C8-Symbol: Lagen 0x40/0x1840/0x1C40/0x1E40), zurücklesen; „existiert“, „keine Datei“; löschen und neu anlegen; Neustart (Datei neu gelesen, Flash-ID neu abgeleitet): Mount bereit, gleiche Seriennummer, Inhalte gleich; die synchronen Aufrufe (`CARDMount`, `CARDFormat`, `CARDCreate`, `CARDWrite`, `CARDRead`, `CARDDelete`) auf einem OS-Thread; Schacht leer: „keine Karte“ | bestanden |
+| `memcard_list.py` auf der Karte des Kern-Tests (die Testdateien tragen CRCs aus `CRCCalc` des Spiels) | 2 Dateien, CRCs von Systemdatei, Spielstandkopf und Spielstand stimmen |
+| `re4_host --memcard-format` | formatiert, 251 Blöcke frei; `memcard_list.py` liest sie |
+| `whole_ir_signatures.py` für die CARD-Dateien und die Aufrufer des Spiels | 0 Abweichungen |
+| Platzhalter | 47 Funktionen, 1 Datenobjekt (2 neue aus `CARDNet.c`), wie `stubs-expected.txt` |
+
+**Nicht geprüft (Stand dieses Abschnitts):** die PC-Prüfung mit Disc-Daten
+(Abschnitt 7: die Bildschirme des Spiels beim Speichern und Laden, das
+Formatieren über den Dialog), der Android-Build (das NDK ist in der Cloud
+nicht erreichbar) und alles auf dem Gerät. Nicht nachgebildet: Karte während
+des Spiels herausziehen/einstecken, Schacht B, `OSResetSystem` (bei „kein
+Platz“ bietet das Spiel einen Neustart an; der Platzhalter kehrt zurück),
+`.gci`-Import/Export.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -2501,7 +2629,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0036 `GXTev.c` | Die Tabellen von `GXSetTevOp` (`TEVCOpTableST0/1`, `TEVAOpTableST0/1`) waren Bitfeld-Strukturen, die als ganze Wörter gelesen werden; MWCC (Big-Endian) belegt Bitfelder vom höchsten Bit an, Compiler für Little-Endian vom niedrigsten. Die Wörter werden jetzt Feld für Feld gebaut (`RE4_TEVC_WORD`, `RE4_TEVA_WORD`), Felder und Werte wie im Original |
 | 0038 `GXFifo.h` | `GXFifoObj` (ein Byte-Feld, das das SDK als `__GXFifoObj` mit Zeigern und Zählern beschreibt) ist 32-Byte-ausgerichtet; vorher lag das statische `FifoObj` von `GXInit` im Android-Build an einer ungeraden Adresse, und die zusammengefassten Wort-Speicherbefehle (`strd`) brachen auf dem Retroid mit SIGBUS ab |
 | 0037 `main_mem.h`, `pl_class.cpp` | `VALID_PTR`/`VALID_PTR2` (Zeigerprüfung gegen MEM1) nehmen zusätzlich `re4_valid_port_ptr` (runtime/os_thread.cpp): Host-Stapel der OS-Threads und die statischen Daten der Spielbibliotheken (`libre4_*`), die auf dem GameCube ebenfalls in MEM1 lägen |
-| 0039 `card.cpp` | `CardFirstCheck` überspringt die Speicherkarten-Prüfung beim Start wie nach einem Reset, solange der Port keine Speicherkarte hat (`re4_skip_card_check`, runtime/card.cpp; `RE4_CARD_CHECK=1` behält sie für die Test-Tastenfolgen) |
+| ~~0039 `card.cpp`~~ | **entfernt in M10:** `CardFirstCheck` übersprang die Speicherkarten-Prüfung beim Start, solange der Port keine Speicherkarte hatte (`RE4_CARD_CHECK=1` behielt sie); seit M10 prüft das Spiel die echte Karte, die Test-Tastenfolgen setzen `RE4_MEMCARD=none` |
 | 0040 `esp_sub.cpp` | `Esp1b_SpTrans` findet die Daten von `cEsp1b` über `sizeof(cEsp)` statt über `&pad_EC[0xC]`: MWCC legt den vptr ans Ende von `cEsp`, die Compiler des Ports an den Anfang; vorher las es die Punktzahl 4 Bytes daneben (Absturz im GX-Decoder auf dem Retroid nach 153 s) |
 | 0041 `at_sub.cpp`, `atari.cpp`, `card.cpp` | Das Attributwort einer Kollisionsfläche (`SAT_POLY::m_Status`) wird als Wort gelesen statt als zwei Halbwörter in GameCube-Reihenfolge (vorher vertauschte Hälften: Zäune als Fallkanten, Wände ohne Kollision, Boden als Wasser); `CardID::save` liest `nPoint` als Wert statt Byte 3 |
 | 0042 `src/lib/GXGeometry.c` | `GXSetCullMode` übernimmt das Ergebnis von `__rlwimi` (`hwMode = __rlwimi(...)`): MWCC fügt bei diesem Befehl in den ersten Operanden ein, die C-Fassung des Ports gibt das Ergebnis zurück und die Zeile verwarf es. Aus `GX_CULL_FRONT` (Standard aller Modelle) wurde „keine Rückseiten weglassen“: alles wurde beidseitig gezeichnet, die Doppelschichten von Leons Haar verdeckten sich gegenseitig (dunkle Flecken) |
@@ -2519,6 +2647,8 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0054 `sofdec.cpp` | Fortschritt des Films ins Log (`re4_movie_status`/`re4_movie_end`, runtime/movie_status.cpp); die vier TEV-Konstantfarben der YUV→RGB-Umrechnung (`setTevPrm`) in GameCube-Byte-Reihenfolge (`RE4_BE`), sonst vertauschte Kanäle |
 | 0055 `title.cpp` | Blendfarben der Titelbilder (Logos, Titel, Demo-Filme) als Wort in GameCube-Reihenfolge (`RE4_BE`) wie Patch 0034; sonst ist `0x000000FF` (deckendes Schwarz) ein durchsichtiges Rot und die Blenden fehlen |
 | 0056 SDK `synsample.c`, `synpitch.c` | SYN schreibt 32-bit-Werte des AX-Parameterblocks (Adressen, Schleife/Format, Verstärkung, Abtastraten-Verhältnis) mit der hohen Hälfte zuerst wie das Wort des GameCube (`RE4_PB_WORD`, zwei Halbwörter); vorher vertauschte Hälften: SYN-Stimmen außerhalb des ARAM und eine riesige DSP-Schätzung, AX stoppte Stimmen („ISS Voice Drop“) |
+| 0057 SDK `CARDBios.c`, `CARDRdwr.c`, `__os.h` | Die CARD-Bibliothek im Port (M10): die ein- und zwei-Byte-Befehle der Karte (0x81 Interrupt an, 0x83 Status, 0x85 Hersteller, 0x89 Status löschen, 0x87/0x88) baut das SDK als u32 und schickt die ersten Bytes im Speicher, auf little-endian die niedrigen (00 00): `re4_card_cmd` legt den Befehl zuerst; die Hersteller-ID kommt höchstes Byte zuerst (`re4_card_be16`). `CARDRdwr.c`: CodeWarriors Cast als Zuweisungsziel (`(u8*) p += n`) als normale Zuweisung; `__os.h`: die `.init`-Asm-Deklarationen nur für CodeWarrior |
+| 0058 `card.cpp` | `cCard::MainLoop` meldet je Bild Modus und Schritt des Speicherkarten-Bildschirms an `re4_card_screen` (runtime/memcard.cpp), das Änderungen ins Log schreibt („card: save: saving (file 1, step 5)“, Fehlermeldungen mit Code); nur Diagnose |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -2581,6 +2711,13 @@ entfernt: `ADXF_GetFnameRangeEx`, `ADXSJD_*` 4, `ADXSTM_GetNumSctIbuf`,
 Datenobjekt `sjuni_vtbl` (`sj_uni.c`, nur von toten Funktionen benutzt); dazu
 OS 8, SN-PC-Host-I/O 7, PPC 8. Im Filmtest wird keiner davon aufgerufen.
 
+Seit M10 (16.10.2026): 47 Funktionen und 1 Datenobjekt. Dazu kommen
+`__CARDGetStatusEx` und `__CARDSetStatusExAsync`: `CARDNet.c` ruft sie aus
+Funktionen, die das Spiel nicht nutzt (der Original-Linker hatte beide
+entfernt). Deshalb liegen die CARD-Dateien in `libre4_main` (wie die CRI-Dateien),
+wo die erzeugten Platzhalter gelten. `OSGetFontEncode` (Platzhalter, gibt 0
+= ANSI wie eine US-Konsole) liefert `CARDInit` die Kodierung der Karte.
+
 Die erwartete Liste steht seit M9 in `port/whole/stubs-expected.txt`;
 `port/tools/whole_stub_check.py` prüft jeden Build dagegen (`whole_build.sh`
 streng, `whole_build_android.sh` nur auf zusätzliche Platzhalter). Vorher
@@ -2615,7 +2752,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 
 | Datei | Ersetzt |
 |---|---|
-| `dolphin_os.cpp` | `OSInit`, `OSReport` (zeilenweise ins Log), `OSPanic`, Konsolentyp/Speichergröße, `OSGetTime`/`OSGetTick` (40,5 MHz, Epoche 2000), Kalenderzeit, Interrupt-Sperren, Caches (no-op); seit G1 Unterbrechungs-Rückrufe des SDK (`__OSSetInterruptHandler`, `re4_os_hw_interrupt`), Kontexte, Reset-Funktionen, Versionsnamen und die Gekko-Register `HID2`/`WPAR` als No-op |
+| `dolphin_os.cpp` | `OSInit`, `OSReport` (zeilenweise ins Log), `OSPanic`, Konsolentyp/Speichergröße, `OSGetTime`/`OSGetTick` (40,5 MHz, Epoche 2000, seit M10 Ortszeit wie die Uhr der Konsole), Kalenderzeit, Interrupt-Sperren, Caches (no-op); seit G1 Unterbrechungs-Rückrufe des SDK (`__OSSetInterruptHandler`, `re4_os_hw_interrupt`), Kontexte, Reset-Funktionen, Versionsnamen und die Gekko-Register `HID2`/`WPAR` als No-op |
 | SDK `OSAlloc.c`, `OSArena.c` | unverändert aus `src/lib`: Heap und Arena; `main_mem.cpp` liest die Heap-Deskriptoren direkt |
 | SDK `Padclamp.c` (M7) | unverändert aus `src/lib`: `PADClamp`, die Totzonen und Bereiche des Original-Controllers; `PadRead` des Spiels ruft es auf den Rohwerten von `pad.cpp` auf |
 | `os_thread.cpp` | `OSThread`, `OSSemaphore`: ein Host-Thread, strikte Prioritäten, Wechsel nur in OS-Aufrufen; jeder Thread hat einen Host-Stack (`port/src/stack_context.cpp` aus dem alten Port, neu mit ucontext für Linux x86, Boost.Context-Assembler für Linux ARM wie auf Android); ein Verteiler auf dem Stack des Startprogramms (`re4_os_run`). Spielsichtbar wie im SDK: `state`, `suspend`, Priorität, Warteschlangen, Stack-Magie `0xDEADBABE` |
@@ -2635,7 +2772,10 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `mtx_ps.c` + `sdk_c/` | Matrix-/Vektor-/Quaternion-Mathematik (C-Fassungen des SDK) |
 | `byte_order.cpp` | Byte-Tausch-Helfer für Format-Umwandler |
 | `newlib_ctype.c` | newlib-Zeichentabelle `_ctype_` (heißt seit K2 `re4_newlib_ctype_`, Prelude-Regel) |
-| `card.cpp` (M4 B) | Speicherkarte: beide Schächte leer, jeder `CARD*`-Aufruf liefert `CARD_RESULT_NOCARD` (wie das SDK bei leerem Schacht); das Spiel zeigt „keine Speicherkarte“ und läuft ohne Speichern weiter. Echtes Speichern: M10 |
+| SDK `CARD*.c` (M10) | unverändert aus `src/lib` bis auf Patch 0057: die gesamte Speicherkarten-Bibliothek, gelinkt in `libre4_main` (wie im Original Teil von `main.dol`); ersetzt `card.cpp` (M4 B: beide Schächte leer) |
+| `exi.cpp` (M10) | EXI (die Schnittstelle der Speicherkarten-Schächte) in C wie `EXIBios.c`: Sperren mit Warteschlange, Auswahl, Sofort- und DMA-Übertragungen, Probe, Anstecken, Kennung; das Ende einer Übertragung und der „fertig“-Interrupt der Karte kommen an den Interrupt-Punkten (`re4_exi_deliver`: Leerlauf, `OSSleepThread`), im Interrupt-Kontext |
+| `memcard.cpp` (M10) | die Karte in Schacht A: Memory Card 251 (2 MB, 8-KB-Blöcke) als Datei mit den Befehlen der echten Karte (Lesen 0x52, Seite schreiben 0xF2, Block löschen 0xF1, alles löschen 0xF4, Status, Hersteller); Status „entsperrt“ (kein DSP-Handshake); jede Änderung sofort in die Datei, 1 s danach `fsync`; SRAM (`__OSLockSram*`, Flash-ID aus dem Kartenkopf abgeleitet); `RE4_MEMCARD` (siehe „M10“); Log der Dateien auf der Karte und der Schritte des Kartenbildschirms (Patch 0058) |
+| `alarm.cpp` (M10) | `OSAlarm` (Zeitüberwachung der CARD-Befehle: 100 ms je Seite, 2 s je Block), fällig an den Interrupt-Punkten |
 | `pad.cpp` (M4 B) | Controller: Kanal 0 angeschlossen, Kanäle 1–3 leer (ein zweiter Controller ließe den Titel die Logos überspringen). Tasten aus der Testfolge `RE4_PAD_SCRIPT` (`TASTEN@BILD` drückt 3 Bilder lang, `TASTEN@VON-BIS/ALLE` wiederholt; Tasten `A B X Y Z L R START UP DOWN LEFT RIGHT`, mit `+` verbunden; Bild = Zahl der `PADRead`-Aufrufe). Seit K2 zusätzlich `re4_pad_live` (Controller der App, sobald kein Testskript läuft) und Bildhaken `re4_add_frame_hook` (bis 4, je `PADRead`). Seit M7: Rohwerte wie die Hardware (das eigene No-op-`PADClamp` ist entfernt, siehe SDK `Padclamp.c`), `PADControlMotor` merkt den Rüttelmotor je Bild (`re4_core_rumble`) |
 | `core_api.cpp` (K2) | Einbettungs-Schnittstelle `re4_core.h` für die App: Kern-Thread, Status, Controller, Dreifachpuffer der Schnappschüsse; Testausgaben `RE4_BRIDGE_DUMP`, `RE4_BRIDGE_SNAPSHOT`, `RE4_GX_DUMP` (GX-Bildstücke als Dateien, `re4_gx_frame_io.h`) |
 | `core_bridge.cpp` (K2) | Schnappschuss des Spielzustands (Kamera, Raum, Modelle aus EmMgr/ObjMgr mit Teile-Matrizen und Disc-Herkunft); mit den Schaltern des Spielcodes gebaut |

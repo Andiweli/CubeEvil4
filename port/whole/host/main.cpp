@@ -13,6 +13,10 @@
 //   re4_host --movie-test FILE YUV WAV FIELDS
 //                             a movie of the data folder through the CRI
 //                             middleware (port/tools/test_whole_movie.py)
+//   re4_host --memcard-format FILE
+//                             a formatted, empty memory card in FILE, made by
+//                             the SDK's card library (tests/card_probe.cpp;
+//                             the PC check boots with it)
 //
 // kill -USR1 <pid> prints a backtrace of the running context and of every OS
 // thread's last wait (with RE4_WAIT_TRACE=1): the hang search.
@@ -126,6 +130,7 @@ static int selfTest()
 }
 
 extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const char* wavPath, int maxFields);
+extern "C" int re4probe_card_format(const char* path);
 
 extern "C" __attribute__((visibility("default"))) int re4_host_main(int argc, char** argv)
 {
@@ -179,6 +184,9 @@ extern "C" __attribute__((visibility("default"))) int re4_host_main(int argc, ch
         int frames = re4probe_movie_play(argv[2], argv[3], argv[4], atoi(argv[5]));
         re4_log("movie-test: %d frames", frames);
         _exit(frames > 0 ? 0 : 1);
+    }
+    if (argc > 2 && strcmp(argv[1], "--memcard-format") == 0) {
+        _exit(re4probe_card_format(argv[2]) ? 0 : 1);
     }
     // The game tests bit 31 of addresses of its own data (as on the GameCube).
     re4_check_game_address("libre4_main", (const void*) &re4_game_main);

@@ -168,6 +168,8 @@ void deriveFlashId()
     gSramEx.flashIDCheckSum[0] = (u8) ~check;
 }
 
+void logDirectory();
+
 // The card of `path` comes into slot A (0 or "none": the slot stays empty).
 void insert(const char* path)
 {
@@ -202,6 +204,88 @@ void insert(const char* path)
     }
     c.present = true;
     deriveFlashId();
+    logDirectory();
+}
+
+// __CARDCheckSum (CARDCheck.c) of `bytes` at p against the stored pair.
+bool sumOk(const u8* p, int bytes, const u8* stored)
+{
+    u16 sum = 0, inv = 0;
+    for (int i = 0; i < bytes; i += 2) {
+        u16 w;
+        memcpy(&w, p + i, 2);
+        sum += w;
+        inv += (u16) ~w;
+    }
+    if (sum == 0xFFFF) {
+        sum = 0;
+    }
+    if (inv == 0xFFFF) {
+        inv = 0;
+    }
+    u16 s, i;
+    memcpy(&s, stored, 2);
+    memcpy(&i, stored + 2, 2);
+    return s == sum && i == inv;
+}
+
+// The current one of two copies (directory or FAT, CARDCheck.c): both valid,
+// the higher check code; else the valid one; -1 when none is.
+int currentCopy(const u8* first, int codeAt, int sumAt, int from, int bytes)
+{
+    bool ok[2];
+    s16 code[2];
+    for (int i = 0; i < 2; i++) {
+        const u8* b = first + i * kSectorBytes;
+        ok[i] = sumOk(b + from, bytes, b + sumAt);
+        memcpy(&code[i], b + codeAt, 2);
+    }
+    if (ok[0] && ok[1]) {
+        return (s16) (code[0] - code[1]) < 0 ? 1 : 0;
+    }
+    return ok[0] ? 0 : ok[1] ? 1 : -1;
+}
+
+// "memcard: files: ..." when the card's file list changed since the last
+// line (at insertion and a second after writes): what is on the card, in
+// the log of every run.
+void logDirectory()
+{
+    static char last[1024];
+    Card& c = gCard;
+    if (!c.present || !c.mem) {
+        return;
+    }
+    char line[1024];
+    int n = 0;
+    int dir = currentCopy(c.mem + kSectorBytes, 0x1FFA, 0x1FFC, 0, 0x1FFC);
+    int fat = currentCopy(c.mem + 3 * kSectorBytes, 4, 0, 4, 0x1FFC);
+    u16 header;
+    memcpy(&header, c.mem + 0x20, 2);
+    if (dir < 0 || fat < 0) {
+        n = snprintf(line, sizeof(line), "not formatted (or broken: directory %d, FAT %d)", dir, fat);
+    } else {
+        const u8* d = c.mem + (1 + dir) * kSectorBytes;
+        int files = 0;
+        for (int i = 0; i < 127 && n < (int) sizeof(line) - 64; i++) {
+            const u8* e = d + i * 64;
+            if (e[0] == 0xFF && e[1] == 0xFF && e[2] == 0xFF && e[3] == 0xFF) {
+                continue;
+            }
+            u16 blocks;
+            memcpy(&blocks, e + 56, 2);
+            n += snprintf(line + n, sizeof(line) - (size_t) n, "%s%.32s (%u)", files ? ", " : "", (const char*) e + 8,
+                          (unsigned) blocks);
+            files++;
+        }
+        u16 free;
+        memcpy(&free, c.mem + (3 + fat) * kSectorBytes + 6, 2);
+        snprintf(line + n, sizeof(line) - (size_t) n, "%s; %u of 251 blocks free", files ? "" : "none", (unsigned) free);
+    }
+    if (strcmp(line, last) != 0) {
+        snprintf(last, sizeof(last), "%s", line);
+        re4_log("memcard: files: %s", line);
+    }
 }
 
 void init()
@@ -393,6 +477,84 @@ void re4_memcard_flush(int force)
     fsync(c.fd);
     c.dirty = false;
     re4_log("memcard: %s saved (%u pages written, %u sectors erased so far)", c.path, c.writes, c.erases);
+    logDirectory();
+}
+
+// The game's card screen, every frame (patch 0058, cCard::MainLoop): its
+// steps into the log when they change. mode 0 load, 1 save, 2 the boot
+// check; rno0 the row of the MainLoop table, rno1 the step within it.
+void re4_card_screen(int mode, int rno0, int rno1, int err, int saveNo, unsigned status)
+{
+    static const char* const kModes[3] = { "load", "save", "boot check" };
+    static const char* const kStates[9][3] = {
+        { "slot select", "slot select", "card check" },
+        { "card check", "card check", "system file read" },
+        { "file list", "file list", "result" },
+        { "loading", "saving", "done" },
+        { "exit", "exit", "exit" },
+        { "message", "message", "message" },
+        { "format", "format", "format" },
+        { "delete", "delete", "delete" },
+        { "-", "saving the system file", "making the system file" },
+    };
+    static int lastMode = -1, lastRno0 = -1, lastRno1 = -1;
+    static long long lastCall;
+    static unsigned lines;
+    if (mode < 0 || mode > 2 || rno0 < 0 || rno0 > 8) {
+        return;
+    }
+    long long now = nowNs();
+    bool open = mode != lastMode || now - lastCall > 1000000000LL;
+    lastCall = now;
+    if (lines > 600) {
+        return;
+    }
+    if (open) {
+        lines++;
+        re4_log("card: %s screen open", kModes[mode]);
+        lastMode = mode;
+        lastRno0 = lastRno1 = -1;
+    }
+    if (rno0 == lastRno0 && (rno1 == lastRno1 || (rno0 != 3 && rno0 != 6 && rno0 != 8))) {
+        return;
+    }
+    char extra[160] = "";
+    if (rno0 == 5) {
+        const char* what = "";
+        switch (err) {
+        case -2: what = "wrong device"; break;
+        case -3: what = "no memory card"; break;
+        case -5: case -0x80: what = "card damaged"; break;
+        case -6: what = "card broken / not formatted"; break;
+        case -0xD: what = "other region, needs format"; break;
+        case -0x200: what = "card not supported"; break;
+        case -0x201: what = "not enough space"; break;
+        case -0x202: what = "save data corrupted"; break;
+        case -0x203: what = "saving failed"; break;
+        case -0x204: what = "loading failed"; break;
+        case -0x205: what = "saving the system file failed"; break;
+        case -0x206: what = "reading the system file failed"; break;
+        case -0x207: what = "no system file"; break;
+        case -0x208: what = "system file not made"; break;
+        case -0x209: what = "format cancelled"; break;
+        case -0x20A: what = "no space for the system file"; break;
+        case -0x20B: what = "no space for the save file"; break;
+        default: break;
+        }
+        snprintf(extra, sizeof(extra), " (code %d%s%s)", err, *what ? ": " : "", what);
+    } else if (rno0 == 3 && mode != 2) {
+        snprintf(extra, sizeof(extra), " (file %d, step %d)", saveNo + 1, rno1);
+    } else if (rno0 == 6 || rno0 == 8) {
+        snprintf(extra, sizeof(extra), " (step %d)", rno1);
+    } else if (rno0 == 4 || (mode == 2 && rno0 == 2)) {
+        snprintf(extra, sizeof(extra), " (slot A: 0x%x%s%s%s%s)", status, (status & 2) ? " no card" : "",
+                 (status & 0x10) ? " broken" : "", (status & 0x100) ? " saves" : "",
+                 (status & 0x200) ? " system file" : "");
+    }
+    lines++;
+    re4_log("card: %s: %s%s", kModes[mode], kStates[rno0][mode], extra);
+    lastRno0 = rno0;
+    lastRno1 = rno1;
 }
 
 // Takes the card out of slot A and puts the one of `path` in (0: none), as a

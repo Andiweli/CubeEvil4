@@ -30,7 +30,9 @@
 # GetDataExt coverage lines with "nein", converter messages, called stubs,
 # the last state trace line. Then every movie of the discs through the CRI
 # middleware (re4_host --movie-test): status, frames, stills, the opening
-# movie's sound. Exit code 0 when everything passed.
+# movie's sound. Then the memory card (M10): a system file made at the boot
+# check, a save in r100, a new start that loads it (run_memcard). Exit code 0
+# when everything passed.
 set -u
 
 room=100
@@ -799,12 +801,93 @@ run_movies() {
     [ "$bad" -ne 0 ] && overall=1
 }
 
+# ---- the memory card (M10): system file, save, a new start, load ---------------------------
+# Slot A holds a card file of this run (runtime/memcard.cpp), formatted first
+# by the SDK's card library (re4_host --memcard-format). Run A: the boot
+# check finds no system file and asks to make one (A: yes, the cursor's
+# default); new game into r100 (debug start), once the player is free the
+# save screen of a typewriter opens (RE4_TEST_SAVE, after setting the
+# brightness option to 72; the default is 64), A picks file 1, A confirms,
+# START closes "saved"; the run ends when the screen has closed. Run B, a new
+# start with the same card: the boot check reads the system file (brightness
+# 72 again), the title menu stands on "load" (no debug start), A loads file
+# 1, the game continues in r100. The card is listed afterwards
+# (port/tools/memcard_list.py: files, banner/icon, the game's CRCs).
+run_card_game() {
+    local name="$1" limit="$2" dir="$3"
+    shift 3
+    (cd "$dir" && exec env RE4_VI_FAST=1 RE4_MEMCARD="$card" RE4_PAD_UNTIL_ROOM=1 "$@" \
+        timeout "$limit" ./re4_host --data "$layout") > "$run/$name.log" 2>&1
+    local code=$?
+    grep -E "memcard: (files|.* saved)|card: |run: (memory card check|save |main loop|player free|stopped)|fatal signal|stub called: (OSResetSystem|CARD|__CARD)" \
+        "$run/$name.log" | sed 's/^\[re4\] /  /' | head -n 80 | tee -a "$report"
+    return $code
+}
+run_memcard() {
+    local dir="$src/port/build/whole-i686$opt" card="$run/speicherkarte-a.bin" bad=0 code
+    section "7. Speicherkarte: Systemdatei anlegen, im Raum speichern, Neustart, im Titel laden"
+    if [ ! -x "$dir/re4_host" ]; then
+        say "FEHLER: $dir/re4_host fehlt (Build fehlgeschlagen?)"
+        overall=1
+        return
+    fi
+    rm -f "$card"
+    if ! (cd "$dir" && ./re4_host --memcard-format "$card") > "$run/karte-formatieren.log" 2>&1; then
+        say "FEHLER: die Karte ließ sich nicht formatieren (karte-formatieren.log)"
+        tail -n 5 "$run/karte-formatieren.log" | sed 's/^/  /' | tee -a "$report"
+        overall=1
+        return
+    fi
+    say "Karte: speicherkarte-a.bin (2 MB, formatiert, leer)"
+    say "Lauf A: Systemdatei anlegen, neues Spiel in r100, dort speichern (Datei 1)"
+    run_card_game karte-speichern "${RE4_CHECK_CARD_LIMIT:-1800}" "$dir" RE4_START_ROOM=0x100 RE4_ROOM_MENU=1 \
+        RE4_PAD_SCRIPT="A@100-60000/60 START@130-60000/60" RE4_TEST_SAVE="free+60,72,stop" \
+        RE4_PAD_FREE_SCRIPT="A@90-600/30 START@900-3000/120"
+    code=$?
+    if [ "$code" -ne 0 ] || ! grep -q "run: stopped after the save" "$run/karte-speichern.log"; then
+        say "Ergebnis A: FEHLER (Exit-Code $code; Log: karte-speichern.log)"
+        bad=1
+    elif ! grep -q "card: boot check: making the system file" "$run/karte-speichern.log"; then
+        say "Ergebnis A: FEHLER (die Startprüfung hat keine Systemdatei angelegt)"
+        bad=1
+    else
+        say "Ergebnis A: OK (Systemdatei angelegt, gespeichert, Bildschirm geschlossen)"
+    fi
+    say "Lauf B: Neustart mit derselben Karte, im Titel laden"
+    run_card_game karte-laden "${RE4_CHECK_CARD_LIMIT:-1800}" "$dir" RE4_STOP_AFTER=600 \
+        RE4_PAD_SCRIPT="A@100-60000/60 START@130-60000/60"
+    code=$?
+    local check loaded
+    check=$(grep -m1 "run: memory card check done" "$run/karte-laden.log")
+    loaded=$(grep -m1 "run: save loaded from the memory card" "$run/karte-laden.log")
+    if [ "$code" -ne 0 ] || ! grep -q "run: stopped after" "$run/karte-laden.log"; then
+        say "Ergebnis B: FEHLER (Exit-Code $code; Log: karte-laden.log)"
+        bad=1
+    elif [ -z "$loaded" ]; then
+        say "Ergebnis B: FEHLER (kein Spielstand geladen)"
+        bad=1
+    elif ! echo "$check" | grep -q "brightness 72,"; then
+        say "Ergebnis B: FEHLER (Optionen nicht aus der Systemdatei: ${check#*options })"
+        bad=1
+    elif ! grep -q "run: main loop reached .* room r100" "$run/karte-laden.log"; then
+        say "Ergebnis B: FEHLER (das geladene Spiel lief nicht in r100 weiter)"
+        bad=1
+    else
+        say "Ergebnis B: OK (Optionen aus der Systemdatei, Spielstand geladen, r100 läuft)"
+    fi
+    say "Inhalt der Karte (port/tools/memcard_list.py):"
+    python3 "$src/port/tools/memcard_list.py" "$card" --expect-system --expect-save 0 2>&1 | sed 's/^/  /' | tee -a "$report"
+    [ "${PIPESTATUS[0]}" -ne 0 ] && bad=1
+    [ "$bad" -ne 0 ] && overall=1
+}
+
 if [ "$game_ok" -eq 1 ]; then
     # limits in seconds: overall, until the main loop, without a new frame
     run_game i686 "${RE4_CHECK_LIMIT:-3600}" "${RE4_CHECK_MAIN_LIMIT:-600}" "${RE4_CHECK_STALL:-180}"
     render_pictures
     render_gx_pictures
     run_movies
+    run_memcard
     [ "$arm" -eq 1 ] && run_game armhf 14400 5400 600
 fi
 

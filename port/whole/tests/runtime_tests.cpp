@@ -1193,7 +1193,7 @@ static void testTrace()
     PADRead(pads);
     CHECK(re4probe_debug_mode(-1) == 0 && !re4_title_room_menu_open());
     unsetenv("RE4_DEBUG_HUD");
-    re4_state_trace_open(0);  // the frame hook off again
+    re4_state_trace_open(0);  // the trace off again
     re4_state_trace_reconfigure();
     re4probe_debug_mode(savedPage);
     // GetDataExt on a host-order archive: one entry "CNS", one "SMD"

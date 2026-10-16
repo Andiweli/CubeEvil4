@@ -14,7 +14,9 @@ WSL2 (Ubuntu). Dieses Skript erledigt alles von Windows aus:
      startet das Spiel vom Titelbild mit Debug-Start nach r100 und laesst es
      10.000 Bilder laufen, spielt danach jeden Film der Disc ganz ab
      (Schnelllauf; Standbilder im Ordner bilder-film, Ton des Vorfilms als
-     film-d1-opening.wav),
+     film-d1-opening.wav), prueft danach die Speicherkarte (Meilenstein 10:
+     Systemdatei anlegen, in r100 speichern, Neustart, im Titel laden; die
+     Karte dieses Laufs liegt als speicherkarte-a.bin bei den Ergebnissen),
   3. legt den Bericht und die Logs in -OutDir ab (Standard: Desktop\RE4-Kern-Pruefung).
 
 Disc-Daten (-DataDir), eine dieser Formen:
@@ -25,7 +27,7 @@ Die Disc-Daten werden nie ins Repository kopiert.
 
 Vorher den Branch der aktuellen Aufgabe holen (Name steht in der Aufgabe), z. B.:
   git fetch origin
-  git checkout claude/re4-m9-videos
+  git checkout claude/re4-m10-speichern
   git pull
 
 .EXAMPLE
