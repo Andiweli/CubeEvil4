@@ -1590,6 +1590,27 @@ und der gelbe Kartenrahmen, dann bleibt das Bild schwarz; B schließt nicht.
   überall „Schatten“ statt nur im Umriss. Ursache offen; die PC-Prüfung
   legt Bild 901 jetzt als Daten bei (`RE4_GX_KEEP`, Standard 901).
 
+### Elfter PC-Lauf (16.10.2026, WSL2, Stand `352677d`): „ALLES OK“
+
+- Formatvergleich 173 Dateien ohne Fehler, darunter alle 18
+  `SS/cmn/map_obj*.dat` (die Räume der Karte, Umwandler `convertMapRoom`);
+  Soft-Reset kehrt zum Titel zurück; Karte öffnet und schließt.
+- **Dunkle Fläche am Boden (Bild 901/922) geklärt:** Mit den Daten von Bild
+  901 schrittweise nachgezeichnet. Der Schattendurchgang (`shadow.cpp`
+  `make_shadow_texture`) schreibt nur das Ziel-Alpha der Werfer (hier 0xAD
+  unter dem Auto) in einen 256×256-Bereich des EFB und verlässt sich darauf,
+  dass dort sonst Alpha 0 steht: Jede Display-Kopie des Spiels löscht das EFB
+  mit der Löschfarbe Schwarz, Alpha 0 (`bio4_GXSetCopyClear`), bei
+  eingeschaltetem Alpha-Schreiben. Der Renderer legte das EFB beim Start aber
+  mit Alpha 255 an; ein einzeln gezeichnetes Bild (PC-Prüfung,
+  `gx_chunk_render`) hatte deshalb im ganzen Lichtkegel „Schatten“. Jetzt
+  beginnt das EFB mit Alpha 0 (`gx_gl.cpp` `Init`). Bild 901 zeigt den Boden
+  danach normal; die übrigen Bilder sind gleich bis auf die Randzeilen des
+  Auto-Innenraums (Bild 652, 1 %, ebenfalls Alpha-abhängig). In der App
+  laufen die Bilder hintereinander, dort löscht schon die Display-Kopie des
+  Vorbilds das Alpha; auf dem Gerät war der Fleck daher vermutlich nicht zu
+  sehen (nicht geprüft).
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich

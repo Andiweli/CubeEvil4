@@ -1286,7 +1286,11 @@ bool GxRenderer::Init(int scale, std::string *error) {
     return false;
   }
   glViewport(0, 0, w, h);
-  glClearColor(0, 0, 0, 1);
+  // the EFB as every display copy of the game leaves it: cleared to the copy
+  // clear colour, black with alpha 0 (bio4_GXSetCopyClear). The shadow maps
+  // (shadow.cpp) draw only the casters' alpha and rely on that 0 around them;
+  // alpha 255 here made a single dumped frame shade the whole light cone.
+  glClearColor(0, 0, 0, 0);
   glClearDepthf(1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glGenFramebuffers(1, &m.xfbFbo);
