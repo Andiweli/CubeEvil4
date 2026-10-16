@@ -16,7 +16,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M5 Erster Raum r100 | ✅ 14.10.2026: lokal mit Disc-Daten (i686 in WSL2) 10 000 Bilder ab der Hauptschleife ohne Absturz, Abdeckung ohne „nein“, Formatvergleich 152 Dateien ohne Fehler. armhf mit Disc-Daten nicht gelaufen (`-Arm`, optional) |
 | K2 „Kern in die App“ (M6) | ✅ 16.10.2026 (Retroid): ARM32-App mit den Kern-Bibliotheken, Titel, r100, r101, Untermenüs und Karte spielbar; Abschluss und offene Punkte: „Abschluss M6/M6b“ |
 | M6b GX nachbilden (`gx-plan.md`) | ✅ 16.10.2026 (Retroid): das Bild kommt aus der GX-Nachbildung (Logos, Titel, Räume, Figuren, Effekte, Menüs, Anzeigen); r100 und r101 flüssig bei etwa 1080p (`-Scale 3`) |
-| M7 Steuerung | 🔶 16.10.2026: Cloud-Teil fertig (Branch `claude/re4-m7-steuerung`): Original-`PADClamp`, GameCube-Belegung, Rohwerte, Vibration; Gerätetest steht aus („M7 Steuerung“) |
+| M7 Steuerung | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m7-steuerung`): alle Tasten, Sticks und L2/R2 kommen als GameCube-Controller an (Original-`PADClamp`, Belegung nach Beschriftung), Menüs bedienbar, Vibration spürbar; Touch später („M7 Steuerung“) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -1980,12 +1980,35 @@ Totzone, und schon ein Triggerrauschen von 1 galt als gedrücktes L/R.
 Nicht geprüft: echtes Android-SDK/Gradle (nur auf dem PC), PowerShell-Skript
 (kein PowerShell in der Cloud), alles auf dem Gerät.
 
-### Gerätetest (steht aus)
+### Gerätetest (16.10.2026, Retroid, Stand `d1794f1`): M7 erreicht
 
-Ziel: alle Tasten, beide Sticks, L2/R2 analog (leicht drücken = zielen),
-R1 = Karte, Menüs (Titel, Optionen, Koffer, Dateien, Karte) bedienbar,
-Vibration bei Treffern; der Bericht zeigt, welche Android-Codes der Retroid
-schickt (Abschnitt Steuerung).
+`test-core-app.ps1 -Manual -Seconds 900 -Scale 3`, 200 s gespielt (Titel,
+Intro, r100, r101, Würgegriff, Tod). Laut Projektinhaber alle Tasten erkannt,
+Vibration funktioniert.
+
+- **Eingabegerät:** „Retroid Pocket Controller“ (Hersteller 0x2022, Produkt
+  0x3001, Quellen Gamepad/Joystick/Tastatur), ein einziges Gerät. Achsen:
+  X/Y linker Stick, Z/RZ rechter Stick, BRAKE/GAS die analogen L2/R2
+  (0..1), HAT_X/HAT_Y das Steuerkreuz (kommt nur als Achse, nicht als
+  Taste); L2/R2 schicken zusätzlich Tastencodes. `flat` überall 0 (Totzone
+  macht allein `PADClamp`).
+- **Tasten:** Die Codes passen zur Beschriftung (BUTTON_A = A usw.), der
+  Tausch-Schalter wird nicht gebraucht. Im Bericht: SELECT → Overlay, A, B,
+  X, Y, START, R2 → R, L2 → L, R1 → Z, L1 und L3 ohne Funktion.
+- **Im Kern angekommen** (174 Tastenwechsel): alle 13 GameCube-Bits, auch in
+  Kombination, z. B. L (Messer) und L+A (Stich), R (Zielen, Laser im Bild)
+  und R+A (Schuss, Munition 17 → 9), B, Steuerkreuz in alle vier
+  Richtungen, Y (Koffer), Z (Karte), X, START. Untermenüs viermal geöffnet
+  und geschlossen; „Shake off“ im Würgegriff.
+- **Vibration:** Vibrator mit Amplitudensteuerung; das Spiel rüttelte 5×
+  (Treffer, Tod).
+- **Leistung unverändert:** Kern 33,4 ms je Bild, Renderer 5,7–7,3 ms,
+  gezeigt 58–60 Bilder/s.
+- Nicht eigens geprüft: wie weit L2/R2 gedrückt werden müssen (das
+  Protokoll zeigt nur die digitalen Bits), Gefühl der Totzone (keine
+  Beanstandung), R3 in diesem Lauf (unverändert), der Tausch-Schalter.
+- „Räume aufgebaut: keiner“ im Bericht betrifft nur die frühere Brücken-Ansicht
+  (`-Bridge`), nicht die GX-Ansicht.
 
 ## Aufbau
 

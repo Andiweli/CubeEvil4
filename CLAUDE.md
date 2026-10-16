@@ -114,7 +114,8 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
 6b. ✅ GX nachbilden (`port/docs/gx-plan.md`): Logos, Titelmenü und r100 so,
    wie das Spiel sie zeichnet (Retroid, 16.10.2026; r101 flüssig bei 1080p;
    offene Grafikfehler in der Status-Datei)
-7. Steuerung (Retroid-Tasten, später Touch)
+7. ✅ Steuerung: Retroid-Tasten wie der GameCube-Controller, Vibration
+   (Retroid, 16.10.2026; Touch später)
 8. Audio (CRI-ADX-Code aus `src/lib/` möglichst direkt mitkompilieren)
 9. Videos (SFD/MPV)
 10. Speichern/Laden
