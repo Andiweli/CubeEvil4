@@ -199,6 +199,8 @@ Result compare(const Input& in)
 
 // ---- synthetic samples: samples.h ------------------------------------------------
 
+const char* const kMapSample = "synthetisch: Kartenraum";
+
 std::vector<Input> syntheticInputs()
 {
     std::vector<Input> in;
@@ -218,6 +220,10 @@ std::vector<Input> syntheticInputs()
                                  { "FCV", makeCurve(30) } }),
                    "",
                    true });
+    // the map screen's room data (SS/cmn/map_objNN.dat); its own archive: the
+    // room archive above doubles as the codec sample, whose readers split an
+    // even entry count in halves
+    in.push_back({ kMapSample, kArchive, makeArchive({ { "MAP", makeMapRoom() } }), "", true });
     in.push_back({ "synthetisch: Gegnerliste", kEsl, makeEsl(), "", true });
     in.push_back({ "synthetisch: Ereignis", kEvd, makeEvd(), "", true });
     in.push_back({ "synthetisch: Raumsprungtabelle", kRoomInfo, makeRoomInfo(), "", true });
@@ -416,6 +422,13 @@ std::vector<Input> discInputs(const std::string& dir)
             containers.push_back(em + "/" + name);
         }
     }
+    // the map screen's rooms (Sscrn ss_map.cpp): containers like the .drs
+    std::string cmn = findPath(files, "ss/cmn");
+    for (const auto& name : listDir(cmn)) {
+        if (strncasecmp(name.c_str(), "map_obj", 7) == 0 && endsWithNoCase(name, ".dat")) {
+            containers.push_back(cmn + "/" + name);
+        }
+    }
     // codec messages (ss_term.cpp opArc): the archive starts 0x400 bytes into the part
     std::string op = findPath(files, "op");
     std::size_t codecFrom = containers.size();
@@ -457,6 +470,10 @@ int writeSamples(const std::string& dir)
     for (const auto& in : syntheticInputs()) {
         switch (in.kind) {
         case kArchive:
+            if (in.label == kMapSample) {
+                ok = writeFile(files + "SS/cmn/map_obj1.dat", makeDrs(in.bytes)) && ok;
+                break;
+            }
             ok = writeFile(files + "st1/r100.arc", in.bytes) && ok;
             ok = writeFile(files + "em/pl00.drs", makeDrs(in.bytes)) && ok;
             {

@@ -13,6 +13,7 @@
 #include "scroll.h"
 #include "shadow.h"
 
+#include <stdio.h>
 #include <string.h>
 
 using namespace re4fmt;
@@ -414,6 +415,56 @@ void convertSat(Blob& b, const Part&)
         }
     } else {
         convertSatFile(b, 0);
+    }
+}
+
+// The rooms of the map screen (Sscrn ss_map.cpp mapRoomNum / mapBinAddr /
+// mapHitAddr; SS/cmn/map_objNN.dat, entries "MAP"): u32 count (the room's
+// models + 2), three words the map does not read, then `count` offsets from
+// the entry start: the models (BIN), then the two floor collisions
+// (cSatHeader). Left big-endian, the count reads as millions; the map stayed
+// black and could not be closed on the Retroid (16.10.2026).
+void convertMapRoom(Blob& b, const Part& part)
+{
+    const u32 kMaxEntries = 64;
+    u32 n = be32(b, 0);
+    if (n < 2 || n > kMaxEntries || !fits(b, 0, 16 + n * 4, "MAP offsets")) {
+        if (b.ok) {
+            re4_log("formats: %s: MAP with %u entries, left as it is", b.name, (unsigned) n);
+        }
+        return;
+    }
+    u32 offs[kMaxEntries];
+    for (u32 i = 0; i < n; i++) {
+        offs[i] = be32(b, 16 + i * 4);
+        if (offs[i] < 16 + n * 4 || offs[i] >= b.size) {
+            re4_log("formats: %s: MAP entry %u at 0x%x is outside (0x%x bytes), left as it is", b.name,
+                    (unsigned) i, (unsigned) offs[i], (unsigned) b.size);
+            return;
+        }
+    }
+    swap32(b, 0, 4 + n);
+    Seen seen;
+    for (u32 i = 0; i < n && b.ok; i++) {
+        if (!seen.first(offs[i])) {
+            continue;
+        }
+        u32 end = b.size;
+        for (u32 k = 0; k < n; k++) {
+            if (offs[k] > offs[i] && offs[k] < end) {
+                end = offs[k];
+            }
+        }
+        bool model = i + 2 < n;
+        char label[160];
+        snprintf(label, sizeof(label), "%s %s %u", b.name, model ? "model" : "floor", (unsigned) i);
+        Blob e = blob(b.data + offs[i], end - offs[i], label);
+        if (model) {
+            convertBin(e, part);
+        } else {
+            convertSat(e, part);
+        }
+        b.ok = b.ok && e.ok;
     }
 }
 

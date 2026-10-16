@@ -309,6 +309,47 @@ void satFacts(const Re4Out& o, const Bytes& b)
     o.u(hash, "wallorder.hash");
 }
 
+// ---- MAP (the map screen's rooms, Sscrn ss_map.cpp) ------------------------------
+
+// u32 count (models + 2), three words, `count` offsets from the entry start:
+// the models, then the two floor collisions. Read big-endian here.
+void mapFacts(const Re4Out& o, const Bytes& b)
+{
+    auto word = [&](std::size_t p) {
+        if (p + 4 > b.size()) {
+            throw std::runtime_error("MAP: offset table outside the entry");
+        }
+        return std::uint32_t(b[p]) << 24 | std::uint32_t(b[p + 1]) << 16 | std::uint32_t(b[p + 2]) << 8 | b[p + 3];
+    };
+    std::uint32_t n = word(0);
+    if (n < 2 || n > 64) {
+        throw std::runtime_error("MAP: entry count");
+    }
+    o.u(n, "count");
+    std::vector<std::uint32_t> offs(n);
+    for (std::uint32_t i = 0; i < n; ++i) {
+        offs[i] = word(16 + i * 4);
+        if (offs[i] < 16 + n * 4 || offs[i] >= b.size()) {
+            throw std::runtime_error("MAP: entry outside");
+        }
+    }
+    for (std::uint32_t i = 0; i < n; ++i) {
+        std::size_t end = b.size();
+        for (auto other : offs) {
+            if (other > offs[i] && other < end) {
+                end = other;
+            }
+        }
+        Bytes part(b.begin() + offs[i], b.begin() + std::ptrdiff_t(end));
+        if (i + 2 < n) {
+            binFacts(o.sub("model%u.", unsigned(i)), part);
+        } else {
+            Re4Out f = o.sub("floor%u.", unsigned(i - (n - 2)));
+            guarded(f, [&] { satFacts(f, part); });
+        }
+    }
+}
+
 // ---- AEV ----------------------------------------------------------------------
 
 void doorFacts(const Re4Out& a, const re4::RoomDoor& d, unsigned kind)
@@ -622,6 +663,8 @@ void appArchive(const Bytes& bytes, FactList& out)
             }
         } else if (tag == "BIN") {
             binFacts(u, data);
+        } else if (tag == "MAP") {
+            guarded(u, [&] { mapFacts(u, data); });
         } else if (tag == "FCV") {
             guarded(u, [&] { curveFacts(u, data); });
         }

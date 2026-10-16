@@ -560,6 +560,36 @@ void satFacts(const Re4Out& o, const View& v)
     free(pending);
 }
 
+// ---- MAP (the map screen's rooms, Sscrn ss_map.cpp mapRoomNum / mapBinAddr / mapHitAddr)
+
+void mapFacts(const Re4Out& o, const View& v)
+{
+    u32 n = v.w(0);
+    if (n < 2 || n > 64 || !v.has(16, n * 4)) {
+        return;
+    }
+    o.u(n, "count");
+    for (u32 i = 0; i < n; i++) {
+        u32 ofs = v.w(16 + i * 4);
+        u32 end = v.size;
+        for (u32 k = 0; k < n; k++) {
+            u32 other = v.w(16 + k * 4);
+            if (other > ofs && other < end) {
+                end = other;
+            }
+        }
+        if (ofs >= v.size) {
+            return;
+        }
+        View part = { v.data + ofs, end - ofs };
+        if (i + 2 < n) {
+            binFacts(o.sub("model%u.", (unsigned) i), part);
+        } else {
+            satFacts(o.sub("floor%u.", (unsigned) (i - (n - 2))), part);
+        }
+    }
+}
+
 // ---- AEV (room_flow.cpp RoomFlow) ------------------------------------------------
 
 void areaFacts(const Re4Out& o, const AREA_HIT_DATA& a)
@@ -876,6 +906,8 @@ void entryFacts(const Re4Out& o, const char* tag, const View& e)
         camFacts(o, e);
     } else if (strcmp(tag, "BIN") == 0) {
         binFacts(o, e);
+    } else if (strcmp(tag, "MAP") == 0) {
+        mapFacts(o, e);
     } else if (strcmp(tag, "FCV") == 0) {
         curveFacts(o, e);
     }

@@ -56,6 +56,8 @@ const TagRule kTags[] = {
     { "RTP", convertRoute },
     { "OSD", convertUnread },
     { "EMI", convertEmi },
+    // the map screen's rooms (SS/cmn/map_objNN.dat, Sscrn ss_map.cpp)
+    { "MAP", convertMapRoom },
 };
 
 // Logs an unknown tag once.

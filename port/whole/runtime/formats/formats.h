@@ -129,6 +129,7 @@ void convertShd(Blob& b, const Part& part);          // SHD
 void convertEtcArchive(Blob& b, const Part& part);   // ETM
 void convertItemModels(Blob& b, const Part& part);   // ITM
 void convertSat(Blob& b, const Part& part);          // SAT, EAT
+void convertMapRoom(Blob& b, const Part& part);      // MAP (map screen rooms: models, floors)
 
 // formats_event.cpp
 void convertCameraAt(Blob& b, u32 base);

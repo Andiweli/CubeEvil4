@@ -1516,6 +1516,35 @@ Getestet (Cloud): Kern-Build i686/armhf normal und `-O2` mit allen
 Prüfungen; Berichtszeilen der PC-Prüfung mit einem nachgebauten Protokoll.
 Nicht getestet: Gerät, PC-Prüfung mit Disc-Daten.
 
+### Achter Gerätelauf (16.10.2026, Retroid): Karte
+
+Stand `9f41b98` (Patch 0044). Intro übersprungen, Karte sofort geöffnet
+(auf dem Gerät kam die Taste als GameCube-Z an). Kurz erscheinen die Anzeigen
+und der gelbe Kartenrahmen, dann bleibt das Bild schwarz; B schließt nicht.
+
+- **Protokoll:** Untermenü offen ab Bild 1469 und nie geschlossen. Gelesen
+  wurden `SS/eng/ss_map.dat` und `SS/cmn/map_obj1.dat`; dazu „archive entry
+  "MAP" … no converter, left big-endian“. Danach zeichnete das Spiel nur noch
+  5 Aufträge je Bild (ein schwarzes Vollbild, Aufnahme Bild 1769), der Kern
+  lief weiter mit 33,9 ms je Bild. Kamera nach dem Raumstart: „none“ (Patch
+  0044 nicht berührt).
+- **Ursache:** Die Einträge „MAP“ sind die Räume der Karte (Sscrn
+  `ss_map.cpp` `mapRoomNum` / `mapBinAddr` / `mapHitAddr`): u32 Anzahl
+  (Modelle + 2), drei Wörter, die die Karte nicht liest, dann die Offsets der
+  Modelle (BIN) und der zwei Bodenkollisionen (`cSatHeader`). Unumgewandelt
+  liest `mapModelInit` eine Modellanzahl in Millionen und Modelle aus
+  big-endian-Daten. Neuer Umwandler `convertMapRoom` (formats_scene.cpp,
+  Regel „MAP“ in formats_arc.cpp): Kopf und Offsets tauschen, Modelle mit
+  `convertBin`, Böden mit `convertSat`; unplausible Anzahl/Offsets bleiben
+  unverändert und werden protokolliert.
+- **Prüfung:** Formatvergleich mit einem synthetischen Kartenraum (ein Modell,
+  zwei Böden; App-Leser gegen Kern-Umwandler, 154 Werte gleich) und als
+  Datei `SS/cmn/map_obj1.dat` im synthetischen Disc-Ordner; mit echten
+  Disc-Daten vergleicht `re4_format_compare --data` jetzt auch alle
+  `SS/cmn/map_obj*.dat` (lokal, steht aus). Ob die Karte damit erscheint und
+  sich schließen lässt, zeigt erst der Gerätelauf oder die PC-Prüfung
+  („Untermenüs“, „Karte offen“).
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1863,6 +1892,7 @@ nach dem Laden Feld für Feld in Host-Reihenfolge gedreht:
 | `EVD`, `event/evd/*.evd`, `EVS` | `EvtHeader`, Pakete mit Zahlenparametern je Typ, Anhänge nach Verwendung im Paket (Kamera/Motion/Shape-Kurven, LIT, Nebel, Fokus, EFF, MDT, Modelle, Texturen) oder Endung | `formats_event.cpp` |
 | `SMD`, `SMX`, `SHD`, `ETM`, `ITM` | Streumodelle mit BIN/TPL/Motion-Tabellen, Objektparameter (Typen 1/2 mit Feldliste), Schatten, Etc-Archiv (benannte Dateien), Item-Modelle | `formats_scene.cpp` |
 | `SAT`, `EAT` | `cSatFile`/`cSatHeader`, Vektoren, `SAT_POLY`, Blockkette (andere Versionen als 0x20/0xFF/Blockliste bleiben unverändert, Log) | `formats_scene.cpp` |
+| `MAP` (`SS/cmn/map_objNN.dat`) | Räume der Karte (Sscrn `ss_map.cpp` `mapRoomNum`/`mapBinAddr`/`mapHitAddr`): u32 Anzahl (Modelle + 2), drei Wörter, Offsets; Modelle wie `BIN`, zwei Böden wie `SAT` | `formats_scene.cpp` `convertMapRoom` |
 | `CNS`, `ETS`, `EMI`, `SAR`, `EAR`, `FSE`, `ESE`, `DSE`, `STB`, `BLK`, `RTP`, `OSD`, `AEV`, `ITA`, `etc/*.esl` | Raumtabellen aus gameRoomInit/ReadAreaData (Quelle je Format im Kopf von `formats_room.cpp`) | `formats_room.cpp` |
 | Effektmodelle in `EFF` | BIN/TPL/Motion der Effekte | `formats_eff.cpp` |
 | `rel/*.rel` | REL-Kopf | `OSLink` (`re4_rel_header_to_host`) |

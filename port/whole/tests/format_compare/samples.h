@@ -335,6 +335,25 @@ inline Bytes makeEat()
     return e.b;
 }
 
+// A room of the map screen ("MAP", SS/cmn/map_objNN.dat; Sscrn ss_map.cpp):
+// count (models + 2), three words, the offsets, then one model and the two
+// floor collisions.
+inline Bytes makeMapRoom()
+{
+    const Bytes parts[3] = { makeBin(false, true, false), makeEat(), makeEat() };
+    Be m;
+    m.u32(3), m.u32(0), m.u32(0), m.u32(0);
+    std::size_t offs = m.size();
+    m.zeros(3 * 4);
+    for (std::size_t i = 0; i < 3; i++) {
+        m.pad(32);
+        m.put32(offs + i * 4, std::uint32_t(m.size()));
+        m.append(parts[i]);
+    }
+    m.pad(32);
+    return m.b;
+}
+
 // one SCE_AT_DATA record (0x9C)
 inline void sceRecord(Be& a, unsigned id, unsigned no)
 {
