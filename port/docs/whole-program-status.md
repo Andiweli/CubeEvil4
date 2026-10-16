@@ -2234,7 +2234,7 @@ Waffe bricht vereinzelt ab.
 - **Prüfwerkzeuge:** `port/tools/make_test_sfd.py` (Sofdec-Muxer für
   Testfilme), `test_whole_movie.py` (Cloud-Test, in `whole_build.sh`),
   `movie_report.py` (Standbilder als PNG), `whole_r100_check.sh` Abschnitt 6
-  (jeder Film der Disc ganz im Schnelllauf, Standbild alle 4 s in
+  (jeder Film der Disc ganz im Schnelllauf, Standbild alle 30 s und das letzte Bild in
   `bilder-film/`, Ton des Vorfilms als `film-d1-opening.wav`),
   `test-core-app.ps1` (Bericht: Filme gestartet/beendet, je Film Zeit, Bilder,
   ausgelassene Bilder, Abbruch mit START, fehlende Dateien, CRI-Fehler).

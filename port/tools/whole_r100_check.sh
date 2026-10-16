@@ -742,7 +742,7 @@ PY
 # (RE4_VI_FAST: the fields at once, the CRI clock counts them; at most
 # RE4_CHECK_MOVIE_MINUTES minutes of movie, default 15): the player's status
 # at the end (3 = played to its end), the frames, frames the player skipped,
-# CRI errors, the time one step takes; a still every 4 s as PNG
+# CRI errors, the time one step takes; a still every 30 s as PNG
 # (bilder-film/) and the sound of the opening movie as WAV (film-*.wav).
 run_movies() {
     local dir="$src/port/build/whole-i686$opt" mins="${RE4_CHECK_MOVIE_MINUTES:-15}"
@@ -762,7 +762,7 @@ run_movies() {
             name="d$((disc + 1))-$(basename "$f" | sed 's/\.[sS][fF][dD]$//')"
             log="$run/film-$name.log"
             n=$((n + 1))
-            (cd "$dir" && exec env RE4_MOVIE_DISC="$disc" RE4_VI_FAST=1 RE4_MOVIE_FAST=1 RE4_MOVIE_EVERY=240 \
+            (cd "$dir" && exec env RE4_MOVIE_DISC="$disc" RE4_VI_FAST=1 RE4_MOVIE_FAST=1 RE4_MOVIE_EVERY=1800 \
                 timeout 1200 ./re4_host --data "$layout" --movie-test "$rel" "$run/film.yuv" \
                 "$run/film-$name.wav" $((mins * 3600))) > "$log" 2>&1
             local code=$?
@@ -790,7 +790,9 @@ run_movies() {
         say "Keine .sfd-Dateien gefunden."
         bad=1
     fi
-    say "Standbilder: $(ls "$stills"/*.png 2> /dev/null | wc -l) PNG-Dateien im Ordner bilder-film (bitte mitschicken)"
+    rm -f "$run/bilder-film.zip"
+    (cd "$run" && python3 -m zipfile -c bilder-film.zip bilder-film)
+    say "Standbilder: $(ls "$stills"/*.png 2> /dev/null | wc -l) PNG-Dateien im Ordner bilder-film, gepackt als bilder-film.zip ($(du -h "$run/bilder-film.zip" 2> /dev/null | cut -f1); bitte mitschicken)"
     [ "$bad" -ne 0 ] && overall=1
 }
 
