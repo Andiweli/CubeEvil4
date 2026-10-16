@@ -2485,7 +2485,9 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
   (`speicherkarte-a.bin`, auch in `senden.zip`) und listet sie im Bericht
   (über WSL), dazu die „card:“-Schritte, das Ende der Startprüfung mit den
   Optionen und geladene Spielstände; `-NewCard` startet mit einer neuen,
-  unformatierten Karte (die alte wird vorher gesichert).
+  unformatierten Karte (die alte wird vorher gesichert); `-SaveTest` öffnet
+  den Speicherbildschirm von selbst kurz nach „Spieler frei“
+  (`RE4_TEST_SAVE=free+120`).
 
 ### Prüfungen (Cloud, 16.10.2026)
 
@@ -2496,6 +2498,7 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
 | `re4_host --memcard-format` | formatiert, 251 Blöcke frei; `memcard_list.py` liest sie |
 | `whole_ir_signatures.py` für die CARD-Dateien und die Aufrufer des Spiels | 0 Abweichungen |
 | Platzhalter | 47 Funktionen, 1 Datenobjekt (2 neue aus `CARDNet.c`), wie `stubs-expected.txt` |
+| `whole_build.sh` i686 und armhf (qemu), normal und `RE4_OPT=2` | grün (alle Prüfungen, Kern-Test „card“, `memcard_list.py`) |
 
 **Nicht geprüft (Stand dieses Abschnitts):** die PC-Prüfung mit Disc-Daten
 (Abschnitt 7: die Bildschirme des Spiels beim Speichern und Laden, das

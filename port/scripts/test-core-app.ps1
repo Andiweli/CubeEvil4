@@ -57,7 +57,9 @@ zusammen mit einem Spielstand (Schreibmaschine) und liest sie beim Start. Die Te
 laeuft OHNE Karte (RE4_MEMCARD=none: ihr Zeitplan ist auf den "keine Karte"-Dialog
 abgestimmt, deine Spielstaende bleiben unberuehrt); mit -Manual spielst du mit der Karte.
 -NewCard startet mit einer neuen, unformatierten Karte (die bisherige wird vorher als
-speicherkarte-a-vorher.bin gesichert). Nach jedem Lauf holt das Skript die Karte
+speicherkarte-a-vorher.bin gesichert). -SaveTest oeffnet den Speicherbildschirm wie an einer
+Schreibmaschine von selbst, etwa 7 s nachdem du im ersten Raum frei laufen kannst (Testhilfe
+RE4_TEST_SAVE; speichern wie gewohnt mit A, "gespeichert" mit START schliessen). Nach jedem Lauf holt das Skript die Karte
 (speicherkarte-a.bin, kommt mit in senden.zip) und listet im Bericht, was darauf ist.
 
 Steuerung (Meilenstein 7) wie beim GameCube: A, B, X, Y nach Beschriftung, linker Stick =
@@ -133,7 +135,8 @@ param(
     [int]$HitDumps = 0,
     [int]$HitShots = 0,
     [int]$AudioWav = 0,
-    [switch]$NewCard
+    [switch]$NewCard,
+    [switch]$SaveTest
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -297,6 +300,11 @@ if (-not $Manual) {
     # card" dialog the timing was made for; the card of the app stays untouched. RE4_ROOM_MENU=1:
     # with the debug start menu after "new game" (the default, named because the timing needs it))
     $settings = "RE4_START_ROOM=0x$StartRoom;RE4_MEMCARD=none;RE4_ROOM_MENU=1;RE4_PAD_UNTIL_ROOM=1;RE4_PAD_SCRIPT=UP@100-60000/60 A@115-60000/60 START@130-60000/60"
+}
+if ($SaveTest) {
+    # the save screen of a typewriter, 120 frames after the player is free in the first room
+    # (runtime/state_trace.cpp RE4_TEST_SAVE)
+    $settings = if ($settings) { "$settings;RE4_TEST_SAVE=free+120" } else { 'RE4_TEST_SAVE=free+120' }
 }
 if ($Bridge) {
     # the earlier view: the core's state drawn by the app's own renderer
@@ -694,6 +702,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     if ($screens.Count) {
         Say "Kartenbildschirm (Schritte, letzte 40 von $($screens.Count)):"
         $screens | Select-Object -Last 40 | ForEach-Object { Say "  $(($_ -split 're4\s*: card: ')[-1])" }
+    }
+    foreach ($line in @($keep | Where-Object { $_ -match 'run: save screen (opened|closed)' })) {
+        Say "Testhilfe Speichern (-SaveTest):  $(($line -split 'run: ')[-1])"
     }
     foreach ($line in @($keep | Where-Object { $_ -match 'run: save loaded from the memory card' })) {
         Say "Spielstand geladen:               $(($line -split 'memory card ')[-1])"

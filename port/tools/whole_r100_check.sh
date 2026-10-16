@@ -841,7 +841,7 @@ run_memcard() {
     say "Karte: speicherkarte-a.bin (2 MB, formatiert, leer)"
     say "Lauf A: Systemdatei anlegen, neues Spiel in r100, dort speichern (Datei 1)"
     run_card_game karte-speichern "${RE4_CHECK_CARD_LIMIT:-1800}" "$dir" RE4_START_ROOM=0x100 RE4_ROOM_MENU=1 \
-        RE4_PAD_SCRIPT="A@100-60000/60 START@130-60000/60" RE4_TEST_SAVE="free+60,72,stop" \
+        RE4_STOP_AFTER=20000 RE4_PAD_SCRIPT="A@100-60000/60 START@130-60000/60" RE4_TEST_SAVE="free+60,72,stop" \
         RE4_PAD_FREE_SCRIPT="A@90-600/30 START@900-3000/120"
     code=$?
     if [ "$code" -ne 0 ] || ! grep -q "run: stopped after the save" "$run/karte-speichern.log"; then
