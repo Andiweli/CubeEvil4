@@ -21,9 +21,18 @@ public final class CoreBridge {
    * RE4_PAD_SCRIPT=..., RE4_PAD_UNTIL_ROOM=1), set before the game starts.
    */
   public static native String start(String gameRoot, String settings);
-  /** GameCube controller: SDK button bits, sticks about -100..100, triggers 0..255. */
+  /**
+   * GameCube controller, raw like the hardware (the game applies the dead
+   * zones itself): SDK button bits, main stick about -100..100, C stick about
+   * -90..90, triggers 0..255 (CoreInput).
+   */
   public static native void pad(int buttons, int stickX, int stickY, int substickX,
                                 int substickY, int triggerL, int triggerR);
+  /**
+   * The game's rumble motor: bits 0-3 = on in the last four game frames
+   * (bit 0 the newest), bits 8-31 = game frames so far; 0 without the core.
+   */
+  public static native int rumble();
   /** The room the game is in (stage << 8 | room), -1 outside a room. */
   public static native int wantedRoom();
   /** The decoded room archive for a room (RoomRepository), or the error. */

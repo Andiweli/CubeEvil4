@@ -14,6 +14,8 @@ fi
 
 javac -d "$task_build/java" "$task_root/app/src/main/java/com/ast/re4decomp/ControllerPolicy.java" "$task_root/tests/ControllerPolicyTests.java"
 java -cp "$task_build/java" ControllerPolicyTests
+javac -Xlint:all -d "$task_build/java" "$task_root/app/src/main/java/com/ast/re4decomp/CoreInput.java" "$task_root/tests/CoreInputTests.java"
+java -cp "$task_build/java" CoreInputTests
 javac -Xlint:all -d "$task_build/java" "$task_root/app/src/main/java/com/ast/re4decomp/GameMenuLayout.java" "$task_root/app/src/main/java/com/ast/re4decomp/GameMenuNavigation.java" "$task_root/tests/GameMenuNavigationTests.java"
 java -cp "$task_build/java" GameMenuNavigationTests
 javac -Xlint:all -cp "$task_build/java" -d "$task_build/java" "$task_root/app/src/main/java/com/ast/re4decomp/GameMenuLayout.java" "$task_root/tests/GameMenuLayoutTests.java"

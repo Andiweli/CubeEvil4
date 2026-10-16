@@ -40,6 +40,7 @@ struct CoreApi {
   int (*state)(void){};
   const char *(*message)(void){};
   void (*pad)(const Re4CorePad *){};
+  unsigned (*rumble)(void){};
   const Re4CoreSnapshot *(*acquire)(void){};
   void (*release)(const Re4CoreSnapshot *){};
   int (*logTail)(char *, int){};
@@ -72,6 +73,7 @@ void loadCore() {
   ok = bind(api.state, "re4_core_state") && ok;
   ok = bind(api.message, "re4_core_message") && ok;
   ok = bind(api.pad, "re4_core_pad") && ok;
+  ok = bind(api.rumble, "re4_core_rumble") && ok;
   ok = bind(api.acquire, "re4_core_acquire") && ok;
   ok = bind(api.release, "re4_core_release") && ok;
   ok = bind(api.logTail, "re4_core_log_tail") && ok;
@@ -476,6 +478,11 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_pad(
   Re4CorePad pad{static_cast<std::uint16_t>(buttons), clampS(stickX), clampS(stickY),
                  clampS(substickX), clampS(substickY), clampU(triggerL), clampU(triggerR)};
   api.pad(&pad);
+}
+
+// The game's rumble motor (re4_core_rumble) for the vibrator (CoreActivity).
+extern "C" JNIEXPORT jint JNICALL Java_com_ast_re4decomp_CoreBridge_rumble(JNIEnv *, jclass) {
+  return api.rumble ? static_cast<jint>(api.rumble()) : 0;
 }
 
 // The room the game is in (for the Java room loader), -1 outside a room.

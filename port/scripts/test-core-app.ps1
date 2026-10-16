@@ -47,6 +47,13 @@ dieses Skript holt pull-gx-dumps.ps1 die Aufnahmen).
 Die Speicherkarten-Abfrage beim Start entfaellt (es gibt noch keine Speicherkarte);
 die Test-Tastenfolge behaelt sie, weil ihr Zeitplan darauf abgestimmt ist.
 
+Steuerung (Meilenstein 7) wie beim GameCube: A, B, X, Y nach Beschriftung, linker Stick =
+Steuerstick, rechter Stick = C-Stick, Steuerkreuz, START, R2 = R (Waffe anlegen), L2 = L
+(Messer), R1 = Z (Karte), L1 ohne Funktion; SELECT blendet die Diagnose-Anzeige ein (mit der
+zuletzt gedrueckten Taste und den Stick-Werten), R3 = Grafik-Aufnahme. Der Bericht listet,
+welche Android-Taste welche GameCube-Taste wurde, die Eingabegeraete und die Vibration.
+Reagieren A/B oder X/Y vertauscht: im Startmenue der App "Swap A/B and X/Y" ankreuzen.
+
 Taste P im PowerShell-Fenster misst 15 s lang, wo die Rechenzeit hingeht
 (simpleperf aus dem Android-NDK in WSL; Spielkern, Grafik-Nachbildung,
 Grafiktreiber), hoechstens dreimal; dabei weiterspielen. Ergebnis: profil-N.txt
@@ -571,6 +578,23 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     if ($mapRead.Count) { Say "Kartendatei gelesen:              $($mapRead.Count)x" }
     $presses = @($keep | Where-Object { $_ -match 're4\s*: pad: frame' })
     Say "Tastendruecke im Kern angekommen: $($presses.Count)"
+    # the controller (CoreActivity/CoreInput, milestone 7): the layout, the input devices
+    # with their axes, which Android key became which GameCube button, the rumble
+    $layout = $keep | Where-Object { $_ -match 'RE4Input\s*: layout: ' } | Select-Object -First 1
+    if ($layout) { Say "Tastenbelegung:                   $(($layout -split 'layout: ')[-1])" }
+    foreach ($line in @($keep | Where-Object { $_ -match 'RE4Input\s*: device ' })) {
+        Say "Eingabegeraet:                    $(($line -split 'RE4Input\s*:\s*device ')[-1])"
+    }
+    $keyLines = @($keep | Where-Object { $_ -match 'RE4Input\s*: key ' })
+    $seenKeys = [ordered]@{}
+    foreach ($line in $keyLines) {
+        if ($line -match 'key (\S+) \((\d+)[^)]*\) -> (.*)$') { $seenKeys[$Matches[1]] = "$($Matches[1]) ($($Matches[2])) -> $($Matches[3])" }
+    }
+    Say "Tasten gedrueckt (Android -> GC):  $($keyLines.Count) Druecke, $($seenKeys.Count) verschiedene"
+    foreach ($k in $seenKeys.Values) { Say "  $k" }
+    $vibrator = $keep | Where-Object { $_ -match 'RE4Input\s*: rumble: ' } | Select-Object -First 1
+    $rumbles = @($keep | Where-Object { $_ -match 'pad: rumble from frame' })
+    Say "Vibration:                        $(if ($vibrator) { ($vibrator -split 'rumble: ')[-1] } else { '?' }); das Spiel ruettelte $($rumbles.Count)x$(if ($rumbles.Count -ge 16) { ' (oder oefter)' })"
     if ($crashAt -ge 0 -or (Has 'Fatal signal|FATAL EXCEPTION|SIGSEGV|SIGABRT|SIGBUS')) {
         Say "ABSTURZ$(if ($crashAt -ge 0) { " nach etwa $crashAt s" }); Ausschnitt:"
         $crashLines = @(($keep + $systemCrash) | Where-Object {

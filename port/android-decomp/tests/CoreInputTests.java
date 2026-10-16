@@ -1,0 +1,148 @@
+import com.ast.re4decomp.CoreInput;
+
+/**
+ * The core mode's controller (CoreInput): the agreed layout, raw values that
+ * the game's own PADClamp (src/lib/Padclamp.c, copied below for the check)
+ * turns into the GameCube's ranges, several input devices, release on clear.
+ */
+public final class CoreInputTests {
+  static int checks;
+
+  static void check(boolean value) {
+    checks++;
+    if (!value)
+      throw new AssertionError("check " + checks);
+  }
+
+  // android.view.KeyEvent key codes
+  static final int UP = 19, DOWN = 20, LEFT = 21, RIGHT = 22, A = 96, B = 97, X = 99, Y = 100,
+      L1 = 102, R1 = 103, L2 = 104, R2 = 105, L3 = 106, R3 = 107, START = 108, SELECT = 109;
+
+  // src/lib/Padclamp.c ClampStick and ClampTrigger with the SDK's ClampRegion
+  static int[] clampStick(int x, int y, int max, int xy, int min) {
+    int signX = x >= 0 ? 1 : -1, signY = y >= 0 ? 1 : -1;
+    x = Math.abs(x);
+    y = Math.abs(y);
+    x = x <= min ? 0 : x - min;
+    y = y <= min ? 0 : y - min;
+    if (x == 0 && y == 0) return new int[] {0, 0};
+    int d = xy * y <= xy * x ? xy * x + (max - xy) * y : xy * y + (max - xy) * x;
+    if (xy * max < d) {
+      x = (byte) (xy * max * x / d);
+      y = (byte) (xy * max * y / d);
+    }
+    return new int[] {signX * x, signY * y};
+  }
+
+  static int[] mainStick(int[] pad) { return clampStick(pad[1], pad[2], 72, 40, 15); }
+  static int[] cStick(int[] pad) { return clampStick(pad[3], pad[4], 59, 31, 15); }
+
+  static int clampTrigger(int t) { return t <= 30 ? 0 : Math.min(t, 180) - 30; }
+
+  static int[] stick(float x, float y) {
+    CoreInput in = new CoreInput();
+    in.motion(1, x, y, 0, 0, 0, 0, 0, 0);
+    return in.pad();
+  }
+
+  public static void main(String[] args) {
+    CoreInput in = new CoreInput();
+    // face buttons by their labels, D-pad, START, R1 = Z; L1 and L3 have no game function
+    int[][] keys = {{A, CoreInput.GC_A}, {B, CoreInput.GC_B}, {X, CoreInput.GC_X},
+        {Y, CoreInput.GC_Y}, {R1, CoreInput.GC_Z}, {START, CoreInput.GC_START},
+        {UP, CoreInput.GC_UP}, {DOWN, CoreInput.GC_DOWN}, {LEFT, CoreInput.GC_LEFT},
+        {RIGHT, CoreInput.GC_RIGHT}};
+    for (int[] k : keys) {
+      check(in.key(1, k[0], true));
+      check(in.pad()[0] == k[1]);
+      check(in.key(1, k[0], false));
+      check(in.pad()[0] == 0);
+    }
+    check(!in.key(1, L1, true) && CoreInput.unused(L1) && CoreInput.unused(L3));
+    check(in.pad()[0] == 0);
+    check(CoreInput.appFunction(SELECT) == CoreInput.APP_OVERLAY);
+    check(CoreInput.appFunction(R3) == CoreInput.APP_GX_DUMP);
+    check(CoreInput.appFunction(A) == CoreInput.APP_NONE && !in.key(1, SELECT, true));
+    // the switch for controllers that send the other layout's codes
+    in.setSwapFace(true);
+    check(in.gcButton(A) == CoreInput.GC_B && in.gcButton(B) == CoreInput.GC_A
+        && in.gcButton(X) == CoreInput.GC_Y && in.gcButton(Y) == CoreInput.GC_X);
+    in.key(1, A, true);
+    check(in.pad()[0] == CoreInput.GC_B);
+    in.setSwapFace(false);  // releases everything
+    check(in.pad()[0] == 0 && in.gcButton(A) == CoreInput.GC_A);
+
+    // sticks: full deflection reaches the GameCube's range after PADClamp, up is positive
+    int[] p = stick(1, 0);
+    check(p[1] == 101 && p[2] == 0 && mainStick(p)[0] == 72);
+    p = stick(0, -1);  // Android: up is negative
+    check(p[2] == 101 && mainStick(p)[1] == 72);
+    p = stick((float) -Math.sqrt(0.5), (float) Math.sqrt(0.5));  // down left: the octagon
+    check(mainStick(p)[0] == -40 && mainStick(p)[1] == -40);
+    // a stick at rest or barely moved stays in the dead zone (15 of 101)
+    p = stick(0.12f, -0.14f);
+    check(mainStick(p)[0] == 0 && mainStick(p)[1] == 0);
+    // halfway past the dead zone: linear
+    p = stick(0.5f, 0);
+    check(mainStick(p)[0] == 51 - 15);
+    // C stick: up to 59, as cam_qfps.cpp expects (it divides by 59)
+    in.motion(1, 0, 0, -1, 0, 0, 0, 0, 0);
+    p = in.pad();
+    check(p[3] == -92 && cStick(p)[0] == -59);
+    in.motion(1, 0, 0, 0, 1, 0, 0, 0, 0);
+    p = in.pad();
+    check(p[4] == -92 && cStick(p)[1] == -59);
+    in.motion(1, 0, 0, 0.1f, 0.1f, 0, 0, 0, 0);
+    check(cStick(in.pad())[0] == 0 && cStick(in.pad())[1] == 0);
+
+    // triggers: analog 0..255; a light press counts once past 30 (12 %), the
+    // digital L/R only at the end stop
+    in.motion(1, 0, 0, 0, 0, 0.05f, 0.11f, 0, 0);
+    p = in.pad();
+    check(clampTrigger(p[5]) == 0 && clampTrigger(p[6]) == 0 && p[0] == 0);
+    in.motion(1, 0, 0, 0, 0, 0.2f, 0.5f, 0, 0);
+    p = in.pad();
+    check(clampTrigger(p[5]) > 0 && clampTrigger(p[6]) > 0 && p[0] == 0);
+    in.motion(1, 0, 0, 0, 0, 1f, 0.9f, 0, 0);
+    p = in.pad();
+    check(p[5] == 255 && clampTrigger(p[5]) == 150 && p[0] == (CoreInput.GC_L | CoreInput.GC_R));
+    in.motion(1, 0, 0, 0, 0, 0, 0, 0, 0);
+    check(in.pad()[0] == 0 && in.pad()[5] == 0);
+    // L2/R2 as keys (digital triggers): fully pressed
+    in.key(1, R2, true);
+    p = in.pad();
+    check(p[6] == 255 && p[0] == CoreInput.GC_R && p[5] == 0);
+    in.key(1, R2, false);
+    in.key(1, L2, true);
+    check(in.pad()[5] == 255 && in.pad()[0] == CoreInput.GC_L);
+    in.key(1, L2, false);
+    check(in.pad()[0] == 0 && in.pad()[5] == 0);
+
+    // the hat axes are the D-pad
+    in.motion(1, 0, 0, 0, 0, 0, 0, -1, 1);
+    check(in.pad()[0] == (CoreInput.GC_LEFT | CoreInput.GC_DOWN));
+    in.motion(1, 0, 0, 0, 0, 0, 0, 0, 0);
+
+    // two devices (keys from one, axes from another): both count, an idle
+    // device does not cancel the other's stick
+    in.key(7, A, true);
+    in.motion(8, 0.9f, 0, 0, 0, 0, 0.6f, 0, 0);
+    in.motion(9, 0, 0, 0, 0, 0, 0, 0, 0);
+    p = in.pad();
+    check(p[0] == CoreInput.GC_A && p[1] == Math.round(0.9f * 101) && p[6] == Math.round(0.6f * 255));
+    in.remove(8);
+    p = in.pad();
+    check(p[0] == CoreInput.GC_A && p[1] == 0 && p[6] == 0);
+    in.clear();
+    check(in.pad()[0] == 0);
+    // out-of-range and broken values
+    in.motion(1, 3f, Float.NaN, -2f, Float.POSITIVE_INFINITY, 2f, -1f, 0, 0);
+    p = in.pad();
+    check(p[1] == 101 && p[2] == 0 && p[3] == -92 && p[4] == 0 && p[5] == 255 && p[6] == 0);
+    check(CoreInput.names(CoreInput.GC_A | CoreInput.GC_B | CoreInput.GC_START).equals("A+B+START")
+        && CoreInput.names(0).equals("-"));
+
+    System.out.println("Core controller: layout, swap, sticks and triggers through PADClamp, "
+        + "devices: " + checks + " checks PASS");
+  }
+}

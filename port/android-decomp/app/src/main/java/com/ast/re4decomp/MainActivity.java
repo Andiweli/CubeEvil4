@@ -37,6 +37,15 @@ public final class MainActivity extends Activity implements ImportManager.Listen
     TextView note = new TextView(this); note.setText(core ? R.string.core_notice : R.string.browser_notice);
     note.setPadding(0, dp(8), 0, dp(12)); body.addView(note);
     button(body,"Start game",this::startOriginalTitle);
+    if (core) {
+      // the controller of the core mode (CoreActivity, CoreInput): the layout and its one switch
+      TextView controls = new TextView(this); controls.setText(R.string.core_controls); controls.setPadding(0, dp(8), 0, 0); body.addView(controls);
+      final android.content.SharedPreferences input = getSharedPreferences(CoreActivity.INPUT_PREFS, MODE_PRIVATE);
+      CheckBox swap = new CheckBox(this); swap.setText(R.string.core_swap_face);
+      swap.setChecked(input.getBoolean(CoreActivity.SWAP_FACE, false));
+      swap.setOnCheckedChangeListener((v, on) -> input.edit().putBoolean(CoreActivity.SWAP_FACE, on).apply());
+      body.addView(swap);
+    }
     // The room browser opens the app's own game modules; the core mode has none.
     Button browse = button(body, getString(R.string.launch_rooms), () -> {
       roomBrowser.setVisibility(roomBrowser.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);

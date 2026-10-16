@@ -3,6 +3,8 @@
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
+    <!-- the core mode passes the game's rumble to the device's vibrator -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <application android:name=".Re4Application" android:label="@string/app_label" android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher"
         android:banner="@drawable/tv_banner"
