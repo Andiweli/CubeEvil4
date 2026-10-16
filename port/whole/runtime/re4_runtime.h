@@ -137,8 +137,9 @@ int re4_audio_read(short* out, int frames);
 int re4_audio_take(short* out, int frames);
 void re4_audio_stats(unsigned* blocks, unsigned* fill, unsigned* overruns, unsigned* underruns,
                      unsigned* skips);
-/* The DSP (dsp.cpp): command lists run, voice milliseconds mixed. */
-void re4_dsp_stats(unsigned* lists, unsigned* voiceMs);
+/* The DSP (dsp.cpp): command lists run, voice milliseconds mixed, the most
+ * voices running in one frame since the last call. */
+void re4_dsp_stats(unsigned* lists, unsigned* voiceMs, unsigned* peakVoices);
 
 /* Interrupts (vi.cpp). re4_interrupt_point delivers the retraces that are due
  * (cheap when none is); re4_os_idle / re4_wait_interrupt wait for the next one. */

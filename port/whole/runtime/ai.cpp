@@ -30,6 +30,9 @@ namespace {
 typedef unsigned int u32;
 typedef void (*AIDCallback)(void);
 
+extern "C" u32 AXGetDspCycles(void);
+extern "C" u32 AXGetMaxDspCycles(void);
+
 const u32 kBlockFrames = 160;   // 5 ms at 32 kHz
 const u32 kRing = 1 << 14;      // frames (512 ms), a power of two
 const u32 kTarget = 1920;       // frames the reader keeps (60 ms)
@@ -44,6 +47,8 @@ u32 gPlayAddr, gPlayLength;     // the block the AI plays now
 u32 gDspRate = 1;               // AI_SAMPLERATE_32KHZ (0 = 48 kHz)
 u32 gFieldAccumulator;
 u32 gBlocks;
+u32 gPeakCycles;                // AX's highest DSP estimate since the last log line
+u32 gOverBudget;                // blocks in which AX stopped voices over its budget
 
 // the ring: interleaved left/right, written by the game thread, read by the app
 int16_t gRing[kRing * 2];
@@ -134,16 +139,26 @@ void tick()
     play(gPlayAddr, gPlayLength);
     gBlocks++;
     if (gBlocks % 2000 == 0) {  // every 10 s
-        unsigned lists, voiceMs;
-        re4_dsp_stats(&lists, &voiceMs);
+        unsigned lists, voiceMs, peak;
+        re4_dsp_stats(&lists, &voiceMs, &peak);
         static unsigned lastVoiceMs;
-        re4_log("audio: %u blocks, %u ms waiting, %u lost, %u ran dry, %u skips; DSP %u lists, %.1f voices",
+        re4_log("audio: %u blocks, %u ms waiting, %u lost, %u ran dry, %u skips; DSP %u lists, %.1f voices "
+                "(at most %u), AX estimate at most %u of %u cycles, %u blocks over",
                 gBlocks, (gWrite.load() - gRead.load()) / 32, gOverruns.load(), gUnderruns.load(),
-                gSkips.load(), lists, (voiceMs - lastVoiceMs) / 10000.0);
+                gSkips.load(), lists, (voiceMs - lastVoiceMs) / 10000.0, peak, gPeakCycles,
+                AXGetMaxDspCycles(), gOverBudget);
         lastVoiceMs = voiceMs;
+        gPeakCycles = 0;
     }
     if (gCallback) {
         gCallback();
+        // AX's estimate of the DSP's work for this frame (__AXSyncPBs): at or
+        // over its budget it stopped voices (runtime/dsp.cpp DSPAddTask)
+        const u32 cycles = AXGetDspCycles();
+        gPeakCycles = cycles > gPeakCycles ? cycles : gPeakCycles;
+        if (AXGetMaxDspCycles() && cycles >= AXGetMaxDspCycles()) {
+            gOverBudget++;
+        }
     }
     // the DVD reads and ARAM DMAs the driver started finish before the next block
     re4_os_run_deferred();

@@ -37,6 +37,7 @@
 #include "re4_runtime.h"
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 namespace {
@@ -326,13 +327,20 @@ void voice(AXPB& pb)
 }
 
 // ----------------------------------------------------- 0x03: the voice list
+u32 gPeakVoices;  // most voices running at the start of a frame since the last stats
+
 void process(u32 first)
 {
     int guard = 0;
+    u32 running = 0;
     for (u32 a = first; a && guard < AX_MAX_VOICES; guard++) {
         AXPB& pb = *ptr<AXPB>(a);
+        running += pb.state == 1;
         voice(pb);
         a = hilo(pb.nextHi, pb.nextLo);
+    }
+    if (running > gPeakVoices) {
+        gPeakVoices = running;
     }
 }
 
@@ -477,12 +485,14 @@ void run(const u16* p)
 
 extern "C" {
 
-// For the overlay and tests: command lists run so far, voice milliseconds
-// mixed so far.
-void re4_dsp_stats(unsigned* lists, unsigned* voiceMs)
+// For the log and tests: command lists run so far, voice milliseconds mixed
+// so far, the most voices running in one frame since the last call.
+void re4_dsp_stats(unsigned* lists, unsigned* voiceMs, unsigned* peakVoices)
 {
     *lists = gLists;
     *voiceMs = gVoiceMs;
+    *peakVoices = gPeakVoices;
+    gPeakVoices = 0;
 }
 
 void DSPInit(void)
@@ -549,12 +559,27 @@ void DSPSendMailToDSP(u32 mail)
 }
 
 // The task boots at once: its init callback (AXOut.c waits for it).
+//
+// AX's own budget for the DSP: __AXSyncPBs adds up an estimate of the DSP
+// cycles of every running voice (rate conversion, buses, ramps) and stops the
+// voices past OS_BUS_CLOCK / 400 (405000 cycles, what the GameCube's DSP does
+// in 5 ms), newest first within a priority; the sound driver then reports
+// "ISS Voice Drop" and a sound breaks off. This DSP has no such limit (all 64
+// voices with every bus take a few percent of one CPU core), so it gives AX
+// four times the cycles, more than 64 voices can need; RE4_DSP_ORIGINAL_LIMIT=1
+// keeps the GameCube's.
 DSPTaskInfo* DSPAddTask(DSPTaskInfo* task)
 {
     gTask = task;
     task->state = 1;
     if (task->init_cb) {
         task->init_cb(task);
+    }
+    const char* original = getenv("RE4_DSP_ORIGINAL_LIMIT");
+    if (!(original && *original && *original != '0')) {
+        const u32 gamecube = AXGetMaxDspCycles();
+        AXSetMaxDspCycles(gamecube * 4);
+        re4_log("dsp: AX may use %u DSP cycles per frame (the GameCube's DSP: %u)", gamecube * 4, gamecube);
     }
     return task;
 }

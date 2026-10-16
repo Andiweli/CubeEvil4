@@ -17,7 +17,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | K2 „Kern in die App“ (M6) | ✅ 16.10.2026 (Retroid): ARM32-App mit den Kern-Bibliotheken, Titel, r100, r101, Untermenüs und Karte spielbar; Abschluss und offene Punkte: „Abschluss M6/M6b“ |
 | M6b GX nachbilden (`gx-plan.md`) | ✅ 16.10.2026 (Retroid): das Bild kommt aus der GX-Nachbildung (Logos, Titel, Räume, Figuren, Effekte, Menüs, Anzeigen); r100 und r101 flüssig bei etwa 1080p (`-Scale 3`) |
 | M7 Steuerung | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m7-steuerung`): alle Tasten, Sticks und L2/R2 kommen als GameCube-Controller an (Original-`PADClamp`, Belegung nach Beschriftung), Menüs bedienbar, Vibration spürbar; Touch später („M7 Steuerung“) |
-| M8 Audio | 🔶 16.10.2026: Cloud-Teil (Branch `claude/re4-m8-audio`): SDK-Ton unverändert auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; Gerätetest steht aus („M8 Audio“) |
+| M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Lauf von 8b („M8 Audio“) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -2111,8 +2111,37 @@ Vibration funktioniert.
 | `whole_build.sh` i686 und armhf (qemu), normal und `RE4_OPT=2` | grün, 27 Platzhalter |
 | native App-Bibliothek (`re4decomp_link_check`), Java gegen nachgebildete Android-Klassen | linkt, 11 JNI-Namen passen; übersetzt |
 
-Nicht geprüft: Ton mit echten Disc-Daten (PC-Prüfung oder Gerät), Klang,
-Lautstärke, Latenz, Rechenzeit auf dem Retroid.
+Nicht geprüft (Stand dieses Abschnitts): Ton mit echten Disc-Daten, Klang,
+Lautstärke, Latenz, Rechenzeit auf dem Retroid; siehe Gerätelauf unten.
+
+### Erster Gerätelauf mit Ton (16.10.2026, Retroid, Stand `34b60a3`)
+
+`test-core-app.ps1 -Manual -Seconds 900 -Scale 3 -AudioWav 60`, etwa 360 s
+(Titel, Intro, r100, r101, Untermenüs, Treffer, Soft-Reset). Laut
+Projektinhaber klingt alles sauber und plausibel; nur der Schuss von Leons
+Waffe bricht vereinzelt ab.
+
+- **Ausgabe:** 70 000 Blöcke (350 s Spielzeit), 0 verloren, 12 Aussetzer,
+  40–76 ms im Ring; AudioTrack 32 kHz mit 2568 Frames Puffer (80 ms), also
+  etwa 120–160 ms vom Mischen bis zum Lautsprecher (nicht beanstandet; kürzer
+  machen: M11). WAV der ersten 60 s (Titel, Intro): Pegel bis −0,5 dBFS,
+  nichts übersteuert. Kern weiter 33,4 ms je Bild.
+- **Abbrüche:** 116 × „ISS Voice Drop“ (der Rückruf des Tontreibers, wenn AX
+  eine Stimme wegnimmt), gehäuft im Kampf. Ursache: das Budget von AX für den
+  DSP (`__AXSyncPBs`): AX schätzt die DSP-Takte jeder laufenden Stimme
+  (Umsetzung, Busse, Rampen) und stoppt alles über `OS_BUS_CLOCK / 400`
+  (405 000 Takte, was der DSP des GameCube in 5 ms schafft), innerhalb einer
+  Priorität zuerst die älteren Stimmen, also z. B. den ausklingenden Schuss
+  neben neuen Geräuschen. Auf dem GameCube ist das dieselbe Grenze; der
+  nachgebaute DSP hat sie nicht.
+- **Behoben:** `dsp.cpp` gibt AX beim Start des DSP-Programms das Vierfache
+  (1 620 000 Takte, mehr als 64 Stimmen auf allen Bussen brauchen);
+  `RE4_DSP_ORIGINAL_LIMIT=1` behält die Grenze des GameCube. Kern-Test „ax“:
+  40 Stimmen auf allen Bussen mit Rampen bleiben, mit 405 000 Takten stoppt
+  AX welche. Die Protokollzeile „audio: …“ nennt jetzt auch die meisten
+  gleichzeitig laufenden Stimmen, die höchste Schätzung von AX und die Blöcke
+  über dem Budget; der Bericht von `test-core-app.ps1` zählt „ISS Voice
+  Drop“. Auf dem Gerät nicht getestet.
 
 ## Aufbau
 

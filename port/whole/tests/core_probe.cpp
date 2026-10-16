@@ -644,6 +644,38 @@ extern "C" int re4probe_ax_test(void)
     AXFreeVoice(p);
     axRun(4, out, 640);
 
+    // AX's DSP budget (dsp.cpp DSPAddTask): 40 voices on every bus with ramps
+    // stay; with the GameCube's 405000 cycles AX stops some of them
+    AX_CHECK(AXGetMaxDspCycles() == 4 * 405000);
+    {
+        static AXVPB* many[40];
+        AXPBMIX all;
+        memset(&all, 0xFF, sizeof(all));
+        for (int round = 0; round < 2; round++) {
+            gAxDrops = 0;
+            for (int i = 0; i < 40; i++) {
+                many[i] = AXAcquireVoice(20, axDrop, 0);
+                pcmVoice(many[i], 0x20000, 4000, 0x8000, 0x8000, 0);
+                AXSetVoiceSrcType(many[i], AX_SRC_TYPE_4TAP_16K);
+                AXSetVoiceSrcRatio(many[i], 1.5f);
+                AXSetVoiceMix(many[i], &all);
+                AXSetVoiceState(many[i], 1);
+            }
+            axRun(3, out, 480);
+            AX_CHECK(round == 0 ? gAxDrops == 0 : gAxDrops > 0);
+            for (int i = 0; i < 40; i++) {
+                if (many[i]->priority != 0 && many[i]->callback == (void (*)(void*)) axDrop) {
+                    AXSetVoiceState(many[i], 0);
+                    AXFreeVoice(many[i]);
+                }
+            }
+            axRun(4, out, 640);
+            AXSetMaxDspCycles(405000);  // round 2: the GameCube's budget
+        }
+        AXSetMaxDspCycles(4 * 405000);
+        gAxDrops = 0;
+    }
+
     // the AI clock: 200 blocks per second of video fields
     unsigned before = re4_ai_blocks();
     for (int i = 0; i < 60; i++) {

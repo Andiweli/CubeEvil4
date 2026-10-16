@@ -615,6 +615,10 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # the sound (milestone 8): the core's counters every 10 s, the app's output, the WAV
     $sound = $keep | Where-Object { $_ -match 're4\s*: audio: \d+ blocks' } | Select-Object -Last 1
     Say "Ton (Kern, zuletzt):              $(if ($sound) { ($sound -split 'audio: ')[-1] } else { 'keine Tonbloecke im Protokoll' })"
+    # sounds the driver lost (AX stopped their voice: over its DSP budget or taken by another)
+    $drops = @($keep | Where-Object { $_ -match 'ISS Voice Drop' })
+    $limit = $keep | Where-Object { $_ -match 'dsp: AX may use' } | Select-Object -First 1
+    Say "Abgebrochene Toene (Voice Drop):  $($drops.Count)$(if ($limit) { ' (' + (($limit -split 'dsp: ')[-1]) + ')' })"
     $output = $keep | Where-Object { $_ -match 'RE4Audio\s*: sound' } | Select-Object -First 1
     Say "Tonausgabe der App:               $(if ($output) { ($output -split 'RE4Audio\s*:\s*')[-1] } else { 'NICHT gestartet' })"
     $wav = Join-Path $OutDir 'ton.wav'

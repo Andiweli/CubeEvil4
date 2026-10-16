@@ -116,8 +116,8 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
    offene Grafikfehler in der Status-Datei)
 7. ✅ Steuerung: Retroid-Tasten wie der GameCube-Controller, Vibration
    (Retroid, 16.10.2026; Touch später)
-8. Audio (SDK-Tonbibliotheken aus `src/lib/` unverändert, DSP/AI nachgebaut;
-   CRI-ADX gehört zu den Filmen)
+8. ✅ Audio: SDK-Tonbibliotheken aus `src/lib/` unverändert, DSP/AI nachgebaut
+   (Retroid, 16.10.2026; CRI-ADX gehört zu den Filmen)
 8b. Raum-Rundgang: viele Räume per Raumauswahl anspielen, Abstürze und
    Grafikfehler sammeln (Entscheidung des Projektinhabers, 16.10.2026: sobald
    Ton da ist)
