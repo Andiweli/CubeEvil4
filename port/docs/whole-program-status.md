@@ -1545,6 +1545,29 @@ und der gelbe Kartenrahmen, dann bleibt das Bild schwarz; B schließt nicht.
   sich schließen lässt, zeigt erst der Gerätelauf oder die PC-Prüfung
   („Untermenüs“, „Karte offen“).
 
+### Neunter PC-Lauf (16.10.2026, WSL2, Stand `c6cd51f`)
+
+- **Karte:** geöffnet mit Z bei Bild 3074, mit B bei 3355 wieder
+  geschlossen; das GX-Bild der offenen Karte (Bild 3244) hat 135 Aufträge,
+  4 286 Dreiecke und 28 Texturen (vorher auf dem Gerät: 5 Aufträge, schwarz).
+  Mit dem Umwandler `convertMapRoom` öffnet und schließt die Karte also am
+  PC; auf dem Gerät nicht geprüft.
+- **Formatvergleich:** 155 Dateien ohne Fehler; die 18 `SS/cmn/map_obj*.dat`
+  fehlten („kein DVD-Container mit Archiv an 0x400“): ihr Archiv ist der
+  erste Teil der Kopftabelle, nicht der zweite wie bei `.drs`. Der Vergleich
+  nimmt jetzt ersatzweise den ersten Hauptspeicher-Teil (`drsBody`), geprüft
+  mit einem synthetischen Container dieses Aufbaus.
+- **Soft-Reset (Tod → „nicht weiterspielen“) hängt (Patch 0045):** Stillstand
+  nach `--SOFT_RESET START!!`; der laufende Kontext stand in
+  `SndSoftReset` → `Snd_iss_control` → `Snd_dev_voice_ck`. `SndSoftReset`
+  wartet in einer leeren Schleife, bis die Ton-Abspieler im Audio-Interrupt
+  den Reset bestätigen (`Snd_soft_reset_ck`). Der Port liefert Interrupts
+  nur an Wartepunkten aus; in dieser Schleife gab es keinen. Patch 0045 ruft
+  darin `re4_wait_interrupt()` auf (wie Patch 0012 für die VSync-Schleife).
+  Das erklärt den schwarzen Bildschirm auf dem Gerät nach dem Tod
+  (`systemSoftReset` schaltet vorher auf Schwarz). Ob danach der Titel
+  zurückkommt, zeigt der nächste PC-Lauf („Titel nach dem Soft-Reset“).
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1714,6 +1737,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0042 `src/lib/GXGeometry.c` | `GXSetCullMode` übernimmt das Ergebnis von `__rlwimi` (`hwMode = __rlwimi(...)`): MWCC fügt bei diesem Befehl in den ersten Operanden ein, die C-Fassung des Ports gibt das Ergebnis zurück und die Zeile verwarf es. Aus `GX_CULL_FRONT` (Standard aller Modelle) wurde „keine Rückseiten weglassen“: alles wurde beidseitig gezeichnet, die Doppelschichten von Leons Haar verdeckten sich gegenseitig (dunkle Flecken) |
 | 0043 `title.cpp` | Das Debug-Startmenü nach „New Game“ (`titleExit`, Raumauswahl) meldet sich bei der Laufzeit an (`re4_title_room_menu`, runtime/dolphin_os.cpp): solange es offen ist, lässt die Debug-Anzeigen-Sperre der App (`RE4_DEBUG_HUD=0`) `debug_mode` mindestens 1, damit seine Zeilen (Debug-Text) zu sehen sind; `RE4_ROOM_MENU=0` überspringt es wie ein sofortiges A |
 | 0044 `cam_ctrl.cpp` | `CameraControl::roomInit` füllt den Platz für Kamera-Objekte (`m_Free`, Muster 9) vor `Check()` statt danach: `Check()` kann dort die Fall-Kamera bauen, deren vtable-Zeiger das Füllen sonst überschrieb; der nächste Kamera-Schnitt (`switchCamera` → `delete m_pProc`) stürzte ab (Direktstart von r100, Totenköpfe untersuchen) |
+| 0045 `snd.cpp` | `SndSoftReset` wartet auf die Bestätigung des Ton-Resets durch die Abspieler im Audio-Interrupt; die Warteschleife ruft `re4_wait_interrupt()` (runtime/vi.cpp), damit der Port die Interrupts ausliefert (vorher Stillstand beim Soft-Reset nach dem Tod, schwarzer Bildschirm) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

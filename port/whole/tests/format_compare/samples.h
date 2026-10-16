@@ -587,6 +587,19 @@ inline Bytes makeDrs(const Bytes& archive)
     return d.b;
 }
 
+// A DVD container whose first part is the archive (SS/cmn/map_objNN.dat):
+// one main-memory entry, then the end of the table.
+inline Bytes makeSinglePart(const Bytes& archive)
+{
+    Be d;
+    d.zeros(0x400);
+    d.put32(0x04, std::uint32_t(archive.size()));
+    d.put32(0x0C, 0x400);
+    d.put32(0x20, 0xFFFFFFFFu);
+    d.append(archive);
+    return d.b;
+}
+
 }  // namespace re4samples
 
 #endif

@@ -1,0 +1,20 @@
+--- a/src/game/snd.cpp
++++ b/src/game/snd.cpp
+@@ -2259,12 +2259,17 @@
+     SndSePause(sw, -1);
+ }
+ 
++extern "C" void re4_wait_interrupt(void); /* port: runtime/vi.cpp */
++
+ // Soft reset of the driver: waits for the reset to complete, reverb off.
+ void SndSoftReset()
+ {
+     Snd_soft_reset_req();
+     while (Snd_soft_reset_ck() != 0) {
+         Snd_iss_control();
++        /* port: the audio-frame players that acknowledge the reset run in the
++           AX interrupt, delivered while the CPU waits (runtime/vi.cpp) */
++        re4_wait_interrupt();
+     }
+     Snd_efx_req(0, 0);
+ }
