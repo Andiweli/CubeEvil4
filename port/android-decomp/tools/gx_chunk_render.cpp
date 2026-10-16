@@ -21,6 +21,7 @@
 #include <GLES3/gl3.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
@@ -120,6 +121,12 @@ int main(int argc, char **argv) {
                 s.triangles - before.triangles, s.textures - before.textures, s.textureCopies - before.textureCopies,
                 s.programs, s.missingTextures > before.missingTextures ? ", fehlende Texturen" : "",
                 s.shaderErrors > before.shaderErrors ? ", FEHLER: Shader" : "");
+    if (std::getenv("RE4_GX_WORK"))
+      std::printf("  GL-Arbeit: %u Uniform-Uploads (%u KB), %u Programmwechsel, %u Textur-/Sampler-Bindungen, "
+                  "%u Zustandswechsel, %u Attribut-Einrichtungen\n",
+                  s.uniformUploads - before.uniformUploads, (s.uniformBytes - before.uniformBytes) / 1024,
+                  s.programSwitches - before.programSwitches, s.textureBinds - before.textureBinds,
+                  s.stateChanges - before.stateChanges, s.attributeSetups - before.attributeSetups);
     if (s.shaderErrors > before.shaderErrors)
       failures++;
     if (xfb && w && h) {
@@ -137,6 +144,13 @@ int main(int argc, char **argv) {
         std::fclose(p);
       }
     }
+  }
+  if (renderer && std::getenv("RE4_GX_WORK")) {
+    glFinish();
+    const re4gx::GxStats &s = renderer->Stats();
+    if (s.gpuTimed)
+      std::printf("GPU-Zeit (Timer-Abfrage): %.1f ms je Bildstück aus %u Messungen\n",
+                  s.gpuMicros / 1000.0 / s.gpuTimed, s.gpuTimed);
   }
   if (renderer)
     renderer->Release();

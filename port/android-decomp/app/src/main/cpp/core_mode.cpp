@@ -114,6 +114,7 @@ unsigned gxChunks = 0;
 std::chrono::steady_clock::time_point gxSince;
 double gxRunMs = 0, gxRunMax = 0;
 unsigned gxRunCount = 0, gxFrames = 0, gxDraws = 0;
+re4gx::GxStats gxWork;  // the counters at the last log line
 // GX dumps for the diagnosis (RE4_GX_DUMP_DIR); -1: settings not read yet
 int gxDumpEvery = -1;
 std::string gxDumpDir;
@@ -260,6 +261,20 @@ bool drawGx() {
           s.chunks, s.draws, gxRunCount ? (s.draws - gxDraws) / gxRunCount : 0, gxRunCount ? gxRunMs / gxRunCount : 0.0,
           gxRunMax, seconds > 0 ? gxFrames / seconds : 0.0, s.programs, s.textures, s.textureCopies, s.heldCopies,
           s.missingTextures, s.shaderErrors, s.dstAlphaApprox, s.programsLoaded, gx->BaseVertex() ? "yes" : "no");
+      // the GL work per chunk since the last line, and the GPU time when the driver measures it
+      if (gxRunCount) {
+        const double n = gxRunCount;
+        const unsigned timed = s.gpuTimed - gxWork.gpuTimed;
+        char gpu[32] = "not measured";
+        if (timed)
+          std::snprintf(gpu, sizeof(gpu), "%.1f ms", (s.gpuMicros - gxWork.gpuMicros) / 1000.0 / timed);
+        LOG("GX work per chunk: %.0f uniform uploads (%.0f KB), %.0f program switches, %.0f texture binds, "
+            "%.0f state changes, %u stream waits, GPU %s",
+            (s.uniformUploads - gxWork.uniformUploads) / n, (s.uniformBytes - gxWork.uniformBytes) / n / 1024.0,
+            (s.programSwitches - gxWork.programSwitches) / n, (s.textureBinds - gxWork.textureBinds) / n,
+            (s.stateChanges - gxWork.stateChanges) / n, s.streamWaits - gxWork.streamWaits, gpu);
+      }
+      gxWork = s;
       gxDraws = s.draws;
       gxRunMs = gxRunMax = 0;
       gxRunCount = gxFrames = 0;

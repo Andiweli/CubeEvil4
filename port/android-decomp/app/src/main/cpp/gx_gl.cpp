@@ -14,6 +14,19 @@
 
 #include <dlfcn.h>
 
+#ifndef GL_MAP_PERSISTENT_BIT_EXT
+#define GL_MAP_PERSISTENT_BIT_EXT 0x0040
+#endif
+#ifndef GL_MAP_COHERENT_BIT_EXT
+#define GL_MAP_COHERENT_BIT_EXT 0x0080
+#endif
+#ifndef GL_TIME_ELAPSED_EXT
+#define GL_TIME_ELAPSED_EXT 0x88BF
+#endif
+#ifndef GL_GPU_DISJOINT_EXT
+#define GL_GPU_DISJOINT_EXT 0x8FBB
+#endif
+
 #ifdef __ANDROID__
 #include <android/log.h>
 #define GXLOG(...) __android_log_print(ANDROID_LOG_INFO, "RE4GX", __VA_ARGS__)
@@ -251,6 +264,185 @@ struct GxRenderer::Impl {
     GLuint id = 0;
     unsigned width = 1, height = 1, levels = 1;
   } bound[8];
+
+  // --- uniform stream ------------------------------------------------------
+  // Every changed XF or PX block goes to a fresh place of one big buffer and is
+  // bound there (glBindBufferRange), as Dolphin does: the driver never has to
+  // update a block the GPU still reads. glBufferSubData on the two small
+  // blocks did that about 1200 times in a village frame (r101); mobile drivers
+  // copy the whole buffer for each such update. Persistent mapping
+  // (EXT_buffer_storage) when the driver has it, else an unsynchronised map per
+  // block; a fence guards each quarter of the ring before it is written again.
+  // RE4_GX_UNIFORM_STREAM=0: the two small buffers as before.
+  static constexpr unsigned kStreamParts = 4;
+  static constexpr std::size_t kStreamPart = std::size_t(4) << 20;
+  GLuint stream = 0;
+  std::uint8_t *streamMap = nullptr; // persistent mapping (null: a map per block)
+  std::size_t streamPos = 0, streamAlign = 256;
+  unsigned streamPart = 0;
+  GLsync streamFence[kStreamParts] = {};
+
+  // Room for `bytes` in the stream: its offset.
+  std::size_t StreamAlloc(std::size_t bytes) {
+    std::size_t at = (streamPos + streamAlign - 1) / streamAlign * streamAlign;
+    if (at + bytes > (streamPart + 1) * kStreamPart) {
+      // the next quarter, once the GPU is done with what used it last
+      streamFence[streamPart] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+      streamPart = (streamPart + 1) % kStreamParts;
+      if (GLsync fence = streamFence[streamPart]) {
+        if (glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, 0) == GL_TIMEOUT_EXPIRED) {
+          stats.streamWaits++;
+          glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, 2000000000ull);
+        }
+        glDeleteSync(fence);
+        streamFence[streamPart] = nullptr;
+      }
+      at = streamPart * kStreamPart;
+    }
+    streamPos = at + bytes;
+    return at;
+  }
+
+  // A uniform block to its binding: in the stream, or into the small buffer.
+  void UploadBlock(GLuint binding, GLuint buffer, const void *data, std::size_t offset, std::size_t bytes,
+                   std::size_t blockBytes) {
+    stats.uniformUploads++;
+    if (!stream) {
+      glBindBuffer(GL_UNIFORM_BUFFER, buffer);
+      glBufferSubData(GL_UNIFORM_BUFFER, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(bytes),
+                      static_cast<const std::uint8_t *>(data) + offset);
+      stats.uniformBytes += static_cast<unsigned>(bytes);
+      return;
+    }
+    // the stream holds whole blocks
+    const std::size_t at = StreamAlloc(blockBytes);
+    if (streamMap) {
+      std::memcpy(streamMap + at, data, blockBytes);
+    } else {
+      glBindBuffer(GL_UNIFORM_BUFFER, stream);
+      void *dst = glMapBufferRange(GL_UNIFORM_BUFFER, static_cast<GLintptr>(at), static_cast<GLsizeiptr>(blockBytes),
+                                   GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+      if (dst) {
+        std::memcpy(dst, data, blockBytes);
+        glUnmapBuffer(GL_UNIFORM_BUFFER);
+      } else {
+        glBufferSubData(GL_UNIFORM_BUFFER, static_cast<GLintptr>(at), static_cast<GLsizeiptr>(blockBytes), data);
+      }
+    }
+    glBindBufferRange(GL_UNIFORM_BUFFER, binding, stream, static_cast<GLintptr>(at),
+                      static_cast<GLsizeiptr>(blockBytes));
+    stats.uniformBytes += static_cast<unsigned>(blockBytes);
+  }
+
+  void StreamInit() {
+    const char *off = std::getenv("RE4_GX_UNIFORM_STREAM");
+    if (off && *off == '0')
+      return;
+    GLint align = 0;
+    glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &align);
+    streamAlign = static_cast<std::size_t>(std::max(16, align));
+    const std::size_t size = kStreamParts * kStreamPart;
+    glGenBuffers(1, &stream);
+    glBindBuffer(GL_UNIFORM_BUFFER, stream);
+    const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+    using BufferStorage = void (*)(GLenum, GLsizeiptr, const void *, GLbitfield);
+    BufferStorage storage = nullptr;
+    if (ext && std::strstr(ext, "GL_EXT_buffer_storage")) {
+      storage = reinterpret_cast<BufferStorage>(dlsym(RTLD_DEFAULT, "glBufferStorageEXT"));
+      // not exported by every GLES library: then through EGL (loaded with the context)
+      using GetProc = void *(*)(const char *);
+      if (!storage)
+        if (auto get = reinterpret_cast<GetProc>(dlsym(RTLD_DEFAULT, "eglGetProcAddress")))
+          storage = reinterpret_cast<BufferStorage>(get("glBufferStorageEXT"));
+    }
+    const char *persistent = std::getenv("RE4_GX_PERSISTENT");
+    if (storage && !(persistent && *persistent == '0')) {
+      const GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT_EXT | GL_MAP_COHERENT_BIT_EXT;
+      storage(GL_UNIFORM_BUFFER, static_cast<GLsizeiptr>(size), nullptr, flags);
+      streamMap = static_cast<std::uint8_t *>(glMapBufferRange(GL_UNIFORM_BUFFER, 0, static_cast<GLsizeiptr>(size), flags));
+    }
+    if (!streamMap) {
+      glDeleteBuffers(1, &stream);
+      glGenBuffers(1, &stream);
+      glBindBuffer(GL_UNIFORM_BUFFER, stream);
+      glBufferData(GL_UNIFORM_BUFFER, static_cast<GLsizeiptr>(size), nullptr, GL_DYNAMIC_DRAW);
+    }
+    GXLOG("GX uniform stream: %u MB, %s, offsets aligned to %u", static_cast<unsigned>(size >> 20),
+          streamMap ? "persistent mapping" : "a map per block", static_cast<unsigned>(streamAlign));
+  }
+
+  void StreamRelease() {
+    for (GLsync &f : streamFence) {
+      if (f)
+        glDeleteSync(f);
+      f = nullptr;
+    }
+    if (stream) {
+      if (streamMap) {
+        glBindBuffer(GL_UNIFORM_BUFFER, stream);
+        glUnmapBuffer(GL_UNIFORM_BUFFER);
+      }
+      glDeleteBuffers(1, &stream);
+    }
+    stream = 0;
+    streamMap = nullptr;
+  }
+
+  // --- GPU time of each chunk (EXT_disjoint_timer_query) -----------------------
+  static constexpr int kTimerQueries = 4;
+  GLuint timerQuery[kTimerQueries] = {};
+  bool timerPending[kTimerQueries] = {};
+  int timerNext = 0;
+  bool timerOn = false;
+
+  void TimerInit() {
+    const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+    timerOn = ext && std::strstr(ext, "GL_EXT_disjoint_timer_query");
+    if (timerOn)
+      glGenQueries(kTimerQueries, timerQuery);
+  }
+
+  // Results that are ready go to the stats; then the query of this chunk starts.
+  void TimerBegin() {
+    if (!timerOn)
+      return;
+    GLint disjoint = 0;
+    glGetIntegerv(GL_GPU_DISJOINT_EXT, &disjoint);
+    for (int i = 0; i < kTimerQueries; i++) {
+      if (!timerPending[i])
+        continue;
+      GLuint ready = 0;
+      glGetQueryObjectuiv(timerQuery[i], GL_QUERY_RESULT_AVAILABLE, &ready);
+      if (!ready)
+        continue;
+      GLuint ns = 0;
+      glGetQueryObjectuiv(timerQuery[i], GL_QUERY_RESULT, &ns);
+      timerPending[i] = false;
+      if (!disjoint) {
+        stats.gpuMicros += ns / 1000;
+        stats.gpuTimed++;
+      }
+    }
+    if (timerPending[timerNext]) {
+      timerNext = -1; // all still running: this chunk is not timed
+      return;
+    }
+    glBeginQuery(GL_TIME_ELAPSED_EXT, timerQuery[timerNext]);
+  }
+
+  void TimerEnd() {
+    if (!timerOn)
+      return;
+    if (timerNext >= 0) {
+      glEndQuery(GL_TIME_ELAPSED_EXT);
+      timerPending[timerNext] = true;
+    }
+    timerNext = 0;
+    while (timerNext < kTimerQueries && timerPending[timerNext])
+      timerNext++;
+    if (timerNext == kTimerQueries)
+      timerNext = 0;
+  }
 
   // per-draw caches
   const Program *current = nullptr;
@@ -585,6 +777,7 @@ struct GxRenderer::Impl {
       return;
     std::memcpy(stateSig, sig, sizeof(sig));
     stateValid = true;
+    stats.stateChanges++;
     glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
     glViewport(0, 0, kEfbWidth * scale, kEfbHeight * scale);
     // scissor: registers in EFB pixels + 342, minus the scissor offset (BP 0x59, in 2 pixels)
@@ -905,9 +1098,8 @@ struct GxRenderer::Impl {
     if (xfRegsDirty)
       FillXfRegs();
     if (dirtyLo < dirtyHi) {
-      glBindBuffer(GL_UNIFORM_BUFFER, xfUbo);
-      glBufferSubData(GL_UNIFORM_BUFFER, dirtyLo * 16, (dirtyHi - dirtyLo) * 16,
-                      reinterpret_cast<const std::uint8_t *>(&xf) + dirtyLo * 16);
+      UploadBlock(kXfBinding, xfUbo, &xf, static_cast<std::size_t>(dirtyLo) * 16,
+                  static_cast<std::size_t>(dirtyHi - dirtyLo) * 16, sizeof(XfBlock));
       dirtyLo = static_cast<int>(sizeof(XfBlock) / 16);
       dirtyHi = 0;
     }
@@ -915,8 +1107,7 @@ struct GxRenderer::Impl {
       FillPixel(k);
       pxDirty = false;
       if (!pxValid || std::memcmp(&px, &pxSent, sizeof(px)) != 0) {
-        glBindBuffer(GL_UNIFORM_BUFFER, pxUbo);
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PixelBlock), &px);
+        UploadBlock(kPixelBinding, pxUbo, &px, 0, sizeof(PixelBlock), sizeof(PixelBlock));
         pxSent = px;
         pxValid = true;
       }
@@ -924,6 +1115,7 @@ struct GxRenderer::Impl {
     if (current != p) {
       glUseProgram(p->id);
       current = p;
+      stats.programSwitches++;
     }
     if (p->mtx >= 0 && (p->lastMtx[0] != d.matrices[0] || p->lastMtx[1] != d.matrices[1] ||
                         p->lastMtx[2] != d.matrices[2])) {
@@ -943,12 +1135,14 @@ struct GxRenderer::Impl {
         glActiveTexture(GL_TEXTURE0 + static_cast<GLenum>(m));
         glBindTexture(GL_TEXTURE_2D, id);
         unitTex[m] = id;
+        stats.textureBinds++;
       }
       const std::uint32_t mode0 = bp[(m < 4 ? 0x80 : 0xA0) + (m & 3)], mode1 = bp[(m < 4 ? 0x84 : 0xA4) + (m & 3)];
       const GLuint sampler = Sampler(mode0, mode1, bound[m].levels);
       if (unitSampler[m] != sampler) {
         glBindSampler(static_cast<GLuint>(m), sampler);
         unitSampler[m] = sampler;
+        stats.textureBinds++;
       }
     }
     // vertex attributes: with a base vertex the same setup serves every draw
@@ -963,8 +1157,10 @@ struct GxRenderer::Impl {
       base = d.vertexOffset % d.stride;
       baseVertex = static_cast<GLint>(d.vertexOffset / d.stride);
     }
-    if (d.layout != attribLayout || d.stride != attribStride || base != attribBase)
+    if (d.layout != attribLayout || d.stride != attribStride || base != attribBase) {
       SetAttributes(d.layout, d.stride, base);
+      stats.attributeSetups++;
+    }
     const GLenum mode = primitive == RE4_GX_LINES ? GL_LINES : primitive == RE4_GX_POINTS ? GL_POINTS : GL_TRIANGLES;
     const void *indices = reinterpret_cast<const void *>(static_cast<std::uintptr_t>(d.indexOffset) * 2);
     if (drawBaseVertex)
@@ -1316,6 +1512,8 @@ bool GxRenderer::Init(int scale, std::string *error) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
   for (auto &b : m.bound)
     b.id = m.whiteTex;
+  m.StreamInit();
+  m.TimerInit();
   return m.MakeUtilityPrograms(error);
 }
 
@@ -1343,8 +1541,17 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
   glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
   glDisable(GL_DITHER);
   glFrontFace(GL_CCW);
-  glBindBufferBase(GL_UNIFORM_BUFFER, kXfBinding, m.xfUbo);
-  glBindBufferBase(GL_UNIFORM_BUFFER, kPixelBinding, m.pxUbo);
+  if (m.stream) {
+    // both blocks again into the stream at the first draw: the places bound
+    // last may since have been written over
+    m.Dirty(0, static_cast<int>(sizeof(XfBlock) / 16));
+    m.pxDirty = true;
+    m.pxValid = false;
+  } else {
+    glBindBufferBase(GL_UNIFORM_BUFFER, kXfBinding, m.xfUbo);
+    glBindBufferBase(GL_UNIFORM_BUFFER, kPixelBinding, m.pxUbo);
+  }
+  m.TimerBegin();
   m.current = nullptr;
   std::uint32_t at = 0;
   while (at < chunk.opWords) {
@@ -1393,6 +1600,7 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
     }
     at += 1 + n;
   }
+  m.TimerEnd();
   // leave GL as the app's other renderers expect it
   glBindVertexArray(0);
   for (GLuint unit = 0; unit < 8; unit++)
@@ -1476,6 +1684,9 @@ void GxRenderer::Release() {
   glDeleteFramebuffers(2, fbos);
   const GLuint buffers[] = {m.vbo, m.ibo, m.xfUbo, m.pxUbo};
   glDeleteBuffers(4, buffers);
+  m.StreamRelease();
+  if (m.timerOn)
+    glDeleteQueries(Impl::kTimerQueries, m.timerQuery);
   const GLuint vaos[] = {m.vao, m.quadVao};
   glDeleteVertexArrays(2, vaos);
   glDeleteProgram(m.copyProgram);

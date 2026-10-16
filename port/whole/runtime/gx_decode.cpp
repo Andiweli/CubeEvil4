@@ -429,6 +429,9 @@ void dropQueueLocked()
 long long gBoundaryAt;
 long long gFrameMs, gWaitMs;
 u32 gTimedChunks;
+long long gIdleAt;                    // re4_idle_ns() at the last log line
+double gFifoBytes, gFifoVertices;     // since the last log line (FIFO: written by the CPU)
+double gListBytes;                    // display list bytes read since the last log line
 
 // A display copy ends the chunk: queue it, start the next one if a renderer
 // still takes chunks. Waits while every slot is queued or being read.
@@ -438,10 +441,17 @@ void chunkBoundary(u32 xfb, u32 width, u32 height)
     if (gBoundaryAt && gWanted.load()) {
         gFrameMs += start - gBoundaryAt;
         if (++gTimedChunks == 600) {
-            re4_log("GX core: 600 chunks, %.1f ms each, of it %.1f ms waiting for the renderer", gFrameMs / 600.0,
-                    gWaitMs / 600.0);
+            // idle: asleep for the next retrace (time to spare); what is neither is the
+            // game's own work plus this decoder
+            const long long idle = re4_idle_ns();
+            re4_log("GX core: 600 chunks, %.1f ms each, of it %.1f ms waiting for the renderer, %.1f ms idle, "
+                    "%.0f KB FIFO, %.0f KB display lists, %.0f vertices",
+                    gFrameMs / 600.0, gWaitMs / 600.0, (idle - gIdleAt) / 1e6 / 600.0, gFifoBytes / 1024.0 / 600.0,
+                    gListBytes / 1024.0 / 600.0, gFifoVertices / 600.0);
+            gIdleAt = idle;
             gTimedChunks = 0;
             gFrameMs = gWaitMs = 0;
+            gFifoBytes = gFifoVertices = gListBytes = 0;
         }
     }
     gBoundaryAt = start;
@@ -713,6 +723,7 @@ void draw(u8 op, u32 count, const u8* data, bool be)
 {
     gStats.draws++;
     gStats.vertices += count;
+    gFifoVertices += count;
     Chunk* c = chunk();
     if (!c || count == 0) {
         return;
@@ -1312,6 +1323,7 @@ void callDisplayList(u32 address, u32 size, int depth)
         return;
     }
     gStats.dlBytes += size;
+    gListBytes += size;
     bool be = true;
     auto host = gHostLists.find((uintptr_t) list);
     if (host != gHostLists.end() && host->second.size == size && hashBytes(list, size, 0) == host->second.hash) {
@@ -1463,6 +1475,7 @@ void drain()
 void feed(const uint8_t* bytes, size_t n)
 {
     gStats.bytes += (u32) n;
+    gFifoBytes += (double) n;
     gStream.insert(gStream.end(), bytes, bytes + n);
     if (gStream.size() - gRead >= gNeed) {
         drain();

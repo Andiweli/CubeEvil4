@@ -156,6 +156,9 @@ int re4_title_room_menu_open(void);
 /* Does nothing; ~cCamera hands its object here (patch 0046), so the compiler
  * cannot leave out the store of the cCamera vtable pointer before it. */
 void re4_keep_vtable(void* object);
+/* Time the game thread slept waiting for the next video retrace, in all (ns):
+ * what is left of each frame (runtime/vi.cpp). */
+long long re4_idle_ns(void);
 
 #ifdef __cplusplus
 }

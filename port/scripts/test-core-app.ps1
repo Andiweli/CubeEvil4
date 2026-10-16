@@ -47,6 +47,11 @@ dieses Skript holt pull-gx-dumps.ps1 die Aufnahmen).
 Die Speicherkarten-Abfrage beim Start entfaellt (es gibt noch keine Speicherkarte);
 die Test-Tastenfolge behaelt sie, weil ihr Zeitplan darauf abgestimmt ist.
 
+Taste P im PowerShell-Fenster misst 15 s lang, wo die Rechenzeit hingeht
+(simpleperf aus dem Android-NDK in WSL; Spielkern, Grafik-Nachbildung,
+Grafiktreiber), hoechstens dreimal; dabei weiterspielen. Ergebnis: profil-N.txt
+und die Zusammenfassung im Bericht.
+
 Das Skript prueft jede Sekunde, ob die App noch laeuft. Stuerzt sie ab, endet die
 Beobachtung sofort: das Protokoll und der Absturzbericht des Systems werden gesichert
 und die Absturzstelle in WSL mit den Bibliotheken des Kern-Builds in Funktionen und
@@ -97,6 +102,7 @@ Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyCon
 # results of an earlier run must not pass for this one's
 Get-ChildItem -LiteralPath $OutDir -Filter 'absturz-*.txt' -ErrorAction SilentlyContinue | Remove-Item
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet.zip') -ErrorAction SilentlyContinue
+Get-ChildItem -LiteralPath $OutDir -Filter 'profil-*' -ErrorAction SilentlyContinue | Remove-Item
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet') -Recurse -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'logcat.txt') -ErrorAction SilentlyContinue
 function Say([string]$Text) {
@@ -337,6 +343,59 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         & $Adb -s $Serial pull $remote (Join-Path $OutDir ('bild-{0:D3}s.png' -f $At)) | Out-Null
         & $Adb -s $Serial shell rm -f $remote
     }
+    # P: where the CPU time goes for 15 s (simpleperf of the NDK in WSL, pushed to the
+    # device once; the app is debuggable), turned into functions in WSL
+    # (port/tools/android_profile.py with the libraries of this PC's builds)
+    $script:profiles = 0
+    $script:perfReady = $false
+    function Save-Profile([int]$At) {
+        $script:profiles++
+        $n = $script:profiles
+        $wslArgs = @()
+        if ($Distro) { $wslArgs = @('-d', $Distro) }
+        $toWsl = { param($p) ((& wsl.exe @wslArgs --exec wslpath -a ($p -replace '\\', '/')) | Select-Object -First 1).Trim() }
+        $old = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            if (-not $script:perfReady) {
+                $local = Join-Path $OutDir 'simpleperf'
+                & wsl.exe @wslArgs --exec bash -c ('cp "${ANDROID_NDK_HOME:-/opt/android-ndk-r28c}/simpleperf/bin/android/arm64/simpleperf" "' + (& $toWsl $OutDir) + '/simpleperf"') 2>&1 | Out-Null
+                if (-not (Test-Path -LiteralPath $local)) {
+                    Say ("   {0,3} s: Leistungsmessung nicht moeglich (simpleperf nicht im NDK unter WSL gefunden)" -f $At)
+                    return
+                }
+                & $Adb -s $Serial push $local /data/local/tmp/re4-simpleperf 2>&1 | Out-Null
+                & $Adb -s $Serial shell chmod 755 /data/local/tmp/re4-simpleperf 2>&1 | Out-Null
+                Remove-Item -LiteralPath $local -ErrorAction SilentlyContinue
+                $script:perfReady = $true
+            }
+            Say ("   {0,3} s: Leistungsmessung {1} laeuft 15 s, bitte weiterspielen ..." -f $At, $n)
+            $perf = '/data/local/tmp/re4-perf'
+            $rec = @(& $Adb -s $Serial shell /data/local/tmp/re4-simpleperf record --app $package -e task-clock:u -f 1000 `
+                --duration 15 -o "$perf.data" 2>&1 | ForEach-Object { "$_" })
+            $rec | Set-Content -LiteralPath (Join-Path $OutDir "profil-$n-aufnahme.txt") -Encoding UTF8
+            & $Adb -s $Serial shell /data/local/tmp/re4-simpleperf report -i "$perf.data" --sort tid,dso,vaddr_in_file -n `
+                -o "$perf-roh.txt" 2>&1 | Out-Null
+            & $Adb -s $Serial shell /data/local/tmp/re4-simpleperf report -i "$perf.data" --sort tid,comm -n `
+                -o "$perf-threads.txt" 2>&1 | Out-Null
+            $raw = Join-Path $OutDir "profil-$n-roh.txt"
+            $threads = Join-Path $OutDir "profil-$n-threads.txt"
+            & $Adb -s $Serial pull "$perf-roh.txt" $raw 2>&1 | Out-Null
+            & $Adb -s $Serial pull "$perf-threads.txt" $threads 2>&1 | Out-Null
+            & $Adb -s $Serial shell rm -f "$perf.data" "$perf-roh.txt" "$perf-threads.txt" 2>&1 | Out-Null
+            if (-not ((Test-Path -LiteralPath $raw) -and (Test-Path -LiteralPath $threads))) {
+                Say "   Leistungsmessung $n fehlgeschlagen (Meldungen in profil-$n-aufnahme.txt):"
+                $rec | Select-Object -Last 5 | ForEach-Object { Say "     $_" }
+                return
+            }
+            $repoWslPath = & $toWsl ((Resolve-Path -LiteralPath $repo).Path)
+            $summary = @(& wsl.exe @wslArgs --exec python3 "$repoWslPath/port/tools/android_profile.py" (& $toWsl $raw) `
+                (& $toWsl $threads) 2>&1 | ForEach-Object { "$_" })
+            $summary | Set-Content -LiteralPath (Join-Path $OutDir "profil-$n.txt") -Encoding UTF8
+            Say "   Leistungsmessung $n fertig (profil-$n.txt):"
+            $summary | Select-Object -First 24 | ForEach-Object { Say "     $_" }
+        } finally { $ErrorActionPreference = $old }
+    }
     $clock = [Diagnostics.Stopwatch]::StartNew()
     $firstPid = ''
     $crashAt = -1
@@ -345,7 +404,10 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # pictures are still collected (Strg+C would otherwise stop the script before that)
     $keys = $false
     try { $keys = -not [Console]::IsInputRedirected; if ($keys) { [Console]::TreatControlCAsInput = $true } } catch { $keys = $false }
-    if ($keys) { Say '   Vorzeitig beenden: Taste Q druecken (Protokoll und Aufnahmen werden trotzdem geholt)' }
+    if ($keys) {
+        Say '   Vorzeitig beenden: Taste Q druecken (Protokoll und Aufnahmen werden trotzdem geholt)'
+        Say '   Leistungsmessung (15 s, hoechstens 3): Taste P druecken'
+    }
     while ($true) {
         Start-Sleep -Seconds 1
         $now = [int]$clock.Elapsed.TotalSeconds
@@ -355,6 +417,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
                 Say ("   {0,3} s: Beobachtung von Hand beendet" -f $now)
                 Save-Shot $now
                 break
+            }
+            if ($k.Key -eq 'P' -and $script:profiles -lt 3) {
+                Save-Profile $now
             }
         }
         $alive = ((& $Adb -s $Serial shell pidof $package) -join '').Trim()
@@ -446,6 +511,11 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # the core's side: game time per picture and the part spent waiting for the renderer
     $gxCore = $keep | Where-Object { $_ -match 'GX core: ' } | Select-Object -Last 1
     if ($gxCore) { Say "GX im Kern zuletzt:               $(($gxCore -split 'GX core: ')[-1])" }
+    # the GL work per picture and the GPU time (the renderer's own measurement)
+    $gxWork = $keep | Where-Object { $_ -match 'GX work per chunk: ' } | Select-Object -Last 1
+    if ($gxWork) { Say "GX-Arbeit je Bild zuletzt:        $(($gxWork -split 'GX work per chunk: ')[-1])" }
+    $gxStream = $keep | Where-Object { $_ -match 'GX uniform stream: ' } | Select-Object -First 1
+    if ($gxStream) { Say "GX-Uniform-Puffer:                $(($gxStream -split 'GX uniform stream: ')[-1])" }
     $shaderFail = @($keep | Where-Object { $_ -match 'RE4GX.*shader failed' })
     if ($shaderFail.Count) { Say "GX-Shader-FEHLER:                 $($shaderFail.Count) (Ausschnitt in logcat.txt)" }
     # R3 (picture dump): where the player stood, for checks on the PC
@@ -494,5 +564,5 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         ForEach-Object { Say "  $_" }
 }
 Say ''
-Say "Fertig. Bitte bericht.txt, logcat.txt und die Bilder (bild-*.png) aus $OutDir schicken$(if (Test-Path -LiteralPath (Join-Path $OutDir 'absturz-system.txt')) { ', dazu absturz-system.txt' })$(if (Test-Path -LiteralPath (Join-Path $OutDir 'gx-geraet.zip')) { ', dazu gx-geraet.zip' })."
+Say "Fertig. Bitte bericht.txt, logcat.txt$(if (Test-Path -LiteralPath (Join-Path $OutDir 'profil-1.txt')) { ', profil-*.txt' }) und die Bilder (bild-*.png) aus $OutDir schicken$(if (Test-Path -LiteralPath (Join-Path $OutDir 'absturz-system.txt')) { ', dazu absturz-system.txt' })$(if (Test-Path -LiteralPath (Join-Path $OutDir 'gx-geraet.zip')) { ', dazu gx-geraet.zip' })."
 [Console]::OutputEncoding = $previousEncoding

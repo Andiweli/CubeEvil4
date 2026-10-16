@@ -37,6 +37,15 @@ struct GxStats {
   unsigned missingTextures = 0;  // bound keys the renderer did not have
   unsigned shaderErrors = 0;
   unsigned dstAlphaApprox = 0;   // draws whose constant destination alpha is not 0 and not exact
+  // GL work per draw (what costs driver time): uniform block uploads and their
+  // bytes, program switches, texture and sampler binds, render state changes,
+  // vertex attribute setups
+  unsigned uniformUploads = 0, uniformBytes = 0, programSwitches = 0, textureBinds = 0, stateChanges = 0,
+           attributeSetups = 0;
+  unsigned streamWaits = 0;  // the uniform stream waited for the GPU before reusing a quarter
+  // GPU time of the chunks (EXT_disjoint_timer_query; 0 when the driver has none)
+  unsigned long long gpuMicros = 0;
+  unsigned gpuTimed = 0;
 };
 
 class GxRenderer {

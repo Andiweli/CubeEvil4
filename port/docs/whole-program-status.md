@@ -1658,6 +1658,43 @@ beim Sprung aus dem Fenster.
   der Aufnahme von Bild 3423 (Folgebilder pixelgleich, Einzelbilder wie
   vorher) und dem Link-Test der App.
 
+### Zehnter Gerätelauf (16.10.2026, Retroid, Stand `9313333`)
+
+Normaler Start, `-Scale 3`, 388 s, am Ende Tod und Soft-Reset zurück zum Titel.
+Sprung aus dem Fenster ohne Absturz (Patch 0046 auf dem Gerät bestätigt).
+
+- **FILES-Flackern:** vier R3-Folgen zu je 12 Bildern (Titel, zweimal FILES,
+  r101), alle mit `gx_chunk_render` als Folge nachgezeichnet. In den
+  FILES-Folgen ändern sich von Bild zu Bild nur Leons Animation und das
+  pulsierende „Village Files“; kein gehaltenes Bild, keine Kopien. Das
+  Bildschirmfoto des Geräts (Bild 145 s) zeigt dasselbe. Ein Flackern ist in
+  den Daten nicht zu sehen; Ursache offen (eine Beschreibung oder ein Video
+  vom Projektinhaber hilft).
+- **Leistung r101 (Dorf):** Kern 34–38,6 ms je Bild (r100: 33,4, also an
+  der 30-Bilder-Grenze), Renderer 21–36 ms je Bild bei 650–920 Aufträgen
+  (r100: 7–9 ms bei 400–550), gezeigt 27–41 Bilder/s. Die R3-Folge in r101:
+  946 Aufträge, 138 000 Dreiecke, 7,9 MB Punktdaten je Bild und rund 1 200
+  Uploads der Uniform-Blöcke (XF/PX) mit `glBufferSubData` (1,7 MB). Mobile
+  Treiber kopieren einen Puffer, den die GPU noch liest, bei jedem solchen
+  Update.
+- **Uniform-Ringpuffer (`gx_gl.cpp`):** Jeder geänderte XF- oder PX-Block
+  kommt an eine neue Stelle eines 16-MB-Puffers und wird dort mit
+  `glBindBufferRange` gebunden (wie bei Dolphin). Dauerhaft eingeblendet
+  (`EXT_buffer_storage`), sonst eine unsynchronisierte Einblendung je Block;
+  ein Fence schützt jedes Viertel vor dem Überschreiben.
+  `RE4_GX_UNIFORM_STREAM=0` schaltet zurück, `RE4_GX_PERSISTENT=0` nimmt die
+  Einblendung je Block. Alle 48 Bilder der Folgen sind in beiden Arten
+  pixelgleich zu vorher (llvmpipe).
+- **Messungen:** Die App protokolliert je 300 Bildstücke „GX work per chunk“
+  (Uniform-Uploads, Programmwechsel, Textur-Bindungen, Zustandswechsel,
+  Wartezeiten des Ringpuffers, GPU-Zeit über `EXT_disjoint_timer_query`), der
+  Kern in „GX core“ zusätzlich die Leerlaufzeit (Warten auf den nächsten
+  Retrace, `re4_idle_ns`), FIFO- und Display-List-Bytes und Punkte je Bild.
+  Im Gerätetest misst Taste P 15 s lang mit simpleperf aus dem NDK, wo die
+  Rechenzeit hingeht; `port/tools/android_profile.py` ordnet die Proben in
+  WSL mit den Bibliotheken des Builds Funktionen zu (`profil-N.txt`).
+  `gx_chunk_render` zeigt mit `RE4_GX_WORK=1` die GL-Arbeit je Bild.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich

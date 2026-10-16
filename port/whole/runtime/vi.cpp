@@ -24,6 +24,7 @@ VIRetraceCallback gPre;
 VIRetraceCallback gPost;
 u32 gRetraceCount;
 long long gNextRetrace;
+long long gIdleNs;  // time the CPU slept for the next retrace (re4_idle_ns)
 bool gStarted;
 bool gFast;
 bool gDelivering;
@@ -109,8 +110,14 @@ void re4_os_idle(void)
         long long wait = gNextRetrace - now;
         struct timespec ts = {(time_t) (wait / 1000000000LL), (long) (wait % 1000000000LL)};
         nanosleep(&ts, 0);
+        gIdleNs += nowNs() - now;
     }
     re4_interrupt_point();
+}
+
+long long re4_idle_ns(void)
+{
+    return gIdleNs;
 }
 
 void re4_wait_interrupt(void)
