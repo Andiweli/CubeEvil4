@@ -57,6 +57,13 @@ Beobachtung sofort: das Protokoll und der Absturzbericht des Systems werden gesi
 und die Absturzstelle in WSL mit den Bibliotheken des Kern-Builds in Funktionen und
 Quelltextzeilen uebersetzt (port/tools/android_symbolize.sh). Bitte bis "Fertig" warten.
 
+Wird Leon getroffen, speichert die App die Grafikdaten von drei Bildern kurz danach
+(2, 8 und 16 Bilder spaeter; -HitDumps: fuer wie viele Treffer, Standard 1, 0 = aus).
+
+Zum Schicken packt das Skript senden.zip: bericht.txt, logcat.txt, profil-*.txt,
+Absturzberichte und die Bilder als kleine JPEGs (meist unter 5 MB). gx-geraet.zip
+(Grafikdaten) kommt dazu, wenn es hoechstens 25 MB hat.
+
 Ergebnis in -OutDir (Standard: Desktop\RE4-Kern-App): bericht.txt, logcat.txt,
 bild-*.png, kern-build.log, apk-build.log, nach einem Absturz absturz-system.txt und
 absturz-stapel.txt. Bitte bericht.txt, logcat.txt und die Bilder schicken.
@@ -89,7 +96,8 @@ param(
     [switch]$Bridge,
     [switch]$DebugHud,
     [switch]$GxDump,
-    [int]$Scale = 0
+    [int]$Scale = 0,
+    [int]$HitDumps = 1
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -102,6 +110,7 @@ Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyCon
 # results of an earlier run must not pass for this one's
 Get-ChildItem -LiteralPath $OutDir -Filter 'absturz-*.txt' -ErrorAction SilentlyContinue | Remove-Item
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet.zip') -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $OutDir 'senden.zip') -ErrorAction SilentlyContinue
 Get-ChildItem -LiteralPath $OutDir -Filter 'profil-*' -ErrorAction SilentlyContinue | Remove-Item
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet') -Recurse -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'logcat.txt') -ErrorAction SilentlyContinue
@@ -267,6 +276,13 @@ $dumpRemote = "/sdcard/Android/data/$package/files/gx-dumps"
 if ($GxDump) {
     $dumpSetting = "RE4_GX_DUMP_DIR=$dumpRemote;RE4_GX_DUMP_EVERY=20"
     $settings = if ($settings) { "$settings;$dumpSetting" } else { $dumpSetting }
+}
+# after a hit on Leon the app keeps three pictures of the graphics data, 2, 8 and 16
+# pictures later (a dark bar at the bottom showed only then, too briefly for R3);
+# -HitDumps: for how many hits (0: off)
+if ($HitDumps -gt 0) {
+    $hitSetting = "RE4_GX_DUMP_FOLDER=$dumpRemote;RE4_GX_DUMP_ON_HIT=$HitDumps"
+    $settings = if ($settings) { "$settings;$hitSetting" } else { $hitSetting }
 }
 . (Join-Path $PSScriptRoot 'Retroid-Adb-Exclusive.ps1')
 Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
@@ -480,7 +496,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         $zip = Join-Path $OutDir 'gx-geraet.zip'
         Remove-Item -LiteralPath $zip -ErrorAction SilentlyContinue
         Compress-Archive -Path $dumps.FullName -DestinationPath $zip
-        Say "   GX-Daten vom Geraet: $($dumps.Count) Bilder (gx-geraet.zip, $([math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 1)) MB; bitte mitschicken)"
+        Say "   GX-Daten vom Geraet: $($dumps.Count) Bilder (gx-geraet.zip, $([math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 1)) MB)"
+        # the zip holds them; the folder would only double the size of the results
+        Remove-Item -LiteralPath $dumpLocal -Recurse -ErrorAction SilentlyContinue
     } elseif ($GxDump) {
         Say '   GX-Daten vom Geraet: keine (RE4_GX_DUMP_DIR)'
     }
@@ -530,6 +548,12 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         Say "Untermenues (auf/zu):             $((($subs | Select-Object -Last 8) | ForEach-Object { ($_ -split 'sub screen ')[-1] }) -join ', ')"
         if ($subs[-1] -match 'sub screen open') { Say "Untermenue am Ende noch OFFEN (Karte/Inventar liess sich nicht schliessen)" }
     }
+    # hits on Leon (life went down) and the pictures the app kept after them
+    $hits = @($keep | Where-Object { $_ -match 'run: player hit' })
+    if ($hits.Count) {
+        $hitDumpsTaken = @($keep | Where-Object { $_ -match 'GX dumps after a hit on the player \(chunk' })
+        Say "Treffer auf Leon:                 $($hits.Count) (erster: $(($hits[0] -split 'player hit, ')[-1])); Grafikdaten danach: $($hitDumpsTaken.Count)x"
+    }
     $mapRead = @($keep | Where-Object { $_ -match 'Read File: SS/.*/ss_map.dat' })
     if ($mapRead.Count) { Say "Kartendatei gelesen:              $($mapRead.Count)x" }
     $presses = @($keep | Where-Object { $_ -match 're4\s*: pad: frame' })
@@ -563,6 +587,47 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     $keep | Where-Object { $_ -match ' (re4|RE4Core)\s*:' -and $_ -notmatch 'pad: frame' } | Select-Object -Last 40 |
         ForEach-Object { Say "  $_" }
 }
+# what to send: the texts and the pictures as small JPEGs in one zip (the PNGs, the
+# build logs and the GX data stay here; gx-geraet.zip goes extra when it is small)
+$send = Join-Path $OutDir 'senden.zip'
+$staging = Join-Path $OutDir 'senden'
+Remove-Item -LiteralPath $staging -Recurse -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $staging | Out-Null
+foreach ($pattern in @('bericht.txt', 'logcat.txt', 'profil-*.txt', 'absturz-*.txt', 'kern-build.log')) {
+    Get-ChildItem -LiteralPath $OutDir -Filter $pattern -ErrorAction SilentlyContinue |
+        ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $staging }
+}
+try {
+    Add-Type -AssemblyName System.Drawing
+    $jpeg = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
+    $quality = New-Object System.Drawing.Imaging.EncoderParameters 1
+    $quality.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality, [long]85)
+    Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyContinue | ForEach-Object {
+        $image = [System.Drawing.Image]::FromFile($_.FullName)
+        $width = [math]::Min(960, $image.Width)
+        $height = [int]($image.Height * $width / $image.Width)
+        $small = New-Object System.Drawing.Bitmap $width, $height
+        $draw = [System.Drawing.Graphics]::FromImage($small)
+        $draw.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $draw.DrawImage($image, 0, 0, $width, $height)
+        $small.Save((Join-Path $staging ($_.BaseName + '.jpg')), $jpeg, $quality)
+        $draw.Dispose(); $small.Dispose(); $image.Dispose()
+    }
+} catch {
+    Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyContinue | Select-Object -Last 4 |
+        ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $staging }
+}
+Compress-Archive -Path (Join-Path $staging '*') -DestinationPath $send -Force
+Remove-Item -LiteralPath $staging -Recurse -ErrorAction SilentlyContinue
+$sendMb = [math]::Round((Get-Item -LiteralPath $send).Length / 1MB, 1)
+$gxZip = Join-Path $OutDir 'gx-geraet.zip'
+$gxMb = if (Test-Path -LiteralPath $gxZip) { [math]::Round((Get-Item -LiteralPath $gxZip).Length / 1MB, 1) } else { 0 }
 Say ''
-Say "Fertig. Bitte bericht.txt, logcat.txt$(if (Test-Path -LiteralPath (Join-Path $OutDir 'profil-1.txt')) { ', profil-*.txt' }) und die Bilder (bild-*.png) aus $OutDir schicken$(if (Test-Path -LiteralPath (Join-Path $OutDir 'absturz-system.txt')) { ', dazu absturz-system.txt' })$(if (Test-Path -LiteralPath (Join-Path $OutDir 'gx-geraet.zip')) { ', dazu gx-geraet.zip' })."
+if ($gxMb -eq 0) {
+    Say "Fertig. Bitte senden.zip ($sendMb MB) aus $OutDir schicken."
+} elseif ($gxMb -le 25) {
+    Say "Fertig. Bitte senden.zip ($sendMb MB) und gx-geraet.zip ($gxMb MB) aus $OutDir schicken."
+} else {
+    Say "Fertig. Bitte senden.zip ($sendMb MB) aus $OutDir schicken; gx-geraet.zip ($gxMb MB) ist zum Senden zu gross und bleibt da."
+}
 [Console]::OutputEncoding = $previousEncoding

@@ -197,6 +197,9 @@ const Re4CoreSnapshot* re4_core_acquire(void);
 void re4_core_release(const Re4CoreSnapshot* snapshot);
 /* The last log lines, newest last, '\n'-separated (diagnostic overlay). */
 int re4_core_log_tail(char* out, int size);
+/* How often the player lost life so far (runtime/state_trace.cpp): the app
+ * records the pictures after a hit for the analysis (RE4_GX_DUMP_ON_HIT). */
+unsigned re4_core_player_hits(void);
 
 /* Tests: like re4_core_start with another boot thread entry. */
 int re4_core_start_entry(int (*entry)(void));

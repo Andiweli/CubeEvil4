@@ -45,6 +45,7 @@ struct CoreApi {
   const Re4GxChunk *(*gxAcquire)(void){};
   void (*gxRelease)(const Re4GxChunk *){};
   void (*gxDetach)(void){};
+  unsigned (*playerHits)(void){};  // optional (older cores: absent)
 } api;
 
 template <class F> bool bind(F &slot, const char *name) {
@@ -77,6 +78,7 @@ void loadCore() {
   ok = bind(api.gxAcquire, "re4_core_gx_acquire") && ok;
   ok = bind(api.gxRelease, "re4_core_gx_release") && ok;
   ok = bind(api.gxDetach, "re4_core_gx_detach") && ok;
+  api.playerHits = reinterpret_cast<unsigned (*)(void)>(dlsym(api.main, "re4_core_player_hits"));
   if (!ok) {
     LOG("%s", api.error.c_str());
     api.main = nullptr;
@@ -133,6 +135,13 @@ constexpr unsigned kGxDumpSeries = 12;
 bool gxDumpSeriesWanted = false;
 unsigned gxDumpSeriesLeft = 0, gxDumpSeriesIndex = 0, gxDumpSeriesPart = 0;
 uint32_t gxDumpSeriesSequence = 0;
+// after a hit on the player (re4_core_player_hits): three single pictures, 2, 8
+// and 16 chunks later (a dark bar at the bottom showed only then, too briefly
+// for R3); RE4_GX_DUMP_ON_HIT = how many hits (test-core-app.ps1: 2), into
+// RE4_GX_DUMP_FOLDER
+constexpr unsigned kGxHitDelays[3] = {2, 8, 16};
+int gxHitDumps = -1;  // hits still to record; -1: settings not read yet
+unsigned gxHitsSeen = 0, gxHitStep = 3, gxHitAt = 0;
 
 // Runs the chunks the core has finished and shows the latest display copy.
 // False while there is nothing to show yet (the caller draws the bridge).
@@ -214,6 +223,36 @@ bool drawGx() {
         }
       }
     }
+  }
+  // pictures after a hit on the player
+  if (gxHitDumps < 0) {
+    const char *hits = getenv("RE4_GX_DUMP_ON_HIT");
+    const char *folder = getenv("RE4_GX_DUMP_FOLDER");
+    gxHitDumps = hits && folder && *folder ? std::max(0, std::atoi(hits)) : 0;
+    if (gxHitDumps && gxDumpDir.empty()) {
+      gxDumpDir = folder;
+      mkdir(gxDumpDir.c_str(), 0775);
+    }
+    if (gxHitDumps)
+      LOG("GX dumps after a hit on the player: %d hits, into %s", gxHitDumps, gxDumpDir.c_str());
+  }
+  if (api.playerHits && gxHitDumps > 0 && gxHitStep >= 3) {
+    const unsigned hits = api.playerHits();
+    if (hits != gxHitsSeen) {
+      gxHitsSeen = hits;
+      gxHitDumps--;
+      gxHitStep = 0;
+      gxHitAt = gxChunks;
+      LOG("GX dumps after a hit on the player (chunk %u)", gxChunks);
+    }
+  } else if (api.playerHits && gxHitStep >= 3) {
+    gxHitsSeen = api.playerHits();
+  }
+  if (gxHitStep < 3 && !gxDumpWanted && !gxDumpSeriesLeft && gxChunks >= gxHitAt + kGxHitDelays[gxHitStep] &&
+      !gxDumpDir.empty() && gxDumpCount < 40) {
+    gxHitStep++;
+    api.gxDetach();
+    gxDumpWanted = true;
   }
   if (const Re4GxChunk *chunk = api.gxAcquire()) {
     char path[512];

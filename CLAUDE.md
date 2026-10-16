@@ -108,11 +108,12 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
    `__FILE__`-Länge (Stand in der Status-Datei)
 5. ✅ Erster Raum (r100): Spielschleife läuft 10.000 Bilder ohne Absturz, noch ohne Bild
    (lokal mit Disc-Daten, i686; Formatvergleich und Abdeckung ohne Fehler)
-6. K2 „Kern in die App“: ARM32-Build von RE4-Android-Decomp mit den
+6. ✅ K2 „Kern in die App“: ARM32-Build von RE4-Android-Decomp mit den
    Kern-Bibliotheken, Zustandsbrücke zum GLES3-Renderer der App,
-   Titelbild und r100 sichtbar
-6b. GX nachbilden (`port/docs/gx-plan.md`): Logos, Titelmenü und r100 so,
-   wie das Spiel sie zeichnet
+   Titelbild und r100 sichtbar (Retroid, 16.10.2026)
+6b. ✅ GX nachbilden (`port/docs/gx-plan.md`): Logos, Titelmenü und r100 so,
+   wie das Spiel sie zeichnet (Retroid, 16.10.2026; r101 flüssig bei 1080p;
+   offene Grafikfehler in der Status-Datei)
 7. Steuerung (Retroid-Tasten, später Touch)
 8. Audio (CRI-ADX-Code aus `src/lib/` möglichst direkt mitkompilieren)
 9. Videos (SFD/MPV)

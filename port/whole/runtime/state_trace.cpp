@@ -50,6 +50,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <atomic>
+
 extern GLOBAL_WK* pG;
 extern cPlayer* pPL;
 extern cEmMgr EmMgr;
@@ -219,6 +221,7 @@ long g_resetAfter = -1;
 long g_resetAt = -1;
 unsigned g_resetSteps;
 u8 g_resetStep;
+std::atomic<unsigned> g_playerHits(0);  // re4_core_player_hits
 
 void frame(unsigned n)
 {
@@ -259,6 +262,22 @@ void frame(unsigned n)
         re4_log("run: sub screen %s at frame %u", sub ? "open" : "closed", n);
     }
     subOpen = sub;
+    // hits on the player (life goes down in the game): a dark bar showed at the
+    // bottom of the picture only then; the app records the pictures after a hit
+    // (re4_core_player_hits, core_mode.cpp RE4_GX_DUMP_ON_HIT)
+    static int lastLife = -1;
+    if (g->Rno0 == 3) {
+        int life = (int) g->pl_life;
+        if (lastLife >= 0 && life < lastLife) {
+            g_playerHits++;
+            if (g_playerHits <= 40) {
+                re4_log("run: player hit, life %d -> %d at frame %u", lastLife, life, n);
+            }
+        }
+        lastLife = life;
+    } else {
+        lastLife = -1;
+    }
     if (g_roomStart >= 0 && g_freeAt < 0) {
         bool free = g->Rno0 == 3 && !StaFlagChk(g, STA_EVENT) && !StaFlagChk(g, STA_SUB_SCRN);
         g_freeRun = free ? g_freeRun + 1 : 0;
@@ -357,6 +376,11 @@ struct Install {
 
 // The frame the player became free (-1: not yet), for runtime/core_api.cpp
 // (RE4_GX_DUMP_FREE).
+extern "C" unsigned re4_core_player_hits(void)
+{
+    return g_playerHits.load();
+}
+
 extern "C" long re4_trace_free_at(void)
 {
     return g_freeAt;

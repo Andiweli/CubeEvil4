@@ -14,8 +14,8 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M4 Teil B: Booten mit echten Disc-Daten bis `gameRoomInit` (lokal, WSL2) | ✅ 13.10.2026 (i686 und armhf unter qemu) |
 | M4.5 Kern korrekt machen: C-Ersatz für Assembler, Byte-Aggregate, `__FILE__`-Länge | ✅ 14.10.2026 (Cloud, i686 und armhf) |
 | M5 Erster Raum r100 | ✅ 14.10.2026: lokal mit Disc-Daten (i686 in WSL2) 10 000 Bilder ab der Hauptschleife ohne Absturz, Abdeckung ohne „nein“, Formatvergleich 152 Dateien ohne Fehler. armhf mit Disc-Daten nicht gelaufen (`-Arm`, optional) |
-| K2 „Kern in die App“ (M6) | ⏳ 14.10.2026: Cloud-Teil fertig (Einbettungs-Schnittstelle, App-Variante „core“, Zustandsbrücke, Prüfungen ohne Disc-Daten grün); NDK-Build, APK-Build und Retroid-Test stehen aus (lokal, `port/scripts/test-core-app.ps1`) |
-| G1–G4 GX nachbilden (Teil von M6, `gx-plan.md`) | ⏳ 15.10.2026 (Cloud): GX-Bibliothek aus `src/lib`, FIFO, PE-Unterbrechungen (G1); Befehlsdecoder mit Bildstücken (G2); GLES3-Renderer in der App (G3); App zeigt standardmäßig das GX-Bild, PC-Prüfung zeichnet GX-Bilder (G4). Alle Cloud-Tests grün; mit Disc-Daten und auf dem Gerät noch nicht getestet. G5 offen |
+| K2 „Kern in die App“ (M6) | ✅ 16.10.2026 (Retroid): ARM32-App mit den Kern-Bibliotheken, Titel, r100, r101, Untermenüs und Karte spielbar; Abschluss und offene Punkte: „Abschluss M6/M6b“ |
+| M6b GX nachbilden (`gx-plan.md`) | ✅ 16.10.2026 (Retroid): das Bild kommt aus der GX-Nachbildung (Logos, Titel, Räume, Figuren, Effekte, Menüs, Anzeigen); r100 und r101 flüssig bei etwa 1080p (`-Scale 3`) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -1733,6 +1733,45 @@ Gerät: Snapdragon mit Adreno-GPU (`libGLESv2_adreno.so`). Normaler Start,
 - **Absturzmeldung des Host-Programms:** nennt jetzt Fehleradresse sowie
   `pc` und `lr` mit Bibliothek und Versatz (auf ARM entrollt `backtrace()`
   den Signalrahmen nicht).
+
+### Zwölfter Gerätelauf (16.10.2026, Retroid, Stand `26450c1`)
+
+Laut Projektinhaber läuft r101 jetzt gefühlt so schnell wie r100, für 1080p
+in Ordnung. Der dunkle, halbtransparente Balken unten erscheint offenbar nur,
+wenn Leon getroffen wird, zu kurz für R3. Das Ergebnis-Archiv war mit den
+R3-Folgen zu groß zum Senden (höchstens 5 Dateien).
+
+- **Aufnahme nach einem Treffer:** Der Kern zählt Treffer (`pl_life` sinkt im
+  Spiel, state_trace.cpp, Protokoll „run: player hit, life A -> B“,
+  `re4_core_player_hits`); die App speichert danach drei einzelne Bilder
+  (2, 8 und 16 Bildstücke später, `RE4_GX_DUMP_ON_HIT`, Ordner
+  `RE4_GX_DUMP_FOLDER`). Das Testskript schaltet das für einen Treffer ein
+  (`-HitDumps`, 0 = aus); der Bericht nennt „Treffer auf Leon“. Nicht auf dem
+  Gerät getestet.
+- **Kleines Archiv zum Senden:** Das Testskript packt `senden.zip` (Bericht,
+  Protokoll, Profile, Absturzberichte, Bilder als JPEG mit 960 Pixel Breite)
+  und löscht den entpackten GX-Ordner neben `gx-geraet.zip`; dieses kommt nur
+  bis 25 MB dazu.
+
+### Abschluss M6/M6b (16.10.2026)
+
+Erreicht und auf dem Retroid geprüft: die App „RE4 Kern“ (armeabi-v7a) startet
+den Originalkern, zeigt über die GX-Nachbildung Logos, Titel, das Intro im
+Auto, r100 und r101 mit Figuren, Effekten, Anzeigen, Untertiteln,
+Untermenüs (Inventar, Dateien) und der Karte; Raumauswahl-Menü, Soft-Reset
+nach dem Tod, Leistung bei etwa 1080p (Renderer 4–6 ms, GPU 8–16 ms je Bild,
+Kern unter 33 ms nach dem schnelleren Decoder).
+
+Offen, mitgenommen in die nächsten Meilensteine:
+
+- Dunkler halbtransparenter Balken unten bei Treffern (Aufnahme nach Treffer
+  vorbereitet, Auswertung steht aus).
+- Flackern im Untermenü „FILES“ laut Projektinhaber; in den R3-Folgen und
+  Bildschirmfotos nicht zu sehen (Beschreibung oder Video fehlt).
+- Baum-Kollision in r100 (G17), Titel: START zweimal / Logo verblasst (G14),
+  Leon kurz unsichtbar beim Szenenwechsel (G12): beim nächsten Gerätelauf
+  prüfen, ob noch vorhanden.
+- 60 Bilder/s und Grafikoptionen: Meilenstein 11.
 
 ### Lokale Prüfungen für K2
 
