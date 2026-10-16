@@ -1,5 +1,6 @@
 # CRI middleware (M9): platform parts of the CRI sources. The time base through
-# OSGetTime, no GQR save/restore (the decoder kernels are C, re4_cri_gqr),
+# re4_cri_timer (runtime/vi.cpp: OSGetTime, with RE4_VI_FAST the fields
+# delivered, so the sound clock stays in step), no GQR save/restore (the decoder kernels are C, re4_cri_gqr),
 # HID2 without the locked cache, no big-endian self-check (the byte-order
 # dependent reads are patch 0051), the IDCT table addresses in C, sscanf as
 # the C library declares it.
@@ -9,8 +10,8 @@
  static Uint32 utytmr_work[6];
  
  /* time base read (upper, lower, upper again until stable) */
-+/* port: the time base is OSGetTime (the same bus clock / 4, runtime/dolphin_os.cpp) */
-+extern Sint64 OSGetTime(void);
++/* port: the time base from runtime/vi.cpp (OSGetTime, with RE4_VI_FAST the fields delivered) */
++extern Sint64 re4_cri_timer(void);
  static Sint64 utytmr_read(void)
  {
 -	register Uint32 hi, lo, hi2;
@@ -23,7 +24,7 @@
 -		bne loop
 -	}
 -	return ((Sint64)hi << 32) | lo;
-+	return OSGetTime();
++	return re4_cri_timer();
  }
  
  /* dead-stripped by the linker; they own the .rodata constants (int->float magic, 1000.0f, 1000000.0f;

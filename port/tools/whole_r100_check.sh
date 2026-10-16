@@ -28,7 +28,9 @@
 # and the run ends after FRAMES frames of the main loop
 # (RE4_STOP_AFTER). The report (bericht.txt) lists: crash or not, frames,
 # GetDataExt coverage lines with "nein", converter messages, called stubs,
-# the last state trace line. Exit code 0 when everything passed.
+# the last state trace line. Then every movie of the discs through the CRI
+# middleware (re4_host --movie-test): status, frames, stills, the opening
+# movie's sound. Exit code 0 when everything passed.
 set -u
 
 room=100
@@ -217,8 +219,9 @@ soft_reset=5000
 # the room script puts him after the s03 event (r100.cpp r100_Sce_look),
 # facing the house; the walk then leads into the s03 trigger (the Retroid
 # crashed there, 14.10.2026). Starting in r120 (a new game: the opening movie,
-# skipped until milestone 9, and the car ride) ends in r100 as well, the
-# player first free there (use --frames 30000). Other rooms: no placing.
+# played since milestone 9, here at the pace of the fields, and the car ride)
+# ends in r100 as well, the player first free there (use --frames 30000).
+# Other rooms: no placing.
 place=""
 case "$room" in 100 | 120) place="free+1:-82910,860,-38480,1.75" ;; esac
 
@@ -733,11 +736,70 @@ PY
     say "GX-Daten: gx-daten.zip ($(du -h "$run/gx-daten.zip" | cut -f1), $(echo "$keep" | wc -w) Bilder als Daten; bitte mitschicken)"
 }
 
+# ---- the movies of the disc through the CRI middleware (M9) --------------------------------
+# Every .sfd file of both discs is played to its end the way game/sofdec.cpp
+# plays it (re4_host --movie-test, tests/movie_probe.cpp), in fast mode
+# (RE4_VI_FAST: the fields at once, the CRI clock counts them; at most
+# RE4_CHECK_MOVIE_MINUTES minutes of movie, default 15): the player's status
+# at the end (3 = played to its end), the frames, frames the player skipped,
+# CRI errors, the time one step takes; a still every 4 s as PNG
+# (bilder-film/) and the sound of the opening movie as WAV (film-*.wav).
+run_movies() {
+    local dir="$src/port/build/whole-i686$opt" mins="${RE4_CHECK_MOVIE_MINUTES:-15}"
+    section "6. Filme der Disc über die CRI-Middleware (ganz, im Schnelllauf)"
+    if [ ! -x "$dir/re4_host" ]; then
+        say "FEHLER: $dir/re4_host fehlt (Build fehlgeschlagen?)"
+        overall=1
+        return
+    fi
+    local stills="$run/bilder-film" bad=0 n=0 disc f name rel log line
+    rm -rf "$stills"
+    mkdir -p "$stills"
+    for disc in 0 1; do
+        [ -d "$layout/disc$disc/files" ] || continue
+        while IFS= read -r f; do
+            rel="${f#"$layout/disc$disc/files/"}"
+            name="d$((disc + 1))-$(basename "$f" | sed 's/\.[sS][fF][dD]$//')"
+            log="$run/film-$name.log"
+            n=$((n + 1))
+            (cd "$dir" && exec env RE4_MOVIE_DISC="$disc" RE4_VI_FAST=1 RE4_MOVIE_FAST=1 RE4_MOVIE_EVERY=240 \
+                timeout 1200 ./re4_host --data "$layout" --movie-test "$rel" "$run/film.yuv" \
+                "$run/film-$name.wav" $((mins * 3600))) > "$log" 2>&1
+            local code=$?
+            line=$(grep -m1 "\[movie\] end:" "$log" | sed 's/^.*\[movie\] end: //')
+            say "$name ($rel): exit $code, ${line:-kein Ende gemeldet}"
+            grep -m1 "\[movie\] step" "$log" | sed 's/^.*\[movie\] /  /' | tee -a "$report"
+            grep "CRI error\|last CRI error\|fatal signal" "$log" | head -3 | sed 's/^.*\[movie\] /  /;s/^\[re4\] /  /' | tee -a "$report"
+            grep -o "Stub aufgerufen: .*\|stub called: .*" "$log" | sort -u | head -5 | sed 's/^/  /' | tee -a "$report"
+            if [ -f "$run/film.yuv" ]; then
+                python3 "$src/port/tools/movie_report.py" --sparse "$run/film.yuv" "$stills" "$name" 2>&1 | sed 's/^/  /' | tee -a "$report"
+                rm -f "$run/film.yuv"
+            fi
+            if [ "$code" -ne 0 ]; then
+                bad=1
+            fi
+            # the sound of the opening movie is kept (with its levels), the others not (size)
+            if [ "$(basename "$f" | tr 'A-Z' 'a-z')" = "opening.sfd" ]; then
+                python3 "$src/port/tools/audio_wav_report.py" "$run/film-$name.wav" 2>&1 | head -8 | sed 's/^/  /' | tee -a "$report"
+            else
+                rm -f "$run/film-$name.wav"
+            fi
+        done < <(find "$layout/disc$disc/files" -iname '*.sfd' | sort)
+    done
+    if [ "$n" -eq 0 ]; then
+        say "Keine .sfd-Dateien gefunden."
+        bad=1
+    fi
+    say "Standbilder: $(ls "$stills"/*.png 2> /dev/null | wc -l) PNG-Dateien im Ordner bilder-film (bitte mitschicken)"
+    [ "$bad" -ne 0 ] && overall=1
+}
+
 if [ "$game_ok" -eq 1 ]; then
     # limits in seconds: overall, until the main loop, without a new frame
     run_game i686 "${RE4_CHECK_LIMIT:-3600}" "${RE4_CHECK_MAIN_LIMIT:-600}" "${RE4_CHECK_STALL:-180}"
     render_pictures
     render_gx_pictures
+    run_movies
     [ "$arm" -eq 1 ] && run_game armhf 14400 5400 600
 fi
 

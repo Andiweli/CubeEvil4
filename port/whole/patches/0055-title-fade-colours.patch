@@ -1,0 +1,146 @@
+# The fade colours of the title screens (logos, title, demo movies): words
+# over a GXColor written in GameCube byte order (RE4_BE), as patch 0034 did for
+# card.cpp, tv_mode.cpp and event.cpp; else 0x000000FF (opaque black) is a
+# transparent red and the fades do not show.
+--- a/src/game/title.cpp
++++ b/src/game/title.cpp
+@@ -48,6 +48,8 @@
+ 
+ 
+ // Fade colours: word constants passed by address (see sscrn.cpp).
++/* port: patch 0055, the words are written in GameCube byte order (RE4_BE: R in the
++   high byte), so FadeSet gets the same colour bytes (0x000000FF = opaque black) */
+ union FadeColor {
+     GXColor c;
+     u32 w;
+@@ -227,16 +229,16 @@
+     switch (w->Rno1) {
+     case 0:
+         IdSys.set((ID_FILE_HEADER*) TITLE_ARC_PTR(w->pIdDat, 0xB), 0xFF, IDC_TITLE, 0x13, 6, 0);
+-        c0.w = 0x000000FF;
+-        c1.w = 0x00000000;
++        RE4_BE(u32, 1, &c0.w) = 0x000000FF;
++        RE4_BE(u32, 1, &c1.w) = 0x00000000;
+         FadeSet(0x80000000, &c0.c, &c1.c, 15, 0, 0);
+         wait_cnt = 0;
+         w->Rno1++;
+         break;
+     case 1:
+         if (wait_cnt++ > 60) {
+-            c0.w = 0x00000000;
+-            c1.w = 0x000000FF;
++            RE4_BE(u32, 1, &c0.w) = 0x00000000;
++            RE4_BE(u32, 1, &c1.w) = 0x000000FF;
+             FadeSet(0, &c0.c, &c1.c, 15, 0, 0);
+             w->Rno1++;
+         }
+@@ -274,8 +276,8 @@
+             w->Rno0 = 4;
+         } else if (w->counter > TTL_CANCEL_WARNING) {
+             if (Key.trg & KEY_START) {
+-                c0.w = 0x00000000;
+-                c1.w = 0x000000FF;
++                RE4_BE(u32, 1, &c0.w) = 0x00000000;
++                RE4_BE(u32, 1, &c1.w) = 0x000000FF;
+                 FadeSet(0, &c0.c, &c1.c, 15, 0, 0);
+                 w->Rno1 = 1;
+             }
+@@ -309,8 +311,8 @@
+             w->Rno1 = 2;
+         } else if (w->counter > TTL_CANCEL_CAPCOM) {
+             if (Key.trg & KEY_START) {
+-                c0.w = 0x00000000;
+-                c1.w = 0x000000FF;
++                RE4_BE(u32, 1, &c0.w) = 0x00000000;
++                RE4_BE(u32, 1, &c1.w) = 0x000000FF;
+                 FadeSet(0, &c0.c, &c1.c, 15, 0, 0);
+                 w->Rno1 = 1;
+             }
+@@ -329,8 +331,8 @@
+             w->Rno1 = 4;
+         } else if (w->counter > TTL_CANCEL_CRI) {
+             if (Key.trg & KEY_START) {
+-                c0.w = 0x00000000;
+-                c1.w = 0x000000FF;
++                RE4_BE(u32, 1, &c0.w) = 0x00000000;
++                RE4_BE(u32, 1, &c1.w) = 0x000000FF;
+                 FadeSet(0, &c0.c, &c1.c, 15, 0, 0);
+                 w->Rno1 = 3;
+             }
+@@ -349,8 +351,8 @@
+             w->Rno1 = 6;
+         } else if (w->counter > TTL_CANCEL_DOLBY) {
+             if (Key.trg & KEY_START) {
+-                c0.w = 0x00000000;
+-                c1.w = 0x000000FF;
++                RE4_BE(u32, 1, &c0.w) = 0x00000000;
++                RE4_BE(u32, 1, &c1.w) = 0x000000FF;
+                 FadeSet(0, &c0.c, &c1.c, 15, 0, 0);
+                 w->Rno1 = 5;
+             }
+@@ -578,8 +580,8 @@
+                 w->se_id = SndCall(6, 2, 0, 0, 0, 0);
+             }
+             VibSetData((VibDataTbl*) CORE_ARC(CORE_VIBRATION), 0x10, 1);
+-            c0.w = 0x00000000;
+-            c1.w = 0x000000FF;
++            RE4_BE(u32, 1, &c0.w) = 0x00000000;
++            RE4_BE(u32, 1, &c1.w) = 0x000000FF;
+             FadeSet(0, &c0.c, &c1.c, 90, 0, 0);
+             w->Rno1 = 3;
+             break;
+@@ -632,8 +634,8 @@
+             if (demo_loop_cnt > 0) {
+                 demo_loop_cnt--;
+                 if (demo_loop_cnt == 0) {
+-                    c0.w = 0x00000000;
+-                    c1.w = 0x000000FF;
++                    RE4_BE(u32, 1, &c0.w) = 0x00000000;
++                    RE4_BE(u32, 1, &c1.w) = 0x000000FF;
+                     FadeSet(0, &c0.c, &c1.c, 15, 0, 0);
+                     w->Rno2 = 0;
+                     w->Rno1 = 6;
+@@ -656,8 +658,8 @@
+                 w->se_id = SndCall(6, 2, 0, 0, 0, 0);
+             }
+             VibSetData((VibDataTbl*) CORE_ARC(CORE_VIBRATION), 0x10, 1);
+-            c0.w = 0x00000000;
+-            c1.w = 0x000000FF;
++            RE4_BE(u32, 1, &c0.w) = 0x00000000;
++            RE4_BE(u32, 1, &c1.w) = 0x000000FF;
+             FadeSet(0, &c0.c, &c1.c, 90, 0, 0);
+             w->Rno1 = 3;
+         }
+@@ -698,8 +700,8 @@
+                 systemVISetBlack(1);
+                 ScreenReSize(640, 448);
+                 systemVISetBlack(0);
+-                c0.w = 0x000000FF;
+-                c1.w = 0x00000000;
++                RE4_BE(u32, 1, &c0.w) = 0x000000FF;
++                RE4_BE(u32, 1, &c1.w) = 0x00000000;
+                 FadeSet(0x80000000, &c0.c, &c1.c, 15, 0, 0);
+                 w->Rno2++;
+             }
+@@ -736,8 +738,8 @@
+                 systemVISetBlack(1);
+                 ScreenReSize(640, 448);
+                 systemVISetBlack(0);
+-                c0.w = 0x000000FF;
+-                c1.w = 0x00000000;
++                RE4_BE(u32, 1, &c0.w) = 0x000000FF;
++                RE4_BE(u32, 1, &c1.w) = 0x00000000;
+                 FadeSet(0x80000000, &c0.c, &c1.c, 15, 0, 0);
+                 w->Rno2++;
+             }
+@@ -782,8 +784,8 @@
+                     w->Rno1 = zero;
+                 } else {
+                     Snd.room_ok = 1;
+-                    c0.w = 0x00000000;
+-                    c1.w = 0x000000FF;
++                    RE4_BE(u32, 1, &c0.w) = 0x00000000;
++                    RE4_BE(u32, 1, &c1.w) = 0x000000FF;
+                     FadeSet(0, &c0.c, &c1.c, 0, 0, 0);
+                 }
+             }

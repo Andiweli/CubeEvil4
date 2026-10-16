@@ -220,7 +220,7 @@ struct GxRenderer::Impl {
   GLuint xfUbo = 0, pxUbo = 0;
   GLuint copyProgram = 0, presentProgram = 0, paletteProgram = 0;
   GLint presentRows = -1;
-  GLint copyMode = -1, copyRect = -1, copySize = -1, copyHalf = -1;
+  GLint copyMode = -1, copyRect = -1, copySize = -1, copyHalf = -1, copyGain = -1;
   GLint paletteSize = -1, paletteKind = -1, paletteFormat = -1;
   GLuint quadVao = 0;
   GLuint whiteTex = 0;
@@ -453,6 +453,21 @@ struct GxRenderer::Impl {
   std::uint32_t copySerial = 0;
 
   // --- state -----------------------------------------------------------------
+
+  // The copy filter (BP 0x53/0x54, GXSetCopyFilter): seven vertical taps in
+  // 1/64 that the GameCube applies to EFB copies. Their sum scales the colour:
+  // the game's brightness option (main_sub.cpp Bg_brightness_set) raises or
+  // lowers it around 64. The vertical blur of the taps (the deflicker filter
+  // for the TV picture) is left out: the picture stays sharp.
+  float CopyFilterGain() const {
+    const std::uint32_t c0 = bp[0x53], c1 = bp[0x54];
+    unsigned sum = 0;
+    for (unsigned i = 0; i < 4; i++)
+      sum += (c0 >> (6 * i)) & 63;
+    for (unsigned i = 0; i < 3; i++)
+      sum += (c1 >> (6 * i)) & 63;
+    return sum == 0 ? 1.0f : static_cast<float>(sum) / 64.0f;
+  }
 
   void BpWrite(std::uint32_t word, bool action) {
     const unsigned reg = word >> 24;
@@ -1305,6 +1320,7 @@ struct GxRenderer::Impl {
                 static_cast<float>(h * scale));
     glUniform2f(copySize, static_cast<float>(kEfbWidth * scale), static_cast<float>(kEfbHeight * scale));
     glUniform1i(copyHalf, half ? 1 : 0);
+    glUniform1f(copyGain, depth ? 1.0f : CopyFilterGain());
     glBindVertexArray(quadVao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     current = nullptr;
@@ -1353,12 +1369,14 @@ struct GxRenderer::Impl {
     static const char kCopyFs[] =
         "#version 300 es\nprecision highp float;\nprecision highp int;\n"
         "uniform sampler2D src;\nuniform int mode;\nuniform vec4 rect;\nuniform vec2 size;\nuniform int halfScale;\n"
+        "uniform float gain;\n"
         "in vec2 vUv;\nout vec4 o;\n"
         "vec4 fetch(vec2 p) { return texture(src, p / size); }\n"
         "void main() {\n"
         "  vec2 p = rect.xy + vUv * rect.zw;\n"
         "  vec4 c = halfScale != 0 ? 0.25 * (fetch(p + vec2(-0.5, -0.5)) + fetch(p + vec2(0.5, -0.5)) + fetch(p + "
         "vec2(-0.5, 0.5)) + fetch(p + vec2(0.5, 0.5))) : fetch(p);\n"
+        "  if (mode < 12) c.rgb = min(c.rgb * gain, vec3(1.0));\n"
         "  float y = clamp(0.257 * c.r + 0.504 * c.g + 0.098 * c.b + 16.0 / 255.0, 0.0, 1.0);\n"
         "  uint z = uint(c.r * 16777215.0);\n"
         "  float zh = float((z >> 16) & 255u) / 255.0, zm = float((z >> 8) & 255u) / 255.0, zl = float(z & 255u) / "
@@ -1413,6 +1431,7 @@ struct GxRenderer::Impl {
     copyRect = glGetUniformLocation(copyProgram, "rect");
     copySize = glGetUniformLocation(copyProgram, "size");
     copyHalf = glGetUniformLocation(copyProgram, "halfScale");
+    copyGain = glGetUniformLocation(copyProgram, "gain");
     paletteProgram = Link(kQuadVs, kPaletteFs, &log);
     if (!paletteProgram) {
       *error = "palette shader: " + log;

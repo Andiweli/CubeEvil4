@@ -12,7 +12,12 @@ game/sofdec.cpp does (tests/movie_probe.cpp). Then:
     transform, ffmpeg's an integer one, so a little noise is expected),
   - frames come in order, at the movie's frame rate (fields per frame),
   - the sound (32 kHz stereo from the AI output) holds the two tones on the
-    right channels, and starts close to the first frame (A/V sync).
+    right channels, and starts close to the first frame (A/V sync),
+  - frame 10 drawn as the game draws it (cSofdec::drawTex) through the app's
+    GX renderer has the colours of the decoded frame (if it is built),
+  - the same movie in fast mode (RE4_VI_FAST, as the PC check runs the game:
+    fields at once, the CRI clock counts them) still plays to its end, at
+    the movie's frame rate and in sync.
 
     test_whole_movie.py BUILD_DIR [runner ...]     (runner: e.g. qemu-arm)
 Exit code 0 = passed; skipped (exit 0) without ffmpeg.
@@ -24,6 +29,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -87,6 +93,34 @@ def tone_power(samples, rate, freq):
     return p / (total * len(samples) / 2)
 
 
+def read_frames(path):
+    """The frame records of tests/movie_probe.cpp: (frame number, field, planes)."""
+    got = path.read_bytes() if path.exists() else b""
+    frames = []
+    pos = 0
+    while pos + 16 <= len(got):
+        magic, fno, field, size = struct.unpack("<IIII", got[pos:pos + 16])
+        w, h = size & 0xFFFF, size >> 16
+        n = w * h * 3 // 2
+        frames.append((fno, field, got[pos + 16:pos + 16 + n]))
+        pos += 16 + n
+    return frames
+
+
+def read_sound(path):
+    """Left and right samples of the WAV and the first sample over 1000 (or None)."""
+    raw = path.read_bytes()[44:] if path.exists() else b""
+    pcm = struct.unpack(f"<{len(raw) // 2}h", raw[:len(raw) // 4 * 4])
+    left, right = pcm[0::2], pcm[1::2]
+    first = next((i for i, v in enumerate(left) if abs(v) > 1000), None)
+    return left, right, first
+
+
+def fields_per_frame(frames):
+    span = frames[-1][1] - frames[0][1]
+    return span / max(1, frames[-1][0] - frames[0][0])
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -124,7 +158,12 @@ def main():
 
         yuv, wav = work / "out.yuv", work / "out.wav"
         fields = int(SECONDS * 60 + 120)
-        env = dict(os.environ, RE4_DATA_DIR=str(data), RE4_VI_FAST="1")
+        gxdir = work / "gx"
+        gxdir.mkdir()
+        # real time as on the device (the probe paces the fields itself; no
+        # RE4_VI_FAST, that switches the CRI clock to counting fields)
+        env = {k: v for k, v in os.environ.items() if k != "RE4_VI_FAST"}
+        env.update(RE4_DATA_DIR=str(data), RE4_MOVIE_GX=str(gxdir))
         proc = subprocess.run([*runner, str(build / "re4_host"), "--movie-test", "movie/test.sfd", str(yuv),
                                str(wav), str(fields)], cwd=build, env=env, capture_output=True, timeout=600)
         log = proc.stderr.decode(errors="replace")
@@ -136,15 +175,7 @@ def main():
             print("\n".join("    " + l for l in log.splitlines()[-25:]))
 
         # frames
-        got = yuv.read_bytes() if yuv.exists() else b""
-        frames = []
-        pos = 0
-        while pos + 16 <= len(got):
-            magic, fno, field, size = struct.unpack("<IIII", got[pos:pos + 16])
-            w, h = size & 0xFFFF, size >> 16
-            n = w * h * 3 // 2
-            frames.append((fno, field, got[pos + 16:pos + 16 + n]))
-            pos += 16 + n
+        frames = read_frames(yuv)
         worst = 99.0
         fnos = [f[0] for f in frames]
         for fno, field, planes in frames:
@@ -165,17 +196,53 @@ def main():
         if worst < 35:
             failures.append(f"a frame differs from ffmpeg's decode (PSNR {worst:.1f} dB)")
         if len(frames) > 10:
-            span = frames[-1][1] - frames[0][1]
-            per = span / max(1, frames[-1][0] - frames[0][0])
+            per = fields_per_frame(frames)
             print(f"  pacing: {per:.2f} fields per frame (29.97 fps = 2.00), first frame at field {frames[0][1]}")
             if not 1.8 <= per <= 2.2:
                 failures.append(f"frame pacing {per:.2f} fields per frame")
 
+        # the picture as the game draws it (cSofdec::drawTex: Y8 and C4:4 textures,
+        # the YUV -> RGB TEV set-up) through the app's GX renderer, if built
+        # (port/build/app-host-gl, RE4_BUILD_GL_CHECK=ON): against the BT.601
+        # conversion of the decoded frame; the chroma is filtered bilinearly by
+        # the texture unit, so edges differ, the colours on average must not
+        render = Path(os.environ.get("RE4_GX_RENDER", ROOT / "port/build/app-host-gl/gx_chunk_render"))
+        chunk = gxdir / "gx-movie-00010.bin"
+        if render.exists() and chunk.exists():
+            subprocess.run([str(render), str(gxdir), str(chunk)], capture_output=True, timeout=120)
+            ppm = gxdir / "gx-movie-00010.ppm"
+            frame10 = next((f for f in frames if f[0] == 10), None)
+            if ppm.exists() and frame10:
+                head = ppm.read_bytes().split(b"\n", 3)
+                pw, ph = map(int, head[1].split())
+                px = head[3]
+                sys.path.insert(0, str(ROOT / "port/tools"))
+                import movie_report
+                exp = movie_report.to_rgb(frame10[2], WIDTH, HEIGHT)
+                ox, oy = (512 - WIDTH) // 2, (448 - HEIGHT) // 2 - 0
+                err, diff, n = 0.0, [0.0, 0.0, 0.0], 0
+                for yy in range(8, HEIGHT - 8, 2):
+                    for xx in range(8, WIDTH - 8, 2):
+                        for c in range(3):
+                            a = px[((oy + yy) * pw + ox + xx) * 3 + c]
+                            b = exp[(yy * WIDTH + xx) * 3 + c]
+                            err += (a - b) ** 2
+                            diff[c] += a - b
+                        n += 1
+                mse = err / (3 * n)
+                p_gx = 99.0 if mse == 0 else 10 * math.log10(255 * 255 / mse)
+                mean = [d / n for d in diff]
+                print(f"  GX picture (drawTex through the app's renderer): PSNR {p_gx:.1f} dB, mean difference "
+                      f"R {mean[0]:+.1f} G {mean[1]:+.1f} B {mean[2]:+.1f}")
+                if p_gx < 20 or max(abs(m) for m in mean) > 4:
+                    failures.append("the movie picture through GX has the wrong colours")
+            else:
+                failures.append("no GX picture of the movie")
+        else:
+            print("  GX picture: skipped (no gx_chunk_render or no chunk)")
+
         # sound
-        raw = wav.read_bytes()[44:] if wav.exists() else b""
-        pcm = struct.unpack(f"<{len(raw) // 2}h", raw[:len(raw) // 4 * 4])
-        left, right = pcm[0::2], pcm[1::2]
-        first = next((i for i, v in enumerate(left) if abs(v) > 1000), None)
+        left, right, first = read_sound(wav)
         if first is None:
             failures.append("no sound")
         else:
@@ -194,6 +261,32 @@ def main():
                 print(f"  A/V: sound starts {lag * 1000:+.0f} ms after the first frame")
                 if abs(lag) > 0.15:
                     failures.append(f"sound and picture start {lag * 1000:+.0f} ms apart")
+
+        # fast mode (RE4_VI_FAST=1 as the PC check runs the game; the probe takes
+        # the fields from vi.cpp, the CRI clock counts them: runtime/vi.cpp
+        # re4_cri_timer): the movie must still end on its own, in step
+        fyuv, fwav = work / "fast.yuv", work / "fast.wav"
+        env = dict(os.environ, RE4_DATA_DIR=str(data), RE4_VI_FAST="1", RE4_MOVIE_FAST="1")
+        began = time.monotonic()
+        proc = subprocess.run([*runner, str(build / "re4_host"), "--movie-test", "movie/test.sfd", str(fyuv),
+                               str(fwav), str(fields)], cwd=build, env=env, capture_output=True, timeout=600)
+        took = time.monotonic() - began
+        flog = proc.stderr.decode(errors="replace")
+        end = next((l.split("[movie] end: ", 1)[1] for l in flog.splitlines() if "[movie] end: " in l), "no end line")
+        fframes = read_frames(fyuv)
+        _, _, ffirst = read_sound(fwav)
+        per = fields_per_frame(fframes) if len(fframes) > 10 else 0.0
+        lag = (ffirst / (32000 / 59.94) - fframes[0][1]) / 59.94 if fframes and ffirst is not None else None
+        print(f"  fast mode (RE4_VI_FAST, the PC check): {len(fframes)} frames in {took:.1f} s, "
+              f"{per:.2f} fields per frame, A/V {'?' if lag is None else f'{lag * 1000:+.0f} ms'}; end: {end}")
+        if proc.returncode != 0:
+            failures.append(f"fast mode: the movie did not end (re4_host --movie-test exit {proc.returncode})")
+        if len(fframes) < len(ref_frames) * 0.9:
+            failures.append(f"fast mode: only {len(fframes)} of {len(ref_frames)} frames shown")
+        if not 1.8 <= per <= 2.2:
+            failures.append(f"fast mode: frame pacing {per:.2f} fields per frame")
+        if lag is None or abs(lag) > 0.15:
+            failures.append("fast mode: sound and picture apart")
     finally:
         if os.environ.get("RE4_MOVIE_KEEP"):
             print(f"  kept: {work}")

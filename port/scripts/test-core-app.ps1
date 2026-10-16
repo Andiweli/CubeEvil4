@@ -26,7 +26,9 @@ Standard ist ein Debug-Start in r120 (der Anfang eines neuen Spiels: Vorfilm,
 dann die Autofahrt mit den Polizisten, dann r100) mit derselben
 Test-Tastenfolge wie die PC-Pruefung (Speicherkarten-Dialog, Titel,
 Debug-Menue); sobald der Raum laedt, endet die Tastenfolge und dein Controller
-steuert. Den Vorfilm ueberspringt der Kern noch (Filme: Meilenstein 9).
+steuert. Der Vorfilm (movie/opening.sfd) laeuft seit Meilenstein 9 wie im Original
+mit Bild und Ton; START ueberspringt ihn (laut Originalcode entfaellt dann auch die
+Autofahrt). Fuer Film, Autofahrt und Ankunft in r100 reichen etwa -Seconds 480.
 -StartRoom 100 springt direkt nach r100 (nur die kurze Ankunft). -Manual
 startet ohne Tastenfolge (Titelbild, du spielst selbst).
 
@@ -53,6 +55,12 @@ Steuerstick, rechter Stick = C-Stick, Steuerkreuz, START, R2 = R (Waffe anlegen)
 zuletzt gedrueckten Taste und den Stick-Werten), R3 = Grafik-Aufnahme. Der Bericht listet,
 welche Android-Taste welche GameCube-Taste wurde, die Eingabegeraete und die Vibration.
 Reagieren A/B oder X/Y vertauscht: im Startmenue der App "Swap A/B and X/Y" ankreuzen.
+
+Filme (Meilenstein 9): Der Kern spielt die Filme mit der CRI-Middleware des Spiels
+(Sofdec-Bild ueber die GX-Nachbildung, ADX-Ton). Der Bericht nennt jeden Film mit
+Laufzeit, Zahl der Bilder und den Bildern, die der Film-Spieler auslassen musste
+(Decode/Anzeige zu langsam), ob er zu Ende lief oder mit START uebersprungen wurde,
+und CRI-Fehlermeldungen. Die Demo-Filme des Titels: auf dem Titelbild warten (-Manual).
 
 Ton (Meilenstein 8): Der Bericht nennt die Tonzaehler des Kerns und ob die App ihre
 Tonausgabe gestartet hat. -AudioWav N nimmt die ersten N Sekunden Spielzeit so auf, wie der
@@ -619,6 +627,20 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     $drops = @($keep | Where-Object { $_ -match 'ISS Voice Drop' })
     $limit = $keep | Where-Object { $_ -match 'dsp: AX may use' } | Select-Object -First 1
     Say "Abgebrochene Toene (Voice Drop):  $($drops.Count)$(if ($limit) { ' (' + (($limit -split 'dsp: ')[-1]) + ')' })"
+    # the movies (milestone 9, runtime/movie_status.cpp): start, every 5 s, end or START
+    $movies = @($keep | Where-Object { $_ -match 're4\s*: movie: ' })
+    $movieDone = @($movies | Where-Object { $_ -match 'movie: .* (ended|skipped \(START\)),' })
+    Say "Filme gestartet / beendet:        $(@($movies | Where-Object { $_ -match 'movie: .* started' }).Count) / $($movieDone.Count)"
+    foreach ($line in $movieDone) { Say "  Film: $(($line -split 'movie: ')[-1])" }
+    if ($movies.Count -and $movies[-1] -notmatch 'movie: .* (ended|skipped \(START\)),') {
+        Say "  Film am Ende der Beobachtung noch offen: $(($movies[-1] -split 'movie: ')[-1])"
+    }
+    foreach ($line in @($keep | Where-Object { $_ -match 'File not found : movie/' } | Select-Object -First 3)) {
+        Say "  Filmdatei FEHLT: $(($line -split 'File not found : ')[-1])"
+    }
+    # the CRI middleware reports errors as "E<number>: ..." (the game's callback then waits forever)
+    $criErrors = @($keep | Where-Object { $_ -match 'OSReport: E\d{7,8}' })
+    if ($criErrors.Count) { Say "CRI-FEHLER (Film):                $($criErrors.Count), zuerst: $(($criErrors[0] -split 'OSReport: ')[-1])" }
     $output = $keep | Where-Object { $_ -match 'RE4Audio\s*: sound' } | Select-Object -First 1
     Say "Tonausgabe der App:               $(if ($output) { ($output -split 'RE4Audio\s*:\s*')[-1] } else { 'NICHT gestartet' })"
     $wav = Join-Path $OutDir 'ton.wav'

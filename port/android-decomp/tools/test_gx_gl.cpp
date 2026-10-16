@@ -688,6 +688,42 @@ void TestShaderVariety(re4gx::GxRenderer &r) {
 
 } // namespace
 
+// The game's brightness option (main_sub.cpp Bg_brightness_set): the seven
+// copy filter taps (BP 0x53/0x54, 1/64 each) of the display copy sum to 64 at
+// the normal setting; more brightens, less darkens the copied picture.
+void TestCopyFilter(re4gx::GxRenderer &r) {
+  const std::uint8_t grey[4] = {100, 100, 100, 255};
+  struct {
+    unsigned taps[7];
+    int expect;
+    const char *what;
+  } cases[] = {{{8, 8, 10, 12, 10, 8, 8}, 100, "copy filter: sum 64 (normal brightness) keeps the colour"},
+               {{10, 10, 12, 15, 12, 10, 10}, 123, "copy filter: sum 79 brightens by 79/64"},
+               {{6, 6, 8, 9, 8, 6, 6}, 77, "copy filter: sum 49 darkens by 49/64"},
+               {{20, 20, 25, 30, 25, 20, 20}, 250, "copy filter: sum 160 brightens and stays in range"}};
+  for (const auto &c : cases) {
+    Builder b;
+    Baseline(b);
+    b.Bp(0x53, c.taps[0] | c.taps[1] << 6 | c.taps[2] << 12 | c.taps[3] << 18);
+    b.Bp(0x54, c.taps[4] | c.taps[5] << 6 | c.taps[6] << 12);
+    DisplayCopy(b, true, kBlack);
+    Quad(b, 10, 20, 110, 70, 0, grey);
+    DisplayCopy(b, false, kBlack);
+    r.Run(b.Chunk());
+    auto px = TexPixel(r.Xfb(nullptr, nullptr), 50, 40);
+    Check(Near(px, c.expect, c.expect, c.expect), c.what);
+    if (!Near(px, c.expect, c.expect, c.expect))
+      Print("xfb", px);
+  }
+  // back to the normal filter for the tests after
+  Builder b;
+  Baseline(b);
+  b.Bp(0x53, 8 | 8 << 6 | 10 << 12 | 12 << 18);
+  b.Bp(0x54, 10 | 8 << 6 | 8 << 12);
+  DisplayCopy(b, true, kBlack);
+  r.Run(b.Chunk());
+}
+
 int main() {
   Context();
   glGenFramebuffers(1, &gReadFbo);
@@ -702,6 +738,7 @@ int main() {
   TestCopyAndPalette(renderer);
   TestFog(renderer);
   TestShaderVariety(renderer);
+  TestCopyFilter(renderer);
   Check(glGetError() == GL_NO_ERROR, "no GL error");
   renderer.Release();
   std::fprintf(stderr, "gx_gl_check: %d failed\n", gFailures);

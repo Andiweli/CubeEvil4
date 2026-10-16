@@ -1,0 +1,52 @@
+# Movies (M9), game/sofdec.cpp: the movie's progress for the log
+# (runtime/movie_status.cpp: time, frames, frames the CRI player skipped, how it
+# ended), and the four TEV konstant colours of the YUV -> RGB set-up (setTevPrm)
+# written as words over a GXColor: in GameCube byte order (RE4_BE), else the
+# channels of the movie picture are swapped.
+--- a/src/game/sofdec.cpp
++++ b/src/game/sofdec.cpp
+@@ -23,6 +23,10 @@
+ 
+ cSofdec Sofdec;
+ 
++/* port: the movie's progress for the log (runtime/movie_status.cpp, patch 0054) */
++extern "C" void re4_movie_status(MWPLY hn, const char* fname, const MWS_FRM* frm, int stat);
++extern "C" void re4_movie_end(MWPLY hn, int skipped);
++
+ 
+ // Sofdec frame count (1/100 s units after scaling) -> h:m:s.frac.
+ void UsrSfcnt2time(int sf, int ncnt, int* hh, int* mm, int* ss, int* ff)
+@@ -116,13 +120,13 @@
+         GXColorS10 c = {-111, 0, -138, 68};
+         GXSetTevColorS10(1, c);
+     }
+-    kc.w = 0x6600FF32;
++    RE4_BE(u32, 1, &kc.w) = 0x6600FF32; /* port: the colour bytes in GameCube order (R first) */
+     GXSetTevKColor(0, kc.c);
+-    kc.w = 0x94009494;
++    RE4_BE(u32, 1, &kc.w) = 0x94009494; /* port: the colour bytes in GameCube order (R first) */
+     GXSetTevKColor(1, kc.c);
+-    kc.w = 0xCB0005CF;
++    RE4_BE(u32, 1, &kc.w) = 0xCB0005CF; /* port: the colour bytes in GameCube order (R first) */
+     GXSetTevKColor(2, kc.c);
+-    kc.w = 0x00FF0000;
++    RE4_BE(u32, 1, &kc.w) = 0x00FF0000; /* port: the colour bytes in GameCube order (R first) */
+     GXSetTevKColor(3, kc.c);
+     GXSetTevSwapModeTable(0, 0, 1, 2, 3);
+     GXSetTevSwapModeTable(1, 0, 3, 3, 3);
+@@ -443,6 +447,7 @@
+         mwPlyRelCurFrm(m_ap_obj.mwply);
+     }
+     stat = mwPlyGetStat(m_ap_obj.mwply);
++    re4_movie_status(m_ap_obj.mwply, m_ap_obj.fname, &frm, stat); /* port */
+     if (stat == MWE_PLY_STAT_PLAYEND || stat == MWE_PLY_STAT_ERROR) {
+         return 0;
+     }
+@@ -472,6 +477,7 @@
+ // the movie flags (Status_flg[0] 0x10000000, System_flg 0x00100000, m_be_flag bit0).
+ void cSofdec::finishMovie()
+ {
++    re4_movie_end(m_ap_obj.mwply, m_be_flag & 0x20); /* port */
+     mwPlyDestroy(m_ap_obj.mwply);
+     m_ap_obj.mwply = NULL;
+     Mem_free(m_ap_obj.mwsfd_wkadr);

@@ -120,6 +120,24 @@ long long re4_idle_ns(void)
     return gIdleNs;
 }
 
+// The clock of the CRI middleware (UTY_GetTmr, patch 0048). Sofdec times the
+// picture against the ADX sound and smooths that with this clock
+// (sfd_adxt.c sfadxt_UpdateTime). The sound advances with the fields
+// delivered (re4_ai_field), on the GameCube both run in real time. With
+// RE4_VI_FAST=1 (tests without pacing) fields come faster than real time, so
+// the clock counts them too: a field is 1/59.94 s of the time base
+// (OSGetTime's bus clock / 4). Otherwise it is OSGetTime.
+long long OSGetTime(void);
+
+long long re4_cri_timer(void)
+{
+    start();
+    if (!gFast) {
+        return OSGetTime();
+    }
+    return (long long) gRetraceCount * (162000000LL / 4 * 1001 / 60000);
+}
+
 void re4_wait_interrupt(void)
 {
     re4_os_idle();

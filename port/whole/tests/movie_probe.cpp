@@ -10,6 +10,16 @@
 // planar YUV 4:2:0, the sound of every field is taken from the AI output.
 #include "mwply.h"
 
+// RE4_MOVIE_GX: the frames are drawn by the game's own cSofdec::drawTex
+// (private: opened up for this test only) through the GX emulation
+#define private public
+#include "sofdec.h"
+#undef private
+#include "main_sub.h"
+#include "../runtime/re4_gx_frame.h"
+#define RE4_GX_FRAME_IO_WRITE_ONLY  // game flags: no STL here
+#include "../runtime/re4_gx_frame_io.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +34,9 @@ void ARQInit(void);
 void AIInit(u8* stack);
 void AXInitEx(u32 mode);
 void MIXInit(void);
+void* GXInit(void* base, u32 size);
+void VISetNextFrameBuffer(void* fb);
+void VIFlush(void);
 void MIXSetSoundMode(u32 mode);
 void MIXUpdateSettings(void);
 typedef void (*AXCallback)(void);
@@ -32,10 +45,12 @@ u32 GXGetTexBufferSize(u16 width, u16 height, u32 format, u8 mipmap, u8 max_lod)
 void re4_os_interrupt_begin(void);
 void re4_os_interrupt_end(void);
 void re4_ai_field(void);
+void re4_os_idle(void);
 int re4_audio_take(short* out, int frames);
 const char* re4_data_dir(void);
 int re4_mem1_init(void);
 }
+#include <dolphin/dvd.h>
 
 namespace {
 
@@ -113,6 +128,71 @@ void untile(const u8* ybuf, const u8* cbuf, int tw, int th, int cw, int w, int h
     }
 }
 
+// --- the frames through the game's GX drawing (RE4_MOVIE_GX=DIR) -----------------
+// The Y8 and C4:4 textures, the FIFO and the display copy live in MEM1 above
+// what the test uses (the GP reads memory physically, as on the GameCube).
+const u32 kGxFifo = 0x82000000u, kGxXfb = 0x82100000u, kGxTex = 0x82200000u;
+bool gGxInit;
+
+void gxCopy()
+{
+    GXSetDispCopySrc(0, 0, 512, 448);
+    GXSetDispCopyDst(512, 448);
+    Bg_brightness_set(64.0f);  // the game's copy filter at normal brightness (Render_done)
+    GXCopyDisp((void*) (unsigned long) kGxXfb, 1);
+    VISetNextFrameBuffer((void*) (unsigned long) kGxXfb);
+    VIFlush();
+}
+
+// Draws the frame in the textures as cSofdec::draw does (draw mode 0) and
+// writes the GX chunk to DIR/gx-movie-FNO.bin for gx_chunk_render.
+void gxDrawFrame(const char* dir, int fno, const u8* ybuf, const u8* cbuf, u32 ysize, u32 csize, int texW,
+                 int texH, int w2)
+{
+    u8* yt = (u8*) (unsigned long) kGxTex;
+    u8* ct = yt + ((ysize + 31) & ~31u);
+    memcpy(yt, ybuf, ysize);
+    memcpy(ct, cbuf, csize);
+    if (!gGxInit) {
+        gGxInit = true;
+        GXInit((void*) (unsigned long) kGxFifo, 0x10000);
+        Rmode.fbWidth = 512;  // ScreenReSize(0x200, 0x1C0) of cSofdec::initSync
+        Rmode.efbHeight = 448;
+        Rmode.xfbHeight = 448;
+    }
+    re4_core_gx_acquire();  // attaches the renderer side (nothing built yet)
+    gxCopy();               // the chunk starts at this frame boundary
+    GXSetViewport(0.0f, 0.0f, 512.0f, 448.0f, 0.0f, 1.0f);
+    GXSetScissor(0, 0, 512, 448);
+    GXSetCullMode(0);           // none
+    GXSetZMode(0, 7, 0);        // no depth test or update
+    GXSetColorUpdate(1);
+    TexObj* tex = &Sofdec.m_scn_ctrl.tex;  // cSofdec::allocTexMem, draw mode 0
+    Sofdec.m_draw_mode = 0;
+    tex->width = (u16) texW;
+    tex->height = (u16) texH;
+    tex->ybuf = yt;
+    tex->cbuf = ct;
+    GXInitTexObj(&tex->ytobj, yt, (u16) texW, (u16) texH, 1, 0, 0, 0);  // I8, clamp
+    GXInitTexObj(&tex->ctobj, ct, (u16) w2, (u16) (texH / 2), 3, 0, 0, 0);  // IA8, clamp
+    Sofdec.drawTex();
+    gxCopy();
+    const Re4GxChunk* c = re4_core_gx_acquire();
+    if (!c) {
+        fprintf(stderr, "[movie] GX: no chunk for frame %d\n", fno);
+    }
+    if (c) {
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/gx-movie-%05d.bin", dir, fno);
+        if (FILE* f = fopen(path, "wb")) {
+            re4gxio::Write(f, *c, (uint32_t) fno);
+            fclose(f);
+        }
+        re4_core_gx_release(c);
+    }
+    re4_core_gx_detach();
+}
+
 }  // namespace
 
 // Plays `fname` for at most `maxFields` fields. Writes the frames to `yuvPath`
@@ -147,9 +227,22 @@ extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const
     }
     gErrors = 0;
 
+    // RE4_MOVIE_DISC=1: the movie is on the second disc (the game asks for it
+    // with DVDChangeDisk before such a movie)
+    int disc = 0;
+    if (const char* d = getenv("RE4_MOVIE_DISC")) {
+        disc = atoi(d) == 1 ? 1 : 0;
+    }
+    if (disc) {
+        static DVDCommandBlock block;
+        static DVDDiskID id;
+        memset(&id, 0, sizeof(id));
+        id.diskNumber = 1;
+        DVDChangeDiskAsync(&block, &id, NULL);
+    }
     // cSofdec::initApp: the size from the first 0x5000 bytes of the file
     char path[1024];
-    snprintf(path, sizeof(path), "%s/disc0/files/%s", re4_data_dir(), fname);
+    snprintf(path, sizeof(path), "%s/disc%d/files/%s", re4_data_dir(), disc, fname);
     FILE* in = fopen(path, "rb");
     if (!in) {
         fprintf(stderr, "[movie] %s missing\n", path);
@@ -216,14 +309,22 @@ extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const
     u8* plane = (u8*) malloc(planes);
     int lastFno = -1, frames = 0, stat = 0, f = 0;
     bool trace = getenv("RE4_MOVIE_TRACE") != NULL;
+    const char* gxDir = getenv("RE4_MOVIE_GX");
+    long long stepTotal = 0, stepMax = 0;
     // real time, as in the game: the CRI player smooths the sound clock with
     // the time base (sfd_adxt.c sfadxt_UpdateTime, OSGetTime), so fields
-    // faster than 59.94 Hz would make the clock lag at the end of the sound
+    // faster than 59.94 Hz would make the clock lag at the end of the sound.
+    // RE4_MOVIE_FAST=1 (with RE4_VI_FAST=1, as the PC check runs the game):
+    // the fields as vi.cpp delivers them, at once, the CRI clock counts them
+    bool fast = getenv("RE4_MOVIE_FAST") != NULL;
+    // RE4_MOVIE_EVERY=N: a frame record at most every N fields (stills of a
+    // whole movie; the count in the end line stays the frames handed out)
+    int every = getenv("RE4_MOVIE_EVERY") ? atoi(getenv("RE4_MOVIE_EVERY")) : 0, nextRecord = 0;
     struct timespec start;
     clock_gettime(CLOCK_MONOTONIC, &start);
     for (; f < maxFields; f++) {
         long long due = (long long) f * 1000000000LL * 1001 / 60000;
-        for (;;) {
+        for (; !fast;) {
             struct timespec now;
             clock_gettime(CLOCK_MONOTONIC, &now);
             long long ns = (now.tv_sec - start.tv_sec) * 1000000000LL + (now.tv_nsec - start.tv_nsec);
@@ -233,7 +334,11 @@ extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const
             struct timespec wait = {0, (long) (due - ns)};
             nanosleep(&wait, NULL);
         }
-        field();
+        if (fast) {
+            re4_os_idle();
+        } else {
+            field();
+        }
         static short pcm[2 * 1024];
         int n = re4_audio_take(pcm, 1024);
         if (n > 0) {
@@ -241,19 +346,31 @@ extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const
             audioFrames += (unsigned) n;
         }
         // cSofdec::appMain
+        struct timespec t0, t1;
+        clock_gettime(CLOCK_MONOTONIC, &t0);
         ADXM_ExecMain();
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        long long us = ((t1.tv_sec - t0.tv_sec) * 1000000000LL + (t1.tv_nsec - t0.tv_nsec)) / 1000;
+        stepTotal += us;
+        stepMax = us > stepMax ? us : stepMax;
         MWS_FRM frm;
         mwPlyGetCurFrm(hn, &frm);
         if (frm.bufadr != NULL) {
             mwPlyFxSetOutBufSize(hn, texW, texH);  // loadMvFrmFx
             mwPlyFxCnvFrmY84C44(hn, &frm, ybuf, cbuf);
-            if (frm.fno != lastFno) {
-                lastFno = frm.fno;
+            if (frm.fno != lastFno && f >= nextRecord) {
+                nextRecord = f + every;
                 untile(ybuf, cbuf, texW, texH, w2, width, height, plane, plane + width * height,
                        plane + width * height + (width / 2) * (height / 2));
                 unsigned rec[4] = {0x4D5246u, (unsigned) frm.fno, (unsigned) f, (unsigned) (width | height << 16)};
                 fwrite(rec, 4, 4, yuv);
                 fwrite(plane, 1, planes, yuv);
+                if (gxDir && (frm.fno == 10 || frm.fno == 60 || frm.fno == 100)) {
+                    gxDrawFrame(gxDir, frm.fno, ybuf, cbuf, ysize, csize, texW, texH, w2);
+                }
+            }
+            if (frm.fno != lastFno) {
+                lastFno = frm.fno;
                 frames++;
             }
             mwPlyRelCurFrm(hn);
@@ -272,6 +389,11 @@ extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const
     mwPlyGetTime(hn, &count, &scale);
     fprintf(stderr, "[movie] end: status %d after %d fields, %d frames, time %d/%d, skipped %d decode / %d display, %d CRI errors\n",
             stat, f, frames, count, scale, mwPlyGetNumSkipDec(hn), mwPlyGetNumSkipDisp(hn), gErrors);
+    fprintf(stderr, "[movie] step (ADXM_ExecMain): %.2f ms on average, at most %.2f ms; size %d x %d\n",
+            f > 0 ? stepTotal / 1000.0 / f : 0.0, stepMax / 1000.0, width, height);
+    if (gErrors) {
+        fprintf(stderr, "[movie] last CRI error: %s\n", gLastError);
+    }
     // cSofdec::finishMovie
     mwPlyDestroy(hn);
     free(work);
@@ -281,5 +403,8 @@ extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const
     fclose(yuv);
     writeWavHeader(wav, audioFrames);
     fclose(wav);
-    return stat == MWE_PLY_STAT_PLAYEND ? frames : -2;
+    if (stat == MWE_PLY_STAT_PLAYEND || (getenv("RE4_MOVIE_PART") && stat == 2 && gErrors == 0)) {
+        return frames;  // RE4_MOVIE_PART: the first fields of a long movie
+    }
+    return -2;
 }

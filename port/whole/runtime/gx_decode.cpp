@@ -235,15 +235,22 @@ u32 gViNext;        // physical address of the XFB the VI shows next (0: never s
 u32 gSequence;
 bool gNeedReset = true;
 
-// Textures the renderer has: key -> last chunk that used it, bytes.
+// Textures the renderer has: key -> last chunk that used it, bytes (as sent,
+// and as the renderer holds them decoded: RGBA8, gx_texture.cpp).
 struct Sent {
     u32 lastChunk;
     u32 bytes;
+    u32 decoded;
 };
 std::unordered_map<u64, Sent> gSent;
 u64 gSentBytes;
+u64 gDecodedBytes;
 const u32 kForgetAfter = 600;           // chunks (10-20 s)
 const u64 kSentBudget = 96u << 20;      // texture bytes the renderer keeps at most
+// Decoded: a movie (game/sofdec.cpp) brings two new textures every frame, its
+// Y8 and C4:4 planes (1.4 MB decoded at 512 x 448); without this limit the
+// renderer would hold some 400 MB of past frames before kForgetAfter.
+const u64 kDecodedBudget = 256u << 20;
 
 // Per chunk: texture descriptor -> key (hashing once per chunk), and what each
 // map is bound to.
@@ -332,7 +339,7 @@ void emitFullState()
 
 void forgetTextures()
 {
-    if (gSequence % 64 != 0 && gSentBytes <= kSentBudget) {
+    if (gSequence % 64 != 0 && gSentBytes <= kSentBudget && gDecodedBytes <= kDecodedBudget) {
         return;
     }
     std::vector<std::pair<u32, u64>> old;
@@ -342,11 +349,12 @@ void forgetTextures()
     std::sort(old.begin(), old.end());
     for (auto& o : old) {
         bool stale = o.first + kForgetAfter < gSequence;
-        if (!stale && gSentBytes <= kSentBudget) {
+        if (!stale && gSentBytes <= kSentBudget && gDecodedBytes <= kDecodedBudget) {
             break;
         }
         auto it = gSent.find(o.second);
         gSentBytes -= it->second.bytes;
+        gDecodedBytes -= it->second.decoded;
         gSent.erase(it);
         const u32 payload[2] = {(u32) o.second, (u32) (o.second >> 32)};
         emit(RE4_GX_OP_FORGET, payload, 2);
@@ -379,6 +387,7 @@ bool beginLocked()
         c->view.flags |= RE4_GX_CHUNK_RESET;
         gSent.clear();
         gSentBytes = 0;
+        gDecodedBytes = 0;
         emitFullState();
     } else {
         forgetTextures();
@@ -1267,8 +1276,15 @@ void bindMap(u32 map)
             Sent sent;
             sent.lastChunk = gSequence;
             sent.bytes = bound.dataBytes;
+            sent.decoded = 0;
+            for (u32 l = 0, w = t.width, h = t.height; l < t.levels; l++) {
+                sent.decoded += w * h * 4;
+                w = w > 1 ? w >> 1 : 1;
+                h = h > 1 ? h >> 1 : 1;
+            }
             gSent[bound.key] = sent;
             gSentBytes += bound.dataBytes;
+            gDecodedBytes += sent.decoded;
             gStats.textures++;
             gStats.textureBytes += bound.dataBytes;
             chunk()->view.textureBytes += bound.dataBytes;

@@ -81,7 +81,7 @@ for t in "${targets[@]}"; do
     # a synthetic Sofdec movie through the CRI middleware (needs ffmpeg)
     out=$(python3 "$root/port/tools/test_whole_movie.py" "$build" "${run[@]}" 2>&1)
     code=$?
-    echo "  re4_host --movie-test (synthetic movie): exit $code | $(echo "$out" | grep -E '^  (frames|sound|A/V):' | sed 's/^  //' | tr '\n' ';') $(echo "$out" | tail -1)"
+    echo "  re4_host --movie-test (synthetic movie): exit $code | $(echo "$out" | grep -E '^  (frames|sound|A/V|GX picture[^:]*|fast mode \(RE4_VI_FAST, the PC check\)):' | sed 's/^  //' | tr '\n' ';') $(echo "$out" | tail -1)"
     [ "$code" -ne 0 ] && { echo "$out" | sed 's/^/    /'; status=1; }
 done
 first="$root/port/build/whole-${targets[0]}${RE4_OPT:+-O$RE4_OPT}"

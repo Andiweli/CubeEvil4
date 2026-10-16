@@ -173,6 +173,9 @@ void re4_keep_vtable(void* object);
 /* Time the game thread slept waiting for the next video retrace, in all (ns):
  * what is left of each frame (runtime/vi.cpp). */
 long long re4_idle_ns(void);
+/* The CRI middleware's clock (uty_tmr.c, patch 0048; runtime/vi.cpp): the
+ * time base as OSGetTime, with RE4_VI_FAST=1 the fields delivered instead. */
+long long re4_cri_timer(void);
 /* Marks the GX chunk being recorded (RE4_GX_CHUNK_MARK, runtime/gx_decode.cpp;
  * the core thread) and lets the next one start over: the app keeps the
  * pictures from there. */
