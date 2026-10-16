@@ -43,6 +43,15 @@
 //                          finds it again after a restart: the system file);
 //                          "stop": the run ends (exit code 0) when the screen
 //                          has closed again
+//   RE4_TEST_CARD_YES=1    in the memory card screens every choice stands on
+//                          its first option (yes: make the system file, save
+//                          to this file, load it), so that A alone confirms;
+//                          the game itself puts the cursor on the second one
+//                          (card.cpp: cMes.SetCursor(0, 1), mostly "no")
+//   RE4_STOP_AT_FRAME=N    the run ends (exit code 0) at frame N whatever the
+//                          game is doing, with its step, room and whether a
+//                          card screen is open (the card runs of the PC check
+//                          must end even when a screen waits for a key)
 //
 // Always logged (the memory card, M10): the end of the boot card check with
 // the options then in force, and a save loaded from the card.
@@ -57,6 +66,7 @@
 #include "card.h"
 #include "main.h"
 #include "scheduler.h"
+#include "mes.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -240,14 +250,32 @@ u8 g_resetStep;
 long g_saveAfter = -1;
 int g_saveBrightness = -1;
 bool g_saveOpened, g_saveStop, g_saveRunning;
+bool g_cardYes;              // RE4_TEST_CARD_YES
+unsigned long g_stopAtFrame;  // RE4_STOP_AT_FRAME
 std::atomic<unsigned> g_playerHits(0);  // re4_core_player_hits
 
 void frame(unsigned n)
 {
     trace(n);
     GLOBAL_WK* g = pG;
+    if (g_stopAtFrame && n >= g_stopAtFrame) {
+        bool ok = live(g);
+        re4_log("run: stopped at frame %u (RE4_STOP_AT_FRAME): step %u, room r%03x, card screen %s", n,
+                ok ? (unsigned) g->Rno0 : 0u, ok ? (unsigned) g->room_id : 0u,
+                ok && SysFlagChk(g, SYS_TYPEWRITER) ? "open" : "closed");
+        re4_memcard_flush(1);
+        if (g_trace) {
+            fflush(g_trace);
+        }
+        fflush(stdout);
+        fflush(stderr);
+        _exit(0);
+    }
     if (!live(g)) {
         return;
+    }
+    if (g_cardYes && SysFlagChk(g, SYS_TYPEWRITER)) {
+        cMes.SetCursor(0, 0);
     }
     // the debug start menu (patch 0043) draws its lines with the debug text;
     // the tool menu (L + START in the game, db_menu.cpp DbMenuExec) sets its
@@ -449,6 +477,10 @@ void configure()
         }
         g_saveStop = end && strstr(end, ",stop") != 0;
     }
+    const char* yes = getenv("RE4_TEST_CARD_YES");
+    g_cardYes = yes && *yes && *yes != '0';
+    const char* stopAt = getenv("RE4_STOP_AT_FRAME");
+    g_stopAtFrame = stopAt ? strtoul(stopAt, 0, 10) : 0;
     const char* stop = getenv("RE4_STOP_AFTER");
     g_stopAfter = stop ? strtoul(stop, 0, 10) : 0;
     const char* freeScript = getenv("RE4_PAD_FREE_SCRIPT");

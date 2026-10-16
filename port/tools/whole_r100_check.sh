@@ -70,6 +70,25 @@ report="$run/bericht.txt"
 say() { echo "$@" | tee -a "$report"; }
 section() { say ""; say "== $* =="; }
 overall=0
+# Ctrl+C (also through wsl.exe): the game runs in the background (its
+# SIGINT is ignored there), so it is ended here; the report and the logs so
+# far still go to --out
+on_abort() {
+    trap - INT TERM
+    local p
+    for p in $(jobs -p); do
+        kill -KILL "$p" 2> /dev/null
+    done
+    say ""
+    say "ABGEBROCHEN (Strg+C)"
+    if [ -n "$out" ]; then
+        mkdir -p "$out"
+        cp -r "$run"/. "$out"/
+        echo "Bericht und Logs bis hierher: $out"
+    fi
+    exit 130
+}
+trap on_abort INT TERM
 
 # ---- source ------------------------------------------------------------------------
 if [ -n "$source" ] && [ -d "$source/.git" ]; then
@@ -803,28 +822,63 @@ run_movies() {
 
 # ---- the memory card (M10): system file, save, a new start, load ---------------------------
 # Slot A holds a card file of this run (runtime/memcard.cpp), formatted first
-# by the SDK's card library (re4_host --memcard-format). Run A: the boot
-# check finds no system file and asks to make one (A: yes, the cursor's
-# default); new game into r100 (debug start), once the player is free the
-# save screen of a typewriter opens (RE4_TEST_SAVE, after setting the
-# brightness option to 72; the default is 64), A picks file 1, A confirms,
-# START closes "saved"; the run ends when the screen has closed. Run B, a new
-# start with the same card: the boot check reads the system file (brightness
-# 72 again), the title menu stands on "load" (no debug start), A loads file
-# 1, the game continues in r100. The card is listed afterwards
-# (port/tools/memcard_list.py: files, banner/icon, the game's CRCs).
+# by the SDK's card library (re4_host --memcard-format). The game puts the
+# cursor of its yes/no questions on the second choice (mostly "no");
+# RE4_TEST_CARD_YES=1 keeps it on the first, so A alone says yes. Run A: the
+# boot check finds no system file and makes one; new game into r100 (debug
+# start), once the player is free the save screen of a typewriter opens
+# (RE4_TEST_SAVE, after setting the brightness option to 72; the default is
+# 64), A picks file 1 and confirms, START closes "saved"; the run ends when
+# the screen has closed. Run B, a new start with the same card: the boot
+# check reads the system file (brightness 72 again), the title menu stands on
+# "load" (no debug start), A loads file 1, the game continues in r100. Each
+# run ends at the latest at a fixed frame (RE4_STOP_AT_FRAME) or after
+# RE4_CHECK_CARD_LIMIT seconds; every 30 s the last step is shown. The card is
+# listed afterwards (port/tools/memcard_list.py: files, banner/icon, CRCs).
+card_progress() {
+    local frame step
+    frame=$(grep -o "pad: frame [0-9]*" "$1" 2> /dev/null | tail -n 1 | grep -o "[0-9]*$")
+    step=$(grep -E "card: |run: (memory card check|save |main loop|player free|stopped)" "$1" 2> /dev/null |
+        tail -n 1 | sed 's/^\[re4\] //')
+    echo "Taste zuletzt in Bild ${frame:-?}; ${step:-noch kein Kartenschritt}"
+}
 run_card_game() {
-    local name="$1" limit="$2" dir="$3"
+    local name="$1" limit="$2" dir="$3" log="$run/$1.log"
     shift 3
-    (cd "$dir" && exec env RE4_VI_FAST=1 RE4_MEMCARD="$card" RE4_PAD_UNTIL_ROOM=1 "$@" \
-        timeout "$limit" ./re4_host --data "$layout") > "$run/$name.log" 2>&1
+    (cd "$dir" && exec env RE4_VI_FAST=1 RE4_MEMCARD="$card" RE4_PAD_UNTIL_ROOM=1 RE4_TEST_CARD_YES=1 "$@" \
+        ./re4_host --data "$layout") > "$log" 2>&1 &
+    local pid=$! start=$SECONDS last_note=$SECONDS reason=""
+    while kill -0 "$pid" 2> /dev/null; do
+        sleep 2
+        if [ $((SECONDS - last_note)) -ge 30 ]; then
+            echo "  ... $((SECONDS - start)) s: $(card_progress "$log")"
+            last_note=$SECONDS
+        fi
+        if [ $((SECONDS - start)) -ge "$limit" ]; then
+            reason="ABBRUCH nach $limit s"
+            kill -USR1 "$pid" 2> /dev/null
+            sleep 3
+            kill -KILL "$pid" 2> /dev/null
+            break
+        fi
+    done
+    wait "$pid" 2> /dev/null
     local code=$?
+    [ -n "$reason" ] && say "  $reason (Log: $name.log)"
     grep -E "memcard: (files|.* saved)|card: |run: (memory card check|save |main loop|player free|stopped)|fatal signal|stub called: (OSResetSystem|CARD|__CARD)" \
-        "$run/$name.log" | sed 's/^\[re4\] /  /' | head -n 80 | tee -a "$report"
+        "$log" | sed 's/^\[re4\] /  /' | head -n 80 | tee -a "$report"
+    [ -n "$reason" ] && return 124
     return $code
+}
+# the line the card run ended with, for the result
+card_stop() {
+    local line
+    line=$(grep -m1 "run: stopped" "$1" 2> /dev/null | sed 's/^\[re4\] run: //')
+    echo "${line:-kein regulärer Stopp}"
 }
 run_memcard() {
     local dir="$src/port/build/whole-i686$opt" card="$run/speicherkarte-a.bin" bad=0 code
+    local limit="${RE4_CHECK_CARD_LIMIT:-900}"
     section "7. Speicherkarte: Systemdatei anlegen, im Raum speichern, Neustart, im Titel laden"
     if [ ! -x "$dir/re4_host" ]; then
         say "FEHLER: $dir/re4_host fehlt (Build fehlgeschlagen?)"
@@ -840,40 +894,50 @@ run_memcard() {
     fi
     say "Karte: speicherkarte-a.bin (2 MB, formatiert, leer)"
     say "Lauf A: Systemdatei anlegen, neues Spiel in r100, dort speichern (Datei 1)"
-    run_card_game karte-speichern "${RE4_CHECK_CARD_LIMIT:-1800}" "$dir" RE4_START_ROOM=0x100 RE4_ROOM_MENU=1 \
-        RE4_STOP_AFTER=20000 RE4_PAD_SCRIPT="A@100-60000/60 START@130-60000/60" RE4_TEST_SAVE="free+60,72,stop" \
+    run_card_game karte-speichern "$limit" "$dir" RE4_START_ROOM=0x100 RE4_ROOM_MENU=1 RE4_STOP_AT_FRAME=30000 \
+        RE4_PAD_SCRIPT="A@100-60000/60 START@130-60000/60" RE4_TEST_SAVE="free+60,72,stop" \
         RE4_PAD_FREE_SCRIPT="A@90-600/30 START@900-3000/120"
     code=$?
+    local made saved
+    made=$(grep -c "card: boot check: making the system file" "$run/karte-speichern.log")
+    saved=$(grep -c "card: save: saving (file 1" "$run/karte-speichern.log")
     if [ "$code" -ne 0 ] || ! grep -q "run: stopped after the save" "$run/karte-speichern.log"; then
-        say "Ergebnis A: FEHLER (Exit-Code $code; Log: karte-speichern.log)"
+        say "Ergebnis A: FEHLER (Exit-Code $code, $(card_stop "$run/karte-speichern.log"); Log: karte-speichern.log)"
         bad=1
-    elif ! grep -q "card: boot check: making the system file" "$run/karte-speichern.log"; then
+    elif [ "$made" -eq 0 ]; then
         say "Ergebnis A: FEHLER (die Startprüfung hat keine Systemdatei angelegt)"
         bad=1
+    elif [ "$saved" -eq 0 ]; then
+        say "Ergebnis A: FEHLER (der Speicherbildschirm hat Datei 1 nicht gespeichert)"
+        bad=1
     else
-        say "Ergebnis A: OK (Systemdatei angelegt, gespeichert, Bildschirm geschlossen)"
+        say "Ergebnis A: OK (Systemdatei angelegt, Datei 1 gespeichert, Bildschirm geschlossen)"
     fi
-    say "Lauf B: Neustart mit derselben Karte, im Titel laden"
-    run_card_game karte-laden "${RE4_CHECK_CARD_LIMIT:-1800}" "$dir" RE4_STOP_AFTER=600 \
-        RE4_PAD_SCRIPT="A@100-60000/60 START@130-60000/60"
-    code=$?
-    local check loaded
-    check=$(grep -m1 "run: memory card check done" "$run/karte-laden.log")
-    loaded=$(grep -m1 "run: save loaded from the memory card" "$run/karte-laden.log")
-    if [ "$code" -ne 0 ] || ! grep -q "run: stopped after" "$run/karte-laden.log"; then
-        say "Ergebnis B: FEHLER (Exit-Code $code; Log: karte-laden.log)"
-        bad=1
-    elif [ -z "$loaded" ]; then
-        say "Ergebnis B: FEHLER (kein Spielstand geladen)"
-        bad=1
-    elif ! echo "$check" | grep -q "brightness 72,"; then
-        say "Ergebnis B: FEHLER (Optionen nicht aus der Systemdatei: ${check#*options })"
-        bad=1
-    elif ! grep -q "run: main loop reached .* room r100" "$run/karte-laden.log"; then
-        say "Ergebnis B: FEHLER (das geladene Spiel lief nicht in r100 weiter)"
-        bad=1
+    if [ "$bad" -ne 0 ]; then
+        say "Lauf B entfällt (ohne Spielstand wartete der Ladebildschirm ewig auf eine Taste)."
     else
-        say "Ergebnis B: OK (Optionen aus der Systemdatei, Spielstand geladen, r100 läuft)"
+        say "Lauf B: Neustart mit derselben Karte, im Titel laden"
+        run_card_game karte-laden "$limit" "$dir" RE4_STOP_AFTER=600 RE4_STOP_AT_FRAME=15000 \
+            RE4_PAD_SCRIPT="A@100-60000/60 START@130-60000/60"
+        code=$?
+        local check loaded
+        check=$(grep -m1 "run: memory card check done" "$run/karte-laden.log")
+        loaded=$(grep -m1 "run: save loaded from the memory card" "$run/karte-laden.log")
+        if [ "$code" -ne 0 ] || ! grep -q "run: stopped after .* frames from the main loop" "$run/karte-laden.log"; then
+            say "Ergebnis B: FEHLER (Exit-Code $code, $(card_stop "$run/karte-laden.log"); Log: karte-laden.log)"
+            bad=1
+        elif [ -z "$loaded" ]; then
+            say "Ergebnis B: FEHLER (kein Spielstand geladen)"
+            bad=1
+        elif ! echo "$check" | grep -q "brightness 72,"; then
+            say "Ergebnis B: FEHLER (Optionen nicht aus der Systemdatei: ${check#*options })"
+            bad=1
+        elif ! grep -q "run: main loop reached .* room r100" "$run/karte-laden.log"; then
+            say "Ergebnis B: FEHLER (das geladene Spiel lief nicht in r100 weiter)"
+            bad=1
+        else
+            say "Ergebnis B: OK (Optionen aus der Systemdatei, Spielstand geladen, r100 läuft)"
+        fi
     fi
     say "Inhalt der Karte (port/tools/memcard_list.py):"
     python3 "$src/port/tools/memcard_list.py" "$card" --expect-system --expect-save 0 2>&1 | sed 's/^/  /' | tee -a "$report"

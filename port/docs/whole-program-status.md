@@ -2469,7 +2469,8 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
   Fehlercodes), „run: memory card check done … options …“ (Ende der
   Startprüfung mit den Optionen) und „run: save loaded from the memory card“
   (`state_trace.cpp`, immer an).
-- **Testhilfen:** `RE4_TEST_SAVE="free+N[,B][,stop]"` öffnet N Bilder nach
+- **Testhilfen:** `RE4_TEST_CARD_YES=1` (Pfeil der Kartenfragen auf „Ja“),
+  `RE4_STOP_AT_FRAME=N` (Ende bei Bild N), `RE4_TEST_SAVE="free+N[,B][,stop]"` öffnet N Bilder nach
   „Spieler frei“ den Speicherbildschirm wie eine Schreibmaschine (vorher
   Helligkeit = B; `stop`: Ende, wenn er wieder zu ist); `re4_host
   --memcard-format DATEI` legt eine formatierte, leere Karte an;
@@ -2499,6 +2500,34 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
 | `whole_ir_signatures.py` für die CARD-Dateien und die Aufrufer des Spiels | 0 Abweichungen |
 | Platzhalter | 47 Funktionen, 1 Datenobjekt (2 neue aus `CARDNet.c`), wie `stubs-expected.txt` |
 | `whole_build.sh` i686 und armhf (qemu), normal und `RE4_OPT=2` | grün (alle Prüfungen, Kern-Test „card“, `memcard_list.py`) |
+
+### Erste PC-Prüfung mit Karte (16.10.2026, Stand `6752926`): Lauf A ohne Spielstand, Lauf B hing
+
+- **Gemeldet:** „Ergebnis A: FEHLER (Exit-Code 0)“, danach hing Lauf B und
+  ließ sich weder mit Q noch mit Strg+C beenden; es entstanden keine Logs auf
+  dem Desktop (die Prüfung kopiert sie erst am Ende).
+- **Ursache (aus dem Code):** Die Ja/Nein-Fragen des Kartenbildschirms
+  stellen den Auswahlpfeil auf die **zweite** Möglichkeit (`card.cpp`:
+  `cMes.SetCursor(0, 1)`; `mes.cpp code08`: A wählt `m_cur + 1`), das ist
+  meist „Nein“. Die Tastenfolge drückte nur A: beim Start „Systemdatei
+  anlegen? → Nein“, beim Speichern „In diese Datei speichern? → Nein“ (zurück
+  zur Liste, immer wieder), bis `RE4_STOP_AFTER` den Lauf mit Exit-Code 0
+  beendete. In Lauf B war die Liste leer, und der Ladebildschirm wartete auf
+  B (die Folge drückt nur A/START), bis zur Zeitgrenze von 30 Minuten.
+  `timeout` ließ das Spiel in einer eigenen Prozessgruppe laufen, darum kam
+  Strg+C nicht an.
+- **Behoben:** `RE4_TEST_CARD_YES=1` (state_trace.cpp) hält den Pfeil in den
+  Kartenbildschirmen auf der ersten Möglichkeit, A allein sagt „Ja“;
+  `RE4_STOP_AT_FRAME=N` beendet einen Lauf bei Bild N, was das Spiel auch
+  gerade tut (mit Schritt, Raum, Kartenbildschirm offen/zu). Die Kartenläufe
+  laufen im Hintergrund mit Wachhund (alle 30 s der letzte Schritt, nach
+  `RE4_CHECK_CARD_LIMIT` Sekunden, Standard 900, Abbruch), Lauf B entfällt,
+  wenn A keinen Spielstand schrieb. Strg+C beendet jetzt die ganze Prüfung,
+  beendet das laufende Spiel und kopiert Bericht und Logs bis dahin nach
+  `RE4-Kern-Pruefung`. Die Logik der Kartenläufe ist mit einem nachgemachten
+  `re4_host` geprüft (Erfolg, Hänger mit Zeitgrenze, Strg+C).
+- **Für das Gerät:** Auch dort steht der Pfeil zuerst auf der zweiten Antwort;
+  vor A nach oben (bzw. links) auf „Ja“ gehen.
 
 **Nicht geprüft (Stand dieses Abschnitts):** die PC-Prüfung mit Disc-Daten
 (Abschnitt 7: die Bildschirme des Spiels beim Speichern und Laden, das
