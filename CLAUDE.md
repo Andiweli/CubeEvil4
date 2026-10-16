@@ -118,11 +118,11 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
    (Retroid, 16.10.2026; Touch später)
 8. ✅ Audio: SDK-Tonbibliotheken aus `src/lib/` unverändert, DSP/AI nachgebaut
    (Retroid, 16.10.2026; CRI-ADX gehört zu den Filmen)
-8b. Raum-Rundgang: viele Räume per Raumauswahl anspielen, Abstürze und
-   Grafikfehler sammeln (Entscheidung des Projektinhabers, 16.10.2026: sobald
-   Ton da ist)
 9. Videos (SFD/MPV)
 10. Speichern/Laden
+10b. Raum-Rundgang: viele Räume per Raumauswahl anspielen, Abstürze und
+   Grafikfehler sammeln (Entscheidung des Projektinhabers, 16.10.2026: nach
+   Ton, Videos und Speichern/Laden)
 11. Android-Feinschliff: Grafikoptionen (`port/docs/graphics-settings.md`), Leistung
 12. ARM64: Zeiger-Kürzungen beheben
 
