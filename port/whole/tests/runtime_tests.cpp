@@ -832,6 +832,7 @@ void re4probe_routine(unsigned char out[4]);
 int re4probe_byte_views(void);
 const char* re4probe_file(void);
 unsigned re4probe_poly_attr(unsigned status);
+int re4probe_camera_double_delete(void);
 unsigned re4probe_cast_u8(float f);
 int re4probe_cast_s16(float f);
 int re4probe_debug_mode(int set);
@@ -987,6 +988,8 @@ static bool testGameProbe()
     re4probe_routine(r);
     CHECK(r[0] == 1 && r[1] == 0x2E && r[2] == 3 && r[3] == 4);  // EmRoutineSetW, patch 0023
     // collision attributes: fence 0x20 must not read as "up" 0x200000 (patch 0041)
+    // a special camera deleted twice keeps a usable vtable pointer (patch 0046)
+    CHECK(re4probe_camera_double_delete() == 0);
     CHECK(re4probe_poly_attr(0x00100020u) == 0x00100020u);
     CHECK(re4probe_poly_attr(0x00400000u) == 0x00400000u);
     // float to u8 / s16 clamps like the GameCube's quantised store

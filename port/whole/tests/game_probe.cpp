@@ -11,8 +11,11 @@
 #include "main_mem.h"
 #include "esp.h"
 #include "at_sub.h"
+#include "cam_extra.h"
 
+#include <new>
 #include <stdlib.h>
+#include <string.h>
 
 // The SDK casts GXFifoObj (a byte array) to a struct of words (patch 0038).
 static_assert(__alignof__(GXFifoObj) >= 4, "GXFifoObj must be word aligned for ARM");
@@ -69,6 +72,24 @@ extern "C" unsigned re4probe_cast_u8(float f)
 extern "C" int re4probe_cast_s16(float f)
 {
     return (s16) f;
+}
+
+// A finished special camera deleted twice, as CameraControl does (m_pProc stays
+// set after `delete m_pProc`): the subclass destructor poisons the object with
+// 9s, cCamera's destructor must leave a usable vtable pointer (patch 0046).
+// 1 when the pointer is the poison (the second delete would crash).
+extern "C" int re4probe_camera_double_delete(void)
+{
+    static u64 store[0x200 / 8];
+    cCamera* c = new (store) CameraPushObject();
+    delete c;
+    u32 first;
+    memcpy(&first, store, 4);  // the vtable pointer of the port's layout
+    if (first == 0x09090909u) {
+        return 1;
+    }
+    delete c;
+    return 0;
 }
 
 // The debug page (state_trace.cpp: RE4_DEBUG_HUD=0, patch 0043); set < 0 only reads.

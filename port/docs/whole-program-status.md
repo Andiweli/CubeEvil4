@@ -1611,6 +1611,33 @@ und der gelbe Kartenrahmen, dann bleibt das Bild schwarz; B schließt nicht.
   Vorbilds das Alpha; auf dem Gerät war der Fleck daher vermutlich nicht zu
   sehen (nicht geprüft).
 
+### Neunter Gerätelauf (16.10.2026, Retroid, Stand `490b78d`)
+
+Normaler Start (Raumauswahl-Menü nicht benutzt), `-Scale 3`. Karte (Z) öffnet
+und schließt jetzt auch auf dem Gerät. Im Menü „FILES“ flackert es laut
+Projektinhaber kurz beim Öffnen und danach im Hintergrund. Absturz nach 139 s
+beim Sprung aus dem Fenster.
+
+- **Absturz (Patch 0046):** `CameraMove` → `CameraControl::Check` →
+  `checkAttachCamera` → `delete m_pProc`, Fehleradresse 0x0909090d. Kamera nach
+  dem Raumstart „none“, also nicht der Fall von Patch 0044. Allgemeine Ursache:
+  Die Kamera-Unterklassen füllen ihr Objekt im Destruktor mit
+  `memset(this, 9, 0x200)`; `CameraControl` löscht eine beendete Kamera, lässt
+  `m_pProc` aber gesetzt und löscht sie beim nächsten Kamerawechsel noch einmal.
+  GCC 2.95 (MWCC ebenso) schreibt im leeren Destruktor `~cCamera() {}` den
+  vtable-Zeiger von `cCamera` zurück, das zweite `delete` landete im leeren
+  `~cCamera`. clang lässt diesen Schreibbefehl bei leerem Rumpf weg; das zweite
+  `delete` sprang über 0x09090909. Patch 0046 gibt `~cCamera` einen Rumpf, den
+  der Compiler behalten muss. Mit einem eigenständigen clang-Versuch geprüft
+  (ohne Patch vtable-Zeiger 0x09090909, mit Patch gültig); neue Prüfung
+  `re4probe_camera_double_delete` im Kern-Test. Das erklärt auch den Absturz
+  beim Untersuchen der Totenköpfe (siebter Gerätelauf); Patch 0044 bleibt
+  (schadet nicht). Das Debug-Startmenü war nicht die Ursache.
+- **FILES-Flackern:** Die R3-Aufnahme (Bild 3423, FILES offen, 161 Aufträge)
+  zeichnet einzeln richtig; die Zahl der gehaltenen Bilder blieb während des
+  Untermenüs gleich (37). Ein Flackern zeigt sich erst über mehrere Bilder:
+  R3 nimmt jetzt eine Folge aufeinanderfolgender Bilder auf (siehe unten).
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
@@ -1781,6 +1808,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0043 `title.cpp` | Das Debug-Startmenü nach „New Game“ (`titleExit`, Raumauswahl) meldet sich bei der Laufzeit an (`re4_title_room_menu`, runtime/dolphin_os.cpp): solange es offen ist, lässt die Debug-Anzeigen-Sperre der App (`RE4_DEBUG_HUD=0`) `debug_mode` mindestens 1, damit seine Zeilen (Debug-Text) zu sehen sind; `RE4_ROOM_MENU=0` überspringt es wie ein sofortiges A |
 | 0044 `cam_ctrl.cpp` | `CameraControl::roomInit` füllt den Platz für Kamera-Objekte (`m_Free`, Muster 9) vor `Check()` statt danach: `Check()` kann dort die Fall-Kamera bauen, deren vtable-Zeiger das Füllen sonst überschrieb; der nächste Kamera-Schnitt (`switchCamera` → `delete m_pProc`) stürzte ab (Direktstart von r100, Totenköpfe untersuchen) |
 | 0045 `snd.cpp` | `SndSoftReset` wartet auf die Bestätigung des Ton-Resets durch die Abspieler im Audio-Interrupt; die Warteschleife ruft `re4_wait_interrupt()` (runtime/vi.cpp), damit der Port die Interrupts ausliefert (vorher Stillstand beim Soft-Reset nach dem Tod, schwarzer Bildschirm) |
+| 0046 `include/cam_extra.h` | `~cCamera` bekommt einen Rumpf, den der Compiler behält (leere `asm`-Anweisung): so schreibt der Destruktor den vtable-Zeiger von `cCamera` wieder, nachdem der Destruktor einer Unterklasse das Objekt mit Muster 9 gefüllt hat. `CameraControl` löscht eine beendete Kamera ein zweites Mal (`m_pProc` bleibt gesetzt); GCC 2.95 überlebte das, clang ließ den Schreibbefehl beim leeren Rumpf weg (Absturz 0x0909090d beim Sprung aus dem Fenster, Totenköpfe) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

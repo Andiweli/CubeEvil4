@@ -1,0 +1,15 @@
+--- a/include/cam_extra.h
++++ b/include/cam_extra.h
+@@ -20,7 +20,11 @@
+ //   vtable slot 1 (0x10): move()
+ class cCamera : public CAMERA {
+ public:
+-    virtual ~cCamera() {}
++    /* port: a body the compiler keeps, so this destructor stores the cCamera vtable pointer
++       again after a subclass destructor poisoned the object (memset 9). CameraControl deletes
++       a finished camera a second time (m_pProc stays set); GCC 2.95 restored the pointer here,
++       clang skipped the store for the empty body and the second delete called 0x09090909 */
++    virtual ~cCamera() { __asm__ volatile("" ::: "memory"); }
+     virtual void move() = 0;
+     void operator delete(void*, __SIZE_TYPE__) {}
+ };
