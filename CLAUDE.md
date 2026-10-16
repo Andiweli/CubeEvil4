@@ -120,7 +120,9 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
    (Retroid, 16.10.2026; CRI-ADX gehört zu den Filmen)
 9. ✅ Videos (SFD/MPV): CRI-Middleware aus `src/lib`, Bild über GX, ADX-Ton,
    START überspringt (Retroid und PC-Prüfung, 16.10.2026)
-10. Speichern/Laden
+10. ✅ Speichern/Laden: CARD-Bibliothek aus `src/lib`, Speicherkarte als Datei
+   in der App, Speichern an der Schreibmaschine, Laden, Systemdaten
+   (Retroid und PC-Prüfung, 17.10.2026)
 10b. Raum-Rundgang: viele Räume per Raumauswahl anspielen, Abstürze und
    Grafikfehler sammeln (Entscheidung des Projektinhabers, 16.10.2026: nach
    Ton, Videos und Speichern/Laden)

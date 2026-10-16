@@ -19,7 +19,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M7 Steuerung | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m7-steuerung`): alle Tasten, Sticks und L2/R2 kommen als GameCube-Controller an (Original-`PADClamp`, Belegung nach Beschriftung), Menüs bedienbar, Vibration spürbar; Touch später („M7 Steuerung“) |
 | M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Gerätelauf von M9 („M8 Audio“) |
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
-| M10 Speichern/Laden | in Arbeit (Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App), Startprüfung wieder echt; Cloud-Tests und PC-Prüfung mit Disc-Daten bestanden; auf dem Retroid Formatieren, Systemdatei, Speichern, Neustart und Laden im Titel gesehen (17.10.2026). Danach behoben: Hänger bei „Retry“ und beim Laden im Pausemenü (Patch 0059), neue Karte vorformatiert, Startprüfung ohne Lademeldung und Systemdatei ohne Frage (0060); **Nachtest auf PC und Gerät steht aus** („M10 Speichern/Laden“) |
+| M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
 | Reihenfolge | Entscheidung des Projektinhabers (16.10.2026): erst M9 Videos und M10 Speichern/Laden, danach der Raum-Rundgang (10b) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -2639,7 +2639,32 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
   die neue Karte bindet ohne Formatieren ein, ihre Systemblöcke sind bis auf
   Zeit und Seriennummer gleich mit denen nach `CARDFormat`.
 
-**Nicht geprüft (Stand dieses Abschnitts):** die PC-Prüfung mit Disc-Daten
+### Nachtests (17.10.2026, Stand `78aa0b9`): M10 erreicht
+
+- **PC-Prüfung** (`-OnlyCard`, „ALLES OK“): Lauf A legt die Systemdatei
+  jetzt ohne Frage an (Schritte 0, 2–10), speichert in r100; Lauf B liest
+  die Systemdatei (Helligkeit 72), lädt im Titel und bringt r100 nach
+  „Retry from a continue point“ nach 31 Bildern wieder in Gang (vor Patch
+  0059 hing das Spiel dort), 2400 Bilder ohne Fehler.
+- **Gerätetest 1** (`-Manual -NewCard`): laut Projektinhaber alles in
+  Ordnung (Start ohne Kartenmeldung, Szene mit dem ersten Ganado, Speichern
+  an der Schreibmaschine, „Retry“ und Laden im Pausemenü ohne schwarzes
+  Bild); `senden.zip` entstand nicht, weil die umbenannte Datei schon
+  existierte, kein neuer Lauf nötig.
+- **Gerätetest 2** (Neustart): Startprüfung liest die Systemdatei
+  (Helligkeit 63 wie eingestellt), im Titel auf 64 verstellt, „Load“ →
+  Datei 1 geladen, r100 läuft; 0 abgebrochene Töne. Laut Projektinhaber
+  Laden und Einstellungen in Ordnung.
+- **Damit erreicht:** Speicherkarte in Schacht A als Datei, Startprüfung,
+  Formatieren (nur noch für kaputte Karten), Speichern an der
+  Schreibmaschine, Laden im Titel und im Pausemenü, Systemdaten über einen
+  Neustart, Spielstände mit Banner und Symbol.
+- **Offen / nicht nachgebildet:** `.gci`-Import/Export (eigener Schritt bei
+  Bedarf), Schacht B, Karte während des Spiels wechseln, `OSResetSystem`
+  (Neustart-Angebot bei „kein Platz“; bei 251 freien Blöcken nicht zu
+  erreichen).
+
+**Nicht geprüft (Stand des Abschnitts „Prüfungen (Cloud)“):** die PC-Prüfung mit Disc-Daten
 (Abschnitt 7: die Bildschirme des Spiels beim Speichern und Laden, das
 Formatieren über den Dialog), der Android-Build (das NDK ist in der Cloud
 nicht erreichbar) und alles auf dem Gerät. Nicht nachgebildet: Karte während
