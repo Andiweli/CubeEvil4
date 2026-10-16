@@ -213,9 +213,12 @@ int re4_audio_read(short* out, int frames)
         r += gFrac >> 16;
         gFrac &= 0xFFFF;
     }
-    if (got < frames) {
+    // a dropout: the sound broke off (not every read while there is none yet)
+    static bool dry = true;
+    if (got < frames && !dry) {
         gUnderruns++;
     }
+    dry = got < frames;
     gRead.store(r, std::memory_order_release);
     return got;
 }
@@ -238,7 +241,8 @@ int re4_audio_take(short* out, int frames)
 }
 
 // For the overlay and the log: blocks so far, frames in the ring, lost blocks
-// (the app did not read), reads that ran dry, skips after a pause.
+// (the app did not read), dropouts (the ring ran dry while the sound played),
+// skips after a pause.
 void re4_audio_stats(unsigned* blocks, unsigned* fill, unsigned* overruns, unsigned* underruns,
                      unsigned* skips)
 {
