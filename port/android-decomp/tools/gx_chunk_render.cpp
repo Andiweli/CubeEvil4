@@ -7,6 +7,12 @@
 //
 // Writes OUTPUT_DIR/<name>.ppm (the display copy, 640 wide) and one line per
 // frame: size, draws, triangles, textures, copies, shaders, problems.
+//
+// A chunk that directly follows the one before (next sequence number and next
+// frame, the app's R3 series gx-geraet-NN-KK.bin) runs on the same renderer as
+// in the app: EFB, copies and textures stay, a held picture (RE4_GX_CHUNK_HOLD)
+// leaves the picture before on screen. Any other chunk must start over
+// (RE4_GX_CHUNK_RESET) and gets a fresh renderer.
 #include "gx_gl.h"
 #include "re4_gx_frame_io.h"
 
@@ -15,6 +21,7 @@
 #include <GLES3/gl3.h>
 
 #include <cstdio>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -59,6 +66,8 @@ int main(int argc, char **argv) {
   int failures = 0;
   GLuint fbo = 0;
   glGenFramebuffers(1, &fbo);
+  std::unique_ptr<re4gx::GxRenderer> renderer;
+  uint32_t lastSequence = 0, lastFrame = 0;
   for (int i = 2; i < argc; i++) {
     const std::string path = argv[i];
     re4gxio::Loaded loaded;
@@ -71,28 +80,47 @@ int main(int argc, char **argv) {
       failures++;
       continue;
     }
-    re4gx::GxRenderer renderer;
-    std::string error;
-    if (!renderer.Init(1, &error)) {
-      std::printf("%s: Renderer: %s\n", Stem(path).c_str(), error.c_str());
-      failures++;
-      continue;
-    }
-    // a held picture (RE4_GX_CHUNK_HOLD) was not on screen; drawn here anyway
     Re4GxChunk chunk = loaded.chunk;
+    const bool follows = renderer && chunk.sequence == lastSequence + 1 && loaded.frame == lastFrame + 1;
+    if (!follows) {
+      if (!(chunk.flags & RE4_GX_CHUNK_RESET)) {
+        std::printf("%s: Folgebild ohne das Bild davor (Bildstück %u), übersprungen\n", Stem(path).c_str(),
+                    chunk.sequence);
+        failures++;
+        continue;
+      }
+      if (renderer)
+        renderer->Release();
+      renderer = std::make_unique<re4gx::GxRenderer>();
+      std::string error;
+      if (!renderer->Init(1, &error)) {
+        std::printf("%s: Renderer: %s\n", Stem(path).c_str(), error.c_str());
+        renderer.reset();
+        failures++;
+        continue;
+      }
+    }
+    lastSequence = chunk.sequence;
+    lastFrame = loaded.frame;
+    // a held picture (RE4_GX_CHUNK_HOLD) was not on screen; a lone one is drawn
+    // anyway, in a series the picture before stays (as in the app)
     const bool held = (chunk.flags & RE4_GX_CHUNK_HOLD) != 0;
-    chunk.flags &= ~RE4_GX_CHUNK_HOLD;
-    renderer.Run(chunk);
+    if (!follows)
+      chunk.flags &= ~RE4_GX_CHUNK_HOLD;
+    const re4gx::GxStats before = renderer->Stats();
+    renderer->Run(chunk);
     if (held)
-      std::printf("%s: Bild war angehalten (nicht auf dem Bildschirm)\n", Stem(path).c_str());
+      std::printf("%s: Bild war angehalten (nicht auf dem Bildschirm)%s\n", Stem(path).c_str(),
+                  follows ? ", gezeigt bleibt das Bild davor" : "");
     unsigned w = 0, h = 0;
-    const GLuint xfb = renderer.Xfb(&w, &h);
-    const re4gx::GxStats &s = renderer.Stats();
-    std::printf("%s (Bild %u): %ux%u, %u Zeichenaufträge, %u Dreiecke, %u Texturen, %u Kopien, %u Shader%s%s\n",
-                Stem(path).c_str(), loaded.frame, w, h, s.draws, s.triangles, s.textures, s.textureCopies,
-                s.programs, s.missingTextures ? ", fehlende Texturen" : "",
-                s.shaderErrors ? ", FEHLER: Shader" : "");
-    if (s.shaderErrors)
+    const GLuint xfb = renderer->Xfb(&w, &h);
+    const re4gx::GxStats &s = renderer->Stats();
+    std::printf("%s (Bild %u%s): %ux%u, %u Zeichenaufträge, %u Dreiecke, %u Texturen, %u Kopien, %u Shader%s%s\n",
+                Stem(path).c_str(), loaded.frame, follows ? ", Folgebild" : "", w, h, s.draws - before.draws,
+                s.triangles - before.triangles, s.textures - before.textures, s.textureCopies - before.textureCopies,
+                s.programs, s.missingTextures > before.missingTextures ? ", fehlende Texturen" : "",
+                s.shaderErrors > before.shaderErrors ? ", FEHLER: Shader" : "");
+    if (s.shaderErrors > before.shaderErrors)
       failures++;
     if (xfb && w && h) {
       std::vector<unsigned char> rgba(static_cast<std::size_t>(w) * h * 4);
@@ -109,7 +137,8 @@ int main(int argc, char **argv) {
         std::fclose(p);
       }
     }
-    renderer.Release();
   }
+  if (renderer)
+    renderer->Release();
   return failures ? 1 : 0;
 }

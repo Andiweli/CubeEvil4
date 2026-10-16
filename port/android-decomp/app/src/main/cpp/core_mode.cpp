@@ -125,6 +125,13 @@ unsigned gxDumpCount = 0;
 std::mutex gxDumpLock;
 std::string gxDumpAskedDir;
 unsigned gxDumpAsked = 0;
+// a controller dump is a series: the chunk that starts over and the ones right
+// after it (gx-geraet-NN-KK.bin), drawn one after another in the cloud, so
+// flicker over several pictures shows
+constexpr unsigned kGxDumpSeries = 12;
+bool gxDumpSeriesWanted = false;
+unsigned gxDumpSeriesLeft = 0, gxDumpSeriesIndex = 0, gxDumpSeriesPart = 0;
+uint32_t gxDumpSeriesSequence = 0;
 
 // Runs the chunks the core has finished and shows the latest display copy.
 // False while there is nothing to show yet (the caller draws the bridge).
@@ -177,12 +184,12 @@ bool drawGx() {
       LOG("GX dumps every %d s into %s", gxDumpEvery, gxDumpDir.c_str());
     }
   }
-  if (gxDumpEvery && !gxDumpWanted && gxDumpCount < 6 && now >= gxDumpNext) {
+  if (gxDumpEvery && !gxDumpWanted && !gxDumpSeriesLeft && gxDumpCount < 6 && now >= gxDumpNext) {
     api.gxDetach();
     gxDumpWanted = true;
     gxDumpNext = now + std::chrono::seconds(gxDumpEvery);
   }
-  if (!gxDumpWanted && gxDumpCount < 40) {
+  if (!gxDumpWanted && !gxDumpSeriesLeft && gxDumpCount < 40) {
     std::lock_guard<std::mutex> lock(gxDumpLock);
     if (gxDumpAsked) {
       gxDumpAsked--;
@@ -193,6 +200,7 @@ bool drawGx() {
       if (!gxDumpDir.empty()) {
         api.gxDetach();
         gxDumpWanted = true;
+        gxDumpSeriesWanted = true;
         LOG("GX dump asked for (controller)");
         // where the player stands, for checks on the PC (RE4_TEST_PLACE)
         for (const Re4CoreModel &mdl : frame.models) {
@@ -207,10 +215,30 @@ bool drawGx() {
     }
   }
   if (const Re4GxChunk *chunk = api.gxAcquire()) {
+    char path[512];
+    path[0] = 0;
     if (gxDumpWanted && (chunk->flags & RE4_GX_CHUNK_RESET)) {
       gxDumpWanted = false;
-      char path[512];
-      std::snprintf(path, sizeof(path), "%s/gx-geraet-%02u.bin", gxDumpDir.c_str(), gxDumpCount++);
+      if (gxDumpSeriesWanted) {
+        gxDumpSeriesWanted = false;
+        gxDumpSeriesIndex = gxDumpCount++;
+        gxDumpSeriesPart = 0;
+        gxDumpSeriesLeft = kGxDumpSeries;
+      } else {
+        std::snprintf(path, sizeof(path), "%s/gx-geraet-%02u.bin", gxDumpDir.c_str(), gxDumpCount++);
+      }
+    } else if (gxDumpSeriesLeft && chunk->sequence != gxDumpSeriesSequence + 1) {
+      LOG("GX dump series %02u ends after %u chunks (chunk sequence %u after %u)", gxDumpSeriesIndex,
+          gxDumpSeriesPart, chunk->sequence, gxDumpSeriesSequence);
+      gxDumpSeriesLeft = 0;
+    }
+    if (gxDumpSeriesLeft) {
+      std::snprintf(path, sizeof(path), "%s/gx-geraet-%02u-%02u.bin", gxDumpDir.c_str(), gxDumpSeriesIndex,
+                    gxDumpSeriesPart++);
+      gxDumpSeriesSequence = chunk->sequence;
+      gxDumpSeriesLeft--;
+    }
+    if (path[0]) {
       if (FILE *f = std::fopen(path, "wb")) {
         const bool ok = re4gxio::Write(f, *chunk, gxChunks);
         std::fclose(f);

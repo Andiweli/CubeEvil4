@@ -1636,7 +1636,15 @@ beim Sprung aus dem Fenster.
 - **FILES-Flackern:** Die R3-Aufnahme (Bild 3423, FILES offen, 161 Aufträge)
   zeichnet einzeln richtig; die Zahl der gehaltenen Bilder blieb während des
   Untermenüs gleich (37). Ein Flackern zeigt sich erst über mehrere Bilder:
-  R3 nimmt jetzt eine Folge aufeinanderfolgender Bilder auf (siehe unten).
+  R3 nimmt jetzt eine Folge auf, das Bildstück mit vollem Zustand und die
+  11 direkt danach (`core_mode.cpp`, `gx-geraet-NN-KK.bin`; bricht ab, wenn
+  ein Bildstück fehlt). `gx_chunk_render` zeichnet ein Bildstück, das direkt
+  auf das vorige folgt (nächste Folgenummer und nächstes Bild), mit demselben
+  Renderer weiter wie die App (EFB, Kopien und Texturen bleiben, ein
+  angehaltenes Bild lässt das vorige stehen); ein Folgebild ohne Vorgänger
+  wird übersprungen und gemeldet. Geprüft mit einer nachgebauten Folge aus
+  der Aufnahme von Bild 3423 (Folgebilder pixelgleich, Einzelbilder wie
+  vorher) und dem Link-Test der App.
 
 ### Lokale Prüfungen für K2
 

@@ -38,8 +38,9 @@ Die App blendet die Debug-Anzeigen der Entwicklerfassung aus (-DebugHud zeigt si
 und schneidet die schwarzen Balken ab (Vollbild 16:9). -GxDump speichert alle 20 s
 die vollstaendigen Grafikdaten eines Bildes (hoechstens 6) und legt sie als
 gx-geraet.zip ab (zum Nachzeichnen in der Cloud, nicht ins Repository). Ein Druck
-auf den rechten Stick (R3) speichert jederzeit das naechste Bild ebenso (auch ohne
--GxDump; nach einem Spiel ohne dieses Skript holt pull-gx-dumps.ps1 die Aufnahmen).
+auf den rechten Stick (R3) speichert jederzeit die naechsten 12 Bilder ebenso (eine
+Folge, damit Flackern sichtbar wird; auch ohne -GxDump; nach einem Spiel ohne
+dieses Skript holt pull-gx-dumps.ps1 die Aufnahmen).
 -Scale waehlt die interne Aufloesung: 1 = 640x448 wie der GameCube, 2 = 1280x896
 (Standard, der sichtbare 16:9-Teil entspricht etwa 720p), 3 = 1920x1344 (etwa 1080p),
 4 = 2560x1792.

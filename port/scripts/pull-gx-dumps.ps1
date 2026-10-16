@@ -4,7 +4,7 @@ Holt die Grafik-Aufnahmen der App "RE4 Kern" vom Retroid (R3 im Spiel).
 
 .DESCRIPTION
 Ein Druck auf den rechten Stick (R3) speichert in der App die vollstaendigen
-Grafikdaten des naechsten Bildes (zum Nachzeichnen in der Cloud). Nach einem
+Grafikdaten der naechsten 12 Bilder (zum Nachzeichnen in der Cloud). Nach einem
 Spiel ohne test-core-app.ps1 holt dieses Skript sie unter der gemeinsamen
 ADB-Sperre (port/docs/adb-coordination.md) und legt sie als gx-geraet.zip in
 -OutDir ab (Standard: Desktop\RE4-Kern-App). Danach werden sie auf dem Retroid
