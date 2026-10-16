@@ -321,25 +321,12 @@ bool drsBody(const Bytes& file, Bytes& out, std::string& error)
         return false;
     }
     std::uint32_t length = word(0x24), offset = word(0x2C);
-    if (word(0x20) == 0 && offset == 0x400 && length >= 16 && length <= file.size() - offset) {
-        out.assign(file.begin() + offset, file.begin() + offset + length);
-        return true;
+    if (word(0x20) != 0 || offset != 0x400 || length < 16 || length > file.size() - offset) {
+        error = "kein DVD-Container mit Archiv an 0x400";
+        return false;
     }
-    // other containers (SS/cmn/map_objNN.dat): the first main-memory part
-    // (DvdHeader: type 0, size, dest, offset; 0x20 bytes each, type -1 ends)
-    for (std::size_t e = 0; e + 0x20 <= 0x400; e += 0x20) {
-        std::uint32_t type = word(e);
-        if (type == 0xFFFFFFFFu) {
-            break;
-        }
-        std::uint32_t size = word(e + 4), ofs = word(e + 0xC);
-        if (type == 0 && size >= 16 && ofs >= 0x20 && ofs <= file.size() && size <= file.size() - ofs) {
-            out.assign(file.begin() + ofs, file.begin() + ofs + size);
-            return true;
-        }
-    }
-    error = "kein DVD-Container mit Archiv (Teil im Hauptspeicher)";
-    return false;
+    out.assign(file.begin() + offset, file.begin() + offset + length);
+    return true;
 }
 
 void collect(const std::string& dir, const std::string& rel, int depth, std::vector<std::string>& out,
@@ -435,13 +422,6 @@ std::vector<Input> discInputs(const std::string& dir)
             containers.push_back(em + "/" + name);
         }
     }
-    // the map screen's rooms (Sscrn ss_map.cpp): containers like the .drs
-    std::string cmn = findPath(files, "ss/cmn");
-    for (const auto& name : listDir(cmn)) {
-        if (strncasecmp(name.c_str(), "map_obj", 7) == 0 && endsWithNoCase(name, ".dat")) {
-            containers.push_back(cmn + "/" + name);
-        }
-    }
     // codec messages (ss_term.cpp opArc): the archive starts 0x400 bytes into the part
     std::string op = findPath(files, "op");
     std::size_t codecFrom = containers.size();
@@ -460,6 +440,18 @@ std::vector<Input> discInputs(const std::string& dir)
             i.error = "Funkarchiv zu kurz";
         }
         in.push_back(i);
+    }
+    // the map screen's rooms (Sscrn ss_map.cpp DvdReadN without a part table):
+    // the files are the archives
+    std::string cmn = findPath(files, "ss/cmn");
+    for (const auto& name : listDir(cmn)) {
+        if (strncasecmp(name.c_str(), "map_obj", 7) == 0 && endsWithNoCase(name, ".dat")) {
+            Input i{ cmn.substr(files.size() + 1) + "/" + name, kArchive, {}, "", false };
+            if (!readFile(cmn + "/" + name, i.bytes)) {
+                i.error = "nicht lesbar";
+            }
+            in.push_back(i);
+        }
     }
     return in;
 }
@@ -484,7 +476,7 @@ int writeSamples(const std::string& dir)
         switch (in.kind) {
         case kArchive:
             if (in.label == kMapSample) {
-                ok = writeFile(files + "SS/cmn/map_obj1.dat", makeSinglePart(in.bytes)) && ok;
+                ok = writeFile(files + "SS/cmn/map_obj1.dat", in.bytes) && ok;
                 break;
             }
             ok = writeFile(files + "st1/r100.arc", in.bytes) && ok;

@@ -296,7 +296,9 @@ run_game() {
     if [ -n "$reason" ]; then
         say "Ergebnis: $reason ($secs s)"
         bad=1
-    elif [ "$code" -eq 0 ] && [ -n "$stopped" ] && echo "$stopped" | grep -q "room r$room"; then
+    elif [ "$code" -eq 0 ] && [ -n "$stopped" ] &&
+        { echo "$stopped" | grep -q "room r$room" || grep -q "run: soft reset requested" "$log"; }; then
+        # after the requested soft reset the run ends at the title (checked below)
         say "Ergebnis: OK, kein Absturz ($secs s)"
     elif grep -q "fatal signal" "$log"; then
         say "Ergebnis: ABSTURZ ($(grep -m1 'fatal signal' "$log" | sed 's/^\[re4\] //'))"
@@ -698,8 +700,16 @@ render_gx_pictures() {
             say "Karte offen: kein GX-Bild aufgezeichnet"
         fi
     fi
+    # and frames asked for by number (RE4_GX_KEEP, default: 901, the opening
+    # event's view of the car from above with its shadow on the ground)
+    local wanted=""
+    for n in ${RE4_GX_KEEP:-901}; do
+        f=$(printf '%s/gx-%06u.bin' "$dump" "$n")
+        [ -f "$f" ] && wanted="$wanted $f"
+    done
     keep=$( (ls "$dump"/gx-*.bin | head -3; ls "$dump"/gx-*.bin | sed -n '4,99p' |
-        while read -r f; do [ "$(stat -c %s "$f")" -gt 2000000 ] && echo "$f"; done | head -1; echo "$mapfile") |
+        while read -r f; do [ "$(stat -c %s "$f")" -gt 2000000 ] && echo "$f"; done | head -1; echo "$mapfile";
+        for f in $wanted; do echo "$f"; done) |
         grep . | sort -u)
     python3 - "$run/gx-daten.zip" $keep <<'PY'
 import sys, zipfile

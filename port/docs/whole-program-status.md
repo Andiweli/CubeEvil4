@@ -1568,6 +1568,28 @@ und der gelbe Kartenrahmen, dann bleibt das Bild schwarz; B schließt nicht.
   (`systemSoftReset` schaltet vorher auf Schwarz). Ob danach der Titel
   zurückkommt, zeigt der nächste PC-Lauf („Titel nach dem Soft-Reset“).
 
+### Zehnter PC-Lauf (16.10.2026, WSL2, Stand `a9b1f20`)
+
+- **Soft-Reset:** mit Patch 0045 läuft er durch („--SOFT_RESET END!!“ ein
+  Bild später), das Spiel liest `title.dat` neu und steht am Ende im Titel
+  (Raum 0x120, Schritt 0). Die Prüfung meldete trotzdem „Ziel nicht
+  erreicht“, weil sie das Ende in r100 erwartete; nach dem angeforderten
+  Soft-Reset gilt jetzt das Ende im Titel (die Rückkehr prüft der
+  Soft-Reset-Abschnitt).
+- **Kartendateien im Formatvergleich:** wieder „FEHLT“; die Karte liest
+  `SS/cmn/map_objNN.dat` ohne Teile-Tabelle (`DvdReadN` ohne Kopf-Bit), die
+  Datei ist selbst das Archiv. Der Vergleich nimmt sie jetzt so (die
+  Container-Annahme vom neunten Lauf ist zurückgenommen).
+- **Dunkle Fläche am Boden (Projektinhaber, GX-Bilder 901 und 922):** In der
+  Draufsicht auf das Auto (Ereignis r100s40, Schnitt 1) liegt eine
+  scharfkantige, gleichmäßig dunkle Raute auf dem Boden. Diese Bilder haben
+  13 statt 9 EFB-Kopien: der weiche Schatten (`shadow.cpp`
+  `make_shadow_texture`: Umriss mit konstantem Ziel-Alpha ins EFB, Kopie als
+  A8 → I8, `MakeSoftShadow` mit weiteren Kopien) wird auf den Boden
+  projiziert. Eine gleichmäßig dunkle Fläche heißt, die Schattentextur ist
+  überall „Schatten“ statt nur im Umriss. Ursache offen; die PC-Prüfung
+  legt Bild 901 jetzt als Daten bei (`RE4_GX_KEEP`, Standard 901).
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
