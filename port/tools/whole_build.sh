@@ -39,11 +39,15 @@ for t in "${targets[@]}"; do
         -DCMAKE_TOOLCHAIN_FILE="$root/port/whole/cmake/linux-$t.cmake" -DRE4_OPT_LEVEL="${RE4_OPT:-}" \
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON > "$log" 2>&1 &&
         ninja -C "$build" -k 0 ${RE4_JOBS:+-j "$RE4_JOBS"} >> "$log" 2>&1
+    code=$?
     failed=$(grep -c '^FAILED' "$log")
     errors=$(grep -E ': error:|fatal error:|ld.lld: error' "$log" | sort -u | wc -l)
     echo "$t${RE4_OPT:+ -O$RE4_OPT}: $failed failed build steps, $errors distinct errors (log: port/build/$name.log)"
     grep -h '^link plan:' "$log" | tail -1 | sed 's/^/  /'
-    if [ "$failed" -ne 0 ] || [ "$errors" -ne 0 ]; then
+    if [ "$code" -ne 0 ] || [ "$failed" -ne 0 ] || [ "$errors" -ne 0 ]; then
+        # a failed CMake configure (whole_prepare.py, patches) leaves the programs of
+        # the build before: the checks below would test that old state
+        [ "$failed" -eq 0 ] && [ "$errors" -eq 0 ] && { echo "  build stopped (exit code $code):"; tail -n 8 "$log" | sed 's/^/    /'; }
         status=1
         continue
     fi

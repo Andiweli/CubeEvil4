@@ -153,6 +153,9 @@ int re4_debug_start_room_set(void);
  * re4_title_room_menu_open: 1 while it is shown (its text needs debug_mode). */
 int re4_title_room_menu(int open);
 int re4_title_room_menu_open(void);
+/* Does nothing; ~cCamera hands its object here (patch 0046), so the compiler
+ * cannot leave out the store of the cCamera vtable pointer before it. */
+void re4_keep_vtable(void* object);
 
 #ifdef __cplusplus
 }

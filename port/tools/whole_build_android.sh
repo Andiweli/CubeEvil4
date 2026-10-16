@@ -96,6 +96,12 @@ echo "android armeabi-v7a -O$opt: $failed failed build steps, $errors distinct e
 grep -h '^link plan:' "$log" | tail -1 | sed 's/^/  /'
 if [ "$code" -ne 0 ] || [ "$failed" -ne 0 ] || [ "$errors" -ne 0 ]; then
     grep -E ': error:|fatal error:|ld.lld: error' "$log" | sort -u | head -40 | sed 's/^/  /'
+    if [ "$failed" -eq 0 ] && [ "$errors" -eq 0 ]; then
+        # no compile step failed: CMake or the source preparation (whole_prepare.py,
+        # patches) stopped, or ninja itself was ended; the end of the log says which
+        echo "  (exit code $code; end of port/build/whole-android-armv7.log:)"
+        tail -n 25 "$log" | sed 's/^/  /'
+    fi
     exit 1
 fi
 

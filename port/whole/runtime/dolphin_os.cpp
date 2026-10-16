@@ -376,6 +376,11 @@ int re4_title_room_menu_open(void)
     return g_roomMenuOpen;
 }
 
+void re4_keep_vtable(void* object)
+{
+    (void) object;
+}
+
 void re4_debug_start_room(unsigned short* room_id)
 {
     if (unsigned long room = debugStartRoom()) {

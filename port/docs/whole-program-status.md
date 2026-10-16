@@ -1624,15 +1624,27 @@ beim Sprung aus dem Fenster.
   Die Kamera-Unterklassen füllen ihr Objekt im Destruktor mit
   `memset(this, 9, 0x200)`; `CameraControl` löscht eine beendete Kamera, lässt
   `m_pProc` aber gesetzt und löscht sie beim nächsten Kamerawechsel noch einmal.
-  GCC 2.95 (MWCC ebenso) schreibt im leeren Destruktor `~cCamera() {}` den
-  vtable-Zeiger von `cCamera` zurück, das zweite `delete` landete im leeren
-  `~cCamera`. clang lässt diesen Schreibbefehl bei leerem Rumpf weg; das zweite
-  `delete` sprang über 0x09090909. Patch 0046 gibt `~cCamera` einen Rumpf, den
-  der Compiler behalten muss. Mit einem eigenständigen clang-Versuch geprüft
-  (ohne Patch vtable-Zeiger 0x09090909, mit Patch gültig); neue Prüfung
-  `re4probe_camera_double_delete` im Kern-Test. Das erklärt auch den Absturz
-  beim Untersuchen der Totenköpfe (siebter Gerätelauf); Patch 0044 bleibt
-  (schadet nicht). Das Debug-Startmenü war nicht die Ursache.
+  Mit GCC 2.95 war das harmlos: `~cCamera() {}` schreibt den vtable-Zeiger von
+  `cCamera` zurück, das zweite `delete` landet im löschenden Destruktor von
+  `cCamera` (leerer `operator delete`). Mit clang scheitern beide Schritte:
+  Bei leerem Rumpf lässt clang den Schreibbefehl weg (das zweite `delete`
+  sprang über 0x09090909), und der löschende Destruktor einer abstrakten Klasse
+  ist bei clang ein Haltebefehl (SIGILL). Patch 0046: `~cCamera` übergibt das
+  Objekt an `re4_keep_vtable` (runtime/dolphin_os.cpp, tut nichts, für den
+  Compiler undurchsichtig), `move()` hat einen leeren Rumpf statt rein virtuell
+  zu sein (`cCamera` selbst wird nie angelegt). Prüfung
+  `re4probe_camera_double_delete` im Kern-Test (zweimal `delete` wie im Spiel):
+  ohne Patch „check failed“, mit Patch bestanden (i686/armhf, normal und
+  `-O2`). Das erklärt auch den Absturz beim Untersuchen der Totenköpfe
+  (siebter Gerätelauf); Patch 0044 bleibt (schadet nicht). Das
+  Debug-Startmenü war nicht die Ursache.
+- **Kern-Build auf dem PC abgebrochen (Stand `972a857`):** Die erste Fassung
+  von Patch 0046 nutzte eine leere `asm`-Anweisung; `whole_prepare.py` lässt
+  Inline-Assembler ohne C-Ersatz nicht zu, CMake brach ab. Das Android-Skript
+  meldete „0 failed build steps“ ohne Grund; `whole_build.sh` in der Cloud
+  wertete den Abbruch gar nicht aus und prüfte die Programme des vorigen
+  Stands. Beide Skripte werten jetzt den Rückgabewert von CMake/ninja aus und
+  zeigen in diesem Fall das Ende des Protokolls.
 - **FILES-Flackern:** Die R3-Aufnahme (Bild 3423, FILES offen, 161 Aufträge)
   zeichnet einzeln richtig; die Zahl der gehaltenen Bilder blieb während des
   Untermenüs gleich (37). Ein Flackern zeigt sich erst über mehrere Bilder:
@@ -1816,7 +1828,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0043 `title.cpp` | Das Debug-Startmenü nach „New Game“ (`titleExit`, Raumauswahl) meldet sich bei der Laufzeit an (`re4_title_room_menu`, runtime/dolphin_os.cpp): solange es offen ist, lässt die Debug-Anzeigen-Sperre der App (`RE4_DEBUG_HUD=0`) `debug_mode` mindestens 1, damit seine Zeilen (Debug-Text) zu sehen sind; `RE4_ROOM_MENU=0` überspringt es wie ein sofortiges A |
 | 0044 `cam_ctrl.cpp` | `CameraControl::roomInit` füllt den Platz für Kamera-Objekte (`m_Free`, Muster 9) vor `Check()` statt danach: `Check()` kann dort die Fall-Kamera bauen, deren vtable-Zeiger das Füllen sonst überschrieb; der nächste Kamera-Schnitt (`switchCamera` → `delete m_pProc`) stürzte ab (Direktstart von r100, Totenköpfe untersuchen) |
 | 0045 `snd.cpp` | `SndSoftReset` wartet auf die Bestätigung des Ton-Resets durch die Abspieler im Audio-Interrupt; die Warteschleife ruft `re4_wait_interrupt()` (runtime/vi.cpp), damit der Port die Interrupts ausliefert (vorher Stillstand beim Soft-Reset nach dem Tod, schwarzer Bildschirm) |
-| 0046 `include/cam_extra.h` | `~cCamera` bekommt einen Rumpf, den der Compiler behält (leere `asm`-Anweisung): so schreibt der Destruktor den vtable-Zeiger von `cCamera` wieder, nachdem der Destruktor einer Unterklasse das Objekt mit Muster 9 gefüllt hat. `CameraControl` löscht eine beendete Kamera ein zweites Mal (`m_pProc` bleibt gesetzt); GCC 2.95 überlebte das, clang ließ den Schreibbefehl beim leeren Rumpf weg (Absturz 0x0909090d beim Sprung aus dem Fenster, Totenköpfe) |
+| 0046 `include/cam_extra.h` | `~cCamera` übergibt das Objekt an `re4_keep_vtable` (runtime/dolphin_os.cpp, tut nichts), damit clang den vtable-Zeiger von `cCamera` wieder schreibt, nachdem der Destruktor einer Unterklasse das Objekt mit Muster 9 gefüllt hat; `move()` hat einen leeren Rumpf statt rein virtuell zu sein, weil clang den löschenden Destruktor einer abstrakten Klasse als Haltebefehl erzeugt. `CameraControl` löscht eine beendete Kamera ein zweites Mal (`m_pProc` bleibt gesetzt); mit GCC 2.95 harmlos, mit clang Absturz 0x0909090d (Sprung aus dem Fenster, Totenköpfe) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

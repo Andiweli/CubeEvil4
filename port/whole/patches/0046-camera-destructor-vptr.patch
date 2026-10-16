@@ -1,15 +1,26 @@
 --- a/include/cam_extra.h
 +++ b/include/cam_extra.h
-@@ -20,7 +20,11 @@
+@@ -18,10 +18,21 @@
+ // GNU v2 layout: Camera data first, then the vtable pointer at 0xF8 (size 0xFC).
+ //   vtable slot 0 (0x08): virtual destructor
  //   vtable slot 1 (0x10): move()
++/* port: runtime/dolphin_os.cpp, takes the object and does nothing (patch 0046) */
++extern "C" void re4_keep_vtable(void* object);
++
++/* port: CameraControl deletes a finished camera a second time (m_pProc stays set). With
++   GCC 2.95 that was harmless: the subclass destructor poisons the object (memset 9), this
++   destructor stores the cCamera vtable pointer again, and the second delete runs the
++   cCamera deleting destructor (an empty operator delete). With clang both steps failed:
++   it leaves out the store for an empty body (second delete called 0x09090909), and the
++   deleting destructor of an abstract class is a trap instruction. So the body hands the
++   object to a function the compiler cannot see, and move() has an empty body instead of
++   being pure (cCamera itself is never created). */
  class cCamera : public CAMERA {
  public:
 -    virtual ~cCamera() {}
-+    /* port: a body the compiler keeps, so this destructor stores the cCamera vtable pointer
-+       again after a subclass destructor poisoned the object (memset 9). CameraControl deletes
-+       a finished camera a second time (m_pProc stays set); GCC 2.95 restored the pointer here,
-+       clang skipped the store for the empty body and the second delete called 0x09090909 */
-+    virtual ~cCamera() { __asm__ volatile("" ::: "memory"); }
-     virtual void move() = 0;
+-    virtual void move() = 0;
++    virtual ~cCamera() { re4_keep_vtable(this); }
++    virtual void move() {}
      void operator delete(void*, __SIZE_TYPE__) {}
  };
+ 
