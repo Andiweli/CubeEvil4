@@ -12,7 +12,9 @@ WSL2 (Ubuntu). Dieses Skript erledigt alles von Windows aus:
      Ordners nach ~/re4-kern in WSL, baut den Kern und prueft ohne Disc-Daten,
      vergleicht die Formatumwandler mit den App-Lesern auf deinen Disc-Dateien,
      startet das Spiel vom Titelbild mit Debug-Start nach r100 und laesst es
-     10.000 Bilder laufen,
+     10.000 Bilder laufen, spielt danach jeden Film der Disc ganz ab
+     (Schnelllauf; Standbilder im Ordner bilder-film, Ton des Vorfilms als
+     film-d1-opening.wav),
   3. legt den Bericht und die Logs in -OutDir ab (Standard: Desktop\RE4-Kern-Pruefung).
 
 Disc-Daten (-DataDir), eine dieser Formen:
@@ -21,9 +23,9 @@ Disc-Daten (-DataDir), eine dieser Formen:
   - der Import-Ordner der App (disc1, disc2) oder ein Port-Ordner (disc0, disc1)
 Die Disc-Daten werden nie ins Repository kopiert.
 
-Vorher den Branch aktualisieren:
+Vorher den Branch der aktuellen Aufgabe holen (Name steht in der Aufgabe), z. B.:
   git fetch origin
-  git checkout claude/re4-android-decomp-k2
+  git checkout claude/re4-m9-videos
   git pull
 
 .EXAMPLE

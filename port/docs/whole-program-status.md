@@ -18,6 +18,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M6b GX nachbilden (`gx-plan.md`) | ✅ 16.10.2026 (Retroid): das Bild kommt aus der GX-Nachbildung (Logos, Titel, Räume, Figuren, Effekte, Menüs, Anzeigen); r100 und r101 flüssig bei etwa 1080p (`-Scale 3`) |
 | M7 Steuerung | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m7-steuerung`): alle Tasten, Sticks und L2/R2 kommen als GameCube-Controller an (Original-`PADClamp`, Belegung nach Beschriftung), Menüs bedienbar, Vibration spürbar; Touch später („M7 Steuerung“) |
 | M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Gerätelauf von M9 („M8 Audio“) |
+| M9 Videos | Cloud-Teil fertig (16.10.2026, Branch `claude/re4-m9-videos`): die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib` mitkompiliert, `runtime/movie.cpp` entfällt; ein synthetischer Film läuft im Test mit Bild, Stereo-Ton, Takt und Ende (i686, armhf, `-O2`), die Farben über die GX-Nachbildung stimmen; Helligkeits-Option wirkt. **Offen:** Gerätetest (Vorfilm, Demo-Filme, START) und PC-Prüfung mit allen Filmen der Disc („M9 Videos“) |
 | Reihenfolge | Entscheidung des Projektinhabers (16.10.2026): erst M9 Videos und M10 Speichern/Laden, danach der Raum-Rundgang (10b) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -50,10 +51,17 @@ Je Ziel: Build, dann drei Prüfungen von `re4_host` und der Formatvergleich
 | `--check-modules` | alle 114 Module laden, alle Querverweise lösen sich auf |
 | `--core-test` | Einbettungs-Schnittstelle der App ohne Disc-Daten (`port/whole/tests/core_tests.cpp`, `core_probe.cpp`): `bridge` Schnappschuss aus einem nachgebauten Gegner (EmMgr, Teile, Modell-Info, Kamera, Raum), `thread` Kern-Thread mit Testeinstieg, Controller über `re4_core_pad`, Dreifachpuffer |
 | `--runtime-test` | Plattformschicht ohne Disc-Daten (`port/whole/tests/runtime_tests.cpp`): `link` OSLink/OSUnlink mit synthetischem big-endian REL-Kopf und Testmodul; `dvd` DVD-API über einen synthetischen Zwei-Disc-Ordner; `yz2` Yz2 des Spiels + Kern mit den Testdaten `port/tests/yz2_fixtures.h`; `dvdq` die DVD-Warteschlange des Spiels liest eine synthetische mehrteilige Datei in den Spiel-Heap; `stream` der Stream-Code des Tontreibers spielt synthetische Stream-Dateien (Nachladen im Audio-Rahmen, Aufträge aus dem Interrupt enden erst danach); `math` PS*/C_*-Matrixfunktionen, die C-Fassungen der Gekko-Assembler-Funktionen (Tabelle mit Bitmustern aus einem Python-Modell der Paired-Single-Befehle), Skinning `CalcSk1` mit GQR-Quantisierung, `EmRoutineSetW`, die big-endian Sichten, die Länge von `__FILE__`; `trace` Zustands-Trace, GetDataExt-Abdeckung, Ende des Test-Tastenskripts; `tasks` der Task-Scheduler des Spiels (`TaskExec`, `TaskSleep`, `TaskExit`, `iTaskExec`) auf der Thread-Emulation, dazu VI-Retraces |
+| `--movie-test` (M9) | `port/tools/test_whole_movie.py`: ein synthetischer Sofdec-Film (ffmpeg: MPEG-1 mit B-Bildern, Stereo-ADX mit zwei Tönen; `port/tools/make_test_sfd.py`) durch die CRI-Middleware wie `cSofdec` (`tests/movie_probe.cpp`): Bilder gegen ffmpeg, Reihenfolge, Takt, Ton je Kanal, Ton/Bild-Abstand, Bild 10 durch den GX-Renderer der App (wenn `port/build/app-host-gl` gebaut ist), derselbe Film im Schnelllauf (`RE4_VI_FAST`) |
 | `re4_format_compare` | Formatumwandler gegen die geprüften big-endian Leser der App, mit synthetischen Beispielen jedes verglichenen Formats; danach `port/tools/test_whole_format_compare.py`: dieselben Beispiele als Disc-Ordner (Raumdatei Yz2-gepackt, `.drs`-Container), Modus `--data` (siehe „Formatvergleich mit der App“) |
 
 Danach einmal `port/tools/test_whole_disc_folder.py` (Disc-Ordner-Werkzeug mit
 synthetischen Disc-Abbildern). Rückgabewert 0 heißt: alles bestanden.
+
+Nach Bedarf (seit M9): `port/tools/whole_ir_signatures.py port/build/whole-i686`
+übersetzt jede Datei des Builds nach LLVM-IR und vergleicht jede Deklaration
+einer C-Funktion mit ihrer Definition (Zahl der Parameter, Ergebnis ja/nein);
+so fallen Aufrufe auf, die auf dem GameCube von Werten lebten, die zufällig in
+einem Register standen (etwa 40 s).
 
 `re4_host` ist seit M4 Teil B ein kleiner Vorlader (`host/loader.c`): Er hält
 den Adressbereich unter `0x83000000` frei und lädt dann `libre4_host.so`
@@ -2144,6 +2152,115 @@ Waffe bricht vereinzelt ab.
   über dem Budget; der Bericht von `test-core-app.ps1` zählt „ISS Voice
   Drop“. Auf dem Gerät nicht getestet.
 
+## M9 Videos
+
+### Bestandsaufnahme (16.10.2026, Cloud)
+
+- **Vorher:** `runtime/movie.cpp` (K2) beendete jeden Film sofort (kein Bild,
+  kein Ton), das Spiel machte danach weiter.
+- **Filme des Spiels** (alle über `cSofdec`, `sofdec.cpp`): auf dem Titel nach
+  10 s ohne Taste abwechselnd `movie/demo0.sfd` und `demo1.sfd`
+  (`title.cpp`), `e3_jpn.sfd` (Messe-Zweig des Titels), `opening.sfd` vor der
+  Autofahrt (`r120.cpp R120Event`), `r214_ev.sfd` (r217), `r229_ev.sfd`
+  (r221), `r333_ev.sfd` (st3), `ending.sfd` (r333), die Ada-Enden
+  `adaend_m.sfd`/`adaend_c.sfd` (r40e); fehlt eine Datei, nimmt das Spiel
+  `dmy.sfd`. Dazu das Debug-Menü „MOVIE TEST“ (`t_movie.rel`).
+- **Ablauf im Spiel:** Der Film läuft in Scheduler-Platz 1 (Platz 0 hält an),
+  der Heap des Raums wandert für die Dauer ins ARAM (5 MB Film-Heap). Je Bild
+  `cSofdec::appMain`: START oder B (`Joy.trg & 0x1200`) bricht ab, sonst
+  `ADXM_ExecMain` (der CRI-Server: Lesen, MPEG-Dekodieren, ADX), das neueste
+  Bild als Y8- und C4:4-Textur (`mwPlyFxCnvFrmY84C44`), gezeichnet mit vier
+  TEV-Stufen (YUV → RGB über Konstantfarben, `drawTex`). In r120 überspringt
+  ein Abbruch laut Originalcode auch die Autofahrt (`SCF_R120_EVENT_CANCEL`).
+- **CRI-Quellen in `src/lib`:** 138 Dateien (ADX, ADXF, SJ, SVM, Sofdec
+  SFD/SFH/SFX, MWPLY, MPEG MPV/MPS), C bis auf Gekko-Assembler: IDCT
+  (`dct_fsri.c`) und Halbpixel-Mischen (`mpv_umc.c`) mit Paired Singles und
+  GQR-Quantisierung, die Zeitbasis (`uty_tmr.c`), GQR-Sichern
+  (`uty_ppc.c`), die Textur-Umwandlung (`cftyp422_ppc.c`); dazu viele
+  Registerbindungen des Decompilats ohne Wirkung und Bewegungsausgleich, der
+  Bildpunkte als Wörter in GameCube-Reihenfolge packt (`mpv_mc*.c`).
+- **Uhr:** Sofdec taktet das Bild nach der Spielzeit des ADX-Tons, geglättet
+  mit der Zeitbasis (`sfd_adxt.c sfadxt_UpdateTime`). Läuft das Spiel
+  schneller als die Zeitbasis, bleibt die Uhr am Ende des Tons stehen und der
+  Film endet nie (im Test gesehen).
+
+### Umsetzung (16.10.2026, Cloud)
+
+- **CRI unverändert mitkompiliert:** alle 138 Dateien (`RE4_CRI_UNITS`,
+  Ziel `re4_cri_obj`, `-fsigned-char` wie CRIs `-char signed`), gelinkt in
+  `libre4_main` (im Original Teil von `main.dol`). `runtime/movie.cpp`
+  entfällt.
+- **Registerbindungen** (`asm { mr r3, r31 }` ohne Wirkung auf C-Variablen)
+  entfernt eine neue Regel von `whole_prepare.py` (Tabelle „Mechanische
+  Umschreibungen“).
+- **`port/whole/include/re4_cri_port.h`:** Gekko-Befehle als C (Intrinsics,
+  big-endian Lesen, Paired Singles `re4_ps`, GQR-Quantisierung
+  `re4_psq_l`/`re4_psq_st` mit den GQR-Werten der CRI-Kerne in
+  `re4_cri_gqr`).
+- **`port/tools/whole_ppc_to_c.py`:** übersetzt Gekko-Assembler Befehl für
+  Befehl nach C (Register als Variablen, Sprünge als `goto`); damit entstand
+  Patch 0050.
+- **Patches 0048–0055** (Tabelle „Patches“): Plattformteile, Bewegungsausgleich
+  als Byte-Schleifen, Assembler in C, Byte-Reihenfolge der Stromleser und
+  ADX-Köpfe, Bildgröße aus `mwPlyGetHdrInf`, Werte, die im Original in
+  Registern lagen, Fortschritt im Log und Konstantfarben in `sofdec.cpp`,
+  Blendfarben in `title.cpp`.
+- **Werte in Registern** (Patch 0053): gefunden durch Vergleich jeder
+  Deklaration mit ihrer Definition in LLVM-IR (jetzt als Werkzeug
+  `port/tools/whole_ir_signatures.py`): die Zahl übersprungener Makroblöcke
+  (fehlte: Absturz im Bewegungsausgleich), die Bildrate für den
+  Sofdec-Zeitgeber, der Player für die Nachschub-Prüfung, die Größe für den
+  ADX-Kopf, zwei Ergebnisse, die Aufrufer prüfen.
+- **Plattform:** `DVDCancel` (`dvd.cpp`, Abbruch über den verzögerten
+  Rückruf), `__cvt_fp2unsigned` (`sn_runtime.cpp`, wie `fctiwz`),
+  `re4_cri_timer` (`vi.cpp`: die Zeitbasis der CRI-Uhr; normal `OSGetTime`,
+  mit `RE4_VI_FAST=1` zählt sie die zugestellten Halbbilder, damit Ton und Uhr
+  im Schnelllauf zusammenpassen).
+- **Farben:** `setTevPrm` schreibt die vier Konstantfarben als Wort über
+  ein `GXColor` (Patch 0054, sonst grünstichig), der Titel ebenso seine
+  Blendfarben (Patch 0055, sonst ist Schwarz ein durchsichtiges Rot).
+- **Helligkeit** (Hinweis des Projektinhabers: der Regler wirkte nicht): Das
+  Spiel stellt sie über den Kopierfilter ein (`Bg_brightness_set` →
+  `GXSetCopyFilter`, Summe der sieben senkrechten Gewichte, 64 = normal). Der
+  GX-Renderer der App (`gx_gl.cpp`) multipliziert das kopierte Bild jetzt mit
+  Summe/64; das Weichzeichnen des Filters bleibt weg. Test `gx_gl_check`
+  (`TestCopyFilter`).
+- **Texturen:** Jeder Film lädt je Bild zwei neue Texturen hoch; der
+  Texturspeicher von `gx_decode.cpp` begrenzt jetzt auch die entpackten Bytes
+  (256 MB), damit sich Filmbilder nicht ansammeln.
+- **Log:** `runtime/movie_status.cpp` (aus `sofdec.cpp`, Patch 0054): „movie:
+  NAME started“, alle 5 s „… playing, Schritte, Bilder, Zeit, übersprungen
+  Decode/Anzeige, Status“, am Ende „ended“ oder „skipped (START)“.
+- **Prüfwerkzeuge:** `port/tools/make_test_sfd.py` (Sofdec-Muxer für
+  Testfilme), `test_whole_movie.py` (Cloud-Test, in `whole_build.sh`),
+  `movie_report.py` (Standbilder als PNG), `whole_r100_check.sh` Abschnitt 6
+  (jeder Film der Disc ganz im Schnelllauf, Standbild alle 4 s in
+  `bilder-film/`, Ton des Vorfilms als `film-d1-opening.wav`),
+  `test-core-app.ps1` (Bericht: Filme gestartet/beendet, je Film Zeit, Bilder,
+  ausgelassene Bilder, Abbruch mit START, fehlende Dateien, CRI-Fehler).
+
+### Prüfungen (Cloud, 16.10.2026)
+
+| Prüfung | Ergebnis |
+|---|---|
+| Kern-Test „movie“: drei synthetische Packs, `mwPlyGetHdrInf` 320 × 240, Arbeitsspeicher ≥ 320 · 240 · 3 | bestanden |
+| Filmtest (4 s, 320 × 240, 29,97 Bilder/s, MPEG-1 mit B-Bildern, ADX stereo 48 kHz) in Echtzeit | 120 von 120 Bildern in Reihenfolge, schlechtestes Bild 75,9 dB gegen ffmpeg, 2,03 Halbbilder je Bild, Ende (PLAYEND) nach 249 Halbbildern, 0 ausgelassen, 0 CRI-Fehler; Ton: beide Töne auf ihrem Kanal (0,97/0,93, Übersprechen 0,000), Ton 40 ms nach dem ersten Bild |
+| Filmbild über die GX-Nachbildung (`drawTex` des Spiels durch `gx_chunk_render`) | 24,0 dB gegen die BT.601-Umrechnung, mittlere Abweichung R +0,3 G +0,5 B +0,8 (Kanten weichen ab: die Farbanteile filtert die Textureinheit bilinear) |
+| derselbe Film im Schnelllauf (`RE4_VI_FAST`) | 120 Bilder, 2,03 Halbbilder je Bild, Ende nach 249 Halbbildern, Ton +40 ms |
+| `whole_build.sh` i686 und armhf (qemu), normal und `RE4_OPT=2` | grün, 45 Platzhalter |
+| `gx_gl_check` (mit `TestCopyFilter`), `re4decomp_link_check` | 0 Fehler; linkt |
+| `whole_ir_signatures.py` (alle 1335 Dateien des i686-Builds) | 10 Stellen „liest Unsinn“, alle geprüft und ohne Wirkung: tote Funktionen (Z-Puffer-Umwandlungen prüfen das Ergebnis von `mwPlyGetCurFrm`), die nie aufgerufene Tabelle `mpvcmc_oneref`, die Sprungfunktionen `MPVUMC_*picSkipped` (Aufruf über den in Patch 0053 korrigierten Zeiger), Ergebnisse von `ADXT_SetOutVol/Pan`, die `mwsfdrna.c` verwirft; 26 harmlose (zusätzliche Argumente, ungelesene Ergebnisse) |
+
+**Nicht geprüft (Stand dieses Abschnitts):** die echten Filme der Disc
+(PC-Prüfung), alles auf dem Gerät (Rechenzeit des Dekodierens, Speicher,
+START, Lippensynchronität, Demo-Filme des Titels). Der ADX-Pegel liegt im
+Test etwas über der Quelle (Spitze 4836 bei etwa 4100 im Testton; Rundung des
+ADX-Kodierers oder Mischung, nicht untersucht). Nicht übernommen, weil das
+Spiel sie nicht nutzt: die ARGB8888-Umwandler (melden sich einmal im Log),
+die WAV/AIFF/AU-Wege von ADX (ohne Byte-Reihenfolge-Korrektur). Aufrufe über
+Funktionszeiger mit falscher Argumentzahl findet `whole_ir_signatures.py`
+nicht.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -2214,6 +2331,7 @@ sie ersetzt.
 | `new (p) T()` → `new (p) T` (`PLACEMENT_VALUE_INIT`) | C++11 füllt eine Klasse ohne eigenen Konstruktor bei `T()` erst mit Nullen; der GameCube-Compiler nicht. `em.cpp` setzt `subArc` vor `new (em) cEm10()` (Absturz in `Em12Set`, 14.10.2026). Prüfung: `port/tools/whole_value_init.py` |
 | Prelude: `#define _ctype_ re4_newlib_ctype_` (nach den System-Headern) | Bionic exportiert `_ctype_` als Zeiger, newlib (das Spiel, `t_movie`) als Feld; die Tabelle heißt jetzt `re4_newlib_ctype_` (`runtime/newlib_ctype.c`), Bionics Zeiger bleibt unberührt (K2) |
 | Prelude: `Re4BeBytes2` | Byte-Array-Sicht `b[0]` = hohes, `b[1]` = niedriges Byte eines Halbworts, unabhängig von der Host-Reihenfolge (Patch 0016: `cItem::lv8`, `SND_RND::b`) |
+| CodeWarrior-`asm { … }`-Blöcke, die nur Register umkopieren (`mr`) und keine C-Variable ändern → `/* port: register pin */;` (`whole_asm_check.drop_register_pins`, seit M9) | Registerbindungen des Decompilats (Reihenfolge der Register wie im Original), ohne Wirkung auf das Ergebnis; clang kennt die Syntax nicht. Blöcke mit echten Befehlen bleiben und brechen den Build ab (dann Patch) |
 | `GXWGFifo.T = x` / `GXWGFifo->T = x` → `re4_gx_put_T(x)` (`GX_FIFO_STORE`, in `GXVert.h` als `re4_gx_put_##T`), Datei bekommt `#include "re4_gx_fifo.h"` | Die Schreibadresse `0xCC008000` des Grafikprozessors gibt es im Port nicht; der FIFO des Ports (`runtime/gx_fifo.cpp`) bekommt jeden Wert (G1) |
 
 Compiler-Schalter: `-std=gnu++11 -Wno-c++11-narrowing -fdelayed-template-parsing
@@ -2276,6 +2394,14 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0045 `snd.cpp` | `SndSoftReset` wartet auf die Bestätigung des Ton-Resets durch die Abspieler im Audio-Interrupt; die Warteschleife ruft `re4_wait_interrupt()` (runtime/vi.cpp), damit der Port die Interrupts ausliefert (vorher Stillstand beim Soft-Reset nach dem Tod, schwarzer Bildschirm) |
 | 0046 `include/cam_extra.h` | `~cCamera` übergibt das Objekt an `re4_keep_vtable` (runtime/dolphin_os.cpp, tut nichts), damit clang den vtable-Zeiger von `cCamera` wieder schreibt, nachdem der Destruktor einer Unterklasse das Objekt mit Muster 9 gefüllt hat; `move()` hat einen leeren Rumpf statt rein virtuell zu sein, weil clang den löschenden Destruktor einer abstrakten Klasse als Haltebefehl erzeugt. `CameraControl` löscht eine beendete Kamera ein zweites Mal (`m_pProc` bleibt gesetzt); mit GCC 2.95 harmlos, mit clang Absturz 0x0909090d (Sprung aus dem Fenster, Totenköpfe) |
 | 0047 SDK `chorus.c`, `delay.c`, `reverb_hi.c`, `reverb_hi_4ch.c`, `reverb_std.c` | C für die Gekko-Assembler-Funktionen der AXFX-Effekte (DoCrossTalk, HandleReverb ×2, HandleReverbDpl2, do_src1/2); die Vorverzögerung des hohen Halls wirkt wie im Original nur einen Abtastwert; `AXFXDelayInit` gibt das Ergebnis von `AXFXDelaySettings` zurück (im Original fehlt das `return`, der Gekko lieferte es in r3) |
+| 0048 CRI `uty_tmr.c`, `uty_ppc.c`, `mpv_lib.c`, `mps_lib.c`, `dct_ac.c`, `sfx_zmv.c` | Plattformteile der CRI-Quellen: Zeitbasis über `re4_cri_timer` (runtime/vi.cpp), kein Sichern der GQR (die Kerne sind C), `HID2` ohne Locked Cache, keine Big-Endian-Selbstprüfung (die Leser stellt 0051 um), Adressen der IDCT-Tabellen in C, `sscanf` wie die C-Bibliothek |
+| 0049 CRI `mpv_mc.c`, `mpv_mcy.c` | Bewegungsausgleich 8 × 8 und 16 × 16 als Byte-Schleifen mit denselben Ergebnissen (Original packte Bildpunkte als Wörter in GameCube-Reihenfolge) |
+| 0050 CRI `mpv_umc.c`, `dct_fsri.c`, `cftyp422_ppc.c` | Paired-Single-Assembler in C (Halbpixel-Mischen, GQR-Vorbereitung, IDCT; übersetzt von `port/tools/whole_ppc_to_c.py`), Y8/C4:4-Texturumwandlung mit der Wortreihenfolge der GameCube; die ungenutzten ARGB8888-Umwandler melden sich einmal |
+| 0051 CRI `mpv_bit.h`, `mpv_emp.c`, `mpvabdec.c`, `mps_dec.c`, `mpv_vlc.c`, `sfh_main.c`, `adx_dcd.c`, `adx_dcd5.c`, `adx_tlk.c`, `adx_sjd.c`, `adx_bsc.c`, `ax_rna.c` | Lesen in GameCube-Reihenfolge (`re4_be16/32`): Bitleser von MPEG-Video und Programmstrom, Sofdec-Kopf, ADX-Kopf und Skalen; Lauf/Stufen-Tabellen in Host-Reihenfolge; AXRNA legt PCM16 big-endian ins ARAM (so liest `dsp.cpp`) und liest die Stimmposition aus ihren zwei Hälften |
+| 0052 `include/mwply.h` | `mwPlyGetHdrInf`: Breite und Höhe sind auf little-endian die unteren Hälften der Wörter, die CRI schreibt |
+| 0053 CRI `mpv_dec.c`, `sfd_lib.c`, `mwsfdsvr.c`, `adx_sjd.c`, `adx_rnaa.c`, `mwstm.c` | Werte, die auf dem GameCube zufällig im Register standen: Zahl übersprungener Makroblöcke, Bildrate des Sofdec-Zeitgebers, Player der Nachschub-Prüfung, Größe für den ADX-Kopf; zwei Weiterleitungen geben das Ergebnis zurück, das die Aufrufer prüfen |
+| 0054 `sofdec.cpp` | Fortschritt des Films ins Log (`re4_movie_status`/`re4_movie_end`, runtime/movie_status.cpp); die vier TEV-Konstantfarben der YUV→RGB-Umrechnung (`setTevPrm`) in GameCube-Byte-Reihenfolge (`RE4_BE`), sonst vertauschte Kanäle |
+| 0055 `title.cpp` | Blendfarben der Titelbilder (Logos, Titel, Demo-Filme) als Wort in GameCube-Reihenfolge (`RE4_BE`) wie Patch 0034; sonst ist `0x000000FF` (deckendes Schwarz) ein durchsichtiges Rot und die Blenden fehlen |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -2329,10 +2455,20 @@ Datenobjekte sind genullt; Größe aus `config/G4BE08/symbols.txt`, sonst 4 KB.
 
 Seit G1 (15.10.2026): 76 Funktionen (Ton 59 für M8: ADX, AI, AXART, AXFX, MIX, SEQ, SYN, `AXSetCompressor`; OS 7: IPL-Schrift, Stoppuhren, `OSResetSystem`; SN-PC-Host-I/O 7; PPC-Leistungszähler 7), 0 Daten. GX, `mwPly` (`movie.cpp`) und die übrigen OS-Funktionen sind ersetzt.
 
+Seit M8 (16.10.2026): 27 Funktionen. Seit M9 (16.10.2026): 45 Funktionen und 1
+Datenobjekt. Die mitkompilierten CRI-Quellen verweisen aus totem Code auf 22
+Funktionen, die es im Original nicht mehr gab (der Linker hatte sie
+entfernt: `ADXF_GetFnameRangeEx`, `ADXSJD_*` 4, `ADXSTM_GetNumSctIbuf`,
+`MWSFCRE_ATTACH_PICUSRBUF`, `SFD_Finish`, `SFD_GetPaStat`, `SFX_*` 9,
+`mwPlyEntryFnameCore/Sub`, `mwPlyReleaseSub`, `mwPlyStartSub`) und das
+Datenobjekt `sjuni_vtbl` (`sj_uni.c`, nur von toten Funktionen benutzt); dazu
+OS 8, SN-PC-Host-I/O 7, PPC 8. Im Filmtest wird keiner davon aufgerufen.
+
 **Echter Ersatz statt Platzhalter** (`runtime/sn_runtime.cpp`): `_ctors`/`_dtors`
 (leer, weil der ELF-Lader Konstruktoren selbst ausführt), `__builtin_new`/
 `__builtin_delete` (GCC-2.95-Namen von `operator new/delete`),
-`memset_asm`/`memclr_asm`.
+`memset_asm`/`memclr_asm`, seit M9 `__cvt_fp2unsigned` (Kommazahl → u32 in den
+CRI-Quellen, Ergebnis wie die Gekko-Umwandlung `fctiwz`, auch ab 2^31).
 
 ## Plattformschicht (M4 Teil A)
 
@@ -2355,13 +2491,16 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | SDK `OSAlloc.c`, `OSArena.c` | unverändert aus `src/lib`: Heap und Arena; `main_mem.cpp` liest die Heap-Deskriptoren direkt |
 | SDK `Padclamp.c` (M7) | unverändert aus `src/lib`: `PADClamp`, die Totzonen und Bereiche des Original-Controllers; `PadRead` des Spiels ruft es auf den Rohwerten von `pad.cpp` auf |
 | `os_thread.cpp` | `OSThread`, `OSSemaphore`: ein Host-Thread, strikte Prioritäten, Wechsel nur in OS-Aufrufen; jeder Thread hat einen Host-Stack (`port/src/stack_context.cpp` aus dem alten Port, neu mit ucontext für Linux x86, Boost.Context-Assembler für Linux ARM wie auf Android); ein Verteiler auf dem Stack des Startprogramms (`re4_os_run`). Spielsichtbar wie im SDK: `state`, `suspend`, Priorität, Warteschlangen, Stack-Magie `0xDEADBABE` |
-| `vi.cpp` | VI-Retrace alle 1/59,94 s Echtzeit, zugestellt an Interrupt-Punkten (Verteiler im Leerlauf, `VIWaitForRetrace`, Patch 0012, später lange Hintergrundarbeit); Thread-Wechsel aus dem Rückruf erst am Interrupt-Ende. `RE4_VI_FAST=1`: ohne Warten (Tests) |
-| `ax.cpp` (K2) | AX ohne Tonausgabe: 64 Stimmen mit den Vergaberegeln des SDK (`AXAlloc.c`), die Setter (`AXVPB.c`), Abspielposition je Audio-Rahmen nach Abtastrate (ADPCM mit Rahmenköpfen, PCM16, PCM8; Schleife oder Stopp am Ende), der Audio-Rahmen-Rückruf des Spiels 200-mal je Sekunde Spielzeit, zugestellt mit den VI-Retraces. Damit läuft der Tontreiber (`snd_main.cpp cb_audio_frame`): Stimmen werden frei, Sprach-Streams werden bereit. MIX, SYN, SEQ, AXFX, AI bleiben Platzhalter. Hörbarer Ton: M8 |
-| `movie.cpp` (K2) | Sofdec-Filme (`mwPly*`) bis M9: jeder Film endet sofort (PLAYEND, kein Bild), das Spiel macht danach weiter (r120: Autofahrt nach dem Vorfilm) |
+| `vi.cpp` | VI-Retrace alle 1/59,94 s Echtzeit, zugestellt an Interrupt-Punkten (Verteiler im Leerlauf, `VIWaitForRetrace`, Patch 0012, später lange Hintergrundarbeit); Thread-Wechsel aus dem Rückruf erst am Interrupt-Ende. `RE4_VI_FAST=1`: ohne Warten (Tests). Seit M9 `re4_cri_timer`: die Zeitbasis der CRI-Uhr (`OSGetTime`, mit `RE4_VI_FAST` die zugestellten Halbbilder) |
+| SDK AX, MIX, SYN, SEQ, AXART, AXFX (M8) | unverändert aus `src/lib` bis auf Patch 0047 (Effekte in C); ersetzt `ax.cpp` (K2) |
+| `dsp.cpp` (M8) | der DSP mit dem AX-Microcode: Befehlslisten von `AXCL.c`, Stimmen dekodieren und mischen, Aux-Busse, Ausgabe (siehe „M8 Audio“) |
+| `ai.cpp` (M8) | AI: 200 Tonblöcke je Sekunde Spielzeit mit den VI-Halbbildern, Ring für die Tonausgabe der App (`re4_audio_read`), `RE4_AUDIO_WAV` |
+| CRI-Middleware (M9) | unverändert aus `src/lib` bis auf die Patches 0048–0053: ADX, ADXF, SJ, SVM, Sofdec, MPEG (siehe „M9 Videos“); ersetzt `movie.cpp` (K2) |
+| `movie_status.cpp` (M9) | Fortschritt jedes Films ins Log (Aufruf aus `sofdec.cpp`, Patch 0054) |
 | `gx_fifo.cpp` (G1) | GX-FIFO und Register-Blöcke CP/PE/PI/MEM: Display-Listen aufnehmen, PE-Token/fertig als Unterbrechung (`re4_gx_deliver_interrupts`), Speicher wie ihn der Grafikprozessor sieht (MEM1 und Fenster für Port-Speicher, `re4_gx_physical`), EFB-Lesen antwortet „leer“ |
 | `gx_decode.cpp` (G2) | Befehlsdecoder: Zustand CP/XF/BP/TLUT, Punkte, Indizes, Texturen mit Inhalts-Schlüssel, Bildpuffer-Kopien, Bildstücke mit Warteschlange für den Renderer (`re4_gx_frame.h`, `re4_core_gx_acquire/release/detach`) |
 | SDK `GX*.c` (G1) | unverändert aus `src/lib` bis auf Patch 0030: die gesamte GX-Bibliothek |
-| `dvd.cpp` | `DVD*` über einen Ordner mit entpackten Disc-Dateien (siehe unten); Lesen sofort, Rückruf vor der Rückkehr; aus einem Interrupt heraus (Audio-Rahmen: Nachladen der Sprach-/Musik-Streams) bleibt der Auftrag „beschäftigt“, bis der Interrupt-Rückruf zurückgekehrt ist (`os_thread.cpp re4_os_defer`), Abbruch liefert dann −3; FST der eingelegten Disc oben in MEM1, Disc-ID bei `0x80000000`; Disc-Wechsel lädt den anderen Ordner |
+| `dvd.cpp` | `DVD*` über einen Ordner mit entpackten Disc-Dateien (siehe unten); Lesen sofort, Rückruf vor der Rückkehr; aus einem Interrupt heraus (Audio-Rahmen: Nachladen der Sprach-/Musik-Streams) bleibt der Auftrag „beschäftigt“, bis der Interrupt-Rückruf zurückgekehrt ist (`os_thread.cpp re4_os_defer`), Abbruch liefert dann −3; FST der eingelegten Disc oben in MEM1, Disc-ID bei `0x80000000`; Disc-Wechsel lädt den anderen Ordner; seit M9 `DVDCancel` (Abbruch über den verzögerten Rückruf, Ergebnis „abgebrochen“) |
 | `aram.cpp` | ARAM (16 MB) als Host-Puffer, `ARInit`/`ARAlloc` (Stapel ab `0x4000`), ARQ kopiert sofort und ruft den Rückruf (aus einem Interrupt heraus erst nach dessen Ende, wie `dvd.cpp`) |
 | `os_link.cpp` | `OSLink`/`OSUnlink` (siehe unten) |
 | `yz2_decode.cpp` + `port/src/yz2_kernel.cpp` | `yz2Decode_Decode`: der geprüfte Kern des alten Ports unverändert, ein Adapter verbindet ihn mit `yz2code.cpp` des Spiels |
