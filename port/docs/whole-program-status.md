@@ -1695,6 +1695,45 @@ Sprung aus dem Fenster ohne Absturz (Patch 0046 auf dem Gerät bestätigt).
   WSL mit den Bibliotheken des Builds Funktionen zu (`profil-N.txt`).
   `gx_chunk_render` zeigt mit `RE4_GX_WORK=1` die GL-Arbeit je Bild.
 
+### Elfter Gerätelauf (16.10.2026, Retroid, Stand `a30abf2`): Messung in r101
+
+Gerät: Snapdragon mit Adreno-GPU (`libGLESv2_adreno.so`). Normaler Start,
+`-Scale 3`, zwei Leistungsmessungen mit Taste P im Dorf (r101).
+
+- **Uniform-Ringpuffer wirkt:** Renderer 4–5,7 ms je Bild bei 500–900
+  Aufträgen (vorher 21–36 ms), gezeigt 60 Bilder/s, GPU 8–15,6 ms je Bild
+  (Timer-Abfrage), 0 Wartezeiten im Ring, dauerhafte Einblendung aktiv.
+- **Der Kern ist die Bremse:** 33,4–37,9 ms je Bild (30 Bilder/s brauchen
+  33,3 ms), 4–6 ms Leerlauf. simpleperf: Der Kern-Thread rechnet 80–97 %
+  eines Prozessorkerns, davon 68–71 % aller Proben in `libre4_platform.so`,
+  nur 4–6 % in der Spiellogik (`libre4_main.so`). Größte Posten: der
+  GX-Decoder `draw()` (Punkte umrechnen) 31–35 %, `re4gx::memory` 10–11 %
+  (für jedes Attribut jedes Punkts), `bindTextures` 4 %, `describe` 3,5 %
+  (Punktformat für jeden Zeichenbefehl neu, für die Größenprüfung sogar
+  doppelt), `command`/`drain`/`feed` zusammen gut 7 %, Divisionen 3 %.
+  Je Bild: 216–246 KB FIFO, 1 MB Display-Listen, 120 000–148 000 Punkte.
+- **Decoder schneller (`gx_decode.cpp`), Ausgabe unverändert:**
+  Punktformate je VAT zwischengespeichert (neu nach CP-Schreiben auf VCD,
+  VAT, MATINDEX); die Arrays eines Zeichenbefehls einmal in Speicher
+  übersetzt (`memorySpan`, gx_fifo.cpp) statt `memory()` je Attribut;
+  Komponenten durch je Zeichenbefehl gewählte, spezialisierte Leser
+  (Format, Anzahl, Byte-Reihenfolge) direkt in den Punkt geschrieben;
+  Indizes und XF-Daten in einem Stück angehängt; `bindTextures` nur nach
+  einer Änderung der Textur-Register, einer Palette, einer EFB-Kopie oder
+  am Anfang eines Bildstücks. Neuer Test „gx fingerprint“
+  (`tests/gx_probe.cpp`): ein zufälliger, fester Befehlsstrom mit allen
+  Punktformaten (direkt und indiziert, alle Komponenten- und Farbformate,
+  Normalen mit NBT/NBT3, Matrixindizes), allen Primitiven, sofort und in
+  Display-Listen, mit Registern, Texturen, Paletten, EFB-Kopien und
+  indizierten Matrixladungen; der Hash aller Bildstücke ist der des alten
+  Decoders (`02524012c6419af2`, auf i686 und armhf gleich) und wird geprüft.
+  Er fand beim Umbau einen Fehler (direkte Normalen mit NBT3).
+  `RE4_GX_BENCH=N` misst den Decoder mit einem dorfähnlichen Bild
+  (Display-Listen, 120 000 Punkte): i686 `-O2` 2,9 ms statt 8,3–9 ms.
+- **Absturzmeldung des Host-Programms:** nennt jetzt Fehleradresse sowie
+  `pc` und `lr` mit Bibliothek und Versatz (auf ARM entrollt `backtrace()`
+  den Signalrahmen nicht).
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich

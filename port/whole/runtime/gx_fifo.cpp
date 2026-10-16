@@ -151,6 +151,29 @@ uint8_t* memory(uint32_t physical, uint32_t size)
     return nullptr;
 }
 
+uint8_t* memorySpan(uint32_t physical, uint32_t* available)
+{
+    *available = 0;
+    if (physical < RE4_MEM1_SIZE) {
+        *available = RE4_MEM1_SIZE - physical;
+        return (uint8_t*) (uintptr_t) (RE4_MEM1_BASE + physical);
+    }
+    if (physical >= kAliasBase && physical < kAliasBase + kAliasSlots * kAliasWindow) {
+        u32 s = (physical - kAliasBase) / kAliasWindow;
+        u32 offset = (physical - kAliasBase) % kAliasWindow;
+        if (gAlias[s] == 0) {
+            return nullptr;
+        }
+        u32 span = kAliasWindow - offset;
+        if (s + 1 < kAliasSlots && gAlias[s + 1] == gAlias[s] + kAliasWindow) {
+            span += kAliasWindow;
+        }
+        *available = span;
+        return (uint8_t*) (gAlias[s] + offset);
+    }
+    return nullptr;
+}
+
 uint8_t* listMemory(uint32_t address, uint32_t size)
 {
     if (address >= RE4_MEM1_BASE && address - RE4_MEM1_BASE < RE4_MEM1_SIZE) {

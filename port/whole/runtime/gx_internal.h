@@ -15,6 +15,9 @@ namespace re4gx {
 // the libraries, re4_gx_physical). NULL when `size` bytes from `physical` are
 // not memory.
 uint8_t* memory(uint32_t physical, uint32_t size);
+// The same for a run of bytes: the host address of `physical` and in
+// *available how many bytes from there on are memory (0 and NULL: none).
+uint8_t* memorySpan(uint32_t physical, uint32_t* available);
 
 // The address word of a display list call: the SDK writes the list pointer as
 // it is (GXCallDisplayList); on the GameCube the GP masks it to physical.

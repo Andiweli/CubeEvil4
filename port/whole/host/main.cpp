@@ -24,6 +24,7 @@
 #include <libgen.h>
 #include <limits.h>
 #include <signal.h>
+#include <ucontext.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,11 +33,36 @@
 int re4_runtime_tests();
 int re4_core_tests();
 
-static void crashHandler(int sig)
+// Where an address lies: library and offset (for addr2line), nearest symbol.
+static void printAddress(const char* what, void* address)
+{
+    Dl_info info;
+    if (address && dladdr(address, &info) && info.dli_fname) {
+        fprintf(stderr, "[re4]   %s %p = %s+0x%lx (%s)\n", what, address, info.dli_fname,
+                (unsigned long) ((char*) address - (char*) info.dli_fbase), info.dli_sname ? info.dli_sname : "?");
+    } else {
+        fprintf(stderr, "[re4]   %s %p\n", what, address);
+    }
+}
+
+static void crashHandler(int sig, siginfo_t* si, void* context)
 {
     void* frames[64];
     int n = backtrace(frames, 64);
-    fprintf(stderr, "[re4] fatal signal %d (%s), backtrace:\n", sig, strsignal(sig));
+    fprintf(stderr, "[re4] fatal signal %d (%s), fault address %p, backtrace:\n", sig, strsignal(sig),
+            si ? si->si_addr : 0);
+    // the faulting instruction (backtrace() does not unwind through the signal frame on ARM)
+    const ucontext_t* uc = (const ucontext_t*) context;
+#if defined(__arm__)
+    printAddress("pc", (void*) uc->uc_mcontext.arm_pc);
+    printAddress("lr", (void*) uc->uc_mcontext.arm_lr);
+#elif defined(__i386__)
+    printAddress("pc", (void*) uc->uc_mcontext.gregs[REG_EIP]);
+#elif defined(__x86_64__)
+    printAddress("pc", (void*) uc->uc_mcontext.gregs[REG_RIP]);
+#else
+    (void) uc;
+#endif
     backtrace_symbols_fd(frames, n, 2);
     _exit(128 + sig);
 }
@@ -117,11 +143,15 @@ extern "C" __attribute__((visibility("default"))) int re4_host_main(int argc, ch
         argc -= 2;
         argv += 2;
     }
-    signal(SIGSEGV, crashHandler);
-    signal(SIGBUS, crashHandler);
-    signal(SIGILL, crashHandler);
-    signal(SIGFPE, crashHandler);
-    signal(SIGABRT, crashHandler);
+    struct sigaction crash;
+    memset(&crash, 0, sizeof(crash));
+    crash.sa_sigaction = crashHandler;
+    crash.sa_flags = SA_SIGINFO;
+    sigaction(SIGSEGV, &crash, 0);
+    sigaction(SIGBUS, &crash, 0);
+    sigaction(SIGILL, &crash, 0);
+    sigaction(SIGFPE, &crash, 0);
+    sigaction(SIGABRT, &crash, 0);
     signal(SIGUSR1, traceHandler);
 
     // _exit: the game never ends on the GameCube, so its static destructors

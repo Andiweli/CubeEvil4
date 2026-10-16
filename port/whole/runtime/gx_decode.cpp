@@ -254,6 +254,9 @@ struct Bound {
     u32 address;
 };
 std::unordered_map<u64, Bound> gTexMemo;
+// A register bindTextures() reads, a palette or an EFB copy changed since the
+// last draw, or a chunk began: the maps are bound again.
+bool gTexturesDirty = true;
 u64 gMapKey[8];
 u32 gMapFlags[8];
 bool gMapValid[8];
@@ -370,6 +373,7 @@ bool beginLocked()
     c->view.sequence = ++gSequence;
     gTexMemo.clear();
     memset(gMapValid, 0, sizeof(gMapValid));
+    gTexturesDirty = true;
     if (gNeedReset) {
         gNeedReset = false;
         c->view.flags |= RE4_GX_CHUNK_RESET;
@@ -602,6 +606,11 @@ struct Format {
     u32 layout, stride;
     u32 offNormal, offBt, offColor[2], offTex[8], offMatrix;
     u8 defaults[9];
+    // derived for the vertex loop (draw()): bytes of each attribute's element,
+    // the texture coordinates and texture matrix indices present, in order
+    u32 posBytes, nrmCs, nrmComps, clrBytes[2], texCs[8], texBytes[8];
+    u8 texList[8], texCount;
+    u8 mtxList[8], mtxCount;
 };
 
 void describe(u32 vat, Format& f)
@@ -694,28 +703,141 @@ void describe(u32 vat, Format& f)
     f.defaults[6] = (ib >> 6) & 63;
     f.defaults[7] = (ib >> 12) & 63;
     f.defaults[8] = (ib >> 18) & 63;
+
+    f.posBytes = f.posComps * componentSize(f.posFormat);
+    f.nrmCs = componentSize(f.nrmFormat);
+    f.nrmComps = f.nbt ? 9 : 3;
+    for (int k = 0; k < 2; k++) {
+        f.clrBytes[k] = colorSize(f.clrFormat[k]);
+    }
+    for (int i = 0; i < 8; i++) {
+        f.texCs[i] = componentSize(f.texFormat[i]);
+        f.texBytes[i] = f.texComps[i] * f.texCs[i];
+        if (f.texMode[i]) {
+            f.texList[f.texCount++] = (u8) i;
+        }
+        if (f.texmtx[i]) {
+            f.mtxList[f.mtxCount++] = (u8) i;
+        }
+    }
+}
+
+// The vertex formats as the CP registers describe them now: worked out once
+// after a change of VCD, VAT or MATINDEX (cpWrite), not for every draw
+// command (describe() for each draw and each size check was a few percent of
+// the core's time).
+Format gFormat[8];
+bool gFormatValid[8];
+
+const Format& format(u32 vat)
+{
+    if (!gFormatValid[vat]) {
+        describe(vat, gFormat[vat]);
+        gFormatValid[vat] = true;
+    }
+    return gFormat[vat];
 }
 
 unsigned vertexSize(u32 vat)
 {
-    Format f;
-    describe(vat, f);
-    return f.inSize;
+    return format(vat).inSize;
 }
 
 // An indexed attribute: the element `index` of array `array` (host order),
 // `bytes` long; NULL when outside memory.
-const u8* element(u32 array, u32 index, u32 bytes)
-{
-    u32 address = gGp.arrayBase[array] + index * gGp.arrayStride[array];
-    return re4gx::memory(address, bytes);
-}
-
 const u8 kZero[64] = {0};
 
-void writeFloats(u8* out, const float* v, int n)
+// An indexed array as host memory, resolved once per draw (element() went
+// through re4gx::memory for every attribute of every vertex: a tenth of the
+// core's time in the village).
+struct Array {
+    const u8* base;  // null: the array is not memory
+    u32 limit;       // bytes from base that are memory
+    u32 stride;
+};
+
+Array array(u32 index)
 {
-    memcpy(out, v, (size_t) n * 4);
+    Array a;
+    a.stride = gGp.arrayStride[index];
+    a.base = re4gx::memorySpan(gGp.arrayBase[index], &a.limit);
+    return a;
+}
+
+inline const u8* at(const Array& a, u32 index, u32 bytes)
+{
+    const u32 offset = index * a.stride;
+    return a.base && offset < a.limit && bytes <= a.limit - offset ? a.base + offset : nullptr;
+}
+
+// One float into the vertex being written (out is zero where nothing is put)
+inline void put(u8* out, float v)
+{
+    memcpy(out, &v, 4);
+}
+
+// The components of one attribute, converted as component() does, by a
+// function chosen once per draw for the format, the count and the byte order
+// (instead of a switch for every component of every vertex).
+typedef void (*Reader)(u8* out, const u8* src, float scale);
+
+template <unsigned Format, bool BE>
+inline float convert(const u8* p, float scale)
+{
+    if (Format == 0) {
+        return p[0] * scale;
+    }
+    if (Format == 1) {
+        return (signed char) p[0] * scale;
+    }
+    if (Format == 2) {
+        return rd16(p, BE) * scale;
+    }
+    if (Format == 3) {
+        return (short) rd16(p, BE) * scale;
+    }
+    return asFloat(rd32(p, BE));
+}
+
+template <unsigned Format, unsigned Comps, bool BE>
+void readComponents(u8* out, const u8* src, float scale)
+{
+    const unsigned cs = Format <= 1 ? 1 : Format <= 3 ? 2 : 4;
+    for (unsigned k = 0; k < Comps; k++) {
+        put(out + 4 * k, convert<Format, BE>(src + k * cs, scale));
+    }
+}
+
+template <unsigned Format, bool BE>
+Reader readerFor(unsigned comps)
+{
+    switch (comps) {
+    case 1:
+        return readComponents<Format, 1, BE>;
+    case 2:
+        return readComponents<Format, 2, BE>;
+    case 3:
+        return readComponents<Format, 3, BE>;
+    default:
+        return readComponents<Format, 9, BE>;
+    }
+}
+
+// format: 0 u8, 1 s8, 2 u16, 3 s16, 4 and above f32 (componentSize, component)
+Reader readerFor(unsigned format, unsigned comps, bool be)
+{
+    switch (format) {
+    case 0:
+        return be ? readerFor<0, true>(comps) : readerFor<0, false>(comps);
+    case 1:
+        return be ? readerFor<1, true>(comps) : readerFor<1, false>(comps);
+    case 2:
+        return be ? readerFor<2, true>(comps) : readerFor<2, false>(comps);
+    case 3:
+        return be ? readerFor<3, true>(comps) : readerFor<3, false>(comps);
+    default:
+        return be ? readerFor<4, true>(comps) : readerFor<4, false>(comps);
+    }
 }
 
 // Decodes `count` vertices at `data` into the chunk, appends the indices.
@@ -729,78 +851,94 @@ void draw(u8 op, u32 count, const u8* data, bool be)
         return;
     }
     u32 vat = op & 7;
-    Format f;
-    describe(vat, f);
+    const Format& f = format(vat);
+    // the arrays this format reads
+    Array pos = {}, nrm = {}, clr[2] = {}, tex[8] = {};
+    if (f.posMode >= 2) {
+        pos = array(0);
+    }
+    if (f.nrmMode >= 2) {
+        nrm = array(1);
+    }
+    for (int k = 0; k < 2; k++) {
+        if (f.clrMode[k] >= 2) {
+            clr[k] = array(2 + k);
+        }
+    }
+    for (u32 j = 0; j < f.texCount; j++) {
+        const u32 i = f.texList[j];
+        if (f.texMode[i] >= 2) {
+            tex[i] = array(4 + i);
+        }
+    }
+    // the readers: direct data in the stream's byte order, arrays in host order
+    const bool posDirect = f.posMode == 1, nrmDirect = f.nrmMode == 1;
+    const Reader posRead = readerFor(f.posFormat, f.posComps, posDirect && be);
+    const Reader nrmRead = readerFor(f.nrmFormat, f.nrmComps, nrmDirect && be);
+    const Reader nrmPartRead = readerFor(f.nrmFormat, 3, false);  // one of three indexed parts (NBT3)
+    Reader texRead[8];
+    for (u32 j = 0; j < f.texCount; j++) {
+        const u32 i = f.texList[j];
+        texRead[i] = readerFor(f.texFormat[i], f.texComps[i], f.texMode[i] == 1 && be);
+    }
     u32 base = (u32) c->vertices.size();
     c->vertices.resize(base + (size_t) count * f.stride);
     u8* out = c->vertices.data() + base;
     const u8* in = data;
+    const u32 posIndex = indexSize(f.posMode), nrmIndex = indexSize(f.nrmMode);
     for (u32 v = 0; v < count; v++, out += f.stride) {
-        u8 matrix[12] = {0};
-        memcpy(matrix, f.defaults, 9);
-        if (f.pnmtx) {
-            matrix[0] = *in++ & 63;
-        }
-        for (int i = 0; i < 8; i++) {
-            if (f.texmtx[i]) {
-                matrix[1 + i] = *in++ & 63;
+        if (f.anyMatrix) {  // the matrix indices: the defaults, then those of the vertex
+            u8* matrix = out + f.offMatrix;
+            memcpy(matrix, f.defaults, 9);
+            if (f.pnmtx) {
+                matrix[0] = *in++ & 63;
+            }
+            for (u32 j = 0; j < f.mtxCount; j++) {
+                matrix[1 + f.mtxList[j]] = *in++ & 63;
             }
         }
-        // position
+        // position (the vertex bytes start as zeros: what is not there stays 0)
         {
-            float p[3] = {0, 0, 0};
-            u32 cs = componentSize(f.posFormat);
             const u8* src = nullptr;
-            bool sbe = be;
             if (f.posMode == 1) {
                 src = in;
-                in += f.posComps * cs;
+                in += f.posBytes;
             } else if (f.posMode) {
                 u32 index = f.posMode == 2 ? *in : rd16(in, be);
-                in += indexSize(f.posMode);
+                in += posIndex;
                 if ((f.posMode == 2 && index == 0xFF) || (f.posMode == 3 && index == 0xFFFF)) {
                     gStats.skipped++;  // GX skips such a vertex; kept here (rare)
                 }
-                src = element(0, index, f.posComps * cs);
-                sbe = false;
+                src = at(pos, index, f.posBytes);
             }
             if (src) {
-                for (u32 k = 0; k < f.posComps; k++) {
-                    p[k] = component(src + k * cs, f.posFormat, sbe, f.posScale);
-                }
+                posRead(out, src, f.posScale);
             }
-            writeFloats(out, p, 3);
         }
         // normal (binormal, tangent)
         if (f.nrmMode) {
-            float n[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-            u32 cs = componentSize(f.nrmFormat);
-            int comps = f.nbt ? 9 : 3;
+            // normal, then binormal and tangent: the three sit one after the
+            // other from offNormal (offBt = offNormal + 12)
+            u8* o = out + f.offNormal;
+            const u32 cs = f.nrmCs, comps = f.nrmComps;
             if (f.nrmMode == 1) {
-                for (int k = 0; k < comps; k++) {
-                    n[k] = component(in + k * cs, f.nrmFormat, be, f.nrmScale);
-                }
+                nrmRead(o, in, f.nrmScale);
                 in += comps * cs;
             } else if (f.nbt3) {
-                for (int part = 0; part < 3; part++) {
+                // three indices: normal, binormal, tangent, each the part of its element
+                for (u32 part = 0; part < 3; part++) {
                     u32 index = f.nrmMode == 2 ? *in : rd16(in, be);
-                    in += indexSize(f.nrmMode);
-                    const u8* src = element(1, index, 9 * cs);
-                    for (int k = 0; src && k < 3; k++) {
-                        n[part * 3 + k] = component(src + (part * 3 + k) * cs, f.nrmFormat, false, f.nrmScale);
+                    in += nrmIndex;
+                    if (const u8* src = at(nrm, index, 9 * cs)) {
+                        nrmPartRead(o + 12 * part, src + part * 3 * cs, f.nrmScale);
                     }
                 }
             } else {
                 u32 index = f.nrmMode == 2 ? *in : rd16(in, be);
-                in += indexSize(f.nrmMode);
-                const u8* src = element(1, index, comps * cs);
-                for (int k = 0; src && k < comps; k++) {
-                    n[k] = component(src + k * cs, f.nrmFormat, false, f.nrmScale);
+                in += nrmIndex;
+                if (const u8* src = at(nrm, index, comps * cs)) {
+                    nrmRead(o, src, f.nrmScale);
                 }
-            }
-            writeFloats(out + f.offNormal, n, 3);
-            if (f.nbt) {
-                writeFloats(out + f.offBt, n + 3, 6);
             }
         }
         for (int k = 0; k < 2; k++) {
@@ -808,94 +946,123 @@ void draw(u8 op, u32 count, const u8* data, bool be)
                 continue;
             }
             u8 rgba[4] = {0, 0, 0, 255};
-            u32 bytes = colorSize(f.clrFormat[k]);
             if (f.clrMode[k] == 1) {
                 color(in, f.clrFormat[k], be, rgba);
-                in += bytes;
+                in += f.clrBytes[k];
             } else {
                 u32 index = f.clrMode[k] == 2 ? *in : rd16(in, be);
                 in += indexSize(f.clrMode[k]);
-                const u8* src = element(2 + k, index, bytes);
+                const u8* src = at(clr[k], index, f.clrBytes[k]);
                 color(src ? src : kZero, f.clrFormat[k], false, rgba);
             }
             memcpy(out + f.offColor[k], rgba, 4);
         }
-        for (int i = 0; i < 8; i++) {
-            if (!f.texMode[i]) {
-                continue;
-            }
-            float t[2] = {0, 0};
-            u32 cs = componentSize(f.texFormat[i]);
+        for (u32 j = 0; j < f.texCount; j++) {
+            const u32 i = f.texList[j];
             const u8* src = nullptr;
-            bool sbe = be;
             if (f.texMode[i] == 1) {
                 src = in;
-                in += f.texComps[i] * cs;
+                in += f.texBytes[i];
             } else {
                 u32 index = f.texMode[i] == 2 ? *in : rd16(in, be);
                 in += indexSize(f.texMode[i]);
-                src = element(4 + i, index, f.texComps[i] * cs);
-                sbe = false;
+                src = at(tex[i], index, f.texBytes[i]);
             }
-            for (u32 k = 0; src && k < f.texComps[i]; k++) {
-                t[k] = component(src + k * cs, f.texFormat[i], sbe, f.texScale[i]);
+            if (src) {
+                texRead[i](out + f.offTex[i], src, f.texScale[i]);
             }
-            writeFloats(out + f.offTex[i], t, 2);
-        }
-        if (f.anyMatrix) {
-            memcpy(out + f.offMatrix, matrix, 12);
         }
     }
 
-    // indices, relative to the first vertex
+    // indices, relative to the first vertex: written in place (one insert per
+    // triangle was a few percent)
     u32 first = (u32) c->indices.size();
     u32 primitive = RE4_GX_TRIANGLES;
     std::vector<u16>& ix = c->indices;
-    switch (op & 0xF8) {
+    const u32 kind = op & 0xF8;
+    size_t added = 0;
+    switch (kind) {
+    case 0x80:
+    case 0x88:
+        added = (size_t) (count / 4) * 6;
+        break;
+    case 0x90:
+        added = (size_t) (count / 3) * 3;
+        break;
+    case 0x98:
+    case 0xA0:
+        added = count >= 3 ? (size_t) (count - 2) * 3 : 0;
+        break;
+    case 0xA8:
+        added = (size_t) (count / 2) * 2;
+        break;
+    case 0xB0:
+        added = count >= 2 ? (size_t) (count - 1) * 2 : 0;
+        break;
+    default:
+        added = count;
+        break;
+    }
+    ix.resize(first + added);
+    u16* w = ix.data() + first;
+    switch (kind) {
     case 0x80:  // quads
     case 0x88:  // quads (second encoding)
         for (u32 q = 0; q + 3 < count; q += 4) {
-            const u16 t[6] = {(u16) q, (u16) (q + 1), (u16) (q + 2), (u16) q, (u16) (q + 2), (u16) (q + 3)};
-            ix.insert(ix.end(), t, t + 6);
+            w[0] = (u16) q;
+            w[1] = (u16) (q + 1);
+            w[2] = (u16) (q + 2);
+            w[3] = (u16) q;
+            w[4] = (u16) (q + 2);
+            w[5] = (u16) (q + 3);
+            w += 6;
         }
         break;
     case 0x90:  // triangles
         for (u32 i = 0; i + 2 < count; i += 3) {
-            const u16 t[3] = {(u16) i, (u16) (i + 1), (u16) (i + 2)};
-            ix.insert(ix.end(), t, t + 3);
+            w[0] = (u16) i;
+            w[1] = (u16) (i + 1);
+            w[2] = (u16) (i + 2);
+            w += 3;
         }
         break;
     case 0x98:  // triangle strip: every second triangle flipped back
         for (u32 i = 2; i < count; i++) {
             u32 k = i - 2;
-            const u16 t[3] = {(u16) ((k & 1) ? k + 1 : k), (u16) ((k & 1) ? k : k + 1), (u16) i};
-            ix.insert(ix.end(), t, t + 3);
+            w[0] = (u16) ((k & 1) ? k + 1 : k);
+            w[1] = (u16) ((k & 1) ? k : k + 1);
+            w[2] = (u16) i;
+            w += 3;
         }
         break;
     case 0xA0:  // triangle fan
         for (u32 i = 2; i < count; i++) {
-            const u16 t[3] = {0, (u16) (i - 1), (u16) i};
-            ix.insert(ix.end(), t, t + 3);
+            w[0] = 0;
+            w[1] = (u16) (i - 1);
+            w[2] = (u16) i;
+            w += 3;
         }
         break;
     case 0xA8:  // lines
         primitive = RE4_GX_LINES;
         for (u32 i = 0; i + 1 < count; i += 2) {
-            const u16 t[2] = {(u16) i, (u16) (i + 1)};
-            ix.insert(ix.end(), t, t + 2);
+            w[0] = (u16) i;
+            w[1] = (u16) (i + 1);
+            w += 2;
         }
         break;
     case 0xB0:  // line strip
         primitive = RE4_GX_LINES;
         for (u32 i = 1; i < count; i++) {
-            const u16 t[2] = {(u16) (i - 1), (u16) i};
-            ix.insert(ix.end(), t, t + 2);
+            w[0] = (u16) (i - 1);
+            w[1] = (u16) i;
+            w += 2;
         }
         break;
     default:  // points
         primitive = RE4_GX_POINTS;
         for (u32 i = 0; i < count; i++) {
-            ix.push_back((u16) i);
+            *w++ = (u16) i;
         }
         break;
     }
@@ -1113,9 +1280,15 @@ void bindMap(u32 map)
 }
 
 // The texture maps the TEV stages and the indirect stages of the next draw
-// read (BP genmode, TEV orders 0x28-0x2F, RAS1_IREF 0x27).
+// read (BP genmode, TEV orders 0x28-0x2F, RAS1_IREF 0x27). Nothing to do while
+// none of that changed since the last draw (gTexturesDirty): the same maps
+// with the same keys (bindMap per draw was a few percent of the core's time).
 void bindTextures()
 {
+    if (!gTexturesDirty) {
+        return;
+    }
+    gTexturesDirty = false;
     const u32* bp = gGp.bp;
     u32 genmode = bp[0x00];
     u32 used = 0;
@@ -1143,6 +1316,11 @@ void bindTextures()
 void cpWrite(u8 reg, u32 value)
 {
     gStats.cp++;
+    if (reg == 0x30 || reg == 0x40 || reg == 0x50 || reg == 0x60) {
+        memset(gFormatValid, 0, sizeof(gFormatValid));  // every format reads these
+    } else if (reg >= 0x70 && reg < 0xA0) {
+        gFormatValid[reg & 7] = false;
+    }
     if (reg == 0x30) {
         gGp.matIndexA = value;
     } else if (reg == 0x40) {
@@ -1178,20 +1356,32 @@ u32* xfSlot(u32 address)
 void xfWrite(u32 address, const u8* data, u32 count, bool be)
 {
     bool changed = false;
-    for (u32 i = 0; i < count; i++) {
-        u32 v = rd32(data + 4 * i, be);
-        u32* slot = xfSlot(address + i);
-        if (slot && *slot != v) {
-            *slot = v;
-            changed = true;
+    if (address + count <= 0x800) {  // XF memory (matrices, lights): the common case
+        u32* slot = &gGp.xfMem[address];
+        for (u32 i = 0; i < count; i++) {
+            u32 v = rd32(data + 4 * i, be);
+            changed |= slot[i] != v;
+            slot[i] = v;
+        }
+    } else {
+        for (u32 i = 0; i < count; i++) {
+            u32 v = rd32(data + 4 * i, be);
+            u32* slot = xfSlot(address + i);
+            if (slot && *slot != v) {
+                *slot = v;
+                changed = true;
+            }
         }
     }
     if (changed && chunk()) {
         Chunk* c = chunk();
-        c->ops.push_back(RE4_GX_OP_XF | (count + 1) << 8);
-        c->ops.push_back(address);
+        const size_t at = c->ops.size();
+        c->ops.resize(at + 2 + count);
+        u32* w = c->ops.data() + at;
+        w[0] = RE4_GX_OP_XF | (count + 1) << 8;
+        w[1] = address;
         for (u32 i = 0; i < count; i++) {
-            c->ops.push_back(rd32(data + 4 * i, be));
+            w[2 + i] = rd32(data + 4 * i, be);
         }
     }
 }
@@ -1205,7 +1395,7 @@ void xfIndexed(u8 op, u32 word)
     u32 index = word >> 16;
     u32 count = ((word >> 12) & 15) + 1;
     u32 address = word & 0xFFF;
-    const u8* src = element(array, index, count * 4);
+    const u8* src = at(::array(array), index, count * 4);
     if (src) {
         xfWrite(address, src, count, false);
     }
@@ -1214,6 +1404,7 @@ void xfIndexed(u8 op, u32 word)
 void tlutLoad()
 {
     gStats.tlutLoads++;
+    gTexturesDirty = true;
     u32 source = (gGp.bp[0x64] & 0x1FFFFF) << 5;
     u32 offset = (gGp.bp[0x65] & 0x3FF) << 9;
     u32 bytes = ((gGp.bp[0x65] >> 10) & 0x7FF) * 32;
@@ -1250,6 +1441,7 @@ void efbCopy(u32 control)
         return;
     }
     gStats.texCopies++;
+    gTexturesDirty = true;
     for (auto it = gTexMemo.begin(); it != gTexMemo.end();) {
         if (it->second.address == dest) {
             it = gTexMemo.erase(it);
@@ -1280,6 +1472,10 @@ void bpWrite(u32 word)
     u32 now = (old & ~gGp.bpMask) | (value & gGp.bpMask);
     gGp.bp[reg] = now;
     gGp.bpMask = 0xFFFFFF;
+    // genmode, RAS1_IREF, TEV orders, the texture map registers (0x80-0xBF)
+    if (now != old && (reg == 0x00 || (reg >= 0x27 && reg <= 0x2F) || (reg >= 0x80 && reg <= 0xBF))) {
+        gTexturesDirty = true;
+    }
     switch (reg) {
     case 0x45:  // PE_DONE: everything before it is drawn
         re4gx::peFinish();

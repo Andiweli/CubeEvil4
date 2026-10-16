@@ -714,6 +714,8 @@ static void testStream()
 extern "C" int re4probe_gx_test(void* fifo, void* list);
 extern "C" int re4probe_gx_frame_test(void* fifo, void* mem);
 extern "C" void re4probe_gx_produce(void* fifo, void* xfb, int frames, int init);
+extern "C" unsigned long long re4probe_gx_fingerprint(void* fifo, void* mem, void* xfb, int frames);
+extern "C" unsigned re4probe_gx_bench(void* fifo, void* mem, void* xfb, int frames);
 
 // The SDK's GX library and the game's inline vertex functions feed the port's
 // GX FIFO (runtime/gx_fifo.cpp, tests/gx_probe.cpp). The FIFO and the display
@@ -788,6 +790,27 @@ static void testGx()
             re4_log("  gx queue: %d received, %d out of order, %d resets, %.2f s waited", received.load(),
                     outOfOrder.load(), resets.load(), waited);
         }
+    }
+    // the decoder's output for a randomised stream of every vertex format and
+    // command (tests/gx_probe.cpp): the value of the decoder before its rewrite
+    // for speed (16.10.2026, the same on i686 and armhf); a different value
+    // means the chunks changed
+    {
+        void* mem = (void*) (unsigned long) 0x82900000u;
+        void* xfb = (void*) (unsigned long) 0x82830000u;
+        auto t0 = std::chrono::steady_clock::now();
+        unsigned long long hash = re4probe_gx_fingerprint((void*) (unsigned long) 0x82800000u, mem, xfb, 24);
+        double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        if (hash != 0x02524012c6419af2ull || getenv("RE4_GX_FINGERPRINT_PARTS")) {
+            re4_log("  gx fingerprint: %016llx (expected 02524012c6419af2), %.0f ms", hash, ms);
+        }
+        CHECK(hash == 0x02524012c6419af2ull);
+    }
+    // RE4_GX_BENCH=N: the decoder's time for N village-like frames (120 000 vertices each)
+    if (const char* bench = getenv("RE4_GX_BENCH")) {
+        unsigned us = re4probe_gx_bench((void*) (unsigned long) 0x82800000u, (void*) (unsigned long) 0x82900000u,
+                                        (void*) (unsigned long) 0x82830000u, atoi(bench) > 0 ? atoi(bench) : 10);
+        re4_log("  gx bench: %.2f ms per frame of 120000 vertices", us / 1000.0);
     }
     report("gx", ok);
 }

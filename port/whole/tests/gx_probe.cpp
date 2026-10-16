@@ -194,6 +194,7 @@ extern "C" int re4probe_gx_test(void* fifo, void* list)
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 extern "C" {
 void GXLoadPosMtxIndx(u16 index, u32 id);
@@ -604,4 +605,438 @@ extern "C" void re4probe_gx_produce(void* fifo, void* xfb, int frames, int init)
         triangle();
         copyDisp(xfb);
     }
+}
+
+// --- decoder fingerprint ----------------------------------------------------------
+//
+// A deterministic, randomised command stream through the decoder: every vertex
+// format the GP knows (direct and indexed attributes, matrix indices, all
+// component and colour formats, normals with binormal and tangent), every
+// primitive, immediate and in display lists, between register writes, texture
+// binds, palettes, EFB copies and indexed matrix loads. The hash of all chunks
+// it makes stays the same as long as the decoder's output does: a rewrite of
+// the decoder for speed is checked against the value the previous one gave.
+
+extern "C" void re4_gx_put_u32(unsigned int v);
+extern "C" void re4_log(const char* format, ...);
+
+namespace {
+
+struct Rng {
+    uint32_t s;
+    uint32_t next()
+    {
+        s ^= s << 13;
+        s ^= s >> 17;
+        s ^= s << 5;
+        return s;
+    }
+    uint32_t below(uint32_t n) { return n ? next() % n : 0; }
+    // a random byte that is never the exponent byte of a NaN or infinity, in
+    // either byte order: 32-bit hosts pass floats through the x87 stack, which
+    // turns a signalling NaN into a quiet one, and the hash would then depend
+    // on how the decoder moves its floats around
+    u8 byte()
+    {
+        u8 v = (u8) next();
+        return (v & 0x7F) == 0x7F ? (u8) (v ^ 1) : v;
+    }
+    bool chance(uint32_t percent) { return below(100) < percent; }
+};
+
+struct Stream {
+    u8* out;
+    size_t n;
+    void u8_(uint32_t v) { out[n++] = (u8) v; }
+    void u16_(uint32_t v)
+    {
+        u8_(v >> 8);
+        u8_(v);
+    }
+    void u32_(uint32_t v)
+    {
+        u16_(v >> 16);
+        u16_(v);
+    }
+};
+
+uint64_t fnv(uint64_t h, const void* data, size_t n)
+{
+    const u8* p = (const u8*) data;
+    for (size_t i = 0; i < n; i++) {
+        h = (h ^ p[i]) * 0x100000001B3ull;
+    }
+    return h;
+}
+
+const uint32_t kCompBytes[8] = {1, 1, 2, 2, 4, 4, 4, 4};
+const uint32_t kColorBytes[8] = {2, 3, 4, 2, 3, 4, 4, 4};
+
+// One random vertex format (VCD and VAT of format `vat`) and the arrays it
+// reads, written as CP registers; the bytes of `count` vertices into `s`.
+struct Fmt {
+    uint32_t vcdLo, vcdHi, a, b, c;
+    uint32_t elem[12];  // bytes of an array element (indexed attributes)
+};
+
+void cp(Stream& s, uint32_t reg, uint32_t value)
+{
+    s.u8_(0x08);
+    s.u8_(reg);
+    s.u32_(value);
+}
+
+void bp(Stream& s, uint32_t reg, uint32_t value)
+{
+    s.u8_(0x61);
+    s.u32_(reg << 24 | (value & 0xFFFFFF));
+}
+
+Fmt randomFormat(Rng& r)
+{
+    Fmt f;
+    memset(&f, 0, sizeof(f));
+    const uint32_t mode[4] = {0, 1, 2, 3};
+    f.vcdLo = r.chance(40) ? 1 : 0;  // PNMTXIDX
+    for (int i = 0; i < 8; i++) {
+        if (r.chance(10)) {
+            f.vcdLo |= 1u << (1 + i);
+        }
+    }
+    f.vcdLo |= (1 + r.below(3)) << 9;  // position: direct, index8, index16
+    if (r.chance(60)) {
+        f.vcdLo |= mode[1 + r.below(3)] << 11;
+    }
+    if (r.chance(60)) {
+        f.vcdLo |= mode[1 + r.below(3)] << 13;
+    }
+    if (r.chance(20)) {
+        f.vcdLo |= mode[1 + r.below(3)] << 15;
+    }
+    for (int i = 0; i < 8; i++) {
+        if (r.chance(i == 0 ? 60 : 12)) {
+            f.vcdHi |= mode[1 + r.below(3)] << (2 * i);
+        }
+    }
+    const uint32_t nrmFormats[3] = {1, 3, 4};
+    uint32_t posComps = r.below(2), posFmt = r.below(5), posShift = r.below(16);
+    uint32_t nbt = r.chance(20), nrmFmt = nrmFormats[r.below(3)], nbt3 = nbt && r.chance(50);
+    uint32_t c0c = r.below(2), c0f = r.below(6), c1c = r.below(2), c1f = r.below(6);
+    f.a = posComps | posFmt << 1 | posShift << 4 | nbt << 9 | nrmFmt << 10 | c0c << 13 | c0f << 14 | c1c << 17 |
+          c1f << 18 | nbt3 << 31;
+    uint32_t tc[8], tf[8], ts[8];
+    for (int i = 0; i < 8; i++) {
+        tc[i] = r.below(2);
+        tf[i] = r.below(5);
+        ts[i] = r.below(16);
+    }
+    f.a |= tc[0] << 21 | tf[0] << 22 | ts[0] << 25;
+    f.b = tc[1] | tf[1] << 1 | ts[1] << 4 | tc[2] << 9 | tf[2] << 10 | ts[2] << 13 | tc[3] << 18 | tf[3] << 19 |
+          ts[3] << 22 | tc[4] << 27 | tf[4] << 28;
+    f.c = ts[4] | tc[5] << 5 | tf[5] << 6 | ts[5] << 9 | tc[6] << 14 | tf[6] << 15 | ts[6] << 18 | tc[7] << 23 |
+          tf[7] << 24 | ts[7] << 27;
+    f.elem[0] = (posComps ? 3 : 2) * kCompBytes[posFmt];
+    f.elem[1] = (nbt ? 9 : 3) * kCompBytes[nrmFmt];
+    f.elem[2] = kColorBytes[c0f];
+    f.elem[3] = kColorBytes[c1f];
+    for (int i = 0; i < 8; i++) {
+        f.elem[4 + i] = (tc[i] ? 2 : 1) * kCompBytes[tf[i]];
+    }
+    return f;
+}
+
+void attribute(Stream& s, Rng& r, uint32_t m, uint32_t direct, uint32_t entries)
+{
+    if (m == 1) {
+        for (uint32_t i = 0; i < direct; i++) {
+            s.u8_(r.byte());
+        }
+    } else if (m == 2) {
+        s.u8_(r.chance(3) ? 0xFF : r.below(entries));  // 0xFF: GX skips such a vertex, the decoder reads it
+    } else if (m == 3) {
+        // beyond the array, but inside the scratch memory (its bytes are known)
+        s.u16_(r.chance(3) ? entries + r.below(8000) : r.below(entries));
+    }
+}
+
+void vertices(Stream& s, Rng& r, const Fmt& f, uint32_t count, uint32_t entries)
+{
+    uint32_t nbt = (f.a >> 9) & 1, nbt3 = nbt && (f.a >> 31);
+    for (uint32_t v = 0; v < count; v++) {
+        for (int i = 0; i < 9; i++) {
+            if ((f.vcdLo >> i) & 1) {
+                s.u8_(r.below(64) | (r.chance(5) ? 0xC0 : 0));
+            }
+        }
+        attribute(s, r, (f.vcdLo >> 9) & 3, f.elem[0], entries);
+        uint32_t nm = (f.vcdLo >> 11) & 3;
+        if (nm >= 2 && nbt3) {
+            for (int k = 0; k < 3; k++) {
+                attribute(s, r, nm, 0, entries);
+            }
+        } else {
+            attribute(s, r, nm, f.elem[1], entries);
+        }
+        attribute(s, r, (f.vcdLo >> 13) & 3, f.elem[2], entries);
+        attribute(s, r, (f.vcdLo >> 15) & 3, f.elem[3], entries);
+        for (int i = 0; i < 8; i++) {
+            attribute(s, r, (f.vcdHi >> (2 * i)) & 3, f.elem[4 + i], entries);
+        }
+    }
+}
+
+}  // namespace
+
+// `fifo`: 64 KB for the GX FIFO, `mem`: 1 MB of 32-byte aligned MEM1 scratch
+// memory, `xfb`: a display copy target. Returns the hash of `frames` chunks.
+extern "C" unsigned long long re4probe_gx_fingerprint(void* fifo, void* mem, void* xfb, int frames)
+{
+    static u8 bytes[0x40000];
+    GXInit(fifo, 0x10000);
+    {
+        // GXInit points these at the SDK's default texture and palette in port
+        // memory, whose physical window address follows the library's load
+        // address (ASLR): fixed values, or the first chunk's state would differ
+        // from run to run
+        Stream s = {bytes, 0};
+        bp(s, 0x64, 0);
+        bp(s, 0x0F, 0);  // left by the tests before, which differ between the hosts
+        for (uint32_t reg = 0x94; reg < 0x98; reg++) {
+            bp(s, reg, 0);
+            bp(s, reg + 0x20, 0);
+        }
+        for (size_t i = 0; i < s.n; i++) {
+            re4_gx_put_u8(bytes[i]);
+        }
+    }
+    re4_core_gx_acquire();  // attach
+    copyDisp(xfb);
+    if (const Re4GxChunk* c = re4_core_gx_acquire()) {
+        re4_core_gx_release(c);
+    }
+    u8* m = (u8*) mem;
+    const uint32_t phys = re4_gx_physical(mem);
+    Rng r = {0x5EED1234u};
+    // random data for the arrays, textures and palettes (0x00000-0x7FFFF)
+    for (uint32_t i = 0; i < 0x80000; i++) {
+        m[i] = r.byte();
+    }
+    // matrices for the indexed loads: host-order floats (array 12 at 0x7F000)
+    for (uint32_t i = 0; i < 0x400; i++) {
+        f32 v = (f32) ((int) r.below(2000) - 1000) / 64.0f;
+        memcpy(m + 0x7F000 + 4 * i, &v, 4);
+    }
+    const uint32_t listArea = 0x80000;  // display lists: 0x80000-0xFFFFF
+    const uint32_t entries = 48;
+    uint64_t hash = 0xCBF29CE484222325ull;
+    for (int frame = 0; frame < frames; frame++) {
+        uint32_t listAt = listArea;
+        int draws = 20 + (int) r.below(40);
+        for (int d = 0; d < draws; d++) {
+            Stream s = {bytes, 0};
+            uint32_t vat = r.below(8);
+            Fmt f = randomFormat(r);
+            cp(s, 0x50, f.vcdLo);
+            cp(s, 0x60, f.vcdHi);
+            cp(s, 0x70 + vat, f.a);
+            cp(s, 0x80 + vat, f.b);
+            cp(s, 0x90 + vat, f.c);
+            if (r.chance(30)) {
+                cp(s, 0x30, r.next() & 0x3FFFFFFF);
+                cp(s, 0x40, r.next() & 0xFFFFFF);
+            }
+            for (uint32_t k = 0; k < 12; k++) {
+                uint32_t stride = f.elem[k] + r.below(5);
+                uint32_t base = phys + r.below(0x70000 - entries * 40);
+                if (r.chance(2)) {
+                    // the last 8 bytes of MEM1 for every index: larger elements
+                    // are not memory (beyond MEM1 begin the windows of port
+                    // memory, which a stray index must not reach here)
+                    base = 0x02FFFFF8;
+                    stride = 0;
+                }
+                cp(s, 0xA0 + k, base);
+                cp(s, 0xB0 + k, stride);
+            }
+            if (r.chance(15)) {  // indexed matrix load (array 12)
+                cp(s, 0xAC, phys + 0x7F000);
+                cp(s, 0xBC, 48);
+                s.u8_(0x20);
+                s.u32_(r.below(20) << 16 | 11u << 12 | (r.below(5) * 12));
+            }
+            if (r.chance(20)) {  // XF memory: a matrix row, or a register
+                uint32_t count = 1 + r.below(4);
+                s.u8_(0x10);
+                s.u32_((count - 1) << 16 | (r.chance(70) ? r.below(0x60) : 0x1000 + r.below(0x58)));
+                for (uint32_t i = 0; i < count; i++) {
+                    s.u32_(r.next());
+                }
+            }
+            if (r.chance(35)) {  // textures: two maps, TEV orders, genmode
+                for (uint32_t map = 0; map < 2; map++) {
+                    uint32_t w = 1 + r.below(32), h = 1 + r.below(32);
+                    const uint32_t formats[11] = {0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 14};
+                    uint32_t fmt = formats[r.below(11)];
+                    bp(s, 0x80 + map, r.below(0x200));
+                    bp(s, 0x84 + map, r.below(0x10000));
+                    bp(s, 0x88 + map, (w - 1) | (h - 1) << 10 | fmt << 20);
+                    bp(s, 0x94 + map, (phys + 32 * r.below(0x1800)) >> 5);
+                    bp(s, 0x98 + map, r.below(0x400) | r.below(4) << 10);
+                }
+                bp(s, 0x00, r.below(2) << 10 | (r.chance(20) ? 1u << 16 : 0));
+                bp(s, 0x28, r.below(2) | 1u << 6 | (r.below(2) | (r.chance(50) ? 1u << 6 : 0)) << 12);
+                bp(s, 0x27, r.below(2));
+            }
+            if (r.chance(8)) {  // a palette load
+                bp(s, 0x64, (phys + 32 * r.below(0x1000)) >> 5);
+                bp(s, 0x65, r.below(0x400) | (1 + r.below(16)) << 10);
+            }
+            if (r.chance(5)) {  // an EFB copy to a texture
+                bp(s, 0x49, 0);
+                bp(s, 0x4A, 7 | 7u << 10);
+                bp(s, 0x4B, (phys + 32 * r.below(0x1800)) >> 5);
+                bp(s, 0x52, 0x0230);
+            }
+            if (r.chance(25)) {  // a state register between draws (no joining)
+                bp(s, 0x41, r.below(0x1000));
+            }
+            const uint32_t prims[7] = {0x80, 0x90, 0x98, 0xA0, 0xA8, 0xB0, 0xB8};
+            int runs = 1 + (int) r.below(4);
+            bool list = r.chance(40);
+            size_t listStart = s.n;
+            for (int k = 0; k < runs; k++) {
+                uint32_t count = 1 + r.below(r.chance(10) ? 300 : 40);
+                s.u8_(prims[r.below(7)] | vat);
+                s.u16_(count);
+                vertices(s, r, f, count, entries);
+            }
+            if (list && listAt + (s.n - listStart) + 64 < 0x100000) {
+                // the draws as a display list in memory, called from the FIFO
+                size_t size = (s.n - listStart + 31) & ~(size_t) 31;
+                memcpy(m + listAt, bytes + listStart, s.n - listStart);
+                memset(m + listAt + (s.n - listStart), 0, size - (s.n - listStart));
+                s.n = listStart;
+                s.u8_(0x40);
+                s.u32_(phys + listAt);
+                s.u32_((uint32_t) size);
+                listAt += (uint32_t) size;
+            }
+            for (size_t i = 0; i < s.n; i++) {
+                re4_gx_put_u8(bytes[i]);
+            }
+        }
+        copyDisp(xfb);
+        if (getenv("RE4_GX_FINGERPRINT_PARTS")) {
+            unsigned st[11];
+            re4_gx_stats(st);
+            re4_log("  gx fingerprint frame %d: %u vertices so far", frame, st[kVertices]);
+        }
+        const Re4GxChunk* c = re4_core_gx_acquire();
+        if (!c) {
+            hash = fnv(hash, "none", 4);
+            continue;
+        }
+        const uint32_t head[11] = {c->flags, c->opWords, c->vertexBytes, c->indexCount, c->blobBytes,
+                                   c->draws, c->vertexCount, c->textureBytes, c->xfbAddress, c->xfbWidth,
+                                   c->xfbHeight};
+        hash = fnv(hash, head, sizeof(head));
+        hash = fnv(hash, c->ops, (size_t) c->opWords * 4);
+        hash = fnv(hash, c->vertices, c->vertexBytes);
+        hash = fnv(hash, c->indices, (size_t) c->indexCount * 2);
+        hash = fnv(hash, c->blob, c->blobBytes);
+        if (getenv("RE4_GX_FINGERPRINT_PARTS")) {
+            re4_log("  gx fingerprint frame %d: head %08x ops %08x vertices %08x indices %08x blob %08x", frame,
+                    (unsigned) fnv(0, head, sizeof(head)), (unsigned) fnv(0, c->ops, (size_t) c->opWords * 4),
+                    (unsigned) fnv(0, c->vertices, c->vertexBytes),
+                    (unsigned) fnv(0, c->indices, (size_t) c->indexCount * 2), (unsigned) fnv(0, c->blob, c->blobBytes));
+            if (const char* dir = getenv("RE4_GX_FINGERPRINT_DUMP")) {
+                char path[512];
+                snprintf(path, sizeof(path), "%s/fp-%02d.bin", dir, frame);
+                if (FILE* f = fopen(path, "wb")) {
+                    re4gxio::Write(f, *c, (uint32_t) frame);
+                    fclose(f);
+                }
+            }
+        }
+        re4_core_gx_release(c);
+    }
+    re4_core_gx_detach();
+    return hash;
+}
+
+// A frame like the village's (r101: about 1 MB of display lists and 120 000
+// vertices per frame): model display lists with a matrix load before each
+// strip, the usual model format (position index16 s16, normal index16 s8,
+// texture coordinate index16 s16, position matrix index), called from the
+// FIFO. Returns the decoder's time per frame in microseconds (RE4_GX_BENCH,
+// runtime test "gx": the speed of the decoder on this host).
+extern "C" unsigned re4probe_gx_bench(void* fifo, void* mem, void* xfb, int frames)
+{
+    static u8 bytes[64];
+    GXInit(fifo, 0x10000);
+    re4_core_gx_acquire();  // attach
+    copyDisp(xfb);
+    if (const Re4GxChunk* c = re4_core_gx_acquire()) {
+        re4_core_gx_release(c);
+    }
+    u8* m = (u8*) mem;
+    const uint32_t phys = re4_gx_physical(mem);
+    Rng r = {0xBE7C4u};
+    for (uint32_t i = 0; i < 0x20000; i++) {  // arrays: positions, normals, texture coordinates, matrices
+        m[i] = r.byte();
+    }
+    // the list: 1500 strips of 20 vertices, a matrix load before each
+    const uint32_t listAt = 0x20000;
+    Stream l = {m + listAt, 0};
+    for (int k = 0; k < 1500; k++) {
+        l.u8_(0x20);
+        l.u32_(r.below(64) << 16 | 11u << 12 | (r.below(8) * 12));
+        l.u8_(0x98);
+        l.u16_(20);
+        for (int v = 0; v < 20; v++) {
+            l.u8_(r.below(8) * 3);
+            l.u16_(r.below(2000));
+            l.u16_(r.below(2000));
+            l.u16_(r.below(2000));
+        }
+    }
+    const uint32_t listSize = (uint32_t) ((l.n + 31) & ~(size_t) 31);
+    memset(m + listAt + l.n, 0, listSize - l.n);
+    double total = 0;
+    for (int frame = 0; frame < frames; frame++) {
+        Stream s = {bytes, 0};
+        cp(s, 0x50, 1 | 3u << 9 | 3u << 11);       // PNMTXIDX, position and normal index16
+        cp(s, 0x60, 3);                             // texture coordinate 0 index16
+        cp(s, 0x70, 1 | 3u << 1 | 6u << 4 | 1u << 10 | 1u << 21 | 3u << 22 | 8u << 25);
+        cp(s, 0xA0, phys);
+        cp(s, 0xB0, 6);
+        cp(s, 0xA1, phys + 0x4000);
+        cp(s, 0xB1, 3);
+        cp(s, 0xA4, phys + 0x8000);
+        cp(s, 0xB4, 4);
+        cp(s, 0xAC, phys + 0x10000);
+        cp(s, 0xBC, 48);
+        for (size_t i = 0; i < s.n; i++) {
+            re4_gx_put_u8(bytes[i]);
+        }
+        struct timespec t0, t1;
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+        for (int call = 0; call < 4; call++) {  // 4 x 30 000 vertices
+            Stream c = {bytes, 0};
+            c.u8_(0x40);
+            c.u32_(phys + listAt);
+            c.u32_(listSize);
+            for (size_t i = 0; i < c.n; i++) {
+                re4_gx_put_u8(bytes[i]);
+            }
+        }
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        total += (t1.tv_sec - t0.tv_sec) * 1e6 + (t1.tv_nsec - t0.tv_nsec) / 1e3;
+        copyDisp(xfb);
+        if (const Re4GxChunk* c = re4_core_gx_acquire()) {
+            re4_core_gx_release(c);
+        }
+    }
+    re4_core_gx_detach();
+    return frames ? (unsigned) (total / frames) : 0;
 }
