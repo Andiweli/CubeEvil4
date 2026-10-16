@@ -1829,6 +1829,23 @@ Offen, mitgenommen in die nächsten Meilensteine:
   prüfen, ob noch vorhanden.
 - 60 Bilder/s und Grafikoptionen: Meilenstein 11.
 
+### Werkzeuge zur Fehlersuche auf dem Gerät (Stand 16.10.2026)
+
+- **Testlauf:** `port/scripts/test-core-app.ps1 -Manual -Seconds 900 -Scale 3`;
+  Ergebnis zum Schicken: `senden.zip` (Bericht, Protokoll, Profile, Bilder als
+  JPEG), dazu `gx-geraet.zip` bis 25 MB.
+- **Im Spiel:** R3 = 12 aufeinanderfolgende Bilder als GX-Daten; Taste P im
+  PowerShell-Fenster = 15 s CPU-Profil (simpleperf, `profil-N.txt`,
+  `port/tools/android_profile.py`); `-HitShots N`/`-HitDumps N` = Bilder vom
+  Bildschirm und GX-Daten ab den ersten N Treffern auf Leon.
+- **In der Cloud:** `gx_chunk_render` (Bau: `port/build/app-host-gl`, siehe
+  `whole_r100_check.sh`) zeichnet GX-Daten mit dem App-Renderer, Folgen
+  hintereinander, `RE4_GX_SCALE=N` in App-Auflösung, `RE4_GX_WORK=1` mit
+  GL-Arbeit und GPU-Zeit; `port/tools/gx_chunk_inspect.py` listet EFB-Kopien
+  und Kopie-Texturen (`copies`) oder Zeichenaufträge mit Punkten (`draws`).
+- **Kern-Prüfungen:** Laufzeittest „gx“ mit Decoder-Fingerabdruck
+  (`02524012c6419af2`) und Markierung; `RE4_GX_BENCH=N` misst den Decoder.
+
 ### Lokale Prüfungen für K2
 
 1. `port/scripts/test-r100-core.ps1` (wie M5) zeichnet jetzt zusätzlich
