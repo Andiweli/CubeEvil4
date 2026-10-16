@@ -13,7 +13,9 @@
 #   re4_host --check-modules   every module loads, every cross-module import resolves
 #   re4_host --runtime-test    OSLink, DVD folder and yz2 work without disc data
 #   re4_host --core-test       the embedding interface of the app (core thread,
-#                              controller, snapshots) without disc data
+#                              controller, snapshots) without disc data, the
+#                              memory card library on a card file
+#   memcard_list.py            that card file read back (files, the game's CRCs)
 #   re4_format_compare         the Formatumwandler against the app's checked
 #                              big-endian readers (synthetic samples, then the
 #                              same as a disc folder: test_whole_format_compare.py)
@@ -64,12 +66,20 @@ for t in "${targets[@]}"; do
         fi
         run=(env QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf qemu-arm)
     fi
+    # the core test keeps the card of its memory card checks (RE4_CARD_TEST_FILE),
+    # which port/tools/memcard_list.py then reads back
+    card="$build/card-test.bin"
+    rm -f "$card"
     for check in --self-test --check-modules --runtime-test --core-test; do
-        out=$(cd "$build" && timeout 300 "${run[@]}" ./re4_host "$check" 2>&1)
+        out=$(cd "$build" && RE4_CARD_TEST_FILE="$card" timeout 300 "${run[@]}" ./re4_host "$check" 2>&1)
         code=$?
         echo "  re4_host $check: exit $code | $(echo "$out" | grep -E 'self-test:|check-modules:|runtime-test|core-test' | tr '\n' ' ' | sed 's/\[re4\] //g')"
         [ "$code" -ne 0 ] && status=1
     done
+    out=$(python3 "$root/port/tools/memcard_list.py" "$card" --expect-system --expect-save 0 2>&1)
+    code=$?
+    echo "  memcard_list.py (the card of the core test): exit $code | $(echo "$out" | grep -cE '^  file ') files, $(echo "$out" | grep -oE 'CRC[^;,]*' | tr '\n' ' ')"
+    [ "$code" -ne 0 ] && { echo "$out" | sed 's/^/    /'; status=1; }
     out=$(cd "$build" && timeout 300 "${run[@]}" ./re4_format_compare 2>&1)
     code=$?
     echo "  re4_format_compare: exit $code | $(echo "$out" | grep '^Ergebnis:')"

@@ -282,9 +282,10 @@ if (-not $Adb) {
 $settings = ''
 if (-not $Manual) {
     # the timing of the PC check (port/tools/whole_r100_check.sh)
-    # (RE4_CARD_CHECK=1: with the memory card dialog the app otherwise skips, RE4_ROOM_MENU=1:
+    # (RE4_MEMCARD=none: slot A empty for this run, so that the boot check shows the "no memory
+    # card" dialog the timing was made for; the card of the app stays untouched. RE4_ROOM_MENU=1:
     # with the debug start menu after "new game" (the default, named because the timing needs it))
-    $settings = "RE4_START_ROOM=0x$StartRoom;RE4_CARD_CHECK=1;RE4_ROOM_MENU=1;RE4_PAD_UNTIL_ROOM=1;RE4_PAD_SCRIPT=UP@100-60000/60 A@115-60000/60 START@130-60000/60"
+    $settings = "RE4_START_ROOM=0x$StartRoom;RE4_MEMCARD=none;RE4_ROOM_MENU=1;RE4_PAD_UNTIL_ROOM=1;RE4_PAD_SCRIPT=UP@100-60000/60 A@115-60000/60 START@130-60000/60"
 }
 if ($Bridge) {
     # the earlier view: the core's state drawn by the app's own renderer

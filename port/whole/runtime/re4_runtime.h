@@ -106,6 +106,10 @@ int re4_valid_port_ptr(const void* p);
  * (draw done, token) are delivered when a thread starts waiting and with the
  * video retraces, the moments the GP would have caught up on the GameCube. */
 void re4_gx_deliver_interrupts(void);
+/* EXI (exi.cpp, M10): the memory card's pending transfer ends and "done"
+ * interrupts, and the due OS alarms (alarm.cpp), delivered at the interrupt
+ * points (re4_os_idle, OSSleepThread). */
+void re4_exi_deliver(void);
 /* The VI's frame buffer (vi.cpp -> gx_decode.cpp): VISetNextFrameBuffer
  * passes the XFB the picture switches to, VIFlush ends the frame. A display
  * copy into an XFB the VI does not switch to is held (RE4_GX_CHUNK_HOLD). */

@@ -552,6 +552,8 @@ void OSSleepThread(OSThreadQueue* q)
     // While the CPU waits the graphics processor catches up (gx_fifo.cpp): its
     // "draw done" interrupt may wake this very thread (GXWaitDrawDone).
     re4_gx_deliver_interrupts();
+    // ... and the memory card's transfers end (runtime/exi.cpp)
+    re4_exi_deliver();
     if (t->state == kReady) {
         t->state = kRunning;
     }

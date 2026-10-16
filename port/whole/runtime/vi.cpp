@@ -206,6 +206,9 @@ void re4_os_idle(void)
     if (gDelivering) {
         return;
     }
+    // what the EXI devices (memory card) and the alarms have pending comes
+    // first: the card library continues its transfers in those handlers
+    re4_exi_deliver();
     if (gFast) {
         deliver();
         return;

@@ -114,7 +114,6 @@ string(APPEND RE4_LINK_OBJECTS "main=$<TARGET_OBJECTS:re4_main_obj>\n")
 add_library(re4_platform_obj OBJECT
     runtime/aram.cpp
     runtime/byte_order.cpp
-    runtime/card.cpp
     runtime/dolphin_os.cpp
     runtime/dvd.cpp
     runtime/gx_fifo.cpp
@@ -147,7 +146,10 @@ string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_platform_obj>\n")
 # that need the game's structures sit here too.
 add_library(re4_formats_obj OBJECT
     runtime/ai.cpp
+    runtime/alarm.cpp
     runtime/dsp.cpp
+    runtime/exi.cpp
+    runtime/memcard.cpp
     runtime/tex_palette.cpp
     runtime/formats/formats.cpp
     runtime/formats/formats_arc.cpp
@@ -217,6 +219,26 @@ target_compile_options(re4_sdk_obj PRIVATE -std=gnu99 -fno-strict-aliasing -fwra
 # (pulled in by <string.h> in GNU mode) declares as a function
 set_source_files_properties("${RE4_TREE}/src/lib/GXDraw.c" PROPERTIES COMPILE_OPTIONS "-std=c99")
 string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_sdk_obj>\n")
+
+# Memory card (M10): the CARD library on the EXI functions and the card of
+# runtime/exi.cpp / memcard.cpp; re4_card_port.h stands in for the OS low
+# memory and VI register the library reads (patch 0057: command byte order).
+# Linked into libre4_main like the CRI middleware: CARDNet.c refers to
+# functions the original linker had dropped, which resolve to stubs there.
+set(RE4_CARD_UNITS CARDBios CARDBlock CARDCheck CARDCreate CARDDelete CARDDir CARDFormat CARDMount
+    CARDNet CARDOpen CARDRdwr CARDRead CARDStat CARDUnlock CARDWrite)
+set(RE4_CARD_SOURCES "")
+foreach(unit IN LISTS RE4_CARD_UNITS)
+    list(APPEND RE4_CARD_SOURCES "${RE4_TREE}/src/lib/${unit}.c")
+endforeach()
+add_library(re4_card_obj OBJECT ${RE4_CARD_SOURCES})
+target_include_directories(re4_card_obj BEFORE PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include" "${RE4_TREE}/include" "${RE4_TREE}/src/lib")
+target_compile_definitions(re4_card_obj PRIVATE SDK_REVISION=1 NDEBUG=1)
+target_compile_options(re4_card_obj PRIVATE -std=gnu99 -fno-strict-aliasing -fwrapv -w
+    "SHELL:-include ${CMAKE_CURRENT_SOURCE_DIR}/include/re4_sdk_intrinsics.h"
+    "SHELL:-include ${CMAKE_CURRENT_SOURCE_DIR}/include/re4_card_port.h")
+string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_card_obj>\n")
 
 # CRI middleware (M9): ADX, Sofdec MPEG video and the CVFS file interfaces in
 # configure.py's CRI_LIBS order. Built by CRI with `-char signed`; the codeless
@@ -300,9 +322,11 @@ endforeach()
 set(RE4_GEN "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/link_objects.txt" CONTENT "${RE4_LINK_OBJECTS}")
 set(RE4_GEN_FILES "${RE4_GEN}/stubs.cpp" "${RE4_GEN}/modules.cpp" "${RE4_GEN}/link_report.json")
-set(RE4_OBJ_DEPS re4_main_obj re4_gamehooks_obj re4_platform_obj re4_formats_obj re4_glue_obj re4_sdk_obj re4_cri_obj re4_reuse_obj
+set(RE4_OBJ_DEPS re4_main_obj re4_gamehooks_obj re4_platform_obj re4_formats_obj re4_glue_obj re4_sdk_obj re4_card_obj re4_cri_obj
+    re4_reuse_obj
     "$<TARGET_OBJECTS:re4_main_obj>" "$<TARGET_OBJECTS:re4_gamehooks_obj>" "$<TARGET_OBJECTS:re4_platform_obj>" "$<TARGET_OBJECTS:re4_formats_obj>"
-    "$<TARGET_OBJECTS:re4_glue_obj>" "$<TARGET_OBJECTS:re4_sdk_obj>" "$<TARGET_OBJECTS:re4_cri_obj>" "$<TARGET_OBJECTS:re4_reuse_obj>")
+    "$<TARGET_OBJECTS:re4_glue_obj>" "$<TARGET_OBJECTS:re4_sdk_obj>" "$<TARGET_OBJECTS:re4_card_obj>" "$<TARGET_OBJECTS:re4_cri_obj>"
+    "$<TARGET_OBJECTS:re4_reuse_obj>")
 foreach(mod IN LISTS RE4_MODULES)
     list(APPEND RE4_GEN_FILES "${RE4_GEN}/imports/${mod}.cpp" "${RE4_GEN}/imports/${mod}.S")
     list(APPEND RE4_OBJ_DEPS re4_mod_${mod}_obj "$<TARGET_OBJECTS:re4_mod_${mod}_obj>")
@@ -361,6 +385,8 @@ add_library(re4_main SHARED
     # the CRI middleware was part of main.dol: its references into code the
     # original linker dropped resolve to the generated stubs like the game's
     $<TARGET_OBJECTS:re4_cri_obj>
+    # likewise the memory card library (M10)
+    $<TARGET_OBJECTS:re4_card_obj>
     "${RE4_GEN}/stubs.cpp")
 add_dependencies(re4_main re4_link_plan)
 target_include_directories(re4_main PRIVATE runtime)
@@ -418,7 +444,7 @@ set_target_properties(re4test_rel PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_C
 if(NOT ANDROID)
     # tests/game_probe.cpp: checks that need the game's flags and headers
     add_library(re4_probe_obj OBJECT tests/game_probe.cpp tests/core_probe.cpp tests/stream_probe.cpp
-        tests/gx_probe.cpp tests/movie_probe.cpp)
+        tests/gx_probe.cpp tests/movie_probe.cpp tests/card_probe.cpp)
     target_link_libraries(re4_probe_obj PRIVATE re4_game_flags)
     add_library(re4_hostlib SHARED host/main.cpp tests/runtime_tests.cpp tests/core_tests.cpp
         "${RE4_ROOT}/port/src/sha256.cpp"

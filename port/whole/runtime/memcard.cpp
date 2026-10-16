@@ -1,0 +1,434 @@
+// The memory card in slot A (M10): a GameCube Memory Card 251 (16 Mbit,
+// 2 MB, 8 KB sectors, 251 user blocks) as a file, driven by the card
+// library of the SDK (src/lib/CARD*.c, compiled unchanged but for patch 0057)
+// through the EXI functions of runtime/exi.cpp.
+//
+// The card speaks the command protocol of the real one (as Dolphin's
+// EXI_DeviceMemoryCard does): 0x52 read array (5 command bytes, latency
+// bytes, then the data), 0xF2 page program (5 bytes, 128 data bytes), 0xF1
+// sector erase (3 bytes), 0xF4 chip erase, 0x81 interrupt enable, 0x83 read
+// status, 0x85 vendor ID, 0x89 clear status. Address bytes: AD1 << 17 | AD2
+// << 9 | AD3 << 7 | BA. A program or erase ends with the card's EXI
+// interrupt (runtime/exi.cpp delivers it after the library has let go of
+// the channel). The status says "unlocked" from the start, so the library
+// skips the DSP challenge of CARDUnlock.c (Dolphin does the same).
+//
+// The file holds the card as the port's library writes it: directory, FAT
+// and the game's save data in host byte order (decision of the project
+// owner, 16.10.2026: a card for the port, not GameCube/Dolphin compatible).
+// Every program and erase is written through to the file at once (pwrite);
+// a second after the last one it is synced (re4_memcard_flush).
+//
+//   RE4_MEMCARD unset   <data dir>/memcard/card-a.bin (made, unformatted, when missing)
+//   RE4_MEMCARD=none    no card in slot A (the game's "no memory card" screens)
+//   RE4_MEMCARD=FILE    that file
+// Slot B stays empty.
+//
+// The SRAM (OSSram / OSSramEx, battery memory of the console; OSRtc.c is not
+// compiled) is kept here as well: CARD stores the card's flash ID in it at
+// mount and checks it against the card header (CARDCheck.c VerifyID). The
+// port derives the flash ID from the header of the card file when the card
+// comes in (as Dolphin's SetCardFlashID), so a card stays valid without a
+// saved SRAM; an unformatted card gets a fixed one.
+#include "dolphin/os.h"
+#include "dolphin/os/OSRtc.h"
+#include "re4_runtime.h"
+
+#include <errno.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <time.h>
+#include <unistd.h>
+
+// (no C++ containers: this file is built with the game's flags and headers,
+// re4_formats_obj, where libc++'s allocator does not compile. There the
+// prelude's empty __asm__ also drops the C library's redirections of the
+// file offset functions to their 64-bit symbols while off_t stays 64 bits
+// wide: pread64 / pwrite64 by name, which are declared with a 64-bit offset.)
+
+extern "C" {
+// CARDFormat.c stores __VIRegs[55] (DTV status) in the header (re4_card_port.h)
+volatile unsigned short re4_card_vi_regs[64];
+void re4_exi_raise(int chan);  // runtime/exi.cpp: the card's EXI interrupt
+}
+
+namespace {
+
+const u32 kCardId = 0x00000010;  // EXI_MEMORY_CARD_251: 16 Mbit, 8 KB sectors, latency 4
+const u32 kCardBytes = 16u * 1024 * 1024 / 8;
+const u32 kSectorBytes = 0x2000;
+const u8 kStatusReady = 0x01, kStatusUnlocked = 0x40, kStatusErrors = 0x18;
+
+struct Card {
+    bool ready = false;    // init() ran
+    bool present = false;  // a card is in the slot
+    char path[512] = {};
+    int fd = -1;
+    u8* mem = 0;
+    u8 status = kStatusReady | kStatusUnlocked;
+    bool interrupts = false;  // 0x81 01
+    // the command of the current selection
+    u8 cmd[5] = {};
+    int cmdLen = 0, cmdNeed = 0;
+    u32 address = 0, readPos = 0;
+    u8 page[128] = {};
+    int pageLen = 0;
+    // write-through bookkeeping
+    bool dirty = false;
+    long long lastWrite = 0;
+    unsigned writes = 0, erases = 0;
+};
+
+Card gCard;
+OSSram gSram;
+OSSramEx gSramEx;
+
+long long nowNs()
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long) ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+
+void makeDirs(const char* path)
+{
+    char dir[512];
+    for (size_t i = 1; path[i] && i < sizeof(dir); i++) {
+        if (path[i] == '/') {
+            memcpy(dir, path, i);
+            dir[i] = 0;
+            mkdir(dir, 0775);
+        }
+    }
+}
+
+void persist(u32 offset, u32 length)
+{
+    Card& c = gCard;
+    if (c.fd < 0) {
+        return;
+    }
+    if (pwrite64(c.fd, &c.mem[offset], length, (long long) offset) != (ssize_t) length) {
+        static bool logged;
+        if (!logged) {
+            logged = true;
+            re4_log("memcard: writing %s failed (%s)", c.path, strerror(errno));
+        }
+        return;
+    }
+    c.dirty = true;
+    c.lastWrite = nowNs();
+}
+
+// The flash ID CARDCheck.c VerifyID expects for this header: serial[i] =
+// flashID[i] + rand_i, rand from the format time in serial[12..19] (host
+// order, as CARDFormat.c stored it). A header without a valid checksum (an
+// unformatted card) gets a fixed ID.
+void deriveFlashId()
+{
+    static const u8 kErased[0x200] = {0};
+    const u8* id = gCard.mem ? gCard.mem : kErased;
+    u16 sum = 0, inv = 0;
+    for (int i = 0; i < 0x1FC; i += 2) {
+        u16 w;
+        memcpy(&w, id + i, 2);
+        sum += w;
+        inv += (u16) ~w;
+    }
+    if (sum == 0xFFFF) {
+        sum = 0;
+    }
+    if (inv == 0xFFFF) {
+        inv = 0;
+    }
+    u16 checkSum, checkSumInv, deviceId;
+    memcpy(&checkSum, id + 0x1FC, 2);
+    memcpy(&checkSumInv, id + 0x1FE, 2);
+    memcpy(&deviceId, id + 0x20, 2);
+    bool formatted = gCard.present && deviceId == 0 && checkSum == sum && checkSumInv == inv;
+    if (formatted) {
+        OSTime rand;
+        memcpy(&rand, id + 12, sizeof(rand));
+        for (int i = 0; i < 12; i++) {
+            rand = (rand * 1103515245 + 12345) >> 16;
+            gSramEx.flashID[0][i] = (u8) (id[i] - (u8) rand);
+            rand = ((rand * 1103515245 + 12345) >> 16) & 0x7FFF;
+        }
+    } else {
+        static const u8 kFixed[12] = {'R', 'E', '4', 'P', 'O', 'R', 'T', 'C', 'A', 'R', 'D', 'A'};
+        memcpy(gSramEx.flashID[0], kFixed, 12);
+    }
+    u8 check = 0;
+    for (int i = 0; i < 12; i++) {
+        check += gSramEx.flashID[0][i];
+    }
+    gSramEx.flashIDCheckSum[0] = (u8) ~check;
+}
+
+// The card of `path` comes into slot A (0 or "none": the slot stays empty).
+void insert(const char* path)
+{
+    Card& c = gCard;
+    c.ready = true;
+    if (!path || !*path || strcmp(path, "none") == 0) {
+        re4_log("memcard: slot A empty%s", path ? " (RE4_MEMCARD=none)" : "");
+        deriveFlashId();
+        return;
+    }
+    snprintf(c.path, sizeof(c.path), "%s", path);
+    c.mem = (u8*) malloc(kCardBytes);
+    memset(c.mem, 0xFF, kCardBytes);
+    makeDirs(c.path);
+    c.fd = open(c.path, O_RDWR | O_CREAT, 0664);
+    if (c.fd < 0) {
+        re4_log("memcard: %s cannot be opened (%s), slot A empty", c.path, strerror(errno));
+        deriveFlashId();
+        return;
+    }
+    ssize_t got = pread64(c.fd, c.mem, kCardBytes, 0);
+    if (got != (ssize_t) kCardBytes) {
+        // new (or short) file: the rest is erased flash, as a new card
+        if (got < 0) {
+            got = 0;
+        }
+        memset(c.mem + got, 0xFF, kCardBytes - (size_t) got);
+        persist(0, kCardBytes);
+        re4_log("memcard: %s %s (2 MB, Memory Card 251, unformatted)", c.path, got == 0 ? "made" : "completed");
+    } else {
+        re4_log("memcard: %s (2 MB, Memory Card 251)", c.path);
+    }
+    c.present = true;
+    deriveFlashId();
+}
+
+void init()
+{
+    if (gCard.ready) {
+        return;
+    }
+    const char* env = getenv("RE4_MEMCARD");
+    if (env && *env) {
+        insert(env);
+        return;
+    }
+    char path[512];
+    snprintf(path, sizeof(path), "%s/memcard/card-a.bin", re4_data_dir());
+    insert(path);
+}
+
+void eject()
+{
+    Card& c = gCard;
+    if (c.fd >= 0) {
+        if (c.dirty) {
+            fsync(c.fd);
+        }
+        close(c.fd);
+    }
+    free(c.mem);
+    c = Card();
+}
+
+int needFor(u8 command)
+{
+    switch (command) {
+    case 0x52:
+    case 0xF2:
+        return 5;
+    case 0xF1:
+    case 0xF4:
+        return 3;
+    case 0x00:
+    case 0x81:
+    case 0x83:
+    case 0x85:
+        return 2;
+    default:
+        return 1;
+    }
+}
+
+}  // namespace
+
+extern "C" {
+
+int re4_memcard_present(int chan)
+{
+    init();
+    return chan == 0 && gCard.present;
+}
+
+u32 re4_memcard_id(int chan)
+{
+    return re4_memcard_present(chan) ? kCardId : 0;
+}
+
+void re4_memcard_select(int chan)
+{
+    (void) chan;
+    Card& c = gCard;
+    c.cmdLen = c.cmdNeed = 0;
+    c.readPos = 0;
+    c.pageLen = 0;
+}
+
+void re4_memcard_write(int chan, const void* data, int length)
+{
+    (void) chan;
+    Card& c = gCard;
+    const u8* p = (const u8*) data;
+    for (int i = 0; i < length; i++) {
+        u8 b = p[i];
+        if (c.cmdLen == 0) {
+            c.cmd[0] = b;
+            c.cmdLen = 1;
+            c.cmdNeed = needFor(b);
+        } else if (c.cmdLen < c.cmdNeed) {
+            c.cmd[c.cmdLen++] = b;
+        } else if (c.cmd[0] == 0xF2 && c.pageLen < (int) sizeof(c.page)) {
+            c.page[c.pageLen++] = b;  // page program data
+        }
+        // 0x52: the latency bytes after the address are ignored
+        if (c.cmdLen == c.cmdNeed && (c.cmd[0] == 0x52 || c.cmd[0] == 0xF2 || c.cmd[0] == 0xF1)) {
+            c.address = ((u32) (c.cmd[1] & 0x7F) << 17) | ((u32) c.cmd[2] << 9);
+            if (c.cmdNeed == 5) {
+                c.address |= ((u32) (c.cmd[3] & 3) << 7) | (c.cmd[4] & 0x7F);
+            }
+        }
+    }
+}
+
+void re4_memcard_read(int chan, void* data, int length)
+{
+    (void) chan;
+    Card& c = gCard;
+    u8* p = (u8*) data;
+    for (int i = 0; i < length; i++) {
+        u8 v = 0xFF;
+        switch (c.cmdLen == c.cmdNeed ? c.cmd[0] : 0xFF) {
+        case 0x52:
+            v = c.mem[(c.address + c.readPos) & (kCardBytes - 1)];
+            break;
+        case 0x83:
+            v = c.status;
+            break;
+        case 0x85:
+            v = c.readPos == 0 ? 0xC2 : 0x21;  // vendor ID 0xC221 (as Dolphin's card)
+            break;
+        case 0x00:
+            v = (u8) (kCardId >> (24 - 8 * (c.readPos & 3)));
+            break;
+        default:
+            break;
+        }
+        c.readPos++;
+        p[i] = v;
+    }
+}
+
+// The end of a command: a page program or erase takes effect, then the card
+// raises its interrupt (when enabled).
+void re4_memcard_deselect(int chan)
+{
+    Card& c = gCard;
+    if (c.cmdLen != c.cmdNeed || c.cmdLen == 0) {
+        c.cmdLen = 0;
+        return;
+    }
+    bool done = false;
+    switch (c.cmd[0]) {
+    case 0xF2: {
+        u32 base = c.address & ~0x7Fu;
+        for (int i = 0; i < c.pageLen; i++) {
+            u32 at = base | ((c.address + (u32) i) & 0x7F);
+            c.mem[at & (kCardBytes - 1)] = c.page[i];
+        }
+        persist(base & (kCardBytes - 1), 0x80);
+        c.writes++;
+        done = true;
+        break;
+    }
+    case 0xF1: {
+        u32 base = (c.address & (kCardBytes - 1)) & ~(kSectorBytes - 1);
+        memset(&c.mem[base], 0xFF, kSectorBytes);
+        persist(base, kSectorBytes);
+        c.erases++;
+        done = true;
+        break;
+    }
+    case 0xF4:
+        memset(c.mem, 0xFF, kCardBytes);
+        persist(0, kCardBytes);
+        done = true;
+        break;
+    case 0x81:
+        c.interrupts = (c.cmd[1] & 1) != 0;
+        break;
+    case 0x89:
+        c.status &= (u8) ~kStatusErrors;
+        break;
+    default:
+        break;
+    }
+    c.cmdLen = 0;
+    if (done && c.interrupts) {
+        re4_exi_raise(chan);
+    }
+}
+
+// A second after the last write the file is synced (from the interrupt
+// points, runtime/exi.cpp); `force` syncs now.
+void re4_memcard_flush(int force)
+{
+    Card& c = gCard;
+    if (!c.dirty || c.fd < 0) {
+        return;
+    }
+    if (!force && nowNs() - c.lastWrite < 1000000000LL) {
+        return;
+    }
+    fsync(c.fd);
+    c.dirty = false;
+    re4_log("memcard: %s saved (%u pages written, %u sectors erased so far)", c.path, c.writes, c.erases);
+}
+
+// Takes the card out of slot A and puts the one of `path` in (0: none), as a
+// new start of the app does: the file is read again, the flash ID derived
+// anew (runtime tests, tests/card_probe.cpp). The CARD library must have
+// unmounted the slot.
+void re4_memcard_open(const char* path)
+{
+    eject();
+    insert(path);
+}
+
+// --- SRAM ---------------------------------------------------------------------
+
+OSSram* __OSLockSram(void)
+{
+    init();
+    return &gSram;
+}
+
+OSSramEx* __OSLockSramEx(void)
+{
+    init();
+    return &gSramEx;
+}
+
+int __OSUnlockSram(BOOL commit)
+{
+    (void) commit;
+    return 1;
+}
+
+int __OSUnlockSramEx(BOOL commit)
+{
+    (void) commit;
+    return 1;
+}
+
+}  // extern "C"

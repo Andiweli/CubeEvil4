@@ -197,9 +197,12 @@ fi
 # A or START leaves the debug start menu (title.cpp titleExit). There UP moves
 # the cursor (21 lines, wrapping; line 1 loads, 2 forces r120, 0x12 hard mode +
 # reset): at most one UP can arrive before the next A/START, so the cursor is
-# line 0 or 20, both the normal start. RE4_CARD_CHECK=1 keeps the memory card
-# dialog the app skips (patch 0039), RE4_ROOM_MENU=1 the debug start menu
-# (patch 0043; the default, named because this timing needs it).
+# line 0 or 20, both the normal start. RE4_MEMCARD=none leaves memory card slot
+# A empty, so that the boot check shows the "no memory card" dialog this
+# timing was made for (and no card file is made in the data folder; since
+# milestone 10 the check is the game's own with a real card), RE4_ROOM_MENU=1
+# the debug start menu (patch 0043; the default, named because this timing
+# needs it).
 pad_script="UP@100-60000/60 A@115-60000/60 START@130-60000/60"
 # No key in the room until the player is free: the opening event and the
 # radio call that follows it must end on their own (the radio waits for its
@@ -257,7 +260,7 @@ run_game() {
     mkdir -p "$snaps" "$gxdump"
     local start=$SECONDS
     (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
-        RE4_CARD_CHECK=1 RE4_ROOM_MENU=1 RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script" RE4_PAD_FREE_SCRIPT="$free_script" RE4_TEST_PLACE="$place" RE4_STOP_AFTER="$frames" \
+        RE4_MEMCARD=none RE4_ROOM_MENU=1 RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script" RE4_PAD_FREE_SCRIPT="$free_script" RE4_TEST_PLACE="$place" RE4_STOP_AFTER="$frames" \
         RE4_GX_DUMP_FREE="$map_dump" RE4_TEST_SOFT_RESET="free+$soft_reset" \
         RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" RE4_BRIDGE_DUMP="$bridge" RE4_BRIDGE_SNAPSHOT="$snaps" RE4_GX_DUMP="$gxdump" \
         RE4_AUDIO_WAV="$run/ton-$t.wav" RE4_AUDIO_WAV_SECONDS=240 \
@@ -762,7 +765,7 @@ run_movies() {
             name="d$((disc + 1))-$(basename "$f" | sed 's/\.[sS][fF][dD]$//')"
             log="$run/film-$name.log"
             n=$((n + 1))
-            (cd "$dir" && exec env RE4_MOVIE_DISC="$disc" RE4_VI_FAST=1 RE4_MOVIE_FAST=1 RE4_MOVIE_EVERY=1800 \
+            (cd "$dir" && exec env RE4_MEMCARD=none RE4_MOVIE_DISC="$disc" RE4_VI_FAST=1 RE4_MOVIE_FAST=1 RE4_MOVIE_EVERY=1800 \
                 timeout 1200 ./re4_host --data "$layout" --movie-test "$rel" "$run/film.yuv" \
                 "$run/film-$name.wav" $((mins * 3600))) > "$log" 2>&1
             local code=$?

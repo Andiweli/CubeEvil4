@@ -1,0 +1,106 @@
+# SDK CARD (M10): what the memory card library needs to build and run on the
+# port. CARDBios.c: the one- and two-byte card commands (0x81 interrupt
+# enable, 0x83 read status, 0x85 vendor ID, 0x89 clear status, 0x87 / 0x88 wake
+# / sleep) are built as a u32 and their first one or two bytes in memory are
+# sent; on the little-endian host those were the low bytes (00 00).
+# re4_card_cmd (re4_card_port.h) stores the word with the command byte first;
+# the vendor ID the card sends high byte first is read back as such.
+# CARDRdwr.c: CodeWarrior's cast as lvalue ((u8*) p += n) as a plain
+# assignment. __os.h: the CodeWarrior section asm declarations only for
+# CodeWarrior.
+--- a/src/lib/CARDBios.c
++++ b/src/lib/CARDBios.c
+@@ -152,7 +152,7 @@
+         return CARD_RESULT_NOCARD;
+     }
+ 
+-    cmd = enable ? 0x81010000 : 0x81000000;
++    cmd = re4_card_cmd(enable ? 0x81010000 : 0x81000000); /* port: command bytes first in memory */
+     err = FALSE;
+     err |= !EXIImm(chan, &cmd, 2, EXI_WRITE, NULL);
+     err |= !EXISync(chan);
+@@ -170,7 +170,7 @@
+         return CARD_RESULT_NOCARD;
+     }
+ 
+-    cmd = 0x83000000;
++    cmd = re4_card_cmd(0x83000000); /* port: command bytes first in memory */
+     err = FALSE;
+     err |= !EXIImm(chan, &cmd, 2, EXI_WRITE, NULL);
+     err |= !EXISync(chan);
+@@ -189,13 +189,14 @@
+     if (!EXISelect(chan, 0, CARDFreq)) {
+         return CARD_RESULT_NOCARD;
+     }
+-    cmd = 0x85000000;
++    cmd = re4_card_cmd(0x85000000); /* port: command bytes first in memory */
+     err = 0;
+     err |= !EXIImm(chan, &cmd, 2, EXI_WRITE, 0);
+     err |= !EXISync(chan);
+     err |= !EXIImm(chan, id, 2, EXI_READ, 0);
+     err |= !EXISync(chan);
+     err |= !EXIDeselect(chan);
++    *id = re4_card_be16(*id); /* port: the card sends the high byte first */
+     return err ? CARD_RESULT_NOCARD : CARD_RESULT_READY;
+ }
+ 
+@@ -209,7 +210,7 @@
+         return CARD_RESULT_NOCARD;
+     }
+ 
+-    cmd = 0x89000000;
++    cmd = re4_card_cmd(0x89000000); /* port: command bytes first in memory */
+     err = FALSE;
+     err |= !EXIImm(chan, &cmd, 1, EXI_WRITE, 0);
+     err |= !EXISync(chan);
+@@ -227,7 +228,7 @@
+     if (!EXISelect(chan, 0, CARDFreq)) {
+         return CARD_RESULT_NOCARD;
+     }
+-    cmd = 0x88000000;
++    cmd = re4_card_cmd(0x88000000); /* port: command bytes first in memory */
+     err = 0;
+     err |= !EXIImm(chan, &cmd, 1, EXI_WRITE, 0);
+     err |= !EXISync(chan);
+@@ -247,7 +248,7 @@
+     if (!EXISelect(chan, 0, CARDFreq)) {
+         return CARD_RESULT_NOCARD;
+     }
+-    cmd = 0x87000000;
++    cmd = re4_card_cmd(0x87000000); /* port: command bytes first in memory */
+     err = 0;
+     err |= !EXIImm(chan, &cmd, 1, EXI_WRITE, 0);
+     err |= !EXISync(chan);
+--- a/src/lib/__os.h
++++ b/src/lib/__os.h
+@@ -102,8 +102,10 @@
+ OSTime __OSTimeToSystemTime(OSTime time);
+ 
+ // ppc_eabi_init
++#ifdef __MWERKS__ /* port: CodeWarrior section asm declarations (the port's code never calls them) */
+ __declspec(section ".init") asm void __init_hardware(void);
+ __declspec(section ".init") asm void __flush_cache(void* address, unsigned int size);
++#endif
+ void __init_user(void);
+ void _ExitProcess(void);
+ 
+--- a/src/lib/CARDRdwr.c
++++ b/src/lib/CARDRdwr.c
+@@ -15,7 +15,7 @@
+     if ((result >= 0)) {
+         card->xferred += 0x200;
+         card->addr += 0x200;
+-        ((u8*)card->buffer) += 0x200;
++        card->buffer = (u8*)card->buffer + 0x200; /* port: CodeWarrior's cast lvalue */
+ 
+         if (--card->repeat > 0) {
+             result = __CARDReadSegment(chan, BlockReadCallback);
+@@ -61,7 +61,7 @@
+     if (result >= 0) {
+         card->xferred += card->pageSize;
+         card->addr += card->pageSize;
+-        ((u8*)card->buffer) += card->pageSize;
++        card->buffer = (u8*)card->buffer + card->pageSize; /* port: CodeWarrior's cast lvalue */
+ 
+         if (--card->repeat > 0) {
+             result = __CARDWritePage(chan, BlockWriteCallback);

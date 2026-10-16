@@ -51,7 +51,7 @@ OSTime monotonicTicks()
     return (OSTime) ts.tv_sec * kTimerClock + (OSTime) ts.tv_nsec * kTimerClock / 1000000000;
 }
 
-// OSGetTime counts from 2000-01-01 00:00 (the GameCube epoch).
+// OSGetTime counts from 2000-01-01 00:00 local time (the GameCube epoch).
 const time_t kEpoch2000 = 946684800;
 OSTime gTimeOffset;
 bool gTimeOffsetSet;
@@ -113,7 +113,13 @@ unsigned OSGetPhysicalMemSize(void)
 OSTime OSGetTime(void)
 {
     if (!gTimeOffsetSet) {
-        gTimeOffset = (OSTime) (time(0) - kEpoch2000) * kTimerClock - monotonicTicks();
+        // the console's clock runs in local time (set in the IPL, no time
+        // zone): the dates of the saves (card.cpp makeSaveData) are the
+        // device's local time
+        time_t now = time(0);
+        struct tm local;
+        long zone = localtime_r(&now, &local) ? local.tm_gmtoff : 0;
+        gTimeOffset = (OSTime) (now + zone - kEpoch2000) * kTimerClock - monotonicTicks();
         gTimeOffsetSet = true;
     }
     return monotonicTicks() + gTimeOffset;

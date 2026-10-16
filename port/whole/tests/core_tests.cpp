@@ -14,6 +14,8 @@
 //   pad     the SDK's PADClamp turns the raw controller values into the
 //           game's ranges (dead zones, octagon, trigger threshold); the
 //           rumble motor per frame (re4_core_rumble)
+//   card    the SDK's memory card library on the port's card file
+//           (tests/card_probe.cpp): format, files, a new start, no card
 #include "re4_core.h"
 #include "re4_runtime.h"
 
@@ -33,6 +35,7 @@ extern "C" void re4probe_shape_restore(void);
 extern "C" int re4probe_ax_test(void);
 extern "C" int re4probe_axfx_test(void);
 extern "C" int re4probe_movie_test(void);
+extern "C" int re4probe_card_test(void);
 
 namespace {
 
@@ -753,6 +756,12 @@ int re4_core_tests()
             gFailures++;
         }
         report("movie", failed == 0);
+    }
+    {
+        // the memory card library on the port's card (tests/card_probe.cpp)
+        int failed = re4probe_card_test();
+        gFailures += failed;
+        report("card", failed == 0);
     }
     re4_log("core-test: %d failed", gFailures);
     return gFailures;

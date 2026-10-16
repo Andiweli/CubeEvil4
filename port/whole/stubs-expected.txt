@@ -29,6 +29,11 @@ function mwPlyEntryFnameSub
 function mwPlyReleaseSub
 function mwPlyStartSub
 
+# CARD (M10): CARDNet.c refers to the extended status functions, which the
+# original linker had removed with the unused CARDNet functions
+function __CARDGetStatusEx
+function __CARDSetStatusExAsync
+
 # OS: IPL font (error screens only), stopwatches, OSResetSystem
 function OSGetFontEncode
 function OSGetFontTexture
