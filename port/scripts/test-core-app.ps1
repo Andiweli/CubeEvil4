@@ -56,10 +56,18 @@ Steuerung, Ton) stehen in der Systemdatei; das Spiel schreibt sie wie auf dem Ga
 zusammen mit einem Spielstand (Schreibmaschine) und liest sie beim Start. Die Test-Tastenfolge
 laeuft OHNE Karte (RE4_MEMCARD=none: ihr Zeitplan ist auf den "keine Karte"-Dialog
 abgestimmt, deine Spielstaende bleiben unberuehrt); mit -Manual spielst du mit der Karte.
--NewCard startet mit einer neuen, unformatierten Karte (die bisherige wird vorher als
-speicherkarte-a-vorher.bin gesichert). -SaveTest oeffnet den Speicherbildschirm wie an einer
-Schreibmaschine von selbst, etwa 7 s nachdem du im ersten Raum frei laufen kannst (Testhilfe
-RE4_TEST_SAVE; speichern wie gewohnt mit A, "gespeichert" mit START schliessen). Nach jedem Lauf holt das Skript die Karte
+Eine neue Karte ist wie eine aus dem Laden formatiert und leer (Entscheidung des
+Projektinhabers, 17.10.2026); die Frage zum Formatieren kommt nur bei einer kaputten Karte,
+die Meldung "Systemdatei wird geladen" beim Start entfaellt (RE4_CARD_BOOT_MESSAGE=1 zeigt sie).
+-NewCard startet mit einer neuen Karte, -BlankCard mit einer unformatierten (Test des
+Formatieren-Dialogs); die bisherige wird vorher als speicherkarte-a-vorher.bin gesichert.
+In Ja/Nein-Fragen steht der Pfeil wie im Original zuerst auf der zweiten Antwort (meist "Nein").
+-SaveTest oeffnet den Speicherbildschirm wie an einer Schreibmaschine von selbst, etwa 7 s nachdem
+du im ersten Raum frei laufen kannst (Testhilfe RE4_TEST_SAVE; speichern wie gewohnt mit A,
+"gespeichert" mit START schliessen). Achtung: Das speichert an einer Stelle, an der das Spiel sonst
+nie speichert; in r100 vor dem ersten Haus fehlt nach dem Laden die Szene mit dem ersten Ganado
+(das Spiel merkt sich im Spielstand, dass es sie schon vorgeladen hat). Die Schreibmaschine von
+r100 steht weiter hinten am Weg, hinter dem ersten Haus. Nach jedem Lauf holt das Skript die Karte
 (speicherkarte-a.bin, kommt mit in senden.zip) und listet im Bericht, was darauf ist.
 
 Steuerung (Meilenstein 7) wie beim GameCube: A, B, X, Y nach Beschriftung, linker Stick =
@@ -136,6 +144,7 @@ param(
     [int]$HitShots = 0,
     [int]$AudioWav = 0,
     [switch]$NewCard,
+    [switch]$BlankCard,
     [switch]$SaveTest
 )
 $ErrorActionPreference = 'Stop'
@@ -301,6 +310,10 @@ if (-not $Manual) {
     # with the debug start menu after "new game" (the default, named because the timing needs it))
     $settings = "RE4_START_ROOM=0x$StartRoom;RE4_MEMCARD=none;RE4_ROOM_MENU=1;RE4_PAD_UNTIL_ROOM=1;RE4_PAD_SCRIPT=UP@100-60000/60 A@115-60000/60 START@130-60000/60"
 }
+if ($BlankCard) {
+    # the new card (made below) unformatted instead of formatted (runtime/memcard.cpp)
+    $settings = if ($settings) { "$settings;RE4_MEMCARD_NEW=blank" } else { 'RE4_MEMCARD_NEW=blank' }
+}
 if ($SaveTest) {
     # the save screen of a typewriter, 120 frames after the player is free in the first room
     # (runtime/state_trace.cpp RE4_TEST_SAVE)
@@ -399,10 +412,11 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     $sinceText = ((& $Adb -s $Serial shell date +%Y-%m-%d_%H:%M:%S) -join '').Trim() -replace '_', ' '
     # dumps of this run only (periodic with -GxDump, any time with R3 on the controller)
     & $Adb -s $Serial shell rm -rf $dumpRemote
-    # the memory card of slot A (runtime/memcard.cpp); -NewCard: a new, unformatted one (the
-    # app makes it when the file is missing), the old one kept on the PC
+    # the memory card of slot A (runtime/memcard.cpp); -NewCard / -BlankCard: a new one (the
+    # app makes it when the file is missing: formatted and empty, or unformatted with
+    # -BlankCard), the old one kept on the PC
     $cardRemote = "$game/memcard/card-a.bin"
-    if ($NewCard) {
+    if ($NewCard -or $BlankCard) {
         $backup = Join-Path $OutDir 'speicherkarte-a-vorher.bin'
         $previousPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'

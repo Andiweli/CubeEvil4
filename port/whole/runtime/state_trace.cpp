@@ -48,6 +48,11 @@
 //                          to this file, load it), so that A alone confirms;
 //                          the game itself puts the cursor on the second one
 //                          (card.cpp: cMes.SetCursor(0, 1), mostly "no")
+//   RE4_TEST_CONTINUE="free+N"  N frames after the player is free, "retry
+//                          from a continue point" (option.cpp: GameContinue(1),
+//                          also the end of a load from the pause menu); the
+//                          log says when the room runs again ("run: after the
+//                          retry")
 //   RE4_STOP_AT_FRAME=N    the run ends (exit code 0) at frame N whatever the
 //                          game is doing, with its step, room and whether a
 //                          card screen is open (the card runs of the PC check
@@ -67,6 +72,7 @@
 #include "main.h"
 #include "scheduler.h"
 #include "mes.h"
+#include "game.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -251,6 +257,9 @@ long g_saveAfter = -1;
 int g_saveBrightness = -1;
 bool g_saveOpened, g_saveStop, g_saveRunning;
 bool g_cardYes;              // RE4_TEST_CARD_YES
+long g_continueAfter = -1;   // RE4_TEST_CONTINUE
+long g_continueAt = -1;
+bool g_continueLeft;         // the room stopped running after the retry
 unsigned long g_stopAtFrame;  // RE4_STOP_AT_FRAME
 std::atomic<unsigned> g_playerHits(0);  // re4_core_player_hits
 
@@ -420,6 +429,20 @@ void frame(unsigned n)
                     (unsigned) g->save_cnt);
         }
     }
+    if (g_continueAfter >= 0 && g_freeAt >= 0 && g_continueAt < 0 && (long) n >= g_freeAt + g_continueAfter &&
+        g->Rno0 == 3 && !StaFlagChk(g, STA_SUB_SCRN) && !StaFlagChk(g, STA_EVENT)) {
+        g_continueAt = (long) n;
+        re4_log("run: retry from the continue point (RE4_TEST_CONTINUE) at frame %u in room r%03x", n,
+                (unsigned) g->room_id);
+        GameContinue(1);
+    } else if (g_continueAt >= 0 && !g_continueLeft && g->Rno0 != 3) {
+        g_continueLeft = true;
+    } else if (g_continueLeft && g->Rno0 == 3) {
+        g_continueLeft = false;
+        g_continueAfter = -1;
+        re4_log("run: after the retry: room r%03x runs again at frame %u (%ld frames later)", (unsigned) g->room_id,
+                n, (long) n - g_continueAt);
+    }
     if (g_padUntilRoom && g->Rno0 >= 2) {
         re4_pad_script_stop();
         g_padUntilRoom = false;
@@ -476,6 +499,10 @@ void configure()
             g_saveBrightness = (int) strtol(end + 1, &end, 0);
         }
         g_saveStop = end && strstr(end, ",stop") != 0;
+    }
+    const char* retry = getenv("RE4_TEST_CONTINUE");
+    if (retry && strncmp(retry, "free+", 5) == 0) {
+        g_continueAfter = strtol(retry + 5, 0, 10);
     }
     const char* yes = getenv("RE4_TEST_CARD_YES");
     g_cardYes = yes && *yes && *yes != '0';

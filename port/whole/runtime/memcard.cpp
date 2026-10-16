@@ -19,7 +19,8 @@
 // Every program and erase is written through to the file at once;
 // a second after the last one it is synced (re4_memcard_flush).
 //
-//   RE4_MEMCARD unset   <data dir>/memcard/card-a.bin (made, unformatted, when missing)
+//   RE4_MEMCARD unset   <data dir>/memcard/card-a.bin (made when missing: formatted and
+//                       empty like a new card; RE4_MEMCARD_NEW=blank: unformatted)
 //   RE4_MEMCARD=none    no card in slot A (the game's "no memory card" screens)
 //   RE4_MEMCARD=FILE    that file
 // Slot B stays empty.
@@ -111,6 +112,9 @@ void persist(u32 offset, u32 length)
 // flashID[i] + rand_i, rand from the format time in serial[12..19] (host
 // order, as CARDFormat.c stored it). A header without a valid checksum (an
 // unformatted card) gets a fixed ID.
+// The flash ID of a card without a valid header (and of a new card)
+const u8 kFixedFlashId[12] = {'R', 'E', '4', 'P', 'O', 'R', 'T', 'C', 'A', 'R', 'D', 'A'};
+
 void deriveFlashId()
 {
     static const u8 kErased[0x200] = {0};
@@ -142,14 +146,78 @@ void deriveFlashId()
             rand = ((rand * 1103515245 + 12345) >> 16) & 0x7FFF;
         }
     } else {
-        static const u8 kFixed[12] = {'R', 'E', '4', 'P', 'O', 'R', 'T', 'C', 'A', 'R', 'D', 'A'};
-        memcpy(gSramEx.flashID[0], kFixed, 12);
+        memcpy(gSramEx.flashID[0], kFixedFlashId, 12);
     }
     u8 check = 0;
     for (int i = 0; i < 12; i++) {
         check += gSramEx.flashID[0][i];
     }
     gSramEx.flashIDCheckSum[0] = (u8) ~check;
+}
+
+// __CARDCheckSum (CARDCheck.c): the sum of the u16 words and of their
+// complements (0xFFFF counts as 0), stored at `store`.
+void storeCheckSum(const u8* p, int bytes, u8* store)
+{
+    u16 sum = 0, inv = 0;
+    for (int i = 0; i < bytes; i += 2) {
+        u16 w;
+        memcpy(&w, p + i, 2);
+        sum += w;
+        inv += (u16) ~w;
+    }
+    if (sum == 0xFFFF) {
+        sum = 0;
+    }
+    if (inv == 0xFFFF) {
+        inv = 0;
+    }
+    memcpy(store, &sum, 2);
+    memcpy(store + 2, &inv, 2);
+}
+
+// A new card comes formatted and empty, as one from the shop (decision of the
+// project owner, 17.10.2026: the game's format question only for a broken
+// card). The five system blocks exactly as CARDFormat.c writes them
+// (__CARDFormatRegionAsync): the header with the serial from the flash ID of
+// deriveFlashId and the format time (now), ANSI encoding (OSGetFontEncode of
+// a US console), counter bias, language and DTV status 0 (the port's SRAM and
+// VI); two empty directories (check codes 0 and 1) and two FATs with 251 free
+// blocks. The user blocks stay erased. RE4_MEMCARD_NEW=blank: an
+// unformatted card instead (the game then offers to format it).
+void formatNew(u8* mem)
+{
+    memset(mem, 0xFF, 5 * kSectorBytes);
+    u8* id = mem;
+    const u16 encode = 0, deviceId = 0, sizeMbit = (u16) (kCardBytes * 8 / (1024 * 1024));
+    const u32 zero = 0;
+    memcpy(id + 0x24, &encode, 2);
+    memcpy(id + 20, &zero, 4);  // serial[20]: SRAM counter bias
+    memcpy(id + 24, &zero, 4);  // serial[24]: SRAM language
+    OSTime time = OSGetTime(), rand = time;
+    for (int i = 0; i < 12; i++) {
+        rand = (rand * 1103515245 + 12345) >> 16;
+        id[i] = (u8) (kFixedFlashId[i] + rand);
+        rand = ((rand * 1103515245 + 12345) >> 16) & 0x7FFF;
+    }
+    memcpy(id + 28, &zero, 4);  // serial[28]: the VI DTV status
+    memcpy(id + 12, &time, sizeof(time));
+    memcpy(id + 0x20, &deviceId, 2);
+    memcpy(id + 0x22, &sizeMbit, 2);
+    storeCheckSum(id, 0x1FC, id + 0x1FC);
+    for (int i = 0; i < 2; i++) {
+        u8* dir = mem + (1 + i) * kSectorBytes;
+        const s16 code = (s16) i;
+        memcpy(dir + 0x1FFA, &code, 2);  // CARDDirCheck: checkCode, then the sums
+        storeCheckSum(dir, 0x1FFC, dir + 0x1FFC);
+    }
+    for (int i = 0; i < 2; i++) {
+        u8* fat = mem + (3 + i) * kSectorBytes;
+        memset(fat, 0, kSectorBytes);
+        const u16 head[3] = { (u16) i, (u16) (kCardBytes / kSectorBytes - 5), 4 };  // check code, free, last slot
+        memcpy(fat + 4, head, sizeof(head));
+        storeCheckSum(fat + 4, 0x1FFC, fat);
+    }
 }
 
 void logDirectory();
@@ -180,8 +248,14 @@ void insert(const char* path)
             got = 0;
         }
         memset(c.mem + got, 0xFF, kCardBytes - (size_t) got);
+        const char* kind = getenv("RE4_MEMCARD_NEW");
+        bool blank = got != 0 || (kind && strcmp(kind, "blank") == 0);
+        if (!blank) {
+            formatNew(c.mem);
+        }
         persist(0, kCardBytes);
-        re4_log("memcard: %s %s (2 MB, Memory Card 251, unformatted)", c.path, got == 0 ? "made" : "completed");
+        re4_log("memcard: %s %s (2 MB, Memory Card 251, %s)", c.path, got == 0 ? "made" : "completed",
+                blank ? "unformatted" : "formatted, empty");
     } else {
         re4_log("memcard: %s (2 MB, Memory Card 251)", c.path);
     }
@@ -461,6 +535,14 @@ void re4_memcard_flush(int force)
     c.dirty = false;
     re4_log("memcard: %s saved (%u pages written, %u sectors erased so far)", c.path, c.writes, c.erases);
     logDirectory();
+}
+
+// Whether the boot check shows "loading the system file" (patch 0060): only
+// with RE4_CARD_BOOT_MESSAGE=1, as the original does.
+int re4_card_boot_message(void)
+{
+    const char* v = getenv("RE4_CARD_BOOT_MESSAGE");
+    return v && *v == '1';
 }
 
 // The game's card screen, every frame (patch 0058, cCard::MainLoop): its

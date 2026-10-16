@@ -836,9 +836,13 @@ run_movies() {
 # 64), A picks file 1 and confirms, START closes "saved"; the run ends when
 # the screen has closed. Run B, a new start with the same card: the boot
 # check reads the system file (brightness 72 again), the title menu stands on
-# "load" (no debug start), A loads file 1, the game continues in r100. Each
+# "load" (no debug start), A loads file 1, the game continues in r100; once
+# the player is free, "retry from a continue point" (RE4_TEST_CONTINUE,
+# GameContinue as the pause menu calls it, also after a load there) must
+# bring r100 back (it hung before patch 0059). Each
 # run ends at the latest at a fixed frame (RE4_STOP_AT_FRAME) or after
-# RE4_CHECK_CARD_LIMIT seconds; every 30 s the last step is shown. The card is
+# RE4_CHECK_CARD_LIMIT seconds, or when the log stands still for
+# RE4_CHECK_CARD_STALL seconds (with a backtrace); every 30 s the last step is shown. The card is
 # listed afterwards (port/tools/memcard_list.py: files, banner/icon, CRCs).
 card_progress() {
     local frame step
@@ -852,15 +856,26 @@ run_card_game() {
     shift 3
     (cd "$dir" && exec env RE4_VI_FAST=1 RE4_MEMCARD="$card" RE4_PAD_UNTIL_ROOM=1 RE4_TEST_CARD_YES=1 "$@" \
         ./re4_host --data "$layout") > "$log" 2>&1 &
-    local pid=$! start=$SECONDS last_note=$SECONDS reason=""
+    local pid=$! start=$SECONDS last_note=$SECONDS reason="" size last_size=-1 last_change=$SECONDS
+    local stall="${RE4_CHECK_CARD_STALL:-120}"
     while kill -0 "$pid" 2> /dev/null; do
         sleep 2
+        size=$(stat -c %s "$log" 2> /dev/null || echo 0)
+        if [ "$size" != "$last_size" ]; then
+            last_size=$size
+            last_change=$SECONDS
+        fi
         if [ $((SECONDS - last_note)) -ge 30 ]; then
             echo "  ... $((SECONDS - start)) s: $(card_progress "$log")"
             last_note=$SECONDS
         fi
-        if [ $((SECONDS - start)) -ge "$limit" ]; then
+        if [ $((SECONDS - last_change)) -ge "$stall" ]; then
+            reason="STILLSTAND: seit $stall s keine neue Zeile im Log"
+        elif [ $((SECONDS - start)) -ge "$limit" ]; then
             reason="ABBRUCH nach $limit s"
+        fi
+        if [ -n "$reason" ]; then
+            # backtrace of the running context into the log (host/main.cpp), then stop
             kill -USR1 "$pid" 2> /dev/null
             sleep 3
             kill -KILL "$pid" 2> /dev/null
@@ -870,8 +885,13 @@ run_card_game() {
     wait "$pid" 2> /dev/null
     local code=$?
     [ -n "$reason" ] && say "  $reason (Log: $name.log)"
-    grep -E "memcard: (files|.* saved)|card: |run: (memory card check|save |main loop|player free|stopped)|fatal signal|stub called: (OSResetSystem|CARD|__CARD)" \
+    grep -E "memcard: (files|.* saved)|card: |run: (memory card check|save |main loop|player free|stopped|retry|after the retry)|fatal signal|stub called: (OSResetSystem|CARD|__CARD)" \
         "$log" | sed 's/^\[re4\] /  /' | head -n 80 | tee -a "$report"
+    if [ -n "$reason" ] && grep -q "backtrace of the running context" "$log"; then
+        say "  Rückverfolgung (wo das Programm hing):"
+        sed -n '/backtrace of the running context/,$p' "$log" | grep -v "pad: frame" | head -n 60 |
+            sed 's/^/    /' | tee -a "$report"
+    fi
     [ -n "$reason" ] && return 124
     return $code
 }
@@ -921,9 +941,9 @@ run_memcard() {
     if [ "$bad" -ne 0 ]; then
         say "Lauf B entfällt (ohne Spielstand wartete der Ladebildschirm ewig auf eine Taste)."
     else
-        say "Lauf B: Neustart mit derselben Karte, im Titel laden"
-        run_card_game karte-laden "$limit" "$dir" RE4_STOP_AFTER=600 RE4_STOP_AT_FRAME=15000 \
-            RE4_PAD_SCRIPT="A@100-60000/60 START@130-60000/60"
+        say "Lauf B: Neustart mit derselben Karte, im Titel laden, dann \"Retry from a continue point\""
+        run_card_game karte-laden "$limit" "$dir" RE4_STOP_AFTER=2400 RE4_STOP_AT_FRAME=15000 \
+            RE4_PAD_SCRIPT="A@100-60000/60 START@130-60000/60" RE4_TEST_CONTINUE=free+300
         code=$?
         local check loaded
         check=$(grep -m1 "run: memory card check done" "$run/karte-laden.log")
@@ -940,8 +960,11 @@ run_memcard() {
         elif ! grep -q "run: main loop reached .* room r100" "$run/karte-laden.log"; then
             say "Ergebnis B: FEHLER (das geladene Spiel lief nicht in r100 weiter)"
             bad=1
+        elif ! grep -q "run: after the retry: room r100 runs again" "$run/karte-laden.log"; then
+            say "Ergebnis B: FEHLER (nach \"Retry from a continue point\" lief r100 nicht wieder an)"
+            bad=1
         else
-            say "Ergebnis B: OK (Optionen aus der Systemdatei, Spielstand geladen, r100 läuft)"
+            say "Ergebnis B: OK (Optionen aus der Systemdatei, Spielstand geladen, r100 läuft, auch nach \"Retry\")"
         fi
     fi
     say "Inhalt der Karte (port/tools/memcard_list.py):"

@@ -1,0 +1,28 @@
+# SndRoomBgmLoad waits at a room start until the BGM of the room before has
+# faded out (stop_req); the fade advances in the AX interrupt. On the
+# GameCube the interrupt preempts the loop, the port delivers it only at
+# interrupt points: the loop calls re4_wait_interrupt() (runtime/vi.cpp) as
+# patch 0045 does. Without it the game hung when a room was started again
+# while its music still played (retry from a continue point, loading a save
+# from the pause menu; Retroid, 17.10.2026).
+--- a/src/game/snd.cpp
++++ b/src/game/snd.cpp
+@@ -1696,6 +1696,8 @@
+     return ret;
+ }
+ 
++extern "C" void re4_wait_interrupt(void); /* port: runtime/vi.cpp */
++
+ // Room start: loads the BGM sequence blocks the room table names (bit15 set) for slots 0 / 1 that
+ // are not already resident (waits for a fading previous BGM first).
+ void SndRoomBgmLoad()
+@@ -1708,6 +1710,9 @@
+             BGM_STAT* w = &pSnd->bgm_state[i];
+             while (w->stop_req != 0) {
+                 SndWatcher();
++                /* port: the fade that ends the stop request runs in the AX
++                   interrupt, delivered while the CPU waits (runtime/vi.cpp) */
++                re4_wait_interrupt();
+             }
+             if (w->busy == 0) {
+                 SndBgmLoad((u8) b);

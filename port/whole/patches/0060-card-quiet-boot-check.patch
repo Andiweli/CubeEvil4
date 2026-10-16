@@ -1,0 +1,29 @@
+# The boot check of the memory card (M10): cCard::firstCheck10 shows "loading
+# the system file" for at least 30 frames while it reads bh4_system. On the
+# Android device that message is not wanted at every start (decision of the
+# project owner, 17.10.2026): it is only shown with RE4_CARD_BOOT_MESSAGE=1
+# (runtime/memcard.cpp re4_card_boot_message), and then for the original 30
+# frames. Reading, the error messages and the questions stay as they are.
+--- a/src/game/card.cpp
++++ b/src/game/card.cpp
+@@ -2013,6 +2013,8 @@
+     }
+ }
+ 
++extern "C" int re4_card_boot_message(void); /* port: runtime/memcard.cpp */
++
+ // Rno0 == 1 (first check): reads the system file (sysfileRead) and applies its settings; a
+ // missing / broken one leads to the create-system-file prompt or the error screen.
+ void cCard::firstCheck10()
+@@ -2023,8 +2025,9 @@
+     sprintf(m_Name, "%s", "bh4_system");
+     switch (m_Rno1) {
+     case 0:
+-        m_Timer = 30;
+-        if (m_SlotNo != 2) {
++        /* port: "loading the system file" only with RE4_CARD_BOOT_MESSAGE=1 */
++        m_Timer = re4_card_boot_message() ? 30 : 0;
++        if (m_SlotNo != 2 && re4_card_boot_message()) {
+             cardMesSet(MES_SYSFILE_LOADING, 0, 0);
+         }
+         m_RetryCtr = 0;

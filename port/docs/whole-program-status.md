@@ -19,7 +19,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M7 Steuerung | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m7-steuerung`): alle Tasten, Sticks und L2/R2 kommen als GameCube-Controller an (Original-`PADClamp`, Belegung nach Beschriftung), Menüs bedienbar, Vibration spürbar; Touch später („M7 Steuerung“) |
 | M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Gerätelauf von M9 („M8 Audio“) |
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
-| M10 Speichern/Laden | in Arbeit (Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App), Startprüfung wieder echt; Cloud-Tests und PC-Prüfung mit Disc-Daten bestanden (Systemdatei anlegen, in r100 speichern, Neustart mit erhaltenen Optionen, im Titel laden), **Gerätetest steht aus** („M10 Speichern/Laden“) |
+| M10 Speichern/Laden | in Arbeit (Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App), Startprüfung wieder echt; Cloud-Tests und PC-Prüfung mit Disc-Daten bestanden; auf dem Retroid Formatieren, Systemdatei, Speichern, Neustart und Laden im Titel gesehen (17.10.2026). Danach behoben: Hänger bei „Retry“ und beim Laden im Pausemenü (Patch 0059), neue Karte vorformatiert, keine Lademeldung beim Start (0060); **Nachtest auf PC und Gerät steht aus** („M10 Speichern/Laden“) |
 | Reihenfolge | Entscheidung des Projektinhabers (16.10.2026): erst M9 Videos und M10 Speichern/Laden, danach der Raum-Rundgang (10b) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -2447,7 +2447,8 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
   geschriebene Seite und jeder gelöschte Block geht sofort in die Datei
   (`pwrite64`), eine Sekunde nach dem letzten Schreiben `fsync`.
   `RE4_MEMCARD` nicht gesetzt: `<Datenordner>/memcard/card-a.bin` (fehlt sie,
-  entsteht eine neue, unformatierte Karte); `RE4_MEMCARD=none`: Schacht A leer;
+  entsteht eine neue Karte, seit 17.10.2026 formatiert und leer, mit
+  `RE4_MEMCARD_NEW=blank` unformatiert); `RE4_MEMCARD=none`: Schacht A leer;
   sonst der angegebene Pfad. In der App ist das
   `Android/data/com.ast.re4decomp.core/files/game/memcard/card-a.bin` (ein
   neuer Disc-Import lässt sie stehen). Schacht B bleibt leer.
@@ -2583,6 +2584,59 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
   meldet sie `open pread64 pwrite64`, mit dem neuen nichts.
   `whole_build.sh` i686 und armhf grün; der Android-Build läuft erst wieder
   beim Projektinhaber.
+
+### Erster Gerätetest mit Karte (17.10.2026, Retroid, Stand `a43953a`)
+
+- **Test A** (r120, Nachtest M9, ohne Karte): laut Projektinhaber keine Ruckler;
+  „Abgebrochene Töne (Voice Drop): 0“. Der Android-Build lief nach der
+  Verlegung der Dateizugriffe durch.
+- **Test B** (`-Manual -NewCard -SaveTest`, damals unformatierte Karte):
+  Formatieren über den Dialog des Spiels, Systemdatei angelegt (Schritte
+  0–10), Vorfilm mit START übersprungen, im Titel „Load“ ohne Spielstand
+  (Meldung, Code 0), neues Spiel; der Speicherbildschirm der Testhilfe
+  speicherte Datei 1 und die Systemdatei. **Gemeldet:** Formatieren und die
+  Lademeldung beim Start stören (Punkte 2 und 3); „Retry from a continue
+  point“ führt zu einem schwarzen Bild (Punkt 4).
+- **Test C** (`-Manual`, Neustart): Startprüfung las die Systemdatei (Ton
+  „2“, Steuerung wie gespeichert), Titel „Load“, Datei 1 geladen (Bild 1593,
+  r100), weitergespielt, an der Testhilfe erneut gespeichert. **Gemeldet:**
+  nach dem Laden fehlte beim Betreten des Hauses die Szene mit dem ersten
+  Ganado (Punkt 5); Laden aus dem Pausemenü führt zu einem schwarzen Bild
+  (Punkt 6).
+- **Punkte 4 und 6: Hänger, Patch 0059.** Beide Wege rufen `GameContinue`
+  (`option.cpp`): der Raum startet neu, während seine Musik noch läuft. Die
+  Protokolle enden nach `DataCtrl::setData(…r100_04…)`, auch die Tonzähler
+  (der Kern stand). `SndRoomBgmLoad` wartet in einer Schleife, bis die Musik
+  des Raums davor ausgeblendet ist (`stop_req`); das Ausblenden läuft im
+  AX-Interrupt, den der Port nur an Unterbrechungspunkten zustellt. Die
+  Schleife ruft jetzt `re4_wait_interrupt()` wie Patch 0045. Neue Testhilfe
+  `RE4_TEST_CONTINUE=free+N` (state_trace.cpp: `GameContinue(1)` wie das
+  Pausemenü, Log „run: after the retry: room … runs again“); die PC-Prüfung
+  nutzt sie in Lauf B nach dem Laden. Die Kartenläufe erkennen jetzt einen
+  Stillstand (2 Minuten ohne neue Logzeile) und schreiben die Rückverfolgung
+  in den Bericht.
+- **Punkt 5: kein Fehler des Ports.** r100 lädt das Ereignis der Szene
+  (`evd/r100s03.evd`) vorab, sobald Leon Bereich 6 am Weg betritt, und setzt
+  dabei das Raum-Speicher-Flag 0 (`R100Main`). Das Flag kommt in den
+  Spielstand, das Vorladen nicht: Nach dem Laden ist Flag 0 gesetzt, also lädt
+  `R100Main` nicht mehr vor, und `r100_Sce_look` findet beim Betreten des
+  Hauses kein geladenes Ereignis (`readEvent(0, 1)`: `waitLoadOk` schlägt
+  fehl, im Protokoll nur `setData("evd/r100s03.evd")` ohne Lesen). Die
+  Testhilfe `-SaveTest` speicherte vor dem Haus; die Schreibmaschine von r100
+  (Bereich 0x14, Typ 8, bei etwa x −53500, z −15100) steht dahinter, im
+  Original ist dieser Spielstand also nicht möglich. Im Geräteskript
+  vermerkt.
+- **Punkte 2 und 3 (Entscheidung des Projektinhabers, 17.10.2026):** Eine
+  neue Karte ist formatiert und leer wie eine aus dem Laden: `memcard.cpp`
+  schreibt beim Anlegen die fünf Systemblöcke genau wie `CARDFormat.c`
+  (Kopf mit Seriennummer aus der Flash-ID und der Uhrzeit, zwei leere
+  Verzeichnisse, zwei FATs mit 251 freien Blöcken); die Frage zum Formatieren
+  kommt nur noch bei einer kaputten Karte. `RE4_MEMCARD_NEW=blank` (Gerät:
+  `-BlankCard`) legt eine unformatierte an. Die Meldung „Systemdatei wird
+  geladen“ bei der Startprüfung entfällt (Patch 0060;
+  `RE4_CARD_BOOT_MESSAGE=1` zeigt sie wie im Original). Kern-Test „card“:
+  die neue Karte bindet ohne Formatieren ein, ihre Systemblöcke sind bis auf
+  Zeit und Seriennummer gleich mit denen nach `CARDFormat`.
 
 **Nicht geprüft (Stand dieses Abschnitts):** die PC-Prüfung mit Disc-Daten
 (Abschnitt 7: die Bildschirme des Spiels beim Speichern und Laden, das
@@ -2736,6 +2790,8 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0056 SDK `synsample.c`, `synpitch.c` | SYN schreibt 32-bit-Werte des AX-Parameterblocks (Adressen, Schleife/Format, Verstärkung, Abtastraten-Verhältnis) mit der hohen Hälfte zuerst wie das Wort des GameCube (`RE4_PB_WORD`, zwei Halbwörter); vorher vertauschte Hälften: SYN-Stimmen außerhalb des ARAM und eine riesige DSP-Schätzung, AX stoppte Stimmen („ISS Voice Drop“) |
 | 0057 SDK `CARDBios.c`, `CARDRdwr.c`, `__os.h` | Die CARD-Bibliothek im Port (M10): die ein- und zwei-Byte-Befehle der Karte (0x81 Interrupt an, 0x83 Status, 0x85 Hersteller, 0x89 Status löschen, 0x87/0x88) baut das SDK als u32 und schickt die ersten Bytes im Speicher, auf little-endian die niedrigen (00 00): `re4_card_cmd` legt den Befehl zuerst; die Hersteller-ID kommt höchstes Byte zuerst (`re4_card_be16`). `CARDRdwr.c`: CodeWarriors Cast als Zuweisungsziel (`(u8*) p += n`) als normale Zuweisung; `__os.h`: die `.init`-Asm-Deklarationen nur für CodeWarrior |
 | 0058 `card.cpp` | `cCard::MainLoop` meldet je Bild Modus und Schritt des Speicherkarten-Bildschirms an `re4_card_screen` (runtime/memcard.cpp), das Änderungen ins Log schreibt („card: save: saving (file 1, step 5)“, Fehlermeldungen mit Code); nur Diagnose |
+| 0059 `snd.cpp` | `SndRoomBgmLoad` wartet beim Raumstart, bis die Musik des Raums davor ausgeblendet ist; die Schleife ruft `re4_wait_interrupt()` (runtime/vi.cpp) wie 0045, sonst hing das Spiel bei „Retry from a continue point“ und beim Laden aus dem Pausemenü (Retroid, 17.10.2026) |
+| 0060 `card.cpp` | Die Startprüfung der Karte (`firstCheck10`) zeigt „Systemdatei wird geladen“ nur mit `RE4_CARD_BOOT_MESSAGE=1` (dann wie im Original mindestens 30 Bilder lang); Entscheidung des Projektinhabers, 17.10.2026 |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

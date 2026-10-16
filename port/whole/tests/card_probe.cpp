@@ -3,9 +3,11 @@
 // (src/lib/CARD*.c) on the port's EXI functions and card (runtime/exi.cpp,
 // memcard.cpp), without disc data, on a card file of its own:
 //
-//   - a new card file is an unformatted Memory Card 251 (16 Mbit, 8 KB
-//     sectors); slot B is empty
-//   - mount says "broken" (no valid header), the format makes it usable,
+//   - a new card file is a Memory Card 251 (16 Mbit, 8 KB sectors),
+//     formatted and empty as one from the shop: it mounts, and its system
+//     blocks are those the library's own format writes; slot B is empty
+//   - a blank one (RE4_MEMCARD_NEW=blank): mount says "broken" (no valid
+//     header), the format makes it usable,
 //     CARDCheck finds directory and FAT in order, 251 blocks and 127 files free
 //   - the game's two files (tests/../src/game/card.cpp): bh4_system (1 block)
 //     and bh4_data00 (8 blocks) are made, written, given their status
@@ -184,6 +186,17 @@ void readFile(const char* name, u32 size, u32 seed)
     CHECK(CARDClose(&fi) == CARD_RESULT_READY);
 }
 
+// The five system blocks (header, directories, FATs) of the card file
+void readSystemBlocks(const char* path, u8* out)
+{
+    memset(out, 0, 5 * 0x2000);
+    int fd = open(path, O_RDONLY);
+    CHECK(fd >= 0 && read(fd, out, 5 * 0x2000) == 5 * 0x2000);
+    if (fd >= 0) {
+        close(fd);
+    }
+}
+
 s32 freeBlocks()
 {
     s32 bytes = -1, files = -1;
@@ -198,7 +211,7 @@ int syncMain()
 {
     int before = gFailures;
     re4_memcard_open(gSyncPath);
-    CHECK(CARDMount(0, gWork, 0) == CARD_RESULT_BROKEN);
+    CHECK(CARDMount(0, gWork, 0) == CARD_RESULT_READY);  // a new card: formatted
     CHECK(CARDFormat(0) == CARD_RESULT_READY);
     CHECK(CARDCheck(0) == CARD_RESULT_READY);
     CARDFileInfo fi;
@@ -237,7 +250,7 @@ extern "C" int re4probe_card_test(void)
     re4_memcard_open(path);
     CARDInit();
 
-    // a new card: present, unformatted
+    // a new card (no file yet): present, formatted and empty like one from the shop
     s32 memSize = 0, sectorSize = 0;
     CHECK(CARDProbeEx(0, &memSize, &sectorSize) == CARD_RESULT_READY);
     CHECK(memSize == 16 && sectorSize == 0x2000);
@@ -250,8 +263,32 @@ extern "C" int re4probe_card_test(void)
         close(fd);
     }
     s32 r = mount();
-    CHECK(r == CARD_RESULT_BROKEN);
+    CHECK(r == CARD_RESULT_READY);
     CHECK(gCallbacks > 0);
+    CHECK(check() == CARD_RESULT_READY);
+    CHECK(freeBlocks() == 251);
+    CHECK(CARDUnmount(0) == CARD_RESULT_READY);
+    // ... its system blocks as the library formats them (but for the format
+    // time and the serial derived from it)
+    static u8 made[5 * 0x2000], formatted[5 * 0x2000];
+    readSystemBlocks(path, made);
+    re4_memcard_open(path);
+    CHECK(mount() == CARD_RESULT_READY);
+    CHECK(finish(CARDFormatAsync(0, callback)) == CARD_RESULT_READY);
+    CHECK(CARDUnmount(0) == CARD_RESULT_READY);
+    readSystemBlocks(path, formatted);
+    CHECK(memcmp(made + 20, formatted + 20, 0x1FC - 20) == 0);        // header after the serial
+    CHECK(memcmp(made + 0x200, formatted + 0x200, 0x1E00) == 0);      // the rest of block 0
+    CHECK(memcmp(made + 0x2000, formatted + 0x2000, 0x8000) == 0);    // directories and FATs
+    CHECK(memcmp(made, formatted, 12) != 0);                          // a serial of its own
+
+    // a blank card (RE4_MEMCARD_NEW=blank): unformatted, "broken" at mount
+    unlink(path);
+    setenv("RE4_MEMCARD_NEW", "blank", 1);
+    re4_memcard_open(path);
+    unsetenv("RE4_MEMCARD_NEW");
+    r = mount();
+    CHECK(r == CARD_RESULT_BROKEN);
 
     // format: an empty card
     r = finish(CARDFormatAsync(0, callback));
