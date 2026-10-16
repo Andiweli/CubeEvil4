@@ -57,8 +57,10 @@ Beobachtung sofort: das Protokoll und der Absturzbericht des Systems werden gesi
 und die Absturzstelle in WSL mit den Bibliotheken des Kern-Builds in Funktionen und
 Quelltextzeilen uebersetzt (port/tools/android_symbolize.sh). Bitte bis "Fertig" warten.
 
-Wird Leon getroffen, speichert die App die Grafikdaten von drei Bildern kurz danach
-(2, 8 und 16 Bilder spaeter; -HitDumps: fuer wie viele Treffer, Standard 1, 0 = aus).
+Wird Leon getroffen, markiert der Kern das Bild dieses Moments; die App speichert die
+naechsten 24 Bilder so, wie der Bildschirm sie zeigt (Ordner treffer; -HitShots: fuer
+wie viele Treffer, Standard 3) und die Grafikdaten von 4 Bildern ab dort (-HitDumps,
+Standard 1; 0 schaltet jeweils aus).
 
 Zum Schicken packt das Skript senden.zip: bericht.txt, logcat.txt, profil-*.txt,
 Absturzberichte und die Bilder als kleine JPEGs (meist unter 5 MB). gx-geraet.zip
@@ -97,7 +99,8 @@ param(
     [switch]$DebugHud,
     [switch]$GxDump,
     [int]$Scale = 0,
-    [int]$HitDumps = 1
+    [int]$HitDumps = 1,
+    [int]$HitShots = 3
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -111,6 +114,7 @@ Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyCon
 Get-ChildItem -LiteralPath $OutDir -Filter 'absturz-*.txt' -ErrorAction SilentlyContinue | Remove-Item
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet.zip') -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'senden.zip') -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $OutDir 'treffer') -Recurse -ErrorAction SilentlyContinue
 Get-ChildItem -LiteralPath $OutDir -Filter 'profil-*' -ErrorAction SilentlyContinue | Remove-Item
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet') -Recurse -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'logcat.txt') -ErrorAction SilentlyContinue
@@ -277,11 +281,12 @@ if ($GxDump) {
     $dumpSetting = "RE4_GX_DUMP_DIR=$dumpRemote;RE4_GX_DUMP_EVERY=20"
     $settings = if ($settings) { "$settings;$dumpSetting" } else { $dumpSetting }
 }
-# after a hit on Leon the app keeps three pictures of the graphics data, 2, 8 and 16
-# pictures later (a dark bar at the bottom showed only then, too briefly for R3);
-# -HitDumps: for how many hits (0: off)
-if ($HitDumps -gt 0) {
-    $hitSetting = "RE4_GX_DUMP_FOLDER=$dumpRemote;RE4_GX_DUMP_ON_HIT=$HitDumps"
+# a hit on Leon (a dark bar at the bottom showed only then, too briefly for R3): the core
+# marks the picture of that moment; the app keeps the next 24 pictures as shown
+# (treffer-*.bmp, -HitShots: for how many hits) and the graphics data of 4 pictures from
+# there (-HitDumps: for how many hits); 0 switches each off
+if ($HitDumps -gt 0 -or $HitShots -gt 0) {
+    $hitSetting = "RE4_GX_DUMP_FOLDER=$dumpRemote;RE4_GX_DUMP_ON_HIT=$HitDumps;RE4_GX_SHOTS_ON_HIT=$([math]::Max($HitDumps, $HitShots))"
     $settings = if ($settings) { "$settings;$hitSetting" } else { $hitSetting }
 }
 . (Join-Path $PSScriptRoot 'Retroid-Adb-Exclusive.ps1')
@@ -491,6 +496,14 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     $ErrorActionPreference = 'Continue'
     & $Adb -s $Serial pull $dumpRemote $dumpLocal 2>&1 | Out-Null
     $ErrorActionPreference = $previousPreference
+    # the pictures as shown after hits on Leon
+    $shots = @(Get-ChildItem -LiteralPath $dumpLocal -Filter 'treffer-*.bmp' -ErrorAction SilentlyContinue)
+    if ($shots.Count) {
+        $shotDir = Join-Path $OutDir 'treffer'
+        New-Item -ItemType Directory -Force -Path $shotDir | Out-Null
+        $shots | ForEach-Object { Move-Item -LiteralPath $_.FullName -Destination $shotDir -Force }
+        Say "   Bilder nach Treffern: $($shots.Count) (Ordner treffer, kommen klein in senden.zip)"
+    }
     $dumps = @(Get-ChildItem -LiteralPath $dumpLocal -Filter 'gx-geraet-*.bin' -ErrorAction SilentlyContinue)
     if ($dumps.Count) {
         $zip = Join-Path $OutDir 'gx-geraet.zip'
@@ -551,8 +564,8 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # hits on Leon (life went down) and the pictures the app kept after them
     $hits = @($keep | Where-Object { $_ -match 'run: player hit' })
     if ($hits.Count) {
-        $hitDumpsTaken = @($keep | Where-Object { $_ -match 'GX dumps after a hit on the player \(chunk' })
-        Say "Treffer auf Leon:                 $($hits.Count) (erster: $(($hits[0] -split 'player hit, ')[-1])); Grafikdaten danach: $($hitDumpsTaken.Count)x"
+        $marked = @($keep | Where-Object { $_ -match 'GX: a hit on the player marked' })
+        Say "Treffer auf Leon:                 $($hits.Count) (erster: $(($hits[0] -split 'player hit, ')[-1])); fuer Bilder markiert: $($marked.Count)x"
     }
     $mapRead = @($keep | Where-Object { $_ -match 'Read File: SS/.*/ss_map.dat' })
     if ($mapRead.Count) { Say "Kartendatei gelesen:              $($mapRead.Count)x" }
@@ -602,7 +615,9 @@ try {
     $jpeg = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
     $quality = New-Object System.Drawing.Imaging.EncoderParameters 1
     $quality.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality, [long]85)
-    Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyContinue | ForEach-Object {
+    $pictures = @(Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyContinue)
+    $pictures += @(Get-ChildItem -LiteralPath (Join-Path $OutDir 'treffer') -Filter 'treffer-*.bmp' -ErrorAction SilentlyContinue)
+    $pictures | ForEach-Object {
         $image = [System.Drawing.Image]::FromFile($_.FullName)
         $width = [math]::Min(960, $image.Width)
         $height = [int]($image.Height * $width / $image.Width)

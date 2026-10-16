@@ -25,6 +25,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -45,7 +46,6 @@ struct CoreApi {
   const Re4GxChunk *(*gxAcquire)(void){};
   void (*gxRelease)(const Re4GxChunk *){};
   void (*gxDetach)(void){};
-  unsigned (*playerHits)(void){};  // optional (older cores: absent)
 } api;
 
 template <class F> bool bind(F &slot, const char *name) {
@@ -78,7 +78,6 @@ void loadCore() {
   ok = bind(api.gxAcquire, "re4_core_gx_acquire") && ok;
   ok = bind(api.gxRelease, "re4_core_gx_release") && ok;
   ok = bind(api.gxDetach, "re4_core_gx_detach") && ok;
-  api.playerHits = reinterpret_cast<unsigned (*)(void)>(dlsym(api.main, "re4_core_player_hits"));
   if (!ok) {
     LOG("%s", api.error.c_str());
     api.main = nullptr;
@@ -135,13 +134,74 @@ constexpr unsigned kGxDumpSeries = 12;
 bool gxDumpSeriesWanted = false;
 unsigned gxDumpSeriesLeft = 0, gxDumpSeriesIndex = 0, gxDumpSeriesPart = 0;
 uint32_t gxDumpSeriesSequence = 0;
-// after a hit on the player (re4_core_player_hits): three single pictures, 2, 8
-// and 16 chunks later (a dark bar at the bottom showed only then, too briefly
-// for R3); RE4_GX_DUMP_ON_HIT = how many hits (test-core-app.ps1: 2), into
-// RE4_GX_DUMP_FOLDER
-constexpr unsigned kGxHitDelays[3] = {2, 8, 16};
-int gxHitDumps = -1;  // hits still to record; -1: settings not read yet
-unsigned gxHitsSeen = 0, gxHitStep = 3, gxHitAt = 0;
+// a hit on the player (a dark bar at the bottom showed only then, too briefly
+// for R3): the core marks the chunk of that moment (RE4_GX_CHUNK_MARK,
+// state_trace.cpp, RE4_GX_SHOTS_ON_HIT hits); it starts over. The app keeps it
+// and the 3 after it as GX data (RE4_GX_DUMP_ON_HIT hits) and the next 24
+// pictures as shown (treffer-NN-KK.bmp), into RE4_GX_DUMP_FOLDER
+constexpr unsigned kGxHitSeries = 4, kGxHitShots = 24;
+int gxHitDumps = -1;  // hits still to record as GX data; -1: settings not read yet
+unsigned gxHitShotsLeft = 0, gxHitShotPart = 0, gxHitCount = 0;
+bool gxHitSeriesPending = false;  // the chunk after a marked one starts over: a series from there
+GLuint gxShotFbo = 0, gxShotColor = 0;
+unsigned gxShotW = 0, gxShotH = 0;
+
+// The picture as the screen shows it (the XFB, the game's own size) into a 24-bit BMP.
+void SaveShot(const char *path) {
+  unsigned w = 0, h = 0;
+  if (!gx->Xfb(&w, &h) || !w || !h)
+    return;
+  if (!gxShotFbo || gxShotW != w || gxShotH != h) {
+    if (!gxShotFbo)
+      glGenFramebuffers(1, &gxShotFbo);
+    if (gxShotColor)
+      glDeleteTextures(1, &gxShotColor);
+    glGenTextures(1, &gxShotColor);
+    glBindTexture(GL_TEXTURE_2D, gxShotColor);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, static_cast<GLsizei>(w), static_cast<GLsizei>(h), 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, nullptr);
+    glBindFramebuffer(GL_FRAMEBUFFER, gxShotFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gxShotColor, 0);
+    gxShotW = w;
+    gxShotH = h;
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, gxShotFbo);
+  glDisable(GL_SCISSOR_TEST);
+  gx->Present(0, 0, static_cast<int>(w), static_cast<int>(h));
+  std::vector<unsigned char> rgba(static_cast<size_t>(w) * h * 4);
+  glReadPixels(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h), GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  // BMP rows go bottom up, as glReadPixels returns them
+  const unsigned rowBytes = (w * 3 + 3) & ~3u;
+  const uint32_t dataBytes = rowBytes * h, fileBytes = 54 + dataBytes;
+  unsigned char head[54] = {'B', 'M'};
+  auto put32 = [&](int at, uint32_t v) {
+    for (int i = 0; i < 4; i++)
+      head[at + i] = static_cast<unsigned char>(v >> (8 * i));
+  };
+  put32(2, fileBytes);
+  put32(10, 54);
+  put32(14, 40);
+  put32(18, w);
+  put32(22, h);
+  head[26] = 1;
+  head[28] = 24;
+  put32(34, dataBytes);
+  if (FILE *f = std::fopen(path, "wb")) {
+    std::fwrite(head, 1, sizeof(head), f);
+    std::vector<unsigned char> row(rowBytes, 0);
+    for (unsigned y = 0; y < h; y++) {
+      for (unsigned x = 0; x < w; x++) {
+        const unsigned char *p = &rgba[(static_cast<size_t>(y) * w + x) * 4];
+        row[x * 3] = p[2];
+        row[x * 3 + 1] = p[1];
+        row[x * 3 + 2] = p[0];
+      }
+      std::fwrite(row.data(), 1, rowBytes, f);
+    }
+    std::fclose(f);
+  }
+}
 
 // Runs the chunks the core has finished and shows the latest display copy.
 // False while there is nothing to show yet (the caller draws the bridge).
@@ -224,39 +284,40 @@ bool drawGx() {
       }
     }
   }
-  // pictures after a hit on the player
+  // a hit on the player: the settings
   if (gxHitDumps < 0) {
     const char *hits = getenv("RE4_GX_DUMP_ON_HIT");
     const char *folder = getenv("RE4_GX_DUMP_FOLDER");
     gxHitDumps = hits && folder && *folder ? std::max(0, std::atoi(hits)) : 0;
-    if (gxHitDumps && gxDumpDir.empty()) {
+    if (folder && *folder && gxDumpDir.empty()) {
       gxDumpDir = folder;
       mkdir(gxDumpDir.c_str(), 0775);
     }
-    if (gxHitDumps)
-      LOG("GX dumps after a hit on the player: %d hits, into %s", gxHitDumps, gxDumpDir.c_str());
-  }
-  if (api.playerHits && gxHitDumps > 0 && gxHitStep >= 3) {
-    const unsigned hits = api.playerHits();
-    if (hits != gxHitsSeen) {
-      gxHitsSeen = hits;
-      gxHitDumps--;
-      gxHitStep = 0;
-      gxHitAt = gxChunks;
-      LOG("GX dumps after a hit on the player (chunk %u)", gxChunks);
-    }
-  } else if (api.playerHits && gxHitStep >= 3) {
-    gxHitsSeen = api.playerHits();
-  }
-  if (gxHitStep < 3 && !gxDumpWanted && !gxDumpSeriesLeft && gxChunks >= gxHitAt + kGxHitDelays[gxHitStep] &&
-      !gxDumpDir.empty() && gxDumpCount < 40) {
-    gxHitStep++;
-    api.gxDetach();
-    gxDumpWanted = true;
   }
   if (const Re4GxChunk *chunk = api.gxAcquire()) {
     char path[512];
     path[0] = 0;
+    if (chunk->flags & RE4_GX_CHUNK_MARK) {
+      LOG("GX: a hit on the player marked (chunk %u)", gxChunks);
+      gxHitCount++;
+      if (gxHitDumps > 0) {
+        gxHitDumps--;
+        gxHitSeriesPending = true;
+      }
+      if (!gxDumpDir.empty()) {
+        gxHitShotsLeft = kGxHitShots;  // from this picture on
+        gxHitShotPart = 0;
+      }
+    } else if (gxHitSeriesPending && (chunk->flags & RE4_GX_CHUNK_RESET)) {
+      gxHitSeriesPending = false;
+      if (!gxDumpSeriesLeft && !gxDumpWanted && !gxDumpDir.empty() && gxDumpCount < 40) {
+        // this chunk starts over: a series from here (continued below)
+        gxDumpSeriesIndex = gxDumpCount++;
+        gxDumpSeriesPart = 0;
+        gxDumpSeriesLeft = kGxHitSeries;
+        gxDumpSeriesSequence = chunk->sequence - 1;
+      }
+    }
     if (gxDumpWanted && (chunk->flags & RE4_GX_CHUNK_RESET)) {
       gxDumpWanted = false;
       if (gxDumpSeriesWanted) {
@@ -287,6 +348,13 @@ bool drawGx() {
     }
     gx->Run(*chunk);
     api.gxRelease(chunk);
+    if (gxHitShotsLeft) {
+      char shot[512];
+      std::snprintf(shot, sizeof(shot), "%s/treffer-%02u-%02u.bmp", gxDumpDir.c_str(), gxHitCount,
+                    gxHitShotPart++);
+      SaveShot(shot);
+      gxHitShotsLeft--;
+    }
     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - now).count();
     gxRunMs += ms;
     gxRunMax = std::max(gxRunMax, ms);

@@ -1753,6 +1753,34 @@ R3-Folgen zu groß zum Senden (höchstens 5 Dateien).
   und löscht den entpackten GX-Ordner neben `gx-geraet.zip`; dieses kommt nur
   bis 25 MB dazu.
 
+### Dreizehnter Gerätelauf (16.10.2026, Retroid, Stand `07543f0`): Treffer
+
+Leon wurde gepackt und gewürgt: 38 „Treffer“ (Leben −10 je Bild, ab Bild
+1675), danach Tod und „Continue“. Die App speicherte drei Einzelbilder 2, 8
+und 16 Bildstücke nach dem ersten Treffer (`gx-geraet-00..02`).
+
+- **Kein Balken in den Aufnahmen:** Nachgezeichnet (auch zweimal
+  hintereinander, damit die Kopie des Vorbilds existiert, und mit
+  `RE4_GX_SCALE=3` wie auf dem Gerät) zeigen alle drei Bilder keinen dunklen
+  Balken. Die Filterkette am Bildende (EFB halb kopiert, auf 128×112 und
+  64×56 verkleinert und weichgezeichnet, über das Bild gelegt; das Vorbild
+  als Kopie 256×224 zurückgezeichnet) ist auch in Dorf-Bildern ohne Treffer
+  da, ist also nicht der Treffer-Effekt. Der Balken blitzt vermutlich im
+  Moment des Treffers auf, die Aufnahme kam zu spät.
+- **Genauer aufnehmen:** Bei einem neuen Treffer (Leben sinkt nach mehr als
+  60 Bildern ohne Treffer) markiert der Kern das gerade entstehende
+  Bildstück (`re4_gx_mark`, `RE4_GX_CHUNK_MARK`, gx_decode.cpp) und lässt
+  das nächste neu beginnen (RESET). Die App speichert ab dem markierten Bild
+  24 Bilder so, wie der Bildschirm sie zeigt (`treffer-NN-KK.bmp`, aus dem
+  XFB in Spielgröße zurückgelesen), und ab dem nächsten Bildstück eine Folge
+  von 4 Bildstücken als GX-Daten. Einstellungen `RE4_GX_SHOTS_ON_HIT`
+  (Kern: wie viele Treffer markieren) und `RE4_GX_DUMP_ON_HIT`; Testskript
+  `-HitShots` (Standard 3) und `-HitDumps` (Standard 1). Prüfung im
+  Laufzeittest „gx“: markiertes Bildstück, danach eines mit RESET, dann ein
+  normales. Auf dem Gerät nicht getestet.
+- `gx_chunk_render` zeichnet mit `RE4_GX_SCALE=N` in der Auflösung der App
+  und liest das XFB in voller Größe zurück.
+
 ### Abschluss M6/M6b (16.10.2026)
 
 Erreicht und auf dem Retroid geprüft: die App „RE4 Kern“ (armeabi-v7a) startet

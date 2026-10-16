@@ -69,6 +69,10 @@ int main(int argc, char **argv) {
   glGenFramebuffers(1, &fbo);
   std::unique_ptr<re4gx::GxRenderer> renderer;
   uint32_t lastSequence = 0, lastFrame = 0;
+  // RE4_GX_SCALE: the EFB resolution of the app (-Scale; 1 = the GameCube's);
+  // the pictures then have that many times the pixels
+  const char *scaleText = std::getenv("RE4_GX_SCALE");
+  const int scale = scaleText && std::atoi(scaleText) >= 1 && std::atoi(scaleText) <= 4 ? std::atoi(scaleText) : 1;
   for (int i = 2; i < argc; i++) {
     const std::string path = argv[i];
     re4gxio::Loaded loaded;
@@ -94,7 +98,7 @@ int main(int argc, char **argv) {
         renderer->Release();
       renderer = std::make_unique<re4gx::GxRenderer>();
       std::string error;
-      if (!renderer->Init(1, &error)) {
+      if (!renderer->Init(scale, &error)) {
         std::printf("%s: Renderer: %s\n", Stem(path).c_str(), error.c_str());
         renderer.reset();
         failures++;
@@ -130,6 +134,8 @@ int main(int argc, char **argv) {
     if (s.shaderErrors > before.shaderErrors)
       failures++;
     if (xfb && w && h) {
+      w *= static_cast<unsigned>(scale);  // the texture holds the scaled picture
+      h *= static_cast<unsigned>(scale);
       std::vector<unsigned char> rgba(static_cast<std::size_t>(w) * h * 4);
       glBindFramebuffer(GL_FRAMEBUFFER, fbo);
       glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, xfb, 0);

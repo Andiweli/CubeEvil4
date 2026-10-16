@@ -61,6 +61,7 @@ extern "C" void re4_pad_script_stop(void);
 extern "C" void re4_pad_script_free(void);
 extern "C" void re4_log(const char* fmt, ...);
 extern "C" int re4_title_room_menu_open(void);
+extern "C" void re4_gx_mark(void);
 
 namespace {
 
@@ -266,6 +267,12 @@ void frame(unsigned n)
     // bottom of the picture only then; the app records the pictures after a hit
     // (re4_core_player_hits, core_mode.cpp RE4_GX_DUMP_ON_HIT)
     static int lastLife = -1;
+    static long lastHit = -1000;
+    static int marks = -1;
+    if (marks < 0) {
+        const char* v = getenv("RE4_GX_SHOTS_ON_HIT");
+        marks = v ? atoi(v) : 0;
+    }
     if (g->Rno0 == 3) {
         int life = (int) g->pl_life;
         if (lastLife >= 0 && life < lastLife) {
@@ -273,6 +280,14 @@ void frame(unsigned n)
             if (g_playerHits <= 40) {
                 re4_log("run: player hit, life %d -> %d at frame %u", lastLife, life, n);
             }
+            // a new hit (not the next frame of the same grab or burn): the GX chunk
+            // of this moment for the app (RE4_GX_SHOTS_ON_HIT, core_mode.cpp)
+            if (marks > 0 && (long) n - lastHit > 60) {
+                marks--;
+                re4_gx_mark();
+                re4_log("run: hit marked for the pictures (frame %u)", n);
+            }
+            lastHit = (long) n;
         }
         lastLife = life;
     } else {

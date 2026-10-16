@@ -1682,6 +1682,16 @@ void feed(const uint8_t* bytes, size_t n)
 
 extern "C" {
 
+void re4_gx_mark(void)
+{
+    // the chunk being recorded carries the mark; the next one starts over, so
+    // that the app can keep it (and those after it) as files of their own
+    if (Chunk* c = chunk()) {
+        c->view.flags |= RE4_GX_CHUNK_MARK;
+    }
+    gNeedReset = true;
+}
+
 void re4_gx_host_order_list(const void* list, unsigned int size)
 {
     HostList h;

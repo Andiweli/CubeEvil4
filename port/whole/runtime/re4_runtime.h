@@ -159,6 +159,10 @@ void re4_keep_vtable(void* object);
 /* Time the game thread slept waiting for the next video retrace, in all (ns):
  * what is left of each frame (runtime/vi.cpp). */
 long long re4_idle_ns(void);
+/* Marks the GX chunk being recorded (RE4_GX_CHUNK_MARK, runtime/gx_decode.cpp;
+ * the core thread) and lets the next one start over: the app keeps the
+ * pictures from there. */
+void re4_gx_mark(void);
 
 #ifdef __cplusplus
 }

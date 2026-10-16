@@ -806,6 +806,33 @@ static void testGx()
         }
         CHECK(hash == 0x02524012c6419af2ull);
     }
+    // a marked chunk (re4_gx_mark: a hit on the player) starts over and carries the mark
+    {
+        void* fifo = (void*) (unsigned long) 0x82800000u;
+        void* xfb = (void*) (unsigned long) 0x82830000u;
+        re4_core_gx_acquire();  // attach
+        re4probe_gx_produce(fifo, xfb, 2, 1);
+        while (const Re4GxChunk* c = re4_core_gx_acquire()) {
+            re4_core_gx_release(c);
+        }
+        re4_gx_mark();
+        re4probe_gx_produce(fifo, xfb, 3, 0);
+        unsigned flags[3] = {0, 0, 0};
+        for (int i = 0; i < 3; i++) {
+            if (const Re4GxChunk* c = re4_core_gx_acquire()) {
+                flags[i] = c->flags | 0x100;
+                re4_core_gx_release(c);
+            }
+        }
+        // the chunk recorded when marked, then one that starts over, then a usual one
+        CHECK((flags[0] & 0x100) && (flags[0] & RE4_GX_CHUNK_MARK) && !(flags[0] & RE4_GX_CHUNK_RESET));
+        CHECK((flags[1] & 0x100) && (flags[1] & RE4_GX_CHUNK_RESET) && !(flags[1] & RE4_GX_CHUNK_MARK));
+        CHECK((flags[2] & 0x100) && !(flags[2] & (RE4_GX_CHUNK_MARK | RE4_GX_CHUNK_RESET)));
+        if (!(flags[0] & RE4_GX_CHUNK_MARK) || !(flags[1] & RE4_GX_CHUNK_RESET)) {
+            re4_log("  gx mark: chunk flags %x %x %x", flags[0], flags[1], flags[2]);
+        }
+        re4_core_gx_detach();
+    }
     // RE4_GX_BENCH=N: the decoder's time for N village-like frames (120 000 vertices each)
     if (const char* bench = getenv("RE4_GX_BENCH")) {
         unsigned us = re4probe_gx_bench((void*) (unsigned long) 0x82800000u, (void*) (unsigned long) 0x82900000u,
