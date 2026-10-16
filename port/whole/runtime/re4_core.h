@@ -12,6 +12,8 @@
  * Every frame (any thread):
  *   re4_core_pad(&pad)                controller channel 0
  *   re4_core_rumble()                 its rumble motor
+ * The app's audio thread:
+ *   re4_core_audio(out, frames)       the sound, 32 kHz stereo
  *   s = re4_core_acquire() ... re4_core_release(s)
  *                                     the newest published game frame
  * The game publishes one snapshot per game frame (PADRead), so a reader never
@@ -24,7 +26,7 @@
 extern "C" {
 #endif
 
-#define RE4_CORE_API_VERSION 9
+#define RE4_CORE_API_VERSION 10
 
 enum Re4CoreState {
     RE4_CORE_IDLE = 0,     /* not started */
@@ -199,6 +201,15 @@ void re4_core_pad(const Re4CorePad* pad);
  * the last four frames (bit 0 the newest), bits 8-31 = frames so far (the app
  * stops vibrating when they stand still). */
 unsigned re4_core_rumble(void);
+/* The game's sound for the device: `frames` stereo frames (left, right) at
+ * 32 kHz, 16 bit; always fills `out` (silence while the game has none) and
+ * returns how many came from the game. Any thread (the app's audio thread);
+ * the core keeps about 60 ms ahead and matches the device's clock. */
+int re4_core_audio(int16_t* out, int frames);
+/* Sound counters: [0] AI blocks so far (5 ms each), [1] frames waiting,
+ * [2] blocks lost while the app did not read, [3] reads that ran dry,
+ * [4] skips after a pause of the app. */
+void re4_core_audio_stats(unsigned counters[5]);
 /* The newest snapshot (0 before the first frame); stays valid and unchanged
  * until re4_core_release. One reader at a time. */
 const Re4CoreSnapshot* re4_core_acquire(void);

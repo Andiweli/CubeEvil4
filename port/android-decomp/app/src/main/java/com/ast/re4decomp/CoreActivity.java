@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.hardware.input.InputManager;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Bundle;
@@ -42,8 +43,9 @@ import javax.microedition.khronos.opengles.GL10;
 /**
  * Core mode: the original game core runs the game (started once per process);
  * this Activity draws its frames, passes the controller as GameCube pad 0
- * (CoreInput: layout, raw values), drives the vibrator from the game's rumble
- * and prepares the room archive the game enters. SELECT shows/hides the
+ * (CoreInput: layout, raw values), plays the game's sound (CoreAudio), drives
+ * the vibrator from the game's rumble and prepares the room archive the game
+ * enters. SELECT shows/hides the
  * diagnostic overlay (hidden at the start unless the core did not start), R3
  * saves graphics data for the diagnosis; Back ends the game (the core cannot
  * be restarted inside the same process).
@@ -56,6 +58,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private final Handler main = new Handler(Looper.getMainLooper());
   private final ExecutorService rooms = Executors.newSingleThreadExecutor();
   private final CoreInput input = new CoreInput();
+  private final CoreAudio audio = new CoreAudio();
   private final Set<Integer> seenDevices = new HashSet<>();
   private GLSurfaceView surface;
   private TextView overlay;
@@ -83,12 +86,16 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     // linked shader programs kept between runs (no compile stutter the second time)
     String programs = "RE4_GX_PROGRAM_CACHE=" + new File(getCacheDir(), "gx-programs").getAbsolutePath();
     settings = settings == null || settings.isEmpty() ? programs : settings + ";" + programs;
+    // the app's own folder on the shared storage, where test switches write (RE4_AUDIO_WAV)
+    getExternalFilesDir(null);
     startProblem = imports.root == null ? "No data folder"
         : CoreBridge.start(imports.root.getAbsolutePath(), settings);
     input.setSwapFace(getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).getBoolean(SWAP_FACE, false));
     Log.i(TAG, "layout: A B X Y by label" + (input.swapFace() ? ", A/B and X/Y swapped" : "")
         + ", R2 = R, L2 = L, R1 = Z, SELECT overlay, R3 graphics capture");
     setUpVibrator();
+    // the volume buttons set the game's volume
+    setVolumeControlStream(AudioManager.STREAM_MUSIC);
 
     FrameLayout root = new FrameLayout(this);
     surface = new GLSurfaceView(this);
@@ -393,11 +400,14 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     if (im != null) im.registerInputDeviceListener(this, main);
     main.removeCallbacks(rumbleTick);
     main.post(rumbleTick);
+    audio.start();
   }
 
   @Override
   protected void onPause() {
     resumed = false;
+    // the sound pauses with the app (the core skips what it played meanwhile)
+    audio.stop();
     main.removeCallbacks(rumbleTick);
     stopVibrator();
     InputManager im = (InputManager) getSystemService(Context.INPUT_SERVICE);

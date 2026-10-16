@@ -54,6 +54,11 @@ zuletzt gedrueckten Taste und den Stick-Werten), R3 = Grafik-Aufnahme. Der Beric
 welche Android-Taste welche GameCube-Taste wurde, die Eingabegeraete und die Vibration.
 Reagieren A/B oder X/Y vertauscht: im Startmenue der App "Swap A/B and X/Y" ankreuzen.
 
+Ton (Meilenstein 8): Der Bericht nennt die Tonzaehler des Kerns und ob die App ihre
+Tonausgabe gestartet hat. -AudioWav N nimmt die ersten N Sekunden Spielzeit so auf, wie der
+Kern sie mischt (ton.wav, kommt bis 12 MB mit in senden.zip; 60 s sind knapp 8 MB), mit
+Pegeln je 5 s im Bericht.
+
 Taste P im PowerShell-Fenster misst 15 s lang, wo die Rechenzeit hingeht
 (simpleperf aus dem Android-NDK in WSL; Spielkern, Grafik-Nachbildung,
 Grafiktreiber), hoechstens dreimal; dabei weiterspielen. Ergebnis: profil-N.txt
@@ -107,7 +112,8 @@ param(
     [switch]$GxDump,
     [int]$Scale = 0,
     [int]$HitDumps = 0,
-    [int]$HitShots = 0
+    [int]$HitShots = 0,
+    [int]$AudioWav = 0
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -125,6 +131,7 @@ Remove-Item -LiteralPath (Join-Path $OutDir 'treffer') -Recurse -ErrorAction Sil
 Get-ChildItem -LiteralPath $OutDir -Filter 'profil-*' -ErrorAction SilentlyContinue | Remove-Item
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet') -Recurse -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'logcat.txt') -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $OutDir 'ton.wav') -ErrorAction SilentlyContinue
 function Say([string]$Text) {
     Write-Host $Text
     Add-Content -LiteralPath $report -Value $Text -Encoding UTF8
@@ -295,6 +302,12 @@ if ($GxDump) {
 if ($HitDumps -gt 0 -or $HitShots -gt 0) {
     $hitSetting = "RE4_GX_DUMP_FOLDER=$dumpRemote;RE4_GX_DUMP_ON_HIT=$HitDumps;RE4_GX_SHOTS_ON_HIT=$([math]::Max($HitDumps, $HitShots))"
     $settings = if ($settings) { "$settings;$hitSetting" } else { $hitSetting }
+}
+# the sound as the core mixed it, the first N seconds of game time (-AudioWav N) as a WAV
+$wavRemote = "/sdcard/Android/data/$package/files/ton.wav"
+if ($AudioWav -gt 0) {
+    $wavSetting = "RE4_AUDIO_WAV=$wavRemote;RE4_AUDIO_WAV_SECONDS=$AudioWav"
+    $settings = if ($settings) { "$settings;$wavSetting" } else { $wavSetting }
 }
 . (Join-Path $PSScriptRoot 'Retroid-Adb-Exclusive.ps1')
 Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
@@ -523,6 +536,13 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         Say '   GX-Daten vom Geraet: keine (RE4_GX_DUMP_DIR)'
     }
     & $Adb -s $Serial shell rm -rf $dumpRemote
+    if ($AudioWav -gt 0) {
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & $Adb -s $Serial pull $wavRemote (Join-Path $OutDir 'ton.wav') 2>&1 | Out-Null
+        & $Adb -s $Serial shell rm -f $wavRemote 2>&1 | Out-Null
+        $ErrorActionPreference = $previousPreference
+    }
     Say "   Protokoll: $($keep.Count) Zeilen (logcat.txt)$(if ($systemCrash.Count) { ', Absturzbericht des Systems (absturz-system.txt)' }); App beendet"
 
     Say ''
@@ -592,6 +612,28 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     }
     Say "Tasten gedrueckt (Android -> GC):  $($keyLines.Count) Druecke, $($seenKeys.Count) verschiedene"
     foreach ($k in $seenKeys.Values) { Say "  $k" }
+    # the sound (milestone 8): the core's counters every 10 s, the app's output, the WAV
+    $sound = $keep | Where-Object { $_ -match 're4\s*: audio: \d+ blocks' } | Select-Object -Last 1
+    Say "Ton (Kern, zuletzt):              $(if ($sound) { ($sound -split 'audio: ')[-1] } else { 'keine Tonbloecke im Protokoll' })"
+    $output = $keep | Where-Object { $_ -match 'RE4Audio\s*: sound' } | Select-Object -First 1
+    Say "Tonausgabe der App:               $(if ($output) { ($output -split 'RE4Audio\s*:\s*')[-1] } else { 'NICHT gestartet' })"
+    $wav = Join-Path $OutDir 'ton.wav'
+    if (Test-Path -LiteralPath $wav) {
+        Say "Ton-Aufnahme:                     ton.wav ($([math]::Round((Get-Item -LiteralPath $wav).Length / 1MB, 1)) MB, zum Anhoeren)"
+        if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
+            $wslArgs = @()
+            if ($Distro) { $wslArgs = @('-d', $Distro) }
+            $toWsl = { param($p) ((& wsl.exe @wslArgs --exec wslpath -a ((Resolve-Path -LiteralPath $p).Path -replace '\\', '/')) | Select-Object -First 1).Trim() }
+            $old = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try {
+                @(& wsl.exe @wslArgs --exec python3 "$(& $toWsl $repo)/port/tools/audio_wav_report.py" (& $toWsl $wav) 5 2>&1 |
+                    ForEach-Object { "$_" }) | ForEach-Object { Say $_ }
+            } finally { $ErrorActionPreference = $old }
+        }
+    } elseif ($AudioWav -gt 0) {
+        Say 'Ton-Aufnahme:                     KEINE (ton.wav fehlt auf dem Geraet)'
+    }
     $vibrator = $keep | Where-Object { $_ -match 'RE4Input\s*: rumble: ' } | Select-Object -First 1
     $rumbles = @($keep | Where-Object { $_ -match 'pad: rumble from frame' })
     Say "Vibration:                        $(if ($vibrator) { ($vibrator -split 'rumble: ')[-1] } else { '?' }); das Spiel ruettelte $($rumbles.Count)x$(if ($rumbles.Count -ge 16) { ' (oder oefter)' })"
@@ -634,6 +676,9 @@ foreach ($pattern in @('bericht.txt', 'logcat.txt', 'profil-*.txt', 'absturz-*.t
     Get-ChildItem -LiteralPath $OutDir -Filter $pattern -ErrorAction SilentlyContinue |
         ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $staging }
 }
+# the sound recording (-AudioWav) when it is small enough to send
+$wavFile = Get-Item -LiteralPath (Join-Path $OutDir 'ton.wav') -ErrorAction SilentlyContinue
+if ($wavFile -and $wavFile.Length -le 12MB) { Copy-Item -LiteralPath $wavFile.FullName -Destination $staging }
 try {
     Add-Type -AssemblyName System.Drawing
     $jpeg = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }

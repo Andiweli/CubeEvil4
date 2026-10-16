@@ -348,6 +348,7 @@ void re4_ai_field(void);
 void re4_ai_block(void);
 unsigned re4_ai_blocks(void);
 int re4_audio_take(short* out, int frames);
+int re4_audio_read(short* out, int frames);
 unsigned char* re4_aram(void);
 void AIInit(unsigned char* stack);
 }
@@ -632,6 +633,12 @@ extern "C" int re4probe_ax_test(void)
     got = axRun(8, out, 160 * 8);
     AX_CHECK(gAuxSeen == 3000);
     AX_CHECK(out[(got - 1) * 2] == 1000 && out[(got - 1) * 2 + 1] == 0);
+    // the reader of the app (rate matching between ring frames): 1000 stays 1000
+    for (int i = 0; i < 12; i++) {
+        re4_ai_block();
+    }
+    static short dev[2 * 512];
+    AX_CHECK(re4_audio_read(dev, 512) == 512 && dev[0] == 1000 && dev[1023 - 1] == 1000 && dev[1023] == 0);
     AXRegisterAuxACallback(0, 0);
     AXSetVoiceState(p, 0);
     AXFreeVoice(p);
@@ -645,6 +652,150 @@ extern "C" int re4probe_ax_test(void)
     AX_CHECK(re4_ai_blocks() - before == 200 || re4_ai_blocks() - before == 201);
     re4_audio_take(out, 160 * 40);
     AXRegisterCallback(old);
+    return failed;
+}
+
+// The AXFX effects of src/lib (the assembly of the reverbs and the chorus in C,
+// patch 0047) on the CPU, as the aux callbacks run them: an impulse through
+// the high reverb (crosstalk, the dry share at once, no wet sound before the
+// shortest comb, a decaying tail), the standard reverb with its pre-delay, the
+// chorus on a sine, the delay's echo. Returns the failed checks.
+#include "dolphin/axfx.h"
+
+#include <math.h>
+#include <stdlib.h>
+
+extern "C" void AXFXSetHooks(void* (*alloc)(u32), void (*free)(void*));
+
+static void* fxAlloc(u32 size)
+{
+    return malloc(size);
+}
+
+static void fxFree(void* p)
+{
+    free(p);
+}
+
+static s32 gFx[3][160];
+
+static void fxBlock(void (*cb)(AXFX_BUFFERUPDATE*, void*), void* fx, int block, s32 impulse)
+{
+    memset(gFx, 0, sizeof(gFx));
+    if (block == 0) {
+        gFx[0][0] = impulse;
+    }
+    AXFX_BUFFERUPDATE b = { gFx[0], gFx[1], gFx[2] };
+    cb(&b, fx);
+}
+
+extern "C" int re4probe_axfx_test(void)
+{
+    int failed = 0;
+    AXFXSetHooks(fxAlloc, fxFree);
+    static s32 left[160 * 100], right[160 * 100], sur[160 * 100];
+
+    // high reverb
+    static AXFX_REVERBHI hi;
+    memset(&hi, 0, sizeof(hi));
+    hi.coloration = 0.5f;
+    hi.mix = 0.5f;
+    hi.time = 2.0f;
+    hi.damping = 0.5f;
+    hi.preDelay = 0.0f;
+    hi.crosstalk = 0.3f;
+    AX_CHECK(AXFXReverbHiInit(&hi) == 1);
+    for (int b = 0; b < 100; b++) {
+        fxBlock((void (*)(AXFX_BUFFERUPDATE*, void*)) AXFXReverbHiCallback, &hi, b, 10000);
+        memcpy(left + b * 160, gFx[0], sizeof(gFx[0]));
+        memcpy(right + b * 160, gFx[1], sizeof(gFx[1]));
+        memcpy(sur + b * 160, gFx[2], sizeof(gFx[2]));
+    }
+    // crosstalk: 8500 left, 1500 right; the dry share 0.6 * (1 - mix)
+    AX_CHECK(left[0] == 2550 && right[0] == 450);
+    bool quiet = true;
+    for (int i = 1; i < 1789; i++) {
+        quiet = quiet && left[i] == 0 && right[i] == 0;
+    }
+    AX_CHECK(quiet);
+    double early = 0, late = 0;
+    bool silentSur = true;
+    for (int i = 0; i < 16000; i++) {
+        (i < 8000 ? early : late) += (double) left[i] * left[i];
+        silentSur = silentSur && sur[i] == 0;
+    }
+    AX_CHECK(early > 1000.0 && late > 0 && late < early && silentSur);
+    AXFXReverbHiShutdown(&hi);
+
+    // standard reverb with 10 ms of pre-delay
+    static AXFX_REVERBSTD std;
+    memset(&std, 0, sizeof(std));
+    std.coloration = 0.5f;
+    std.mix = 1.0f;
+    std.time = 1.0f;
+    std.damping = 0.5f;
+    std.preDelay = 0.01f;
+    AX_CHECK(AXFXReverbStdInit(&std) == 1);
+    for (int b = 0; b < 40; b++) {
+        fxBlock((void (*)(AXFX_BUFFERUPDATE*, void*)) AXFXReverbStdCallback, &std, b, 10000);
+        memcpy(left + b * 160, gFx[0], sizeof(gFx[0]));
+    }
+    int first = -1;
+    for (int i = 0; i < 6400 && first < 0; i++) {
+        if (left[i]) {
+            first = i;
+        }
+    }
+    // no dry share at mix 1; nothing before pre-delay (319 samples) and the shortest comb
+    AX_CHECK(first >= 319 + 1789 && first < 6400);
+    AXFXReverbStdShutdown(&std);
+
+    // chorus on a 500 Hz sine: bounded, not silent
+    static AXFX_CHORUS ch;
+    memset(&ch, 0, sizeof(ch));
+    ch.baseDelay = 15;
+    ch.variation = 5;
+    ch.period = 500;
+    AX_CHECK(AXFXChorusInit(&ch) == 1);
+    s32 peak = 0;
+    for (int b = 0; b < 40; b++) {
+        for (int i = 0; i < 160; i++) {
+            float t = (float) (b * 160 + i) / 32000.0f;
+            gFx[0][i] = gFx[1][i] = (s32) (8000.0f * sinf(6.2831853f * 500.0f * t));
+            gFx[2][i] = 0;
+        }
+        AXFX_BUFFERUPDATE u = { gFx[0], gFx[1], gFx[2] };
+        AXFXChorusCallback(&u, &ch);
+        for (int i = 0; b >= 10 && i < 160; i++) {
+            s32 v = gFx[0][i] < 0 ? -gFx[0][i] : gFx[0][i];
+            peak = v > peak ? v : peak;
+        }
+    }
+    AX_CHECK(peak > 2000 && peak < 32000);
+    AXFXChorusShutdown(&ch);
+
+    // delay: 50 ms in whole blocks ((45 * 32 + 159) / 160 = 9), the echo comes
+    // back after 9 * 160 samples
+    static AXFX_DELAY dl;
+    memset(&dl, 0, sizeof(dl));
+    for (int c = 0; c < 3; c++) {
+        dl.delay[c] = 50;
+        dl.feedback[c] = 0;
+        dl.output[c] = 100;
+    }
+    AX_CHECK(AXFXDelayInit(&dl) == 1);
+    for (int b = 0; b < 20; b++) {
+        fxBlock((void (*)(AXFX_BUFFERUPDATE*, void*)) AXFXDelayCallback, &dl, b, 10000);
+        memcpy(left + b * 160, gFx[0], sizeof(gFx[0]));
+    }
+    first = -1;
+    for (int i = 0; i < 3200 && first < 0; i++) {
+        if (left[i]) {
+            first = i;
+        }
+    }
+    AX_CHECK(first == 1440 && left[1440] == 10000);
+    AXFXDelayShutdown(&dl);
     return failed;
 }
 

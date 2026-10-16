@@ -429,6 +429,16 @@ unsigned re4_core_rumble(void)
     return re4_pad_rumble();
 }
 
+int re4_core_audio(int16_t* out, int frames)
+{
+    return re4_audio_read(out, frames);
+}
+
+void re4_core_audio_stats(unsigned counters[5])
+{
+    re4_audio_stats(&counters[0], &counters[1], &counters[2], &counters[3], &counters[4]);
+}
+
 const Re4CoreSnapshot* re4_core_acquire(void)
 {
     pthread_mutex_lock(&gLock);

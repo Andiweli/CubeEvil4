@@ -250,13 +250,14 @@ run_game() {
         return
     fi
     echo "  (Fortschritt alle 30 s; Abbruch bei $stall s ohne neues Bild, ohne Hauptschleife nach $main_limit s, spätestens nach $limit s)"
-    rm -rf "$cov" "$trace" "$trace.gz" "$bridge" "$snaps" "$gxdump"
+    rm -rf "$cov" "$trace" "$trace.gz" "$bridge" "$snaps" "$gxdump" "$run/ton-$t.wav"
     mkdir -p "$snaps" "$gxdump"
     local start=$SECONDS
     (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
         RE4_CARD_CHECK=1 RE4_ROOM_MENU=1 RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script" RE4_PAD_FREE_SCRIPT="$free_script" RE4_TEST_PLACE="$place" RE4_STOP_AFTER="$frames" \
         RE4_GX_DUMP_FREE="$map_dump" RE4_TEST_SOFT_RESET="free+$soft_reset" \
         RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" RE4_BRIDGE_DUMP="$bridge" RE4_BRIDGE_SNAPSHOT="$snaps" RE4_GX_DUMP="$gxdump" \
+        RE4_AUDIO_WAV="$run/ton-$t.wav" RE4_AUDIO_WAV_SECONDS=240 \
         "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1 &
     local pid=$!
     # watchdog: progress, stall (no new trace data), no main loop, overall limit
@@ -469,6 +470,15 @@ PY
                 say "Steuerung:     FEHLER, ${walk#* }"
                 bad=1
             fi
+        fi
+        # the sound (M8): what the core mixed, as a WAV of the first 240 s of game
+        # time (to listen to on the PC) and its levels
+        local audio
+        audio=$(grep "audio: [0-9]* blocks" "$log" | tail -1 | sed 's/^\[re4\] //')
+        say "Ton:           ${audio:-keine Tonblöcke im Protokoll}"
+        if [ -s "$run/ton-$t.wav" ]; then
+            say "Ton-Aufnahme:  ton-$t.wav (zum Anhören)"
+            python3 "$src/port/tools/audio_wav_report.py" "$run/ton-$t.wav" 10 | tee -a "$report"
         fi
         # the camera over the run: every change of its switches, and every 2500 frames
         python3 - "$trace" <<'PY' | tee -a "$report"

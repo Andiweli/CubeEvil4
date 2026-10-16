@@ -31,6 +31,7 @@ extern "C" void re4probe_scroll_restore(void);
 extern "C" void re4probe_shape_setup(void* mem);
 extern "C" void re4probe_shape_restore(void);
 extern "C" int re4probe_ax_test(void);
+extern "C" int re4probe_axfx_test(void);
 extern "C" int re4probe_movie_test(void);
 
 namespace {
@@ -739,6 +740,11 @@ int re4_core_tests()
         int failed = re4probe_ax_test();
         gFailures += failed;
         report("ax", failed == 0);
+    }
+    {
+        int failed = re4probe_axfx_test();
+        gFailures += failed;
+        report("axfx", failed == 0);
     }
     {
         int failed = re4probe_movie_test();

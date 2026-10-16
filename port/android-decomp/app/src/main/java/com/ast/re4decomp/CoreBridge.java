@@ -33,6 +33,11 @@ public final class CoreBridge {
    * (bit 0 the newest), bits 8-31 = game frames so far; 0 without the core.
    */
   public static native int rumble();
+  /**
+   * The game's sound: `frames` stereo frames (left, right) at 32 kHz into
+   * `pcm` (silence while there is none); returns the frames from the game.
+   */
+  public static native int audio(short[] pcm, int frames);
   /** The room the game is in (stage << 8 | room), -1 outside a room. */
   public static native int wantedRoom();
   /** The decoded room archive for a room (RoomRepository), or the error. */

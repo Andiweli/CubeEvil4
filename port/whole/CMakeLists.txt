@@ -200,7 +200,7 @@ set(RE4_SDK_UNITS OSAlloc OSArena Padclamp
     AX AXAlloc AXAux AXCL AXComp AXOut AXProf AXSPB AXVPB DSPCode
     mix syn synctrl synenv synlfo synmix synpitch synsample synvoice synwt seq
     axart axart3d axartcents axartenv axartlfo axartlpf axartsound
-    axfx delay)
+    axfx delay chorus reverb_hi reverb_hi_4ch reverb_std)
 set(RE4_SDK_SOURCES runtime/mtx_ps.c)
 foreach(unit IN LISTS RE4_SDK_UNITS)
     list(APPEND RE4_SDK_SOURCES "${RE4_TREE}/src/lib/${unit}.c")

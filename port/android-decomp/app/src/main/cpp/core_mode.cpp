@@ -41,6 +41,8 @@ struct CoreApi {
   const char *(*message)(void){};
   void (*pad)(const Re4CorePad *){};
   unsigned (*rumble)(void){};
+  int (*audio)(int16_t *, int){};
+  void (*audioStats)(unsigned *){};
   const Re4CoreSnapshot *(*acquire)(void){};
   void (*release)(const Re4CoreSnapshot *){};
   int (*logTail)(char *, int){};
@@ -74,6 +76,8 @@ void loadCore() {
   ok = bind(api.message, "re4_core_message") && ok;
   ok = bind(api.pad, "re4_core_pad") && ok;
   ok = bind(api.rumble, "re4_core_rumble") && ok;
+  ok = bind(api.audio, "re4_core_audio") && ok;
+  ok = bind(api.audioStats, "re4_core_audio_stats") && ok;
   ok = bind(api.acquire, "re4_core_acquire") && ok;
   ok = bind(api.release, "re4_core_release") && ok;
   ok = bind(api.logTail, "re4_core_log_tail") && ok;
@@ -485,6 +489,24 @@ extern "C" JNIEXPORT jint JNICALL Java_com_ast_re4decomp_CoreBridge_rumble(JNIEn
   return api.rumble ? static_cast<jint>(api.rumble()) : 0;
 }
 
+// The game's sound for the app's audio thread (CoreAudio): `frames` stereo
+// frames at 32 kHz into `pcm`; the frames that came from the game.
+extern "C" JNIEXPORT jint JNICALL Java_com_ast_re4decomp_CoreBridge_audio(JNIEnv *env, jclass,
+                                                                          jshortArray pcm, jint frames) {
+  const jsize length = env->GetArrayLength(pcm);
+  if (frames <= 0 || frames * 2 > length) return 0;
+  auto *out = static_cast<jshort *>(env->GetPrimitiveArrayCritical(pcm, nullptr));
+  if (!out) return 0;
+  int got = 0;
+  if (api.audio) {
+    got = api.audio(reinterpret_cast<int16_t *>(out), frames);
+  } else {
+    std::fill(out, out + frames * 2, 0);
+  }
+  env->ReleasePrimitiveArrayCritical(pcm, out, 0);
+  return got;
+}
+
 // The room the game is in (for the Java room loader), -1 outside a room.
 extern "C" JNIEXPORT jint JNICALL Java_com_ast_re4decomp_CoreBridge_wantedRoom(JNIEnv *, jclass) {
   auto *s = currentScene();
@@ -506,6 +528,14 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_status(JN
     const int st = api.state();
     result = std::string("core ") + (st >= 0 && st <= 3 ? states[st] : "?") + ": " + api.message();
     if (auto *s = currentScene()) result += "\n" + s->status();
+    if (api.audioStats) {
+      unsigned a[5] = {};
+      api.audioStats(a);
+      char line[160];
+      std::snprintf(line, sizeof(line), "\nsound: %u blocks, %u ms waiting, %u lost, %u ran dry, %u skips",
+                    a[0], a[1] / 32, a[2], a[3], a[4]);
+      result += line;
+    }
     char tail[2048];
     api.logTail(tail, sizeof(tail));
     // the last few log lines

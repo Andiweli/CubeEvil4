@@ -14,7 +14,8 @@
 // playing a little faster or slower (at most 0.5 %, inaudible), and skips
 // ahead after a pause of the app.
 //
-// RE4_AUDIO_WAV=file writes every block into a WAV file as well (checks).
+// RE4_AUDIO_WAV=file writes every block into a WAV file as well (checks;
+// RE4_AUDIO_WAV_SECONDS=N stops after N seconds of game time).
 #include "re4_runtime.h"
 
 #include <atomic>
@@ -54,6 +55,7 @@ std::mutex gReadLock;
 
 FILE* gWav;
 u32 gWavFrames;
+u32 gWavLimit;  // RE4_AUDIO_WAV_SECONDS: frames, 0 = no limit
 
 void wavHeader(FILE* f, u32 frames)
 {
@@ -108,7 +110,12 @@ void play(u32 addr, u32 length)
             fwrite(lr, sizeof(lr), 1, gWav);
         }
         gWavFrames += frames;
-        if ((gWavFrames & 0x7FFF) < frames) {
+        if (gWavLimit && gWavFrames >= gWavLimit) {
+            wavHeader(gWav, gWavFrames);
+            fclose(gWav);
+            gWav = 0;
+            re4_log("audio: WAV complete, %u s", gWavFrames / 32000);
+        } else if ((gWavFrames & 0x7FFF) < frames) {
             wavHeader(gWav, gWavFrames);
             fflush(gWav);
         }
@@ -126,6 +133,15 @@ void tick()
     gPlayLength = gNextLength;
     play(gPlayAddr, gPlayLength);
     gBlocks++;
+    if (gBlocks % 2000 == 0) {  // every 10 s
+        unsigned lists, voiceMs;
+        re4_dsp_stats(&lists, &voiceMs);
+        static unsigned lastVoiceMs;
+        re4_log("audio: %u blocks, %u ms waiting, %u lost, %u ran dry, %u skips; DSP %u lists, %.1f voices",
+                gBlocks, (gWrite.load() - gRead.load()) / 32, gOverruns.load(), gUnderruns.load(),
+                gSkips.load(), lists, (voiceMs - lastVoiceMs) / 10000.0);
+        lastVoiceMs = voiceMs;
+    }
     if (gCallback) {
         gCallback();
     }
@@ -247,6 +263,8 @@ void AIInit(unsigned char* stack)
         if (const char* wav = getenv("RE4_AUDIO_WAV")) {
             if (*wav && (gWav = fopen(wav, "wb")) != 0) {
                 wavHeader(gWav, 0);
+                const char* seconds = getenv("RE4_AUDIO_WAV_SECONDS");
+                gWavLimit = seconds ? (u32) atoi(seconds) * 32000 : 0;
                 re4_log("audio: writing %s", wav);
             }
         }
