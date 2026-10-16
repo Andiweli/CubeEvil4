@@ -16,6 +16,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M5 Erster Raum r100 | ✅ 14.10.2026: lokal mit Disc-Daten (i686 in WSL2) 10 000 Bilder ab der Hauptschleife ohne Absturz, Abdeckung ohne „nein“, Formatvergleich 152 Dateien ohne Fehler. armhf mit Disc-Daten nicht gelaufen (`-Arm`, optional) |
 | K2 „Kern in die App“ (M6) | ✅ 16.10.2026 (Retroid): ARM32-App mit den Kern-Bibliotheken, Titel, r100, r101, Untermenüs und Karte spielbar; Abschluss und offene Punkte: „Abschluss M6/M6b“ |
 | M6b GX nachbilden (`gx-plan.md`) | ✅ 16.10.2026 (Retroid): das Bild kommt aus der GX-Nachbildung (Logos, Titel, Räume, Figuren, Effekte, Menüs, Anzeigen); r100 und r101 flüssig bei etwa 1080p (`-Scale 3`) |
+| M7 Steuerung | 🔶 16.10.2026: Cloud-Teil fertig (Branch `claude/re4-m7-steuerung`): Original-`PADClamp`, GameCube-Belegung, Rohwerte, Vibration; Gerätetest steht aus („M7 Steuerung“) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -1834,7 +1835,9 @@ Offen, mitgenommen in die nächsten Meilensteine:
 - **Testlauf:** `port/scripts/test-core-app.ps1 -Manual -Seconds 900 -Scale 3`;
   Ergebnis zum Schicken: `senden.zip` (Bericht, Protokoll, Profile, Bilder als
   JPEG), dazu `gx-geraet.zip` bis 25 MB.
-- **Im Spiel:** R3 = 12 aufeinanderfolgende Bilder als GX-Daten; Taste P im
+- **Im Spiel:** SELECT = Diagnose-Anzeige (erste Zeile seit M7: zuletzt
+  gedrückte Taste mit ihrer GameCube-Taste, gehaltene Tasten, Rohwerte von
+  Sticks und Triggern); R3 = 12 aufeinanderfolgende Bilder als GX-Daten; Taste P im
   PowerShell-Fenster = 15 s CPU-Profil (simpleperf, `profil-N.txt`,
   `port/tools/android_profile.py`); `-HitShots N`/`-HitDumps N` = Bilder vom
   Bildschirm und GX-Daten ab den ersten N Treffern auf Leon.
@@ -1885,6 +1888,104 @@ s03, Tor, Hinterhalt). Grenzen dieses Stands: Effekte, Partikel, Schrift,
 Menüs und 2D-Anzeigen des Spiels zeichnet die Brücke noch nicht (das braucht
 den GX-Ersatz); Modelle ohne Disc-Herkunft (aus gepackten Raumdateien)
 erscheinen als „missing“. Ton fehlt (M8).
+
+## M7 Steuerung
+
+### Bestandsaufnahme (16.10.2026, Cloud)
+
+Weg einer Taste bis ins Spiel, Stand M6b:
+
+1. **App, Java** (`CoreActivity`): Android-Tasten und -Achsen → GameCube-Bits,
+   Sticks ×100, Trigger 0..255; belegt waren A/B/X/Y nach Android-Code,
+   L1 und L2 = L, R1 = Z, R2 = R, SELECT = Overlay, R3 = GX-Aufnahme. Ein
+   Zustand für alle Geräte zusammen (ein Gerät ohne Sticks setzte die Sticks
+   des anderen auf 0), Achsen ohne Bereichsnormierung, kein Loslassen beim
+   Fokusverlust.
+2. **JNI** `CoreBridge.pad` → `core_mode.cpp` → `re4_core_pad` (`Re4CorePad`:
+   Tasten, Hauptstick, C-Stick, Trigger) → `pad.cpp re4_pad_live`.
+3. **Plattform** `pad.cpp PADRead`: Kanal 0 aus Testskript oder App, Drücke
+   kürzer als ein Bild bleiben erhalten, `analogA/B` voll bei A/B,
+   Kanäle 1–3 „kein Controller“. `PADClamp` und `PADControlMotor` waren
+   leer.
+4. **Spiel** `src/game/pad.cpp PadRead` (einmal je Bild): `PADRead`, dann
+   `PADClamp`; `Joy[0]` mit `on/trg/rel/rep/rep2` (Wiederholung 24/6 und
+   18/3 Bilder); **jeder Triggerwert über 0 gilt als L bzw. R**;
+   Stick-Richtungsbits ab 30 Einheiten (Winkelsektoren), C-Stick-Bits ab 10;
+   über `Key_type_tbl[pSys->pad_type]` (immer Tabelle 0) in das 64-Bit-Wort
+   `Key`; analoge Werte nach `Key.stickX…`, `Key.triggerLeft/Right`.
+   Verwendung im Spiel: R = Waffe anlegen (`Key.on & 0x10`), L = Messer
+   (`0x800`), A = Aktion/Schießen, B = Rennen/Abbrechen (Unten+B =
+   Schnellwende, `keyConfigTypeA`), X = Ashley warten/folgen
+   (`pl_leon.cpp`), Y = Koffer, Z = Karte (`sscrn.cpp`), START =
+   Optionen/Szene überspringen. Analoge Trigger nur in Entwicklerwerkzeugen;
+   der C-Stick steuert den Blick (`cam_qfps.cpp` teilt durch 59, den Bereich
+   nach `PADClamp`).
+5. **Rüttelmotor:** `VibControl` schaltet den Motor je Bild an/aus (schwache
+   Stufen als Pulse), über die Spieloption „Vibration“ abschaltbar.
+
+**Befund:** Ohne `PADClamp` kamen die Werte ungeklemmt an: C-Stick bis 100
+statt 59 (Blick schwenkte zu weit), Hauptstick bis 100 statt 72, keine
+Totzone, und schon ein Triggerrauschen von 1 galt als gedrücktes L/R.
+
+### Entscheidung des Projektinhabers (16.10.2026)
+
+- Gesichtstasten **nach Beschriftung**: Retroid-A = A, B = B, X = X, Y = Y
+  (die Buchstaben der Spielhinweise stimmen; B liegt wie beim GameCube links
+  unterhalb von A). Schalter im Startmenü der App „Swap A/B and X/Y“ für
+  Controller, die die Codes der anderen Anordnung schicken.
+- **R2 = R** (Waffe anlegen, analog), **L2 = L** (Messer, analog),
+  **R1 = Z** (Karte), **L1 frei**.
+- **R3 allein** bleibt die Grafik-Aufnahme (keine Tastenkombination), Taste P
+  im Testskript unverändert; SELECT = Diagnose-Anzeige.
+- **Vibration** schon in M7.
+
+### Umsetzung (16.10.2026, Cloud)
+
+- **Kern:** `src/lib/Padclamp.c` wird unverändert mitkompiliert (SDK-Einheit
+  in `CMakeLists.txt`), das No-op in `pad.cpp` ist entfernt. Totzonen und
+  Bereiche damit wie im Original: Sticks 15 je Achse, Hauptstick höchstens 72
+  (Achteck, diagonal 40/40), C-Stick 59, Trigger ab 30 (≈12 % Weg), höchstens
+  150. `PADControlMotor` merkt den Motor; `PADRead` schreibt je Bild ein Bit
+  (`re4_core_rumble`: Bits 0–3 die letzten vier Bilder, Bits 8–31 Bildzahl),
+  Protokoll „pad: rumble from frame N“ (höchstens 16). API-Version 9.
+- **App:** `CoreInput.java` (ohne Android, Hosttest
+  `tests/CoreInputTests.java`, 69 Prüfungen mit einer Java-Kopie von
+  `PADClamp`): Belegung wie oben, Zustand je Eingabegerät (Tasten aller
+  Geräte zählen, je Stick und Trigger das Gerät mit dem größten Ausschlag),
+  Rohwerte wie ein echter Controller (Hauptstick ±101, C-Stick ±92 am
+  Anschlag: Mittel echter GameCube-Controller, 0,794 bzw. 0,722 von 127;
+  Trigger 0..255, L2/R2 als Taste = voll; digitales L/R erst ab 85 % wie der
+  Klick des GameCube-Triggers). `CoreActivity`: Achsen nach ihrem Bereich
+  normiert (rechter Stick Z/RZ, sonst RX/RY; Trigger LTRIGGER/BRAKE,
+  RTRIGGER/GAS; Steuerkreuz auch als HAT), alles loslassen bei Fokusverlust,
+  Pause und abgezogenem Gerät; Vibration alle 16 ms aus den letzten vier
+  Spielbildern (Stärke 1–4 von 4 Bildern, mit Amplitudensteuerung 116–255),
+  aus, sobald das Spiel steht; Berechtigung `VIBRATE`. Overlay (SELECT):
+  zuletzt gedrückte Taste mit GameCube-Taste, Tasten, Rohwerte der Sticks und
+  Trigger. Protokoll `RE4Input`: Belegung, jedes Eingabegerät (Name,
+  Hersteller-/Produktnummer, Quellen, Achsen mit Bereich und `flat`), jede
+  Taste (Android-Code, Scancode → GameCube-Taste), Vibrator.
+- **Testskript:** Abschnitt im Bericht mit Belegung, Eingabegeräten, allen
+  gedrückten Tasten (Android → GC) und der Vibration.
+
+### Prüfungen (Cloud, 16.10.2026)
+
+| Prüfung | Ergebnis |
+|---|---|
+| `port/tools/whole_build.sh` (i686, armhf unter qemu), normal und `RE4_OPT=2` | grün; Kern-Test „pad“ (Totzonen, Achteck, C-Stick, Trigger-Schwelle, Motor je Bild) bestanden; 76 Platzhalter wie vorher |
+| `CoreInputTests` + alle Java-Hosttests von `tools/test_host.sh` | bestanden |
+| `re4decomp_link_check` (native App-Bibliothek, `--no-undefined`) | linkt; 10 JNI-Namen passen zu `CoreBridge` |
+| `CoreActivity` mit `javac` gegen nachgebildete Android-Klassen (kein SDK erreichbar) | übersetzt |
+
+Nicht geprüft: echtes Android-SDK/Gradle (nur auf dem PC), PowerShell-Skript
+(kein PowerShell in der Cloud), alles auf dem Gerät.
+
+### Gerätetest (steht aus)
+
+Ziel: alle Tasten, beide Sticks, L2/R2 analog (leicht drücken = zielen),
+R1 = Karte, Menüs (Titel, Optionen, Koffer, Dateien, Karte) bedienbar,
+Vibration bei Treffern; der Bericht zeigt, welche Android-Codes der Retroid
+schickt (Abschnitt Steuerung).
 
 ## Aufbau
 
@@ -2094,6 +2195,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 |---|---|
 | `dolphin_os.cpp` | `OSInit`, `OSReport` (zeilenweise ins Log), `OSPanic`, Konsolentyp/Speichergröße, `OSGetTime`/`OSGetTick` (40,5 MHz, Epoche 2000), Kalenderzeit, Interrupt-Sperren, Caches (no-op); seit G1 Unterbrechungs-Rückrufe des SDK (`__OSSetInterruptHandler`, `re4_os_hw_interrupt`), Kontexte, Reset-Funktionen, Versionsnamen und die Gekko-Register `HID2`/`WPAR` als No-op |
 | SDK `OSAlloc.c`, `OSArena.c` | unverändert aus `src/lib`: Heap und Arena; `main_mem.cpp` liest die Heap-Deskriptoren direkt |
+| SDK `Padclamp.c` (M7) | unverändert aus `src/lib`: `PADClamp`, die Totzonen und Bereiche des Original-Controllers; `PadRead` des Spiels ruft es auf den Rohwerten von `pad.cpp` auf |
 | `os_thread.cpp` | `OSThread`, `OSSemaphore`: ein Host-Thread, strikte Prioritäten, Wechsel nur in OS-Aufrufen; jeder Thread hat einen Host-Stack (`port/src/stack_context.cpp` aus dem alten Port, neu mit ucontext für Linux x86, Boost.Context-Assembler für Linux ARM wie auf Android); ein Verteiler auf dem Stack des Startprogramms (`re4_os_run`). Spielsichtbar wie im SDK: `state`, `suspend`, Priorität, Warteschlangen, Stack-Magie `0xDEADBABE` |
 | `vi.cpp` | VI-Retrace alle 1/59,94 s Echtzeit, zugestellt an Interrupt-Punkten (Verteiler im Leerlauf, `VIWaitForRetrace`, Patch 0012, später lange Hintergrundarbeit); Thread-Wechsel aus dem Rückruf erst am Interrupt-Ende. `RE4_VI_FAST=1`: ohne Warten (Tests) |
 | `ax.cpp` (K2) | AX ohne Tonausgabe: 64 Stimmen mit den Vergaberegeln des SDK (`AXAlloc.c`), die Setter (`AXVPB.c`), Abspielposition je Audio-Rahmen nach Abtastrate (ADPCM mit Rahmenköpfen, PCM16, PCM8; Schleife oder Stopp am Ende), der Audio-Rahmen-Rückruf des Spiels 200-mal je Sekunde Spielzeit, zugestellt mit den VI-Retraces. Damit läuft der Tontreiber (`snd_main.cpp cb_audio_frame`): Stimmen werden frei, Sprach-Streams werden bereit. MIX, SYN, SEQ, AXFX, AI bleiben Platzhalter. Hörbarer Ton: M8 |
@@ -2109,7 +2211,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `byte_order.cpp` | Byte-Tausch-Helfer für Format-Umwandler |
 | `newlib_ctype.c` | newlib-Zeichentabelle `_ctype_` (heißt seit K2 `re4_newlib_ctype_`, Prelude-Regel) |
 | `card.cpp` (M4 B) | Speicherkarte: beide Schächte leer, jeder `CARD*`-Aufruf liefert `CARD_RESULT_NOCARD` (wie das SDK bei leerem Schacht); das Spiel zeigt „keine Speicherkarte“ und läuft ohne Speichern weiter. Echtes Speichern: M10 |
-| `pad.cpp` (M4 B) | Controller: Kanal 0 angeschlossen, Kanäle 1–3 leer (ein zweiter Controller ließe den Titel die Logos überspringen). Tasten aus der Testfolge `RE4_PAD_SCRIPT` (`TASTEN@BILD` drückt 3 Bilder lang, `TASTEN@VON-BIS/ALLE` wiederholt; Tasten `A B X Y Z L R START UP DOWN LEFT RIGHT`, mit `+` verbunden; Bild = Zahl der `PADRead`-Aufrufe). Seit K2 zusätzlich `re4_pad_live` (Controller der App, sobald kein Testskript läuft) und Bildhaken `re4_add_frame_hook` (bis 4, je `PADRead`). Feinschliff der Eingabe: M7 |
+| `pad.cpp` (M4 B) | Controller: Kanal 0 angeschlossen, Kanäle 1–3 leer (ein zweiter Controller ließe den Titel die Logos überspringen). Tasten aus der Testfolge `RE4_PAD_SCRIPT` (`TASTEN@BILD` drückt 3 Bilder lang, `TASTEN@VON-BIS/ALLE` wiederholt; Tasten `A B X Y Z L R START UP DOWN LEFT RIGHT`, mit `+` verbunden; Bild = Zahl der `PADRead`-Aufrufe). Seit K2 zusätzlich `re4_pad_live` (Controller der App, sobald kein Testskript läuft) und Bildhaken `re4_add_frame_hook` (bis 4, je `PADRead`). Seit M7: Rohwerte wie die Hardware (das eigene No-op-`PADClamp` ist entfernt, siehe SDK `Padclamp.c`), `PADControlMotor` merkt den Rüttelmotor je Bild (`re4_core_rumble`) |
 | `core_api.cpp` (K2) | Einbettungs-Schnittstelle `re4_core.h` für die App: Kern-Thread, Status, Controller, Dreifachpuffer der Schnappschüsse; Testausgaben `RE4_BRIDGE_DUMP`, `RE4_BRIDGE_SNAPSHOT`, `RE4_GX_DUMP` (GX-Bildstücke als Dateien, `re4_gx_frame_io.h`) |
 | `core_bridge.cpp` (K2) | Schnappschuss des Spielzustands (Kamera, Raum, Modelle aus EmMgr/ObjMgr mit Teile-Matrizen und Disc-Herkunft); mit den Schaltern des Spielcodes gebaut |
 | `log.cpp` | Log (Linux: stderr, Android: logcat-Tag `re4`), seit K2 mit den letzten 24 Zeilen für das Overlay der App (`re4_log_tail`) |
