@@ -186,10 +186,12 @@ target_include_directories(re4_glue_obj PRIVATE runtime)
 string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_glue_obj>\n")
 
 # Portable C parts of the Dolphin SDK (src/lib), compiled unchanged: the heap
-# allocator, whose descriptors the game reads directly (main_mem.cpp), and the
-# C_* reference versions of the matrix/vector math (whole_prepare.py extracts
-# them into prepared/sdk_c; runtime/mtx_ps.c maps the PS* names to them).
-set(RE4_SDK_UNITS OSAlloc OSArena
+# allocator, whose descriptors the game reads directly (main_mem.cpp), the
+# controller dead zones (Padclamp: the game's PadRead calls PADClamp on the raw
+# values of runtime/pad.cpp), and the C_* reference versions of the
+# matrix/vector math (whole_prepare.py extracts them into prepared/sdk_c;
+# runtime/mtx_ps.c maps the PS* names to them).
+set(RE4_SDK_UNITS OSAlloc OSArena Padclamp
     GXAttr GXBump GXDisplayList GXDraw GXFifo GXFrameBuf GXGeometry GXInit GXLight GXMisc
     GXPerf GXPixel GXTev GXTexture GXTransform)
 set(RE4_SDK_SOURCES runtime/mtx_ps.c)

@@ -1,6 +1,11 @@
-// Controllers (PAD). Real input comes with milestone 7; until then channel 0
-// is a connected controller whose buttons come from a test script, channels
-// 1-3 are empty (the title screen skips its logos when a second pad answers).
+// Controllers (PAD). Channel 0 is a connected controller: the device's
+// controller (the app, re4_pad_live) or a test script; channels 1-3 are empty
+// (the title screen skips its logos when a second pad answers).
+//
+// PADRead hands out raw values like the hardware (main stick about +-100,
+// C stick about +-90, triggers 0..255); the game's PadRead then calls the
+// SDK's own PADClamp (src/lib/Padclamp.c, compiled unchanged): the dead zones
+// and the octagon of the original controller.
 //
 //   RE4_PAD_SCRIPT="START@300 A@400-3000/40"
 //     BUTTONS@FRAME            hold for 3 frames from PADRead call FRAME
@@ -27,6 +32,7 @@
 #include "re4_core.h"
 #include "re4_runtime.h"
 
+#include <atomic>
 #include <mutex>
 #include <stdlib.h>
 #include <string.h>
@@ -183,8 +189,40 @@ int PADInit(void)
 int PADReset(u32) { return 1; }
 int PADRecalibrate(u32) { return 1; }
 void PADSetAnalogMode(u32) {}
-void PADClamp(PADStatus*) {}
-void PADControlMotor(long, u32) {}
+
+// Rumble of channel 0. The game's VibControl (game/pad.cpp) switches the motor
+// on and off from frame to frame, weaker levels as pulses, and never calls it
+// with the game's vibration option off. PADRead notes each frame's state; the
+// app reads the last four frames (re4_core_rumble) and drives the device's
+// vibrator from them.
+static std::atomic<u32> g_motor;   // PAD_MOTOR_STOP 0, RUMBLE 1, STOP_HARD 2
+static std::atomic<u32> g_rumble;  // bits 0-3: on in the last 4 frames, bits 8-31: frames
+
+void PADControlMotor(long chan, u32 cmd)
+{
+    if (chan == 0) {
+        g_motor = cmd;
+    }
+}
+
+u32 re4_pad_rumble(void)
+{
+    return g_rumble;
+}
+
+// the frame that just ended into the rumble record (PADRead)
+static void noteRumble()
+{
+    static u32 offFrames = 30, starts;
+    const u32 before = g_rumble;
+    const u32 on = g_motor == 1;
+    g_rumble = ((gFrame + 1) << 8) | (((before << 1) | on) & 0xF);
+    if (on && offFrames >= 30 && starts < 16) {
+        starts++;
+        re4_log("pad: rumble from frame %u", gFrame);
+    }
+    offFrames = on ? 0 : offFrames + 1;
+}
 
 // Per-frame observers, called once per game frame with the frame number: the
 // state trace (runtime/state_trace.cpp, re4_set_frame_hook replaces it) and
@@ -258,6 +296,7 @@ void re4_pad_script_free(void)
 
 u32 PADRead(PADStatus* status)
 {
+    noteRumble();
     if (g_frameHook) {
         g_frameHook(gFrame);
     }

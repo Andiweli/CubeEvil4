@@ -11,6 +11,7 @@
  *   re4_core_start()                  the game in its own thread
  * Every frame (any thread):
  *   re4_core_pad(&pad)                controller channel 0
+ *   re4_core_rumble()                 its rumble motor
  *   s = re4_core_acquire() ... re4_core_release(s)
  *                                     the newest published game frame
  * The game publishes one snapshot per game frame (PADRead), so a reader never
@@ -23,7 +24,7 @@
 extern "C" {
 #endif
 
-#define RE4_CORE_API_VERSION 8
+#define RE4_CORE_API_VERSION 9
 
 enum Re4CoreState {
     RE4_CORE_IDLE = 0,     /* not started */
@@ -34,11 +35,14 @@ enum Re4CoreState {
 
 /* GameCube controller state (PADStatus without the error byte); buttons as
  * the SDK defines them: LEFT 0x0001 RIGHT 0x0002 DOWN 0x0004 UP 0x0008 Z 0x0010
- * R 0x0020 L 0x0040 A 0x0100 B 0x0200 X 0x0400 Y 0x0800 START 0x1000. */
+ * R 0x0020 L 0x0040 A 0x0100 B 0x0200 X 0x0400 Y 0x0800 START 0x1000.
+ * Raw values like the hardware delivers them: the game's PadRead applies the
+ * SDK's PADClamp (src/lib/Padclamp.c) itself, dead zones included (sticks 15,
+ * triggers 30; main stick at most 72, C stick 59, triggers 150 afterwards). */
 typedef struct Re4CorePad {
     uint16_t buttons;
     int8_t stickX, stickY;        /* main stick, about -100..100 like a real pad */
-    int8_t substickX, substickY;  /* C stick */
+    int8_t substickX, substickY;  /* C stick, about -90..90 */
     uint8_t triggerL, triggerR;   /* analog triggers 0..255 */
 } Re4CorePad;
 
@@ -191,6 +195,10 @@ int re4_core_state(void);
 const char* re4_core_message(void);
 /* Controller channel 0 from now on (replaces the test script). */
 void re4_core_pad(const Re4CorePad* pad);
+/* The rumble motor of channel 0 as the game drives it: bits 0-3 = motor on in
+ * the last four frames (bit 0 the newest), bits 8-31 = frames so far (the app
+ * stops vibrating when they stand still). */
+unsigned re4_core_rumble(void);
 /* The newest snapshot (0 before the first frame); stays valid and unchanged
  * until re4_core_release. One reader at a time. */
 const Re4CoreSnapshot* re4_core_acquire(void);

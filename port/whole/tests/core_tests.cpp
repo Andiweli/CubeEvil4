@@ -11,6 +11,9 @@
 //           thread of its own, the controller set with re4_core_pad arrives in
 //           PADRead, one snapshot per frame, one reader at a time, the state
 //           ends with the entry's return value, the log tail is readable
+//   pad     the SDK's PADClamp turns the raw controller values into the
+//           game's ranges (dead zones, octagon, trigger threshold); the
+//           rumble motor per frame (re4_core_rumble)
 #include "re4_core.h"
 #include "re4_runtime.h"
 
@@ -662,6 +665,65 @@ void testThread()
     report("thread", ok);
 }
 
+extern "C" void PADClamp(PadStatus* status);
+extern "C" void PADControlMotor(long chan, unsigned cmd);
+
+// The raw values from the app become what the game saw on the GameCube once
+// its PadRead calls the SDK's PADClamp (src/lib/Padclamp.c): dead zones, the
+// octagon of the main stick (at most 72), the C stick up to 59 (cam_qfps.cpp
+// divides by 59), triggers past 30 (PadRead turns any value into L/R).
+void testPad()
+{
+    bool ok = true;
+    struct Case {
+        signed char x, y, cx, cy;
+        unsigned char l, r;
+        signed char ex, ey, ecx, ecy;
+        unsigned char el, er;
+    };
+    const Case cases[] = {
+        { 14, -15, 15, -10, 30, 0, 0, 0, 0, 0, 0, 0 },          // inside the dead zones
+        { 101, 0, 92, 0, 255, 31, 72, 0, 59, 0, 150, 1 },       // pushed fully to the right
+        { 0, -101, 0, -92, 180, 181, 0, -72, 0, -59, 150, 150 },
+        { 71, 71, 65, -65, 100, 0, 40, 40, 31, -31, 70, 0 },    // diagonals: the octagon
+        { 50, 0, -40, 0, 0, 0, 35, 0, -25, 0, 0, 0 },           // past the dead zone: linear
+    };
+    for (const Case& c : cases) {
+        PadStatus pads[4];
+        memset(pads, 0, sizeof(pads));
+        pads[0].stickX = c.x;
+        pads[0].stickY = c.y;
+        pads[0].substickX = c.cx;
+        pads[0].substickY = c.cy;
+        pads[0].triggerLeft = c.l;
+        pads[0].triggerRight = c.r;
+        for (int i = 1; i < 4; i++) {
+            pads[i] = pads[0];
+            pads[i].err = -1;  // no controller: left alone
+        }
+        PADClamp(pads);
+        CHECK(pads[0].stickX == c.ex && pads[0].stickY == c.ey && pads[0].substickX == c.ecx &&
+              pads[0].substickY == c.ecy && pads[0].triggerLeft == c.el && pads[0].triggerRight == c.er);
+        CHECK(pads[3].stickX == c.x && pads[3].triggerLeft == c.l);
+    }
+    // the rumble motor as the game switches it, frame by frame
+    PadStatus pads[4];
+    PADRead(pads);
+    const unsigned start = re4_core_rumble() >> 8;
+    PADControlMotor(0, 1);
+    PADRead(pads);
+    PADRead(pads);
+    CHECK((re4_core_rumble() & 0xF) == 0x3 && (re4_core_rumble() >> 8) == start + 2);
+    PADControlMotor(0, 2);  // PAD_MOTOR_STOP_HARD
+    PADRead(pads);
+    CHECK((re4_core_rumble() & 0xF) == 0x6);
+    PADRead(pads);
+    PADRead(pads);
+    PADRead(pads);
+    CHECK((re4_core_rumble() & 0xF) == 0);
+    report("pad", ok);
+}
+
 }  // namespace
 
 int re4_core_tests()
@@ -670,6 +732,7 @@ int re4_core_tests()
     testBridge();
     testCodec();
     testThread();
+    testPad();
     testSound();
     testCamera();
     {

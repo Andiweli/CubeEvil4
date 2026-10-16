@@ -18,6 +18,7 @@
 #include <string.h>
 
 extern "C" void re4_pad_live(const Re4CorePad* pad);
+extern "C" unsigned re4_pad_rumble(void);
 extern "C" void re4_add_frame_hook(void (*hook)(unsigned));
 extern "C" int re4_log_tail(char* out, int size);
 extern "C" void re4_state_trace_reconfigure(void);
@@ -421,6 +422,11 @@ const char* re4_core_message(void)
 void re4_core_pad(const Re4CorePad* pad)
 {
     re4_pad_live(pad);
+}
+
+unsigned re4_core_rumble(void)
+{
+    return re4_pad_rumble();
 }
 
 const Re4CoreSnapshot* re4_core_acquire(void)
