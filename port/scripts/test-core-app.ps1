@@ -742,6 +742,21 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     if ($gxStream) { Say "GX-Uniform-Puffer:                $(($gxStream -split 'GX uniform stream: ')[-1])" }
     $shaderFail = @($keep | Where-Object { $_ -match 'RE4GX.*shader failed' })
     if ($shaderFail.Count) { Say "GX-Shader-FEHLER:                 $($shaderFail.Count) (Ausschnitt in logcat.txt)" }
+    # data the GX emulation could not reach, and a command stream out of step
+    $notInMemory = @($keep | Where-Object { $_ -match 're4\s*: GX: .* is not in memory' })
+    if ($notInMemory.Count) { Say "GX-Daten nicht erreichbar:        $($notInMemory.Count)x (erste: $(($notInMemory[0] -split 'GX: ')[-1]))" }
+    $lost = @($keep | Where-Object { $_ -match 'GX: the command stream lost its place' })
+    if ($lost.Count) { Say "GX-Befehlsstrom aus dem Tritt:    $($lost.Count)x (Ausschnitt in logcat.txt)" }
+    # the game's own messages (pLog->err / warn, patch 0076): each distinct one once, e.g.
+    # "GetPrimBuff() : OVERFLOW" (draws of a picture dropped)
+    $gameLines = @($keep | Where-Object { $_ -match 're4\s*: game: ' })
+    $gameSeen = [ordered]@{}
+    foreach ($line in $gameLines) {
+        $message = ($line -split 're4\s*: game: ', 2)[-1]
+        if (-not $gameSeen.Contains($message)) { $gameSeen[$message] = 1 }
+    }
+    Say "Spielmeldungen (pLog):            $($gameLines.Count) Zeilen, $($gameSeen.Count) verschiedene"
+    foreach ($message in @($gameSeen.Keys | Select-Object -First 30)) { Say "  $message" }
     # R3 (picture dump): where the player stood, for checks on the PC
     $r3 = @($keep | Where-Object { $_ -match 'RE4Core.*R3: room' })
     foreach ($line in $r3) { Say "R3-Aufnahme:                      $(($line -split 'R3: ')[-1])" }

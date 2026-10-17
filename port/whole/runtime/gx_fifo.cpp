@@ -182,10 +182,12 @@ uint8_t* listMemory(uint32_t address, uint32_t size)
     if (address < kAliasBase + kAliasSlots * kAliasWindow) {
         return memory(address, size);  // physical
     }
-    // a pointer to port memory outside MEM1 (32-bit hosts: it fits the word):
-    // only the game's own (its libraries, its thread stacks); any other value
-    // is a stream that lost its place, and reading there would crash
-    if (sizeof(void*) != 4 || size == 0) {
+    // a pointer to port memory outside MEM1 (it fits the word: 32-bit hosts,
+    // and LP64 hosts where the game's libraries and stacks lie below 4 GB,
+    // milestone 12 way A; GXCallDisplayList writes the pointer itself, e.g.
+    // the sprite quad g_EspCommonDisplayList): only the game's own; any other
+    // value is a stream that lost its place, and reading there would crash
+    if (size == 0) {
         return nullptr;
     }
     const uint8_t* list = (const uint8_t*) (uintptr_t) address;

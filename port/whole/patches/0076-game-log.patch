@@ -1,0 +1,27 @@
+# The game's own log (pLog->err / warn / mes, db_log.cpp) into the port log.
+# On the GameCube each line went to the screen and, through printf, to the
+# debugger console; the port has no console on Android, so messages such as
+# "GetPrimBuff() : OVERFLOW" (draws dropped) or "SmdInit() NULL BIN USED" were
+# lost. re4_game_log (runtime/log.cpp) logs each message (by its format
+# string) the first 3 times, then every 1000th time with its count.
+--- a/src/game/db_log.cpp
++++ b/src/game/db_log.cpp
+@@ -11,6 +11,9 @@
+ #include <string.h>
+ #include <dolphin/os.h>
+ 
++// port: patch 0076, the console echo of a line goes to the port log (runtime/log.cpp)
++extern "C" void re4_game_log(const char* format, const char* text);
++
+ // Debug break with the source location.
+ #line 20 "D:/Bio4/Prog/db_log.cpp"
+ static inline void logHalt()
+@@ -224,7 +227,7 @@
+         strncpy(w->m_Str, buf, 63);
+         w->m_Str[63] = 0;
+         if (!(flag & LOG_NO_PRINTF)) {
+-            printf("%s\n", buf);
++            re4_game_log(mes, buf);  // port: patch 0076 (printf: no console on Android)
+         }
+         w->m_Id = errId;
+         if (!(flag & LOG_NO_SHOW)) {

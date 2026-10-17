@@ -77,6 +77,40 @@ extern "C" int re4_log_tail(char* out, int size)
     return len;
 }
 
+// The game's own log lines (pLog->err / warn / mes, db_log.cpp, patch 0076): on
+// the GameCube they went to the screen and the console. Here each message
+// (by its format string) is logged the first 3 times, then every 1000th time
+// with its count, so that a message of every frame does not flood the log.
+extern "C" void re4_game_log(const char* format, const char* text)
+{
+    struct Seen {
+        const char* format;
+        unsigned count;
+    };
+    static Seen seen[512];
+    static int used;
+    static std::mutex lock;
+    unsigned count = 4;  // a full table: not logged
+    {
+        std::lock_guard<std::mutex> guard(lock);
+        int i = 0;
+        while (i < used && seen[i].format != format) {
+            i++;
+        }
+        if (i == used && used < 512) {
+            seen[used++] = {format, 0};
+        }
+        if (i < used) {
+            count = ++seen[i].count;
+        }
+    }
+    if (count <= 3) {
+        re4_log("game: %s", text);
+    } else if (count % 1000 == 0) {
+        re4_log("game: %s (%u times)", text, count);
+    }
+}
+
 extern "C" void re4_stub_hit(const char* const* names, unsigned char* seen, int index)
 {
     if (!seen[index]) {

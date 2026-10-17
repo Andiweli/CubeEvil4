@@ -455,6 +455,12 @@ run_game() {
     stubs=$(grep -h "stub called:" "$log" | sed 's/^\[re4\] stub called: //' | sort -u)
     say "Aufgerufene Stubs (Funktionen ohne Umsetzung): $(echo -n "$stubs" | grep -c .)"
     [ -n "$stubs" ] && echo "$stubs" | head -60 | sed 's/^/  /' | tee -a "$report"
+    # the game's own messages (pLog->err / warn, patch 0076), each distinct one once
+    local game_lines game_msgs
+    game_lines=$(grep -c "^\[re4\] game: " "$log")
+    game_msgs=$(grep -h "^\[re4\] game: " "$log" | sed 's/^\[re4\] game: //; s/ ([0-9]* times)$//' | awk '!seen[$0]++')
+    say "Spielmeldungen (pLog): $game_lines Zeilen, $(echo -n "$game_msgs" | grep -c .) verschiedene"
+    [ -n "$game_msgs" ] && echo "$game_msgs" | head -40 | sed 's/^/  /' | tee -a "$report"
     if [ -f "$trace" ]; then
         local lines enemies last
         lines=$(wc -l < "$trace")

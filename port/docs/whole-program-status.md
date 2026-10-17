@@ -3549,6 +3549,78 @@ Daten noch nicht gelaufen). Der Projektinhaber verzichtet auf ein eigenes Logo
   Geprüft: i686, armhf, x86_64 und aarch64 alle Cloud-Tests ✅ (der 60-Hz-Teil des Filmtests
   war unter Last einmal rot, allein wiederholt grün); `int_cast_check.py` 0,
   `ptr_slot_check.py` nur die 5 geprüften.
+- **Fünfter 64-bit-Gerätelauf (00:30, Stand `3756798`) und zweite PC-Prüfung
+  `-Lp64` (00:39):** Die Autofahrt r120 läuft jetzt etwa 2 Minuten. Der
+  Projektinhaber meldet: die Fahrt ruckelt und es fehlen immer wieder ein paar
+  Sekunden, im Wald fehlen viele Bäume (nur die nahen sind da), Leons
+  Spiegelung im Autofenster fehlt teilweise, dann bricht die Fahrt ab. Das
+  Protokoll: „GX: display list at 0xfa345000 (96 bytes) is not in memory“
+  (8-mal, dann nicht mehr gemeldet), nach 2 Minuten „the command stream lost
+  its place“ in `Esp1b_SpTrans`, 8 s kein Bild, die App wird beendet. Die
+  PC-Prüfung kommt bis zum Raumaufbau von r100: „OSCheckHeap: Failed
+  cell->next->prev == cell“ beim Laden von `em12`, dann Absturz in
+  `MotionMoveCore` (`cEm10::move` aus `R100Init`). Ursachen und Abhilfe:
+  - **Zeichenliste im Programm:** `GXCallDisplayList(g_EspCommonDisplayList)`
+    (das Viereck aller Sprite-Effekte, statische Daten von `libre4_main.so`)
+    schreibt die Adresse selbst in den Befehlsstrom; der GX-Nachbau nahm solche
+    Adressen nur auf 32 bit an. Mit Weg A liegen die Bibliotheken unter 4 GB:
+    `re4gx::listMemory` nimmt sie jetzt auf beiden Breiten (gleiche Prüfung
+    `re4_valid_port_ptr`). Alle Sprite-Effekte (Licht, Rauch, Funken …)
+    fehlten bisher auf 64 bit.
+  - **Effekt 0x1B (gebogenes Band):** Patch 0040 fand die Daten von `cEsp1b`
+    über `sizeof(cEsp)`; auf LP64 beginnen sie bei 0x10C (Füllbytes am Ende von
+    `cEsp`, 0x110), die Punktzahl war Unsinn, Millionen Vierecke, der Strom
+    verlor seinen Platz. Jetzt `RE4_OWN(cEsp, Esp1bSpWork, 0xF8)`. Dieselbe Art
+    in r117 (Lichtstrahlen, Byte 0xF9): Patch 0077. Gefunden, nachdem
+    `raw_offset_check.py` jetzt auch Abstände hinter dem Ende einer Struktur
+    meldet (vorher übersprungen; 4 Funde: r117, dazu der Kopf der Heap-Zellen
+    in `main_mem.cpp`/`OSAlloc.c`, der auf beiden Breiten 0x20 Bytes hat).
+    Neues Werkzeug `array_view_check.py` (Glied-Felder über ihr Ende hinaus
+    indiziert): 3204 Fundstellen, nur 5 rücken auf LP64, alle geprüft und
+    richtig (`cDataCtrl::m_DataUnit[32]` als Endmarke, `R203Work.em[6]` immer
+    über dasselbe Feld).
+  - **Zeichenaufträge (fehlende Bäume, Spiegelung):** Jeder Eintrag der
+    Zeichenreihenfolge (`OtPrim`) kommt aus dem Bildpuffer des Raums
+    (`GetPrimBuff`, Schritte von 32 Bytes, Größe aus den Raumdaten). Auf dem
+    GameCube 0x14 Bytes, ein Schritt; auf LP64 0x28 Bytes, zwei Schritte. Läuft
+    der Puffer voll, lässt das Spiel die letzten Zeichnungen des Bildes weg
+    (meldet es nur auf dem Bildschirm). `OtData`/`OtPrim` haben jetzt die feste
+    Form (`fixed_form.json`, Zeiger 4 Bytes), der Verbrauch ist wie auf dem
+    GameCube. Noch nicht mit Disc-Daten bestätigt; dafür:
+  - **Spielmeldungen im Protokoll (Patch 0076):** Was das Spiel mit
+    `pLog->err/warn/mes` meldet (auf dem GameCube Bildschirm und Konsole), geht
+    jetzt als „game: …“ ins Protokoll, jede Meldung die ersten 3 Male, dann
+    jedes 1000. Mal mit Zählung (`re4_game_log`, `runtime/log.cpp`).
+  - **Heap-Beschädigung (PC-Prüfung):** Neues Werkzeug `alloc_size_check.py`:
+    Speicher mit fester GameCube-Größe für eine Struktur, die auf LP64 größer
+    ist (auch Tabellen von Zeigern), und Löschen/Kopieren mit fester Länge.
+    28 Stellen (9 weitere sind auch auf ILP32 kürzer, absichtlich nur ein
+    Kopf; danach 0). Die Kamera eines Modells
+    (`ATTACH_CAMERA`, 0x98 → LP64 0xA0, 14 Stellen) und vor allem
+    `cModel::cModel`: `memclr_asm(&Motion, 0xD0)` ließ auf LP64 die letzten
+    0x20 Bytes von `MOTION_INFO` stehen, darin `pAttachCam`, ein alter Zeiger
+    aus dem vorigen Inhalt des Pool-Platzes, über den `MotionMoveCore`
+    schrieb. Dazu der zweite Bewegungsbereich von em32, die Bewegungstabellen
+    des Spielers (0x6D und 12 Zeiger), die 5 Wegpunkt-Zeiger der Ganados in
+    r209 (mit 0x14 Bytes gelöscht, auf LP64 behielten die letzten zwei alte
+    Adressen) und drei Debug-Listen. Alles in `lp64_sizes.json`
+    (`RE4_LP64_SIZE`, auf ILP32 der GameCube-Wert). Andere Puffer mit fester
+    Größe pro Bild (`GetDrawTmpBufAddr`, `IdGetBufferAddr`) halten nur Pixel.
+  - **Berichte:** `test-core-app.ps1` und die PC-Prüfung zeigen jetzt die
+    Spielmeldungen (je Meldung einmal), `test-core-app.ps1` dazu, wie oft der
+    GX-Nachbau Daten nicht erreichte und ob der Befehlsstrom aus dem Tritt kam.
+  - Geprüft: i686, armhf, x86_64 und aarch64 alle Cloud-Tests ✅ (auf i686
+    und armhf bestätigt `RE4_OWN` beim Übersetzen den GameCube-Abstand 0xF8);
+    `alloc_size_check.py` 0. Noch nicht geprüft: Gerät und PC-Prüfung mit
+    Disc-Daten.
+  - **Ruckeln:** Während der Fahrt wurden etwa 260 neue Grafikprogramme
+    übersetzt (75 kamen aus dem Zwischenspeicher, am Ende 333), einzelne Bilder
+    brauchten bis 0,64 s. Der Zwischenspeicher der Programme liegt im
+    App-Ordner und war mit dem neuen Paketnamen leer; jedes neue Programm wird
+    sofort gespeichert. Ein zweiter Lauf derselben Szene sollte ohne diese
+    Pausen laufen; die „fehlenden Sekunden“ sind wahrscheinlich die Ereignisse,
+    die nach einer Pause zum Ton aufschließen. Bestätigung mit dem nächsten
+    Gerätelauf.
 - **Falls das auf anderen Geräten nicht reicht** (MEM1 in einem anderen Bereich
   von ART): Auswege wären ein frischer App-Prozess über `wrap.sh` (nur
   Debug-APKs) oder ein eigener Prozess für den Kern; beides ändert die Art des
@@ -3633,9 +3705,9 @@ sie ersetzt.
 | Alias-Namen, die von der Breite von `u32`/`size_t` abhängen: `{u32}` in `GCC295_SYMBOLS` → `"…" RE4_ASM_U32` (`m` auf ILP32, `j` auf LP64), `_Znwj/_Znaj` → `RE4_ASM_NEW(_ARRAY)` (Prelude, M12) | `FlgOnStatus__5EventUl` und `__builtin_new` passen sonst auf LP64 nicht zur Funktion; `whole_asm_check.py` kennt die `RE4_ASM_*`-Makros als Teil eines Namens |
 | `operator new(unsigned …)`, eigene `extern "C"`-Deklarationen von `memcpy/strlen …` mit `unsigned int` → `__SIZE_TYPE__` (`OPERATOR_SIZE`, `LIBC_DECL`, M12) | auf LP64 ist `size_t` 8 Bytes; sonst Widerspruch zu den System-Headern |
 | Füllfelder `[A - sizeof(X)]` → `[((A) > sizeof(X) ? (A) - sizeof(X) : 0)]` (`PAD_TO_SIZE`, M12) | auf LP64 ist `X` größer als der feste Platz `A`: sonst negative Feldgröße. Die festen Plätze selbst werden in M12-A3 angepasst |
-| Strukturen mit fester Form (`port/whole/fixed_form.json`): Zeiger-Glieder → `RE4_P32(T)` (`re4_ptr32.h`; ILP32: `T*`, LP64: 4 Bytes `Re4Ptr32<T>`), Datei bekommt `#include "re4_ptr32.h"` (`fixed_form_structs`, M12) | Daten, die das Spiel von der Disc liest und an Ort und Stelle umbiegt (Texturen, Kollision, Kamerabereiche, Modelle, Szenen-Treffer, Raumtabelle), der Kopf des Spielstands und die Modul-Verkettung: ihre Form ist durch die Disc bzw. die Speicherkarte festgelegt. Bricht ab, wenn ein Glied nicht umschreibbar ist |
+| Strukturen mit fester Form (`port/whole/fixed_form.json`): Zeiger-Glieder → `RE4_P32(T)` (`re4_ptr32.h`; ILP32: `T*`, LP64: 4 Bytes `Re4Ptr32<T>`), Datei bekommt `#include "re4_ptr32.h"` (`fixed_form_structs`, M12) | Daten, die das Spiel von der Disc liest und an Ort und Stelle umbiegt (Texturen, Kollision, Kamerabereiche, Modelle, Szenen-Treffer, Raumtabelle), der Kopf des Spielstands und die Modul-Verkettung: ihre Form ist durch die Disc bzw. die Speicherkarte festgelegt. Dazu `GxWork`, `SaveDataPtrs` (Sichten solcher Daten) und `OtData`/`OtPrim` (Zeichenreihenfolge: aus dem Bildpuffer des Raums, dessen Größe für die GameCube-Form gemacht ist). Bricht ab, wenn ein Glied nicht umschreibbar ist |
 | `TaskFunc`: Klasse statt `void*` (`re4_task_func.h`, gleiche Größe; auf LP64 4 Bytes wie auf der GameCube, M12) | GCC 2.95 wandelte Funktionszeiger still in `void*` um, modernes C++ nicht |
-| Feste Plätze und Arbeitsflächen (`port/whole/lp64_sizes.json`, `lp64_sizes`, nach den Patches, M12): die Größe in `EM_WORK_SIZE`, `OBJ_WORK_SIZE`, den 57 `u8 free[0xDE0 - 0x3E0]` der Gegner, den 25 `u8 free[OBJ_WORK_SIZE - 0x328]` der Objekte und `cEspgen::Free` → `RE4_LP64_SIZE(gc, lp64)` (Prelude; ILP32 der GameCube-Wert) | auf LP64 wird `cEm` 0xC0 Bytes größer, `cObj` 0x98; die eigenen Arbeitsbereiche mit Zeigern wachsen über ihre Fläche (bis 0xAB8 statt 0xA00). LP64: Gegner-Platz 0xF60, Fläche 0xAC0; Objekt-Platz 0x4B0, Fläche 0xF0; Effekt-Fläche 0xD0. Geprüft mit `overlay_check.py`; eine andere Anzahl Fundstellen bricht den Build ab |
+| Feste Plätze und Arbeitsflächen (`port/whole/lp64_sizes.json`, `lp64_sizes`, nach den Patches, M12): die Größe in `EM_WORK_SIZE`, `OBJ_WORK_SIZE`, den 57 `u8 free[0xDE0 - 0x3E0]` der Gegner, den 25 `u8 free[OBJ_WORK_SIZE - 0x328]` der Objekte und `cEspgen::Free` → `RE4_LP64_SIZE(gc, lp64)` (Prelude; ILP32 der GameCube-Wert) | auf LP64 wird `cEm` 0xC0 Bytes größer, `cObj` 0x98; die eigenen Arbeitsbereiche mit Zeigern wachsen über ihre Fläche (bis 0xAB8 statt 0xA00). LP64: Gegner-Platz 0xF60, Fläche 0xAC0; Objekt-Platz 0x4B0, Fläche 0xF0; Effekt-Fläche 0xD0; Effekt-Pool-Platz 0x1A8. Dazu Speicher mit fester GameCube-Größe und Löschen mit fester Länge (`ATTACH_CAMERA`, `MOTION_INFO`, Bewegungstabellen des Spielers, Debug-Listen; `alloc_size_check.py`). Geprüft mit `overlay_check.py`; eine andere Anzahl Fundstellen bricht den Build ab |
 | `(u16*) &pG->stage_no` → `(u16*) &pG->room_id`, `stage_prev` → `room_id_prev` (`ROOM_ID_ADDR`) | `G_ROOM_ID` und `RsfCheck(*(u16*) &pG->stage_no, …)` lesen die Raumnummer über die Adresse ihres ersten Bytes; auf little-endian liegt `stage_no` nach Patch 0016 am anderen Ende (auf der GameCube dieselbe Adresse) |
 | `new (p) T()` → `new (p) T` (`PLACEMENT_VALUE_INIT`) | C++11 füllt eine Klasse ohne eigenen Konstruktor bei `T()` erst mit Nullen; der GameCube-Compiler nicht. `em.cpp` setzt `subArc` vor `new (em) cEm10()` (Absturz in `Em12Set`, 14.10.2026). Prüfung: `port/tools/whole_value_init.py` |
 | Prelude: `#define _ctype_ re4_newlib_ctype_` (nach den System-Headern) | Bionic exportiert `_ctype_` als Zeiger, newlib (das Spiel, `t_movie`) als Feld; die Tabelle heißt jetzt `re4_newlib_ctype_` (`runtime/newlib_ctype.c`), Bionics Zeiger bleibt unberührt (K2) |
@@ -3703,7 +3775,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0038 `GXFifo.h` | `GXFifoObj` (ein Byte-Feld, das das SDK als `__GXFifoObj` mit Zeigern und Zählern beschreibt) ist 32-Byte-ausgerichtet; vorher lag das statische `FifoObj` von `GXInit` im Android-Build an einer ungeraden Adresse, und die zusammengefassten Wort-Speicherbefehle (`strd`) brachen auf dem Retroid mit SIGBUS ab |
 | 0037 `main_mem.h`, `pl_class.cpp` | `VALID_PTR`/`VALID_PTR2` (Zeigerprüfung gegen MEM1) nehmen zusätzlich `re4_valid_port_ptr` (runtime/os_thread.cpp): Host-Stapel der OS-Threads und die statischen Daten der Spielbibliotheken (`libre4_*`), die auf dem GameCube ebenfalls in MEM1 lägen |
 | ~~0039 `card.cpp`~~ | **entfernt in M10:** `CardFirstCheck` übersprang die Speicherkarten-Prüfung beim Start, solange der Port keine Speicherkarte hatte (`RE4_CARD_CHECK=1` behielt sie); seit M10 prüft das Spiel die echte Karte, die Test-Tastenfolgen setzen `RE4_MEMCARD=none` |
-| 0040 `esp_sub.cpp` | `Esp1b_SpTrans` findet die Daten von `cEsp1b` über `sizeof(cEsp)` statt über `&pad_EC[0xC]`: MWCC legt den vptr ans Ende von `cEsp`, die Compiler des Ports an den Anfang; vorher las es die Punktzahl 4 Bytes daneben (Absturz im GX-Decoder auf dem Retroid nach 153 s) |
+| 0040 `esp_sub.cpp` | `Esp1b_SpTrans` findet die Daten von `cEsp1b` über `RE4_OWN(cEsp, Esp1bSpWork, 0xF8)` statt über `&pad_EC[0xC]`: MWCC legt den vptr ans Ende von `cEsp`, die Compiler des Ports an den Anfang; vorher las es die Punktzahl 4 Bytes daneben (Absturz im GX-Decoder auf dem Retroid nach 153 s). Auf LP64 beginnen die Daten in den Füllbytes von `cEsp` (0x10C von 0x110; bis 18.10.2026 `sizeof(cEsp)`, Hänger in r120 auf 64 bit) |
 | 0041 `at_sub.cpp`, `atari.cpp`, `card.cpp` | Das Attributwort einer Kollisionsfläche (`SAT_POLY::m_Status`) wird als Wort gelesen statt als zwei Halbwörter in GameCube-Reihenfolge (vorher vertauschte Hälften: Zäune als Fallkanten, Wände ohne Kollision, Boden als Wasser); `CardID::save` liest `nPoint` als Wert statt Byte 3 |
 | 0042 `src/lib/GXGeometry.c` | `GXSetCullMode` übernimmt das Ergebnis von `__rlwimi` (`hwMode = __rlwimi(...)`): MWCC fügt bei diesem Befehl in den ersten Operanden ein, die C-Fassung des Ports gibt das Ergebnis zurück und die Zeile verwarf es. Aus `GX_CULL_FRONT` (Standard aller Modelle) wurde „keine Rückseiten weglassen“: alles wurde beidseitig gezeichnet, die Doppelschichten von Leons Haar verdeckten sich gegenseitig (dunkle Flecken) |
 | 0043 `title.cpp` | Das Debug-Startmenü nach „New Game“ (`titleExit`, Raumauswahl) meldet sich bei der Laufzeit an (`re4_title_room_menu`, runtime/dolphin_os.cpp): solange es offen ist, lässt die Debug-Anzeigen-Sperre der App (`RE4_DEBUG_HUD=0`) `debug_mode` mindestens 1, damit seine Zeilen (Debug-Text) zu sehen sind; `RE4_ROOM_MENU=0` überspringt es wie ein sofortiges A. Übersprungen behält der „New Game“-Ton seine Kennung: das Ende von `titleExit` wartet wie in der Verkaufsfassung, bis er ausgeklungen ist (die Debug-Fassung setzt sie vor dem Menü auf 0; mit dem Menü klang der Ton aus, während es wartete, ohne Menü schnitt der Abbau des Titels ihn ab; gemeldet vom Projektinhaber, 17.10.2026) |
@@ -3739,6 +3811,8 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0073 `em2d.cpp`, `em32.cpp`, `sce_com.cpp`, `r100.cpp`, `r103.cpp`, `r307.cpp`, `r318.cpp`, `t_camera.cpp`, `t_camera_draw.cpp`, `t_esp.cpp`, `ss_pzzl.cpp` | 64 bit (M12): feste Byte-Abstände in Strukturen, deren Glieder auf LP64 wandern (`(u8*) pe + 0x378`), über `RE4_OFS(T, glied, gc)` (Prelude): der Abstand des Glieds, auf ILP32 beim Übersetzen gegen den GameCube-Wert geprüft. Kamera- und Effekt-Werkzeug über ihre Makros (`TC_TRG`, `FSTORE_AT`). **Auch 32 bit:** `ss_pzzl.cpp` las Zustand und Auswahl von Nachricht 1 an den MWCC-Abständen (vptr hinter den Feldern); im Port lagen dort `be_flag` und ein Byte von `m_selTbl`. Jetzt über `GetMesStatus(1)`/`GetSelectMessage(1)` |
 | 0074 `trans.cpp`, `emwindow.h`, `em3e.h`, `TexRender.cpp`, `light_area.cpp`, `objTrolley.cpp`, `r300.cpp`, `r30c.cpp`, `r310.cpp`, `r316.cpp`, `r317.cpp`, `r318.cpp`, `db_work.cpp` | 64 bit (M12): Sichten mit GameCube-Abständen (ein Füllfeld bis zu dem Glied, das sie benennen) über ein Objekt, dessen Grundklassen auf LP64 wachsen, erreichen das Glied jetzt über `RE4_OFS(T, glied, gc)` oder `sizeof` der Grundklasse (auf ILP32 der GameCube-Wert): Skelett (`cPartsWk` → `cParts::pList`), Fenster (`EmObjWork::eff`), `EmMarkView`, Lore (`FREE_EM10::Target_dir`), Ereignis-Kamera (`Event`-Glieder statt `TexRenderEvt`), Raketenwerfer (`cObjLauncher::pRocket`), r300/r30c/r310/r316/r317/r318, Objekt-Betrachter. `GxWork` und `SaveDataPtrs` stattdessen in `fixed_form.json`. Neu im Prelude: `RE4_OWN(B, T, gc)`, der Anfang der eigenen Arbeitsfläche hinter einer Grundklasse (auf LP64 in deren Füllbytes). Gefunden mit `cast_check.py` (jetzt auch C++) |
 | 0075 `event.cpp`, `ss_pzzl.cpp`, `ss_shop.cpp`, `eprintf.cpp`, `r332.cpp`, `r20d.cpp` | 64 bit (M12): Zeiger in 4-Byte-Plätzen. `EventMgr::GetRead` (Absturz beim Laden des Autofahrt-Ereignisses r120) und `Event::PFuncTbl` über eine Zeiger-Variable; die bin/tpl-Wörter von `ITEM_PIECE_INFO::model` als u32 geschrieben und gelesen; Debug-Textzeiger in 4-Byte-Plätzen (`RE4_P32`); r332-Makros und r20d mit Index statt GameCube-Byteabstand. Gefunden mit `ptr_slot_check.py` |
+| 0076 `db_log.cpp` | Die Spielmeldungen (`pLog->err/warn/mes`, auf dem GameCube Bildschirm und `printf`-Konsole) gehen über `re4_game_log` ins Protokoll des Ports: jede Meldung (nach ihrem Format) die ersten 3 Male, dann jedes 1000. Mal mit Zählung. Auf Android gab es keine Konsole, Meldungen wie „GetPrimBuff() : OVERFLOW“ gingen verloren |
+| 0077 `r117.cpp` | 64 bit (M12): Byte 0xF9 der Lichtstrahlen (Byte 1 der eigenen Arbeitsfläche hinter `cEsp`) über `RE4_OWN(cEsp, u8, 0xF8) + 1`; auf LP64 beginnt die Fläche bei 0x10C. Gefunden mit `raw_offset_check.py` (Abstände hinter dem Ende einer Struktur) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

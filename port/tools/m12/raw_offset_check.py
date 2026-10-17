@@ -308,7 +308,12 @@ def main():
             cover = [f for f in rfields if f[0] <= val < f[0] + max(f[1], 1)]
             if not cover:
                 if val >= rsize:
-                    continue  # past the record: a trailing array or the next object
+                    # past the record: a trailing array, the next object, or the own work of a
+                    # derived class, which on LP64 starts at the end of the record's data (tail
+                    # padding reused: cEm 0x49C of 0x4A0), not at its size
+                    bad.append(f"{where.split('/prepared/tree/')[-1]}: {spelling} + {val:#x}: past the record "
+                               f"({rsize:#x} bytes on ILP32, {lsize:#x} on LP64), check by hand")
+                    continue
                 bad.append(f"{where.split('/prepared/tree/')[-1]}: {spelling} + {val:#x}: no member there on ILP32")
                 continue
             off, size, member = cover[-1]

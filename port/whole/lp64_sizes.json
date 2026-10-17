@@ -5,7 +5,8 @@
     "RE4_LP64_SIZE(expr, lp64) (re4_whole_prelude.h): the GameCube value on ILP32, `lp64` on",
     "64 bit. `count` is the number of places; another number stops the build.",
     "Sizes from port/tools/m12/overlay_check.py (the largest class or work on LP64); `slot`",
-    "names the pool base class the check measures against the LP64 size."
+    "names the pool base class the check measures against the LP64 size. Heap blocks of a",
+    "fixed GameCube size and clears of a fixed length: port/tools/m12/alloc_size_check.py."
   ],
   "sizes": [
     {"files": ["include/em.h"], "text": "#define EM_WORK_SIZE 0xDE0", "expr": "0xDE0", "lp64": "0xF60",
@@ -29,6 +30,36 @@
     {"files": ["src/game/esp.cpp"], "text": "+= 0x150", "expr": "0x150", "lp64": "0x1A8", "count": 3,
      "slot": "cEsp", "why": "esp pool slot (EspArray), the walks over the pool"},
     {"files": ["src/game/esp.cpp"], "text": "memclr_asm(esp, 0x150)", "expr": "0x150", "lp64": "0x1A8", "count": 1,
-     "slot": "cEsp", "why": "esp pool slot (EspArray), cleared before reuse"}
+     "slot": "cEsp", "why": "esp pool slot (EspArray), cleared before reuse"},
+    {"files": ["src/*/*.cpp"], "text": "(ATTACH_CAMERA*) MEM_ALLOC(0x98,", "expr": "0x98",
+     "lp64": "sizeof(ATTACH_CAMERA)", "count": 12,
+     "why": "the attached camera of a model (MOTION_INFO::pAttachCam): 0xA0 bytes on LP64 (p_mat at 0x08); MotionMoveCore wrote its history past the block (heap cell broken, crash for a Ganado in r100, PC check 18.10.2026); port/tools/m12/alloc_size_check.py"},
+    {"files": ["src/game/mercenaries.cpp"], "text": "(ATTACH_CAMERA*) MEM_CALLOC(0x98,", "expr": "0x98",
+     "lp64": "sizeof(ATTACH_CAMERA)", "count": 1, "why": "the attached camera, as above"},
+    {"files": ["src/game/player.cpp"], "text": "(ATTACH_CAMERA*) PL_MEM_ALLOC(0x98,", "expr": "0x98",
+     "lp64": "sizeof(ATTACH_CAMERA)", "count": 1, "why": "the attached camera, as above"},
+    {"files": ["src/em32/em32.cpp"], "text": "(MOTION_INFO*) MEM_ALLOC(0xD0,", "expr": "0xD0",
+     "lp64": "sizeof(MOTION_INFO)", "count": 1, "why": "a second motion work: MOTION_INFO has 0xF0 bytes on LP64"},
+    {"files": ["src/em32/em32.cpp"], "text": "memclr_asm(w->pMot, 0xD0)", "expr": "0xD0",
+     "lp64": "sizeof(MOTION_INFO)", "count": 1, "why": "the same work, cleared"},
+    {"files": ["src/game/model.cpp"], "text": "memclr_asm(&Motion, 0xD0)", "expr": "0xD0",
+     "lp64": "sizeof(MOTION_INFO)", "count": 1,
+     "why": "cModel::cModel clears the motion work: on LP64 its last 0x20 bytes kept what the pool slot held before"},
+    {"files": ["src/game/player.cpp"], "text": "PL_MEM_ALLOC(0x1B4, 373)", "expr": "0x1B4", "lp64": "0x1B4 * 2",
+     "count": 1, "why": "the player's motion table: 0x6D pointers"},
+    {"files": ["src/game/player.cpp"], "text": "memclr_asm(m_MotTbl, 0x1B4)", "expr": "0x1B4", "lp64": "0x1B4 * 2",
+     "count": 1, "why": "the same table, cleared"},
+    {"files": ["src/game/player.cpp"], "text": "PL_MEM_ALLOC(0x30, 376)", "expr": "0x30", "lp64": "0x30 * 2",
+     "count": 1, "why": "the 12 registered-motion slots (pointers)"},
+    {"files": ["src/game/player.cpp"], "text": "memclr_asm(m_MotTbl2, 0x30)", "expr": "0x30", "lp64": "0x30 * 2",
+     "count": 1, "why": "the same slots, cleared"},
+    {"files": ["src/*/*.cpp"], "text": "(char**) Debug_alloc(num * 4, 1)", "expr": "num * 4",
+     "lp64": "num * sizeof(char*)", "count": 2,
+     "why": "debug file lists (ss_term.cpp, db_filelist.cpp): one pointer per line"},
+    {"files": ["src/t_light/t_scroll.cpp"], "text": "(char**) Debug_alloc(1000, 1)", "expr": "1000",
+     "lp64": "2000", "count": 1, "why": "debug scroll tool: 250 name pointers"},
+    {"files": ["src/st2/r209.cpp"], "text": "memclr_asm(e->path, 0x14)", "expr": "0x14", "lp64": "sizeof(e->path)",
+     "count": 4,
+     "why": "the 5 way point pointers of a Ganado (0 terminated): on LP64 the last two kept old addresses"}
   ]
 }

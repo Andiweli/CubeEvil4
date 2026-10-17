@@ -1,0 +1,21 @@
+# 64-bit build (milestone 12, way A): the own work of a class derived from a
+# pool base reached through a byte offset. On the GameCube it starts at the
+# size of the base; on LP64 at the end of the base's data, which is before
+# its size when the base ends in padding (cEsp: 0x10C of 0x110, cEm: 0x49C of
+# 0x4A0; RE4_OWN in re4_whole_prelude.h). Found with
+# port/tools/m12/raw_offset_check.py (offsets past the end of the record).
+# - r117.cpp: the light beams are done when bit 2 of byte 0xF9 is set.
+# (esp_sub.cpp's spline sprite, the same case, is patch 0040.)
+--- a/src/st1/r117.cpp
++++ b/src/st1/r117.cpp
+@@ -89,7 +89,9 @@
+ {
+     int on = 0;
+ 
+-    if (((u8*) esp)[0xF9] & 4) {
++    // port: patch 0077, byte 1 of the beam's own work (0xF9 on the GameCube; LP64: cEsp's data
++    // ends at 0x10C, where the derived work starts, tail padding reused)
++    if (((u8*) esp)[RE4_OWN(cEsp, u8, 0xF8) + 1] & 4) {
+         on = 1;
+     }
+     return on;

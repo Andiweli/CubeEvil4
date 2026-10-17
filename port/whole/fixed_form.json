@@ -7,7 +7,11 @@
     "of the format converters, port/whole/runtime/formats) and the save image header.",
     "Each listed structure must have at least one pointer member. GxWork (trans.cpp: its prim",
     "pointer is pG->prim_base) and SaveDataPtrs (card.cpp: a view of SAVE_DATA_HEAD) are views",
-    "of GameCube-form data (patch 0074)."
+    "of GameCube-form data (patch 0074). OtData / OtPrim (trans_ot.h) are the draw order",
+    "entries in the frame's prim buffer: GetPrimBuff hands out 32-byte steps out of a room",
+    "budget made for the GameCube form (0x14 bytes, one step); with 8-byte pointers an entry",
+    "takes two steps, the budget runs out and the last draws of a frame (far trees, the car",
+    "window's mirror picture in r120) are dropped."
   ],
   "structs": {
     "include/tpl.h": ["CLUTHeader", "TEXHeader", "TEXDescriptor", "TEXPalette"],
@@ -20,6 +24,7 @@
     "include/game.h": ["SAVE_DATA_HEAD"],
     "include/dolphin/os/OSModule.h": ["OSModuleLink"],
     "src/game/trans.cpp": ["GxWork"],
-    "src/game/card.cpp": ["SaveDataPtrs"]
+    "src/game/card.cpp": ["SaveDataPtrs"],
+    "include/trans_ot.h": ["OtData", "OtPrim"]
   }
 }

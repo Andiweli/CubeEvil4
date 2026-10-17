@@ -1,6 +1,6 @@
 --- a/src/game/esp_sub.cpp
 +++ b/src/game/esp_sub.cpp
-@@ -1507,7 +1507,13 @@
+@@ -1507,7 +1507,15 @@
      static Vec p2;
      static Vec p3;
      static Vec ret;
@@ -9,9 +9,11 @@
 +    // &pad_EC[0xC] is the end of cEsp, where cEsp1b's work begins; with the
 +    // vptr first (the port's compilers) that address is 4 bytes into the work
 +    // and `div` read a float of it (millions of quads, the GX stream lost its
-+    // place and the decoder crashed on the Retroid). The end of cEsp is the
-+    // same place in both layouts.
-+    Esp1bSpWork* w = (Esp1bSpWork*) ((u8*) esp + sizeof(cEsp));
++    // place and the decoder crashed on the Retroid). The start of the derived
++    // work is the same place in both layouts: the end of cEsp on ILP32; on
++    // LP64 the end of its data, 0x10C of 0x110 (tail padding reused, the
++    // 64-bit run on the Retroid 17.10.2026 hung the same way), RE4_OWN.
++    Esp1bSpWork* w = (Esp1bSpWork*) ((u8*) esp + RE4_OWN(cEsp, Esp1bSpWork, 0xF8));
      u32 div;
      u32 i;
      u32 j;
