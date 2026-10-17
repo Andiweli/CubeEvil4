@@ -3370,6 +3370,21 @@ achten auf: `st1/r101.das` Eintrag #24 `EVS` (32 Bytes) meldet „conversion
 incomplete“ (wohl ein leeres Ereignis), dazu die bekannten Kürzel ohne
 Umwandler `DRA` und `FNT`.
 
+### Bildfolge am Anfang (Frage des Projektinhabers, 17.10.2026)
+
+Kein Film: `title.cpp` lädt `SS/<sprache>/title.dat` (Archiv mit
+Inhaltsverzeichnis), meldet dessen Bilddaten an (Eintrag 4, EFF-Form) und
+spielt eine Anordnung des Bildschirm-Systems (Eintrag 6, mit allem
+Freigeschalteten 7) über einen Bildzähler ab: Gesundheitshinweis ab Bild 0,
+Capcom ab 105, CRI ab 230, Dolby ab 330, Titel ab 585, Menü ab 615
+(`include/title.h`); das Nintendo-Logo ist Anordnung 0xB. Jedes Logo lässt
+sich nach `TTL_CANCEL_*` mit START überspringen. Ob ein Logo ein eigenes
+Bild über schwarzem Grund oder ein ganzes Bildschirmbild ist, zeigt
+`port/tools/title_images.py` mit den Disc-Daten: es schreibt jedes Bild als
+PNG und listet je Anordnung, welches Bild wo und wie groß in welchen Bildern
+des Zählers steht (getestet mit einem nachgebauten Archiv; mit den echten
+Daten noch nicht gelaufen).
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -3511,7 +3526,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0040 `esp_sub.cpp` | `Esp1b_SpTrans` findet die Daten von `cEsp1b` über `sizeof(cEsp)` statt über `&pad_EC[0xC]`: MWCC legt den vptr ans Ende von `cEsp`, die Compiler des Ports an den Anfang; vorher las es die Punktzahl 4 Bytes daneben (Absturz im GX-Decoder auf dem Retroid nach 153 s) |
 | 0041 `at_sub.cpp`, `atari.cpp`, `card.cpp` | Das Attributwort einer Kollisionsfläche (`SAT_POLY::m_Status`) wird als Wort gelesen statt als zwei Halbwörter in GameCube-Reihenfolge (vorher vertauschte Hälften: Zäune als Fallkanten, Wände ohne Kollision, Boden als Wasser); `CardID::save` liest `nPoint` als Wert statt Byte 3 |
 | 0042 `src/lib/GXGeometry.c` | `GXSetCullMode` übernimmt das Ergebnis von `__rlwimi` (`hwMode = __rlwimi(...)`): MWCC fügt bei diesem Befehl in den ersten Operanden ein, die C-Fassung des Ports gibt das Ergebnis zurück und die Zeile verwarf es. Aus `GX_CULL_FRONT` (Standard aller Modelle) wurde „keine Rückseiten weglassen“: alles wurde beidseitig gezeichnet, die Doppelschichten von Leons Haar verdeckten sich gegenseitig (dunkle Flecken) |
-| 0043 `title.cpp` | Das Debug-Startmenü nach „New Game“ (`titleExit`, Raumauswahl) meldet sich bei der Laufzeit an (`re4_title_room_menu`, runtime/dolphin_os.cpp): solange es offen ist, lässt die Debug-Anzeigen-Sperre der App (`RE4_DEBUG_HUD=0`) `debug_mode` mindestens 1, damit seine Zeilen (Debug-Text) zu sehen sind; `RE4_ROOM_MENU=0` überspringt es wie ein sofortiges A |
+| 0043 `title.cpp` | Das Debug-Startmenü nach „New Game“ (`titleExit`, Raumauswahl) meldet sich bei der Laufzeit an (`re4_title_room_menu`, runtime/dolphin_os.cpp): solange es offen ist, lässt die Debug-Anzeigen-Sperre der App (`RE4_DEBUG_HUD=0`) `debug_mode` mindestens 1, damit seine Zeilen (Debug-Text) zu sehen sind; `RE4_ROOM_MENU=0` überspringt es wie ein sofortiges A. Übersprungen behält der „New Game“-Ton seine Kennung: das Ende von `titleExit` wartet wie in der Verkaufsfassung, bis er ausgeklungen ist (die Debug-Fassung setzt sie vor dem Menü auf 0; mit dem Menü klang der Ton aus, während es wartete, ohne Menü schnitt der Abbau des Titels ihn ab; gemeldet vom Projektinhaber, 17.10.2026) |
 | 0044 `cam_ctrl.cpp` | `CameraControl::roomInit` füllt den Platz für Kamera-Objekte (`m_Free`, Muster 9) vor `Check()` statt danach: `Check()` kann dort die Fall-Kamera bauen, deren vtable-Zeiger das Füllen sonst überschrieb; der nächste Kamera-Schnitt (`switchCamera` → `delete m_pProc`) stürzte ab (Direktstart von r100, Totenköpfe untersuchen) |
 | 0045 `snd.cpp` | `SndSoftReset` wartet auf die Bestätigung des Ton-Resets durch die Abspieler im Audio-Interrupt; die Warteschleife ruft `re4_wait_interrupt()` (runtime/vi.cpp), damit der Port die Interrupts ausliefert (vorher Stillstand beim Soft-Reset nach dem Tod, schwarzer Bildschirm) |
 | 0046 `include/cam_extra.h` | `~cCamera` übergibt das Objekt an `re4_keep_vtable` (runtime/dolphin_os.cpp, tut nichts), damit clang den vtable-Zeiger von `cCamera` wieder schreibt, nachdem der Destruktor einer Unterklasse das Objekt mit Muster 9 gefüllt hat; `move()` hat einen leeren Rumpf statt rein virtuell zu sein, weil clang den löschenden Destruktor einer abstrakten Klasse als Haltebefehl erzeugt. `CameraControl` löscht eine beendete Kamera ein zweites Mal (`m_pProc` bleibt gesetzt); mit GCC 2.95 harmlos, mit clang Absturz 0x0909090d (Sprung aus dem Fenster, Totenköpfe) |

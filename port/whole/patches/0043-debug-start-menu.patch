@@ -8,13 +8,20 @@
  
  void titleExit(TITLE_WORK* w)
  {
-@@ -1371,10 +1372,13 @@
+@@ -1370,11 +1371,19 @@
+                 w->load_no = 1;
                  w->menu_x = 340;
                  w->menu_y = 60;
-                 w->se_id = 0;
+-                w->se_id = 0;
 -                while (!(Joy[0].trg & 0x1100)) {
 +                /* port: the debug start menu (room selection); its text needs debug_mode, which the
-+                   app clears (RE4_DEBUG_HUD=0) except while it is open; RE4_ROOM_MENU=0 skips it */
++                   app clears (RE4_DEBUG_HUD=0) except while it is open; RE4_ROOM_MENU=0 skips it.
++                   Skipped, the "new game" sound keeps its id: the end of titleExit waits for it,
++                   as the retail game does (with the menu it has played out while the menu waited;
++                   without the wait the title's teardown cut it off) */
++                if (re4_title_room_menu(1)) {
++                    w->se_id = 0;
++                }
 +                while (re4_title_room_menu(1) && !(Joy[0].trg & 0x1100)) {
                      titleDebugMenu(w);
                      TaskSleep(1);
