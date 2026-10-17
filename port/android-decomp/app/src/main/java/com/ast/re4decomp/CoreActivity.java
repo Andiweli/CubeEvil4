@@ -157,6 +157,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     root.addView(fpsView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,
         FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START));
     showFps(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("fps", false));
+    if (startProblem.isEmpty()) CoreBridge.setDof(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("dof", true));
     setContentView(root);
     surface.setFocusable(true);
     surface.requestFocus();
@@ -173,9 +174,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private void showStartProblem() {
     if (destroyed) return;
     new AlertDialog.Builder(this)
-        .setMessage(CoreMenu.t("Der Spielkern ist nicht gestartet:\n", "The game core did not start:\n") + startProblem)
-        .setPositiveButton(CoreMenu.t("Bericht senden", "Send report"), (d, w) -> shareReport())
-        .setNegativeButton(CoreMenu.t("Beenden", "Quit"), (d, w) -> quit())
+        .setMessage("The game core did not start:\n" + startProblem)
+        .setPositiveButton("Send report", (d, w) -> shareReport())
+        .setNegativeButton("Quit", (d, w) -> quit())
         .setCancelable(false).show();
   }
 
@@ -272,10 +273,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   }
 
   private void askExit() {
-    new AlertDialog.Builder(this).setMessage(CoreMenu.t("Spiel beenden? (Nicht gespeicherter Fortschritt geht verloren.)",
-        "End the game? (Progress not saved is lost.)"))
-        .setPositiveButton(CoreMenu.t("Beenden", "End"), (d, w) -> quit())
-        .setNegativeButton(CoreMenu.t("Weiterspielen", "Continue"), null).show();
+    new AlertDialog.Builder(this).setMessage("End the game? (Progress not saved is lost.)")
+        .setPositiveButton("End", (d, w) -> quit())
+        .setNegativeButton("Continue", null).show();
   }
 
   private void quit() {
@@ -292,7 +292,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     if (!selectDown || menu != null) return;
     selectHeld = true;
     if (!menuSupported) {
-      Toast.makeText(this, CoreMenu.t("Dieser Spielkern kennt das Debug-Menü noch nicht", "This core has no debug menu yet"),
+      Toast.makeText(this, "This core has no debug menu yet",
           Toast.LENGTH_SHORT).show();
       return;
     }
@@ -304,7 +304,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private void openMenu() {
     if (menu != null || destroyed) return;
     if (!menuSupported) {
-      Toast.makeText(this, CoreMenu.t("Dieser Spielkern hat noch kein Menü", "This core has no menu yet"),
+      Toast.makeText(this, "This core has no menu yet",
           Toast.LENGTH_SHORT).show();
       return;
     }
@@ -371,7 +371,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     try {
       startActivityForResult(intent, request);
     } catch (android.content.ActivityNotFoundException e) {
-      Toast.makeText(this, CoreMenu.t("Keine Dateiauswahl auf diesem Gerät", "No file picker on this device"),
+      Toast.makeText(this, "No file picker on this device",
           Toast.LENGTH_LONG).show();
     }
   }
@@ -388,14 +388,14 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       if (request == REQUEST_EXPORT && data.getData() != null) {
         byte[] gci = CoreBridge.cardExport(exportIndex);
         if (gci == null) {
-          message(CoreMenu.t("Export nicht möglich: ", "Export failed: ") + CoreBridge.cardNote());
+          message("Export failed: " + CoreBridge.cardNote());
           return;
         }
         try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
           if (out == null) throw new IOException("no stream");
           out.write(gci);
         }
-        Toast.makeText(this, CoreMenu.t("Exportiert", "Exported"), Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Exported", Toast.LENGTH_SHORT).show();
       } else if (request == REQUEST_EXPORT_ALL && data.getData() != null) {
         exportAllInto(data.getData());
       } else if (request == REQUEST_IMPORT) {
@@ -411,11 +411,11 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
           if (out == null) throw new IOException("no stream");
           CoreLog.writeReport(this, out, settings, reportExtras());
         }
-        Toast.makeText(this, CoreMenu.t("Bericht gespeichert", "Report saved"), Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Report saved", Toast.LENGTH_SHORT).show();
       }
     } catch (IOException | RuntimeException e) {
       Log.w(TAG, "menu: " + e);
-      message(CoreMenu.t("Das hat nicht geklappt: ", "That did not work: ") + e.getMessage());
+      message("That did not work: " + e.getMessage());
     }
   }
 
@@ -423,7 +423,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private void exportAllInto(Uri tree) throws IOException {
     String[] rows = CoreBridge.cardList();
     if (rows == null) {
-      message(CoreMenu.t("Die Karte ist gerade nicht lesbar.", "The card cannot be read now."));
+      message("The card cannot be read now.");
       return;
     }
     Uri folder = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
@@ -445,7 +445,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       }
       done++;
     }
-    message(String.format(java.util.Locale.ROOT, CoreMenu.t("%d Dateien exportiert.", "%d files exported."), done)
+    message(String.format(java.util.Locale.ROOT, "%d files exported.", done)
         + problems);
   }
 
@@ -453,7 +453,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     try (InputStream in = getContentResolver().openInputStream(uri)) {
       if (in == null) throw new IOException(String.valueOf(uri));
       byte[] gci = CoreLog.readAll(in);
-      if (gci.length > 4 << 20) throw new IOException(CoreMenu.t("zu groß für eine .gci", "too big for a .gci"));
+      if (gci.length > 4 << 20) throw new IOException("too big for a .gci");
       pendingImports.add(gci);
     }
   }
@@ -469,12 +469,12 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   /** What became of an import, in the menu's language. */
   private static String importText(int r, String name) {
     switch (r) {
-      case CoreBridge.CARD_OK: return CoreMenu.t("Importiert: ", "Imported: ") + name;
-      case CoreBridge.CARD_NOSPACE: return CoreMenu.t("Kein Platz auf der Karte für ", "No space on the card for ") + name;
-      case CoreBridge.CARD_BUSY: return CoreMenu.t("Die Karte wird gerade vom Spiel benutzt: ", "The game uses the card: ") + name;
-      case CoreBridge.CARD_NOCARD: return CoreMenu.t("Keine Speicherkarte: ", "No memory card: ") + name;
+      case CoreBridge.CARD_OK: return "Imported: " + name;
+      case CoreBridge.CARD_NOSPACE: return "No space on the card for " + name;
+      case CoreBridge.CARD_BUSY: return "The game uses the card: " + name;
+      case CoreBridge.CARD_NOCARD: return "No memory card: " + name;
       default:
-        return CoreMenu.t("Keine Datei dieses Spiels oder beschädigt: ", "Not a file of this game, or damaged: ") + name
+        return "Not a file of this game, or damaged: " + name
             + " (" + CoreBridge.cardNote() + ")";
     }
   }
@@ -492,14 +492,14 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     Log.i(TAG, "import " + name + ": " + r + " " + CoreBridge.cardNote());
     if (r == CoreBridge.CARD_EXISTS) {
       new AlertDialog.Builder(this)
-          .setMessage(name + CoreMenu.t(" ist schon auf der Karte. Ersetzen?", " is on the card already. Replace it?"))
-          .setPositiveButton(CoreMenu.t("Ersetzen", "Replace"), (d, w) -> {
+          .setMessage(name + " is on the card already. Replace it?")
+          .setPositiveButton("Replace", (d, w) -> {
             int again = CoreBridge.cardImport(gci, true);
             Log.i(TAG, "import " + name + " (replace): " + again + " " + CoreBridge.cardNote());
             report.append(importText(again, name)).append('\n');
             importNext(report);
           })
-          .setNegativeButton(CoreMenu.t("Überspringen", "Skip"), (d, w) -> importNext(report))
+          .setNegativeButton("Skip", (d, w) -> importNext(report))
           .setCancelable(false).show();
       return;
     }
@@ -508,7 +508,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   }
 
   private String reportName() {
-    return "re4-bericht-" + new SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(new Date()) + ".zip";
+    return "re4-report-" + new SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(new Date()) + ".zip";
   }
 
   /** The card's file list (without the saves themselves) for the report. */
@@ -538,10 +538,10 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       Intent send = new Intent(Intent.ACTION_SEND).setType("application/zip").putExtra(Intent.EXTRA_STREAM, uri)
           .putExtra(Intent.EXTRA_SUBJECT, "RE4 Kern: " + zip.getName()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
       send.setClipData(ClipData.newRawUri(zip.getName(), uri));
-      startActivity(Intent.createChooser(send, CoreMenu.t("Fehlerbericht senden", "Send the error report")));
+      startActivity(Intent.createChooser(send, "Send the error report"));
     } catch (IOException | RuntimeException e) {
       Log.w(TAG, "report: " + e);
-      message(CoreMenu.t("Der Bericht ließ sich nicht erstellen: ", "The report could not be made: ") + e.getMessage());
+      message("The report could not be made: " + e.getMessage());
     }
   }
 

@@ -19,7 +19,7 @@ import java.io.FileNotFoundException;
  */
 public final class ReportProvider extends ContentProvider {
   static File folder(Context c) {
-    File dir = new File(c.getCacheDir(), "bericht");
+    File dir = new File(c.getCacheDir(), "report");
     if (!dir.isDirectory()) dir.mkdirs();
     return dir;
   }

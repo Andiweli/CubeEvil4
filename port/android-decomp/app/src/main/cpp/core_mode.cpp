@@ -61,6 +61,7 @@ struct CoreApi {
   // optional (cores since M11): the app's menu
   int (*pause)(int, int){};
   void (*debugMenu)(void){};
+  void (*setDof)(int){};
   int (*cardList)(Re4CardFile *, int){};
   int (*cardFree)(void){};
   int (*cardName)(int, char *, int){};
@@ -106,6 +107,7 @@ void loadCore() {
   api.vsync = reinterpret_cast<void (*)(int64_t)>(dlsym(api.main, "re4_core_vsync"));
   api.pause = reinterpret_cast<int (*)(int, int)>(dlsym(api.main, "re4_core_pause"));
   api.debugMenu = reinterpret_cast<void (*)(void)>(dlsym(api.main, "re4_core_debug_menu"));
+  api.setDof = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_set_dof"));
   api.cardList = reinterpret_cast<int (*)(Re4CardFile *, int)>(dlsym(api.main, "re4_core_card_list"));
   api.cardFree = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_card_free_blocks"));
   api.cardName = reinterpret_cast<int (*)(int, char *, int)>(dlsym(api.main, "re4_core_card_file_name"));
@@ -798,6 +800,11 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_ast_re4decomp_CoreBridge_pause(JN
 
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_debugMenu(JNIEnv *, jclass) {
   if (api.debugMenu) api.debugMenu();
+}
+
+// The depth of field switch of the menu (cores since 17.10.2026; older ones keep it on).
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setDof(JNIEnv *, jclass, jboolean on) {
+  if (api.setDof) api.setDof(on ? 1 : 0);
 }
 
 std::mutex cardLock;

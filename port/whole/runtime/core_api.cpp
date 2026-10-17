@@ -567,6 +567,24 @@ void re4_core_debug_menu(void)
     re4_log("core: debug menu asked for (SELECT held)");
 }
 
+// The app's depth of field switch (M11, wish of the project owner,
+// 17.10.2026; the first Android port had it): patch 0065 (src/game/
+// filter01.cpp Filter01Trans) asks every frame
+volatile int gDofOn = 1;
+
+void re4_core_set_dof(int on)
+{
+    if (gDofOn != (on != 0)) {
+        re4_log("core: depth of field %s", on ? "on" : "off");
+    }
+    gDofOn = on != 0;
+}
+
+int re4_dof_enabled(void)
+{
+    return gDofOn;
+}
+
 // patch 0061 (src/game/game.cpp gameDebug), every game frame
 int re4_debug_menu_request(void)
 {

@@ -231,6 +231,11 @@ unsigned re4_core_player_hits(void);
 int re4_core_pause(int on, int waitMs);
 /* The game's debug menu at its next frame (SELECT held, patch 0061). */
 void re4_core_debug_menu(void);
+/* The depth of field (filter01.cpp, patch 0065): on = 0 draws no blur in
+ * front of / behind the focus, as the app's menu switch asks; on by
+ * default. re4_dof_enabled is what the patched game code reads. */
+void re4_core_set_dof(int on);
+int re4_dof_enabled(void);
 /* Game frames so far (one per PADRead) and the game's host thread id: the
  * app notices a game that stands without a pause and samples where it is. */
 unsigned re4_core_frame_count(void);

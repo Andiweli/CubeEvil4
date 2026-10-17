@@ -44,14 +44,6 @@ final class CoreMenu extends Dialog {
     void fpsChanged(boolean on);
   }
 
-  static boolean german() {
-    return "de".equals(Locale.getDefault().getLanguage());
-  }
-
-  static String t(String de, String en) {
-    return german() ? de : en;
-  }
-
   private final Host host;
   private final SharedPreferences graphics;
   private final boolean tools;
@@ -187,59 +179,64 @@ final class CoreMenu extends Dialog {
     title.setGravity(Gravity.CENTER_HORIZONTAL);
     body.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.WRAP_CONTENT));
-    body.addView(text(t("SELECT: dieses Menü  ·  SELECT 1 Sekunde halten: Debug-Menü des Spiels  ·  B: zurück zum Spiel",
-        "SELECT: this menu  ·  hold SELECT for a second: the game's debug menu  ·  B: back to the game"), 13, false));
+    TextView intro = text("SELECT: this menu  ·  hold SELECT for a second: the game's debug menu  ·  B: back to the game",
+        13, false);
+    intro.setGravity(Gravity.CENTER_HORIZONTAL);
+    body.addView(intro, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT));
 
-    heading(t("Grafik", "Graphics"));
+    heading("Graphics");
     int[] info = CoreBridge.graphicsInfo();
     int maxSamples = info != null ? info[0] : 0, maxAnisotropy = info != null ? info[1] : 0;
-    firstChoice = choices(t("Auflösung", "Resolution"), "scale", new String[] {"Auto", "1×", "2×", "3×", "4×"},
+    firstChoice = choices("Resolution", "scale", new String[] {"Auto", "1×", "2×", "3×", "4×"},
         new int[] {0, 1, 2, 3, 4}, 0, 0);
-    choices(t("Kantenglättung", "Anti-aliasing"), "samples", new String[] {t("Aus", "Off"), "2× MSAA", "4× MSAA"},
+    choices("Anti-aliasing", "samples", new String[] {"Off", "2× MSAA", "4× MSAA"},
         new int[] {1, 2, 4}, 1, maxSamples);
-    choices(t("Texturfilter", "Texture filter"), "anisotropy", new String[] {t("Aus", "Off"), "2×", "4×", "8×", "16×"},
+    choices("Texture filter", "anisotropy", new String[] {"Off", "2×", "4×", "8×", "16×"},
         new int[] {1, 2, 4, 8, 16}, 1, maxAnisotropy);
-    choices(t("Bildformat", "Picture"), "aspect", new String[] {"16:9", t("4:3 (Original)", "4:3 (original)")},
+    choices("Picture", "aspect", new String[] {"16:9", "4:3 (original)"},
         new int[] {0, 1}, 0, 0);
     LinearLayout fpsRow = new LinearLayout(getContext());
-    checkBox(fpsRow, t("FPS-Anzeige unten links", "FPS display bottom left"), graphics.getBoolean("fps", false),
+    checkBox(fpsRow, "FPS display bottom left", graphics.getBoolean("fps", false),
         (b, on) -> {
           graphics.edit().putBoolean("fps", on).apply();
           host.fpsChanged(on);
+        });
+    checkBox(fpsRow, "Depth of field", graphics.getBoolean("dof", true),
+        (b, on) -> {
+          graphics.edit().putBoolean("dof", on).apply();
+          CoreBridge.setDof(on);
         });
     body.addView(fpsRow);
     graphicsLine = text("", 12, false);
     body.addView(graphicsLine);
     showGraphics();
 
-    heading(t("Speicherkarte (Steckplatz A)", "Memory card (slot A)"));
+    heading("Memory card (slot A)");
     cardLine = text("", 13, false);
     body.addView(cardLine);
-    body.addView(text(t("Spielstände als .gci – für Dolphin und (mit einem Kopierprogramm wie GCMM) für den GameCube.",
-        "Saves as .gci – for Dolphin and (with a copy tool such as GCMM) for the GameCube."), 12, false));
+    body.addView(text("Saves as .gci – for Dolphin and (with a copy tool such as GCMM) for the GameCube.", 12, false));
     cardFiles = new LinearLayout(getContext());
     cardFiles.setOrientation(LinearLayout.VERTICAL);
     body.addView(cardFiles);
     LinearLayout cardButtons = new LinearLayout(getContext());
-    exportAll = button(cardButtons, t("Alle exportieren …", "Export all …"), v -> host.exportAll());
-    button(cardButtons, t("Importieren (.gci) …", "Import (.gci) …"), v -> host.importFiles());
+    exportAll = button(cardButtons, "Export all …", v -> host.exportAll());
+    button(cardButtons, "Import (.gci) …", v -> host.importFiles());
     body.addView(cardButtons);
     refreshCard();
 
-    heading(t("Fehlerprotokoll", "Error log"));
-    body.addView(text(t("Zeichnet auf, was die App meldet (auch bei einem Absturz oder Hänger). Der Bericht enthält das "
-        + "Protokoll dieses und des letzten Laufs und Angaben zum Gerät, keine Spielstände.",
-        "Records what the app reports (also when it crashes or hangs). The report holds the log of this run and the "
-        + "one before and the device's data, no saves."), 12, false));
+    heading("Error log");
+    body.addView(text("Records what the app reports (also when it crashes or hangs). The report holds the log of this "
+        + "run and the one before and the device's data, no saves.", 12, false));
     LinearLayout checks = new LinearLayout(getContext());
-    checkBox(checks, t("Fehlerprotokoll aufzeichnen", "Record the error log"), CoreLog.enabled(getContext()),
+    checkBox(checks, "Record the error log", CoreLog.enabled(getContext()),
         (b, on) -> host.logChanged(on));
-    checkBox(checks, t("R3: Grafik-Aufnahme (Fehlersuche)", "R3: graphics capture (diagnosis)"), tools,
+    checkBox(checks, "R3: graphics capture (diagnosis)", tools,
         (b, on) -> host.toolsChanged(on));
     body.addView(checks);
     LinearLayout reportButtons = new LinearLayout(getContext());
-    button(reportButtons, t("Bericht senden …", "Send report …"), v -> host.shareReport());
-    button(reportButtons, t("Bericht speichern …", "Save report …"), v -> host.saveReport());
+    button(reportButtons, "Send report …", v -> host.shareReport());
+    button(reportButtons, "Save report …", v -> host.saveReport());
     body.addView(reportButtons);
   }
 
@@ -251,10 +248,8 @@ final class CoreMenu extends Dialog {
       scale = Math.max(1, Math.min(3, (rows + 168) / 336));
     }
     boolean original = graphics.getInt("aspect", 0) == 1;
-    graphicsLine.setText(String.format(Locale.ROOT, t("Auflösung: %d × %d Bildpunkte (Stufe %d%s) · Bildschirm %d × %d · "
-        + "gilt nach dem Schließen des Menüs. Höhere Stufen brauchen mehr Leistung.",
-        "Resolution: %d × %d pixels (level %d%s) · screen %d × %d · applies when the menu closes. Higher levels need "
-        + "more power."), 640 * scale, (original ? 448 : 336) * scale, scale, chosen == 0 ? ", Auto" : "",
+    graphicsLine.setText(String.format(Locale.ROOT, "Resolution: %d × %d pixels (level %d%s) · screen %d × %d · "
+        + "applies when the menu closes. Higher levels need more power.", 640 * scale, (original ? 448 : 336) * scale, scale, chosen == 0 ? ", Auto" : "",
         screenWidth, screenHeight));
   }
 
@@ -264,22 +259,21 @@ final class CoreMenu extends Dialog {
     String[] rows = CoreBridge.cardList();
     if (rows == null) {
       boolean busy = "busy".equals(CoreBridge.cardNote());
-      cardLine.setText(busy ? t("Die Karte ist gerade in Benutzung (Speichern/Laden des Spiels) oder das Spiel lädt "
-          + "noch – das Menü schließen und gleich noch einmal öffnen.", "The card is in use (the game saves or loads) "
-          + "or the game is still loading – close the menu and open it again in a moment.")
-          : t("Keine Speicherkarte.", "No memory card."));
+      cardLine.setText(busy ? "The card is in use (the game saves or loads) or the game is still loading – close the "
+          + "menu and open it again in a moment."
+          : "No memory card.");
       exportAll.setEnabled(false);
       return;
     }
     int free = CoreBridge.cardFreeBlocks();
-    cardLine.setText(String.format(Locale.ROOT, t("%d Dateien, %d von 251 Blöcken frei.", "%d files, %d of 251 blocks free."),
+    cardLine.setText(String.format(Locale.ROOT, "%d files, %d of 251 blocks free.",
         rows.length, Math.max(0, free)));
     exportAll.setEnabled(rows.length > 0);
     for (String row : rows) {
       final String[] f = row.split("\t", -1);
       if (f.length < 16) continue;
       final int index = Integer.parseInt(f[0]);
-      button(cardFiles, describe(f) + "  –  " + t("exportieren", "export"), v -> {
+      button(cardFiles, describe(f) + "  –  " + "export", v -> {
         String name = CoreBridge.cardFileName(index);
         host.exportFile(index, name != null ? name : f[1] + ".gci");
       });
@@ -291,7 +285,7 @@ final class CoreMenu extends Dialog {
     String name = f[1];
     boolean intact = "1".equals(f[4]);
     if ("bh4_system".equals(name)) {
-      return t("Systemdatei (Optionen)", "System file (options)") + (intact ? "" : t(" – beschädigt", " – damaged"));
+      return "System file (options)" + (intact ? "" : " – damaged");
     }
     if ("1".equals(f[3])) {
       int no = 0;
@@ -301,16 +295,12 @@ final class CoreMenu extends Dialog {
         no = 0;
       }
       int room = Integer.parseInt(f[5]), play = Integer.parseInt(f[8]);
-      String date = german()
-          ? String.format(Locale.ROOT, "%02d.%02d.%04d %02d:%02d", Integer.parseInt(f[11]), Integer.parseInt(f[10]),
-              Integer.parseInt(f[9]), Integer.parseInt(f[12]), Integer.parseInt(f[13]))
-          : String.format(Locale.ROOT, "%04d-%02d-%02d %02d:%02d", Integer.parseInt(f[9]), Integer.parseInt(f[10]),
-              Integer.parseInt(f[11]), Integer.parseInt(f[12]), Integer.parseInt(f[13]));
-      return String.format(Locale.ROOT, t("Datei %02d · r%03x · Spielzeit %d:%02d:%02d · %s%s",
-          "File %02d · r%03x · play time %d:%02d:%02d · %s%s"), no, room, play / 3600, play / 60 % 60, play % 60, date,
-          intact ? "" : t(" – beschädigt", " – damaged"));
+      String date = String.format(Locale.ROOT, "%04d-%02d-%02d %02d:%02d", Integer.parseInt(f[9]),
+          Integer.parseInt(f[10]), Integer.parseInt(f[11]), Integer.parseInt(f[12]), Integer.parseInt(f[13]));
+      return String.format(Locale.ROOT, "File %02d · r%03x · play time %d:%02d:%02d · %s%s", no, room, play / 3600, play / 60 % 60, play % 60, date,
+          intact ? "" : " – damaged");
     }
-    return name + " (" + f[2] + t(" Blöcke)", " blocks)");
+    return name + " (" + f[2] + " blocks)";
   }
 
   @Override protected void onStart() {

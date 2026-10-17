@@ -29,6 +29,8 @@ Debug-Menue); sobald der Raum laedt, endet die Tastenfolge und dein Controller
 steuert. Der Vorfilm (movie/opening.sfd) laeuft seit Meilenstein 9 wie im Original
 mit Bild und Ton; START ueberspringt ihn (laut Originalcode entfaellt dann auch die
 Autofahrt). Fuer Film, Autofahrt und Ankunft in r100 reichen etwa -Seconds 480.
+-WeaponTrace schreibt beim Nachladen jedes Bild eine Zeile ins Protokoll (Zustand
+und Bewegung von Leon und Waffe, Munition, R-Taste; fuer die Nachlade-Suche).
 -StartRoom 100 springt direkt nach r100 (nur die kurze Ankunft). -Manual
 startet ohne Tastenfolge (Titelbild, du spielst selbst); dann beobachtet das
 Skript 30 Minuten statt 240 s (Taste Q beendet frueher, -Seconds legt die Zeit
@@ -150,7 +152,8 @@ param(
     [int]$AudioWav = 0,
     [switch]$NewCard,
     [switch]$BlankCard,
-    [switch]$SaveTest
+    [switch]$SaveTest,
+    [switch]$WeaponTrace
 )
 $ErrorActionPreference = 'Stop'
 # -Manual: you play yourself, 30 minutes unless -Seconds is given (Q ends earlier)
@@ -360,6 +363,10 @@ if ($AudioWav -gt 0) {
     $settings = if ($settings) { "$settings;$wavSetting" } else { $wavSetting }
 }
 # the app's tools for the test: R3 saves graphics data (otherwise only with the menu's switch)
+if ($WeaponTrace) {
+    # every frame with the weapon in hand: the player's and the weapon's state, ammo, R trigger (state_trace.cpp)
+    $settings = if ($settings) { "$settings;RE4_TRACE_WEAPON=1" } else { 'RE4_TRACE_WEAPON=1' }
+}
 $settings = if ($settings) { "$settings;RE4_APP_TOOLS=1" } else { 'RE4_APP_TOOLS=1' }
 . (Join-Path $PSScriptRoot 'Retroid-Adb-Exclusive.ps1')
 Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {

@@ -73,6 +73,12 @@
 //                          stop=S ends the run S frames after the player is
 //                          free (the reload check of the PC check, M11:
 //                          the Super Magnum's reload looked wrong)
+//   RE4_TRACE_WEAPON=1     the same "wep:" lines in a normal game: every frame
+//                          of a reload (weapon routine r_no_1 6, state
+//                          r_no_2 4) and 40 frames after it, else one line
+//                          when the player's routine changes while he holds
+//                          a weapon: the reload as played on the device
+//                          (test-core-app.ps1 -WeaponTrace)
 //
 // Always logged (the memory card, M10): the end of the boot card check with
 // the options then in force, and a save loaded from the card.
@@ -90,6 +96,7 @@
 #include "mes.h"
 #include "game.h"
 #include "item.h"
+#include "joy.h"
 #include "pl_wep.h"
 
 #include <math.h>
@@ -292,6 +299,9 @@ int g_weaponNo, g_weaponType;
 long g_weaponStop = -1;
 long g_weaponAt = -1;   // the frame it was asked for
 unsigned g_weaponLines;
+bool g_traceWeapon;     // RE4_TRACE_WEAPON
+unsigned g_weaponAfterReload;  // frames left to log after a reload
+u32 g_weaponRoutine;           // r_no 0..3 of the last frame
 
 // The weapon change of the debug option tool (t_option.cpp), in a task of
 // its own: ReadWepData waits for the read with TaskSleep.
@@ -348,12 +358,16 @@ void weaponLine(unsigned n)
     }
     cObjWep* obj = live(pl->Wep) ? WEP_OBJ(pl) : 0;
     bool o = live(obj);
-    re4_log("wep: %u pl %u/%u/%u/%u mot %s %.1f/%u kamae %d m3r %.2f | obj %u/%u mot %s %.1f | hand %.0f", n,
+    cItem* item = ItemMgr.weapon();
+    re4_log("wep: %u pl %u/%u/%u/%u mot %s %.1f/%u kamae %d m3r %.2f | obj %u/%u mot %s %.1f | hand %.0f | "
+            "ammo %d wep %u/%u | joy 0x%04x R %u", n,
             (unsigned) pl->r_no_0, (unsigned) pl->r_no_1, (unsigned) pl->r_no_2, (unsigned) pl->r_no_3,
             entryName(pl->Motion.pMot, m, sizeof(m)), (double) pl->Motion.Mot_frame,
             (unsigned) pl->Motion.Seq_frame_num, joyKamae(), (double) (f32) m3r, o ? (unsigned) obj->r_no_0 : 0u,
             o ? (unsigned) obj->r_no_1 : 0u, o ? entryName(obj->Motion.pMot, om, sizeof(om)) : "-",
-            o ? (double) obj->Motion.Mot_frame : 0.0, (double) hand);
+            o ? (double) obj->Motion.Mot_frame : 0.0, (double) hand, live(item) ? (int) (item->bullet & 0x1FFF) : -1,
+            (unsigned) pG->weapon_no, (unsigned) pG->weapon_lv_reload, (unsigned) (Joy[0].on & 0xFFFF),
+            (unsigned) Joy[0].triggerRight);
 }
 std::atomic<unsigned> g_playerHits(0);  // re4_core_player_hits
 
@@ -478,6 +492,20 @@ void frame(unsigned n)
     if (g_weaponAt >= 0 && (long) n > g_weaponAt && g_weaponLines < 3000 && live(pPL) && g->Rno0 == 3) {
         g_weaponLines++;
         weaponLine(n);
+    } else if (g_traceWeapon && live(pPL) && g->Rno0 == 3 && g_weaponLines < 20000) {
+        cPlayer* pl = pPL;
+        u32 routine = (u32) pl->r_no_0 << 24 | (u32) pl->r_no_1 << 16 | (u32) pl->r_no_2 << 8 | pl->r_no_3;
+        bool reloading = pl->r_no_1 == 6 && pl->r_no_2 == 4;
+        bool changed = routine != g_weaponRoutine && (pl->r_no_1 == 6 || (g_weaponRoutine >> 16 & 0xFF) == 6);
+        if (reloading) {
+            g_weaponAfterReload = 40;
+        }
+        if (reloading || changed || g_weaponAfterReload) {
+            g_weaponAfterReload -= !reloading && g_weaponAfterReload;
+            g_weaponLines++;
+            weaponLine(n);
+        }
+        g_weaponRoutine = routine;
     }
     if (g_weaponStop >= 0 && g_freeAt >= 0 && (long) n >= g_freeAt + g_weaponStop) {
         re4_log("run: stopped %ld frames after the player was free (RE4_TEST_WEAPON stop)", g_weaponStop);
@@ -624,6 +652,8 @@ void configure()
     if (retry && strncmp(retry, "free+", 5) == 0) {
         g_continueAfter = strtol(retry + 5, 0, 10);
     }
+    const char* traceWeapon = getenv("RE4_TRACE_WEAPON");
+    g_traceWeapon = traceWeapon && *traceWeapon && *traceWeapon != '0';
     const char* weapon = getenv("RE4_TEST_WEAPON");
     if (weapon && strncmp(weapon, "free+", 5) == 0) {
         char* end = 0;

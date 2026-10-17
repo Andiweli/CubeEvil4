@@ -1,0 +1,31 @@
+# The depth of field filter (Filter01Trans: the blur in front of or behind
+# the focus that the room's light cuts, the event focus curves and the room
+# scripts ask for) can be switched off in the app's menu (M11, wish of the
+# project owner, 17.10.2026: the first Android port had the switch). When
+# re4_dof_enabled() (runtime/core_api.cpp, re4_core_set_dof) says off, no
+# pass is queued and the near/far requests of the frame are cleared, as
+# after a drawn pass. On by default: the game as it is.
+--- a/src/game/filter01.cpp
++++ b/src/game/filter01.cpp
+@@ -54,12 +54,21 @@
+     g_LeFar.Mode = 1;
+ }
+ 
++extern "C" int re4_dof_enabled(void); /* port: runtime/core_api.cpp */
++
+ // Queues a render for the light environment's focus (when no explicit near/far request is pending)
+ // and for each of the near/far requests set this frame, then clears the requests.
+ void Filter01Trans()
+ {
+     if (Render_checkBlurPermission()) {
+         cLightEnv* env = LightMgr.getEnvPtr();
++        /* port: the app's depth of field switch; off: no pass this frame and
++           the requests of this frame cleared, as after a drawn one */
++        if (!re4_dof_enabled()) {
++            g_LeNear.on = 0;
++            g_LeFar.on = 0;
++            return;
++        }
+         if (g_LeNear.on == 0 && g_LeFar.on == 0 && env->FocusLevel) {
+             g_LeLit.on = 1;
+             g_LeLit.z = env->FocusZ;

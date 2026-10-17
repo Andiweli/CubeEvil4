@@ -2786,17 +2786,17 @@ Platz“ bietet das Spiel einen Neustart an; der Platzhalter kehrt zurück),
   `RE4_APP_TOOLS=1` (Testskript) oder dem Schalter im Menü.
 - **Fehlerprotokoll (`CoreLog.java`, `ReportProvider.java`):** zeichnet
   ab dem Start auf (Standard an): `logcat` der App in
-  `Android/data/<app>/files/logs/protokoll.txt` (2 × 4 MB); ein Absturz
+  `Android/data/<app>/files/logs/log.txt` (2 × 4 MB; bis 17.10.2026 `protokoll.txt`); ein Absturz
   schreibt Signal, Stelle (Bibliothek + Versatz) und mögliche Rücksprünge in
-  `absturz.txt` (`core_mode.cpp`, danach der Absturzbericht des Systems wie
-  bisher). Beim nächsten Start wandert alles nach `logs/vorher/`, dazu was
+  `crash.txt` (`core_mode.cpp`, danach der Absturzbericht des Systems wie
+  bisher). Beim nächsten Start wandert alles nach `logs/previous/`, dazu was
   Android über das Ende sagt (`ApplicationExitInfo`, ab Android 11) und die
   Absturzzeilen des Systems. **Hänger:** stehen die Spielbilder 8 s lang
   still, ohne dass das Spiel angehalten ist (Menü, Hintergrund), schreibt
   die App dreimal im Abstand von 200 ms, wo der Spiel-Thread steckt
   (`re4_core_frame_count`, `re4_core_game_thread`, SIGUSR2 an diesen Thread,
   pc/lr/Stapel mit den Funktionsnamen aus `dladdr`), ebenfalls in
-  `absturz.txt`. „Bericht senden“ packt beides mit Gerätedaten
+  `crash.txt`. „Bericht senden“ packt beides mit Gerätedaten
   und der Dateiliste der Karte (ohne Spielstände) in eine ZIP und gibt sie
   an Mail/Messenger; „Bericht speichern“ legt sie in einen Ordner.
 - **Debug-Menüs nur mit Text** (Wunsch des Projektinhabers, 17.10.2026): die
@@ -2998,6 +2998,14 @@ zeigt ihn). r215 lief trotzdem 750 Bilder.
 
 ### Zweiter Gerätelauf M11 (Retroid, 17.10.2026, Stand `3a9a8a6`, `-Manual`)
 
+- Dritter Gerätelauf (17.10.2026): Zwischentext unter dem Titel auch
+  zentriert; **alle Texte, die wir einbauen, nur Englisch** (Menü,
+  Meldungen, Fehlerbericht und seine Dateinamen: `logs/log.txt`, `crash.txt`,
+  `previous/`, `exit.txt`, `device.txt`, `re4-report-….zip`); neuer Schalter
+  **„Depth of field“** (Tiefenschärfe, wie im ersten Android-Port; Standard
+  an = das Spiel wie es ist; Patch 0065, `re4_core_set_dof`). Java gegen die
+  Android-Klassen und die JNI-Bibliothek auf dem Host gebaut, Kerntest
+  „pause“ prüft den Schalter; **auf dem Gerät nicht geprüft**.
 - Menü (SELECT kurz): passt laut Projektinhaber („wunderbar“); Wünsche:
   die Linie unter dem Titel weg (die Linien der Überschrift „Grafik“ reichen),
   Titel „Resident Evil 4 Options“ zentriert, ohne Linien. Umgesetzt
@@ -3032,8 +3040,28 @@ Zustand und Bewegung, Zielen, Neigung, Zustand und Bewegung der Waffe,
 Abstand der linken Hand zur rechten), im Bericht je Nachladen eine
 Zusammenfassung, ein Verlaufsauszug und GX-Bilder. Simulierte R/L-Tasten
 setzen jetzt auch den Analogwert (`pad.cpp`, wie ein echter Controller).
-In der Cloud nur gebaut und die Auswertung mit erfundenen Zeilen geprüft;
-**mit Disc-Daten nicht gelaufen**.
+
+**Ergebnis der Nachlade-Prüfung (PC mit Disc-Daten, Stand `d732568`):** Der
+Kern lädt richtig. Leons Nachlade-Bewegung (Eintrag `0x2C/0x2D` des
+Waffenarchivs, 111 Bilder) und die der Waffe (`0x33`) laufen gleichzeitig;
+mit gehaltenem R bis zum Ende, mit losgelassenem R (Bild 27) weiter bis
+Bild 96 (`PlReloadEndTbl`), dann senkt Leon die Waffe – wie der Code es
+sagt. Die linke Hand bewegt sich in beiden Läufen Bild für Bild gleich
+(zur Tasche, zurück an die Trommel), die GX-Bilder zeigen das Nachladen,
+die Munitionsanzeige zählt hoch.
+
+**Auf dem Retroid** (Projektinhaber, 17.10.2026, Sichtprüfung): sobald R2
+losgelassen wird, lädt Leon nicht mehr, die Patronen fliegen in die Waffe,
+werden aber nicht geladen. Im Geräteprotokoll begann das Nachladen mit B
+**ohne R-Klick** (`0x0200`): R2 war nur halb gedrückt, das Spiel zählt den
+Analogwert als R (`game/pad.cpp`, wie der GameCube-Controller); ein zweites
+B kam 40 Bilder später. Unterschiede zum PC-Lauf: ARM-Kern statt i686, R nur
+analog, das zweite B, die Nachlade-Stufe der Waffe (`weapon_lv_reload`;
+nach einem Waffenwechsel im Debug-Menü die des Spielstands). Werkzeug für
+den Gerätelauf: `test-core-app.ps1 -WeaponTrace` (`RE4_TRACE_WEAPON=1`): je
+Bild beim Nachladen und 40 Bilder danach eine `wep:`-Zeile, dazu Munition,
+Waffennummer/Nachlade-Stufe, Tasten (`Joy[0].on`) und R-Analogwert.
+**Offen**, bis der Gerätelauf vorliegt.
 - „Bei einem Gegner abgebrochen“: kein Absturz. Das Testskript beendet die
   App nach der Beobachtungszeit (240 s, Protokoll ohne Fehler). Mit
   `-Manual` beobachtet `test-core-app.ps1` jetzt 30 Minuten (Q beendet
@@ -3199,6 +3227,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0062 `se_at.cpp` | Raumgeräusche ohne feste Wartezeit: `rnd_base + Rnd() % rnd_interval` mit `rnd_interval` 0 (r311) ergibt wie auf dem GameCube `Rnd()` (`divw` durch 0: Quotient 0, Rest = Dividend) statt eines Abbruchs auf x86 (`SIGFPE`, PC-Rundgang 17.10.2026) bzw. eines unbestimmten Rests auf ARM; `Rnd()` weiter genau einmal |
 | 0063 `r404.cpp` | Startpunkt im Söldner-Raum r404: `&pos[n]` / `&rot[n]` statt `&pos + n * 12 + 0x28`, das auf die Stapel-Anordnung von CodeWarrior baut (Clang legt `rot` anders; Stillstand in `LIMIT_ANGLE`, PC-Rundgang 17.10.2026) |
 | 0064 `shape.cpp` | `CalculateShape_new`: ein Kanal, der einen Eintrag **hinter** der Formen-Tabelle nennt (Anzahl im Wort vor der Tabelle), bekommt keine Werte. Das Spiel liest dort die Eckpunkt-Listen als Eintrag; big-endian ist dessen Anzahl negativ (nichts passiert), in Host-Reihenfolge 65535 (r229: Codec-Gesicht schrieb in die Zeichenliste, Funktionszeiger um 0x74 verschoben). Außerdem wird eine Eckpunkt-Nummer außerhalb des Modells übersprungen. Beides einmal gemeldet (`check: shape: …`); richtige Daten haben beides nicht |
+| 0065 `filter01.cpp` | Schalter „Depth of field“ des App-Menüs (M11, Wunsch des Projektinhabers, 17.10.2026): ist er aus (`re4_dof_enabled()`, `core_api.cpp`), legt `Filter01Trans` keinen Tiefenschärfe-Durchgang an und löscht die Anfragen dieses Bilds wie nach einem gezeichneten. Standard an |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

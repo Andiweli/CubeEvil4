@@ -4,6 +4,9 @@
 
 - Der Projektinhaber programmiert nicht selbst. Antworten auf Deutsch, per Du,
   ohne Fachjargon. Fachbegriffe kurz erklären.
+- Texte, die wir in App oder Spiel einbauen (Menüs, Meldungen, Fehlerbericht,
+  Dateinamen für Tester), nur auf Englisch (Entscheidung des Projektinhabers,
+  17.10.2026). Antworten im Chat bleiben deutsch.
 - Am Ende jeder Aufgabe in wenigen Sätzen sagen: was erreicht wurde, was getestet
   wurde (mit Ergebnis), was als Nächstes kommt.
 - Vor jeder Grundsatzentscheidung (Architektur, Regeln dieser Datei ändern)

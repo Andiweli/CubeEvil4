@@ -973,6 +973,12 @@ void testPause()
     CHECK(gPauseFrames == 3);
     CHECK(re4_core_pause(0, 0) == 0);
     CHECK(re4_core_card_free_blocks() == RE4_CARD_BUSY);
+    // the menu's depth of field switch (patch 0065 reads it)
+    CHECK(re4_dof_enabled() == 1);
+    re4_core_set_dof(0);
+    CHECK(re4_dof_enabled() == 0);
+    re4_core_set_dof(1);
+    CHECK(re4_dof_enabled() == 1);
     // SELECT held: the debug menu at the next frame, once
     CHECK(re4_debug_menu_request() == 0);
     re4_core_debug_menu();
