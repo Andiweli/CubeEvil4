@@ -529,6 +529,22 @@ void packed(Blob&, const Part&)
 {
 }
 
+// A REL module read as a file of its own (rel/st2_1.rel ...): its header to
+// host order at once, as convertArchive does for the RELs inside archives.
+// The game reads the header before OSLink: cRoomData::linkRelData and
+// sscrn.cpp allocate bssSize bytes first (still big-endian, a huge size:
+// OSAllocFromHeap crashed when r206 loaded st2_1.rel). OSLink finds the
+// header converted (re4_rel_header_to_host leaves a host-order one alone).
+void convertRel(Blob& b, const Part& part)
+{
+    if (part.fileOfs != 0 || !fits(b, 0, 0x40, "REL header")) {
+        return;
+    }
+    if (re4_rel_header_to_host(b.data) < 0) {
+        re4_log("formats: %s: no REL module header (version 0x%08x)", b.name, (unsigned) be32(b, 0x1C));
+    }
+}
+
 struct Rule {
     const char* pattern;  // fnmatch pattern on the lower-case path
     Converter convert;
@@ -552,7 +568,7 @@ const Rule kRules[] = {
     { "*.drs", convertArchive, "archive" },
     { "ss/*.dat", convertArchive, "archive (screens)" },
     { "debug/*.txt", text, "text" },
-    { "rel/*.rel", text, "REL module (OSLink converts its header)" },
+    { "rel/*.rel", convertRel, "REL module (header to host order)" },
     { "debug/roominfo.dat", convertRoomInfo, "room jump table" },
 };
 

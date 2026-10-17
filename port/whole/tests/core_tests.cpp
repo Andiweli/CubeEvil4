@@ -17,6 +17,9 @@
 //   card    the SDK's memory card library on the port's card file
 //           (tests/card_probe.cpp): format, files, a new start, no card;
 //           .gci export and import
+//   rel     a REL module read as a file of its own (rel/st2_1.rel): its
+//           header in host order right after the load, before OSLink
+//           (the game allocates bssSize first; r206 crashed on it)
 //   pause   the app's menu (M11): re4_core_pause stops the game in its next
 //           PADRead and lets it go again; the menu's card functions only
 //           while it stands; the debug menu request is taken once
@@ -118,6 +121,39 @@ void testCodec()
     CHECK(seq[0].be_flag == 1 && seq[0].no == 2 && seq[0].frame == 0 && seq[0].mes == 5 && seq[0].timer == 30);
     CHECK(seq[1].frame == 300 && seq[1].mes == -1 && seq[1].timer == -1);
     report("codec", ok);
+}
+
+// A REL read from disc as a file of its own: the header (version 3, bssSize
+// with a low byte above 0x7F: read big-endian it is a negative size) comes
+// out in host order; converting again changes nothing; a later part of the
+// file (no header) is left alone.
+void testRel()
+{
+    bool ok = true;
+    CHECK(re4_mem1_init());
+    unsigned char* rel = (unsigned char*) (unsigned long) 0x82300000u;
+    memset(rel, 0, 0x100);
+    put32be(rel + 0x00, 0x12);    // id
+    put32be(rel + 0x0C, 4);       // numSections
+    put32be(rel + 0x1C, 3);       // version
+    put32be(rel + 0x20, 0x1ADC);  // bssSize
+    put32be(rel + 0x24, 0x880);   // relOffset
+    rel[0x30] = 1;                // prologSection (a byte, stays)
+    Header h = { 0, 0x100, 0, 0, 0, 0, 0, 0 };
+    re4_formats_part_loaded("rel/st2_1.rel", 0, 0, &h, 0x82300000u);
+    unsigned words[10];
+    memcpy(words, rel, sizeof(words));
+    CHECK(words[0] == 0x12 && words[3] == 4 && words[7] == 3 && words[8] == 0x1ADC && words[9] == 0x880);
+    CHECK(rel[0x30] == 1);
+    re4_formats_part_loaded("rel/st2_1.rel", 0, 0, &h, 0x82300000u);
+    memcpy(words, rel, sizeof(words));
+    CHECK(words[7] == 3 && words[8] == 0x1ADC);
+    unsigned char* later = rel + 0x80;
+    put32be(later + 0x1C, 3);
+    Header hl = { 0, 0x40, 0, 0x2000, 0, 0, 0, 0 };
+    re4_formats_part_loaded("rel/st2_1.rel", 0, 1, &hl, 0x82300080u);
+    CHECK(later[0x1F] == 3 && later[0x1C] == 0);
+    report("rel", ok);
 }
 
 void testBridge()
@@ -797,6 +833,7 @@ int re4_core_tests()
     gFailures = 0;
     testBridge();
     testCodec();
+    testRel();
     testThread();
     testPad();
     testSound();

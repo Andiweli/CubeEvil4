@@ -20,7 +20,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Gerätelauf von M9 („M8 Audio“) |
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
-| M11 Android-Feinschliff | in Arbeit (Branch `claude/nifty-feynman-jv729h`): Menü der App über SELECT (Grafikoptionen, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund; in der Cloud geprüft, **Android-Build und Gerät nicht geprüft** („M11 Android-Feinschliff“) |
+| M11 Android-Feinschliff | in Arbeit (Branch `claude/nifty-feynman-jv729h`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Erster Gerätelauf 17.10.2026: Menü, Debug-Menü, Grafikwechsel, Export in Ordnung; Menü danach nach Wünschen umgebaut (nicht auf dem Gerät geprüft). Absturz r206 behoben (REL-Kopf, in der Cloud geprüft) („M11 Android-Feinschliff“) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -2848,6 +2848,85 @@ Absturzmelder), die PC-Prüfung mit Disc-Daten nach Patch 0061, und **ob
 Dolphin und ein GameCube die exportierten Spielstände laden** (dafür
 braucht es Dolphin mit der Debug-Disc auf dem PC).
 
+### Erster Gerätelauf mit dem Menü (17.10.2026, Retroid, Stand `d637611`)
+
+`test-core-app.ps1 -Manual`: Android-Build (NDK, Gradle, Lint) fehlerfrei.
+Laut Projektinhaber und Protokoll: SELECT öffnet das Menü, das Spiel steht
+(„core: paused“ … „running again“); SELECT gehalten öffnet das Debug-Menü;
+die Debug-Balken sind weg; Grafikwechsel bauen den Renderer neu (Stufe 2/3/4,
+4× MSAA, 16× AF, 4:3, „GX renderer ready … 4 samples (of 4), anisotropy 16
+(of 16)“), r100 danach weiter flüssig (gezeigt 56,7 Bilder/s, Renderer
+4,8 ms je Bild); „Alle exportieren“ schrieb `bh4_system`, `bh4_data00`,
+`bh4_data18`. Die drei `.gci` liest `memcard_list.py` unabhängig in
+GameCube-Reihenfolge richtig, auch Datei 19 (r200, Kapitel 6, Modus 2);
+die Platzhalter-Bytes sind auch dort 0. Nicht geprüft: Import auf dem
+Gerät, Bericht senden, Dolphin.
+
+Aufgefallen: die Zahlen „GX-Arbeit je Bild“ im Protokoll liefen nach einem
+Neubau des Renderers über (Zähler des alten Renderers abgezogen); jetzt
+beginnen sie mit dem neuen Renderer bei 0.
+
+**Wünsche des Projektinhabers zum Menü (umgesetzt, nicht auf dem Gerät
+geprüft):** die Auflösung steht sofort bei der Wahl da (Bildpunkte, Stufe,
+bei Auto wie `core_mode.cpp` aus der Bildschirmgröße berechnet, dazu die
+Bildschirmgröße); kein „Weiterspielen“ (B schließt), stattdessen eine Linie
+unter dem Einleitungstext; Überschriften mittig in Kapitälchen mit Linien
+links und rechts; die beiden Schalter des Fehlerprotokolls nebeneinander;
+neuer Schalter **FPS-Anzeige unten links** (Spielbilder je Sekunde, aus dem
+Bildzähler des Kerns, jede Sekunde neu; steht während Menü/Hintergrund);
+„Spiel“ und „Spiel beenden“ entfernt (Beenden weiter mit der Zurück-Taste).
+
+### Absturz in r206 (PC-Prüfung 17.10.2026, Stand `d637611`): REL-Kopf
+
+`test-r100-core.ps1 -Room 206`: Absturz in Bild 613 beim Stagewechsel
+(`gameStageInit` → `StageSet` → `cRoomData::linkRelData` → `mem_alloc` →
+`OSAllocFromHeap`, Fehleradresse 0x5cae18c8), kurz nach „Read File:
+rel/st2_1.rel“. Ursache: Die Raumprogramme liegen als eigene Dateien auf der
+Disc (`rel/st1_0.rel`, `rel/st2_1.rel` …). Der Formatumwandler ließ ihren
+Kopf big-endian („OSLink converts its header“), aber `linkRelData` (und
+`sscrn.cpp`) holt **vor** `OSLink` Speicher für `bssSize`. Big-endian gelesen
+wird der Wert riesig; bei `st2_1.rel` ist er negativ, `OSAllocFromHeap`
+legte dann den Rest-Block an einer Adresse weit unter dem Heap an
+(0x80AE18.. − 0x24000000 ≈ 0x5CAE18..) und stürzte ab. Bei `st1_0.rel`
+fiel es nicht auf. Die Raumprogramme in Archiven bekamen ihren Kopf schon
+immer beim Laden umgedreht (`convertArchive`).
+
+Korrektur: `rel/*.rel` hat einen eigenen Umwandler (`convertRel`,
+`formats.cpp`), der den Kopf gleich beim Laden in Host-Reihenfolge bringt
+(`re4_rel_header_to_host`; `OSLink` lässt einen umgedrehten Kopf in Ruhe).
+Neuer Kerntest „rel“: ein Kopf mit einer `bssSize`, die big-endian negativ
+wäre, kommt in Host-Reihenfolge an, ein zweiter Lauf ändert nichts, ein
+späterer Teil der Datei bleibt unberührt; ohne die Korrektur schlägt der
+Test fehl.
+
+**Andere Räume** (Frage des Projektinhabers): Fast jeder Raum lädt eines von
+15 Raumprogrammen als eigene Datei (`src/game/roomdata.cpp`, `rel_file`):
+`st1_0` (r100, r120), `st1_1` (r101–r10b), `st1_2` (r10c–r10e, r119–r11b),
+`st1_3` (r10f, r111–r113, r117, r118, r11c–r11f), `st2_0` (r200–r203, r207,
+r208, r210, r222), `st2_1` (r204–r206, r209–r20f), `st2_2` (r211–r219),
+`st2_3` (r21a–r22b), `st2_4` (r22c), `st3_0` (r300–r30e), `st3_1` (r30d,
+r30f–r312), `st3_2` (r315–r31d), `st3_3` (r320–r333), `st4_0` (r400–r411),
+`st0` (Testräume r000–r042). Vor der Korrektur hing es vom Speicherwert der
+einzelnen Datei ab: niedrigstes Byte ≥ 0x80 → negativ → Absturz (sicher bei
+`st2_1`), sonst eine zu große Anforderung, die still scheiterte (`st1_0`,
+`st1_1`, `st2_0` liefen: r100, r101, Spielstand in r200). Dasselbe Lesen vor
+`OSLink` machen auch das Untermenü-Programm (`sscrn.cpp`, `rel/Sscrn.rel`
+über ARAM) und die Werkzeuge des Debug-Menüs (`db_menu.cpp`, `rel/<werkzeug>`);
+die Korrektur deckt alle ab, weil jede `rel/*.rel` beim Laden umgedreht wird.
+Der Datenblock „DRA“ ohne Umwandler (gemeldet in r206) gehört nur zum
+Entwickler-Werkzeug `t_dr.cpp`.
+
+**Raum-Rundgang in der PC-Prüfung** (neu, für die Nachprüfung und für 10b):
+`test-r100-core.ps1 -Rooms LISTE` (`whole_r100_check.sh --rooms`, Abschnitt
+8): nach dem Build jeder Raum über den Debug-Start, `-TourFrames` Bilder der
+Hauptschleife (Standard 1500), je Raum eine Zeile (läuft / Absturz mit
+Bibliothek, Versatz und Funktion / Stillstand mit Rückverfolgung), die
+Einzelheiten in `rundgang-einzelheiten.txt`. `-Rooms set`: zwei Räume je
+Raumprogramm (27), `-Rooms all`: jeder Raum der Tabellen (etwa 150). In der
+Cloud nur mit Platzhalter-Daten geprüft (Ablauf und Bericht).
+**Nicht geprüft:** r206 und die übrigen Räume mit Disc-Daten nach der
+Korrektur.
+
 ### Vom Projektinhaber gemeldet (17.10.2026, ohne Protokoll) – für 10b
 
 - Vereinzelt lässt sich ein Gegenstand nicht aufnehmen: das „A“-Symbol
@@ -2855,9 +2934,9 @@ braucht es Dolphin mit der Debug-Disc auf dem PC).
 - Super Magnum: lädt nur nach, solange R2 gehalten wird; lässt man los,
   senkt Leon die linke Hand und die Patronen fliegen von selbst in die
   Waffe.
-- Raum r206 springt zurück ins Startmenü der App (Disc-Import): vermutlich
-  ein Absturz des Kerns (Android startet dann die Activity darunter neu).
-  PC-Prüfung möglich: `test-r100-core.ps1 -Room 206`.
+- Raum r206 springt zurück ins Startmenü der App (Disc-Import): ein Absturz
+  des Kerns, gefunden und behoben (oben, „Absturz in r206“); Nachtest mit
+  Disc-Daten steht aus.
 
 ## Aufbau
 

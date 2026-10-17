@@ -19,6 +19,12 @@
 # --out        where the report and the logs go, default WORK/runs/<time>
 # --arm        also build ARM32 and run the game under qemu-arm (slow)
 # --card-only  after the build only the memory card runs (section 7)
+# --rooms LIST after the build only a round of rooms (section 8): each room
+#              by the debug start, --tour-frames frames of its main loop
+#              (default 1500), one line per room (runs, crash with where,
+#              stand still); LIST: room numbers ("206,300,401"), "set" (two
+#              rooms of every room program rel/stX_Y.rel) or "all" (every
+#              room of the game's room tables, src/game/roomdata.cpp)
 #
 # Steps: build and the cloud checks (whole_build.sh), the format comparison
 # with the disc files (re4_format_compare --data), then the game from the
@@ -45,6 +51,8 @@ work="$HOME/re4-kern"
 arm=0
 build=1
 card_only=0
+rooms=""
+tour_frames=1500
 while [ $# -gt 0 ]; do
     case "$1" in
     --data) data="$2"; shift 2 ;;
@@ -56,6 +64,8 @@ while [ $# -gt 0 ]; do
     --arm) arm=1; shift ;;
     --no-build) build=0; shift ;;
     --card-only) card_only=1; shift ;;
+    --rooms) rooms="$2"; shift 2 ;;
+    --tour-frames) tour_frames="$2"; shift 2 ;;
     *) echo "unbekannte Angabe: $1" >&2; exit 2 ;;
     esac
 done
@@ -194,9 +204,9 @@ fi
 
 # ---- format comparison with the disc files ---------------------------------------------
 cmp="$src/port/build/whole-i686$opt/re4_format_compare"
-[ "$card_only" -eq 0 ] && section "2. Formatvergleich App-Leser gegen Kern-Umwandler mit Disc-Daten"
-if [ "$card_only" -eq 1 ]; then
-    : # --card-only: straight to the memory card
+[ "$card_only" -eq 0 ] && [ -z "$rooms" ] && section "2. Formatvergleich App-Leser gegen Kern-Umwandler mit Disc-Daten"
+if [ "$card_only" -eq 1 ] || [ -n "$rooms" ]; then
+    : # --card-only / --rooms: straight to the memory card / the round of rooms
 elif [ -x "$cmp" ]; then
     "$cmp" --data "$layout" --room "r$room" > "$run/formatvergleich.txt" 2> "$run/formatvergleich.log"
     code=$?
@@ -973,7 +983,119 @@ run_memcard() {
     [ "$bad" -ne 0 ] && overall=1
 }
 
-if [ "$game_ok" -eq 1 ] && [ "$card_only" -eq 1 ]; then
+# ---- a round of rooms (--rooms): crashes and stand-stills room by room ----------------------
+# Each room as the game run above starts it (debug start from the title,
+# RE4_START_ROOM), without the walk and the tests after it: the room loads,
+# its opening event runs, the run ends after --tour-frames frames of the main
+# loop. Per room one line; crashes and stand-stills with where the program was.
+tour_list() {
+    case "$1" in
+    set)
+        # two rooms of each room program (the first and one further in)
+        echo "100 120 101 105 10c 119 10f 117 200 207 204 206 211 216 21a 223 22c 300 305 30d 311 315 31a 320 329 400 409"
+        ;;
+    all)
+        python3 - "$src/src/game/roomdata.cpp" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+rooms = []
+for st in range(1, 5):
+    m = re.search(r"ROOM_DATA St%d_data_tbl\[\d+\] = \{(.*?)\n\};" % st, text, re.S)
+    if m:
+        for i, rel in enumerate(re.findall(r"\{\d+, \d+, (\d+), [^}]*\}", m.group(1))):
+            if int(rel):
+                rooms.append("%x%02x" % (st, i))
+print(" ".join(rooms))
+PY
+        ;;
+    *) echo "$1" | tr ',;' '  ' ;;
+    esac
+}
+
+run_tour() {
+    local dir="$src/port/build/whole-i686$opt" list
+    list=$(tour_list "$rooms" | tr 'A-F' 'a-f')
+    local count
+    count=$(echo $list | wc -w)
+    section "8. Raum-Rundgang: $count Räume, je $tour_frames Bilder ab der Hauptschleife"
+    if [ ! -x "$dir/re4_host" ]; then
+        say "FEHLER: $dir/re4_host fehlt (Build fehlgeschlagen?)"
+        overall=1
+        return
+    fi
+    local ok=0 bad_rooms="" details="$run/rundgang-einzelheiten.txt"
+    : > "$details"
+    for r in $list; do
+        local log="$run/rundgang-r$r.log" trace="$run/rundgang-r$r.jsonl" start=$SECONDS reason=""
+        (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$r" RE4_PAD_UNTIL_ROOM=1 \
+            RE4_MEMCARD=none RE4_ROOM_MENU=1 RE4_PAD_SCRIPT="$pad_script" RE4_STOP_AFTER="$tour_frames" \
+            RE4_TRACE="$trace" ./re4_host --data "$layout") > "$log" 2>&1 &
+        local pid=$! size last_size=-1 last_change=$SECONDS
+        while kill -0 "$pid" 2> /dev/null; do
+            sleep 2
+            size=$(stat -c %s "$trace" 2> /dev/null || echo 0)
+            if [ "$size" != "$last_size" ]; then
+                last_size=$size
+                last_change=$SECONDS
+            fi
+            if [ $((SECONDS - last_change)) -ge "${RE4_TOUR_STALL:-90}" ]; then
+                reason="STILLSTAND (seit ${RE4_TOUR_STALL:-90} s kein neues Bild)"
+            elif [ $((SECONDS - start)) -ge "${RE4_TOUR_MAIN_LIMIT:-300}" ] && ! grep -q "run: main loop reached" "$log"; then
+                reason="Hauptschleife nach ${RE4_TOUR_MAIN_LIMIT:-300} s nicht erreicht"
+            elif [ $((SECONDS - start)) -ge "${RE4_TOUR_LIMIT:-900}" ]; then
+                reason="Zeitlimit ${RE4_TOUR_LIMIT:-900} s"
+            fi
+            if [ -n "$reason" ]; then
+                kill -USR1 "$pid" 2> /dev/null
+                sleep 3
+                kill -KILL "$pid" 2> /dev/null
+                break
+            fi
+        done
+        wait "$pid" 2> /dev/null
+        local code=$? secs=$((SECONDS - start)) state line
+        state=$(trace_state "$trace")
+        if [ -z "$reason" ] && [ "$code" -eq 0 ] && grep -q "run: stopped after" "$log"; then
+            line="läuft ($(grep -m1 'run: main loop reached' "$log" | grep -o 'at frame [0-9]*' | sed 's/at frame/Hauptschleife ab Bild/'), $secs s)"
+            ok=$((ok + 1))
+        else
+            if grep -q "fatal signal" "$log"; then
+                # where: library + offset and the function (readable with c++filt)
+                local where
+                where=$(grep -m1 'pc 0x' "$log" | sed 's/^\[re4\] *//; s/.*= //; s|^.*/||')
+                command -v c++filt > /dev/null && where=$(echo "$where" | c++filt)
+                line="ABSTURZ bei $state: $where"
+            elif [ -n "$reason" ]; then
+                line="$reason bei $state"
+            else
+                line="FEHLER (Exit-Code $code) bei $state"
+            fi
+            bad_rooms="$bad_rooms r$r"
+            {
+                echo "== r$r: $line"
+                grep -E "fatal signal|  pc 0x|stub called|OSPanic|error|Error" "$log" | grep -v "pad: frame" | sed 's/^\[re4\] /  /' | head -n 12
+                if grep -q "fatal signal\|backtrace of the running context" "$log"; then
+                    sed -n '/fatal signal\|backtrace of the running context/,$p' "$log" | grep -v "pad: frame" | head -n 40 | sed 's/^/  /'
+                fi
+                echo "  letzte Zeilen:"
+                grep -v "pad: frame" "$log" | tail -n 12 | sed 's/^/    /'
+                echo
+            } >> "$details"
+        fi
+        say "  r$r: $line"
+        rm -f "$trace"
+    done
+    say "Ergebnis: $ok von $count Räumen laufen${bad_rooms:+; Probleme:$bad_rooms}"
+    if [ -n "$bad_rooms" ]; then
+        overall=1
+        say "Einzelheiten (rundgang-einzelheiten.txt):"
+        head -n 400 "$details" | tee -a "$report"
+    fi
+}
+
+if [ "$game_ok" -eq 1 ] && [ -n "$rooms" ]; then
+    run_tour
+elif [ "$game_ok" -eq 1 ] && [ "$card_only" -eq 1 ]; then
     run_memcard
 elif [ "$game_ok" -eq 1 ]; then
     # limits in seconds: overall, until the main loop, without a new frame

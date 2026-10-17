@@ -19,6 +19,13 @@ WSL2 (Ubuntu). Dieses Skript erledigt alles von Windows aus:
      Karte dieses Laufs liegt als speicherkarte-a.bin bei den Ergebnissen),
   3. legt den Bericht und die Logs in -OutDir ab (Standard: Desktop\RE4-Kern-Pruefung).
 
+Raum-Rundgang (-Rooms): statt Spiellauf, Filmen und Speicherkarte startet das
+Skript nach dem Build jeden angegebenen Raum ueber den Debug-Start und laesst
+ihn -TourFrames Bilder laufen (Standard 1500); der Bericht hat eine Zeile je
+Raum (laeuft / Absturz mit Stelle / Stillstand). -Rooms 206,300,401 nimmt diese
+Raeume, -Rooms set zwei Raeume je Raumprogramm (27 Raeume, etwa eine halbe
+Stunde), -Rooms all jeden Raum des Spiels (etwa 150, mehrere Stunden).
+
 Disc-Daten (-DataDir), eine dieser Formen:
   - ein Ordner mit den Disc-Abbildern (.iso oder .gcm), z. B. D:\RE4\Disc
   - mit Dolphin entpackte Disc ("Gesamte Disc extrahieren": Ordner mit sys und files)
@@ -39,6 +46,9 @@ Falls Windows das Ausfuehren von Skripten sperrt.
 
 .EXAMPLE
 .\port\scripts\test-r100-core.ps1 -DataDir 'D:\RE4\Disc' -OnlyCard
+
+.EXAMPLE
+.\port\scripts\test-r100-core.ps1 -Rooms set
 Nur bauen und den Speicherkarten-Teil pruefen (Abschnitt 7, wenige Minuten).
 
 .EXAMPLE
@@ -52,6 +62,8 @@ param(
     [string]$Room = '100',
     [switch]$Arm,
     [switch]$OnlyCard,
+    [string]$Rooms = '',
+    [int]$TourFrames = 1500,
     [switch]$SkipSetup,
     [string]$Distro = ''
 )
@@ -105,6 +117,7 @@ if (-not $SkipSetup) {
 $checkArgs = @('--source', $repoWsl, '--data', $dataWsl, '--out', $outWsl, '--frames', "$Frames", '--room', $Room)
 if ($Arm) { $checkArgs += '--arm' }
 if ($OnlyCard) { $checkArgs += '--card-only' }
+if ($Rooms) { $checkArgs += @('--rooms', $Rooms, '--tour-frames', "$TourFrames") }
 Write-Host 'Pruefung laeuft (Build beim ersten Mal 10 bis 30 Minuten, danach schneller) ...'
 & wsl.exe @wslBase --exec bash "$repoWsl/port/tools/whole_r100_check.sh" @checkArgs
 $code = $LASTEXITCODE
