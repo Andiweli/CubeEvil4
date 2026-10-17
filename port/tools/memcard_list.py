@@ -2,6 +2,7 @@
 """Lists a memory card file of the port and checks it.
 
     memcard_list.py CARD [--expect-system] [--expect-save N]
+    memcard_list.py FILE.gci [--expect-system] [--expect-save N]
 
 CARD: the card file of runtime/memcard.cpp (a Memory Card 251, 2 MB, 8 KB
 blocks; in the app <data folder>/memcard/card-a.bin). The port's card keeps
@@ -19,6 +20,13 @@ sound), bh4_dataNN with both CRCs, the save date, the room and the chapter.
 --expect-system / --expect-save N: exit code 1 unless the system file and
 save file N are there with valid CRCs. Exit code 1 as well when a checksum
 of the card's own structures is wrong.
+
+A .gci (one file as Dolphin and the GameCube's copy tools keep it, what the
+app's menu exports, M11): the 64-byte directory entry and the file's blocks,
+all in GameCube byte order (big-endian). Read here on their own, without the
+port's converter (runtime/gci.cpp), so the check does not repeat its rules:
+the entry's fields, the game's CRCs over the big-endian bytes, the version,
+the room and the save date.
 """
 import argparse
 import struct
@@ -69,9 +77,9 @@ def text(raw):
         return raw.decode("latin-1")
 
 
-def calendar(raw):
+def calendar(raw, order="<"):
     """OSCalendarTime: sec, min, hour, mday, mon (0-11), year, wday, yday, msec, usec."""
-    sec, mins, hour, mday, mon, year = struct.unpack_from("<6i", raw)
+    sec, mins, hour, mday, mon, year = struct.unpack_from(order + "6i", raw)
     return f"{year:04d}-{mon + 1:02d}-{mday:02d} {hour:02d}:{mins:02d}:{sec:02d}"
 
 
@@ -158,31 +166,68 @@ class Card:
 BANNER = {0: "none", 1: "C8", 2: "RGB5A3"}
 
 
-def describe_game_file(f, body, lines):
+def describe_game_file(f, body, lines, order="<"):
     if f["name"] == "bh4_system":
         size = 0x1E7C
-        (crc,) = struct.unpack_from("<I", body, 0x1E78)
+        (crc,) = struct.unpack_from(order + "I", body, 0x1E78)
         ok = crc == crc32_game(body[:0x1E78])
-        cfg, ext, lang, country, bright, pad, snd = struct.unpack_from("<IIBBBBB", body, 0x1E40)
+        cfg, ext, lang, country, bright, pad, snd = struct.unpack_from(order + "IIBBBBB", body, 0x1E40)
         lines.append(f"      system file: CRC {'ok' if ok else 'WRONG'}; language {lang}, country {country}, "
                      f"brightness {bright}, controller layout {pad}, sound mode {snd}, "
                      f"config flags 0x{cfg:08x}, extras 0x{ext:08x}")
         return ok, size
     if f["name"].startswith("bh4_data"):
-        (crc,) = struct.unpack_from("<I", body, 0xEAF8)
+        (crc,) = struct.unpack_from(order + "I", body, 0xEAF8)
         ok_file = crc == crc32_game(body[:0xEAF8])
-        hcrc, magic = struct.unpack_from("<II", body, 0x2000)
+        hcrc, magic = struct.unpack_from(order + "II", body, 0x2000)
         ok_hdr = hcrc == crc32_game(body[0x2004:0x2200])
-        when = calendar(body[0x2008:0x2030])
-        (mode,) = struct.unpack_from("<I", body, 0x2030)
+        when = calendar(body[0x2008:0x2030], order)
+        (mode,) = struct.unpack_from(order + "I", body, 0x2030)
         chapter = body[0x203E]
-        (count,) = struct.unpack_from("<H", body, 0x2040)
-        (room,) = struct.unpack_from("<H", body, 0x2050)
+        (count,) = struct.unpack_from(order + "H", body, 0x2040)
+        (room,) = struct.unpack_from(order + "H", body, 0x2050)
         lines.append(f"      save: CRC file {'ok' if ok_file else 'WRONG'}, header {'ok' if ok_hdr else 'WRONG'}, "
                      f"version 0x{magic:x}, saved {when}, room r{room:03x}, chapter {chapter}, "
                      f"save count {count}, mode {mode}")
         return ok_file and ok_hdr and magic == 0x116, 0xEAFC
     return True, 0
+
+
+def list_gci(path, data, args):
+    """One .gci: the directory entry and the file, big-endian."""
+    import datetime
+    lines, bad = [], False
+    if len(data) < 0x40 + BLOCK or (len(data) - 0x40) % BLOCK:
+        print(f"{path}: {len(data)} bytes, not 0x40 + a multiple of 8 KB")
+        return 1
+    e = data[:0x40]
+    game, company, banner = e[:4].decode("latin-1"), e[4:6].decode("latin-1"), e[7]
+    name = text(e[8:40])
+    tm, icon_addr, icon_fmt, icon_speed = struct.unpack_from(">IIHH", e, 40)
+    perm, copies, start, length = struct.unpack_from(">BBHH", e, 52)
+    (comment,) = struct.unpack_from(">I", e, 60)
+    when = datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds=tm)
+    lines.append(f"gci {Path(path).name}: {name} {game}{company}, {length} blocks, {when:%Y-%m-%d %H:%M:%S}, "
+                 f"banner {BANNER.get(banner & 3, '?')}, icon at 0x{icon_addr:x}, permission {perm}")
+    body = data[0x40:]
+    if length * BLOCK != len(body):
+        lines.append(f"  FEHLER: the entry says {length} blocks, the file holds {len(body) // BLOCK}")
+        bad = True
+    if comment != 0xFFFFFFFF and comment + 64 <= len(body):
+        lines.append(f"  comment: \"{text(body[comment:comment + 32])}\" / \"{text(body[comment + 32:comment + 64])}\"")
+    ok, _ = describe_game_file({"name": name}, body, lines, ">")
+    bad = bad or not ok
+    if args.expect_system and name != "bh4_system":
+        lines.append("  FEHLER: not the system file")
+        bad = True
+    for n in args.expect_save:
+        if name != f"bh4_data{n:02d}":
+            lines.append(f"  FEHLER: not save bh4_data{n:02d}")
+            bad = True
+    if not ok:
+        lines.append("  FEHLER: the game's CRCs do not hold in GameCube byte order")
+    print("\n".join(lines))
+    return 1 if bad else 0
 
 
 def main():
@@ -192,6 +237,8 @@ def main():
     ap.add_argument("--expect-save", type=int, action="append", default=[])
     args = ap.parse_args()
     data = Path(args.card).read_bytes()
+    if args.card.lower().endswith(".gci"):
+        return list_gci(args.card, data, args)
     if len(data) != CARD_BYTES:
         print(f"memory card {args.card}: {len(data)} bytes, not 2 MB (a card of the port has 2097152)")
         return 1

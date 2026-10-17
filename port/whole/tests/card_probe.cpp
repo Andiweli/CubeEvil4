@@ -20,6 +20,13 @@
 //     CARDRead, CARDDelete) on an OS thread of the port's scheduler
 //     (re4_os_run): they sleep in __CARDSync until the card's interrupts,
 //     delivered when the thread goes to sleep, wake them
+//   - .gci export and import of the app's menu (M11, runtime/gci.cpp,
+//     card_files.cpp): a save and the system file made by the library are
+//     exported in GameCube byte order (fields checked against the game's
+//     structures, CRCs as a GameCube computes them), imported again over the
+//     old file and as a new one; the library then finds directory and FAT in
+//     order and reads back the very bytes it wrote; files of another game,
+//     cut short or with a wrong CRC are refused
 //
 // The asynchronous calls are waited for as the game's card task does: the
 // result code polled, the pending EXI interrupts delivered in between (in
@@ -29,6 +36,12 @@
 #undef new
 #include <dolphin/os.h>
 
+#include "global.h"
+#include "item.h"
+#include "merchant.h"
+#include "../runtime/re4_card_files.h"
+
+#include <stddef.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -204,6 +217,225 @@ s32 freeBlocks()
     return bytes / 0x2000;
 }
 
+// .gci: a save as the game makes one, with words where a GameCube would
+// show their byte order (makeFileWith writes it through the library)
+const u32 kSaveGame = 0x2034, kSaveItem = 0x572C, kSaveRoom = 0x6930, kSaveMerchant = 0xE7D4;
+
+void gameSave(u8* p)
+{
+    fill(p, kDataSize, 21);
+    memset(p + 0x1E40, 0, 0x1C0);  // between the palette and the header: nothing
+    memset(p + kSaveGame, 0, 0x36F8);
+    GLOBAL_WK* g = (GLOBAL_WK*) (p + kSaveGame - offsetof(GLOBAL_WK, save_data_start_addr));
+    g->play_time = 0x01020304;
+    g->peseta = 0x00012345;
+    g->room_id = 0x0100;
+    g->pl_pos.x = -1340.5f;
+    g->Status_flg[0] = 0x80000001u;
+    g->save_cnt = 0x0203;
+    // items, rooms and the merchant: their first fields
+    _ITEM_SAVE_DATA* items = (_ITEM_SAVE_DATA*) (p + kSaveItem);
+    memset(items, 0, sizeof(*items));
+    items->arm_no = 0x0102;
+    items->item_list[0].id = 0x8023;
+    u32 rooms[4] = { 0x10 + 3 * 0xD8, 3, 0, 0 };
+    memset(p + kSaveRoom, 0, 0xE7D0 - kSaveRoom);
+    memcpy(p + kSaveRoom, rooms, sizeof(rooms));
+    u16 roomNo = 0x0120;
+    memcpy(p + kSaveRoom + 0x10 + 0xD8, &roomNo, 2);
+    MERCHANT_DATA* m = (MERCHANT_DATA*) (p + kSaveMerchant);
+    memset(m, 0, sizeof(*m));
+    m->stock.e[0].id = 0x0035;
+    CRCInit();
+    put32(p + 0x2004, 0x116);
+    put32(p + 0x2000, CRCCalc(p + 0x2004, 0x1FC));
+    put32(p + 0xEAF8, CRCCalc(p, 0xEAF8));
+}
+
+u32 be32At(const u8* p)
+{
+    return (u32) p[0] << 24 | (u32) p[1] << 16 | (u32) p[2] << 8 | p[3];
+}
+
+u16 be16At(const u8* p)
+{
+    return (u16) (p[0] << 8 | p[1]);
+}
+
+bool makeFileWith(const char* name, u32 size, const u8* content)
+{
+    CARDFileInfo fi;
+    s32 r = finish(CARDCreateAsync(0, name, size, &fi, callback));
+    CHECK(r == CARD_RESULT_READY);
+    if (r != CARD_RESULT_READY) {
+        return false;
+    }
+    memcpy(gBuf, content, size);
+    r = finish(CARDWriteAsync(&fi, gBuf, (s32) size, 0, callback));
+    CHECK(r == CARD_RESULT_READY);
+    CARDStat stat;
+    CHECK(CARDGetStatus(0, fi.fileNo, &stat) == CARD_RESULT_READY);
+    CARDSetCommentAddress(&stat, 0);
+    CARDSetBannerFormat(&stat, CARD_STAT_BANNER_RGB5A3);
+    CARDSetIconAddress(&stat, 0x40);
+    CARDSetIconFormat(&stat, 0, CARD_STAT_ICON_C8);
+    CARDSetIconSpeed(&stat, 0, CARD_STAT_SPEED_SLOW);
+    CARDSetIconFormat(&stat, 1, CARD_STAT_ICON_NONE);
+    CARDSetIconSpeed(&stat, 1, CARD_STAT_SPEED_END);
+    r = finish(CARDSetStatusAsync(0, fi.fileNo, &stat, callback));
+    CHECK(r == CARD_RESULT_READY);
+    CHECK(CARDClose(&fi) == CARD_RESULT_READY);
+    return r == CARD_RESULT_READY;
+}
+
+// File `name` holds `content`, with the status makeFileWith gave it.
+void readFileIs(const char* name, u32 size, const u8* content)
+{
+    CARDFileInfo fi;
+    s32 r = CARDOpen(0, name, &fi);
+    CHECK(r == CARD_RESULT_READY);
+    if (r != CARD_RESULT_READY) {
+        re4_log("card-test: %s does not open (%d)", name, (int) r);
+        return;
+    }
+    memset(gRead, 0, size);
+    CHECK(finish(CARDReadAsync(&fi, gRead, (s32) size, 0, callback)) == CARD_RESULT_READY);
+    CHECK(memcmp(gRead, content, size) == 0);
+    CARDStat stat;
+    CHECK(CARDGetStatus(0, fi.fileNo, &stat) == CARD_RESULT_READY);
+    CHECK(stat.length == size && CARDGetBannerFormat(&stat) == CARD_STAT_BANNER_RGB5A3);
+    CHECK(stat.iconAddr == 0x40 && stat.commentAddr == 0 && CARDGetIconFormat(&stat, 0) == CARD_STAT_ICON_C8);
+    CHECK(CARDGetIconSpeed(&stat, 0) == CARD_STAT_SPEED_SLOW);
+    CHECK(CARDClose(&fi) == CARD_RESULT_READY);
+}
+
+int findFile(const Re4CardFile* files, int n, const char* name)
+{
+    for (int i = 0; i < n; i++) {
+        if (strcmp(files[i].name, name) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void gciTest(const char* path)
+{
+    static u8 save[kDataSize], system[kSystemSize];
+    static u8 gci[0x40 + kDataSize], gciSystem[0x40 + kSystemSize];
+    char note[256];
+    unlink(path);
+    re4_memcard_open(path);
+    CHECK(mount() == CARD_RESULT_READY);
+    gameSave(save);
+    fill(system, kSystemSize, 22);
+    u32 config = 0x0A000000u;
+    memcpy(system + 0x1E40, &config, 4);  // SYSTEM_SAVE_WORK Config_flg
+    put32(system + 0x1E78, CRCCalc(system, 0x1E78));
+    CHECK(makeFileWith("bh4_system", kSystemSize, system));
+    CHECK(makeFileWith("bh4_data00", kDataSize, save));
+    CHECK(CARDUnmount(0) == CARD_RESULT_READY);
+
+    // the list of the menu
+    Re4CardFile files[8];
+    int n = re4_card_list(files, 8);
+    CHECK(n == 2);
+    int s = findFile(files, n, "bh4_data00"), y = findFile(files, n, "bh4_system");
+    CHECK(s >= 0 && y >= 0);
+    if (s < 0 || y < 0) {
+        return;
+    }
+    CHECK(files[s].save && files[s].intact && files[s].room == 0x100 && files[s].blocks == 8);
+    CHECK(files[s].year == 2026 && files[s].saveCount == 0x0203 && files[s].playTime == 0x01020304);
+    CHECK(!files[y].save && files[y].intact);
+    CHECK(re4_card_free_blocks() == 251 - 9);
+    char name[64];
+    CHECK(re4_gci_file_name(files[s].index, name, sizeof(name)) == RE4_CARD_OK);
+    CHECK(strcmp(name, "08-G4BE-bh4_data00.gci") == 0);
+
+    // export: GameCube byte order
+    int bytes = re4_gci_export(files[s].index, gci, sizeof(gci), note, sizeof(note));
+    CHECK(bytes == (int) sizeof(gci));
+    const u8* d = gci + 0x40;
+    CHECK(memcmp(gci, "G4BE08", 6) == 0 && strcmp((const char*) gci + 8, "bh4_data00") == 0);
+    CHECK(be16At(gci + 0x38) == 8 && be32At(gci + 0x2C) == 0x40 && be32At(gci + 0x3C) == 0);
+    CHECK(be32At(d + 0x2004) == 0x116);
+    const u32 g = kSaveGame - offsetof(GLOBAL_WK, save_data_start_addr);
+    CHECK(be32At(d + g + offsetof(GLOBAL_WK, play_time)) == 0x01020304);
+    CHECK(be32At(d + g + offsetof(GLOBAL_WK, peseta)) == 0x00012345);
+    CHECK(be16At(d + g + offsetof(GLOBAL_WK, room_id)) == 0x0100);
+    // on the GameCube the stage byte comes first (the port's union keeps it at the other end, patch 0016)
+    CHECK(d[g + offsetof(GLOBAL_WK, room_id)] == 0x01 && d[g + offsetof(GLOBAL_WK, room_id) + 1] == 0x00);
+    CHECK(be32At(d + g + offsetof(GLOBAL_WK, Status_flg)) == 0x80000001u);
+    CHECK(be16At(d + g + offsetof(GLOBAL_WK, save_cnt)) == 0x0203);
+    float x = -1340.5f;
+    u32 xBits;
+    memcpy(&xBits, &x, 4);
+    CHECK(be32At(d + g + offsetof(GLOBAL_WK, pl_pos)) == xBits);
+    CHECK(be16At(d + kSaveItem + offsetof(_ITEM_SAVE_DATA, arm_no)) == 0x0102);
+    CHECK(be16At(d + kSaveItem + offsetof(_ITEM_SAVE_DATA, item_list)) == 0x8023);
+    CHECK(be32At(d + kSaveRoom + 4) == 3 && be16At(d + kSaveRoom + 0x10 + 0xD8) == 0x0120);
+    CHECK(be16At(d + kSaveMerchant) == 0x0035);
+    CHECK(memcmp(d + 0x40, save + 0x40, 0x1E00) == 0);  // banner, icon, palette: as they were
+    CHECK(be32At(d + 0x2000) == CRCCalc((u8*) d + 0x2004, 0x1FC));
+    CHECK(be32At(d + 0xEAF8) == CRCCalc((u8*) d, 0xEAF8));
+    bytes = re4_gci_export(files[y].index, gciSystem, sizeof(gciSystem), note, sizeof(note));
+    CHECK(bytes == (int) sizeof(gciSystem));
+    CHECK(be32At(gciSystem + 0x40 + 0x1E40) == 0x0A000000u);
+    CHECK(be32At(gciSystem + 0x40 + 0x1E78) == CRCCalc(gciSystem + 0x40, 0x1E78));
+    const char* keep = getenv("RE4_GCI_TEST_FILE");
+    if (keep && *keep) {
+        if (FILE* f = fopen(keep, "wb")) {
+            fwrite(gci, 1, sizeof(gci), f);
+            fclose(f);
+        }
+    }
+
+    // import: over the file, refused without replace
+    CHECK(re4_gci_import(gci, sizeof(gci), 0, note, sizeof(note)) == RE4_CARD_EXISTS);
+    CHECK(re4_gci_import(gci, sizeof(gci), 1, note, sizeof(note)) == RE4_CARD_OK);
+    CHECK(re4_gci_import(gciSystem, sizeof(gciSystem), 1, note, sizeof(note)) == RE4_CARD_OK);
+    CHECK(re4_card_free_blocks() == 251 - 9);
+    // ... and as a new file (the name is not under a CRC)
+    static u8 other[sizeof(gci)];
+    memcpy(other, gci, sizeof(gci));
+    other[8 + 9] = '1';
+    CHECK(re4_gci_import(other, sizeof(other), 0, note, sizeof(note)) == RE4_CARD_OK);
+    CHECK(re4_card_free_blocks() == 251 - 17);
+    // refused: another game, cut short, a wrong CRC, another version
+    memcpy(other, gci, sizeof(gci));
+    memcpy(other, "GZLE", 4);
+    CHECK(re4_gci_import(other, sizeof(other), 1, note, sizeof(note)) == RE4_CARD_BAD);
+    CHECK(re4_gci_import(gci, sizeof(gci) - 0x2000, 1, note, sizeof(note)) == RE4_CARD_BAD);
+    memcpy(other, gci, sizeof(gci));
+    other[0x40 + 0x3000] ^= 1;
+    CHECK(re4_gci_import(other, sizeof(other), 1, note, sizeof(note)) == RE4_CARD_BAD);
+    CHECK(re4_card_free_blocks() == 251 - 17);
+
+    // the library: directory and FAT in order, the bytes it wrote
+    CHECK(mount() == CARD_RESULT_READY);
+    CHECK(check() == CARD_RESULT_READY);
+    CHECK(freeBlocks() == 251 - 17);
+    readFileIs("bh4_data00", kDataSize, save);
+    readFileIs("bh4_data01", kDataSize, save);
+    readFileIs("bh4_system", kSystemSize, system);
+    CHECK(finish(CARDDeleteAsync(0, "bh4_data01", callback)) == CARD_RESULT_READY);
+    CHECK(CARDUnmount(0) == CARD_RESULT_READY);
+    // a new start: the card from its file
+    re4_memcard_open(path);
+    CHECK(mount() == CARD_RESULT_READY);
+    CHECK(check() == CARD_RESULT_READY);
+    CHECK(freeBlocks() == 251 - 9);
+    readFileIs("bh4_data00", kDataSize, save);
+    CHECK(CARDUnmount(0) == CARD_RESULT_READY);
+    // the conversion both ways gives the bytes back
+    memcpy(gRead, save, kDataSize);
+    CHECK(re4_gci_convert("bh4_data07", gRead, kDataSize, 1, note, sizeof(note)) == RE4_CARD_OK);
+    CHECK(re4_gci_convert("bh4_data07", gRead, kDataSize, 0, note, sizeof(note)) == RE4_CARD_OK);
+    CHECK(memcmp(gRead, save, kDataSize) == 0);
+    unlink(path);
+}
+
 char gSyncPath[256];
 
 // The synchronous API on the boot thread of the OS emulation.
@@ -335,6 +567,11 @@ extern "C" int re4probe_card_test(void)
     unlink(gSyncPath);
     re4_os_run(syncMain);
     unlink(gSyncPath);
+
+    // .gci export and import, on a card of its own
+    char gciPath[300];
+    snprintf(gciPath, sizeof(gciPath), "%s.gci-card", path);
+    gciTest(gciPath);
 
     // no card in slot A
     re4_memcard_open(0);

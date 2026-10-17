@@ -634,6 +634,23 @@ void re4_memcard_open(const char* path)
     insert(path);
 }
 
+// The card's 2 MB as the library sees them, for the file functions of the
+// app's menu (runtime/card_files.cpp: .gci import and export while the game
+// stands and the library has the card unmounted); 0 when slot A is empty.
+unsigned char* re4_memcard_mem(void)
+{
+    init();
+    return gCard.present ? gCard.mem : 0;
+}
+
+// `length` bytes from `offset` of re4_memcard_mem changed: into the file.
+void re4_memcard_store(unsigned offset, unsigned length)
+{
+    if (gCard.present && offset < kCardBytes && length <= kCardBytes - offset) {
+        persist(offset, length);
+    }
+}
+
 // --- SRAM ---------------------------------------------------------------------
 
 OSSram* __OSLockSram(void)

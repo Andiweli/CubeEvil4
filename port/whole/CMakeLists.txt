@@ -114,8 +114,10 @@ string(APPEND RE4_LINK_OBJECTS "main=$<TARGET_OBJECTS:re4_main_obj>\n")
 add_library(re4_platform_obj OBJECT
     runtime/aram.cpp
     runtime/byte_order.cpp
+    runtime/card_files.cpp
     runtime/dolphin_os.cpp
     runtime/dvd.cpp
+    runtime/gci.cpp
     runtime/gx_fifo.cpp
     runtime/gx_decode.cpp
     runtime/host_file.cpp

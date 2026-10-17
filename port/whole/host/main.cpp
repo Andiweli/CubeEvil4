@@ -17,6 +17,12 @@
 //                             a formatted, empty memory card in FILE, made by
 //                             the SDK's card library (tests/card_probe.cpp;
 //                             the PC check boots with it)
+//   re4_host --gci-export CARD DIR
+//                             every file of the card file CARD as a .gci in
+//                             GameCube byte order into DIR (as the app's menu
+//                             exports them; runtime/gci.cpp)
+//   re4_host --gci-import CARD FILE.gci [--replace]
+//                             a .gci onto the card file CARD
 //
 // kill -USR1 <pid> prints a backtrace of the running context and of every OS
 // thread's last wait (with RE4_WAIT_TRACE=1): the hang search.
@@ -24,6 +30,7 @@
 // Module libraries are looked up in <directory of re4_host>/modules. The
 // extracted disc files are read from --data DIR, else $RE4_DATA_DIR, else
 // <directory of re4_host>/data (layout: port/whole/runtime/dvd.cpp).
+#include "re4_card_files.h"
 #include "re4_runtime.h"
 
 #include <dlfcn.h>
@@ -131,6 +138,60 @@ static int selfTest()
 
 extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const char* wavPath, int maxFields);
 extern "C" int re4probe_card_format(const char* path);
+extern "C" void re4_memcard_open(const char* path);
+extern "C" void re4_memcard_flush(int force);
+
+// --gci-export / --gci-import: the card functions of the app's menu on a card file.
+static int gciTool(int argc, char** argv)
+{
+    re4_memcard_open(argv[2]);
+    char note[256] = "";
+    if (strcmp(argv[1], "--gci-export") == 0) {
+        static Re4CardFile files[127];
+        int n = re4_card_list(files, 127);
+        if (n < 0) {
+            fprintf(stderr, "gci-export: %s: no formatted card\n", argv[2]);
+            return 1;
+        }
+        int failed = 0;
+        static unsigned char out[RE4_GCI_HEADER + 251 * RE4_CARD_BLOCK];
+        for (int i = 0; i < n; i++) {
+            char name[64], path[PATH_MAX];
+            re4_gci_file_name(files[i].index, name, sizeof(name));
+            int bytes = re4_gci_export(files[i].index, out, sizeof(out), note, sizeof(note));
+            if (bytes < 0) {
+                printf("gci-export: %s: FAILED (%s)\n", files[i].name, note);
+                failed++;
+                continue;
+            }
+            snprintf(path, sizeof(path), "%s/%s", argv[3], name);
+            FILE* f = fopen(path, "wb");
+            if (!f || fwrite(out, 1, (size_t) bytes, f) != (size_t) bytes) {
+                printf("gci-export: %s: cannot write %s\n", files[i].name, path);
+                failed++;
+            } else {
+                printf("gci-export: %s -> %s (%d bytes; %s)\n", files[i].name, path, bytes, note);
+            }
+            if (f) {
+                fclose(f);
+            }
+        }
+        return failed ? 1 : 0;
+    }
+    FILE* f = fopen(argv[3], "rb");
+    if (!f) {
+        fprintf(stderr, "gci-import: %s cannot be opened\n", argv[3]);
+        return 1;
+    }
+    static unsigned char in[RE4_GCI_HEADER + 252 * RE4_CARD_BLOCK];
+    size_t size = fread(in, 1, sizeof(in), f);
+    fclose(f);
+    bool replace = argc > 4 && strcmp(argv[4], "--replace") == 0;
+    int r = re4_gci_import(in, (unsigned) size, replace, note, sizeof(note));
+    printf("gci-import: %s: %s (%d)\n", argv[3], r == RE4_CARD_OK ? "ok" : note, r);
+    re4_memcard_open(0);  // synced and closed
+    return r == RE4_CARD_OK ? 0 : 1;
+}
 
 extern "C" __attribute__((visibility("default"))) int re4_host_main(int argc, char** argv)
 {
@@ -187,6 +248,11 @@ extern "C" __attribute__((visibility("default"))) int re4_host_main(int argc, ch
     }
     if (argc > 2 && strcmp(argv[1], "--memcard-format") == 0) {
         _exit(re4probe_card_format(argv[2]) ? 0 : 1);
+    }
+    if (argc > 3 && (strcmp(argv[1], "--gci-export") == 0 || strcmp(argv[1], "--gci-import") == 0)) {
+        int r = gciTool(argc, argv);
+        fflush(stdout);
+        _exit(r);
     }
     // The game tests bit 31 of addresses of its own data (as on the GameCube).
     re4_check_game_address("libre4_main", (const void*) &re4_game_main);
