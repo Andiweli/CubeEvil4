@@ -73,8 +73,9 @@ r100 steht weiter hinten am Weg, hinter dem ersten Haus. Nach jedem Lauf holt da
 
 Steuerung (Meilenstein 7) wie beim GameCube: A, B, X, Y nach Beschriftung, linker Stick =
 Steuerstick, rechter Stick = C-Stick, Steuerkreuz, START, R2 = R (Waffe anlegen), L2 = L
-(Messer), R1 = Z (Karte), L1 ohne Funktion; SELECT blendet die Diagnose-Anzeige ein (mit der
-zuletzt gedrueckten Taste und den Stick-Werten), R3 = Grafik-Aufnahme. Der Bericht listet,
+(Messer), R1 = Z (Karte), L1 ohne Funktion; SELECT kurz = Menue der App (Grafik, Speicherkarte
+als .gci, Fehlerprotokoll; das Spiel steht solange), SELECT 1 Sekunde halten = Debug-Menue des
+Spiels (Meilenstein 11), R3 = Grafik-Aufnahme (bei diesem Skript immer an). Der Bericht listet,
 welche Android-Taste welche GameCube-Taste wurde, die Eingabegeraete und die Vibration.
 Reagieren A/B oder X/Y vertauscht: im Startmenue der App "Swap A/B and X/Y" ankreuzen.
 
@@ -353,6 +354,8 @@ if ($AudioWav -gt 0) {
     $wavSetting = "RE4_AUDIO_WAV=$wavRemote;RE4_AUDIO_WAV_SECONDS=$AudioWav"
     $settings = if ($settings) { "$settings;$wavSetting" } else { $wavSetting }
 }
+# the app's tools for the test: R3 saves graphics data (otherwise only with the menu's switch)
+$settings = if ($settings) { "$settings;RE4_APP_TOOLS=1" } else { 'RE4_APP_TOOLS=1' }
 . (Join-Path $PSScriptRoot 'Retroid-Adb-Exclusive.ps1')
 Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     if ((& $Adb -s $Serial get-state) -ne 'device' -or $LASTEXITCODE -ne 0) {

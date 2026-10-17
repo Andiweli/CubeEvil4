@@ -14,7 +14,10 @@ import java.util.Map;
  * labels (a switch swaps A/B and X/Y for controllers that send the other
  * codes), D-pad, START; R2 = R (ready weapon, analog), L2 = L (knife, analog),
  * R1 = Z (map), L1 free; left stick = control stick, right stick = C stick.
- * SELECT (diagnostic overlay) and R3 (graphics capture) belong to the app.
+ * SELECT and R3 belong to the app (decision of the project owner,
+ * 17.10.2026): SELECT pressed opens the app's menu (picture options, memory
+ * card, error log), held for a second the game's debug menu; R3 saves
+ * graphics data for the diagnosis when the tools are on.
  */
 public final class CoreInput {
   // GameCube pad bits (PAD_BUTTON_*)
@@ -22,7 +25,7 @@ public final class CoreInput {
       GC_Z = 0x0010, GC_R = 0x0020, GC_L = 0x0040, GC_A = 0x0100, GC_B = 0x0200, GC_X = 0x0400,
       GC_Y = 0x0800, GC_START = 0x1000;
   // what a key does for the app instead of the game
-  public static final int APP_NONE = 0, APP_OVERLAY = 1, APP_GX_DUMP = 2;
+  public static final int APP_NONE = 0, APP_MENU = 1, APP_GX_DUMP = 2;
 
   // android.view.KeyEvent key codes
   static final int KEYCODE_DPAD_UP = 19, KEYCODE_DPAD_DOWN = 20, KEYCODE_DPAD_LEFT = 21,
@@ -81,10 +84,10 @@ public final class CoreInput {
     }
   }
 
-  /** What a key does for the app (overlay, graphics capture), APP_NONE for the rest. */
+  /** What a key does for the app (menu, graphics capture), APP_NONE for the rest. */
   public static int appFunction(int keyCode) {
     switch (keyCode) {
-      case KEYCODE_BUTTON_SELECT: return APP_OVERLAY;
+      case KEYCODE_BUTTON_SELECT: return APP_MENU;
       case KEYCODE_BUTTON_THUMBR: return APP_GX_DUMP;
       default: return APP_NONE;
     }

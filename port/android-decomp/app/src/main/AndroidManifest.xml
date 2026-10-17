@@ -18,6 +18,9 @@
             android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation" />
         <activity android:name=".ControllerActivity" android:exported="false" android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden" />
+        <!-- the core mode's error report for the app it is sent with (CoreLog, M11) -->
+        <provider android:name=".ReportProvider" android:authorities="${applicationId}.report"
+            android:exported="false" android:grantUriPermissions="true" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

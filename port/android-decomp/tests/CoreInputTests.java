@@ -60,7 +60,7 @@ public final class CoreInputTests {
     }
     check(!in.key(1, L1, true) && CoreInput.unused(L1) && CoreInput.unused(L3));
     check(in.pad()[0] == 0);
-    check(CoreInput.appFunction(SELECT) == CoreInput.APP_OVERLAY);
+    check(CoreInput.appFunction(SELECT) == CoreInput.APP_MENU);
     check(CoreInput.appFunction(R3) == CoreInput.APP_GX_DUMP);
     check(CoreInput.appFunction(A) == CoreInput.APP_NONE && !in.key(1, SELECT, true));
     // the switch for controllers that send the other layout's codes

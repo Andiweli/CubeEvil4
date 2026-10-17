@@ -54,4 +54,47 @@ public final class CoreBridge {
   public static native void surfaceCreated();
   public static native void resize(int width, int height);
   public static native void draw();
+
+  // --- the app's menu (M11; cores since M11, hasMenu says whether this one has it) ---
+
+  /** The core has the menu's functions (pause, memory card). */
+  public static native boolean hasMenu();
+  /**
+   * on: the game stops at its next frame and waits until pause(false);
+   * waits up to waitMs for that. True when the game stands.
+   */
+  public static native boolean pause(boolean on, int waitMs);
+  /** The game's debug menu at its next frame (SELECT held, patch 0061). */
+  public static native void debugMenu();
+  /**
+   * The memory card's files, one tab-separated row each (index, name,
+   * blocks, save, intact, room, chapter, times saved, play time, year,
+   * month, day, hour, minute, comment 1, comment 2); null when the game
+   * uses the card or there is none (cardNote: "busy" / "nocard"). Only
+   * while the game stands (pause).
+   */
+  public static native String[] cardList();
+  /** Free blocks of the card, negative when it cannot be read now. */
+  public static native int cardFreeBlocks();
+  /** The name Dolphin gives the file's .gci ("08-G4BE-bh4_data00.gci"). */
+  public static native String cardFileName(int index);
+  /** The .gci of a file (GameCube byte order), null on an error (cardNote). */
+  public static native byte[] cardExport(int index);
+  /** A .gci onto the card: CARD_OK or an error (cardNote). */
+  public static native int cardImport(byte[] gci, boolean replace);
+  /** What the last card function did or why not. */
+  public static native String cardNote();
+  /** Results of cardImport (runtime/re4_card_files.h). */
+  public static final int CARD_OK = 0, CARD_NOCARD = -1, CARD_EXISTS = -2, CARD_NOSPACE = -3, CARD_BAD = -4,
+      CARD_BUSY = -5;
+  /**
+   * The picture options: scale 0 (automatic) or 1-4 (EFB resolution
+   * multiple), samples 1/2/4 (multisampling), anisotropy 1-16, aspect 0
+   * (16:9) or 1 (4:3); applied at the next picture while the game runs.
+   */
+  public static native void setGraphics(int scale, int samples, int anisotropy, int aspect);
+  /** {most samples, strongest anisotropy, scale, samples, anisotropy in use}; null before the first picture. */
+  public static native int[] graphicsInfo();
+  /** Where a crash writes where it happened (the error log's folder). */
+  public static native void setCrashFile(String path);
 }

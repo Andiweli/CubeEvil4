@@ -2,12 +2,14 @@ package com.ast.re4decomp;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
 import android.content.Context;
-import android.graphics.Color;
-import android.graphics.Typeface;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.hardware.input.InputManager;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
+import android.net.Uri;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Bundle;
@@ -18,20 +20,27 @@ import android.os.VibrationAttributes;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
+import android.provider.DocumentsContract;
 import android.util.Log;
 import android.view.Choreographer;
-import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.Reader;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Locale;
@@ -46,15 +55,23 @@ import javax.microedition.khronos.opengles.GL10;
  * this Activity draws its frames, passes the controller as GameCube pad 0
  * (CoreInput: layout, raw values), plays the game's sound (CoreAudio), drives
  * the vibrator from the game's rumble and prepares the room archive the game
- * enters. SELECT shows/hides the
- * diagnostic overlay (hidden at the start unless the core did not start), R3
- * saves graphics data for the diagnosis; Back ends the game (the core cannot
- * be restarted inside the same process).
+ * enters. SELECT pressed opens the app's menu (CoreMenu: picture options,
+ * memory card as .gci, error log; the game stands meanwhile), SELECT held
+ * for a second the game's debug menu (decision of the project owner,
+ * 17.10.2026); R3 saves graphics data for the diagnosis when the tools are
+ * on (the test scripts, or the menu's switch). The game also stands while
+ * the app is not in front. Back ends the game (the core cannot be restarted
+ * inside the same process). The error log records from the start (CoreLog).
  */
 public final class CoreActivity extends Activity implements InputManager.InputDeviceListener {
   static final String TAG = "RE4Input";
   /** Preferences of the core mode's controller (MainActivity sets the swap). */
-  static final String INPUT_PREFS = "core_input", SWAP_FACE = "swapFace";
+  static final String INPUT_PREFS = "core_input", SWAP_FACE = "swapFace", R3_CAPTURE = "r3Capture";
+  /** The menu's picture options: scale (0 auto, 1-4), samples, anisotropy, aspect (0 16:9, 1 4:3). */
+  static final String GRAPHICS_PREFS = "core_graphics";
+  private static final int REQUEST_EXPORT = 1, REQUEST_EXPORT_ALL = 2, REQUEST_IMPORT = 3, REQUEST_REPORT = 4;
+  /** SELECT held this long: the game's debug menu. */
+  private static final long SELECT_HOLD_MS = 1000;
 
   private final Handler main = new Handler(Looper.getMainLooper());
   private final ExecutorService rooms = Executors.newSingleThreadExecutor();
@@ -62,11 +79,14 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private final CoreAudio audio = new CoreAudio();
   private final Set<Integer> seenDevices = new HashSet<>();
   private GLSurfaceView surface;
-  private TextView overlay;
   private String startProblem = "";
-  private String lastKey = "-";
-  private int[] lastPad = new int[7];
+  private String settings = "";
   private volatile boolean destroyed;
+  // the menu (SELECT) and the debug menu (SELECT held)
+  private CoreMenu menu;
+  private boolean menuSupported, tools, selectDown, selectHeld;
+  private int exportIndex = -1;
+  private final List<byte[]> pendingImports = new ArrayList<>();
   private boolean resumed;
   // rumble: the game's motor (CoreBridge.rumble) on the device's vibrator
   private Vibrator vibrator;
@@ -83,17 +103,26 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     hideSystemUi();
     ImportManager imports = ((Re4Application) getApplication()).imports;
     // test switches of the core (port/scripts/test-core-app.ps1 passes them)
-    String settings = getIntent().getStringExtra("coreSettings");
+    settings = getIntent().getStringExtra("coreSettings");
+    if (settings == null) settings = "";
+    // the error log of this run (the one before is kept for the report)
+    CoreLog.start(this, settings);
     // linked shader programs kept between runs (no compile stutter the second time)
     String programs = "RE4_GX_PROGRAM_CACHE=" + new File(getCacheDir(), "gx-programs").getAbsolutePath();
-    settings = settings == null || settings.isEmpty() ? programs : settings + ";" + programs;
+    String coreSettings = settings.isEmpty() ? programs : settings + ";" + programs;
     // the app's own folder on the shared storage, where test switches write (RE4_AUDIO_WAV)
     getExternalFilesDir(null);
+    applyGraphics();
     startProblem = imports.root == null ? "No data folder"
-        : CoreBridge.start(imports.root.getAbsolutePath(), settings);
-    input.setSwapFace(getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).getBoolean(SWAP_FACE, false));
+        : CoreBridge.start(imports.root.getAbsolutePath(), coreSettings);
+    menuSupported = startProblem.isEmpty() && CoreBridge.hasMenu();
+    SharedPreferences inputPrefs = getSharedPreferences(INPUT_PREFS, MODE_PRIVATE);
+    input.setSwapFace(inputPrefs.getBoolean(SWAP_FACE, false));
+    // R3 saves graphics data with the test scripts (RE4_APP_TOOLS=1) or when the menu switched it on
+    tools = settings.contains("RE4_APP_TOOLS=1") || inputPrefs.getBoolean(R3_CAPTURE, false);
     Log.i(TAG, "layout: A B X Y by label" + (input.swapFace() ? ", A/B and X/Y swapped" : "")
-        + ", R2 = R, L2 = L, R1 = Z, SELECT overlay, R3 graphics capture");
+        + ", R2 = R, L2 = L, R1 = Z, SELECT menu (held: debug menu), R3 " + (tools ? "graphics capture" : "unused")
+        + (menuSupported ? "" : "; this core has no menu functions"));
     setUpVibrator();
     // the volume buttons set the game's volume
     setVolumeControlStream(AudioManager.STREAM_MUSIC);
@@ -108,23 +137,33 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       @Override public void onDrawFrame(GL10 gl) { CoreBridge.draw(); }
     });
     root.addView(surface);
-    overlay = new TextView(this);
-    overlay.setTypeface(Typeface.MONOSPACE);
-    overlay.setTextSize(11);
-    overlay.setTextColor(Color.WHITE);
-    overlay.setBackgroundColor(0x80000000);
-    overlay.setPadding(12, 8, 12, 8);
-    FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-        FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
-    root.addView(overlay, lp);
-    // hidden while the game runs (SELECT shows it); shown when the core did not start
-    overlay.setVisibility(startProblem.isEmpty() ? View.GONE : View.VISIBLE);
     setContentView(root);
     surface.setFocusable(true);
     surface.requestFocus();
     if (Build.VERSION.SDK_INT >= 33)
       getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, this::askExit);
+    if (!startProblem.isEmpty()) {
+      Log.e(TAG, "core not started: " + startProblem);
+      main.post(this::showStartProblem);
+    }
     main.post(this::tick);
+  }
+
+  /** The core did not start: why, with the error report to send. */
+  private void showStartProblem() {
+    if (destroyed) return;
+    new AlertDialog.Builder(this)
+        .setMessage(CoreMenu.t("Der Spielkern ist nicht gestartet:\n", "The game core did not start:\n") + startProblem)
+        .setPositiveButton(CoreMenu.t("Bericht senden", "Send report"), (d, w) -> shareReport())
+        .setNegativeButton(CoreMenu.t("Beenden", "Quit"), (d, w) -> quit())
+        .setCancelable(false).show();
+  }
+
+  /** The menu's picture options to the renderer (applied at the next picture while the game runs). */
+  private void applyGraphics() {
+    SharedPreferences g = getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE);
+    CoreBridge.setGraphics(g.getInt("scale", 0), g.getInt("samples", 1), g.getInt("anisotropy", 1),
+        g.getInt("aspect", 0));
   }
 
   private void hideSystemUi() {
@@ -133,11 +172,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
         | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
   }
 
-  /** Twice a second: overlay text and the room the game wants. */
+  /** Twice a second: the room the game wants. */
   private void tick() {
     if (destroyed) return;
-    String text = padText() + "\n" + CoreBridge.status();
-    overlay.setText(startProblem.isEmpty() ? text : "Core not started: " + startProblem + "\n" + text);
     int room = CoreBridge.wantedRoom();
     if (room >= 0 && room != preparedRoom && !roomBusy) prepareRoom(room);
     main.postDelayed(this::tick, 500);
@@ -166,27 +203,262 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   }
 
   private void askExit() {
-    new AlertDialog.Builder(this).setMessage("End the game? (The core starts anew with the next launch.)")
-        .setPositiveButton("End", (d, w) -> {
-          finishAndRemoveTask();
-          // the core cannot be restarted inside this process
-          main.postDelayed(() -> System.exit(0), 300);
-        })
-        .setNegativeButton("Continue", null).show();
+    new AlertDialog.Builder(this).setMessage(CoreMenu.t("Spiel beenden? (Nicht gespeicherter Fortschritt geht verloren.)",
+        "End the game? (Progress not saved is lost.)"))
+        .setPositiveButton(CoreMenu.t("Beenden", "End"), (d, w) -> quit())
+        .setNegativeButton(CoreMenu.t("Weiterspielen", "Continue"), null).show();
+  }
+
+  private void quit() {
+    CoreLog.stop();
+    finishAndRemoveTask();
+    // the core cannot be restarted inside this process
+    main.postDelayed(() -> System.exit(0), 300);
+  }
+
+  // --- the menu (SELECT) -------------------------------------------------------
+
+  /** SELECT held for a second: the game's debug menu (patch 0061), once per press. */
+  private final Runnable selectHold = () -> {
+    if (!selectDown || menu != null) return;
+    selectHeld = true;
+    if (!menuSupported) {
+      Toast.makeText(this, CoreMenu.t("Dieser Spielkern kennt das Debug-Menü noch nicht", "This core has no debug menu yet"),
+          Toast.LENGTH_SHORT).show();
+      return;
+    }
+    CoreBridge.debugMenu();
+    vibrate(2);
+    Log.i(TAG, "SELECT held: debug menu");
+  };
+
+  private void openMenu() {
+    if (menu != null || destroyed) return;
+    if (!menuSupported) {
+      Toast.makeText(this, CoreMenu.t("Dieser Spielkern hat noch kein Menü", "This core has no menu yet"),
+          Toast.LENGTH_SHORT).show();
+      return;
+    }
+    releaseAll();
+    boolean paused = CoreBridge.pause(true, 800);
+    audio.stop();
+    stopVibrator();
+    Log.i(TAG, "menu open" + (paused ? ", the game stands" : ", the game did not stop yet (loading?)"));
+    menu = new CoreMenu(this, menuHost, tools);
+    menu.setOnDismissListener(d -> {
+      menu = null;
+      releaseAll();
+      if (resumed) {
+        CoreBridge.pause(false, 0);
+        audio.start();
+        main.removeCallbacks(rumbleTick);
+        main.post(rumbleTick);
+      }
+      Log.i(TAG, "menu closed");
+      surface.requestFocus();
+    });
+    menu.show();
+  }
+
+  private final CoreMenu.Host menuHost = new CoreMenu.Host() {
+    @Override public void graphicsChanged() { applyGraphics(); }
+
+    @Override public void exportFile(int index, String fileName) {
+      exportIndex = index;
+      Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+          .setType("application/octet-stream").putExtra(Intent.EXTRA_TITLE, fileName);
+      startForResult(i, REQUEST_EXPORT);
+    }
+
+    @Override public void exportAll() {
+      startForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQUEST_EXPORT_ALL);
+    }
+
+    @Override public void importFiles() {
+      Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+          .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+      startForResult(i, REQUEST_IMPORT);
+    }
+
+    @Override public void shareReport() { CoreActivity.this.shareReport(); }
+
+    @Override public void saveReport() {
+      Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+          .setType("application/zip").putExtra(Intent.EXTRA_TITLE, reportName());
+      startForResult(i, REQUEST_REPORT);
+    }
+
+    @Override public void logChanged(boolean on) { CoreLog.setEnabled(CoreActivity.this, on); }
+
+    @Override public void toolsChanged(boolean on) {
+      tools = on || settings.contains("RE4_APP_TOOLS=1");
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(R3_CAPTURE, on).apply();
+    }
+
+    @Override public void quit() { askExit(); }
+  };
+
+  private void startForResult(Intent intent, int request) {
+    try {
+      startActivityForResult(intent, request);
+    } catch (android.content.ActivityNotFoundException e) {
+      Toast.makeText(this, CoreMenu.t("Keine Dateiauswahl auf diesem Gerät", "No file picker on this device"),
+          Toast.LENGTH_LONG).show();
+    }
+  }
+
+  private void message(String text) {
+    new AlertDialog.Builder(this).setMessage(text).setPositiveButton("OK", null).show();
+  }
+
+  @Override
+  protected void onActivityResult(int request, int result, Intent data) {
+    super.onActivityResult(request, result, data);
+    if (result != RESULT_OK || data == null) return;
+    try {
+      if (request == REQUEST_EXPORT && data.getData() != null) {
+        byte[] gci = CoreBridge.cardExport(exportIndex);
+        if (gci == null) {
+          message(CoreMenu.t("Export nicht möglich: ", "Export failed: ") + CoreBridge.cardNote());
+          return;
+        }
+        try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
+          if (out == null) throw new IOException("no stream");
+          out.write(gci);
+        }
+        Toast.makeText(this, CoreMenu.t("Exportiert", "Exported"), Toast.LENGTH_SHORT).show();
+      } else if (request == REQUEST_EXPORT_ALL && data.getData() != null) {
+        exportAllInto(data.getData());
+      } else if (request == REQUEST_IMPORT) {
+        pendingImports.clear();
+        if (data.getClipData() != null) {
+          for (int i = 0; i < data.getClipData().getItemCount(); i++) readImport(data.getClipData().getItemAt(i).getUri());
+        } else if (data.getData() != null) {
+          readImport(data.getData());
+        }
+        importNext(new StringBuilder());
+      } else if (request == REQUEST_REPORT && data.getData() != null) {
+        try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
+          if (out == null) throw new IOException("no stream");
+          CoreLog.writeReport(this, out, settings, reportExtras());
+        }
+        Toast.makeText(this, CoreMenu.t("Bericht gespeichert", "Report saved"), Toast.LENGTH_SHORT).show();
+      }
+    } catch (IOException | RuntimeException e) {
+      Log.w(TAG, "menu: " + e);
+      message(CoreMenu.t("Das hat nicht geklappt: ", "That did not work: ") + e.getMessage());
+    }
+  }
+
+  /** Every file of the card as .gci into the chosen folder. */
+  private void exportAllInto(Uri tree) throws IOException {
+    String[] rows = CoreBridge.cardList();
+    if (rows == null) {
+      message(CoreMenu.t("Die Karte ist gerade nicht lesbar.", "The card cannot be read now."));
+      return;
+    }
+    Uri folder = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
+    int done = 0;
+    StringBuilder problems = new StringBuilder();
+    for (String row : rows) {
+      int index = Integer.parseInt(row.split("\t", 2)[0]);
+      String name = CoreBridge.cardFileName(index);
+      byte[] gci = CoreBridge.cardExport(index);
+      if (gci == null || name == null) {
+        problems.append('\n').append(CoreBridge.cardNote());
+        continue;
+      }
+      Uri file = DocumentsContract.createDocument(getContentResolver(), folder, "application/octet-stream", name);
+      if (file == null) throw new IOException(name);
+      try (OutputStream out = getContentResolver().openOutputStream(file)) {
+        if (out == null) throw new IOException(name);
+        out.write(gci);
+      }
+      done++;
+    }
+    message(String.format(java.util.Locale.ROOT, CoreMenu.t("%d Dateien exportiert.", "%d files exported."), done)
+        + problems);
+  }
+
+  private void readImport(Uri uri) throws IOException {
+    try (InputStream in = getContentResolver().openInputStream(uri)) {
+      if (in == null) throw new IOException(String.valueOf(uri));
+      byte[] gci = CoreLog.readAll(in);
+      if (gci.length > 4 << 20) throw new IOException(CoreMenu.t("zu groß für eine .gci", "too big for a .gci"));
+      pendingImports.add(gci);
+    }
+  }
+
+  /** The chosen .gci files one by one; a file already on the card is replaced only when asked. */
+  private void importNext(StringBuilder report) {
+    if (pendingImports.isEmpty()) {
+      if (report.length() > 0) message(report.toString().trim());
+      if (menu != null) menu.refreshCard();
+      return;
+    }
+    byte[] gci = pendingImports.remove(0);
+    int r = CoreBridge.cardImport(gci, false);
+    if (r == CoreBridge.CARD_EXISTS) {
+      String note = CoreBridge.cardNote();
+      new AlertDialog.Builder(this)
+          .setMessage(note + "\n" + CoreMenu.t("Ersetzen?", "Replace it?"))
+          .setPositiveButton(CoreMenu.t("Ersetzen", "Replace"), (d, w) -> {
+            int again = CoreBridge.cardImport(gci, true);
+            report.append(again == CoreBridge.CARD_OK ? CoreMenu.t("Ersetzt: ", "Replaced: ") : "")
+                .append(CoreBridge.cardNote()).append('\n');
+            importNext(report);
+          })
+          .setNegativeButton(CoreMenu.t("Überspringen", "Skip"), (d, w) -> importNext(report))
+          .setCancelable(false).show();
+      return;
+    }
+    report.append(r == CoreBridge.CARD_OK ? CoreMenu.t("Importiert: ", "Imported: ")
+        : CoreMenu.t("Nicht importiert: ", "Not imported: ")).append(CoreBridge.cardNote()).append('\n');
+    importNext(report);
+  }
+
+  private String reportName() {
+    return "re4-bericht-" + new SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(new Date()) + ".zip";
+  }
+
+  /** The card's file list (without the saves themselves) for the report. */
+  private String[][] reportExtras() {
+    StringBuilder card = new StringBuilder();
+    String[] rows = CoreBridge.cardList();
+    if (rows == null) {
+      card.append("(Karte: ").append(CoreBridge.cardNote()).append(")\n");
+    } else {
+      for (String row : rows) card.append(CoreMenu.describe(row.split("\t", -1))).append('\n');
+      card.append(CoreBridge.cardFreeBlocks()).append(" Bloecke frei\n");
+    }
+    return new String[][] {{"speicherkarte.txt", card.toString()}};
+  }
+
+  /** The error report to an app of the tester's choice (mail, messenger, cloud). */
+  private void shareReport() {
+    try {
+      File dir = ReportProvider.folder(this);
+      File[] old = dir.listFiles();
+      if (old != null) for (File f : old) f.delete();
+      File zip = new File(dir, reportName());
+      try (OutputStream out = new FileOutputStream(zip)) {
+        CoreLog.writeReport(this, out, settings, reportExtras());
+      }
+      Uri uri = ReportProvider.uri(this, zip);
+      Intent send = new Intent(Intent.ACTION_SEND).setType("application/zip").putExtra(Intent.EXTRA_STREAM, uri)
+          .putExtra(Intent.EXTRA_SUBJECT, "RE4 Kern: " + zip.getName()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+      send.setClipData(ClipData.newRawUri(zip.getName(), uri));
+      startActivity(Intent.createChooser(send, CoreMenu.t("Fehlerbericht senden", "Send the error report")));
+    } catch (IOException | RuntimeException e) {
+      Log.w(TAG, "report: " + e);
+      message(CoreMenu.t("Der Bericht ließ sich nicht erstellen: ", "The report could not be made: ") + e.getMessage());
+    }
   }
 
   @Override
   @SuppressWarnings("deprecation")
   public void onBackPressed() {
     askExit();
-  }
-
-  /** The controller as the overlay shows it: last key, buttons, raw sticks and triggers. */
-  private String padText() {
-    int[] p = lastPad;
-    return String.format(Locale.ROOT, "pad: last key %s | %s | stick %d,%d C %d,%d | L %d R %d%s",
-        lastKey, CoreInput.names(p[0]), p[1], p[2], p[3], p[4], p[5], p[6],
-        input.swapFace() ? " | A/B X/Y swapped" : "");
   }
 
   private static boolean controller(android.view.InputEvent e) {
@@ -197,7 +469,6 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
 
   private void send() {
     int[] p = input.pad();
-    lastPad = p;
     CoreBridge.pad(p[0], p[1], p[2], p[3], p[4], p[5], p[6]);
   }
 
@@ -221,18 +492,27 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     boolean first = down && e.getRepeatCount() == 0;
     int function = CoreInput.appFunction(code);
     if (function != CoreInput.APP_NONE && first) {
-      String what = function == CoreInput.APP_OVERLAY ? "overlay" : "graphics capture";
-      lastKey = KeyEvent.keyCodeToString(code).replace("KEYCODE_", "") + " = " + what;
+      String what = function == CoreInput.APP_MENU ? "menu" : tools ? "graphics capture" : "nothing (tools off)";
       Log.i(TAG, "key " + KeyEvent.keyCodeToString(code) + " (" + code + ") -> app " + what);
     }
     switch (function) {
-      case CoreInput.APP_OVERLAY:
-        if (first) overlay.setVisibility(overlay.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+      case CoreInput.APP_MENU:
+        // pressed: the menu when let go; held for a second: the game's debug menu
+        if (first) {
+          selectDown = true;
+          selectHeld = false;
+          main.removeCallbacks(selectHold);
+          main.postDelayed(selectHold, SELECT_HOLD_MS);
+        } else if (e.getAction() == KeyEvent.ACTION_UP && selectDown) {
+          selectDown = false;
+          main.removeCallbacks(selectHold);
+          if (!selectHeld) openMenu();
+        }
         return true;
       case CoreInput.APP_GX_DUMP:
         // R3 (right stick pressed): the graphics data of the next pictures for the
         // diagnosis in the cloud (files/gx-dumps, test-core-app.ps1 / pull-gx-dumps.ps1 fetch them)
-        if (first) {
+        if (first && tools) {
           File dir = getExternalFilesDir(null);
           if (dir != null) {
             CoreBridge.gxDump(new File(dir, "gx-dumps").getAbsolutePath());
@@ -249,8 +529,6 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       if (input.key(e.getDeviceId(), code, down)) {
         if (down) {
           noteDevice(e.getDevice());
-          lastKey = KeyEvent.keyCodeToString(code).replace("KEYCODE_", "") + " = "
-              + CoreInput.names(input.gcButton(code));
           Log.i(TAG, "key " + KeyEvent.keyCodeToString(code) + " (" + code + ", scan " + e.getScanCode()
               + ", device " + e.getDeviceId() + ") -> GC " + CoreInput.names(input.gcButton(code)));
         }
@@ -259,7 +537,6 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       }
       if (CoreInput.unused(code)) {
         if (down) {
-          lastKey = KeyEvent.keyCodeToString(code).replace("KEYCODE_", "") + " = -";
           Log.i(TAG, "key " + KeyEvent.keyCodeToString(code) + " (" + code + ") -> no function");
         }
         return true;
@@ -407,18 +684,26 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     hideSystemUi();
     surface.onResume();
     resumed = true;
+    // the game runs again unless the menu is open (a file picker of the menu came back)
+    if (menuSupported && menu == null) CoreBridge.pause(false, 0);
     Choreographer.getInstance().removeFrameCallback(vsyncTick);
     Choreographer.getInstance().postFrameCallback(vsyncTick);
     InputManager im = (InputManager) getSystemService(Context.INPUT_SERVICE);
     if (im != null) im.registerInputDeviceListener(this, main);
-    main.removeCallbacks(rumbleTick);
-    main.post(rumbleTick);
-    audio.start();
+    if (menu == null) {
+      main.removeCallbacks(rumbleTick);
+      main.post(rumbleTick);
+      audio.start();
+    }
   }
 
   @Override
   protected void onPause() {
     resumed = false;
+    // the game stands while the app is not in front (home screen, a file picker of the menu)
+    if (menuSupported) CoreBridge.pause(true, 0);
+    selectDown = false;
+    main.removeCallbacks(selectHold);
     Choreographer.getInstance().removeFrameCallback(vsyncTick);
     // the sound pauses with the app (the core skips what it played meanwhile)
     audio.stop();
@@ -434,6 +719,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   @Override
   protected void onDestroy() {
     destroyed = true;
+    if (isFinishing()) CoreLog.stop();
     main.removeCallbacksAndMessages(null);
     rooms.shutdownNow();
     super.onDestroy();
