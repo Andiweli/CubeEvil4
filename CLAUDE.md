@@ -134,7 +134,11 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
    Super Magnum geklärt (Retroid und PC-Prüfung, 17.10.2026)
 12. ARM64: Zeiger-Kürzungen beheben, eine APK für 32- und 64-bit-Geräte
    (vor 10b, Entscheidung des Projektinhabers, 17.10.2026: ein Tester hat ein
-   Gerät, das nur 64-bit-Apps ausführt; erst M11 abschließen)
+   Gerät, das nur 64-bit-Apps ausführt; erst M11 abschließen). Weg
+   (Entscheidung des Projektinhabers, 17.10.2026, nach der Bestandsaufnahme
+   `port/docs/arm64-bestandsaufnahme.md`): **Weg A, nativ 64 bit** – alles,
+   worauf der Spielcode zeigt, liegt unter 4 GB; Strukturen mit fester Form
+   (feste Plätze, Spielstand, Daten von der Disc) behalten ihre 32-bit-Form
 10b. Raum-Rundgang: viele Räume per Raumauswahl anspielen, Abstürze und
    Grafikfehler sammeln (Entscheidung des Projektinhabers, 16.10.2026: nach
    Ton, Videos und Speichern/Laden; seit 17.10.2026 nach M11 und M12)

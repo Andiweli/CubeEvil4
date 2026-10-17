@@ -174,5 +174,4 @@ Geschwindigkeit auf dem Gerät nicht reicht.
 **Empfehlung:** Weg W (Mischform C, falls nötig). Er erhält die Spiellogik
 genau so, wie sie auf ARM32 schon in allen 126 Räumen läuft, und lässt sich
 in der Cloud vollständig prüfen. Das Risiko ist die Geschwindigkeit; sie wird
-im ersten Schritt auf dem Retroid gemessen. **Entscheidung:** offen
-(Grundsatzentscheidung des Projektinhabers).
+im ersten Schritt auf dem Retroid gemessen. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit.**
