@@ -3354,7 +3354,10 @@ Fassung (ohne `-Abi` wählt das Gerät, der Retroid nimmt 64 bit).
 
 **Ungeprüft:** In der Cloud gibt es kein Android-NDK (der Download von
 dl.google.com ist durch die Netzwerkregel gesperrt); der neue Android-Code ist
-nur gegen einen nachgebildeten Header übersetzt. Offen und erst auf dem Gerät
+nur gegen einen nachgebildeten Header übersetzt (vor dem ersten 64-bit-Gerätelauf
+am 17.10.2026 erneut: `module_loader.cpp`, `core_api.cpp`, `game_window.cpp`,
+`os_thread.cpp` des Kerns und `core_mode.cpp`, `core_scene.cpp`, `gx_gl*.cpp`,
+`gx_texture.cpp` der App für aarch64 mit `__ANDROID__` ohne Fehler und Warnungen). Offen und erst auf dem Gerät
 messbar: ob ART oder die Grafiktreiber Teile des Fensters
 0x80000000–0xFFFFFFFF schon belegen.
 
