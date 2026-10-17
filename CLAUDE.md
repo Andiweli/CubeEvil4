@@ -126,12 +126,12 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
 10. ✅ Speichern/Laden: CARD-Bibliothek aus `src/lib`, Speicherkarte als Datei
    in der App, Speichern an der Schreibmaschine, Laden, Systemdaten
    (Retroid und PC-Prüfung, 17.10.2026)
-11. Android-Feinschliff (vor 10b, Entscheidung des Projektinhabers, 17.10.2026:
+11. ✅ Android-Feinschliff (vor 10b, Entscheidung des Projektinhabers, 17.10.2026:
    danach geht die APK an Tester): Menü der App über SELECT (Grafikoptionen,
    Speicherkarten-Import/Export `.gci` für Dolphin und GameCube,
-   Fehlerprotokoll), SELECT 1 Sekunde halten = Debug-Menü des Spiels,
-   Diagnose-Anzeige ausgebaut, Leistung, Nachlade-Animation der Super Magnum
-   (Entscheidung des Projektinhabers, 17.10.2026: vor den Testern)
+   Fehlerprotokoll, Tiefenschärfe mit Autofokus), SELECT 1 Sekunde halten =
+   Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Leistung, Nachladen der
+   Super Magnum geklärt (Retroid und PC-Prüfung, 17.10.2026)
 12. ARM64: Zeiger-Kürzungen beheben, eine APK für 32- und 64-bit-Geräte
    (vor 10b, Entscheidung des Projektinhabers, 17.10.2026: ein Tester hat ein
    Gerät, das nur 64-bit-Apps ausführt; erst M11 abschließen)
