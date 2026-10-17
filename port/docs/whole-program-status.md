@@ -20,7 +20,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Gerätelauf von M9 („M8 Audio“) |
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
-| M11 Android-Feinschliff | in Arbeit (Branch `claude/nifty-feynman-jv729h`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Erster Gerätelauf 17.10.2026: Menü, Debug-Menü, Grafikwechsel, Export in Ordnung; Menü danach nach Wünschen umgebaut (nicht auf dem Gerät geprüft). Absturz r206 behoben (REL-Kopf, in der Cloud geprüft) („M11 Android-Feinschliff“) |
+| M11 Android-Feinschliff | in Arbeit (Branch `claude/nifty-feynman-jv729h`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Erster Gerätelauf 17.10.2026: Menü, Debug-Menü, Grafikwechsel, Export in Ordnung; Menü danach nach Wünschen umgebaut (nicht auf dem Gerät geprüft). Absturz r206 behoben (REL-Kopf; PC-Rundgang mit Disc-Daten: 26 von 27 Räumen laufen, auch r206). Absturz r311 (Division durch null, Patch 0062) behoben, mit Disc-Daten noch nicht nachgeprüft („M11 Android-Feinschliff“) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -2924,8 +2924,36 @@ Bibliothek, Versatz und Funktion / Stillstand mit Rückverfolgung), die
 Einzelheiten in `rundgang-einzelheiten.txt`. `-Rooms set`: zwei Räume je
 Raumprogramm (27), `-Rooms all`: jeder Raum der Tabellen (etwa 150). In der
 Cloud nur mit Platzhalter-Daten geprüft (Ablauf und Bericht).
-**Nicht geprüft:** r206 und die übrigen Räume mit Disc-Daten nach der
-Korrektur.
+
+**Erster Rundgang mit Disc-Daten** (PC-Prüfung 17.10.2026, Stand `1af1916`,
+`-Rooms set`, i686, je 1500 Bilder): 26 von 27 Räumen laufen, **r206
+läuft** (die Korrektur oben wirkt). Absturz nur in **r311** (unten).
+
+### Absturz in r311 (Rundgang 17.10.2026): Division durch null in `SeAtCheck`
+
+Bild 619, gleich nach dem Raumstart: Signal 8 (`SIGFPE`) in `SeAtCheck`
+(`src/game/se_at.cpp`, aus `SndWatcher`). Die Raumgeräusche (Datei „ESE“
+im Raumarchiv) spielen ihr Geräusch und warten dann entweder eine feste
+Zeit (`interval`) oder `rnd_base + Rnd() % rnd_interval` Bilder. r311 hat
+ein Geräusch mit `interval` 0 **und** `rnd_interval` 0: eine Division durch
+null. Der GameCube rechnet einfach weiter (`divw` durch 0 ergibt den
+Quotienten 0, der Rest ist damit `Rnd()`, also 0–255), ein x86-Prozessor
+bricht das Programm ab, ARM bricht nicht ab, die Divisionsroutine des
+Compilers liefert aber keinen festgelegten Rest. Die Umwandlung der Datei
+ist richtig (alle zehn 16-Bit-Felder ab 0x10 werden gedreht; ein Fehler dort
+hätte schon die Versionsprüfung von `SeAtInit` scheitern lassen); die Null
+steht wirklich in den Daten.
+
+Korrektur: **Patch 0062** (`se_at.cpp`): bei `rnd_interval` 0 nimmt der
+Port das Ergebnis des GameCube (`Rnd()`); `Rnd()` wird weiterhin genau
+einmal aufgerufen, die Zufallsfolge bleibt gleich. Geprüft: Build i686 und
+armhf in der Cloud. **Nicht geprüft:** r311 mit Disc-Daten (nächster
+Rundgang). Ein Test ohne Disc-Daten fehlt bewusst: `SeAtCheck` erreicht die
+Stelle nur, wenn `SndCall` wirklich spielt (Tonbank, Treiber).
+
+Weitere Divisionen durch null, die der GameCube still übergeht, sind
+möglich; der Rundgang über alle Räume (`-Rooms all`) findet sie auf dem PC
+als Absturz mit Funktionsnamen.
 
 ### Vom Projektinhaber gemeldet (17.10.2026, ohne Protokoll) – für 10b
 
@@ -2935,8 +2963,9 @@ Korrektur.
   senkt Leon die linke Hand und die Patronen fliegen von selbst in die
   Waffe.
 - Raum r206 springt zurück ins Startmenü der App (Disc-Import): ein Absturz
-  des Kerns, gefunden und behoben (oben, „Absturz in r206“); Nachtest mit
-  Disc-Daten steht aus.
+  des Kerns, gefunden und behoben (oben, „Absturz in r206“); in der
+  PC-Prüfung mit Disc-Daten läuft r206 jetzt (17.10.2026), auf dem Retroid
+  noch nicht nachgetestet.
 
 ## Aufbau
 
@@ -3085,6 +3114,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0059 `snd.cpp` | `SndRoomBgmLoad` wartet beim Raumstart, bis die Musik des Raums davor ausgeblendet ist; die Schleife ruft `re4_wait_interrupt()` (runtime/vi.cpp) wie 0045, sonst hing das Spiel bei „Retry from a continue point“ und beim Laden aus dem Pausemenü (Retroid, 17.10.2026) |
 | 0060 `card.cpp` | Die Startprüfung der Karte ohne die Fragen und Meldungen des GameCube (Entscheidungen des Projektinhabers, 17.10.2026): `firstCheck10` zeigt „Systemdatei wird geladen“ nicht mehr, `createSysfile` legt eine fehlende Systemdatei ohne Frage an (wie „Ja“) und ohne „wird gespeichert“/„gespeichert“; `RE4_CARD_BOOT_MESSAGE=1` (runtime/memcard.cpp) stellt das Original wieder her. Fehlermeldungen bleiben |
 | 0061 `game.cpp` | Das Debug-Menü (`DbMenuExec`) öffnet auf Wunsch der App (SELECT eine Sekunde gehalten, `re4_core_debug_menu` → `re4_debug_menu_request`) statt mit L + START (Entscheidung des Projektinhabers, 17.10.2026: L2 + START öffnete es versehentlich; SELECT ist keine GameCube-Taste). Die übrigen Bedingungen bleiben (Werbefassung: Controller 2; `DBG_TEST_MODE`) |
+| 0062 `se_at.cpp` | Raumgeräusche ohne feste Wartezeit: `rnd_base + Rnd() % rnd_interval` mit `rnd_interval` 0 (r311) ergibt wie auf dem GameCube `Rnd()` (`divw` durch 0: Quotient 0, Rest = Dividend) statt eines Abbruchs auf x86 (`SIGFPE`, PC-Rundgang 17.10.2026) bzw. eines unbestimmten Rests auf ARM; `Rnd()` weiter genau einmal |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

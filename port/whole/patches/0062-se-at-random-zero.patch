@@ -1,0 +1,22 @@
+# SeAtCheck reloads an ambient sound emitter's wait with rnd_base +
+# Rnd() % rnd_interval when it has no fixed interval. Emitters with
+# rnd_interval 0 exist (r311 starts with one): on the GameCube divw by 0
+# traps nothing, the quotient is 0 and the remainder Rnd(). x86 raises
+# SIGFPE (the room round of the PC check crashed in r311, 17.10.2026), the
+# ARM build's division routine returns no defined remainder. The port takes
+# the GameCube's result; Rnd() is still called once, so the random sequence
+# stays the same.
+--- a/src/game/se_at.cpp
++++ b/src/game/se_at.cpp
+@@ -76,7 +76,10 @@
+                     at->call_num--;
+                 }
+                 if (at->interval == 0) {
+-                    at->ctr = at->rnd_base + Rnd() % at->rnd_interval;
++                    /* port: rnd_interval 0 gives the GameCube's result (divw
++                       by 0 makes the quotient 0, the remainder the dividend);
++                       x86 traps, ARM leaves the remainder undefined */
++                    at->ctr = at->rnd_base + (at->rnd_interval != 0 ? Rnd() % at->rnd_interval : Rnd());
+                 } else {
+                     at->ctr = at->interval;
+                 }
