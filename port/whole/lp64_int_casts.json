@@ -376,14 +376,6 @@
   "action": "zero_extend"
  },
  {
-  "file": "src/game/event.cpp",
-  "line": 2850,
-  "text": "(void*) d",
-  "operand": "d",
-  "type": "int",
-  "action": "zero_extend"
- },
- {
   "file": "src/game/exception.cpp",
   "line": 536,
   "text": "(u32*) -1",

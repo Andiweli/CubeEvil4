@@ -3529,6 +3529,26 @@ Daten noch nicht gelaufen). Der Projektinhaber verzichtet auf ein eigenes Logo
   `cast_check.py` danach: die behobenen Sichten sind weg (übrig bleiben die
   geprüften harmlosen Fälle und die Umwandlung beim Aufruf von
   `TexRenderCamAddOt`, die jetzt nur noch den Zeiger weiterreicht).
+- **Vierter 64-bit-Gerätelauf (00:09, Stand `2d6c6e8`) und erste PC-Prüfung
+  `-Lp64` (00:10):** Titel sichtbar, die Test-Tastenfolge drückt START (dabei
+  wird der Titelruf „Resident Evil 4“ abgeschnitten, wie auf 32 bit mit der
+  Tastenfolge), der Vorfilm läuft ganz (76 s, 2278 Bilder, mit Ton); alle
+  Filme beider Discs laufen auch in der PC-Prüfung fehlerfrei. Dann:
+  Gerät: „stack corruption detected“ in `EventMgr::EvtReadSub` aus `R120Event`
+  (Autofahrt): `GetRead` ließ `ReadTbl.GetDat` den Zeiger in `int d` schreiben
+  (8 Bytes in 4). PC: Absturz in `EspMove` beim Raumaufbau von r100 (und im
+  Kartenlauf): der Effekt-Pool hat feste Plätze von 0x150 Bytes, die größte
+  Effekt-Klasse `cEsp3f` hat auf LP64 0x1A8 (`cEsp03/06/0e/4e` 0x170), die
+  Plätze überlappten. Behoben: Pool-Platz auf LP64 0x1A8 (`lp64_sizes.json`,
+  12 Stellen in `esp.cpp`, gemessen über alle 46 Effekt-Klassen); Patch 0075
+  für Zeiger in 4-Byte-Plätzen (neues Werkzeug `ptr_slot_check.py`, 18 Funde:
+  `GetRead`, `Event::PFuncTbl`, Puzzle- und Händler-Modelle, Debug-Texte,
+  r332, r20d behoben; die übrigen 5 geprüft und richtig). Der Absturzbericht
+  der App las auf 64 bit über das Ende des Spiel-Stapels hinaus und stürzte
+  selbst ab: liest jetzt mit `process_vm_readv` nur, was lesbar ist.
+  Geprüft: i686, armhf, x86_64 und aarch64 alle Cloud-Tests ✅ (der 60-Hz-Teil des Filmtests
+  war unter Last einmal rot, allein wiederholt grün); `int_cast_check.py` 0,
+  `ptr_slot_check.py` nur die 5 geprüften.
 - **Falls das auf anderen Geräten nicht reicht** (MEM1 in einem anderen Bereich
   von ART): Auswege wären ein frischer App-Prozess über `wrap.sh` (nur
   Debug-APKs) oder ein eigener Prozess für den Kern; beides ändert die Art des
@@ -3718,6 +3738,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0072 `dbg_button.h`, `db_mod.h`, `db_mod.cpp` | 64 bit (M12): Debug-Werkzeuge. Knopf-Sicht des Sscrn-Debugmenüs mit echtem Text- und Funktionszeiger; Platzhalter des Modellbetrachters `DbModState` je Zeigerbreite mit Abstandsprüfung |
 | 0073 `em2d.cpp`, `em32.cpp`, `sce_com.cpp`, `r100.cpp`, `r103.cpp`, `r307.cpp`, `r318.cpp`, `t_camera.cpp`, `t_camera_draw.cpp`, `t_esp.cpp`, `ss_pzzl.cpp` | 64 bit (M12): feste Byte-Abstände in Strukturen, deren Glieder auf LP64 wandern (`(u8*) pe + 0x378`), über `RE4_OFS(T, glied, gc)` (Prelude): der Abstand des Glieds, auf ILP32 beim Übersetzen gegen den GameCube-Wert geprüft. Kamera- und Effekt-Werkzeug über ihre Makros (`TC_TRG`, `FSTORE_AT`). **Auch 32 bit:** `ss_pzzl.cpp` las Zustand und Auswahl von Nachricht 1 an den MWCC-Abständen (vptr hinter den Feldern); im Port lagen dort `be_flag` und ein Byte von `m_selTbl`. Jetzt über `GetMesStatus(1)`/`GetSelectMessage(1)` |
 | 0074 `trans.cpp`, `emwindow.h`, `em3e.h`, `TexRender.cpp`, `light_area.cpp`, `objTrolley.cpp`, `r300.cpp`, `r30c.cpp`, `r310.cpp`, `r316.cpp`, `r317.cpp`, `r318.cpp`, `db_work.cpp` | 64 bit (M12): Sichten mit GameCube-Abständen (ein Füllfeld bis zu dem Glied, das sie benennen) über ein Objekt, dessen Grundklassen auf LP64 wachsen, erreichen das Glied jetzt über `RE4_OFS(T, glied, gc)` oder `sizeof` der Grundklasse (auf ILP32 der GameCube-Wert): Skelett (`cPartsWk` → `cParts::pList`), Fenster (`EmObjWork::eff`), `EmMarkView`, Lore (`FREE_EM10::Target_dir`), Ereignis-Kamera (`Event`-Glieder statt `TexRenderEvt`), Raketenwerfer (`cObjLauncher::pRocket`), r300/r30c/r310/r316/r317/r318, Objekt-Betrachter. `GxWork` und `SaveDataPtrs` stattdessen in `fixed_form.json`. Neu im Prelude: `RE4_OWN(B, T, gc)`, der Anfang der eigenen Arbeitsfläche hinter einer Grundklasse (auf LP64 in deren Füllbytes). Gefunden mit `cast_check.py` (jetzt auch C++) |
+| 0075 `event.cpp`, `ss_pzzl.cpp`, `ss_shop.cpp`, `eprintf.cpp`, `r332.cpp`, `r20d.cpp` | 64 bit (M12): Zeiger in 4-Byte-Plätzen. `EventMgr::GetRead` (Absturz beim Laden des Autofahrt-Ereignisses r120) und `Event::PFuncTbl` über eine Zeiger-Variable; die bin/tpl-Wörter von `ITEM_PIECE_INFO::model` als u32 geschrieben und gelesen; Debug-Textzeiger in 4-Byte-Plätzen (`RE4_P32`); r332-Makros und r20d mit Index statt GameCube-Byteabstand. Gefunden mit `ptr_slot_check.py` |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

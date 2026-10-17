@@ -1,0 +1,172 @@
+# 64-bit build (milestone 12, way A): pointers kept in 4-byte places. On LP64 a
+# pointer has 8 bytes, so a function that stores one into a 4-byte variable
+# overwrites its neighbour, and tables of 4-byte entries read or written as
+# pointers mix up their entries. Found with port/tools/m12/ptr_slot_check.py
+# (casts of a 4-byte object's address to a pointer to a pointer).
+# - event.cpp: EventMgr::GetRead stored the unit into `int d` (stack
+#   corruption in EvtReadSub when r120's car ride event loads, Retroid
+#   17.10.2026); Event::PFuncTbl (u32) got the function table the same way
+#   and overwrote the next member. Both now through a pointer variable.
+# - ss_pzzl.cpp, ss_shop.cpp: the bin/tpl pair of ITEM_PIECE_INFO::model
+#   (puzzle pieces, the merchant's item models) are two 4-byte words: written
+#   and read as u32 (the writer stepped 30 pointers per 0x78-byte entry).
+# - eprintf.cpp: the debug text pointers live in a MESS_PTR_NUM * 4 buffer
+#   that is cleared and scanned in words: 4-byte slots (RE4_P32).
+# - r332.cpp: R332_ARR_SET / R332_TASK_SET took GameCube byte offsets into
+#   pointer arrays: now the index (offset / 4).
+# - r20d.cpp: the lantern throw read mot[1] at the GameCube offset 0x18.
+# Checked and left: mwsfdcre.c (SFD_GetTrHn into MWPLY x48 fills the padding in
+# front of the 8-byte aligned lsc), r100.cpp / r103.cpp / t_esp.cpp (pointer
+# members reached through RE4_OFS).
+--- a/src/game/event.cpp
++++ b/src/game/event.cpp
+@@ -190,7 +190,12 @@
+         SndId[j] = 0;
+         NowStr[j] = -1;
+     }
+-    EvtMgr.GetFunc((void**) &PFuncTbl, nm);
++    {
++        // port: patch 0075, the table address through a pointer (PFuncTbl has 4 bytes, a pointer 8 on LP64)
++        void* tbl;
++        EvtMgr.GetFunc(&tbl, nm);
++        PFuncTbl = (u32) (unsigned long) tbl;
++    }
+     strcpy(Name, nm);
+     if (CalMaxTotalFrame(&MaxCut, &MaxTotalFrame) != 0 && CalMaxFrame(&MaxFrame, NowCut) != 0) {
+         return 1;
+@@ -2838,16 +2843,17 @@
+ {
+     u8 type;
+     int d;
++    void* dat;  // port: patch 0075, the unit through a pointer (`d` has 4 bytes, a pointer 8 on LP64)
+ 
+     if (pDat == 0 || pWkNo == 0) {
+         return 0;
+     }
+     *pDat = 0;
+     *pWkNo = 0;
+-    if (ReadTbl.GetDat((void**) &d, &type, pName, 0) == 0) {
+-        return 0;
+-    }
+-    *pDat = (void*) d;
++    if (ReadTbl.GetDat(&dat, &type, pName, 0) == 0) {
++        return 0;
++    }
++    *pDat = dat;
+     if (ReadTbl.GetWkNo(&d, pName) == 0) {
+         return 0;
+     }
+--- a/src/Sscrn/ss_pzzl.cpp
++++ b/src/Sscrn/ss_pzzl.cpp
+@@ -666,7 +666,7 @@
+     // `(mem (reg tbl))` after both cse passes. COMPILER-DIFF: 13.
+     ITEM_PIECE_INFO* tbl;
+     ITEM_PIECE_INFO* base;
+-    void** mp;
++    u32* mp;  // port: patch 0075, the bin/tpl words of ITEM_PIECE_INFO::model (4 bytes each, also on LP64)
+     u32 ofs;
+ 
+     tbl = piece_info;
+@@ -684,7 +684,7 @@
+     tbl = 0;
+     // Explicit byte-offset biv with a separate store pointer biv based at model[4], as in the target.
+     // The id re-reads are volatile so that gcse's PRE does not merge the identical loads.
+-    mp = (void**) ((u32) base + 84);
++    mp = (u32*) ((u32) base + 84);
+     ofs = 0;
+     do {
+         int mdl;
+@@ -747,10 +747,10 @@
+         }
+         // Index-first `lwzx` (offset + arc, not arc->ofs[no]); the tex index goes through a block-local
+         // so the +20 is not folded into the load displacement.
+-        mp[-1] = (void*) (*(u32*) (mdl * 4 + (u32) wk->pPzzlDat) + (u32) wk->pPzzlDat);
++        mp[-1] = *(u32*) (mdl * 4 + (u32) wk->pPzzlDat) + (u32) wk->pPzzlDat;
+         {
+             u32 tix = (tex * 2 + 5) * 4;
+-            mp[0] = (void*) (*(u32*) (tix + (u32) wk->pPzzlDat) + (u32) wk->pPzzlDat);
++            mp[0] = *(u32*) (tix + (u32) wk->pPzzlDat) + (u32) wk->pPzzlDat;
+         }
+         mp += 30;
+         ofs += 120;
+@@ -1105,14 +1105,14 @@
+ // Builds the model of piece `p` from the piece_info entry of its item id (bin/tpl pair).
+ void pieceModelSet(pzlPiece* p)
+ {
+-    void** data = (void**) searchItemModelData(p->item->id, piece_info);
++    u32* data = (u32*) searchItemModelData(p->item->id, piece_info);  // port: patch 0075, bin/tpl words
+     cModel* m;
+ 
+     if (data == 0) {
+         return;
+     }
+     m = p->model;
+-    m->modelInit(data[0], data[1]);
++    m->modelInit((void*) (unsigned long) data[0], (void*) (unsigned long) data[1]);
+     pzzlModelLight(m);
+     m->CullMode = 2;
+     if (m->pModelInfo->be_flag & 2) {
+--- a/src/Sscrn/ss_shop.cpp
++++ b/src/Sscrn/ss_shop.cpp
+@@ -2943,7 +2943,8 @@
+             static const Vec light_p0 = {0.0f, 0.0f, 0.0f};
+             static const Vec light_p1 = {1000.0f, 1000.0f, 0.0f};
+ 
+-            m->modelInit(((void**) data)[0], ((void**) data)[1]);
++            // port: patch 0075, the bin/tpl words of the piece table (4 bytes each, also on LP64)
++            m->modelInit((void*) (unsigned long) ((u32*) data)[0], (void*) (unsigned long) ((u32*) data)[1]);
+             m->LightInfo.init2(0, 0, &light_p0, &light_p1, 0x10);
+             m->CullMode = 2;
+             m->ot_type = 6;
+--- a/src/game/eprintf.cpp
++++ b/src/game/eprintf.cpp
+@@ -10,6 +10,7 @@
+ #include "tpl.h"
+ #include "va_ppc.h"
+ #include "eprintf.h"
++#include "re4_ptr32.h"  /* port: patch 0075 */
+ #include <stdio.h>
+ #include <dolphin/os.h>
+ #include "main.h"
+@@ -37,7 +38,9 @@
+ Mtx fontTMtx;
+ int eprintf_init = 0;
+ static char* mess_ptr_buff;  // MESS_PTR_NUM message pointers
+-#define MESS_PTR(i) (((char**) mess_ptr_buff)[i])
++// port: patch 0075, 4-byte slots as on the GameCube (the buffer has MESS_PTR_NUM * 4 bytes and is
++// cleared and scanned in words; a char* has 8 bytes on LP64)
++#define MESS_PTR(i) (((RE4_P32(char)*) mess_ptr_buff)[i])
+ static char* mess_keep_buffer;
+ static char* mess_keep_ptr;
+ 
+--- a/src/st3/r332.cpp
++++ b/src/st3/r332.cpp
+@@ -166,7 +166,7 @@
+         int ofs_ = (ofs);                                    \
+         void** p_ = (void**) &r332_work->field;              \
+                                                              \
+-        *(void**) ((u8*) p_ + ofs_) = t_;                    \
++        p_[ofs_ / 4] = t_; /* port: patch 0075, the GameCube byte offset as an index */ \
+     }
+ // The bridge task handles the same way (the task is started first).
+ #define R332_TASK_SET(no, v)                                 \
+@@ -175,7 +175,7 @@
+         int ofs_ = (no) * 4;                                 \
+         SCE_TASK** p_ = &r332_work->task[0];                  \
+                                                              \
+-        *(SCE_TASK**) ((u8*) p_ + ofs_) = t_;                 \
++        p_[ofs_ / 4] = t_; /* port: patch 0075, the GameCube byte offset as an index */ \
+     }
+ 
+ 
+--- a/src/st2/r20d.cpp
++++ b/src/st2/r20d.cpp
+@@ -1138,7 +1138,7 @@
+     pPL->dmg.set(0, 0x80);
+     u->target = u->getTargetPos(&pos);
+     // `u + st + 0x18` (not `u->mot + st + 4`): the target adds `u` first (`add r29,u,st`).
+-    pPL->motionSet(*(void**) ((u8*) u + st + 0x18), 0xA, 0, 1, 0);
++    pPL->motionSet(*(void**) ((u8*) &u->mot[1] + st), 0xA, 0, 1, 0);  // port: patch 0075, mot[1] (0x18 on the GameCube)
+     u->em->be_flag |= 0x20;
+     zero = 0.0f;
+     turn = zero;

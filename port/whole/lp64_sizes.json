@@ -22,6 +22,13 @@
      "why": "cObj::free of each object class: FREE_OBJ13 0xF0, FREE_ROBO 0xE0, FREE_OBJ16 0xD0 on LP64"},
     {"files": ["include/espgen.h"], "text": "u8 buff[0xC8 - 0x14];", "expr": "0xC8 - 0x14", "lp64": "0xD0",
      "count": 1,
-     "why": "cEspgen::Free: ESPGEN45_WK 0xD0 on LP64 (the generator array uses sizeof(cEspgen))"}
+     "why": "cEspgen::Free: ESPGEN45_WK 0xD0 on LP64 (the generator array uses sizeof(cEspgen))"},
+    {"files": ["src/game/esp.cpp"], "text": "* 0x150", "expr": "0x150", "lp64": "0x1A8", "count": 8,
+     "slot": "cEsp",
+     "why": "esp pool slot (EspArray): the largest effect class, cEsp3f, has 0x1A8 bytes on LP64 (0x144 on ILP32; cEsp03/06/0e/4e 0x170)"},
+    {"files": ["src/game/esp.cpp"], "text": "+= 0x150", "expr": "0x150", "lp64": "0x1A8", "count": 3,
+     "slot": "cEsp", "why": "esp pool slot (EspArray), the walks over the pool"},
+    {"files": ["src/game/esp.cpp"], "text": "memclr_asm(esp, 0x150)", "expr": "0x150", "lp64": "0x1A8", "count": 1,
+     "slot": "cEsp", "why": "esp pool slot (EspArray), cleared before reuse"}
   ]
 }

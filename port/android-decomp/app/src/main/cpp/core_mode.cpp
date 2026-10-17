@@ -20,6 +20,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/uio.h>
 #include <ucontext.h>
 #include <unistd.h>
 #include <jni.h>
@@ -804,9 +805,20 @@ void crashContext(void *context) {
 #endif
   crashWhere("pc", pc);
   crashWhere("lr", lr);
-  const auto *word = reinterpret_cast<const uintptr_t *>(sp);
+  // the words above sp as far as they can be read: the game's stacks end at their mapping, and on
+  // 64 bit nothing readable follows (a read past the end crashed the handler itself, 18.10.2026);
+  // process_vm_readv stops at the first chunk it cannot read instead of faulting
+  static uintptr_t word[512];
+  struct iovec local {word, sizeof(word)};
+  struct iovec remote[16];
+  for (int c = 0; c < 16; c++) {
+    remote[c].iov_base = reinterpret_cast<void *>(sp + c * sizeof(word) / 16);
+    remote[c].iov_len = sizeof(word) / 16;
+  }
+  const ssize_t got = process_vm_readv(getpid(), &local, 1, remote, 16, 0);
+  const int words = got > 0 ? static_cast<int>(got / sizeof(uintptr_t)) : 0;
   int found = 0;
-  for (int i = 0; i < 512 && found < 24; i++) {
+  for (int i = 0; i < words && found < 24; i++) {
     Dl_info d{};
     if (word[i] > 0x10000 && dladdr(reinterpret_cast<void *>(word[i]), &d) && d.dli_fname &&
         std::strstr(d.dli_fname, ".so")) {
