@@ -276,7 +276,9 @@ extern "C" void re4probe_shape_setup(void* mem)
     d->vtxOrig = vtx;
     d->nVtx = 2;
     d->shapeOfs = (u32) (tbl - (u8*) d) - 4;
-    // shape table: entry 0 -> one delta (vertex 1)
+    // shape table: the entry count, entry 0 -> one delta (vertex 1)
+    const u32 count = 1;
+    memcpy(tbl - 4, &count, 4);
     const u32 entry[2] = { 0x10, 1 };
     memcpy(tbl, entry, sizeof(entry));
     const s16 delta[4] = { 1, 4, -8, 12 };

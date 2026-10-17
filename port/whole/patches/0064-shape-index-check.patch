@@ -1,16 +1,40 @@
 # CalculateShape_new adds a shape's deltas to the vertices its list names
-# (s16 vertex index, dx, dy, dz). An index outside the model's vertices can
-# only come from shape data the format converter got wrong; the add then
-# changes whatever lies there. In the codec call of r229 (PC room round,
-# 17.10.2026) a draw list entry's function pointer came out 0x74 higher and
-# the game jumped into the middle of IdGeneralTrans. The port reports such an
-# index once ("check: shape: ...") and skips that vertex; correct data never
-# has one, so nothing changes for it.
+# (s16 vertex index, dx, dy, dz); the shape table of the model is a count
+# word and {u32 offset, s32 count} entries.
+#
+# In the codec call of r229 (PC room round, 17.10.2026) a draw list entry's
+# function pointer came out 0x74 higher and the game jumped into the middle
+# of IdGeneralTrans. A channel of the partner's face names entry 9 of a table
+# with fewer entries: the game reads the delta lists behind the table as an
+# entry. On the GameCube its count reads big-endian 0xFFFF0000, negative,
+# and the loop adds nothing; in host order the same bytes are 65535 and the
+# deltas went far outside the vertices, into the draw list. The port gives
+# such a channel no deltas, as the GameCube does. A vertex index outside the
+# model is reported and skipped as well. Both are reported once ("check:
+# shape: ..."); correct data has neither, so nothing changes for it.
 --- a/src/game/shape.cpp
 +++ b/src/game/shape.cpp
-@@ -236,6 +236,22 @@
+@@ -235,7 +235,40 @@
+                     s32 num = e->num;
                      s32 n;
  
++                    /* port: a channel naming an entry past the table (its
++                       count is the word before it) reads the delta lists
++                       behind it as an entry. Big-endian that count comes out
++                       negative and nothing is added (r229's codec face:
++                       0xFFFF0000); in host order it is 65535. No deltas, as
++                       on the GameCube. */
++                    if (w->idx[i] >= ((u32*) tbl)[-1]) {
++                        static int reportedEntry;
++                        if (reportedEntry < 4) {
++                            reportedEntry++;
++                            re4_log("check: shape: channel %u names entry %u past the %u entries of model data %p: "
++                                    "no deltas (as on the GameCube)",
++                                    (unsigned) i, (unsigned) w->idx[i], (unsigned) ((u32*) tbl)[-1],
++                                    (void*) info->model_addr);
++                        }
++                        num = 0;
++                    }
                      for (n = 0; n < num; n++) {
 +                        /* port: a vertex index outside the model's vertices
 +                           (shape data the format converter got wrong) is

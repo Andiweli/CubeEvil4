@@ -478,6 +478,31 @@ void testBridge()
             }
         }
         CHECK(found);
+        // the channel names entry 3 of a one-entry table (r229's codec face):
+        // nothing is added, as on the GameCube (patch 0064)
+        memset(mem, 0, 0x4000);
+        re4probe_shape_setup(mem);
+        mem[0x3800 + 5] = 3;  // ShapeData idx[0]
+        // behind the table, bytes that read as an entry with one delta
+        const unsigned behind[2] = { 0x10, 1 };
+        memcpy(mem + 0x3600 + 3 * 8, behind, sizeof(behind));
+        re4_bridge_capture(&gSnap);
+        re4probe_shape_restore();
+        found = false;
+        for (unsigned i = 0; i < gSnap.nModels && !found; i++) {
+            const Re4CoreModel& m = gSnap.models[i];
+            if (m.address != 0x82500000u || m.nInfos != 1) {
+                continue;
+            }
+            found = true;
+            const Re4CoreModelInfo& mi = gSnap.infos[m.firstInfo];
+            CHECK(mi.nMorph == 2);
+            if (mi.nMorph == 2) {
+                const short* b = gSnap.morph[mi.firstMorph + 1];
+                CHECK(b[0] == 40 && b[1] == 50 && b[2] == 60);
+            }
+        }
+        CHECK(found);
     }
     report("bridge", ok);
 }

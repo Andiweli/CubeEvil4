@@ -1057,7 +1057,7 @@ run_tour() {
         state=$(trace_state "$trace")
         # the port's own checks ("check: ..."): wrong data it caught and skipped
         local checks
-        checks=$(grep -c "check: " "$log")
+        checks=$(grep -c "^\[re4\] check: " "$log")
         if [ -z "$reason" ] && [ "$code" -eq 0 ] && grep -q "run: stopped after" "$log"; then
             line="läuft ($(grep -m1 'run: main loop reached' "$log" | grep -o 'at frame [0-9]*' | sed 's/at frame/Hauptschleife ab Bild/'), $secs s)"
             ok=$((ok + 1))
@@ -1065,7 +1065,7 @@ run_tour() {
                 line="$line, $checks Hinweise der Prüfungen"
                 {
                     echo "== r$r: $line"
-                    grep "check: " "$log" | head -n 10 | sed 's/^\[re4\] /  /'
+                    grep "^\[re4\] check: " "$log" | head -n 10 | sed 's/^\[re4\] /  /'
                     echo
                 } >> "$details"
             fi
@@ -1099,7 +1099,7 @@ run_tour() {
                 grep "formats: .*conversion stopped" "$log" | sort -u | head -n 20 | sed 's/^\[re4\] /    /'
                 if [ "$checks" -gt 0 ]; then
                     echo "  Hinweise der Prüfungen:"
-                    grep "check: " "$log" | head -n 10 | sed 's/^\[re4\] /    /'
+                    grep "^\[re4\] check: " "$log" | head -n 10 | sed 's/^\[re4\] /    /'
                 fi
                 echo
             } >> "$details"
