@@ -59,7 +59,10 @@ def command(entry):
         if a in ("-c", "-MD", "-MMD"):
             continue
         out.append(a)
-    return [out[0], "-fsyntax-only", "-Xclang", "-fdump-record-layouts", "-w"] + out[1:]
+    # code generation, not -fsyntax-only: Sema lays out only the records it
+    # needs itself (sizeof, offsetof), CodeGen every record the unit uses
+    return [out[0], "-S", "-emit-llvm", "-o", "/dev/null", "-O0", "-Xclang", "-fdump-record-layouts",
+            "-w"] + out[1:] + ["-O0"]
 
 
 ANON = re.compile(r"\((anonymous|unnamed)([^()]*?) at [^)]*\)")

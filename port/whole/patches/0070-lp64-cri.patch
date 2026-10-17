@@ -1,0 +1,1396 @@
+# 64-bit build (milestone 12, way A): the CRI middleware (Sofdec movies, ADX
+# sound) on LP64. Found with the tools in port/tools/m12 (view_check,
+# decl_size_check, the -Wint-to-pointer-cast scan); on ILP32 nothing changes
+# (every LP64 variant sits in #if __SIZEOF_POINTER__ != 4 or keeps the value).
+# - Sint32/Uint32 stay 32 bits (exact_width_types in whole_prepare.py: the
+#   game's own views of the CRI structures use int, mwply.h).
+# - Addresses kept in Sint32 values (conditions SFSET_GetCond, ADXB x3c, the
+#   SFD parameters ...) go back to pointers through Uint32: everything the
+#   middleware handles lies at 0x80000000 and above, a signed value would
+#   sign-extend (36 casts in src/lib; ARAM offsets and strides left alone).
+# - mpv_lib.c: the default condition table holds the address of MPV_MbCbFn,
+#   no 32-bit constant on LP64: MPV_Init stores it.
+# - Size limits that are only sanity checks grow with the pointer size
+#   (SFMPS_WORK_MAX); fixed tables the middleware defines as bytes get their
+#   LP64 size with a check where the real type is visible (adx_fini.c ADXF
+#   objects and command history, sfd_hds.c SFH work).
+# - Partial views with the GameCube offsets in their pads (adx_bahx.c,
+#   adx_bsc.c, adx_gc.c, adx_insh.c, mwsfdsl.c, sfx_sud.c): on LP64 the full
+#   structure from its header (sfx.h names the user data pointer it hid).
+# - The MPEG video handle (MPV_OBJ), viewed by five units under two names:
+#   mpv.h's view names the pointers the other views keep in its pads (DCT
+#   parameters, motion compensation work, frame planes); mpv_lib.c,
+#   mpv_err.c, mpv_cmc.c and mpv_umc.c get LP64 views with explicit pads
+#   generated from mpv.h's LP64 layout (all 177 GameCube offsets agree);
+#   handle stride 0x1590 with size checks.
+# - adx_tsvr.c / adx_sje.c: loops over per-channel members with a fixed
+#   offset and a 4-byte step use the members on LP64.
+# - Views of the Sofdec handle (SFD_OBJ) through a leading pad (sfd_buf.c,
+#   sfd_pts.c, sfd_mps.c, sfd_mem.c) and of the player (mwsfdrna.c): LP64
+#   pads generated from the full structure. The creation parameters' first
+#   word is the driver table pointer (sfd.h, sfd_buf.c: as mwsfdcre.c types
+#   it); the tag lookup in sfx_set.c passes SJCK chunks (pointer + length).
+# - MPV_IXA, the table area mpv_bdec.c fills through an MPV_OBJ view, keeps
+#   the tables at the LP64 MPV_OBJ offsets.
+# - The concatenation work SFCON in SFD_OBJ is the timing work SFTIM_WORK
+#   (sfd.h SFD_TIM): on LP64 sfd.h's SFCON is generated from SFTIM_WORK and
+#   the pad behind it ends where SFTIM_WORK's members end (checked);
+#   SFTIM_WORK's last word lies over the PTS queue pointer and is a pointer.
+#   sfd_tim.c reads the clock source table through the GameCube offset 0xD28:
+#   on LP64 the member timefn.
+# - Video frame information: sfd.h's opaque SFD_VFRM_INF has the alignment of
+#   sfd_mpv.c's SFMPV_VINF (8 on LP64, size checked), mwsfdfrm.c's view is
+#   generated from it.
+# - The three paired-single kernels of mpv_umc.c (asm translated by patch
+#   0050) read the work and output block pointers at GameCube offsets: the
+#   offsets come from the structures (the same values on ILP32, checked).
+# - sfd_mem.c's view keeps the input buffer id (SFD_TR.bufout of driver 0) as
+#   void *: on LP64 an id at its LP64 offset, as sfd_buf.c takes it.
+# - sfd_mpv.c SFMPV_AddRead finds the frame slot 8 bytes before the frame
+#   information it was handed: the offset of the member on LP64.
+# - sfd_tim.c takes the frame information handed out by SFMPV_GetRead as an
+#   SFD_VFRM (its slot) and reads the frame time through raw[3]/raw[4]: on
+#   LP64 the words of SFMPV_VINF.ftime/tunit (checked in sfd_mpv.c).
+--- a/src/lib/adx_bahx.c
++++ b/src/lib/adx_bahx.c
+@@ -3,12 +3,17 @@
+  * calls through these pointers. The AHX module is not linked in this game (adxb->ahx is always NULL). */
+ #include "cri_xpt.h"
+ 
++#if __SIZEOF_POINTER__ == 4
+ typedef struct {
+ 	Uint8 pad[0xB4];
+ 	void *ahx;
+ 	Sint32 nsmpl;
+ 	Sint32 nsmpl96;
+ } ADXB_OBJ;
++#else
++/* port: patch 0070, 64 bit: the full ADXB object; the pad above holds the GameCube offset */
++#include "adx_b.h"
++#endif
+ 
+ void (*ahxsetsjifunc)(void *ahx, void *sji);
+ void (*ahxsetdecsmplfunc)(void *ahx, Sint32 nsmpl);
+--- a/src/lib/adx_baif.c
++++ b/src/lib/adx_baif.c
+@@ -168,7 +168,7 @@
+ 	adxb->out_nch = adxb->nch;
+ 	adxb->x54 = adxb->x0f;
+ 	adxb->out_fmt = adxb->fmt;
+-	adxb->pcmbuf = (Sint16 *)adxb->x3c;
++	adxb->pcmbuf = (Sint16 *)(Uint32)adxb->x3c;  /* port: patch 0070 */
+ 	adxb->pcmbuf_nsmpl = adxb->x40;
+ 	adxb->pcmbuf_chofst = adxb->x44;
+ 	adxb->x8c = 0;
+--- a/src/lib/adx_bau.c
++++ b/src/lib/adx_bau.c
+@@ -250,7 +250,7 @@
+ 	adxb->out_nch = adxb->nch;
+ 	adxb->x54 = adxb->x0f;
+ 	adxb->out_fmt = adxb->fmt;
+-	adxb->pcmbuf = (Sint16 *)adxb->x3c;
++	adxb->pcmbuf = (Sint16 *)(Uint32)adxb->x3c;  /* port: patch 0070 */
+ 	adxb->pcmbuf_nsmpl = adxb->x40;
+ 	adxb->pcmbuf_chofst = adxb->x44;
+ 	adxb->x8c = 0;
+--- a/src/lib/adx_bsc.c
++++ b/src/lib/adx_bsc.c
+@@ -59,6 +59,7 @@
+ Sint16 *adxb_DefGetWr(void *obj, Sint32 *pos, Sint32 *nsmpl, Sint32 *x70);
+ 
+ /* ADXPD object fields used here */
++#if __SIZEOF_POINTER__ == 4
+ typedef struct ADXPD_OBJ {
+ 	Uint8 pad0[0x10];
+ 	Sint32 nblk;                    /* 0x10 */
+@@ -66,6 +67,22 @@
+ 	Sint16 *out0;                   /* 0x20 */
+ 	Sint16 *out1;                   /* 0x24 */
+ } ADXPD_OBJ;
++#else
++/* port: patch 0070, 64 bit: the members up to out1 as adx_xpnd.c defines them (the pads above hold
++ * the GameCube offsets, the pointer member in moves out0/out1 on LP64) */
++typedef struct ADXPD_OBJ {
++	Sint32 used;
++	Sint32 id;
++	Sint32 x08;
++	Sint32 stat;
++	Sint32 nblk;
++	Sint32 mode;
++	void *in;
++	Sint32 nblk_in;
++	Sint16 *out0;
++	Sint16 *out1;
++} ADXPD_OBJ;
++#endif
+ 
+ /* ---- SKG: key generation from the sample count (shared with adx_sje.c by inclusion) ---- */
+ 
+@@ -754,7 +771,7 @@
+ // Base of the PCM output ring (the SJD's first output stream-joint buffer), as passed to ADXB_Create.
+ Sint16 *ADXB_GetPcmBuf(ADXB adxb)
+ {
+-	return (Sint16 *)adxb->x3c;
++	return (Sint16 *)(Uint32)adxb->x3c;  /* port: patch 0070 */
+ }
+ 
+ // Replaces the default write-window callback: the SJD installs adxsjd_get_wr so the decoder writes
+@@ -802,7 +819,7 @@
+ 	adxb->out_nch = adxb->nch;
+ 	adxb->x54 = adxb->x0f;
+ 	adxb->out_fmt = adxb->fmt;
+-	adxb->pcmbuf = (Sint16 *)adxb->x3c;
++	adxb->pcmbuf = (Sint16 *)(Uint32)adxb->x3c;  /* port: patch 0070 */
+ 	adxb->pcmbuf_nsmpl = adxb->x40;
+ 	adxb->pcmbuf_chofst = adxb->x44;
+ 	adxb->x8c = 0;
+@@ -920,7 +937,7 @@
+ 	adxb->out_nch = adxb->nch;
+ 	adxb->x54 = adxb->x0f;
+ 	adxb->out_fmt = adxb->fmt;
+-	adxb->pcmbuf = (Sint16 *)adxb->x3c;
++	adxb->pcmbuf = (Sint16 *)(Uint32)adxb->x3c;  /* port: patch 0070 */
+ 	adxb->pcmbuf_nsmpl = adxb->x40;
+ 	adxb->pcmbuf_chofst = adxb->x44;
+ 	adxb->x8c = 0;
+@@ -1007,7 +1024,7 @@
+ 	*pos = adxb->x8c;
+ 	*nsmpl = adxb->x40 - adxb->x8c;
+ 	*x70 = adxb->total_nsmpl - adxb->x88;
+-	return (Sint16 *)adxb->x3c;
++	return (Sint16 *)(Uint32)adxb->x3c;  /* port: patch 0070 */
+ }
+ 
+ // Library init: brings up the ADPCM core (ADXPD) and the key generator and clears the 16 decoder slots.
+--- a/src/lib/adx_bsps.c
++++ b/src/lib/adx_bsps.c
+@@ -75,7 +75,7 @@
+ 	adxb->out_nch = adxb->nch;
+ 	adxb->x54 = adxb->x0f;
+ 	adxb->out_fmt = adxb->fmt;
+-	adxb->pcmbuf = (Sint16 *)adxb->x3c;
++	adxb->pcmbuf = (Sint16 *)(Uint32)adxb->x3c;  /* port: patch 0070 */
+ 	adxb->pcmbuf_nsmpl = adxb->x40;
+ 	adxb->pcmbuf_chofst = adxb->x44;
+ 	adxb->x8c = 0;
+--- a/src/lib/adx_bwav.c
++++ b/src/lib/adx_bwav.c
+@@ -197,7 +197,7 @@
+ 	adxb->out_nch = adxb->nch;
+ 	adxb->x54 = adxb->x0f;
+ 	adxb->out_fmt = adxb->fmt;
+-	adxb->pcmbuf = (Sint16 *)adxb->x3c;
++	adxb->pcmbuf = (Sint16 *)(Uint32)adxb->x3c;  /* port: patch 0070 */
+ 	adxb->pcmbuf_nsmpl = adxb->x40;
+ 	adxb->pcmbuf_chofst = adxb->x44;
+ 	adxb->x8c = 0;
+@@ -226,7 +226,7 @@
+ 	if (i % 4 != 0) {
+ 		return -1;
+ 	}
+-	p = (Uint8 *)(i + (Sint32)buf);
++	p = (Uint8 *)(Uint32)(i + (Sint32)buf);  /* port: patch 0070 */
+ 	if ((Sint16)SWAP16(*(Uint16 *)(p + 8)) > 1) {
+ 		return -1;
+ 	}
+@@ -239,7 +239,7 @@
+ 		return -1;
+ 	}
+ 	/* leading constant keeps `add i,buf; lwz 4()` (the +4 is not folded into an addi/lwzx) */
+-	dsize = SWAP32(*(Uint32 *)(4 + i + (Sint32)buf));
++	dsize = SWAP32(*(Uint32 *)(Uint32)(4 + i + (Sint32)buf));  /* port: patch 0070 */
+ 	*hdrlen = i + 8;
+ 	*x0c = -1;
+ 	*sfreq = SWAP32(*(Uint32 *)(p + 0xC));
+--- a/src/lib/adx_fini.c
++++ b/src/lib/adx_fini.c
+@@ -5,7 +5,14 @@
+ #include <string.h>
+ 
+ #define ADXF_MAX_OBJ 16
++#if __SIZEOF_POINTER__ == 4
+ #define ADXF_OBJ_SIZE 0x44
++#define ADXF_CMD_HSTRY_SIZE 0x10
++#else
++/* port: patch 0070, 64 bit: ADXF_OBJ and ADXF_CMD_HSTRY (adx_f.h) hold pointers; adx_fs.c checks */
++#define ADXF_OBJ_SIZE 0x58
++#define ADXF_CMD_HSTRY_SIZE 0x18
++#endif
+ #define ADXF_MAX_PTINFO 0x100
+ #define ADXF_CMD_HSTRY_NUM 0x100
+ #define ADXF_CMD_NUM 8
+@@ -22,7 +29,7 @@
+ Sint32 adxf_flno;
+ Sint32 adxf_hstry_no;
+ Sint32 adxf_cmd_ncall[ADXF_CMD_NUM];
+-Uint8 adxf_cmd_hstry[ADXF_CMD_HSTRY_NUM];
++Uint8 adxf_cmd_hstry[ADXF_CMD_HSTRY_NUM * ADXF_CMD_HSTRY_SIZE / 0x10];  /* port: patch 0070 */
+ Sint32 adxf_ocbi_fg;
+ void *adxf_ptinfo[ADXF_MAX_PTINFO];
+ Uint8 adxf_obj[ADXF_MAX_OBJ * ADXF_OBJ_SIZE];
+--- a/src/lib/adx_fs.c
++++ b/src/lib/adx_fs.c
+@@ -4,6 +4,9 @@
+  * ADXF_CloseAll and ADXF_Close survived the linker's dead-stripping; the other bodies reproduce the
+  * error strings left in .rodata and the two statics in .bss (STRIP_UNUSED). */
+ #include "adx_f.h"
++/* port: patch 0070, adx_fini.c defines these tables as bytes of this size */
++_Static_assert(sizeof(ADXF_OBJ) == (sizeof(void*) == 4 ? 0x44 : 0x58), "adx_fini.c ADXF_OBJ_SIZE");
++_Static_assert(sizeof(ADXF_CMD_HSTRY) == (sizeof(void*) == 4 ? 0x10 : 0x18), "adx_fini.c ADXF_CMD_HSTRY_SIZE");
+ #include <string.h>
+ 
+ #define ADXF_SCT_SIZE 2048
+--- a/src/lib/adx_gc.c
++++ b/src/lib/adx_gc.c
+@@ -1,10 +1,15 @@
+ /* CRI ADX GameCube extension (adx_gc.c): per-handle switch for the AX sampling-rate correction. */
+ #include "cri_xpt.h"
+ 
++#if __SIZEOF_POINTER__ == 4
+ typedef struct {
+ 	Uint8 pad[0xC];
+ 	void *rna;
+ } ADXT_OBJ;
++#else
++/* port: patch 0070, 64 bit: the full ADXT object; the pads above hold the GameCube offsets */
++#include "adx_t.h"
++#endif
+ 
+ extern void ADXRNA_SetAdjsfreqFlg(void *rna, Sint32 flg);
+ 
+--- a/src/lib/adx_insh.c
++++ b/src/lib/adx_insh.c
+@@ -6,10 +6,15 @@
+ #include "sj.h"
+ #include <string.h>
+ 
++#if __SIZEOF_POINTER__ == 4
+ typedef struct {
+ 	Uint8 pad[0x14];
+ 	SJ sji;
+ } ADXT_OBJ;
++#else
++/* port: patch 0070, 64 bit: the full ADXT object; the pads above hold the GameCube offsets */
++#include "adx_t.h"
++#endif
+ 
+ extern void ADXSJE_Init(void);
+ extern void ADXSJE_Finish(void);
+--- a/src/lib/adx_sje.c
++++ b/src/lib/adx_sje.c
+@@ -233,12 +233,24 @@
+ 	p = (Uint8 *)sje;
+ 	p2 = (Uint8 *)sje;
+ 	for (ch = 0; ch < sje->nch32; ch++) {
++#if __SIZEOF_POINTER__ == 4
+ 		SJ_GetChunk(*(SJ *)(p + 0x4), SJ_CK_DATA, 2, &ck);
++#else
++		SJ_GetChunk(sje->sji[ch], SJ_CK_DATA, 2, &ck);  /* port: patch 0070, the member, not the GameCube offset */
++#endif
+ 		if (ck.len == 0) {
+ 			break;
+ 		}
++#if __SIZEOF_POINTER__ == 4
+ 		*(Sint16 *)(p2 + 0x2c8) = *(Sint16 *)(p2 + 0x2cc) = *(Sint16 *)ck.data;
++#else
++		sje->first[ch] = sje->first2[ch] = *(Sint16 *)ck.data;  /* port: patch 0070, the member, not the GameCube offset */
++#endif
++#if __SIZEOF_POINTER__ == 4
+ 		SJ_UngetChunk(*(SJ *)(p + 0x4), SJ_CK_DATA, &ck);
++#else
++		SJ_UngetChunk(sje->sji[ch], SJ_CK_DATA, &ck);  /* port: patch 0070, the member, not the GameCube offset */
++#endif
+ 		p += 4;
+ 		p2 += 2;
+ 	}
+@@ -256,7 +268,11 @@
+ 	sje->nbyte += n;
+ 	p3 = (Uint8 *)sje;
+ 	for (i = 0; i < sje->nch32; i++) {
++#if __SIZEOF_POINTER__ == 4
+ 		prd = *(ADXSJE_PRDFLT **)(p3 + 0x80);
++#else
++		prd = sje->prd[i];  /* port: patch 0070, the member, not the GameCube offset */
++#endif
+ 		ADX_GetCoefficient((Sint16)sje->cutoff, sje->sfreq, &c1, &c2);
+ 		adxsje_prdflt_set_coef(prd, c1, c2);
+ 		adxsje_iirflt_set_coef(prd->iir, c1, c2);
+--- a/src/lib/adx_tsvr.c
++++ b/src/lib/adx_tsvr.c
+@@ -111,7 +111,11 @@
+ 			adxt_dbg_nch = nch;
+ 			p = (Uint8 *)adxt;
+ 			for (i = 0; i < nch; i++) {
++#if __SIZEOF_POINTER__ == 4
+ 				adxt_dbg_ndt = SJ_GetNumData(*(SJ *)(p + 0x18), SJ_CK_DATA);
++#else
++				adxt_dbg_ndt = SJ_GetNumData(adxt->sjo[i], SJ_CK_DATA);  /* port: patch 0070, the member, not the GameCube offset */
++#endif
+ 				if (adxt_dbg_ndt >= 0x40) {
+ 					break;
+ 				}
+@@ -145,7 +149,11 @@
+ 			nbyte = adxt->maxdecsmpl * nch * 2;
+ 			p2 = (Uint8 *)adxt;
+ 			for (j = 0; j < nch; j++) {
++#if __SIZEOF_POINTER__ == 4
+ 				sj = *(SJ *)(p2 + 0x18);
++#else
++				sj = adxt->sjo[j];  /* port: patch 0070, the member, not the GameCube offset */
++#endif
+ 				SJ_GetChunk(sj, SJ_CK_FREE, nbyte, &ck);
+ 				memset(ck.data, 0, ck.len);
+ 				SJ_PutChunk(sj, SJ_CK_DATA, &ck);
+--- a/src/lib/mpv_cmc.c
++++ b/src/lib/mpv_cmc.c
+@@ -11,6 +11,7 @@
+ } MPVCMC_OUTBLK;
+ 
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad0[0xCC];
+ 	Uint8 mc[0x120 - 0xCC]; /* 0xCC */
+ 	MPVCMC_OUTBLK ob_rt;    /* 0x120 */
+@@ -22,6 +23,22 @@
+ 	Sint16 height;          /* 0x282 */
+ 	Uint8 pad284[0xD00 - 0x284];
+ 	Uint8 work[1];          /* 0xD00 */
++#else
++	/* port: patch 0070, 64 bit: the members at the offsets of MPV_OBJ in mpv.h */
++	Uint8 lp64_padcc[0x138];
++	Uint8 mc[0x120 - 0xCC];
++	Uint8 lp64_pad120[0x3c];
++	MPVCMC_OUTBLK ob_rt;
++	MPVCMC_OUTBLK ob;
++	Uint8 lp64_pad1a4[0x1c];
++	Sint32 mcflag;
++	Uint8 lp64_pad280[0x100];
++	Sint16 width;
++	Sint16 height;
++	Uint8 lp64_padd00[0xad4];
++	Uint8 work[1];
++	Uint8 lp64_pad_end[0x3];
++#endif
+ } MPV_OBJ;
+ 
+ extern void MPVMC08_Init(void *mc);
+--- a/src/lib/mpv_dec.c
++++ b/src/lib/mpv_dec.c
+@@ -6,6 +6,12 @@
+ #include "sj.h"
+ #include "mpv.h"
+ #include "mpv_bit.h"
++#if __SIZEOF_POINTER__ != 4
++/* port: patch 0070, the LP64 handle every view of the MPV library lays out (mpv_lib.c MPV_OBJ_SIZE_REAL) */
++_Static_assert(sizeof(MPV_OBJ) == 0x1590, "mpv.h MPV_OBJ on LP64");
++_Static_assert(__builtin_offsetof(MPV_OBJ, bitmsk) == 0x1290 && __builtin_offsetof(MPV_OBJ, rl) == 0x1410,
++               "mpv_lib.c MPV_IXA mirrors these");
++#endif
+ 
+ #define MPVDEC_MBT_INTRA 0x01
+ #define MPVDEC_MBT_PATTERN 0x02
+@@ -135,7 +141,7 @@
+ #define MPVDEC_MBCB(mpv)                                                                       \
+ 	if (--(mpv)->x1324 <= 0) {                                                             \
+ 		(mpv)->x1324 = (mpv)->cond[7];                                                 \
+-		((void (*)(Sint32))(mpv)->cond[8])((mpv)->cond[9]);                            \
++		((void (*)(Sint32))(Uint32)(mpv)->cond[8])((mpv)->cond[9]);  /* port: patch 0070 */ \
+ 	}
+ 
+ /* return the consumed part of the chunk once more than MPVDEC_REFILL_SIZE bytes are used and go on
+--- a/src/lib/mpv_err.c
++++ b/src/lib/mpv_err.c
+@@ -7,12 +7,21 @@
+ 	void (*func)(void *obj, Sint32 code);
+ 	void *obj;
+ 	Sint32 code;
++#if __SIZEOF_POINTER__ != 4
++	Sint32 lp64_pad;  /* port: patch 0070, reserved over nfrm_dec/nbyte_dec as on the GameCube (mpv.h) */
++#endif
+ 	Sint32 reserved[2];
+ } MPVERR_INF;
+ 
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad[0x250];
+ 	MPVERR_INF errinf;
++#else
++	/* port: patch 0070, 64 bit: the members at the offsets of MPV_OBJ in mpv.h */
++	Uint8 lp64_pad250[0x360];
++	MPVERR_INF errinf;
++#endif
+ } MPV_OBJ;
+ 
+ extern Sint32 MPVLIB_CheckHn(MPV_OBJ *mpv);
+--- a/src/lib/mpv_lib.c
++++ b/src/lib/mpv_lib.c
+@@ -3,8 +3,15 @@
+  * the shared table area (MPV_IXA) laid out behind the handles. */
+ #include "cri_xpt.h"
+ 
++#if __SIZEOF_POINTER__ == 4
+ #define MPV_OBJ_SIZE 0x1380
+ #define MPV_OBJ_SIZE_REAL 0x1378
++#else
++/* port: patch 0070, 64 bit: the handle as mpv.h lays it out on LP64 (all views agree,
++ * port/tools/m12); the handle stride is the size of this unit's view */
++#define MPV_OBJ_SIZE 0x1590
++#define MPV_OBJ_SIZE_REAL 0x1590
++#endif
+ #define MPV_IXA_SIZE 0x1C60
+ #define MPV_COND_NUM 16
+ #define MPV_STAT_STOP 1
+@@ -15,6 +22,9 @@
+ 	void (*func)(void *obj, Sint32 code);
+ 	void *obj;
+ 	Sint32 code;
++#if __SIZEOF_POINTER__ != 4
++	Sint32 lp64_pad;  /* port: patch 0070, reserved over nfrm_dec/nbyte_dec as on the GameCube (mpv.h) */
++#endif
+ 	Sint32 reserved[2];
+ } MPVERR_INF;
+ 
+@@ -49,18 +59,30 @@
+ 
+ /* shared table area (mpvlib_siz_mpvixa bytes) behind the handle array */
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad0[0x1100];
++#else
++	/* port: patch 0070, 64 bit: mpv_bdec.c fills these tables through an MPV_OBJ view (mpv.h):
++	 * at the offsets of MPV_OBJ on LP64, the run/level table with 16-byte entries */
++	Uint8 pad0[0x1290];
++#endif
+ 	Uint16 bitmsk[16];              /* 0x1100 */
+ 	Sint8 zigzag[64];               /* 0x1120 */
+ 	Uint8 scale[0x100];             /* 0x1160 */
+ 	Uint8 group_tbl[32];            /* 0x1260 */
+-	Uint8 rl[0x30];                 /* 0x1280 */
++	Uint8 rl[0x30 * sizeof(void*) / 4];  /* 0x1280; port: patch 0070, six MPV_RUNLEVEL */
+ 	Uint8 vlc[0x1860 - 0x12B0];     /* 0x12B0 */
+ 	Uint32 clip[0x60];              /* 0x1860 */
+ 	Uint32 clip_base[0x1C60 - 0x19E0]; /* 0x19E0 */
+ } MPV_IXA;
++#if __SIZEOF_POINTER__ != 4
++/* port: patch 0070, the table members at their MPV_OBJ offsets (mpv_dec.c checks the size of MPV_OBJ) */
++_Static_assert(__builtin_offsetof(MPV_IXA, bitmsk) == 0x1290 && __builtin_offsetof(MPV_IXA, rl) == 0x1410,
++               "MPV_IXA tables at the LP64 MPV_OBJ offsets");
++#endif
+ 
+ typedef struct MPV_OBJ {
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad0[0x10];
+ 	Uint32 *rl_8;                   /* 0x010 run/level VLC tables */
+ 	Uint32 *rl_4;                   /* 0x014 */
+@@ -113,7 +135,67 @@
+ 	void *dctbl_c;                  /* 0x132C */
+ 	void *m2v;                      /* 0x1330 */
+ 	Uint8 pad1334[MPV_OBJ_SIZE - 0x1334];
++#else
++	/* port: patch 0070, 64 bit: the members at the offsets of MPV_OBJ in mpv.h */
++	Uint8 lp64_pad10[0x18];
++	Uint32 *rl_8;
++	Uint32 *rl_4;
++	Uint32 *rl_2;
++	Uint32 *rl_1;
++	Uint32 *rl_0a;
++	Uint32 *rl_0b;
++	Uint32 *rl_0c;
++	Sint8 *zigzag;
++	Uint16 *bitmsk;
++	Uint8 *scale;
++	Uint8 *group_tbl;
++	void *rl;
++	Uint8 *clip_base;
++	Uint8 lp64_pad78[0x50];
++	DCT_PA dctpa;
++	Uint8 lp64_pad110[0x78];
++	Uint8 *mc_clip;
++	Uint8 *mc_buf0;
++	Uint8 *mc_work;
++	Uint8 *mc_work2;
++	Uint8 lp64_pad188[0xd0];
++	Sint32 stat;
++	Sint32 x18c;
++	Sint32 cond[MPV_COND_NUM];
++	MPV_PICATR picatr;
++	MPVERR_INF errinf;
++	Uint8 lp64_pad2e4[0xd8];
++	Sint32 x2e4;
++	Uint8 lp64_pad358[0x70];
++	Sint32 x358;
++	Sint32 x35c;
++	Sint32 x360;
++	Sint32 x364;
++	Uint8 lp64_pad368[0x4];
++	Uint8 *tbl368[6];
++	Uint8 mcbuf[0x680 - 0x380];
++	Float64 blk[6][32];
++	Uint8 intra_iqm[64];
++	Uint8 nintra_iqm[64];
++	Uint8 work[0x1300 - 0xD00];
++	Uint8 lp64_pad1300[0x30];
++	Sint32 x1300;
++	Sint32 x1304;
++	Uint8 lp64_pad1314[0x14];
++	Sint32 x1314;
++	void *intra_func;
++	void *nintra_func;
++	Uint8 lp64_pad1324[0x4];
++	Sint32 x1324;
++	void *dctbl_y;
++	void *dctbl_c;
++	void *m2v;
++	Uint8 lp64_pad_end[0x80];
++#endif
+ } MPV_OBJ;
++#if __SIZEOF_POINTER__ != 4
++_Static_assert(sizeof(MPV_OBJ) == MPV_OBJ_SIZE, "mpv_lib.c MPV_OBJ stride");  /* port: patch 0070 */
++#endif
+ 
+ typedef MPV_OBJ *MPV;
+ 
+@@ -172,7 +254,12 @@
+ 	"\nCRI MPV/GC Ver.1.933 Build:Sep 22 2004 10:34:55\n\0Append: MW2407 GC20Apr2004Patch1\n";
+ 
+ const Sint32 mpvlib_cond_dfl[MPV_COND_NUM + 1] = {
++#if __SIZEOF_POINTER__ == 4
+ 	0, 1, 1, 0, 0, 0, 3, 0x7FFFFFFF, (Sint32)MPV_MbCbFn, 0, 0, 0, 0, 0, 0, 0, 0x5A5A5A5A,
++#else
++	/* port: patch 0070, the address of MPV_MbCbFn is no constant in 32 bits on LP64: MPV_Init sets it */
++	0, 1, 1, 0, 0, 0, 3, 0x7FFFFFFF, 0, 0, 0, 0, 0, 0, 0, 0, 0x5A5A5A5A,
++#endif
+ };
+ const Sint32 mpvlib_siz_mpvwork = sizeof(MPVLIB_WORK);
+ const Sint32 mpvlib_siz_mpvobj = MPV_OBJ_SIZE_REAL;
+@@ -540,6 +627,9 @@
+ 		}
+ 	}
+ 	UTY_MemcpyDword(mpvlib_libwork.cond, mpvlib_cond_dfl, MPV_COND_NUM);
++#if __SIZEOF_POINTER__ != 4
++	mpvlib_libwork.cond[8] = (Sint32)(Uint32)(unsigned long)MPV_MbCbFn;  /* port: patch 0070 */
++#endif
+ 	mpvlib_libwork.hn_end = hn_end;
+ 	mpvlib_libwork.ixa = ixa;
+ 	mpvlib_libwork.nhn = nhn;
+--- a/src/lib/mpv_umc.c
++++ b/src/lib/mpv_umc.c
+@@ -37,6 +37,7 @@
+ } MPVUMC_OUTBLK;
+ 
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad0[0x40];
+ 	Uint8 *clip_base;          /* 0x040 */
+ 	Uint8 pad44[0xCC - 0x44];
+@@ -69,7 +70,58 @@
+ 	Sint32 cbp_code;           /* 0x348 */
+ 	Uint8 pad34c[0x380 - 0x34C];
+ 	Uint8 mcbuf[0x100];        /* 0x380 */
++#else
++	/* port: patch 0070, 64 bit: the members at the offsets of MPV_OBJ in mpv.h */
++	Uint8 lp64_pad40[0x78];
++	Uint8 *clip_base;
++	Uint8 lp64_padcc[0xb8];
++	Uint8 pad_mc[0x70];
++	MPVUMC_WORK mcwk;
++	MPVUMC_OUTBLK outblk;
++	Uint8 lp64_pad19c[0x7c];
++	Sint32 mcflag;
++	Uint8 lp64_pad1d0[0x30];
++	Sint32 width;
++	Sint32 height;
++	Sint32 mb_width;
++	Uint8 lp64_pad264[0x94];
++	MPVUMC_RFB out;
++	MPVUMC_RFB ref;
++	Uint8 *frmbuf;
++	Uint8 lp64_pad294[0x10];
++	Uint8 *out_pln[3];
++	Sint16 out_cpitch;
++	Sint16 out_ypitch;
++	Uint8 lp64_pad2d4[0x44];
++	void (*mc_func[4])(void *mpv);
++	Uint8 lp64_pad2ec[0x8];
++	MPV_MV fwd;
++	MPV_MV bwd;
++	Sint32 mb_addr;
++	Sint32 mb_y;
++	Sint32 mb_x;
++	Uint8 lp64_pad348[0x8];
++	Sint32 cbp_code;
++	Uint8 lp64_pad380[0x50];
++	Uint8 mcbuf[0x100];
++#endif
+ } MPVUMC_OBJ;
++
++/* port: patch 0070: where the paired-single kernels below (translated asm) find the work pointers,
++ * the output block pointers and their pitch. The GameCube offsets on ILP32; on LP64 the members'
++ * offsets, of which the kernels read the low word (little-endian, every address below 4 GB). */
++#define MPVUMC_K_BUF0 ((Uint32)__builtin_offsetof(MPVUMC_WORK, buf0))
++#define MPVUMC_K_WORK ((Uint32)__builtin_offsetof(MPVUMC_WORK, work))
++#define MPVUMC_K_WORK2 ((Uint32)__builtin_offsetof(MPVUMC_WORK, work2))
++#define MPVUMC_K_RT ((Uint32)__builtin_offsetof(MPVUMC_OUTBLK, rt))
++#define MPVUMC_K_PITCH ((Uint32)__builtin_offsetof(MPVCMC_REF, n))
++#define MPVUMC_K_REF ((Uint32)sizeof(MPVCMC_REF))
++#if __SIZEOF_POINTER__ == 4
++_Static_assert(MPVUMC_K_BUF0 == 4 && MPVUMC_K_WORK == 8 && MPVUMC_K_WORK2 == 12 && MPVUMC_K_RT == 4 &&
++               MPVUMC_K_PITCH == 4 && MPVUMC_K_REF == 8, "the kernels' GameCube offsets");
++#else
++_Static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "the kernels read the low word of a pointer");
++#endif
+ 
+ typedef void (*MPVUMC_MCFUNC)(MPVMC *mc);
+ 
+@@ -257,19 +309,19 @@
+ 		r4 = (Uint32)(ob);
+ 		r5 = (Uint32)(cbp);
+ 		r6 = (Uint32)((Uint8 *)&mpvumc_ps_one);
+-		r8 = *(Uint32 *)(r3 + (Uint32)(4));
++		r8 = *(Uint32 *)(r3 + MPVUMC_K_BUF0);
+ 		r6 = r6 + (Uint32)(0);
+-		r7 = *(Uint32 *)(r3 + (Uint32)(8));
++		r7 = *(Uint32 *)(r3 + MPVUMC_K_WORK);
+ 		re4_psq_l(&f8, (void *)(r6 + (Uint32)(0)), 1, re4_cri_gqr[0]);
+-		r9 = r4 + (Uint32)(4);
+-		r3 = *(Uint32 *)(r3 + (Uint32)(12));
++		r9 = r4 + MPVUMC_K_RT;
++		r3 = *(Uint32 *)(r3 + MPVUMC_K_WORK2);
+ 		r10 = (Uint32)(0);
+ 		{ Float32 a0_ = f8.ps1, a1_ = f8.ps1; f8.ps0 = a0_; f8.ps1 = a1_; }
+ 	bi_L_80206618:;
+ 		cr0 = (Sint32)r5 < (Sint32)(0) ? -1 : (Sint32)r5 > (Sint32)(0) ? 1 : 0;
+ 		r4 = *(Uint32 *)(r9 + (Uint32)(0));
+-		r6 = *(Uint32 *)(r9 + (Uint32)(4));
+-		r9 = r9 + (Uint32)(8);
++		r6 = *(Uint32 *)(r9 + MPVUMC_K_PITCH);
++		r9 = r9 + MPVUMC_K_REF;
+ 		if (cr0 < 0) goto bi_L_802067C4;
+ 		r0 = r4 & 0x1fu;
+ 		cr0 = (Sint32)(r0) < 0 ? -1 : (Sint32)(r0) > 0 ? 1 : 0;
+@@ -536,15 +588,15 @@
+ 		r3 = (Uint32)(wk);
+ 		r4 = (Uint32)(ob);
+ 		r5 = (Uint32)(cbp);
+-		r6 = *(Uint32 *)(r3 + (Uint32)(4));
+-		r7 = r4 + (Uint32)(4);
+-		r3 = *(Uint32 *)(r3 + (Uint32)(8));
++		r6 = *(Uint32 *)(r3 + MPVUMC_K_BUF0);
++		r7 = r4 + MPVUMC_K_RT;
++		r3 = *(Uint32 *)(r3 + MPVUMC_K_WORK);
+ 		r9 = (Uint32)(0);
+ 	one_L_802069FC:;
+ 		cr0 = (Sint32)r5 < (Sint32)(0) ? -1 : (Sint32)r5 > (Sint32)(0) ? 1 : 0;
+ 		r4 = *(Uint32 *)(r7 + (Uint32)(0));
+-		r8 = *(Uint32 *)(r7 + (Uint32)(4));
+-		r7 = r7 + (Uint32)(8);
++		r8 = *(Uint32 *)(r7 + MPVUMC_K_PITCH);
++		r7 = r7 + MPVUMC_K_REF;
+ 		if (cr0 < 0) goto one_L_80206B08;
+ 		r0 = r4 & 0x1fu;
+ 		cr0 = (Sint32)(r0) < 0 ? -1 : (Sint32)(r0) > 0 ? 1 : 0;
+@@ -862,12 +914,12 @@
+ 		r3 = (Uint32)(blk);
+ 		r4 = (Uint32)(ob);
+ 		r5 = (Uint32)(clip);
+-		r4 = r4 + (Uint32)(4);
++		r4 = r4 + MPVUMC_K_RT;
+ 		r5 = 0u + (Uint32)(6);
+ 	intra_L_80207050:;
+ 		r7 = *(Uint32 *)(r4 + (Uint32)(0));
+-		r6 = *(Uint32 *)(r4 + (Uint32)(4));
+-		r4 = r4 + (Uint32)(8);
++		r6 = *(Uint32 *)(r4 + MPVUMC_K_PITCH);
++		r4 = r4 + MPVUMC_K_REF;
+ 		r0 = r7 & 0x1fu;
+ 		cr0 = (Sint32)(r0) < 0 ? -1 : (Sint32)(r0) > 0 ? 1 : 0;
+ 		if (cr0 != 0) goto intra_L_80207118;
+--- a/src/lib/mwsfdcre.c
++++ b/src/lib/mwsfdcre.c
+@@ -671,7 +671,7 @@
+ 	mwsfcre_AttachPicUsrBuf(mwply);
+ 	CWS_BUFSIZ(cprm, sibsiz, vibsiz, aibsiz, sjbsiz, adxibsiz, adxwksiz);
+ 	mwsfcre_SetSfdCond(mwply, lw);
+-	mwply->file_sj = SJRBF_Create((void *)mwply->x1d8, mwply->flow_nsct, mwply->x1e0);
++	mwply->file_sj = SJRBF_Create((void *)(Uint32)mwply->x1d8, mwply->flow_nsct, mwply->x1e0);  /* port: patch 0070 */
+ 	if (mwply->file_sj == NULL) {
+ 		MWSFSVM_Error("E2013 mwPlyCreate:can't create SJ");
+ 		mwSfdDestroy(mwply);
+--- a/src/lib/mwsfdfrm.c
++++ b/src/lib/mwsfdfrm.c
+@@ -14,6 +14,7 @@
+ 
+ /* decoded frame as the SFD library hands it out (SFD_VFRM: the 0x80-byte information block) */
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Sint32 x00;                /* 0x00 -> MWS_FRM.width */
+ 	Sint32 x04;                /* 0x04 -> MWS_FRM.height */
+ 	Sint32 x08;
+@@ -49,6 +50,46 @@
+ 	Sint32 x74;
+ 	Sint32 x78;
+ 	Sint32 x7c;
++#else
++	/* port: patch 0070, 64 bit: the members at the offsets of SFMPV_VINF on LP64 */
++	Sint32 x00;
++	Sint32 x04;
++	Sint32 x08;
++	Sint32 x0c;
++	Sint32 pstruct;
++	Sint32 x14;
++	Sint32 tunit;
++	Sint32 ptype;
++	void *bufadr;
++	Sint32 x24;
++	Sint32 x28;
++	Sint32 frmno;
++	Sint32 x30;
++	Sint32 x34;
++	Uint8 lp64_pad38[0x4];
++	MWSFFRM_USRDAT *usr;
++	Sint32 chromapos_h;
++	Sint32 chromapos_v;
++	Sint32 x44;
++	Sint32 x48;
++	Sint32 x4c;
++	Uint8 lp64_pad50[0x4];
++	Sint32 x50;
++	Sint32 x54;
++	Sint32 pic_struct;
++	Sint32 chroma_format;
++	Sint32 x60;
++	Sint32 x64;
++	Sint32 x68;
++	Sint8 x6c;
++	Sint8 x6d;
++	Sint8 x6e;
++	Sint8 x6f;
++	Sint32 x70;
++	Sint32 x74;
++	Sint32 x78;
++	Sint32 x7c;
++#endif
+ } MWSFFRM_VFRM;
+ 
+ /* SFD_CalcYccPlane output */
+--- a/src/lib/mwsfdrna.c
++++ b/src/lib/mwsfdrna.c
+@@ -3,8 +3,14 @@
+ #include "cri_xpt.h"
+ 
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad[0x40];
+ 	void *sfd;
++#else
++	/* port: patch 0070, 64 bit: the members at the offsets of MWPLY_OBJ on LP64 */
++	Uint8 lp64_pad40[0x50];
++	void *sfd;
++#endif
+ } MWPLY_OBJ;
+ 
+ extern Sint32 SFD_GetOutPan(void *sfd, Sint32 ch);
+--- a/src/lib/mwsfdsl.c
++++ b/src/lib/mwsfdsl.c
+@@ -4,6 +4,7 @@
+ #include "cri_xpt.h"
+ #include <stdio.h>
+ 
++#if __SIZEOF_POINTER__ == 4
+ typedef struct {
+ 	Uint8 pad0[0x40];
+ 	void *sfd;              /* 0x40 */
+@@ -13,6 +14,10 @@
+ 	Sint8 linkstm;          /* 0x74 */
+ 	Sint8 linkstm_req;      /* 0x75 */
+ } MWPLY_OBJ;
++#else
++/* port: patch 0070, 64 bit: the full player object; the pads above hold the GameCube offsets */
++#include "mwsfd.h"
++#endif
+ 
+ extern Bool MWSFD_IsEnableHndl(MWPLY_OBJ *mwply);
+ extern void MWSFSVM_Error(const Char8 *fmt, ...);
+--- a/src/lib/sfd_adxt.c
++++ b/src/lib/sfd_adxt.c
+@@ -475,7 +475,7 @@
+ 	if (SFPLY_GetResetFlg() != 1) {
+ 		adxt = ADXT_Create(wk->para.maxnch, wk->para.work, wk->para.worksize);
+ 	} else {
+-		adxt = (ADXT)SFLIB_libwork.x200;
++		adxt = (ADXT)(Uint32)SFLIB_libwork.x200;  /* port: patch 0070 */
+ 	}
+ 	if (adxt == NULL) {
+ 		return NULL;
+--- a/src/lib/sfd_buf.c
++++ b/src/lib/sfd_buf.c
+@@ -14,15 +14,25 @@
+ /* buffer n is addressed as SFD + n * sizeof(SFBUF_WORK) with the offsets of buf[0] folded into the
+  * displacements: a view of the SFD object shifted by n buffers */
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad[0x1308];
+ 	SFBUF_WORK w;
++#else
++	/* port: patch 0070, 64 bit: the members at the offsets of SFD_OBJ on LP64 */
++	Uint8 lp64_pad1308[0x1360];
++	SFBUF_WORK w;
++#endif
+ } SFBUF_HN;
+ 
+ #define SFBUF_GET_HN(sfd, n) ((SFBUF_HN *)((Uint8 *)(sfd) + (n) * sizeof(SFBUF_WORK)))
+ 
+ /* creation parameters of SFBUF_InitHn */
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Sint32 x00;
++#else
++	const void *x00;           /* port: patch 0070, the driver table pointer (sfd.h SFD_CREPRM) */
++#endif
+ 	Uint32 adr;                /* 0x04 work base */
+ 	Sint32 size[7];            /* 0x08 sizes of buffers 0..6 */
+ 	Sint32 x24;
+--- a/src/lib/sfd_hds.c
++++ b/src/lib/sfd_hds.c
+@@ -7,7 +7,11 @@
+ extern void MEM_Copy(void *dst, const void *src, Uint32 nbytes);
+ 
+ #define SFHDS_SFH_NUM 0x20
++#if __SIZEOF_POINTER__ == 4
+ #define SFHDS_SFH_WORK_SIZE 0x204
++#else
++#define SFHDS_SFH_WORK_SIZE (4 + SFHDS_SFH_NUM * 0x18)  /* port: patch 0070, SFH_OBJ holds a pointer (sfh_main.c) */
++#endif
+ 
+ /* SFD condition ids */
+ #define SFD_COND_HDRCB_FN 0x4B
+@@ -297,8 +301,8 @@
+ 	Sint32 n;
+ 	SFHDS_FHD *dst;
+ 
+-	cbfn = (SFHDS_HDRCB)SFSET_GetCond(sfd, SFD_COND_HDRCB_FN);
+-	cbobj = (void *)SFSET_GetCond(sfd, SFD_COND_HDRCB_OBJ);
++	cbfn = (SFHDS_HDRCB)(Uint32)SFSET_GetCond(sfd, SFD_COND_HDRCB_FN);  /* port: patch 0070 */
++	cbobj = (void *)(Uint32)SFSET_GetCond(sfd, SFD_COND_HDRCB_OBJ);  /* port: patch 0070 */
+ 	if (cbfn != NULL) {
+ 		cbfn(cbobj, data, size);
+ 	}
+--- a/src/lib/sfd_mem.c
++++ b/src/lib/sfd_mem.c
+@@ -5,8 +5,14 @@
+ #include "cri_xpt.h"
+ 
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad[0x1F3C];
+ 	void *sfbuf;
++#else
++	/* port: patch 0070, 64 bit: the members at the offsets of SFD_OBJ on LP64 */
++	Uint8 lp64_pad1f3c[0x21bc];
++	Sint32 sfbuf;              /* tr[0].bufout, the input buffer's SFBUF id (sfd.h SFD_TR) */
++#endif
+ } SFD_OBJ;
+ 
+ typedef struct {
+@@ -27,9 +33,17 @@
+ } SFD_TR_IF;
+ 
+ extern void SFLIB_SetErr(void *sfd, Sint32 code);
++#if __SIZEOF_POINTER__ == 4
+ extern Sint32 SFBUF_RingAddWrite(SFD_OBJ *sfd, void *sfbuf, Sint32 a, Sint32 b);
+ extern Sint32 SFBUF_RingGetWrite(SFD_OBJ *sfd, void *sfbuf, void *a);
+ extern void SFBUF_SetPrepFlg(SFD_OBJ *sfd, void *sfbuf, Sint32 flg);
++#else
++/* port: patch 0070, 64 bit: the buffer is an id (sfd_buf.c), not a pointer */
++extern Sint32 SFBUF_RingAddWrite(SFD_OBJ *sfd, Sint32 sfbuf, Sint32 a, Sint32 b);
++extern Sint32 SFBUF_RingGetWrite(SFD_OBJ *sfd, Sint32 sfbuf, void *a);
++extern void SFBUF_SetPrepFlg(SFD_OBJ *sfd, Sint32 sfbuf, Sint32 flg);
++_Static_assert(__builtin_offsetof(SFD_OBJ, sfbuf) == 0x21bc, "tr[0].bufout of SFD_OBJ on LP64");
++#endif
+ 
+ // No seek support (0).
+ Sint32 SFMEM_Seek(void)
+--- a/src/lib/sfd_mps.c
++++ b/src/lib/sfd_mps.c
+@@ -31,7 +31,7 @@
+ 
+ #define SFMPS_TR 1
+ #define SFMPS_NUM_HN 8
+-#define SFMPS_WORK_MAX 0x200
++#define SFMPS_WORK_MAX (0x200 * sizeof(void*) / 4)  /* port: patch 0070, the work is a member of SFD_OBJ */
+ 
+ /* SFD condition ids */
+ #define SFD_COND_VIDEO_ON 0x05
+@@ -84,8 +84,14 @@
+ 
+ /* buffer n addressed as SFD + n * sizeof(SFBUF_WORK) (sfd_buf.c's SFBUF_HN view) */
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad[0x1308];
+ 	SFBUF_WORK w;
++#else
++	/* port: patch 0070, 64 bit: the members at the offsets of SFD_OBJ on LP64 */
++	Uint8 lp64_pad1308[0x1360];
++	SFBUF_WORK w;
++#endif
+ } SFMPS_BUFHN;
+ 
+ #define SFMPS_BUF_HN(sfd, n) ((SFMPS_BUFHN *)((Uint8 *)(sfd) + (n) * sizeof(SFBUF_WORK)))
+@@ -510,8 +516,8 @@
+ 
+ 	SFBUF_GetUoch(sfd, sfd->tr[SFMPS_TR].bufout3, chno, &ch);
+ 	fn1 = (SFMPS_UOCB)ch.prm;
+-	fn2 = (SFMPS_UOCB)ch.rsv1;
+-	obj = (void *)ch.rsv2;
++	fn2 = (SFMPS_UOCB)(Uint32)ch.rsv1;  /* port: patch 0070 */
++	obj = (void *)(Uint32)ch.rsv2;  /* port: patch 0070 */
+ 	if (ch.sj == NULL) {
+ 		return 1;
+ 	}
+@@ -815,8 +821,8 @@
+ 	void *fn;
+ 	void *obj;
+ 
+-	obj = (void *)SFSET_GetCond(sfd, SFD_COND_PESOBJ);
+-	fn = (void *)SFSET_GetCond(sfd, SFD_COND_PESFN);
++	obj = (void *)(Uint32)SFSET_GetCond(sfd, SFD_COND_PESOBJ);  /* port: patch 0070 */
++	fn = (void *)(Uint32)SFSET_GetCond(sfd, SFD_COND_PESFN);  /* port: patch 0070 */
+ 	MPS_SetPesFn(mps, fn, obj);
+ }
+ 
+@@ -889,7 +895,7 @@
+ 	} else {
+ 		delim = 0;
+ 	}
+-	MPS_SetPsMapFn(mps, (void *)SFSET_GetCond(sfd, SFD_COND_PSMAPFN), (void *)SFSET_GetCond(sfd, SFD_COND_PSMAPOBJ));
++	MPS_SetPsMapFn(mps, (void *)(Uint32)SFSET_GetCond(sfd, SFD_COND_PSMAPFN), (void *)(Uint32)SFSET_GetCond(sfd, SFD_COND_PSMAPOBJ));  /* port: patch 0070 */
+ 	sfmps_SetPesFns(sfd, mps);
+ 	if (MPS_DecHd(mps, data, len, &hdrlen, &flags) != 0) {
+ 		ret = SFLIB_SetErr(sfd, SFMPS_ERR_DECHD);
+@@ -1094,7 +1100,7 @@
+ 		return 0;
+ 	}
+ 	mps = SFMPS_MPS(sfd);
+-	MPS_SetSystemFn(mps, (void *)SFSET_GetCond(sfd, SFD_COND_SYSFN), (void *)SFSET_GetCond(sfd, SFD_COND_SYSOBJ));
++	MPS_SetSystemFn(mps, (void *)(Uint32)SFSET_GetCond(sfd, SFD_COND_SYSFN), (void *)(Uint32)SFSET_GetCond(sfd, SFD_COND_SYSOBJ));  /* port: patch 0070 */
+ 	return sfmps_ExecServerLoop(sfd, &len);
+ }
+ 
+--- a/src/lib/sfd_mpv.c
++++ b/src/lib/sfd_mpv.c
+@@ -132,9 +132,18 @@
+ /* SFD_VFRM with its first word as the flag the driver keeps there */
+ typedef struct {
+ 	Sint32 used;               /* 0x00 */
++#if __SIZEOF_POINTER__ != 4
++	Sint32 used_hi;            /* port: patch 0070, sfd.h SFD_VFRM keeps a pointer (frm) in this word */
++#endif
+ 	Sint32 x04;
+ 	SFMPV_VINF inf;            /* 0x08 */
+ } SFMPV_VFRM;
++#if __SIZEOF_POINTER__ != 4
++_Static_assert(sizeof(SFMPV_VINF) == sizeof(SFD_VFRM_INF) && sizeof(SFMPV_VFRM) == sizeof(SFD_VFRM),
++               "sfd.h frame slot views");  /* port: patch 0070 */
++#endif
++_Static_assert(__builtin_offsetof(SFMPV_VINF, ftime) == 0x14 && __builtin_offsetof(SFMPV_VINF, tunit) == 0x18,
++               "sfd_tim.c reads ftime/tunit as words 5 and 6");  /* port: patch 0070 */
+ 
+ typedef Sint32 (*SFMPV_ISSKIPFN)(SFD sfd, Sint32 ptype, Sint32 t, Sint32 unit);
+ typedef Sint32 (*SFMPV_SEQFN)(void *obj, Sint32 width, Sint32 height);
+@@ -512,7 +521,7 @@
+ 	SFMPV_WORK *mpv = SFMPV_WK(sfd);
+ 	MPV hn = mpv->mpv;
+ 
+-	ck->data = (void *)SFSET_GetCond(sfd, 0x5D);
++	ck->data = (void *)(Uint32)SFSET_GetCond(sfd, 0x5D);  /* port: patch 0070 */
+ 	ck->len = SFSET_GetCond(sfd, 0x5E);
+ 	if (ck->data != NULL && (Uint32)ck->len != 0 && mpv->dlmmask == (SFMPV_DLM_END | SFMPV_DLM_SEQ)) {
+ 		if (MPV_DecodePicAtr(hn, ck, used) == 0) {
+@@ -955,7 +964,7 @@
+ 			t = ncount - ttu0->val;
+ 		}
+ 	} else {
+-		if (((const SFD_TR_IF **)sfd->prm.x00)[3] != &SFD_tr_ad_adxt) {
++		if (((const SFD_TR_IF **)(Uint32)sfd->prm.x00)[3] != &SFD_tr_ad_adxt) {  /* port: patch 0070 */
+ 			smpl = 0;
+ 			unit = 44100;
+ 		} else if (SFCON_ReadTotSmplQue(sfd, &smpl, &unit) == 0) {
+@@ -1127,8 +1136,8 @@
+ 			*result = -2;
+ 			return 0;
+ 		}
+-		seqfn = (SFMPV_SEQFN)SFSET_GetCond(sfd, 0x5F);
+-		seqobj = (void *)SFSET_GetCond(sfd, 0x5F);
++		seqfn = (SFMPV_SEQFN)(Uint32)SFSET_GetCond(sfd, 0x5F);  /* port: patch 0070 */
++		seqobj = (void *)(Uint32)SFSET_GetCond(sfd, 0x5F);  /* port: patch 0070 */
+ 		if (seqfn != NULL && seqfn(seqobj, atr->width, atr->height) != 0) {
+ 			*result = -2;
+ 			return 0;
+@@ -1157,8 +1166,8 @@
+ 		mpv->newgop = 0;
+ 	}
+ 	if (seq) {
+-		hdrfn = (SFMPV_HDRFN)SFSET_GetCond(sfd, 0x4D);
+-		hdrobj = (void *)SFSET_GetCond(sfd, 0x4E);
++		hdrfn = (SFMPV_HDRFN)(Uint32)SFSET_GetCond(sfd, 0x4D);  /* port: patch 0070 */
++		hdrobj = (void *)(Uint32)SFSET_GetCond(sfd, 0x4E);  /* port: patch 0070 */
+ 		if (hdrfn != NULL) {
+ 			p = MPV_SearchDelim((Sint8 *)ck->data, ck->len, 1);
+ 			if (p != NULL) {
+@@ -1603,7 +1612,7 @@
+ 	if (fsize * 2 > fsize2 * 2) {
+ 		return SFLIB_SetErr(sfd, 0xFF000F17);
+ 	}
+-	tabuf = (Uint8 *)mpv->para.x20;
++	tabuf = (Uint8 *)(Uint32)mpv->para.x20;  /* port: patch 0070 */
+ 	if (tabuf == NULL) {
+ 		n = nfrm;
+ 	} else {
+@@ -1619,7 +1628,7 @@
+ 		if (n < nfrm) {
+ 			return SFLIB_SetErr(sfd, 0xFF000F17);
+ 		}
+-		rfbuf = (Uint8 *)mpv->para.x10;
++		rfbuf = (Uint8 *)(Uint32)mpv->para.x10;  /* port: patch 0070 */
+ 		mpv->rfb_adr[0] = rfbuf;
+ 		mpv->rfb_adr[1] = rfbuf + fsize;
+ 		for (i = 0; i < n; i++) {
+@@ -2460,7 +2469,7 @@
+ {
+ 	Sint32 cs;
+ 	SFMPV_WORK *mpv;
+-	SFMPV_VFRM *vfrm = (SFMPV_VFRM *)((Uint8 *)inf - 8);
++	SFMPV_VFRM *vfrm = (SFMPV_VFRM *)((Uint8 *)inf - __builtin_offsetof(SFMPV_VFRM, inf));  /* port: patch 0070 (8 on ILP32) */
+ 	Sint32 ret;
+ 
+ 	SFLIB_LockCs(&cs);
+--- a/src/lib/sfd_ply.c
++++ b/src/lib/sfd_ply.c
+@@ -432,7 +432,7 @@
+ 	SFD_PLYINF *inf = &sfd->plyinf;
+ 
+ 	PLYINF(sfd)->nskippic += n;
+-	fn = (void (*)(SFD, void *, SFD_PLYINF *))SFSET_GetCond(sfd, 0x25);
++	fn = (void (*)(SFD, void *, SFD_PLYINF *))(Uint32)SFSET_GetCond(sfd, 0x25);  /* port: patch 0070 */
+ 	if (fn != NULL) {
+ 		fn(sfd, arg, inf);
+ 	}
+@@ -445,7 +445,7 @@
+ 	SFD_PLYINF *inf = &sfd->plyinf;
+ 
+ 	PLYINF(sfd)->ndecpic += n;
+-	fn = (void (*)(SFD, void *, SFD_PLYINF *))SFSET_GetCond(sfd, 0x24);
++	fn = (void (*)(SFD, void *, SFD_PLYINF *))(Uint32)SFSET_GetCond(sfd, 0x24);  /* port: patch 0070 */
+ 	if (fn != NULL) {
+ 		fn(sfd, arg, inf);
+ 	}
+--- a/src/lib/sfd_pts.c
++++ b/src/lib/sfd_pts.c
+@@ -9,8 +9,14 @@
+ #define PQ(sfd, strm) ((sfd)->buf[strm].u.ring.ptsque)
+ 
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad[0x1308];
+ 	SFBUF_WORK w;
++#else
++	/* port: patch 0070, 64 bit: the members at the offsets of SFD_OBJ on LP64 */
++	Uint8 lp64_pad1308[0x1360];
++	SFBUF_WORK w;
++#endif
+ } SFBUF_HN;
+ 
+ #define SFBUF_GET_HN(sfd, n) ((SFBUF_HN *)((Uint8 *)(sfd) + (n) * sizeof(SFBUF_WORK)))
+--- a/src/lib/sfd_tim.c
++++ b/src/lib/sfd_tim.c
+@@ -194,8 +194,15 @@
+ 	Bool ret;
+ 	Sint32 ftime;
+ 
++#if __SIZEOF_POINTER__ == 4
+ 	tunit = frm->inf.raw[4];
+ 	ftime = frm->inf.raw[3];
++#else
++	/* port: patch 0070, 64 bit: `frm` is the frame information SFMPV_GetRead hands out
++	 * (SFD_VFRM_INF), not its slot: ftime and tunit are its words 5 and 6 (sfd_mpv.c SFMPV_VINF) */
++	tunit = ((const Sint32 *)frm)[6];
++	ftime = ((const Sint32 *)frm)[5];
++#endif
+ 	if (sfd->cond[14] != 0) {
+ 		return TRUE;
+ 	}
+@@ -760,7 +767,12 @@
+ 		return;
+ 	}
+ 	SFLIB_LockCs(&cs);
++#if __SIZEOF_POINTER__ == 4
+ 	fn = *(SFTIM_FN *)((Uint8 *)sfd + 0xD28 + SFSET_GetCond(sfd, 0xF) * 4);
++#else
++	/* port: patch 0070, 64 bit: 0xD28 is SFTIM_WORK.timefn behind SFD_OBJ.con */
++	fn = SFD_TIM(sfd)->timefn[SFSET_GetCond(sfd, 0xF)];
++#endif
+ 	if (fn == NULL) {
+ 		fn = sftim_GetTimeNone;
+ 	}
+--- a/src/lib/sfh_main.c
++++ b/src/lib/sfh_main.c
+@@ -67,6 +67,8 @@
+ 	Sint32 size;
+ 	Sint32 ver;
+ } SFH_OBJ;
++/* port: patch 0070, sfd_hds.c sizes the work for 32 of these */
++_Static_assert(sizeof(SFH_OBJ) == (sizeof(void*) == 4 ? 0x10 : 0x18), "sfd_hds.c SFHDS_SFH_WORK_SIZE");
+ 
+ /* one stream element record (0x40 bytes) */
+ typedef struct {
+--- a/src/lib/sfx_set.c
++++ b/src/lib/sfx_set.c
+@@ -19,10 +19,18 @@
+ 	void *coladj;
+ } SFX_OBJ;
+ 
++#if __SIZEOF_POINTER__ == 4
+ typedef struct {
+ 	Sint32 a;
+ 	Sint32 b;
+ } SFX_TAGINF;
++#else
++/* port: patch 0070, 64 bit: SJ_SearchTag reads and writes SJCK chunks (sj.h: data pointer, length) */
++typedef struct {
++	Uint8 *a;
++	Sint32 b;
++} SFX_TAGINF;
++#endif
+ 
+ extern void *SJ_SearchTag(SFX_TAGINF *inf, const Char8 *tag, const Char8 *name, SFX_TAGINF *out);
+ extern void SFXZ_SetTagInf(void *sfxz, Sint32 a, Sint32 b);
+@@ -61,12 +69,20 @@
+ 
+ 	sfx->tag_a = a;
+ 	sfx->tag_b = b;
++#if __SIZEOF_POINTER__ == 4
+ 	inf.a = a;
++#else
++	inf.a = (Uint8 *)(Uint32)a;  /* port: patch 0070 */
++#endif
+ 	inf.b = b;
+ 	if (SJ_SearchTag(&inf, "SFXZ", "SFXINFE", &out) == NULL) {
+ 		SFXZ_SetTagInf(sfxz, 0, 0);
+ 	} else {
++#if __SIZEOF_POINTER__ == 4
+ 		SFXZ_SetTagInf(sfxz, out.a, out.b);
++#else
++		SFXZ_SetTagInf(sfxz, (Sint32)(Uint32)(unsigned long)out.a, out.b);  /* port: patch 0070 */
++#endif
+ 	}
+ 	sfx->taginf_flg = 1;
+ }
+--- a/src/lib/sfx_sud.c
++++ b/src/lib/sfx_sud.c
+@@ -2,11 +2,16 @@
+  * and answers the colour-space (C) and field-division (D) type flags read from it. */
+ #include "cri_xpt.h"
+ 
++#if __SIZEOF_POINTER__ == 4
+ typedef struct {
+ 	Uint8 pad[0x60];
+ 	void *usrdat;
+ 	Sint32 usrdat_size;
+ } SFX_OBJ;
++#else
++/* port: patch 0070, 64 bit: the full SFX object; the pads above hold the GameCube offsets */
++#include "sfx.h"
++#endif
+ 
+ extern Sint32 SUD_AnalyTypeCcs(void *dat, Sint32 size);
+ extern Sint32 SUD_AnalyTypeDivField(void *dat, Sint32 size);
+--- a/src/lib/cri/mpv.h
++++ b/src/lib/cri/mpv.h
+@@ -52,10 +52,26 @@
+ 
+ /* frame parameter block passed to MPV_DecodeFrmSj (0x30 bytes) */
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad0[0x1C];
++#else
++	/* port: patch 0070, 64 bit: the pointers other views have in this pad */
++	void *pad0;
++	void *pad0_p4;
++	void *pad0_p8;
++	Uint8 pad0_c[0x4];
++	void *pad0_p10;
++	void *pad0_p14;
++	void *pad0_p18;
++#endif
+ 	Sint16 width;        /* 0x1C */
+ 	Sint16 height;       /* 0x1E */
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad20[4];
++#else
++	/* port: patch 0070, 64 bit: the pointers other views have in this pad */
++	void *pad20;
++#endif
+ 	MPV_PICATR *picatr;  /* 0x24 */
+ 	Sint32 nfrm;         /* 0x28 */
+ 	Sint32 nbyte;        /* 0x2C */
+@@ -80,7 +96,15 @@
+ 	Uint8 *src2;                    /* 0x28 second reference row / block */
+ 	Uint8 pad2C[8];
+ 	void (*oneref16[4])(struct MPVMC *mc); /* 0x34 16x16 block */
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad44[0x54 - 0x44];
++#else
++	/* port: patch 0070, 64 bit: the pointers other views have in this pad */
++	void *pad44;
++	void *pad44_p4;
++	void *pad44_p8;
++	void *pad44_pc;
++#endif
+ } MPVMC;
+ 
+ /* block decoder parameters (mpv_cdec.c -> intra/nintra block decode function; the first six are
+@@ -143,7 +167,16 @@
+ 	Sint8 cbp[6];                   /* 0x078 per-block coded flags */
+ 	Uint8 pad7E[0xA0 - 0x7E];
+ 	Sint32 cbp_msk;                 /* 0x0A0 */
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 padA4[0xCC - 0xA4];
++#else
++	/* port: patch 0070, 64 bit: the pointers other views have in this pad */
++	void *padA4;
++	void *padA4_p4;
++	Uint8 padA4_8[0x14];
++	void *padA4_p1c;
++	Uint8 padA4_20[0x8];
++#endif
+ 	MPVMC mc;                       /* 0x0CC */
+ 	Sint32 ccnt_rt;                 /* 0x120 */
+ 	MPVCMC_REF oi_rt[6];            /* 0x124 */
+@@ -157,7 +190,15 @@
+ 	Sint32 nfrm_dec;                /* 0x25C */
+ 	Sint32 nbyte_dec;               /* 0x260 */
+ 	MPV_FRM frm;                    /* 0x264 */
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad294[0x2A4 - 0x294];
++#else
++	/* port: patch 0070, 64 bit: the pointers other views have in this pad */
++	void *pad294;
++	void *pad294_p4;
++	void *pad294_p8;
++	Uint8 pad294_c[0x4];
++#endif
+ 	Sint32 aspect;                  /* 0x2A4 pel_aspect_ratio */
+ 	Sint32 bitrate;                 /* 0x2A8 */
+ 	Sint32 vbv_size;                /* 0x2AC */
+--- a/src/lib/cri/sfd.h
++++ b/src/lib/cri/sfd.h
+@@ -33,6 +33,7 @@
+ 
+ /* concatenated-play work (sfd_con.c), at SFD_OBJ + 0xD28 */
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 pad0[0xB8];
+ 	Sint32 tottime;            /* 0xB8 total time of the concatenated files */
+ 	Sint32 tunit;              /* 0xBC */
+@@ -48,6 +49,25 @@
+ 	Sint32 que_wr;             /* 0x1F4 */
+ 	Sint32 que_rd;             /* 0x1F8 */
+ 	Sint32 tot_que[32];        /* 0x1FC */
++#else
++	/* port: patch 0070, 64 bit: the members at the offsets of SFTIM_WORK on LP64 */
++	Uint8 lp64_padb8[0xd4];
++	Sint32 tottime;
++	Sint32 tunit;
++	Uint8 lp64_pad150[0x94];
++	Sint64 scr_base;
++	Sint64 scr_ofst;
++	Uint8 lp64_pad164[0x4];
++	Sint32 ctime;
++	Sint32 ctime_idx;
++	Sint32 ctime_que[32];
++	Sint32 tot_last;
++	Uint8 lp64_pad1f4[0x4];
++	Sint32 que_wr;
++	Sint32 que_rd;
++	Sint32 tot_que[32];
++	Uint8 lp64_pad_end[0x4];
++#endif
+ } SFCON;
+ 
+ /* timecode as the user passes it to SFD_Tc2Time (0x20 bytes) */
+@@ -133,7 +153,11 @@
+ 		Sint16 rpt;            /* repeat_first_field count of the picture */
+ 		Sint16 acc;            /* accumulated repeated fields */
+ 	} rfld[64];                /* 0x4B0 per temporal reference (sfd_mpv.c) */
++#if __SIZEOF_POINTER__ == 4
+ 	Sint32 x5b0;
++#else
++	void *x5b0;                /* port: patch 0070, over SFD_OBJ.ptsm (its x00 pointer) */
++#endif
+ 	Sint32 x5b4;
+ 	Sint32 x5b8;
+ } SFTIM_WORK;
+@@ -166,7 +190,12 @@
+ 
+ /* per-frame picture information handed to the user (0x80 bytes) */
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Sint32 raw[0x20];
++#else
++	/* port: patch 0070, 64 bit: the size and alignment of sfd_mpv.c's SFMPV_VINF (two pointers, a Sint64) */
++	Sint64 raw[0x90 / 8];
++#endif
+ } SFD_VFRM_INF;
+ 
+ /* video frame slot (0x88 bytes), SFD_OBJ + 0x16A8 + n * 0x88; slot n pairs with SFMPV frame n */
+@@ -587,7 +616,11 @@
+ /* creation parameters (SFD_Create, 0x44 bytes); the handle starts with a copy of them (sfd_ply.c).
+  * The first 0x2C bytes are what sfd_buf.c reads as SFBUF_PRM. */
+ typedef struct {
++#if __SIZEOF_POINTER__ == 4
+ 	Sint32 x00;
++#else
++	const void *x00;           /* port: patch 0070, the driver table (mwsfdcre.c MWSFD_SFDCREPRM trif_tbl) */
++#endif
+ 	Uint32 adr;                /* 0x04 buffer work base (aligned to 32 in place by sfply_InitHn) */
+ 	Sint32 size[7];            /* 0x08 sizes of buffers 0..6 */
+ 	Sint32 x24;
+@@ -678,7 +711,13 @@
+ 	Uint8 padD24[4];
+ 	/* 0xD28 */
+ 	SFCON con;                 /* 0xD28 (also the SFTIM handle: &sfd->con) */
++#if __SIZEOF_POINTER__ == 4
+ 	Uint8 padFA4[((0x1018 - 0xD28) > sizeof(SFCON) ? (0x1018 - 0xD28) - sizeof(SFCON) : 0)];
++#else
++	/* port: patch 0070, 64 bit: the timing work (SFTIM_WORK, &sfd->con) lies over con..ptsm; tst
++	 * and ptsm at its offsets (its pointers move them on LP64) */
++	Uint8 padFA4[__builtin_offsetof(SFTIM_WORK, tst) - sizeof(SFCON)];
++#endif
+ 	Uint8 tst[0x1C0];          /* 0x1018 time stabiliser work (sfd_tst.c SFTST_WORK) */
+ 	Uint8 pad11D8[0x12D8 - 0x11D8];
+ 	SFPLY_PTSM ptsm;           /* 0x12D8 */
+@@ -697,7 +736,11 @@
+ 	Sint32 pad34c4;
+ 	SFSEE_HN see;              /* 0x34C8 */
+ 	SFTMR_TSUM tsum[6];        /* 0x34D8 server time statistics (tsum[5]: sfply_ExecOne) */
+-} SFD_OBJ;                     /* 0x3598; SFD_Create wants 0x35B8 (32-byte alignment slack) */
++} SFD_OBJ; /* port: patch 0070, the members the timing work overlays (ILP32 and LP64) */
++_Static_assert(__builtin_offsetof(SFD_OBJ, tst) - __builtin_offsetof(SFD_OBJ, con) == __builtin_offsetof(SFTIM_WORK, tst) &&
++               __builtin_offsetof(SFD_OBJ, ptsm) - __builtin_offsetof(SFD_OBJ, con) == __builtin_offsetof(SFTIM_WORK, x5b0),
++               "SFTIM_WORK over SFD_OBJ.con");
++                    /* 0x3598; SFD_Create wants 0x35B8 (32-byte alignment slack) */
+ 
+ /* 64-bit stream counters inside plyinf (SFD_OBJ + 0x9B0..0x9D8) seen through a separate view:
+  * SFD_PLYINF itself has to stay 4-byte aligned (SFD_GetPlyInf copies it with a lwz/stw loop) */
+--- a/src/lib/cri/sfx.h
++++ b/src/lib/cri/sfx.h
+@@ -43,7 +43,8 @@
+ 	Sint32 pad50[2];           /* 0x50 */
+ 	void *work;                /* 0x58 */
+ 	Sint32 wsize;              /* 0x5C */
+-	Sint32 pad60[2];           /* 0x60 */
++	void *usrdat;              /* 0x60 picture user data (sfx_sud.c); port: patch 0070, was Sint32 pad60[2] */
++	Sint32 usrdat_size;        /* 0x64 */
+ 	Sint32 x68;                /* 0x68 (-1) */
+ 	Sint32 pad6c[2];           /* 0x6C */
+ 	Sint32 x74;                /* 0x74 */

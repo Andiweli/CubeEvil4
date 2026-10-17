@@ -314,22 +314,24 @@ def sync(staging: Path, tree: Path) -> None:
             path.unlink()
 
 
-# s32 / u32 are `long` in include/types.h and include/dolphin/types.h: 32 bits
-# on ILP32 as on the GameCube, 64 on LP64. Game headers include "types.h"
-# with quotes, so the copy next to them wins over port/whole/include/types.h;
-# their typedefs get the same exact-width form as the port's (milestone 12).
-TYPEDEF_LONG32 = re.compile(r"^typedef\s+(signed|unsigned)\s+long\s+(s32|u32)\s*;", re.M)
+# s32 / u32 are `long` in include/types.h and include/dolphin/types.h, and the
+# CRI middleware's Sint32 / Uint32 in src/lib/cri/cri_xpt.h: 32 bits on ILP32
+# as on the GameCube, 64 on LP64. Game headers include "types.h" with quotes,
+# so the copy next to them wins over port/whole/include/types.h; these
+# typedefs get the same exact-width form as the port's (milestone 12).
+TYPEDEF_LONG32 = re.compile(r"^typedef\s+(signed|unsigned)\s+long\s+(s32|u32|Sint32|Uint32)\s*;", re.M)
+EXACT_WIDTH_FILES = ("include/types.h", "include/dolphin/types.h", "src/lib/cri/cri_xpt.h")
 
 
 def exact_width_types(staging: Path) -> None:
-    for rel in ("include/types.h", "include/dolphin/types.h"):
+    for rel in EXACT_WIDTH_FILES:
         path = staging / rel
         text = path.read_text()
         new = TYPEDEF_LONG32.sub(
             lambda m: "#if __SIZEOF_LONG__ == 4\ntypedef %s long %s;\n#else\ntypedef __%sINT32_TYPE__ %s;\n#endif" % (
                 m.group(1), m.group(2), "U" if m.group(1) == "unsigned" else "", m.group(2)), text)
         if new.count("__SIZEOF_LONG__") != 2:
-            sys.exit(f"exact_width_types: s32/u32 typedefs not found in {rel}")
+            sys.exit(f"exact_width_types: 32-bit long typedefs not found in {rel}")
         path.write_text(new)
 
 

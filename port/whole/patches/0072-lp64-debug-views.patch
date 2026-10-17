@@ -1,0 +1,55 @@
+# 64-bit build (milestone 12, way A): debug tool views that only agree on
+# ILP32 (found by port/tools/m12/view_check.py):
+# - dbg_button.h (Sscrn module, ss_term.cpp): the button window classes
+#   declare two members as int where db_toolbase.h has pointers (the window
+#   title at 0x18, the button's push callback at 0x1C); every later member
+#   moved apart on LP64. Both are pointers now.
+# - db_mod.h: t_mv.cpp reads the model viewer's `loaded` flag through a pad
+#   of the GameCube offset; db_mod.cpp's state has pointers in front of it.
+#   The pad follows the pointer size, db_mod.cpp checks the offset.
+--- a/include/dbg_button.h
++++ b/include/dbg_button.h
+@@ -56,7 +56,7 @@
+     int m_wy;
+     int m_max_cx;    // 0x10  cursor wraps past this column
+     int m_max_cy;    // 0x14  cursor wraps past this row
+-    int x18;
++    const char* x18;  // 0x18  title (db_toolbase.h m_pTitle); port: patch 0072, a pointer as there
+     int x1C;
+     int x20;
+     // 0x24 vptr
+@@ -73,7 +73,7 @@
+ // A button with an update callback.
+ class cDbgButton : public cDbgButtonBase {
+ public:
+-    int x1C;
++    void (*x1C)(cDbgButton* b);  // pushed (db_toolbase.h m_pFuncExec); port: patch 0072, a pointer as there
+     void (*m_pFuncUpdate)(cDbgButton* b);  // 0x20  called by cDbgWindow::ButtonAllUpdate when set
+ 
+     virtual ~cDbgButton() {}
+--- a/include/db_mod.h
++++ b/include/db_mod.h
+@@ -18,8 +18,9 @@
+ 
+ // Viewer state (pointer at Tools .bss 0x13AAE8); 0x3449 is the "model set loaded" byte t_mv tests.
+ struct DbModState {
+-    u8 pad_0[0x3449];
+-    u8 loaded;  // 0x3449
++    // port: patch 0072, 64 bit: db_mod.cpp's state has pointers in front of loadFail
++    u8 pad_0[sizeof(void*) == 4 ? 0x3449 : 0x3451];
++    u8 loaded;  // 0x3449 (db_mod.cpp loadFail)
+ };
+ 
+ // File list handed to dbModelLoad (t_esp db_mod.cpp, 0x85C bytes: names / data pointers of the
+--- a/src/tools/db_mod.cpp
++++ b/src/tools/db_mod.cpp
+@@ -182,6 +182,9 @@
+     u8 x345B;
+     u32 viewFlag;          // 0x345C
+ };
++// port: patch 0072, db_mod.h's view (t_mv.cpp reads `loaded`) holds this offset
++static_assert(__builtin_offsetof(DbModState, loadFail) == (sizeof(void*) == 4 ? 0x3449 : 0x3451),
++              "db_mod.h DbModState");
+ 
+ DB_EM dbModSlot[SLOT_NUM];
+ DB_EM dbModSlotSub[SLOT_NUM];

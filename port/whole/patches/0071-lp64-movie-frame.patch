@@ -1,0 +1,42 @@
+# 64-bit build (milestone 12, way A): the game's view of mwPlyGetCurFrm's
+# output. On the GameCube both views are 0x88 bytes with the same offsets
+# (two u64 stand for four Sint32). On LP64 the middleware's struct
+# (src/lib/cri/mwsfd.h MWS_FRM) has three 8-byte pointers and the game's
+# would put width/height/fno elsewhere and end before the middleware's:
+# mwPlyGetCurFrm wrote past cSofdec::m_ap_obj.frm. On LP64 the game uses
+# the middleware's member list (same names where the game has them).
+--- a/include/mwply.h
++++ b/include/mwply.h
+@@ -74,6 +74,7 @@
+ } MWS_SFD_HDRINF;
+ 
+ // mwPlyGetCurFrm output
++#if __SIZEOF_POINTER__ == 4
+ typedef struct {
+     void* bufadr;   // 0x00
+     int x04;        // 0x04
+@@ -84,6 +85,24 @@
+     int fno;        // 0x20 (x22 read as a halfword by cSofdec::draw)
+     u8 pad_24[0x88 - 0x24];
+ } MWS_FRM;
++#else
++// port: patch 0071, 64 bit: the middleware's own view (src/lib/cri/mwsfd.h) member for
++// member, its three pointers are 8 bytes there
++typedef struct {
++    void* bufadr;
++    int x04;
++    int width;
++    int height;
++    int x10, x14, pstruct, fps;
++    int fno;        // the middleware's time
++    int x24, tunit, frmno;
++    void* tblsrc;
++    int x34, x38, x3c;
++    void* usrdat;
++    int usrlen, ftype, x4c;
++    u8 ext[0x38];
++} MWS_FRM;
++#endif
+ 
+ void ADXM_SetCbErr(void (*func)(void* obj, const char* msg), void* obj);
+ void mwPlyInitSfdFx(MWS_PLY_INIT_SFD* prm);

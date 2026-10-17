@@ -194,6 +194,12 @@ class Layout:
             return
         raise ValueError(f"{path}: unexpected {tag}")
 
+    def member_offset(self, die, wanted):
+        for m in self.resolve(die)["children"]:
+            if m["tag"] == "DW_TAG_member" and name(m) == wanted:
+                return num(m["attrs"]["DW_AT_data_member_location"])
+        raise ValueError(f"no member {wanted}")
+
     def struct(self, wanted):
         for die in self.dies.values():
             if die["tag"] in ("DW_TAG_structure_type", "DW_TAG_class_type") and name(die) == wanted \
@@ -254,6 +260,11 @@ def render(layout):
         fields, unknown = [], []
         layout.scalars(die, 0, "", fields, unknown)
         if first is not None:
+            # the block starts at the member save_data_start_addr: 0x4F80 on the
+            # GameCube, later on LP64 (pointers in front, milestone 12); its
+            # contents keep their form
+            start = layout.member_offset(die, "save_data_start_addr")
+            first, end = start, start + (end - first)
             fields = [(o - first, s, p) for o, s, p in fields if first <= o < end]
             unknown = [(o - first, s, p) for o, s, p in unknown if first <= o < end]
             size = end - first
@@ -262,7 +273,8 @@ def render(layout):
                 raise ValueError(f"{struct}{p}: {s}-byte field at 0x{o:x} is not aligned")
         sizes[table] = size
         runs = runs_of(fields)
-        lines.append(f"// {struct}" + (f" 0x{first:X}..0x{end:X}" if first is not None else "")
+        # the GameCube offsets: the same text for every pointer width
+        lines.append(f"// {struct}" + (" 0x4F80..0x8678" if first is not None else "")
                      + f": 0x{size:X} bytes, {len(fields)} fields wider than a byte")
         lines.append(f"static const Re4SaveRun {table}[] = {{")
         for o, s, c in runs:

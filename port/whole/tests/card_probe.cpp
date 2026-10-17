@@ -360,7 +360,8 @@ void gciTest(const char* path)
     CHECK(memcmp(gci, "G4BE08", 6) == 0 && strcmp((const char*) gci + 8, "bh4_data00") == 0);
     CHECK(be16At(gci + 0x38) == 8 && be32At(gci + 0x2C) == 0x40 && be32At(gci + 0x3C) == 0);
     CHECK(be32At(d + 0x2004) == 0x116);
-    const u32 g = kSaveGame - offsetof(GLOBAL_WK, save_data_start_addr);
+    // signed: on LP64 the save block starts later in GLOBAL_WK than kSaveGame (pointers in front)
+    const long g = (long) kSaveGame - (long) offsetof(GLOBAL_WK, save_data_start_addr);
     CHECK(be32At(d + g + offsetof(GLOBAL_WK, play_time)) == 0x01020304);
     CHECK(be32At(d + g + offsetof(GLOBAL_WK, peseta)) == 0x00012345);
     CHECK(be16At(d + g + offsetof(GLOBAL_WK, room_id)) == 0x0100);
