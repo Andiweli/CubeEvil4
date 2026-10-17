@@ -112,6 +112,59 @@ void *reserveInWindow(unsigned long size) {
   return nullptr;
 }
 
+// What lies below 4 GB when the core loads, for the error report (address-map.txt):
+// MEM1 and the window above it have to be free, and on 64 bit ART, the zygote and
+// the drivers decide what is there before the app runs
+std::string gAddressMap;
+std::string gMem1Owner;  // the first mapping in MEM1 (the reason when it is taken)
+
+// "start-end perms name" of a /proc/self/maps line
+std::string shortMapping(const char *line) {
+  char range[64] = "", perms[8] = "";
+  int name = 0;
+  if (sscanf(line, "%63s %7s %*s %*s %*s %n", range, perms, &name) < 2) return line;
+  std::string text = std::string(range) + ' ' + perms;
+  if (name > 0 && line[name]) text += std::string(" ") + (line + name);
+  while (!text.empty() && (text.back() == '\n' || text.back() == ' ')) text.pop_back();
+  return text;
+}
+
+void recordLowMappings(const char *when) {
+  gAddressMap += std::string("--- ") + when + " (mappings below 4 GB; MEM1 0x80000000..0x83000000, window up to 4 GB)\n";
+  FILE *f = fopen("/proc/self/maps", "re");
+  if (!f) {
+    gAddressMap += "(cannot read /proc/self/maps)\n";
+    return;
+  }
+  char line[512];
+  int lines = 0;
+  unsigned long at = 0x80000000ul, largest = 0;
+  while (fgets(line, sizeof(line), f)) {
+    unsigned long a, b;
+    if (sscanf(line, "%lx-%lx", &a, &b) != 2 || a >= kWindowEnd) continue;
+    std::string text = shortMapping(line);
+    if (a < kWindowStart && b > 0x80000000ul) {
+      text += "   <- MEM1";
+      if (gMem1Owner.empty()) gMem1Owner = shortMapping(line);
+    } else if (b > kWindowStart) {
+      text += "   <- window";
+    }
+    if (b > at) {
+      if (a > at && a - at > largest) largest = a - at;
+      at = b;
+    }
+    if (++lines <= 2000) gAddressMap += text + '\n';
+    if (b > 0x80000000ul) LOG("below 4 GB: %s", text.c_str());
+  }
+  fclose(f);
+  if (kWindowEnd > at && kWindowEnd - at > largest) largest = kWindowEnd - at;
+  char sum[160];
+  snprintf(sum, sizeof(sum), "%d mappings below 4 GB; largest free range in 0x80000000..4 GB: %lu MB\n", lines,
+           largest >> 20);
+  gAddressMap += sum;
+  LOG("%s", sum);
+}
+
 void *openInWindow(const char *name, unsigned long size) {
   void *range = reserveInWindow(size);
   if (!range) {
@@ -129,6 +182,10 @@ void *openInWindow(const char *name, unsigned long size) {
   } else {
     LOG("%s at %p", name, range);
   }
+  char note[192];
+  snprintf(note, sizeof(note), "%s: %s at %p (%lu MB reserved)\n", name, handle ? "loaded" : "NOT loaded", range,
+           size >> 20);
+  gAddressMap += note;
   return handle;
 }
 #endif
@@ -138,7 +195,13 @@ void loadCore() {
   // the module libraries are loaded by name later (re4_module_load).
   // RTLD_LOCAL: the game's symbols must not serve libraries loaded later
 #if defined(__aarch64__)
-  if (reserveFixed(0x80000000ul, kWindowStart - 0x80000000ul)) setenv("RE4_MEM1_PLACEHOLDER", "1", 1);
+  recordLowMappings("when the core loads");
+  if (reserveFixed(0x80000000ul, kWindowStart - 0x80000000ul)) {
+    setenv("RE4_MEM1_PLACEHOLDER", "1", 1);
+    gAddressMap += "MEM1 placeholder: reserved\n";
+  } else {
+    gAddressMap += "MEM1 placeholder: NOT reserved\n";
+  }
   // the platform first, each in a range of its own (its size on x86_64 -O0:
   // libre4_platform 8 MB, libre4_main 10 MB)
   if (openInWindow("libre4_platform.so", 32ul << 20)) {
@@ -190,6 +253,9 @@ void loadCore() {
   // MEM1 before anything else maps memory there (GL drivers, ART growth)
   if (!api.mem1Init()) {
     api.error = "MEM1 0x80000000..0x83000000 is taken in this process";
+#if defined(__aarch64__)
+    if (!gMem1Owner.empty()) api.error += " (by " + gMem1Owner + ")";
+#endif
     LOG("%s", api.error.c_str());
   } else {
     LOG("core loaded, MEM1 reserved");
@@ -684,6 +750,15 @@ void installCrashHandler() {
 }
 
 }  // namespace
+
+// The mappings below 4 GB when the core loaded (64 bit; "" on 32 bit)
+extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_addressMap(JNIEnv *env, jclass) {
+#if defined(__aarch64__)
+  return env->NewStringUTF(gAddressMap.c_str());
+#else
+  return env->NewStringUTF("");
+#endif
+}
 
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *, void *) {
   loadCore();

@@ -47,6 +47,8 @@ public final class CoreBridge {
   public static native int wantedRoom();
   /** The decoded room archive for a room (RoomRepository), or the error. */
   public static native void roomPrepared(int room, String decodedPath, String error);
+  /** 64 bit: the process's mappings below 4 GB when the core loaded (the report's address-map.txt); "" on 32 bit. */
+  public static native String addressMap();
   /** Diagnostic text: core state, frame, room, models, last log lines. */
   public static native String status();
   /** Saves the graphics data of the next picture into `folder` (diagnosis; R3). */

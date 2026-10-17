@@ -516,12 +516,14 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     StringBuilder card = new StringBuilder();
     String[] rows = CoreBridge.cardList();
     if (rows == null) {
-      card.append("(Karte: ").append(CoreBridge.cardNote()).append(")\n");
+      card.append("(card: ").append(CoreBridge.cardNote()).append(")\n");
     } else {
       for (String row : rows) card.append(CoreMenu.describe(row.split("\t", -1))).append('\n');
-      card.append(CoreBridge.cardFreeBlocks()).append(" Bloecke frei\n");
+      card.append(CoreBridge.cardFreeBlocks()).append(" blocks free\n");
     }
-    return new String[][] {{"speicherkarte.txt", card.toString()}};
+    String map = CoreBridge.addressMap();
+    if (map == null || map.isEmpty()) return new String[][] {{"memory-card.txt", card.toString()}};
+    return new String[][] {{"memory-card.txt", card.toString()}, {"address-map.txt", map}};
   }
 
   /** The error report to an app of the tester's choice (mail, messenger, cloud). */

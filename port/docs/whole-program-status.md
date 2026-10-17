@@ -3424,6 +3424,43 @@ Daten noch nicht gelaufen). Der Projektinhaber verzichtet auf ein eigenes Logo
   zeigt (`classic` behält ihn). Der Java-Code übersetzt gegen die
   Android-Klassen (Cloud); auf dem Gerät noch nicht gesehen.
 
+### Erster 64-bit-Gerätelauf (Retroid, 17.10.2026, Bericht 22:45, Stand `19f45a9`)
+
+- **Ergebnis:** APK mit beiden Fassungen gebaut (der arm64-Kern mit dem echten
+  NDK zum ersten Mal), als `arm64-v8a` installiert („Process: 64-bit“). Nach dem
+  Import beider Discs bricht der Start ab: „The game core did not start: MEM1
+  0x80000000..0x83000000 is taken in this process“. Der Kern lädt beim Start
+  der App (`Re4Application` → `CoreBridge.load()` → `JNI_OnLoad`), also bevor
+  irgendetwas der App Speicher anlegt; der Bereich ist damit schon von dem
+  belegt, was der Prozess vom 64-bit-Zygote erbt oder was ART beim Start des
+  Prozesses anlegt (im 32-bit-Prozess war er frei, siehe „Adressbereich auf
+  dem Retroid“). Vermutung (ungeprüft): ART auf arm64 legt Bereiche, die unter
+  4 GB liegen müssen (der Bereich für große Java-Objekte „free list large object
+  space“ in der Größe von `dalvik.vm.heapsize`, der JIT-Code-Cache), in die erste
+  passende Lücke unter 4 GB, und das ist hinter dem Boot-Image (~0x70000000)
+  die Gegend um 0x80000000.
+- **Messung eingebaut:** Die App hält beim Laden des Kerns fest, was unter
+  4 GB liegt (MEM1 und Fenster markiert, größte freie Lücke, ob der Platzhalter
+  über MEM1 und die beiden Bibliotheken geladen wurden), schreibt die Zeilen im
+  Fenster auch ins Android-Protokoll (`RE4Core`) und legt alles als
+  `address-map.txt` in den Fehlerbericht; die Meldung nennt den ersten Eintrag in
+  MEM1 („… is taken in this process (by …)“). Der Bericht nennt die Java-Größen
+  (`dalvik.vm.heapsize`, `heapgrowthlimit`). Ohne neuen Build liest
+  `port/scripts/pull-address-map.ps1` (ADB-Sperre, `run-as`) die Belegung des
+  laufenden App-Prozesses und schreibt `adressen-64bit.txt`.
+- **Nächster Schritt:** aus der Belegung den Ausweg wählen (mit dem
+  Projektinhaber, falls er die Art des App-Starts ändert).
+- Nebenbei: Der Bericht heißt jetzt `memory-card.txt` statt `speicherkarte.txt`
+  und ist englisch (Regel: Dateinamen für Tester englisch).
+
+### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
+
+Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
+erst, wenn Disc 1 und Disc 2 vollständig importiert sind
+(`MainActivity.gameReady()`); bis dahin ist „Start game“ ausgegraut und der
+Import sichtbar. `test-core-app.ps1` wartet entsprechend auf beide Discs. Die
+Variante `classic` braucht weiter nur Disc 1.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |

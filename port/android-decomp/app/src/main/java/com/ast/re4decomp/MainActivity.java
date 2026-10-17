@@ -23,7 +23,7 @@ public final class MainActivity extends Activity implements ImportManager.Listen
   private boolean core;
   private ImportManager imports;
   private TextView status, discs, roomNote, disc1State, disc2State;
-  private Button disc1, disc2, cancel, open;
+  private Button disc1, disc2, cancel, open, start;
   private LinearLayout importPanel, roomBrowser;
   private Spinner category, rooms, mode;
   private RoomCatalog catalog;
@@ -39,7 +39,7 @@ public final class MainActivity extends Activity implements ImportManager.Listen
       centered(body, getString(R.string.core_title), 28, true, 0);
       centered(body, getString(R.string.core_author), 15, false, dp(4));
       line(body, dp(10));
-      button(body, getString(R.string.core_start), this::startOriginalTitle);
+      start = button(body, getString(R.string.core_start), this::startOriginalTitle);
       heading(body, getString(R.string.core_controls_heading));
       // the controller of the core mode (CoreActivity, CoreInput): the layout and its one switch
       centered(body, getString(R.string.core_controls), 14, false, 0);
@@ -94,7 +94,7 @@ public final class MainActivity extends Activity implements ImportManager.Listen
       v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom()); return insets;
     });
   }
-  private void startOriginalTitle(){if(!loading&&!imports.busy&&discReady(1)){startupShown=true;Intent start=new Intent(this,core?CoreActivity.class:StartupActivity.class);if(core)start.putExtra("coreSettings",getIntent().getStringExtra("coreSettings"));startActivity(start);}else importPanel.setVisibility(View.VISIBLE);}
+  private void startOriginalTitle(){if(!loading&&!imports.busy&&gameReady()){startupShown=true;Intent start=new Intent(this,core?CoreActivity.class:StartupActivity.class);if(core)start.putExtra("coreSettings",getIntent().getStringExtra("coreSettings"));startActivity(start);}else importPanel.setVisibility(View.VISIBLE);}
   @Override protected void onSaveInstanceState(Bundle state){state.putBoolean("startupShown",startupShown);super.onSaveInstanceState(state);}
   private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
   /** A centred line of text (the core launcher). */
@@ -164,6 +164,8 @@ public final class MainActivity extends Activity implements ImportManager.Listen
         : Collections.singletonList(getString(entry != null && !entry.walkable() && entry.explorable() ? R.string.mode_scene_only : R.string.mode_explore)));
     updateOpenState();
   }
+  /** The game may start: Disc 1, and in the core mode both discs (project owner, 17.10.2026). */
+  private boolean gameReady() { return discReady(1) && (!core || discReady(2)); }
   private boolean discReady(int number) {
     if (imports.root == null) return false;
     File disc = new File(imports.root, "disc" + number);
@@ -245,10 +247,11 @@ public final class MainActivity extends Activity implements ImportManager.Listen
       // no empty line between the import heading and its buttons
       status.setVisibility(status.getText().length() == 0 ? View.GONE : View.VISIBLE);
     }
-    if (!discReady(1) || imports.busy) importPanel.setVisibility(View.VISIBLE);
+    if (!gameReady() || imports.busy) importPanel.setVisibility(View.VISIBLE);
+    if (start != null) start.setEnabled(gameReady() && !imports.busy && !loading);
     if (imports.busy || loading) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     updateOpenState();
-    if(!startupShown&&discReady(1)&&!imports.busy&&!loading)startOriginalTitle();
+    if(!startupShown&&gameReady()&&!imports.busy&&!loading)startOriginalTitle();
   }
   @Override public boolean dispatchKeyEvent(KeyEvent e) {
     if ((e.getSource() & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD &&

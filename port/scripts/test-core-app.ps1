@@ -24,12 +24,13 @@ com.ast.re4decomp.classic). Ist die fruehere App com.ast.re4decomp.core (Symbol
 "RE4 Kern") noch auf dem Retroid, kopiert das Skript einmal ihre importierten Discs und ihre
 Speicherkarte in die neue App (nur was dort fehlt; die fruehere App behaelt ihre
 Daten, bis du sie deinstallierst: adb uninstall com.ast.re4decomp.core).
--NoCopy laesst das aus: ohne Disc 1 zeigt die App dann ihren Startbildschirm, und
+-NoCopy laesst das aus: ohne beide Discs zeigt die App dann ihren Startbildschirm, und
 das Skript wartet wie unten beschrieben auf einen Import (Strg+C beendet es; ein
 zweiter Lauf mit -SkipCore -SkipApk ohne -NoCopy kopiert dann).
 
-Beim ersten Mal in der App "Resident Evil 4 Android" Disc 1 importieren (Startbildschirm der App,
-"Import Disc 1"; Disc 2 erst fuer spaetere Raeume). Fehlt der Import, startet das
+Beim ersten Mal in der App "Resident Evil 4 Android" beide Discs importieren (Startbildschirm der
+App, "Import Disc 1" und "Import Disc 2"; seit 17.10.2026 startet das Spiel erst mit beiden,
+Entscheidung des Projektinhabers). Fehlt ein Import, startet das
 Skript die App, bittet darum und wartet bis zu -ImportMinutes Minuten (Standard 45),
 ohne die App zu beenden; erst danach beginnt der Test.
 
@@ -458,13 +459,17 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         Say "   Die fruehere App $oldPackage kann weg, sobald hier alles laeuft: & '$Adb' -s $Serial uninstall $oldPackage"
     }
     function Get-ImportState {
-        $out = (& $Adb -s $Serial shell "cd $game 2>/dev/null && ls -d disc1/sys/fst.bin disc1/ready.properties .incoming .work-disc1 .work-disc2 2>/dev/null; du -sm .incoming .work-disc1 .work-disc2 2>/dev/null") -join "`n"
+        $out = (& $Adb -s $Serial shell "cd $game 2>/dev/null && ls -d disc1/sys/fst.bin disc1/ready.properties disc2/sys/fst.bin disc2/ready.properties .incoming .work-disc1 .work-disc2 2>/dev/null; du -sm .incoming .work-disc1 .work-disc2 2>/dev/null") -join "`n"
         $mb = 0
         foreach ($line in ($out -split "`n")) { if ($line -match '^(\d+)\s') { $mb += [int]$Matches[1] } }
+        # the game starts only with both discs (since 17.10.2026)
+        $d1 = ($out -match 'disc1/sys/fst\.bin') -and ($out -match 'disc1/ready\.properties')
+        $d2 = ($out -match 'disc2/sys/fst\.bin') -and ($out -match 'disc2/ready\.properties')
         return [pscustomobject]@{
-            Ready = ($out -match 'disc1/sys/fst\.bin') -and ($out -match 'disc1/ready\.properties')
-            Busy  = $out -match '(^|\n)\.(incoming|work-disc\d)\s*(\n|$)'
-            MB    = $mb
+            Ready   = $d1 -and $d2
+            Missing = @(@(if (-not $d1) { 'Disc 1' }) + @(if (-not $d2) { 'Disc 2' })) -join ' und '
+            Busy    = $out -match '(^|\n)\.(incoming|work-disc\d)\s*(\n|$)'
+            MB      = $mb
         }
     }
     $state = Get-ImportState
@@ -473,23 +478,23 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         # (DiscInstaller.recover) when it starts
         & $Adb -s $Serial shell input keyevent KEYCODE_WAKEUP
         & $Adb -s $Serial shell am start -n "$package/com.ast.re4decomp.MainActivity" | Out-Null
-        Say '   In der App "Resident Evil 4 Android" fehlt Disc 1 (oder ein Import laeuft noch).'
-        Say '   Bitte jetzt auf dem Retroid in der App "Import Disc 1" waehlen und die Disc-1-Datei (.gcm/.iso) aussuchen.'
-        Say '   Disc 2 ist fuer diesen Test nicht noetig. Das Skript wartet und beendet die App waehrenddessen NICHT.'
+        Say "   In der App `"Resident Evil 4 Android`" fehlt $(if ($state.Missing) { $state.Missing } else { 'nichts' }) (oder ein Import laeuft noch)."
+        Say '   Bitte jetzt auf dem Retroid in der App "Import Disc 1" bzw. "Import Disc 2" waehlen und die Datei (.gcm/.iso) aussuchen.'
+        Say '   Das Spiel startet erst mit beiden Discs. Das Skript wartet und beendet die App waehrenddessen NICHT.'
         Say "   Wartezeit hoechstens $ImportMinutes Minuten; Abbruch mit Strg+C."
         $deadline = (Get-Date).AddMinutes($ImportMinutes)
         $lastShown = -1
         while ($true) {
             Start-Sleep -Seconds 10
             $state = Get-ImportState
-            if ($state.Ready -and -not $state.Busy) { Say '   Disc 1 ist importiert.'; break }
+            if ($state.Ready -and -not $state.Busy) { Say '   Disc 1 und Disc 2 sind importiert.'; break }
             if ($state.Busy -and $state.MB -ne $lastShown) {
                 Write-Host ("`r   Import laeuft: {0} MB bisher geschrieben   " -f $state.MB) -NoNewline
                 $lastShown = $state.MB
             }
             if ((Get-Date) -gt $deadline) {
                 Write-Host ''
-                throw "Disc 1 ist nach $ImportMinutes Minuten nicht importiert. Bitte den Import in der App abschliessen und das Skript mit -SkipCore -SkipApk erneut starten."
+                throw "Nach $ImportMinutes Minuten noch nicht importiert: $($state.Missing). Bitte den Import in der App abschliessen und das Skript mit -SkipCore -SkipApk erneut starten."
             }
         }
         Write-Host ''

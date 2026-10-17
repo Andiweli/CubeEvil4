@@ -127,6 +127,10 @@ final class CoreLog {
       am.getMemoryInfo(m);
       b.append("Memory: ").append(m.totalMem >> 20).append(" MB, free ").append(m.availMem >> 20).append(" MB\n");
     }
+    // the Java heap's size decides how much of the low 4 GB ART takes on 64 bit
+    b.append("Java heap: limit ").append(Runtime.getRuntime().maxMemory() >> 20).append(" MB, dalvik.vm.heapsize ")
+        .append(run("getprop", "dalvik.vm.heapsize").trim()).append(", heapgrowthlimit ")
+        .append(run("getprop", "dalvik.vm.heapgrowthlimit").trim()).append('\n');
     SharedPreferences g = c.getSharedPreferences(CoreActivity.GRAPHICS_PREFS, Context.MODE_PRIVATE);
     b.append("Graphics: ").append(g.getAll()).append('\n');
     int[] info = CoreBridge.graphicsInfo();
