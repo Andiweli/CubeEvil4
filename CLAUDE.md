@@ -127,11 +127,14 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
    danach geht die APK an Tester): Menü der App über SELECT (Grafikoptionen,
    Speicherkarten-Import/Export `.gci` für Dolphin und GameCube,
    Fehlerprotokoll), SELECT 1 Sekunde halten = Debug-Menü des Spiels,
-   Diagnose-Anzeige ausgebaut, Leistung
+   Diagnose-Anzeige ausgebaut, Leistung, Nachlade-Animation der Super Magnum
+   (Entscheidung des Projektinhabers, 17.10.2026: vor den Testern)
+12. ARM64: Zeiger-Kürzungen beheben, eine APK für 32- und 64-bit-Geräte
+   (vor 10b, Entscheidung des Projektinhabers, 17.10.2026: ein Tester hat ein
+   Gerät, das nur 64-bit-Apps ausführt; erst M11 abschließen)
 10b. Raum-Rundgang: viele Räume per Raumauswahl anspielen, Abstürze und
    Grafikfehler sammeln (Entscheidung des Projektinhabers, 16.10.2026: nach
-   Ton, Videos und Speichern/Laden; seit 17.10.2026 nach M11)
-12. ARM64: Zeiger-Kürzungen beheben
+   Ton, Videos und Speichern/Laden; seit 17.10.2026 nach M11 und M12)
 
 ## Git
 

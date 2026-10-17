@@ -21,7 +21,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
 | M11 Android-Feinschliff | in Arbeit (Branch `claude/nifty-feynman-jv729h`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Erster Gerätelauf 17.10.2026: Menü, Debug-Menü, Grafikwechsel, Export in Ordnung; Menü danach nach Wünschen umgebaut (nicht auf dem Gerät geprüft). Absturz r206 behoben (REL-Kopf; PC-Rundgang mit Disc-Daten: 26 von 27 Räumen laufen, auch r206). Absturz r311 (Division durch null, Patch 0062) behoben. Rundgang über alle Räume: 122 von 126 laufen; r404 behoben (Patch 0063, mit Disc-Daten geprüft); r215/r227 (abgebrochene Umwandlung in Zwischensequenzen) und r229 (Gesichts-Animation, Patch 0064) behoben; **vierter Rundgang: 126 von 126 Räumen laufen** (PC mit Disc-Daten). Offen in M11: Gerätetest des umgebauten Menüs, Leistung („M11 Android-Feinschliff“) |
-| Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen). Gestrichen: Baum-Kollision in r100 (G17) |
+| Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -3015,9 +3015,11 @@ zeigt ihn). r215 lief trotzdem 750 Bilder.
   wie das Original) mit 12,9 ms Leerlauf, GPU 17,7–19,7 ms je Bild, Ton ohne
   Verluste.
 - Ein Tester hat ein Gerät, das nur 64-bit-Apps ausführt (kein
-  `armeabi-v7a`): der Kernmodus läuft dort nicht. Der Projektinhaber möchte
-  die 32+64-bit-Fähigkeit (M12) vorziehen; Reihenfolge und Weg werden mit
-  ihm abgestimmt.
+  `armeabi-v7a`): der Kernmodus läuft dort nicht. **Entscheidung des
+  Projektinhabers (17.10.2026):** erst M11 abschließen (dazu jetzt die
+  Nachlade-Animation der Super Magnum, vor den Testern), dann **M12 ARM64
+  vor 10b** (eine APK für 32- und 64-bit-Geräte). Der Weg für 64 bit wird
+  in der Bestandsaufnahme von M12 mit Zahlen vorgelegt und dann entschieden.
 
 ## Aufbau
 
