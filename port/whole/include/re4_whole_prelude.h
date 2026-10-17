@@ -60,6 +60,19 @@
  * LP64 (primInit on the Retroid, 17.10.2026). The same value on ILP32. */
 #define RE4_ADDR32(x) ((unsigned int) (x))
 
+#ifdef __cplusplus
+/* Where the own work of a class derived from B begins (its first member, of type T),
+ * for views that reach past B (patch 0074): on LP64 the compiler puts it into B's tail
+ * padding (cEm: 0x49C, sizeof 0x4A0; cEsp: 0x10C, sizeof 0x110), so sizeof(B) is not
+ * it. On ILP32 checked at compile time against the GameCube value, like RE4_OFS. */
+template <class B, class T> struct Re4OwnWork : B {
+    T re4_first;
+};
+#define RE4_OWN(B, T, gc)                                                                         \
+    ((void) sizeof(char[(sizeof(void*) != 4 || __builtin_offsetof(Re4OwnWork<B, T>, re4_first) == (gc)) ? 1 : -1]), \
+     __builtin_offsetof(Re4OwnWork<B, T>, re4_first))
+#endif
+
 /* C equivalents of the Gekko instructions of the replaced inline asm. */
 #include "re4_ppc.h"
 

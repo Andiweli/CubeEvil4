@@ -86,6 +86,21 @@ def scan(job):
                 return p
         return None
 
+    def member_view(src):
+        """`&x.m` / `&p->m`: (record holding m, m, its offset in bytes) - a view laid over the rest of
+        that record from m on (`(GxWork*) &pG->gxStage`)"""
+        if src is None or src.kind != ci.CursorKind.UNARY_OPERATOR or \
+                [t.spelling for t in src.get_tokens()][:1] != ["&"]:
+            return None
+        kids = [strip(x) for x in src.get_children()]
+        if not kids or kids[0] is None or kids[0].kind != ci.CursorKind.MEMBER_REF_EXPR:
+            return None
+        field = kids[0].referenced
+        if field is None or field.kind != ci.CursorKind.FIELD_DECL or field.get_field_offsetof() < 0:
+            return None
+        holder = field.semantic_parent.type.get_canonical()
+        return holder, field.spelling, field.get_field_offsetof() // 8
+
     def walk(c):
         for k in c.get_children():
             if k.kind == ci.CursorKind.CSTYLE_CAST_EXPR:
@@ -93,12 +108,18 @@ def scan(job):
                 kids = list(k.get_children())
                 src = strip(kids[-1]) if kids else None
                 a = rec(src.type) if src is not None else None
-                if a is not None and b is not None and a.spelling != b.spelling:
+                view = member_view(src)
+                loc = k.location
+                where = f"{loc.file.name if loc.file else '?'}:{loc.line}"
+                if view is not None and b is not None and view[0].spelling != b.spelling:
+                    holder, member, base = view
+                    key = (f"{holder.spelling}.{member}", b.spelling)
+                    if key not in found:
+                        found[key] = (holder.get_size(), starts(holder), b.get_size(), starts(b), where, base)
+                elif a is not None and b is not None and a.spelling != b.spelling:
                     key = (a.spelling, b.spelling)
                     if key not in found:
-                        loc = k.location
-                        found[key] = (a.get_size(), starts(a), b.get_size(), starts(b),
-                                      f"{loc.file.name if loc.file else '?'}:{loc.line}")
+                        found[key] = (a.get_size(), starts(a), b.get_size(), starts(b), where, 0)
             walk(k)
 
     walk(tu.cursor)
@@ -132,10 +153,13 @@ def main():
     ra, n = collect(args.ref, args.pattern, args.jobs, resource_dir)
     rb, _ = collect(args.lp64, args.pattern, args.jobs, resource_dir)
     bad = []
-    for key, (asz, astarts, bsz, bstarts, where) in sorted(ra.items()):
+    for key, (asz, astarts, bsz, bstarts, where, base) in sorted(ra.items()):
         if key not in rb:
             continue
-        asz2, astarts2, bsz2, bstarts2, _ = rb[key]
+        asz2, astarts2, bsz2, bstarts2, _, base2 = rb[key]
+        # a view over a member and what follows it: its offsets in the holder's coordinates
+        bstarts = {base + o: n for o, n in bstarts.items()}
+        bstarts2 = {base2 + o: n for o, n in bstarts2.items()}
         # GameCube offset -> LP64 offset in each view, by member path
         amap = {}
         inv_a = {v: k for k, v in astarts2.items()}
@@ -148,7 +172,7 @@ def main():
             if name in inv_b:
                 bmap[off] = inv_b[name]
         clash = sorted(o for o in set(amap) & set(bmap) if amap[o] != bmap[o])
-        grow = bsz <= asz and bsz2 > asz2
+        grow = base + bsz <= asz and base2 + bsz2 > asz2
         if clash or grow:
             o = clash[0] if clash else None
             bad.append(f"{key[0]} -> {key[1]} ({where.split('/prepared/tree/')[-1]}): " +

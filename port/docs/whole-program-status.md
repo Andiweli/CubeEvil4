@@ -3493,6 +3493,42 @@ Daten noch nicht gelaufen). Der Projektinhaber verzichtet auf ein eigenes Logo
   Film); `int_cast_check.py` auf x86_64 und aarch64: 0. Der Titel und die Räume laufen in
   der Cloud nicht (keine Disc-Daten): dafür die PC-Prüfung `-Lp64` mit den
   Disc-Daten (noch nie gelaufen) und der nächste Gerätelauf.
+- **Dritter 64-bit-Gerätelauf (23:32, Stand `6b896b3`):** Kern und Ton laufen
+  (4000 Tonblöcke, der START-Ton ist zu hören), der Titel wird gezeichnet
+  (601 Bilder, 11383 Zeichenbefehle), bleibt aber **schwarz**; nach START
+  Absturz in `primFree` (aus `titleExit`): `OSFreeToHeap` auf `0xffffffe0`
+  (Adresse 0 − 0x20). Ursache: `GxWork` (trans.cpp) liegt über
+  `pG->gxStage` bis `pG->prim_base`; sein Zeiger `prim` (dort `prim_base`) hat
+  auf LP64 8 Bytes und rückt auf 8 Bytes Ausrichtung, also über `prim_rate`
+  und `prim_cnt`: `SetPrimBuffPtr` schrieb dessen obere Hälfte (0) in
+  `prim_cnt`, der Zeichenpuffer war damit weg (keine Grundformen, schwarzer
+  Titel) und `primFree` gab 0 frei. Behoben: `GxWork` bekommt die feste Form
+  (`fixed_form.json`, `prim` 4 Bytes); dazu Patch 0074 für dieselbe Art
+  „Sicht mit GameCube-Abständen“: `cast_check.py` prüft jetzt auch C++ und
+  Sichten über ein Glied (`(GxWork*) &pG->gxStage`; 29 Funde, davon die
+  meisten Umwandlungen zwischen verwandten Klassen, die nur gemeinsame Glieder
+  lesen, und zwei absichtlich tote Zuweisungen), dazu eine Suche nach
+  Strukturen, die mit einem großen Füllfeld beginnen (24). Behoben: Skelett
+  (`cPartsWk`), Speichern (`SaveDataPtrs` feste Form), Fenster (`EmWindowWork`),
+  Ereignis-Kamera (`TexRender.cpp`), Raketenwerfer, `EmMarkView`, Lore,
+  r300/r310/r30c/r316/r317/r318, Objekt-Betrachter. Geprüft und richtig wie
+  sie sind: `FREE_EMSWITCH` (eigener Bereich), `OSLowMem` (in MEM1),
+  `PrimBuffView` (Abstand gleich), `GlobalKeep` (Spielstand-Block, gleiche
+  Form), `DbModState` (eigene Größe), `EmModule` (unbenutzt). Offen, nur im
+  Effekt-Werkzeug: `DbToolWk` (`t_esp`). Wichtig dabei: auf LP64 beginnt der
+  eigene Bereich einer abgeleiteten Klasse oft schon in den Füllbytes am Ende
+  der Grundklasse (hinter `cEm` bei 0x49C, `sizeof(cEm)` ist 0x4A0; hinter
+  `cEsp` bei 0x10C statt 0x110; hinter `cObj` bei 0x3C0 = `sizeof`), also nie
+  `sizeof(Grundklasse)` nehmen, sondern `RE4_OWN(B, T, gc)` (Prelude: Abstand
+  des ersten eigenen Glieds vom Typ T, auf ILP32 gegen den GameCube-Wert
+  geprüft). Annahme bei r300/r318: das Feld liegt 8 Bytes in der eigenen
+  Arbeitsfläche des Effekts, die mit 4-Byte-Gliedern beginnt (auf der GameCube
+  0x100 = 0xF8 + 8). Geprüft: i686 und x86_64 alle Cloud-Tests ✅ (auf i686
+  bestätigen `RE4_OFS`/`RE4_OWN` jeden GameCube-Abstand beim Übersetzen, auf
+  x86_64 ein Übersetzungstest die LP64-Werte 0x49C, 0x3C0, 0x10C);
+  `cast_check.py` danach: die behobenen Sichten sind weg (übrig bleiben die
+  geprüften harmlosen Fälle und die Umwandlung beim Aufruf von
+  `TexRenderCamAddOt`, die jetzt nur noch den Zeiger weiterreicht).
 - **Falls das auf anderen Geräten nicht reicht** (MEM1 in einem anderen Bereich
   von ART): Auswege wären ein frischer App-Prozess über `wrap.sh` (nur
   Debug-APKs) oder ein eigener Prozess für den Kern; beides ändert die Art des
@@ -3681,6 +3717,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0071 `include/mwply.h` | 64 bit (M12): die Spielseite des Filmbilds `MWS_FRM` folgt auf LP64 der Glieder-Liste der Bibliothek (Zeiger `tblsrc`, `usrdat`); `mwPlyGetCurFrm` schrieb sonst über `cSofdec` hinaus |
 | 0072 `dbg_button.h`, `db_mod.h`, `db_mod.cpp` | 64 bit (M12): Debug-Werkzeuge. Knopf-Sicht des Sscrn-Debugmenüs mit echtem Text- und Funktionszeiger; Platzhalter des Modellbetrachters `DbModState` je Zeigerbreite mit Abstandsprüfung |
 | 0073 `em2d.cpp`, `em32.cpp`, `sce_com.cpp`, `r100.cpp`, `r103.cpp`, `r307.cpp`, `r318.cpp`, `t_camera.cpp`, `t_camera_draw.cpp`, `t_esp.cpp`, `ss_pzzl.cpp` | 64 bit (M12): feste Byte-Abstände in Strukturen, deren Glieder auf LP64 wandern (`(u8*) pe + 0x378`), über `RE4_OFS(T, glied, gc)` (Prelude): der Abstand des Glieds, auf ILP32 beim Übersetzen gegen den GameCube-Wert geprüft. Kamera- und Effekt-Werkzeug über ihre Makros (`TC_TRG`, `FSTORE_AT`). **Auch 32 bit:** `ss_pzzl.cpp` las Zustand und Auswahl von Nachricht 1 an den MWCC-Abständen (vptr hinter den Feldern); im Port lagen dort `be_flag` und ein Byte von `m_selTbl`. Jetzt über `GetMesStatus(1)`/`GetSelectMessage(1)` |
+| 0074 `trans.cpp`, `emwindow.h`, `em3e.h`, `TexRender.cpp`, `light_area.cpp`, `objTrolley.cpp`, `r300.cpp`, `r30c.cpp`, `r310.cpp`, `r316.cpp`, `r317.cpp`, `r318.cpp`, `db_work.cpp` | 64 bit (M12): Sichten mit GameCube-Abständen (ein Füllfeld bis zu dem Glied, das sie benennen) über ein Objekt, dessen Grundklassen auf LP64 wachsen, erreichen das Glied jetzt über `RE4_OFS(T, glied, gc)` oder `sizeof` der Grundklasse (auf ILP32 der GameCube-Wert): Skelett (`cPartsWk` → `cParts::pList`), Fenster (`EmObjWork::eff`), `EmMarkView`, Lore (`FREE_EM10::Target_dir`), Ereignis-Kamera (`Event`-Glieder statt `TexRenderEvt`), Raketenwerfer (`cObjLauncher::pRocket`), r300/r30c/r310/r316/r317/r318, Objekt-Betrachter. `GxWork` und `SaveDataPtrs` stattdessen in `fixed_form.json`. Neu im Prelude: `RE4_OWN(B, T, gc)`, der Anfang der eigenen Arbeitsfläche hinter einer Grundklasse (auf LP64 in deren Füllbytes). Gefunden mit `cast_check.py` (jetzt auch C++) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

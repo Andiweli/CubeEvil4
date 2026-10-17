@@ -1,0 +1,210 @@
+# 64-bit build (milestone 12, way A): structures laid over another object with
+# the GameCube offsets ("views": a byte pad up to the field they name). On LP64
+# the object's base classes and works grow (pointers), so each view now reaches
+# the field by name: RE4_OFS(T, member, gc) (re4_whole_prelude.h, checked
+# against the GameCube offset on ILP32) or, for the own work behind a base
+# class, RE4_OWN(Base, T, gc): on LP64 that work starts in the base's tail
+# padding (behind cEm at 0x49C, sizeof(cEm) is 0x4A0). Found with
+# port/tools/m12/cast_check.py (now also for C++ units and for views over a
+# member, `(GxWork*) &pG->gxStage`) and a search for structures that start
+# with a byte pad.
+# - trans.cpp cPartsWk: cParts::pList and the bind matrix (skinning of every
+#   model).
+# - emwindow.h EmWindowWork: EmObjWork::eff (windows and fences, r100).
+# - em3e.h EmMarkView, objTrolley.cpp TrolleyEmWork: the own work behind cEm
+#   (FREE_EM10::Target_dir for the trolley).
+# - TexRender.cpp: the event's frame, fast-forward frame, last frame and status
+#   bits through the Event members instead of TexRenderEvt.
+# - light_area.cpp LightAreaLauncher: cObjLauncher::pRocket.
+# - r310.cpp, r30c.cpp: the player's word at +0x328 (cEm::dmg.m_PosFrom);
+#   r316.cpp: cItemObj::fall_spd.y; r317.cpp: the object's own work behind
+#   cObj; r300.cpp, r318.cpp: 8 bytes into the effect's work behind cEsp.
+# - db_work.cpp DbObj18Work: FREE_OBJ18::obj18_type and NameMod (debug viewer).
+# GxWork (trans.cpp, its prim pointer is pG->prim_base) and SaveDataPtrs
+# (card.cpp, a view of SAVE_DATA_HEAD) keep the GameCube form instead
+# (port/whole/fixed_form.json): on LP64 GxWork::prim overwrote pG->prim_cnt
+# (black title, crash in primFree on the Retroid, 17.10.2026).
+--- a/src/game/trans.cpp
++++ b/src/game/trans.cpp
+@@ -61,7 +61,7 @@
+ 
+ // Parts (cParts) fields past cCoord: the parts chain and the inverse bind matrix.
+ struct cPartsWk {
+-    u8 pad_0[0xF4];
++    u8 pad_0[RE4_OFS(cParts, pList, 0xF4)];  // port: patch 0074, cParts::pList (moves on LP64)
+     cPartsWk* next;  // 0xF4
+     Mtx bindMat;     // 0xF8
+ };
+--- a/include/emwindow.h
++++ b/include/emwindow.h
+@@ -7,7 +7,7 @@
+ 
+ // Work of the window / fence enemy (game/emwindow.cpp), overlaid on the EmObjWork from 0x3E0.
+ struct EmWindowWork {
+-    u8 pad_0[0x25C];
++    u8 pad_0[RE4_OFS(EmObjWork, eff, 0x25C)];  // port: patch 0074 (EmObjWork moves on LP64)
+     u8 eff;               // 0x25C (0x63C)  EmObjWork::eff
+     u8 pad_25D[3];
+     void* arc;            // 0x260 (0x640)  room etc archive (GetEtcAddr source of the break model / fcv)
+--- a/src/game/TexRender.cpp
++++ b/src/game/TexRender.cpp
+@@ -353,7 +353,7 @@
+ // Event flag test.
+ static inline bool evtFlag(TexRenderEvt* e, u32 bit)
+ {
+-    return (e->flags & bit) != 0;
++    return (((Event*) e)->StatusFlag & bit) != 0;  // port: patch 0074, the Event's own members (they move on LP64)
+ }
+ 
+ // Before the render-to-texture passes: builds a CameraMotion at the event's frame (frameB with
+@@ -362,13 +362,13 @@
+ void CamRenderPrev(TexRenderEvtCamStruct* pWk)
+ {
+     TexRenderEvt* e = pWk->pEvt;
+-    int frame = e->frame;
++    int frame = ((Event*) e)->GetNowFrame();  // port: patch 0074 (TexRenderEvt: frame)
+ 
+     if (evtFlag(e, 0x40000000)) {
+-        frame = e->frameB;
++        frame = ((Event*) e)->GetFFNowFrame();  // frameB
+     }
+     if (evtFlag(e, 0x08000000)) {
+-        frame = e->frameEnd - 1;
++        frame = ((Event*) e)->GetMaxFrame() - 1;  // frameEnd
+     }
+     pWk->pProc = new (&pWk->cam) CameraMotion(pWk->pDat, 0, 0, (f32) frame);
+     pWk->pProc->move();
+--- a/src/game/light_area.cpp
++++ b/src/game/light_area.cpp
+@@ -41,7 +41,7 @@
+ };
+ 
+ struct LightAreaLauncher {
+-    u8 pad_0[0x384];
++    u8 pad_0[RE4_OFS(cObjLauncher, pRocket, 0x384)];  // port: patch 0074 (cObjWep grows on LP64)
+     cEm* rocket;  // 0x384
+ };
+ 
+--- a/include/em3e.h
++++ b/include/em3e.h
+@@ -36,7 +36,7 @@
+ // class members (the code addresses them straight off `this`, `lwz 0x4d4(r31)`), so they are a
+ // whole-object view here rather than a work pointer.
+ struct EmMarkView {
+-    u8 em[0x3E0];
++    u8 em[RE4_OWN(cEm, u8, 0x3E0)];  // port: patch 0074, cEmMark::free (cEm grows on LP64)
+     YARARE_INFO hit[4];     // 0x3E0  extra hit boxes (YarareAddCube)
+     EmMarkInst* pInst;    // 0x4B0  current instruction
+     int timer;            // 0x4B4  emmark_stay: frames left
+--- a/src/game/objTrolley.cpp
++++ b/src/game/objTrolley.cpp
+@@ -7,6 +7,7 @@
+ #include "obj.h"
+ #include "objTrolley.h"
+ #include "em.h"
++#include "em10.h"  /* port: patch 0074, FREE_EM10 */
+ #include "emwep.h"
+ #include "global.h"
+ #include "math_sub.h"
+@@ -22,10 +23,11 @@
+ 
+ // The work area of the enemy thrown off the car: the trolley only uses the yaw at 0x9BC.
+ struct TrolleyEmWork {
+-    u8 pad_3E0[0x9BC - 0x3E0];
++    u8 pad_3E0[RE4_OFS(FREE_EM10, Target_dir, 0x9BC - 0x3E0)];  // port: patch 0074, FREE_EM10::Target_dir
+     f32 yaw;              // 0x9BC
+ };
+-#define TROLLEY_EM_WK(em) ((TrolleyEmWork*) ((u8*) (em) + 0x3E0))
++// port: patch 0074, the room enemy's own work cEm10::free (cEm grows on LP64)
++#define TROLLEY_EM_WK(em) ((TrolleyEmWork*) ((u8*) (em) + RE4_OFS(cEm10, free, 0x3E0)))
+ 
+ 
+ // Room module enemy (the em1x classes): a cEm with the module's own virtuals; the trolley only
+--- a/src/st3/r310.cpp
++++ b/src/st3/r310.cpp
+@@ -52,7 +52,7 @@
+ 
+ // The event player model's per-model work word (cEm+0x328) the S00 event flags.
+ struct R310EvtModel {
+-    u8 pad_0[0x328];
++    u8 pad_0[RE4_OFS(cEm, dmg.m_PosFrom, 0x328)];  // port: patch 0074 (the player's cEm::dmg moves on LP64)
+     u32 flags;
+ };
+ 
+--- a/src/st3/r30c.cpp
++++ b/src/st3/r30c.cpp
+@@ -42,7 +42,7 @@
+ 
+ // The event model's status word at cModel+0x328 (pl_npc).
+ struct R30cModView {
+-    u8 pad_0[0x328];
++    u8 pad_0[RE4_OFS(cEm, dmg.m_PosFrom, 0x328)];  // port: patch 0074 (the player's cEm::dmg moves on LP64)
+     u32 flags;
+ };
+ 
+--- a/src/st3/r316.cpp
++++ b/src/st3/r316.cpp
+@@ -13,6 +13,7 @@
+ #include "sce_at.h"
+ #include "scroll.h"
+ #include "em.h"
++#include "obj19.h"  /* port: patch 0074, cItemObj */
+ #include "em_set.h"
+ #include "em_wrap.h"
+ #include "emdoor.h"
+@@ -34,7 +35,7 @@
+ 
+ // The item object's per-object work (obj19 leaves it to the room): the fall speed at cObj+0x32C.
+ struct R316ItemView {
+-    u8 pad_0[0x32C];
++    u8 pad_0[RE4_OFS(cItemObj, fall_spd.y, 0x32C)];  // port: patch 0074 (cObj grows on LP64)
+     f32 fallSpd;
+ };
+ 
+--- a/src/st3/r317.cpp
++++ b/src/st3/r317.cpp
+@@ -60,7 +60,7 @@
+ 
+ // The cage object's per-object work: the running sound handle at cObj+0x328.
+ struct R317ElevatorObjView {
+-    u8 pad_0[0x328];
++    u8 pad_0[RE4_OWN(cObj, u8, 0x328)];  // port: patch 0074, the object's own work behind cObj (it grows on LP64)
+     u32 hSnd;
+ };
+ 
+--- a/src/st3/r300.cpp
++++ b/src/st3/r300.cpp
+@@ -75,7 +75,7 @@
+ 
+ // The beam effect's second end point (past cEsp).
+ struct R300EspView {
+-    u8 pad_0[0x100];
++    u8 pad_0[RE4_OWN(cEsp, f32, 0xF8) + 8];  // port: patch 0074, 8 bytes into the effect's own work behind cEsp
+     Vec pos2;   // 0x100
+ };
+ 
+--- a/src/st3/r318.cpp
++++ b/src/st3/r318.cpp
+@@ -65,7 +65,7 @@
+ 
+ // Effect sequence record tail: the second position at cEsp+0x100 (a laser beam end point).
+ struct R318EspView {
+-    u8 pad_0[0x100];
++    u8 pad_0[RE4_OWN(cEsp, f32, 0xF8) + 8];  // port: patch 0074, 8 bytes into the effect's own work behind cEsp
+     Vec pos2;
+ };
+ 
+--- a/src/game/db_work.cpp
++++ b/src/game/db_work.cpp
+@@ -20,9 +20,9 @@
+ 
+ // obj18 work (cObj::work) as far as the viewer reads it
+ struct DbObj18Work {
+-    u8 pad_0[0x68];
++    u8 pad_0[RE4_OFS(FREE_OBJ18, obj18_type, 0x68)];  // port: patch 0074, FREE_OBJ18 moves on LP64
+     int type;        // 0x68
+-    u8 pad_6C[0xC];
++    u8 pad_6C[RE4_OFS(FREE_OBJ18, NameMod, 0x78) - RE4_OFS(FREE_OBJ18, obj18_type, 0x68) - 4];
+     char name[0x30]; // 0x78
+ };
+ 

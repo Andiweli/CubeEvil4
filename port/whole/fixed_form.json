@@ -5,7 +5,9 @@
     "fixed_form_structs): four bytes as on the GameCube, T* on ILP32. Listed are data the",
     "game reads straight from the disc and relocates in place (checked by the size asserts",
     "of the format converters, port/whole/runtime/formats) and the save image header.",
-    "Each listed structure must have at least one pointer member."
+    "Each listed structure must have at least one pointer member. GxWork (trans.cpp: its prim",
+    "pointer is pG->prim_base) and SaveDataPtrs (card.cpp: a view of SAVE_DATA_HEAD) are views",
+    "of GameCube-form data (patch 0074)."
   ],
   "structs": {
     "include/tpl.h": ["CLUTHeader", "TEXHeader", "TEXDescriptor", "TEXPalette"],
@@ -16,6 +18,8 @@
     "include/sce_at.h": ["SCE_AT_DATA_ITEM", "SCE_AT_DATA_DOOR", "SCE_AT_DATA_NORMAL", "SCE_AT_DATA_SCR_AT",
                          "SCE_AT_DATA_FIELD_INFO", "SCE_AT_DATA_HIDE", "SCE_AT_DATA_SKEY", "SCE_AT_UNIT"],
     "include/game.h": ["SAVE_DATA_HEAD"],
-    "include/dolphin/os/OSModule.h": ["OSModuleLink"]
+    "include/dolphin/os/OSModule.h": ["OSModuleLink"],
+    "src/game/trans.cpp": ["GxWork"],
+    "src/game/card.cpp": ["SaveDataPtrs"]
   }
 }
