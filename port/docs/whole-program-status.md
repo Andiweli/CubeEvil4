@@ -21,7 +21,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
 | M11 Android-Feinschliff | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/nifty-feynman-jv729h`, Stand `093aa7a`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, „Depth of field“ mit dem Autofokus der ersten App, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester, alles auf Englisch), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Rundgang über alle Räume (PC mit Disc-Daten): 126 von 126 laufen (Patches 0062–0064). Super Magnum: kein Port-Fehler (Nachlade-Stufe Lv.5 aus dem Debug-Menü), mit Lv.1 bestätigt. Debug-Menü Waffenseite stürzte am Listenende ab (Patch 0066). Leistung: 60 Bilder/s, Kern 33,3 ms je Spielbild mit 13–15 ms Leerlauf, GPU um 20 ms („M11 Android-Feinschliff“) |
-| M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt, gleiche Stubs wie ILP32; A2 (Linux) ✅ Adressen unter 4 GB, Laufzeittests 10 von 10 auf x86_64 (Abschnitt „M12 ARM64“); Bestandsaufnahme fertig (`arm64-bestandsaufnahme.md`, Werkzeuge `port/tools/m12/`): normaler 64-bit-Build 3060 Zeiger-Kürzungen und 835 von 1293 Strukturen größer (feste Plätze, Spielstand-Kopf, Dateistrukturen); 32-bit-Sandbox wasm32 0 von 1285 Strukturen anders, Geschwindigkeit 1,65-fach; Emulator 6-fach. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** (Empfehlung war W) |
+| M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt; A2 ✅ Adressen unter 4 GB; A3 ✅ Strukturen, die auf 64 bit auseinanderlaufen: alle Prüfwerkzeuge 0 (Patches 0070–0073, Regel `lp64_sizes`); A4 ✅ alle Cloud-Tests grün auf i686, armhf, x86_64 und **aarch64 (neu, ARM64 unter qemu)**, auch Filme und Speicherkarte; A5 Android arm64 eingebaut, aber ungeprüft (kein NDK in der Cloud). Offen: PC-Prüfung mit Disc-Daten auf 64 bit (`-Lp64`), Android-Build beider ABIs, Gerätetest. Dabei gefunden: Puzzle-Untermenü las auch auf 32 bit falsche Felder (Patch 0073). Bestandsaufnahme `arm64-bestandsaufnahme.md`. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -3245,12 +3245,116 @@ Struktur, die die Formatumwandler nennen, Größe und Lage aller Glieder
 zwischen armhf (Vorbild, wie GameCube) und x86_64. Ergebnis: **83 von 83
 gleich**.
 
-Größere Strukturen der SDK- und CRI-Bibliotheken (`src/lib`, armhf → x86_64):
-48, darunter `SFD_OBJ` 0x3598 → 0x56F0 (Arbeitsplatz 0x4000), `MPV_OBJ`
-0x1378 → 0x16D0, `MWPLY_OBJ` 0x2B8 → 0x568, `SFH_OBJ` 0x10 → 0x20
-(feste Arbeitsfläche 0x204 für 32 Stück), dazu Zugriffe über feste Abstände
-mit 4-Byte-Schritt (`adx_tsvr.c`, `adx_sje.c`). Werden in Schritt A3 mit
-einem Patch angepasst.
+### Schritt A3: Strukturen, die auf 64 bit auseinanderlaufen (17.10.2026, Cloud)
+
+Der dekompilierte Code beschreibt manche Objekte mehrfach: als vollständige
+Struktur, als Teilsicht mit Platzhaltern (`Uint8 pad[0x40]`, die
+GameCube-Abstände festhalten), unter anderem Namen in einer anderen Datei,
+als Byte-Tabelle fester Größe. Auf ILP32 stimmen alle Sichten Byte für Byte
+überein, auf LP64 verschiebt jeder Zeiger die Glieder dahinter. Dafür gibt es
+jetzt Prüfwerkzeuge in `port/tools/m12/` (vergleichen den armhf-Bau als
+Vorbild mit dem x86_64-Bau; die mit libclang brauchen
+`pip install libclang==18.1.1`, nur in der Cloud):
+
+| Werkzeug | prüft | Ergebnis nach den Patches |
+|---|---|---|
+| `fixed_layout_check.py` | Strukturen, die die Formatumwandler nennen (Disc-Daten): Größe und Lage aller Glieder | 83 von 83 gleich |
+| `view_check.py` | Strukturen gleichen Namens in mehreren Dateien: gleicher GameCube-Abstand → gleicher LP64-Abstand (mit Code-Erzeugung, damit jede benutzte Struktur angelegt wird) | 794 Strukturen mit mehreren Sichten, 0 auseinander (vorher 11) |
+| `decl_size_check.py` | globale Variablen: Größe der Definition gegen die `extern`-Deklarationen (Byte-Tabellen) | 1351 Variablen, 0 (vorher 2) |
+| `proto_check.py` | C-Funktionen, deren Dateien einen Parameter mit verschiedenen Strukturen beschreiben | 2112 Struktur-Parameter, 0 (vorher 7) |
+| `cast_check.py` | Umwandlung eines Strukturzeigers in einen anderen (`SFD_TIM(sfd)` legt die Zeitarbeit über `SFD_OBJ.con`) | 44 Umwandlungen, 0 (vorher 3) |
+| `raw_offset_check.py` | feste Byte-Abstände in Strukturen (`(u8*) p + 0x18`, auch in Makros, mit Basisklassen; Abstände über `&((T*) 0)->m` zählen nicht) | 0 (vorher 280 Stellen in 13 Dateien) |
+| `overlay_check.py` | Arbeitsbereiche über festen Flächen (`cEm::free`, `cEspgen::Free`) und Klassen über Pool-Plätzen | 1564 Klassen, 2585 Umwandlungen, 0 (vorher 823 Fundstellen) |
+| `group_check.py`, `gen_views.py`, `split_pads.py` | Hilfen für die LP64-Sichten der CRI-Bibliothek (Teilsichten an der vollen Struktur ausrichten, erzeugte Platzhalter prüfen) | alle Sichten von `SFD_OBJ`, `MPV_OBJ`, `MWPLY_OBJ`, `MWSFFRM_VFRM` stimmen |
+
+Behoben:
+- **CRI-Bibliothek (Patch 0070, 36 Dateien):** `Sint32/Uint32` bleiben
+  32 bit (Regel `exact_width_types`; die Spielseite benutzt `int`);
+  Adressen in `Sint32`-Werten über `Uint32` zurück (36 Stellen);
+  Teilsichten des ADX-Dekoders, des Players, des Sofdec-Handles (`SFD_OBJ`
+  über Puffer-, Zeitstempel- und Speicher-Sichten) mit 64-bit-Platzhaltern
+  aus der vollen Struktur; Byte-Tabellen `adx_fini.c` und SFH-Arbeitsfläche
+  in LP64-Größe mit Größenprüfung; Schleifen mit festem Abstand
+  (`adx_tsvr.c`, `adx_sje.c`) über die Glieder. **MPEG-Dekoder `MPV_OBJ`:**
+  fünf Sichten unter zwei Namen; `mpv.h` benennt die Zeiger, die die anderen
+  Sichten in Platzhaltern führen, die übrigen vier Sichten bekommen
+  erzeugte LP64-Platzhalter (alle 177 GameCube-Abstände stimmen überein),
+  Handle-Schritt 0x1590, Tabellenbereich `MPV_IXA` auf denselben Abständen.
+  **Zeitarbeit:** `SFCON` und `SFTIM_WORK` liegen übereinander (geprüft),
+  die Uhrquellen-Tabelle (`sfd_tim.c`, GameCube-Abstand 0xD28) und die
+  Bildzeit (Wörter 5/6 der Bildinformation) über die Glieder, der Bildplatz
+  vor der Bildinformation über `offsetof`; die drei aus Assembler
+  übersetzten Rechenkerne von `mpv_umc.c` lesen ihre Zeiger an den
+  LP64-Abständen; `sfd_mem.c` führt die Puffernummer als Zahl.
+- **Patch 0071:** die Spielseite des Filmbilds (`MWS_FRM`, `mwply.h`) folgt
+  auf LP64 der Sicht der Bibliothek (`mwPlyGetCurFrm` schrieb sonst über
+  `cSofdec` hinaus).
+- **Patch 0072:** Debug-Werkzeuge (Fenster/Knöpfe des Sscrn-Debugmenüs
+  `dbg_button.h`, Modellbetrachter `db_mod.h`).
+- **Feste Plätze (Regel `lp64_sizes`, `port/whole/lp64_sizes.json`):** auf
+  LP64 waren alle 54 Klassen im Gegner-Pool größer als ihr Platz
+  (0xEA0 statt 0xDE0) und vier eigene Gegner-Arbeitsbereiche größer als
+  ihre Fläche (bis 0xAB8 statt 0xA00), ebenso 55 Objektklassen und fünf
+  Objekt-Arbeitsbereiche, dazu ein Effekt-Arbeitsbereich. Jetzt auf LP64
+  Gegner-Platz 0xF60 (Fläche 0xAC0), Objekt-Platz 0x4B0 (Fläche 0xF0),
+  Effekt-Fläche 0xD0; auf ILP32 unverändert.
+- **Patch 0073:** feste Byte-Abstände im Spielcode über die Glieder
+  (`RE4_OFS`, auf ILP32 beim Übersetzen gegen den GameCube-Wert geprüft).
+  Dabei gefunden, **auch auf 32 bit falsch:** das Puzzle-Untermenü
+  (`ss_pzzl.cpp`) las Zustand und Auswahl seines Nachrichtenfensters an den
+  Abständen des GameCube-Compilers (MWCC legt den Tabellenzeiger einer
+  Klasse hinter ihre Felder, die Compiler des Ports davor); jetzt über die
+  Abfragefunktionen des Spiels. Im Rundgang 10b auf das Puzzle achten.
+- Testprogramme: `card_probe.cpp` rechnet den Spielstand-Block vorzeichen-
+  behaftet; `save_layout.py` findet den Block über
+  `save_data_start_addr` (GameCube 0x4F80, LP64 0x4FB8; Inhalt und
+  `.gci`-Form gleich, `--check` auf armhf und x86_64 bestanden).
+
+### Schritt A4: alle Cloud-Tests auf 64 bit (17.10.2026, Cloud)
+
+Neues Bauziel **`aarch64`** (`cmake/linux-aarch64.cmake`,
+`whole_build.sh aarch64`): 64-bit-ARM-Linux, die Code-Erzeugung von
+`arm64-v8a`, ausgeführt unter qemu-aarch64 (Werkzeuge in
+`whole_setup_linux.sh`). Der Vorlader (`host/loader.c`) kommt mit der
+Speicheraufteilung von qemu zurecht (Stapel unten, Bibliotheken oben, eigene
+Bereiche von qemu unsichtbar): er füllt jetzt jede freie Lücke über 4 GB bis
+zum Ende des Adressraums und lässt Platz unter dem Stapel nur, wo er wachsen
+kann; `RE4_LOADER_MAPS=1` gibt die Aufteilung aus. Unter qemu liegt `malloc`
+oberhalb von 4 GB wie auf Android; das Spiel bekommt solchen Speicher nicht
+(nur Hinweis im Log). Der Spiel-Thread der App (`re4_core_start`) bekommt auf
+64 bit seinen Stapel aus dem Fenster.
+
+| Ziel | Build | Sprungstellen, Module, Laufzeit (10), Kern (15 Teile) | Karte, `.gci`, Spielstand-Form, Formatvergleich (2) | Filmtest |
+|---|---|---|---|---|
+| i686 | 0 Fehler | ✅ | ✅ | ✅ |
+| armhf (qemu-arm) | 0 Fehler | ✅ | ✅ | ✅ |
+| x86_64 | 0 Fehler | ✅ | ✅ | ✅ (die 60-Hz-Prüfung schlug einmal fehl, während qemu und ein Download den Rechner auslasteten; einzeln wiederholt bestanden) |
+| aarch64 (qemu-aarch64) | 0 Fehler | ✅ | ✅ | ✅ |
+
+**Nicht geprüft:** das ganze Spiel mit Disc-Daten auf 64 bit (PC-Prüfung,
+`test-r100-core.ps1 -Lp64`, neu) und auf einem Gerät.
+
+### Schritt A5: Android arm64 (17.10.2026, Cloud, ungeprüft)
+
+Eine APK für 32- und 64-bit-Geräte: die App-Variante `core` hat jetzt
+`abiFilters 'armeabi-v7a', 'arm64-v8a'`; `whole_build_android.sh` baut beide
+(`--abi` wählt eine), die Bibliotheken liegen in `src/core/jniLibs/<abi>`.
+Die Variante `classic` (eigene Spielmodule, arm64) bleibt unverändert.
+Auf 64 bit legt die App (`core_mode.cpp`) zuerst einen Platzhalter über
+MEM1 und lädt `libre4_platform.so` und `libre4_main.so` mit
+`android_dlopen_ext` in Bereiche, die sie oben im Fenster reserviert hat;
+der Kern lädt jedes Modul in einen eigenen Bereich des Fensters
+(`module_loader.cpp`, 8 MB je Modul, das größte braucht 2 MB) und gibt ihn
+beim Entladen zurück. Beim Start steht im Protokoll, wie viel des Fensters
+belegt ist (`re4_window_report`).
+`test-core-app.ps1 -Abi armeabi-v7a|arm64-v8a` installiert gezielt eine
+Fassung (ohne `-Abi` wählt das Gerät, der Retroid nimmt 64 bit).
+
+**Ungeprüft:** In der Cloud gibt es kein Android-NDK (der Download von
+dl.google.com ist durch die Netzwerkregel gesperrt); der neue Android-Code ist
+nur gegen einen nachgebildeten Header übersetzt. Offen und erst auf dem Gerät
+messbar: ob ART oder die Grafiktreiber Teile des Fensters
+0x80000000–0xFFFFFFFF schon belegen.
 
 ## Aufbau
 
@@ -3317,12 +3421,13 @@ sie ersetzt.
 | `strstr/strchr/strrchr/strpbrk/memchr` → Wrapper mit C-Signatur | C++ deklariert `const`-Überladungen; das Spiel weist an `char*` zu |
 | System-C-Header werden vor allen Spielheadern eingebunden | ältere Eigen-Deklarationen (`memcpy` in `joy.h`) sind danach verträglich |
 | `types.h`: auf ILP32 bleiben `s32/u32` = `long` wie im Original | gleiche C++-Namen für `u32` und `unsigned long` (sonst 90 Scheinfehler beim Linken) |
-| `include/types.h`, `include/dolphin/types.h`: `s32/u32` auf LP64 = 32-bit-Typen (`exact_width_types`, M12) | Spielheader holen mit `#include "types.h"` das Original (nicht den Ersatz-Header); `long` hat auf LP64 8 Bytes |
+| `include/types.h`, `include/dolphin/types.h`, `src/lib/cri/cri_xpt.h`: `s32/u32` und `Sint32/Uint32` auf LP64 = 32-bit-Typen (`exact_width_types`, M12) | Spielheader holen mit `#include "types.h"` das Original (nicht den Ersatz-Header); `long` hat auf LP64 8 Bytes |
 | Alias-Namen, die von der Breite von `u32`/`size_t` abhängen: `{u32}` in `GCC295_SYMBOLS` → `"…" RE4_ASM_U32` (`m` auf ILP32, `j` auf LP64), `_Znwj/_Znaj` → `RE4_ASM_NEW(_ARRAY)` (Prelude, M12) | `FlgOnStatus__5EventUl` und `__builtin_new` passen sonst auf LP64 nicht zur Funktion; `whole_asm_check.py` kennt die `RE4_ASM_*`-Makros als Teil eines Namens |
 | `operator new(unsigned …)`, eigene `extern "C"`-Deklarationen von `memcpy/strlen …` mit `unsigned int` → `__SIZE_TYPE__` (`OPERATOR_SIZE`, `LIBC_DECL`, M12) | auf LP64 ist `size_t` 8 Bytes; sonst Widerspruch zu den System-Headern |
 | Füllfelder `[A - sizeof(X)]` → `[((A) > sizeof(X) ? (A) - sizeof(X) : 0)]` (`PAD_TO_SIZE`, M12) | auf LP64 ist `X` größer als der feste Platz `A`: sonst negative Feldgröße. Die festen Plätze selbst werden in M12-A3 angepasst |
 | Strukturen mit fester Form (`port/whole/fixed_form.json`): Zeiger-Glieder → `RE4_P32(T)` (`re4_ptr32.h`; ILP32: `T*`, LP64: 4 Bytes `Re4Ptr32<T>`), Datei bekommt `#include "re4_ptr32.h"` (`fixed_form_structs`, M12) | Daten, die das Spiel von der Disc liest und an Ort und Stelle umbiegt (Texturen, Kollision, Kamerabereiche, Modelle, Szenen-Treffer, Raumtabelle), der Kopf des Spielstands und die Modul-Verkettung: ihre Form ist durch die Disc bzw. die Speicherkarte festgelegt. Bricht ab, wenn ein Glied nicht umschreibbar ist |
 | `TaskFunc`: Klasse statt `void*` (`re4_task_func.h`, gleiche Größe; auf LP64 4 Bytes wie auf der GameCube, M12) | GCC 2.95 wandelte Funktionszeiger still in `void*` um, modernes C++ nicht |
+| Feste Plätze und Arbeitsflächen (`port/whole/lp64_sizes.json`, `lp64_sizes`, nach den Patches, M12): die Größe in `EM_WORK_SIZE`, `OBJ_WORK_SIZE`, den 57 `u8 free[0xDE0 - 0x3E0]` der Gegner, den 25 `u8 free[OBJ_WORK_SIZE - 0x328]` der Objekte und `cEspgen::Free` → `RE4_LP64_SIZE(gc, lp64)` (Prelude; ILP32 der GameCube-Wert) | auf LP64 wird `cEm` 0xC0 Bytes größer, `cObj` 0x98; die eigenen Arbeitsbereiche mit Zeigern wachsen über ihre Fläche (bis 0xAB8 statt 0xA00). LP64: Gegner-Platz 0xF60, Fläche 0xAC0; Objekt-Platz 0x4B0, Fläche 0xF0; Effekt-Fläche 0xD0. Geprüft mit `overlay_check.py`; eine andere Anzahl Fundstellen bricht den Build ab |
 | `(u16*) &pG->stage_no` → `(u16*) &pG->room_id`, `stage_prev` → `room_id_prev` (`ROOM_ID_ADDR`) | `G_ROOM_ID` und `RsfCheck(*(u16*) &pG->stage_no, …)` lesen die Raumnummer über die Adresse ihres ersten Bytes; auf little-endian liegt `stage_no` nach Patch 0016 am anderen Ende (auf der GameCube dieselbe Adresse) |
 | `new (p) T()` → `new (p) T` (`PLACEMENT_VALUE_INIT`) | C++11 füllt eine Klasse ohne eigenen Konstruktor bei `T()` erst mit Nullen; der GameCube-Compiler nicht. `em.cpp` setzt `subArc` vor `new (em) cEm10()` (Absturz in `Em12Set`, 14.10.2026). Prüfung: `port/tools/whole_value_init.py` |
 | Prelude: `#define _ctype_ re4_newlib_ctype_` (nach den System-Headern) | Bionic exportiert `_ctype_` als Zeiger, newlib (das Spiel, `t_movie`) als Feld; die Tabelle heißt jetzt `re4_newlib_ctype_` (`runtime/newlib_ctype.c`), Bionics Zeiger bleibt unberührt (K2) |
@@ -3419,6 +3524,10 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0067 `room_jmp.cpp`, `title.cpp`, `roomdata.cpp`, `seq.c` | 64 bit (M12): `eprintf` bekommt die Namen aus den Raumtabellen (Strukturen mit fester Form) über `re4_ptr(…)` als echten Zeiger; `re4_ptr` ist auf ILP32 ohne Wirkung. `roomdata.cpp`: die Fehlermeldung beim Lesen eines Raummoduls gibt für `%s` den Dateinamen statt der ganzen Tabellenzeile (die GameCube übergab deren Adresse, ARM und x86 kopieren die Struktur). `SEQGetVolume` mit `s32` wie seine Deklaration in `seq.h` (auf LP64 sonst zwei verschiedene Typen) |
 | 0068 `os.h`, `model.h`, `model.cpp`, `shape.cpp` | 64 bit (M12): Adressen, die über einen vorzeichenbehafteten 32-bit-Wert laufen, werden auf LP64 zu `0xFFFFFFFF8…` (alles, was das Spiel erreicht, hat Bit 31 gesetzt). `OS_CACHED_REGION_PREFIX`/`UNCACHED` als `unsigned` (feste OS-Variablen wie `OS_BUS_CLOCK`), `cModel::modelInit` gibt den `cModelInfo*` als `u32` zurück statt `int`, die verschobene Formtabelle (`shape.cpp`) wird als `u32` gelesen. Auf ILP32 gleiche Werte |
 | 0069 `GXTexture.c` | 64 bit (M12): `GXTexObj` ist im Spiel 32 Bytes (`u32 dummy[8]`), die SDK-Innensicht `__GXTexObjInt` wurde auf LP64 durch den `userData`-Zeiger 40 Bytes groß: `GXInitTexObj` schrieb über jedes Texturobjekt hinaus. `userData` bleibt 4 Bytes (`RE4_P32`), Größenprüfungen für die vier Innensichten (`_Static_assert`) |
+| 0070 CRI-Bibliothek (36 Dateien in `src/lib`, darunter `cri/mpv.h`, `cri/sfd.h`, `cri/sfx.h`) | 64 bit (M12): Sofdec-Filme und ADX-Ton auf LP64. Adressen in `Sint32`-Werten über `Uint32` zurück (36 Stellen); Teilsichten mit GameCube-Platzhaltern (ADX-Dekoder, Player `MWPLY_OBJ`, Sofdec-Handle `SFD_OBJ`, MPEG-Dekoder `MPV_OBJ` in fünf Dateien) bekommen auf LP64 erzeugte Platzhalter an den Abständen der vollen Struktur (`port/tools/m12/gen_views.py`, geprüft mit `group_check.py`); Größen- und Abstandsprüfungen (`_Static_assert`) für Handle-Schritte, Arbeitsflächen und Tabellen; feste Byte-Abstände (`sfd_tim.c` Uhrquellen-Tabelle, `sfd_mpv.c` Bildplatz, Zeitwörter der Bildinformation, die drei übersetzten Rechenkerne in `mpv_umc.c`) über die Glieder; `sfd_mem.c` führt die Puffernummer als Zahl. Jede LP64-Variante steht in `#if __SIZEOF_POINTER__ != 4` oder behält auf ILP32 denselben Wert (Kopf des Patches listet alle Punkte) |
+| 0071 `include/mwply.h` | 64 bit (M12): die Spielseite des Filmbilds `MWS_FRM` folgt auf LP64 der Glieder-Liste der Bibliothek (Zeiger `tblsrc`, `usrdat`); `mwPlyGetCurFrm` schrieb sonst über `cSofdec` hinaus |
+| 0072 `dbg_button.h`, `db_mod.h`, `db_mod.cpp` | 64 bit (M12): Debug-Werkzeuge. Knopf-Sicht des Sscrn-Debugmenüs mit echtem Text- und Funktionszeiger; Platzhalter des Modellbetrachters `DbModState` je Zeigerbreite mit Abstandsprüfung |
+| 0073 `em2d.cpp`, `em32.cpp`, `sce_com.cpp`, `r100.cpp`, `r103.cpp`, `r307.cpp`, `r318.cpp`, `t_camera.cpp`, `t_camera_draw.cpp`, `t_esp.cpp`, `ss_pzzl.cpp` | 64 bit (M12): feste Byte-Abstände in Strukturen, deren Glieder auf LP64 wandern (`(u8*) pe + 0x378`), über `RE4_OFS(T, glied, gc)` (Prelude): der Abstand des Glieds, auf ILP32 beim Übersetzen gegen den GameCube-Wert geprüft. Kamera- und Effekt-Werkzeug über ihre Makros (`TC_TRG`, `FSTORE_AT`). **Auch 32 bit:** `ss_pzzl.cpp` las Zustand und Auswahl von Nachricht 1 an den MWCC-Abständen (vptr hinter den Feldern); im Port lagen dort `be_flag` und ein Byte von `m_selTbl`. Jetzt über `GetMesStatus(1)`/`GetSelectMessage(1)` |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

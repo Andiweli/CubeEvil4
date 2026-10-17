@@ -400,6 +400,38 @@ def fixed_form_structs(staging: Path) -> int:
     return total
 
 
+# Fixed work areas and pool slots that are too small on LP64 (port/whole/lp64_sizes.json,
+# milestone 12): `expr` inside each `text` becomes RE4_LP64_SIZE(expr, lp64)
+# (re4_whole_prelude.h), the GameCube value on ILP32. Runs after the patches
+# (their context keeps the original lines); a count other than the listed one
+# stops the build.
+LP64_SIZES = ROOT / "port" / "whole" / "lp64_sizes.json"
+
+
+def lp64_sizes(staging: Path) -> int:
+    spec = json.loads(LP64_SIZES.read_text())
+    total = 0
+    for entry in spec["sizes"]:
+        text, expr = entry["text"], entry["expr"]
+        if expr not in text:
+            sys.exit(f"lp64_sizes.json: `{expr}` is not part of `{text}`")
+        new_text = text.replace(expr, f"RE4_LP64_SIZE({expr}, {entry['lp64']})", 1)
+        paths = sorted({p for pattern in entry["files"] for p in staging.glob(pattern)})
+        found = 0
+        for path in paths:
+            if path.relative_to(staging).parts[:2] == ("src", "lib"):
+                continue
+            body = path.read_text(encoding="utf-8", errors="surrogateescape")
+            n = body.count(text)
+            if n:
+                found += n
+                path.write_text(body.replace(text, new_text), encoding="utf-8", errors="surrogateescape")
+        if found != entry["count"]:
+            sys.exit(f"lp64_sizes.json: `{text}` found {found} times, expected {entry['count']}")
+        total += found
+    return total
+
+
 def prepare(out: Path) -> Path:
     tree = out / "tree"
     staging = out / "staging"
@@ -410,6 +442,7 @@ def prepare(out: Path) -> Path:
     exact_width_types(staging)
     fixed = fixed_form_structs(staging)
     apply_patches(staging)
+    sizes = lp64_sizes(staging)
     views = apply_byte_views(staging)
     plan = module_plan()
     # Every dropped inline asm with real instructions needs a C replacement.
@@ -417,7 +450,7 @@ def prepare(out: Path) -> Path:
     if problems:
         sys.exit("inline asm check failed (port/tools/whole_asm_check.py):\n  " + "\n  ".join(problems))
     print(f"whole_prepare: asm {whole_asm_check.summary(found)}; {views} byte views; "
-          f"{fixed} fixed-form pointer members")
+          f"{fixed} fixed-form pointer members; {sizes} LP64 work sizes")
     sync(staging, tree)
     shutil.rmtree(staging)
     write_sdk_c_only(out)

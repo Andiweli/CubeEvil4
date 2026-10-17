@@ -14,6 +14,7 @@
 
 #include <dlfcn.h>
 #include <pthread.h>
+#include <sys/mman.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -388,6 +389,7 @@ int re4_core_reserve(const char* dataDir, const char* moduleDir)
     }
     re4_set_data_dir(dataDir ? dataDir : "");
     re4_set_module_dir(moduleDir ? moduleDir : "");
+    re4_window_report();
     if (!re4_mem1_init()) {
         setMessage("MEM1 (0x80000000..0x83000000) is taken in this process");
         pthread_mutex_lock(&gLock);
@@ -439,6 +441,14 @@ int re4_core_start_entry(int (*entry)(void))
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setstacksize(&attr, 8u << 20);
+#if __SIZEOF_POINTER__ != 4
+    // 64 bit (milestone 12): the game keeps addresses of its locals in 32-bit
+    // words, so its thread's stack lies in the window below 4 GB like the
+    // stacks of the game threads (on Android nothing else puts it there)
+    if (void* stack = re4_window_map(8u << 20, PROT_READ | PROT_WRITE)) {
+        pthread_attr_setstack(&attr, stack, 8u << 20);
+    }
+#endif
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     pthread_t thread;
     int err = pthread_create(&thread, &attr, gameThread, 0);

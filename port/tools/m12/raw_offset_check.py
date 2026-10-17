@@ -89,26 +89,95 @@ def byte_view_of(c):
     return None
 
 
+_LIB = {}
+
+
+def lib():
+    """libclang C functions the Python bindings do not wrap: the operator of a binary
+    expression and the value of a constant one (both work inside macro expansions, where
+    the tokens are the macro's name)."""
+    if not _LIB:
+        import ctypes
+        import clang.cindex as ci
+        L = ci.conf.lib
+        L.clang_getCursorBinaryOperatorKind.argtypes = [ci.Cursor]
+        L.clang_getCursorBinaryOperatorKind.restype = ctypes.c_int
+        L.clang_getBinaryOperatorKindSpelling.argtypes = [ctypes.c_int]
+        L.clang_getBinaryOperatorKindSpelling.restype = ci._CXString
+        L.clang_Cursor_Evaluate.argtypes = [ci.Cursor]
+        L.clang_Cursor_Evaluate.restype = ctypes.c_void_p
+        L.clang_EvalResult_getKind.argtypes = [ctypes.c_void_p]
+        L.clang_EvalResult_getKind.restype = ctypes.c_int
+        L.clang_EvalResult_getAsLongLong.argtypes = [ctypes.c_void_p]
+        L.clang_EvalResult_getAsLongLong.restype = ctypes.c_longlong
+        L.clang_EvalResult_dispose.argtypes = [ctypes.c_void_p]
+        _LIB["L"] = L
+        _LIB["ops"] = {}
+    return _LIB["L"]
+
+
+def binary_op(c):
+    import clang.cindex as ci
+    L = lib()
+    k = L.clang_getCursorBinaryOperatorKind(c)
+    ops = _LIB["ops"]
+    if k not in ops:
+        ops[k] = ci._CXString.from_result(L.clang_getBinaryOperatorKindSpelling(k))
+    return ops[k]
+
+
+def names_member(c, depth=0):
+    """the expression names a member (`&((T*) 0)->m`, offsetof): its value follows the layout"""
+    import clang.cindex as ci
+    if c.kind in (ci.CursorKind.MEMBER_REF_EXPR, ci.CursorKind.MEMBER_REF):
+        return True
+    return depth < 12 and any(names_member(k, depth + 1) for k in c.get_children())
+
+
 def const_value(c):
     import clang.cindex as ci
     c = strip(c)
-    if c is not None and c.kind == ci.CursorKind.INTEGER_LITERAL:
-        toks = [t.spelling for t in c.get_tokens()]
-        if toks:
-            try:
-                return int(toks[0].rstrip("uUlL"), 0)
-            except ValueError:
-                return None
-    return None
+    if c is None or c.kind not in (ci.CursorKind.INTEGER_LITERAL, ci.CursorKind.BINARY_OPERATOR,
+                                   ci.CursorKind.CSTYLE_CAST_EXPR, ci.CursorKind.UNARY_OPERATOR,
+                                   ci.CursorKind.PAREN_EXPR, ci.CursorKind.UNEXPOSED_EXPR):
+        return None
+    if names_member(c):
+        return None
+    L = lib()
+    r = L.clang_Cursor_Evaluate(c)
+    if not r:
+        return None
+    try:
+        return L.clang_EvalResult_getAsLongLong(r) if L.clang_EvalResult_getKind(r) == 1 else None
+    finally:
+        L.clang_EvalResult_dispose(r)
 
 
-def field_map(rec_type):
-    """[(offset bytes, size bytes, name)] of the fields of a record type, flattened one level for
-    nested records (offsets relative to the outer record)."""
+def dynamic(decl, depth=0):
+    """the class has a vtable pointer (a virtual method of its own or of a base)"""
+    import clang.cindex as ci
+    for k in decl.get_children():
+        if k.kind in (ci.CursorKind.CXX_METHOD, ci.CursorKind.DESTRUCTOR) and k.is_virtual_method():
+            return True
+        if k.kind == ci.CursorKind.CXX_BASE_SPECIFIER and depth < 8 and \
+                dynamic(k.type.get_declaration(), depth + 1):
+            return True
+    return False
+
+
+def field_map(rec_type, depth=0):
+    """[(offset bytes, size bytes, name)] of the fields of a record type, with those of its first
+    base class (at 0, or behind the vtable pointer when only the derived class has one)."""
     import clang.cindex as ci
     out = []
     decl = rec_type.get_declaration()
     for f in decl.get_children():
+        if f.kind == ci.CursorKind.CXX_BASE_SPECIFIER:
+            if depth < 8 and not any(x for x in out):
+                b = f.type.get_canonical()
+                base = 0 if dynamic(b.get_declaration()) or not dynamic(decl) else rec_type.get_align()
+                out += [(o + base, sz, n) for o, sz, n in field_map(b, depth + 1)]
+            continue
         if f.kind != ci.CursorKind.FIELD_DECL:
             continue
         off = f.get_field_offsetof()
@@ -139,27 +208,24 @@ def scan_lp64(job):
                         byte_vars[k.get_usr()] = r
             if k.kind == ci.CursorKind.BINARY_OPERATOR:
                 kids = list(k.get_children())
-                toks = [t.spelling for t in k.get_tokens()]
                 if len(kids) == 2:
                     lhs, rhs = kids
-                    op = None
-                    # the operator token between the operands
-                    lt = len(list(lhs.get_tokens()))
-                    if lt < len(toks):
-                        op = toks[lt]
+                    op = binary_op(k)
                     if op == "=":
                         r = byte_view_of(rhs)
                         ls = strip(lhs)
                         if r is not None and ls.kind == ci.CursorKind.DECL_REF_EXPR and ls.referenced is not None:
                             byte_vars[ls.referenced.get_usr()] = r
-                    elif op == "+":
+                    elif op in ("+", "-"):
                         val = const_value(rhs)
+                        if val is not None and op == "-":
+                            val = -val
                         rec = byte_view_of(lhs)
                         ls = strip(lhs)
                         if rec is None and ls is not None and ls.kind == ci.CursorKind.DECL_REF_EXPR and \
                                 ls.referenced is not None:
                             rec = byte_vars.get(ls.referenced.get_usr())
-                        if rec is not None and val is not None and val > 0:
+                        if rec is not None and val is not None and val != 0:
                             loc = k.location
                             found.append((rec.get_declaration().get_usr(), rec.spelling, val,
                                           f"{loc.file.name if loc.file else '?'}:{loc.line}"))
@@ -228,6 +294,11 @@ def main():
     for (name, (found, lay)), ref in zip(results.items(), refs):
         for usr, spelling, val, where in found:
             total += 1
+            if val < 0:
+                # the outer object is not known here: every such place is listed
+                bad.append(f"{where.split('/prepared/tree/')[-1]}: {spelling} - {-val:#x}: an outer object found "
+                           f"from this one, check by hand")
+                continue
             if usr not in ref or not lay.get(usr):
                 continue
             rsize, rfields = ref[usr]

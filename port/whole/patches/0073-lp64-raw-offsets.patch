@@ -1,0 +1,203 @@
+# 64-bit build (milestone 12, way A): fixed byte offsets into structures whose
+# members move on LP64 (found with port/tools/m12/raw_offset_check.py). Each
+# offset becomes RE4_OFS(T, member, gc) (re4_whole_prelude.h): the member's
+# offset, checked against the GameCube value on ILP32 at compile time, so the
+# 32-bit builds keep the same addresses.
+# - em2d.cpp, sce_com.cpp, r100.cpp, r103.cpp: player / enemy members
+#   (cPlayer dmg.m_PosFrom, pos, ang; cEm subArc).
+# - em32.cpp, r307.cpp, r318.cpp: members of the room and enemy works.
+# - t_camera.cpp, t_camera_draw.cpp: the camera tool's pad words (TC_ON,
+#   TC_TRG, TC_REP) and pad copies; t_esp.cpp: the effect tool's numeric
+#   widgets (FSTORE_AT on LP64 through max / min / unit, nameTbl / nameNum).
+# - ss_pzzl.cpp (also 32 bit): CMES_FLAGS / CMES_RESULT read message 1's
+#   state and selection at MWCC's offsets (vptr behind the fields); with the
+#   port's layout (vptr first) they read be_flag and a byte of m_selTbl. Now
+#   through MessageControl::GetMesStatus / GetSelectMessage.
+--- a/src/Sscrn/ss_pzzl.cpp
++++ b/src/Sscrn/ss_pzzl.cpp
+@@ -177,8 +177,11 @@
+ ssDbgPzzl pzzl_dbg;
+ 
+ 
+-#define CMES_FLAGS (*(u32*) ((u8*) &cMes + 0xFC))
+-#define CMES_RESULT (*(s8*) ((u8*) &cMes + 0x1D1))
++/* port: patch 0073: message 1 through the accessors. 0xFC / 0x1D1 are m_Msg[1].m_state / .m_sel as
++ * MWCC lays the classes out (vptr behind the fields); the port's compilers put the vptr first,
++ * so the offsets hit be_flag / a byte of m_selTbl there, on 32 and on 64 bit */
++#define CMES_FLAGS (cMes.GetMesStatus(1))
++#define CMES_RESULT (cMes.GetSelectMessage(1))
+ 
+ // Queues clearZbuffer into OT 0xF before the case/piece models (they draw over the 2D background).
+ void pzzlClearZ(SUB_SCREEN* wk)
+--- a/src/em2d/em2d.cpp
++++ b/src/em2d/em2d.cpp
+@@ -4802,7 +4802,7 @@
+             }
+             break;
+         case 2:
+-            memcpy((u8*) pPL + 0x328, &em->pos, sizeof(Vec));  // byte-pointer destination: pPL is reloaded for EstSet
++            memcpy((u8*) pPL + RE4_OFS(cPlayer, dmg.m_PosFrom, 0x328), &em->pos, sizeof(Vec));  // byte-pointer destination: pPL is reloaded for EstSet
+             EstSet(pPL, -1, 0, 0, EFF_EM2D, 0x26, 0, ESP_CORE_KIND_NONE, pPL, 0);
+             pG->pl_life = 0;
+             SetPlDamage(em, plem2d_CriticalHit);
+--- a/src/em32/em32.cpp
++++ b/src/em32/em32.cpp
+@@ -4541,7 +4541,7 @@
+         }
+         best = d;
+         // stepPos through a byte pointer: `&w->stepPos` shrinks the loop by 6 instructions
+-        memcpy((u8*) w + 0x79C, &e->pos, sizeof(Vec));
++        memcpy((u8*) w + RE4_OFS(Em32Work, stepPos, 0x79C), &e->pos, sizeof(Vec));
+     }
+ }
+ 
+--- a/src/game/sce_com.cpp
++++ b/src/game/sce_com.cpp
+@@ -817,8 +817,8 @@
+     FadeKill(FADE_NO_ROOM);
+     if (SceSys.m_chapter_door >= 0) {
+         // pos / ang through byte pointers: `&pPL->pos` changes the schedule of this block (27 words)
+-        memcpy((u8*) pPL + 0x94, &plPos, sizeof(Vec));
+-        memcpy((u8*) pPL + 0xA0, &plRot, sizeof(Vec));
++        memcpy((u8*) pPL + RE4_OFS(cPlayer, pos, 0x94), &plPos, sizeof(Vec));
++        memcpy((u8*) pPL + RE4_OFS(cPlayer, ang, 0xA0), &plRot, sizeof(Vec));
+         pG->room_id = room;
+         pG->Part = x4F9E;
+         if (SceAtPtr(SceSys.m_chapter_door)) {
+--- a/src/st1/r100.cpp
++++ b/src/st1/r100.cpp
+@@ -190,7 +190,7 @@
+             // The original's store is a scalar one through the pointer (the pG load after it is not
+             // hoisted above it, and the address stays `0x378(pe)`): a member store is a struct store
+             // and a reference setter folds the address into the frame.
+-            *(PlArc**) ((u8*) pe + 0x378) = (PlArc*) EmReadSearch(0x12, 0, 0);
++            *(PlArc**) ((u8*) pe + RE4_OFS(cEm, subArc, 0x378)) = (PlArc*) EmReadSearch(0x12, 0, 0);
+             EvtMgr.SetBin("em/pl07/pl0700a.bin", ROOM_ARC_PTR(pG->pRoom, 0x26), 0, 2);
+             EvtMgr.SetBin("em/pl07/pl0700.bin", ROOM_ARC_PTR(pG->pRoom, 0x24), 0, 2);
+             EvtMgr.SetBin("em/pl07/pl0700.tpl", ROOM_ARC_PTR(pG->pRoom, 0x25), 0, 2);
+--- a/src/st1/r103.cpp
++++ b/src/st1/r103.cpp
+@@ -191,7 +191,7 @@
+     cEm* pe = &em;
+     int i;
+ 
+-    *(PlArc**) ((u8*) pe + 0x378) = (PlArc*) EmReadSearch(0x12, 0, 0);
++    *(PlArc**) ((u8*) pe + RE4_OFS(cEm, subArc, 0x378)) = (PlArc*) EmReadSearch(0x12, 0, 0);
+     Vec pos = {0.0f, 0.0f, 0.0f};
+     Vec rot = {0.0f, 0.0f, 0.0f};
+     {
+--- a/src/st3/r307.cpp
++++ b/src/st3/r307.cpp
+@@ -279,7 +279,7 @@
+     u32 k;
+ 
+     // byte-pointer destination: the work pointer is reloaded after the copy (joy.h JOY_COPY)
+-    memcpy((u8*) r307_work + 0x58, &r307_initRot, sizeof(R307RotTbl));
++    memcpy((u8*) r307_work + RE4_OFS(R307Work, rot, 0x58), &r307_initRot, sizeof(R307RotTbl));
+     memclr_asm(r307_work->done, 9);
+     memclr_asm(r307_work->x85, 9);
+     for (k = 0; k < 9; k++) {
+--- a/src/st3/r318.cpp
++++ b/src/st3/r318.cpp
+@@ -485,7 +485,7 @@
+                          ROOM_ARC_PTR(pG->pRoom, 0x5E), ROOM_ARC_PTR(pG->pRoom, 0x5F), ROOM_ARC_PTR(pG->pRoom, 0x60)};
+ 
+         r318_work->plPos = pPL->pos;
+-        __builtin_memcpy((u8*) r318_work + 0xD8, &pPL->ang, sizeof(Vec));
++        __builtin_memcpy((u8*) r318_work + RE4_OFS(R318Work, plRot, 0xD8), &pPL->ang, sizeof(Vec));
+         pPL->pos.x = 0.0f;
+         pPL->pos.y = 0.0f;
+         pPL->pos.z = 0.0f;
+@@ -970,7 +970,7 @@
+     switch (pl->r_no_2) {
+     case 0:
+         r318_work->plPos = pPL->pos;
+-        __builtin_memcpy((u8*) r318_work + 0xD8, &pPL->ang, sizeof(Vec));
++        __builtin_memcpy((u8*) r318_work + RE4_OFS(R318Work, plRot, 0xD8), &pPL->ang, sizeof(Vec));
+         pPL->pos.x = 0.0f;
+         pPL->pos.y = 0.0f;
+         pPL->pos.z = 0.0f;
+@@ -1019,7 +1019,7 @@
+         int i;
+ 
+         r318_work->plPos = pPL->pos;
+-        __builtin_memcpy((u8*) r318_work + 0xD8, &pPL->ang, sizeof(Vec));
++        __builtin_memcpy((u8*) r318_work + RE4_OFS(R318Work, plRot, 0xD8), &pPL->ang, sizeof(Vec));
+         pPL->pos.x = 0.0f;
+         pPL->pos.y = 0.0f;
+         pPL->pos.z = 0.0f;
+@@ -1120,7 +1120,7 @@
+     switch (pl->r_no_2) {
+     case 0:
+         r318_work->plPos = pPL->pos;
+-        __builtin_memcpy((u8*) r318_work + 0xD8, &pPL->ang, sizeof(Vec));
++        __builtin_memcpy((u8*) r318_work + RE4_OFS(R318Work, plRot, 0xD8), &pPL->ang, sizeof(Vec));
+         pPL->pos.x = 0.0f;
+         pPL->pos.y = 0.0f;
+         pPL->pos.z = 0.0f;
+--- a/src/t_camera/t_camera.cpp
++++ b/src/t_camera/t_camera.cpp
+@@ -25,9 +25,9 @@
+ #define VEC_ELEM(p, i) (*(f32*) ((u32) (p) + (i) * 12))
+ 
+ // joy.on / trg / rep through byte pointers (and the memcpys into joy / joy2 in ToolCamera): the member forms reschedule the pad reads
+-#define TC_ON (*(u32*) ((u8*) pTc + 0x11C))
+-#define TC_TRG (*(u32*) ((u8*) pTc + 0x120))
+-#define TC_REP (*(u32*) ((u8*) pTc + 0x128))
++#define TC_ON (*(u32*) ((u8*) pTc + RE4_OFS(TcWork, joy.on, 0x11C)))  /* port: patch 0073 */
++#define TC_TRG (*(u32*) ((u8*) pTc + RE4_OFS(TcWork, joy.trg, 0x120)))
++#define TC_REP (*(u32*) ((u8*) pTc + RE4_OFS(TcWork, joy.rep, 0x128)))
+ 
+ static void tcInit();
+ static void tcMenu();
+@@ -77,8 +77,8 @@
+     for (;;) {
+         TcWork* w = pTc;
+         if (w->lightTool == 0) {
+-            memcpy((u8*) w + 0x10C, &Joy[0], sizeof(JOY));
+-            memcpy((u8*) pTc + 0x374, &Joy[1], sizeof(JOY));
++            memcpy((u8*) w + RE4_OFS(TcWork, joy, 0x10C), &Joy[0], sizeof(JOY));
++            memcpy((u8*) pTc + RE4_OFS(TcWork, joy2, 0x374), &Joy[1], sizeof(JOY));
+             switch (pTc->mode) {
+             case 0:
+                 if (pTc->preview == 0) {
+--- a/src/t_camera/t_camera_draw.cpp
++++ b/src/t_camera/t_camera_draw.cpp
+@@ -18,8 +18,8 @@
+ static int tcMenuBlink = 4;
+ static int tcMenuDummy = 0;
+ // joy.trg / rep through byte pointers: the member forms reschedule tcMenuSelect (60 words)
+-#define TC_TRG (*(u32*) ((u8*) pTc + 0x120))
+-#define TC_REP (*(u32*) ((u8*) pTc + 0x128))
++#define TC_TRG (*(u32*) ((u8*) pTc + RE4_OFS(TcWork, joy.trg, 0x120)))
++#define TC_REP (*(u32*) ((u8*) pTc + RE4_OFS(TcWork, joy.rep, 0x128)))
+ 
+ // Per frame: rebuilds the tool camera's projection (perspective or ortho by CameraGetProjection)
+ // and view matrices, copies it into pG->Camera and updates the view.
+--- a/src/t_esp/t_esp.cpp
++++ b/src/t_esp/t_esp.cpp
+@@ -3553,7 +3553,13 @@
+ // COMPONENT_REF), so it may alias the fixed-scalar pointer load (reloaded for `->min`) and the following window's
+ // g_pEditSeq loads stay below it (sched1), as with FSet; unlike FSet the address sits inside the MEM (one cse1-time insn
+ // fewer per store: FSet's reference `addi` was folded into the store by cse1 anyway)
++#if __SIZEOF_POINTER__ == 4
+ #define FSTORE_AT(p, off, v) (*(f32*) ((u8*) (p) + (off)) = (v))
++#else
++/* port: patch 0073, 64 bit: the GameCube offsets of DB_NUMERIC max / min / unit as the members */
++#define FSTORE_AT(p, off, v) \
++    (*((off) == 0xA0 ? &(p)->max : (off) == 0xA4 ? &(p)->min : (off) == 0xB8 ? &(p)->unit : (f32*) 0) = (v))
++#endif
+ // pass 29: every n->max/min/unit store uses the same store kind so the next row's g_pEditSeq loads
+ // depend on them, as in the target. The max store comes before min where a SetDefault call follows,
+ // and the rows whose target copy is mr r9,r7 are pointers-first so reload finds r9 free.
+@@ -5076,8 +5082,8 @@
+             n = pa_->CreateNumeric(win_, &g_pSeqHead->parts, &pos, &sx, 1, DB_NUM_FLAG_HEX | DB_NUM_FLAG_NO_FLOAT_MSG | DB_NUM_FLAG_LOOP);
+             n->SetKeta(2);
+             // nameNum / nameTbl through byte pointers: the member form reorders the next block's g_pSeqHead / rodata loads
+-            *(u32*) ((u8*) n + 0xC4) = 256;
+-            *(const char***) ((u8*) n + 0xC0) = g_partsNameTbl;
++            *(u32*) ((u8*) n + RE4_OFS(DB_NUMERIC, nameNum, 0xC4)) = 256;
++            *(const char***) ((u8*) n + RE4_OFS(DB_NUMERIC, nameTbl, 0xC0)) = g_partsNameTbl;
+         }
+         {
+             DB_PRIM_ARRAY* pa_ = pa;

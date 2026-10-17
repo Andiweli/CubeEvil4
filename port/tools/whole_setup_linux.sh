@@ -2,8 +2,8 @@
 # Installs what port/tools/whole_build.sh needs on Ubuntu 24.04 (cloud sessions
 # through .claude/hooks/session-start.sh, locally in WSL2 on the Windows PC):
 # clang/lld/cmake/ninja, the 32-bit x86 C/C++ libraries for the i686 test
-# build, the ARM32 cross toolchain/sysroot (g++-arm-linux-gnueabihf) and
-# qemu-user to run the ARM32 build, clang-tools (clang-query) for the
+# build, the ARM32 and ARM64 cross toolchains/sysroots (g++-arm-linux-gnueabihf,
+# g++-aarch64-linux-gnu, milestone 12) and qemu-user to run them, clang-tools (clang-query) for the
 # byte-view analysis, Mesa's EGL/GLES3 (headless software rendering) for the
 # pictures of the app's core-mode renderer in the local r100 check (and the
 # app's GL host checks), ffmpeg for the synthetic movie test. g++-multilib
@@ -20,7 +20,7 @@ android=0
 
 need=()
 # libc++-dev: whole_libcxx_check.py (the NDK's C++ library, checked in the Linux build)
-for pkg in libc6-dev-i386 lib32gcc-13-dev lib32stdc++-13-dev g++-arm-linux-gnueabihf qemu-user python3 \
+for pkg in libc6-dev-i386 lib32gcc-13-dev lib32stdc++-13-dev g++-arm-linux-gnueabihf g++-aarch64-linux-gnu qemu-user python3 \
     libgles-dev libegl-dev libegl-mesa0 libgl1-mesa-dri libc++-dev libc++abi-dev; do
   dpkg -s "$pkg" >/dev/null 2>&1 || need+=("$pkg")
 done

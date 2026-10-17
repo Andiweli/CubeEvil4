@@ -17,11 +17,15 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <ucontext.h>
 #include <unistd.h>
 #include <jni.h>
+#if defined(__aarch64__)
+#include <android/dlext.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -77,11 +81,69 @@ template <class F> bool bind(F &slot, const char *name) {
   return slot != nullptr;
 }
 
+#if defined(__aarch64__)
+// 64 bit (milestone 12): the game keeps its addresses in 32 bits and tells
+// its own from others by bit 31, so everything it reaches lies in the window
+// 0x80000000..0xFFFFFFFF. MEM1 (0x80000000..0x83000000) is held with an
+// inaccessible placeholder before anything is loaded (re4_mem1_init maps over
+// it, RE4_MEM1_PLACEHOLDER), and the linker loads the two core libraries into
+// ranges reserved at the top of the window. The core puts its module
+// libraries and stacks there itself (module_loader.cpp, game_window.cpp).
+constexpr unsigned long kWindowStart = 0x83000000ul;
+constexpr unsigned long kWindowEnd = 0x100000000ul;
+
+void *reserveFixed(unsigned long at, unsigned long size) {
+  void *want = reinterpret_cast<void *>(at);
+  void *p = mmap(want, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED_NOREPLACE, -1, 0);
+  if (p == want) return p;
+  if (p != MAP_FAILED) munmap(p, size);  // an old kernel took the address as a hint
+  return nullptr;
+}
+
+// from the top of the window down, in 16 MB steps (ART and the drivers may
+// hold parts of it)
+void *reserveInWindow(unsigned long size) {
+  for (unsigned long at = kWindowEnd - size; at >= kWindowStart; at -= 16ul << 20) {
+    if (void *p = reserveFixed(at, size)) return p;
+  }
+  return nullptr;
+}
+
+void *openInWindow(const char *name, unsigned long size) {
+  void *range = reserveInWindow(size);
+  if (!range) {
+    LOG("no %lu MB below 4 GB for %s", size >> 20, name);
+    return nullptr;
+  }
+  android_dlextinfo info;
+  std::memset(&info, 0, sizeof(info));
+  info.flags = ANDROID_DLEXT_RESERVED_ADDRESS;
+  info.reserved_addr = range;
+  info.reserved_size = size;
+  void *handle = android_dlopen_ext(name, RTLD_NOW | RTLD_LOCAL, &info);
+  if (!handle) {
+    munmap(range, size);
+  } else {
+    LOG("%s at %p", name, range);
+  }
+  return handle;
+}
+#endif
+
 void loadCore() {
   // libre4_main.so brings libre4_platform.so and libc++_shared.so (DT_NEEDED);
   // the module libraries are loaded by name later (re4_module_load).
   // RTLD_LOCAL: the game's symbols must not serve libraries loaded later
+#if defined(__aarch64__)
+  if (reserveFixed(0x80000000ul, kWindowStart - 0x80000000ul)) setenv("RE4_MEM1_PLACEHOLDER", "1", 1);
+  // the platform first, each in a range of its own (its size on x86_64 -O0:
+  // libre4_platform 8 MB, libre4_main 10 MB)
+  if (openInWindow("libre4_platform.so", 32ul << 20)) {
+    api.main = openInWindow("libre4_main.so", 64ul << 20);
+  }
+#else
   api.main = dlopen("libre4_main.so", RTLD_NOW | RTLD_LOCAL);
+#endif
   if (!api.main) {
     const char *e = dlerror();
     api.error = std::string("core libraries missing (port/tools/whole_build_android.sh): ") +

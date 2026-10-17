@@ -11,8 +11,8 @@ build (armhf) and reports
 - casts of a byte-array member (`x->free`, `&x->work[0]`) to a pointer to a
   structure that is larger than the array on LP64 (but fits on ILP32),
 - classes derived from a pool base (cEm, cObj, ...) larger than the pool
-  slot on LP64 (slot sizes from --slot NAME=EXPR, default EM_WORK_SIZE for
-  cEm, OBJ_WORK_SIZE for cObj, evaluated by the unit's own macros).
+  slot on LP64 (slot sizes from --slot NAME=SIZE, default the LP64 sizes of
+  EM_WORK_SIZE and OBJ_WORK_SIZE in port/whole/lp64_sizes.json).
 
     port/tools/m12/overlay_check.py [--ref BUILD] [--lp64 BUILD] [--pattern REGEX]
 
@@ -120,7 +120,9 @@ def main():
     ap.add_argument("--ref", default=str(ROOT / "port/build/whole-armhf"))
     ap.add_argument("--lp64", default=str(ROOT / "port/build/whole-x86_64"))
     ap.add_argument("--pattern", default=r"/prepared/tree/src/(?!lib/).*\.cpp$")
-    ap.add_argument("--slot", action="append", default=["cEm=0xDE0", "cObj=0x3D8"])
+    spec = json.loads((ROOT / "port/whole/lp64_sizes.json").read_text())
+    ap.add_argument("--slot", action="append",
+                    default=[f"{e['slot']}={e['lp64']}" for e in spec["sizes"] if "slot" in e])
     ap.add_argument("--jobs", type=int, default=4)
     args = ap.parse_args()
     resource_dir = subprocess.run(["clang", "-print-resource-dir"], capture_output=True, text=True).stdout.strip()

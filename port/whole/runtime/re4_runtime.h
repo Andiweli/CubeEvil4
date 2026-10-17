@@ -71,6 +71,7 @@ void* re4_window_map(unsigned long size, int prot);
 /* 1 when the game can hold p in 32 bits (ILP32: always); the check logs and aborts. */
 int re4_in_window(const void* p);
 void re4_check_window(const char* what, const void* p);
+void re4_window_report(void);
 
 /* Folder with the extracted disc files (dvd.cpp): <dir>/disc0, <dir>/disc1,
  * each with sys/fst.bin, sys/boot.bin and files/. Set by the launcher. */

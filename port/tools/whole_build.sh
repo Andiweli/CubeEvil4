@@ -24,7 +24,9 @@
 #                              same as a disc folder: test_whole_format_compare.py)
 #   test_whole_movie.py        a synthetic Sofdec movie (ffmpeg) through the CRI
 #                              middleware: frames against ffmpeg, pacing, sound
-# armhf runs under qemu-arm when it is installed. Then the port's runtime files
+# Further targets: x86_64 and aarch64 (64 bit, milestone 12; aarch64 is the
+# arm64-v8a code generation). armhf runs under qemu-arm, aarch64 under
+# qemu-aarch64 when it is installed. Then the port's runtime files
 # are compiled against libc++, the NDK's C++ library (whole_libcxx_check.py:
 # what only the Android build would notice), and the disc folder tool is
 # tested (port/tools/test_whole_disc_folder.py, synthetic images). Needs
@@ -80,6 +82,13 @@ for t in "${targets[@]}"; do
             continue
         fi
         run=(env QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf qemu-arm)
+    fi
+    if [ "$t" = aarch64 ]; then
+        if ! command -v qemu-aarch64 > /dev/null; then
+            echo "  (qemu-aarch64 missing: aarch64 not executed)"
+            continue
+        fi
+        run=(env QEMU_LD_PREFIX=/usr/aarch64-linux-gnu qemu-aarch64)
     fi
     # the core test keeps the card of its memory card checks (RE4_CARD_TEST_FILE),
     # which port/tools/memcard_list.py then reads back

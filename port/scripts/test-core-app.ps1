@@ -6,9 +6,10 @@ installieren, starten, Bildschirmfotos und Protokoll holen.
 .DESCRIPTION
 Drei Schritte, jeder einzeln abschaltbar:
   1. WSL2 (Ubuntu): Android-NDK einmalig einrichten (whole_setup_linux.sh --android,
-     braucht Internet) und den Original-Spielkern fuer ARM32 bauen
+     braucht Internet) und den Original-Spielkern fuer ARM32 und ARM64 bauen
      (whole_build_android.sh). Die Bibliotheken landen in
-     port\android-decomp\app\src\core\jniLibs\armeabi-v7a (nicht im Repository).
+     port\android-decomp\app\src\core\jniLibs\armeabi-v7a und ...\arm64-v8a
+     (nicht im Repository); die APK enthaelt beide (Meilenstein 12).
   2. Windows: die App-Variante "core" bauen (gradlew.bat :app:assembleCoreDebug,
      mit dem Android-SDK von Android Studio).
   3. Retroid per ADB, unter der gemeinsamen Sperre Global\Retroid_ADB_Exclusive
@@ -153,7 +154,8 @@ param(
     [switch]$NewCard,
     [switch]$BlankCard,
     [switch]$SaveTest,
-    [switch]$WeaponTrace
+    [switch]$WeaponTrace,
+    [ValidateSet('auto', 'armeabi-v7a', 'arm64-v8a')][string]$Abi = 'auto'
 )
 $ErrorActionPreference = 'Stop'
 # -Manual: you play yourself, 30 minutes unless -Seconds is given (Q ends earlier)
@@ -238,7 +240,7 @@ if (-not $SkipCore) {
         & wsl.exe @wslBase -u root --exec bash "$repoWsl/port/tools/whole_setup_linux.sh" --android
         if ($LASTEXITCODE -ne 0) { throw 'Einrichtung in WSL fehlgeschlagen (Internet noetig).' }
     }
-    Say '1. Spielkern fuer ARM32 bauen (beim ersten Mal 10 bis 30 Minuten) ...'
+    Say '1. Spielkern fuer ARM32 und ARM64 bauen (beim ersten Mal 20 bis 60 Minuten) ...'
     $coreLog = Join-Path $OutDir 'kern-build.log'
     $code = Invoke-Logged $coreLog {
         wsl.exe @wslBase --exec bash "$repoWsl/port/tools/whole_build_android.sh" --source $repoWsl `
@@ -247,11 +249,13 @@ if (-not $SkipCore) {
     Add-ReportTail $coreLog 30
     if ($code -ne 0) { throw 'Kern-Build fehlgeschlagen (Einzelheiten oben und in kern-build.log).' }
 }
-$libs = Join-Path $app 'app\src\core\jniLibs\armeabi-v7a'
-if (-not (Test-Path -LiteralPath (Join-Path $libs 'libre4_main.so'))) {
-    throw "Kern-Bibliotheken fehlen in $libs (Schritt 1 ausfuehren)."
+foreach ($libAbi in @('armeabi-v7a', 'arm64-v8a')) {
+    $libs = Join-Path $app "app\src\core\jniLibs\$libAbi"
+    if (-not (Test-Path -LiteralPath (Join-Path $libs 'libre4_main.so'))) {
+        throw "Kern-Bibliotheken fehlen in $libs (Schritt 1 ausfuehren)."
+    }
+    Say "Kern-Bibliotheken ${libAbi}: $((Get-ChildItem -LiteralPath $libs -Filter '*.so').Count) Dateien"
 }
-Say "Kern-Bibliotheken: $((Get-ChildItem -LiteralPath $libs -Filter '*.so').Count) Dateien"
 
 # ---- 2. the APK of the core flavor (Windows, Gradle) --------------------------------------
 $apk = Join-Path $app 'app\build\outputs\apk\core\debug\app-core-debug.apk'
@@ -375,12 +379,16 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     }
     $abis = ((& $Adb -s $Serial shell getprop ro.product.cpu.abilist) -join '').Trim()
     Say "3. Geraet $Serial, ABIs: $abis"
-    if ($abis -notmatch 'armeabi-v7a') { throw 'Das Geraet kann keine 32-bit-Apps ausfuehren.' }
-    & $Adb -s $Serial install -r $apk | ForEach-Object { Say "   $_" }
+    if ($Abi -ne 'auto' -and $abis -notmatch [regex]::Escape($Abi)) { throw "Das Geraet kann keine $Abi-Apps ausfuehren." }
+    # -Abi: the APK carries both; without it the device picks (64 bit where it can)
+    $installArgs = @('install', '-r')
+    if ($Abi -ne 'auto') { $installArgs += @('--abi', $Abi) }
+    & $Adb -s $Serial @installArgs $apk | ForEach-Object { Say "   $_" }
     if ($LASTEXITCODE -ne 0) { throw 'Installation fehlgeschlagen.' }
     $info = (& $Adb -s $Serial shell dumpsys package $package) -join "`n"
-    if ($info -notmatch 'primaryCpuAbi=armeabi-v7a') { throw 'Die App laeuft nicht als armeabi-v7a.' }
-    Say '   App installiert (armeabi-v7a)'
+    $runAbi = if ($info -match 'primaryCpuAbi=(\S+)') { $Matches[1] } else { '?' }
+    if ($Abi -ne 'auto' -and $runAbi -ne $Abi) { throw "Die App laeuft als $runAbi statt $Abi." }
+    Say "   App installiert ($runAbi$(if ($runAbi -eq 'arm64-v8a') { ', 64 bit' } elseif ($runAbi -eq 'armeabi-v7a') { ', 32 bit' }))"
     # The import runs inside the app (several minutes per disc): the test waits for it instead of
     # stopping the app, because stopping it cancels the import.
     $game = "/sdcard/Android/data/$package/files/game"

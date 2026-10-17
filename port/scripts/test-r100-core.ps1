@@ -65,6 +65,10 @@ Nur bauen und den Speicherkarten-Teil pruefen (Abschnitt 7, wenige Minuten).
 .EXAMPLE
 .\port\scripts\test-r100-core.ps1 -DataDir 'D:\RE4\Disc' -Arm
 Zusaetzlich der ARM32-Build unter qemu (wie auf dem Retroid, aber langsam).
+.EXAMPLE
+.\port\scripts\test-r100-core.ps1 -Lp64
+Alles mit dem 64-bit-Build (x86_64, steht fuer arm64-v8a) statt dem 32-bit-PC-Build;
+laesst sich mit -OnlyCard, -Rooms und -Reload kombinieren.
 #>
 param(
     [string]$DataDir = '',
@@ -72,6 +76,7 @@ param(
     [int]$Frames = 10000,
     [string]$Room = '100',
     [switch]$Arm,
+    [switch]$Lp64,
     [switch]$OnlyCard,
     [string]$Rooms = '',
     [int]$TourFrames = 1500,
@@ -128,6 +133,7 @@ if (-not $SkipSetup) {
 
 $checkArgs = @('--source', $repoWsl, '--data', $dataWsl, '--out', $outWsl, '--frames', "$Frames", '--room', $Room)
 if ($Arm) { $checkArgs += '--arm' }
+if ($Lp64) { $checkArgs += '--lp64' }
 if ($OnlyCard) { $checkArgs += '--card-only' }
 if ($Rooms) { $checkArgs += @('--rooms', $Rooms, '--tour-frames', "$TourFrames") }
 if ($Reload -gt 0) { $checkArgs += @('--reload', "$Reload") }

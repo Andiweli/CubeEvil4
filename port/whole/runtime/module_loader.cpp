@@ -7,13 +7,50 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(__ANDROID__) && __SIZEOF_POINTER__ != 4
+#include <android/dlext.h>
+#include <sys/mman.h>
+#endif
 
 namespace {
 
 struct Loaded {
     const char* name;
     void* handle;
+    void* range;          // Android, 64 bit: the reserved range of the window it lies in
+    unsigned long rangeSize;
 };
+
+#if defined(__ANDROID__) && __SIZEOF_POINTER__ != 4
+// 64 bit on Android (milestone 12): nothing places the libraries below 4 GB
+// as the Linux loader does (host/loader.c). Each module gets a reserved range
+// of the window (re4_window_map) and the linker loads it there. The largest
+// module spans 2 MB (x86_64 -O0, libre4_t_esp.so); a module that does not fit
+// is tried once more in a range four times as large.
+const unsigned long kModuleRange = 8ul << 20;
+
+void* openInWindow(const char* path, void** range, unsigned long* rangeSize)
+{
+    for (unsigned long size = kModuleRange; size <= 4 * kModuleRange; size *= 4) {
+        void* r = re4_window_map(size, PROT_NONE);
+        if (!r) {
+            return 0;
+        }
+        android_dlextinfo info;
+        memset(&info, 0, sizeof(info));
+        info.flags = ANDROID_DLEXT_RESERVED_ADDRESS;
+        info.reserved_addr = r;
+        info.reserved_size = size;
+        if (void* handle = android_dlopen_ext(path, RTLD_NOW | RTLD_LOCAL, &info)) {
+            *range = r;
+            *rangeSize = size;
+            return handle;
+        }
+        munmap(r, size);
+    }
+    return 0;
+}
+#endif
 
 char gModuleDir[1024] = ".";
 Loaded gLoaded[128];
@@ -84,7 +121,13 @@ extern "C" void* re4_module_load(const char* name)
     }
     // RTLD_LOCAL: each module keeps its own copies of the units the original
     // RELs duplicated (em_wrap.cpp, st2.cpp, ...), exactly as on the GameCube.
+    void* range = 0;
+    unsigned long rangeSize = 0;
+#if defined(__ANDROID__) && __SIZEOF_POINTER__ != 4
+    void* handle = openInWindow(path, &range, &rangeSize);
+#else
     void* handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+#endif
     if (!handle) {
         re4_log("module %s: %s", name, dlerror());
         return 0;
@@ -94,6 +137,8 @@ extern "C" void* re4_module_load(const char* name)
     }
     gLoaded[gLoadedCount].name = strdup(name);
     gLoaded[gLoadedCount].handle = handle;
+    gLoaded[gLoadedCount].range = range;
+    gLoaded[gLoadedCount].rangeSize = rangeSize;
     gLoadedCount++;
     return handle;
 }
@@ -110,6 +155,12 @@ extern "C" void re4_module_unload(const char* name)
         return;
     }
     dlclose(gLoaded[i].handle);
+#if defined(__ANDROID__) && __SIZEOF_POINTER__ != 4
+    // the linker leaves the range mapped (or reserved): back to the window
+    if (gLoaded[i].range) {
+        munmap(gLoaded[i].range, gLoaded[i].rangeSize);
+    }
+#endif
     free((void*) gLoaded[i].name);
     // Keep load order: the newest module wins in re4_try_resolve_import.
     memmove(&gLoaded[i], &gLoaded[i + 1], (gLoadedCount - i - 1) * sizeof(gLoaded[0]));

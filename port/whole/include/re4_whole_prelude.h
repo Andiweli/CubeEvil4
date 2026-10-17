@@ -37,6 +37,22 @@
 #define RE4_ASM_NEW_ARRAY "_Znam"
 #endif
 
+/* Fixed work areas and pool slots on 64 bit (milestone 12, whole_prepare.py
+ * lp64_sizes, port/whole/lp64_sizes.json): the GameCube size on ILP32, on LP64
+ * the size the classes and the works laid over the areas need there. */
+#if __SIZEOF_POINTER__ == 4
+#define RE4_LP64_SIZE(gc, lp64) (gc)
+#else
+#define RE4_LP64_SIZE(gc, lp64) (lp64)
+#endif
+
+/* A GameCube byte offset into a structure whose members move on LP64
+ * (`(u8*) p + 0x378`, milestone 12, patch 0073): the member's offset, on ILP32
+ * checked at compile time against the GameCube value the code had. */
+#define RE4_OFS(T, member, gc)                                                              \
+    ((void) sizeof(char[(sizeof(void*) != 4 || __builtin_offsetof(T, member) == (gc)) ? 1 : -1]), \
+     __builtin_offsetof(T, member))
+
 /* C equivalents of the Gekko instructions of the replaced inline asm. */
 #include "re4_ppc.h"
 

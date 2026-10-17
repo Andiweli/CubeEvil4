@@ -103,6 +103,42 @@ extern "C" void* re4_window_map(unsigned long size, int prot)
 #endif
 }
 
+// The window as the process has it now, into the log (once at the start of
+// the core on LP64: on Android ART and the drivers may already hold parts of
+// it, which the report of a first device run shows).
+extern "C" void re4_window_report(void)
+{
+#if __SIZEOF_POINTER__ != 4
+    FILE* f = fopen("/proc/self/maps", "r");
+    if (!f) {
+        return;
+    }
+    unsigned long used = 0, largest = 0, at = kWindowStart;
+    int ranges = 0;
+    char line[512];
+    while (fgets(line, sizeof(line), f)) {
+        unsigned long a, b;
+        if (sscanf(line, "%lx-%lx", &a, &b) != 2 || b <= kWindowStart || a >= kWindowEnd) {
+            continue;
+        }
+        a = a < kWindowStart ? kWindowStart : a;
+        b = b > kWindowEnd ? kWindowEnd : b;
+        if (a > at && a - at > largest) {
+            largest = a - at;
+        }
+        at = b > at ? b : at;
+        used += b - a;
+        ranges++;
+    }
+    fclose(f);
+    if (kWindowEnd - at > largest) {
+        largest = kWindowEnd - at;
+    }
+    re4_log("window 0x%lx..0x%lx: %d mappings, %lu MB in use, largest free range %lu MB", kWindowStart,
+            kWindowEnd, ranges, used >> 20, largest >> 20);
+#endif
+}
+
 extern "C" int re4_in_window(const void* p)
 {
 #if __SIZEOF_POINTER__ == 4

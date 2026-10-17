@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Builds the game core for the Android app (armeabi-v7a, the core mode of
+# Builds the game core for the Android app (the core mode of
 # RE4-Android-Decomp) with the NDK and copies the libraries into the app:
 #
-#   port/tools/whole_build_android.sh [--ndk DIR] [--opt N] [--source REPO] [--into APP]
+#   port/tools/whole_build_android.sh [--ndk DIR] [--opt N] [--abi ABI] [--source REPO] [--into APP]
 #
+#   --abi ABI      armeabi-v7a, arm64-v8a (milestone 12) or all (the default:
+#                  both, one APK for 32- and 64-bit devices)
 #   --source REPO  build the current commit of that checkout (for the Windows
 #                  checkout under /mnt/...: cloned once to ~/re4-kern/RE4 and
 #                  fetched, like whole_r100_check.sh; building on a Windows
@@ -13,7 +15,7 @@
 #                  the Windows checkout's app folder
 #
 #   libre4_platform.so, libre4_main.so, libre4_<module>.so (114), libc++_shared.so
-#     -> port/android-decomp/app/src/core/jniLibs/armeabi-v7a/   (not in git)
+#     -> port/android-decomp/app/src/core/jniLibs/<abi>/   (not in git)
 #
 # The NDK: --ndk, else $ANDROID_NDK_HOME / $ANDROID_NDK_ROOT, else
 # /opt/android-ndk-r28c (sudo port/tools/whole_setup_linux.sh --android
@@ -32,12 +34,14 @@ set -u
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 ndk="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-/opt/android-ndk-r28c}}"
 opt=2
+abi=all
 source=""
 into=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --ndk) ndk="$2"; shift 2 ;;
         --opt) opt="$2"; shift 2 ;;
+        --abi) abi="$2"; shift 2 ;;
         --source) source="$2"; shift 2 ;;
         --into) into="$2"; shift 2 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -78,15 +82,22 @@ case "$revision" in
     *) echo "Hinweis: die App verwendet NDK 28.2.13676358; dieses NDK ist $revision" ;;
 esac
 
-build="$root/port/build/whole-android-armv7"
+# one ABI: build, check, copy into the app
+build_abi() {
+case "$1" in
+    armeabi-v7a) tag=armv7; triple=arm-linux-androideabi ;;
+    arm64-v8a) tag=arm64; triple=aarch64-linux-android ;;
+    *) echo "unknown ABI: $1" >&2; return 2 ;;
+esac
+build="$root/port/build/whole-android-$tag"
 log="$build.log"
-out="$app/src/core/jniLibs/armeabi-v7a"
+out="$app/src/core/jniLibs/$1"
 assets="$app/src/core/assets"
 mkdir -p "$root/port/build"
-echo "Build (Log: port/build/whole-android-armv7.log) ..."
+echo "Build $1 (Log: port/build/whole-android-$tag.log) ..."
 cmake -S "$root/port/whole" -B "$build" -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE="$toolchain" \
-    -DANDROID_ABI=armeabi-v7a \
+    -DANDROID_ABI="$1" \
     -DANDROID_PLATFORM=android-21 \
     -DANDROID_STL=c++_shared \
     -DRE4_OPT_LEVEL="$opt" > "$log" 2>&1 &&
@@ -94,17 +105,17 @@ cmake -S "$root/port/whole" -B "$build" -G Ninja \
 code=$?
 failed=$(grep -c '^FAILED' "$log")
 errors=$(grep -E ': error:|fatal error:|ld.lld: error' "$log" | sort -u | wc -l)
-echo "android armeabi-v7a -O$opt: $failed failed build steps, $errors distinct errors"
+echo "android $1 -O$opt: $failed failed build steps, $errors distinct errors"
 grep -h '^link plan:' "$log" | tail -1 | sed 's/^/  /'
 if [ "$code" -ne 0 ] || [ "$failed" -ne 0 ] || [ "$errors" -ne 0 ]; then
     grep -E ': error:|fatal error:|ld.lld: error' "$log" | sort -u | head -40 | sed 's/^/  /'
     if [ "$failed" -eq 0 ] && [ "$errors" -eq 0 ]; then
         # no compile step failed: CMake or the source preparation (whole_prepare.py,
         # patches) stopped, or ninja itself was ended; the end of the log says which
-        echo "  (exit code $code; end of port/build/whole-android-armv7.log:)"
+        echo "  (exit code $code; end of port/build/whole-android-$tag.log:)"
         tail -n 25 "$log" | sed 's/^/  /'
     fi
-    exit 1
+    return 1
 fi
 
 status=0
@@ -125,7 +136,7 @@ python3 "$root/port/tools/whole_stub_check.py" "$build/generated/link_report.jso
 
 readelf=$(ls "$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-readelf 2> /dev/null | head -1)
 strip=$(ls "$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-strip 2> /dev/null | head -1)
-cxxshared=$(ls "$ndk"/toolchains/llvm/prebuilt/*/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so 2> /dev/null | head -1)
+cxxshared=$(ls "$ndk"/toolchains/llvm/prebuilt/*/sysroot/usr/lib/$triple/libc++_shared.so 2> /dev/null | head -1)
 for sym in re4_core_reserve re4_core_start re4_core_state re4_core_message re4_core_pad re4_core_rumble re4_core_audio re4_core_acquire \
     re4_core_release re4_core_log_tail; do
     if ! "$readelf" -W --dyn-syms "$build/libre4_main.so" | grep -q " $sym$"; then
@@ -134,7 +145,7 @@ for sym in re4_core_reserve re4_core_start re4_core_state re4_core_message re4_c
     fi
 done
 [ -f "$cxxshared" ] || { echo "  FEHLER: libc++_shared.so nicht im NDK gefunden"; status=1; }
-[ "$status" -ne 0 ] && exit 1
+[ "$status" -ne 0 ] && return 1
 
 rm -rf "$out"
 mkdir -p "$out" "$assets"
@@ -155,5 +166,18 @@ commit=$(git -C "$root" rev-parse --short HEAD 2> /dev/null || echo unknown)
     echo "ndk=$revision"
     echo "opt=$opt"
     echo "libraries=$(ls "$out" | grep -c '\.so$')"
-} > "$assets/core-libs.properties"
-echo "Kern-Bibliotheken: $(ls "$out" | grep -c '\.so$') Dateien, $(du -sh "$out" | cut -f1) -> $out"
+} > "$assets/core-libs-$1.properties"
+# the file of earlier versions (one ABI)
+rm -f "$assets/core-libs.properties"
+echo "Kern-Bibliotheken $1: $(ls "$out" | grep -c '\.so$') Dateien, $(du -sh "$out" | cut -f1) -> $out"
+}
+
+case "$abi" in
+    all) abis=(armeabi-v7a arm64-v8a) ;;
+    *) abis=("$abi") ;;
+esac
+result=0
+for a in "${abis[@]}"; do
+    build_abi "$a" || result=1
+done
+exit $result

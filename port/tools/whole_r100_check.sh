@@ -3,7 +3,7 @@
 # by port/scripts/test-r100-core.ps1 on Windows, or directly:
 #
 #   port/tools/whole_r100_check.sh --data DIR [--room 100] [--frames 10000]
-#       [--out DIR] [--source REPO] [--work DIR] [--arm] [--no-build]
+#       [--out DIR] [--source REPO] [--work DIR] [--arm] [--lp64] [--no-build]
 #
 # --data DIR   the disc data, in one of these forms:
 #              - the port's folder (disc0/sys, disc0/files, disc1/...),
@@ -18,6 +18,8 @@
 # --work       working folder, default ~/re4-kern
 # --out        where the report and the logs go, default WORK/runs/<time>
 # --arm        also build ARM32 and run the game under qemu-arm (slow)
+# --lp64       the 64-bit build (x86_64, milestone 12, stands for arm64-v8a)
+#              instead of the 32-bit PC build (i686) for every step
 # --card-only  after the build only the memory card runs (section 7)
 # --rooms LIST after the build only a round of rooms (section 8): each room
 #              by the debug start, --tour-frames frames of its main loop
@@ -49,6 +51,7 @@ out=""
 source=""
 work="$HOME/re4-kern"
 arm=0
+host=i686
 build=1
 card_only=0
 rooms=""
@@ -63,6 +66,7 @@ while [ $# -gt 0 ]; do
     --source) source="$2"; shift 2 ;;
     --work) work="$2"; shift 2 ;;
     --arm) arm=1; shift ;;
+    --lp64) host=x86_64; shift ;;
     --no-build) build=0; shift ;;
     --card-only) card_only=1; shift ;;
     --rooms) rooms="$2"; shift 2 ;;
@@ -140,6 +144,7 @@ say "Zeit:    $(date '+%Y-%m-%d %H:%M:%S')"
 say "Stand:   $commit"
 say "System:  $(uname -srm), $(nproc) Kerne, $((mem_kb / 1048576)) GB Speicher, $jobs Build-Jobs"
 say "Daten:   $data"
+say "Kern:    $host$([ "$host" = x86_64 ] && echo ' (64 bit, wie arm64-v8a)' || echo ' (32 bit, wie armeabi-v7a)')"
 
 # ---- disc data -------------------------------------------------------------------------
 layout=""
@@ -192,7 +197,7 @@ fi
 # (empty) checks the unoptimised build instead
 export RE4_OPT="${RE4_OPT-2}"
 opt="${RE4_OPT:+-O$RE4_OPT}"
-targets=(i686)
+targets=("$host")
 [ "$arm" -eq 1 ] && targets+=(armhf)
 if [ "$build" -eq 1 ]; then
     section "1. Build und Prüfungen ohne Disc-Daten (whole_build.sh ${targets[*]})"
@@ -205,7 +210,7 @@ if [ "$build" -eq 1 ]; then
 fi
 
 # ---- format comparison with the disc files ---------------------------------------------
-cmp="$src/port/build/whole-i686$opt/re4_format_compare"
+cmp="$src/port/build/whole-$host$opt/re4_format_compare"
 [ "$card_only" -eq 0 ] && [ -z "$rooms" ] && [ -z "$reload_weapon" ] &&
     section "2. Formatvergleich App-Leser gegen Kern-Umwandler mit Disc-Daten"
 if [ "$card_only" -eq 1 ] || [ -n "$rooms" ] || [ -n "$reload_weapon" ]; then
@@ -660,7 +665,7 @@ PY
 # core_snapshot_render.cpp; needs the Mesa EGL/GLES packages of
 # whole_setup_linux.sh)
 render_pictures() {
-    local snaps="$run/schnappschuesse-i686" pics="$run/bilder" tool_build="$src/port/build/app-host-gl"
+    local snaps="$run/schnappschuesse-$host" pics="$run/bilder" tool_build="$src/port/build/app-host-gl"
     section "4. Bilder der App-Brücke (wie der Kernmodus der App zeichnet)"
     if ! ls "$snaps"/*.bin > /dev/null 2>&1; then
         say "Keine Schnappschüsse (Hauptschleife nicht erreicht?)"
@@ -715,7 +720,7 @@ render_pictures() {
 # title, menus, displays, effects), drawn with the app's GX renderer
 # (port/android-decomp/tools/gx_chunk_render.cpp; frames from RE4_GX_DUMP)
 render_gx_pictures() {
-    local dump="$run/gx-i686" pics="$run/bilder-gx" tool_build="$src/port/build/app-host-gl"
+    local dump="$run/gx-$host" pics="$run/bilder-gx" tool_build="$src/port/build/app-host-gl"
     section "5. Bilder über die GX-Nachbildung (was das Spiel selbst zeichnet)"
     if ! ls "$dump"/*.bin > /dev/null 2>&1; then
         say "Keine GX-Bilder aufgezeichnet (Spiel nicht weit genug gelaufen?)"
@@ -743,7 +748,7 @@ render_gx_pictures() {
     local keep
     # the picture with the map open (free + map_dump, the dump starts one or two frames later)
     local freeframe mapfile=""
-    freeframe=$(grep -m1 "run: player free" "$run/spiel-i686.log" 2> /dev/null | sed -n 's/.* at frame \([0-9]*\).*/\1/p')
+    freeframe=$(grep -m1 "run: player free" "$run/spiel-$host.log" 2> /dev/null | sed -n 's/.* at frame \([0-9]*\).*/\1/p')
     if [ -n "$freeframe" ]; then
         for d in 0 1 2 3 4 5; do
             f=$(printf '%s/gx-%06u.bin' "$dump" $((freeframe + map_dump + d)))
@@ -787,7 +792,7 @@ PY
 # CRI errors, the time one step takes; a still every 30 s as PNG
 # (bilder-film/) and the sound of the opening movie as WAV (film-*.wav).
 run_movies() {
-    local dir="$src/port/build/whole-i686$opt" mins="${RE4_CHECK_MOVIE_MINUTES:-15}"
+    local dir="$src/port/build/whole-$host$opt" mins="${RE4_CHECK_MOVIE_MINUTES:-15}"
     section "6. Filme der Disc über die CRI-Middleware (ganz, im Schnelllauf)"
     if [ ! -x "$dir/re4_host" ]; then
         say "FEHLER: $dir/re4_host fehlt (Build fehlgeschlagen?)"
@@ -915,7 +920,7 @@ card_stop() {
     echo "${line:-kein regulärer Stopp}"
 }
 run_memcard() {
-    local dir="$src/port/build/whole-i686$opt" card="$run/speicherkarte-a.bin" bad=0 code
+    local dir="$src/port/build/whole-$host$opt" card="$run/speicherkarte-a.bin" bad=0 code
     local limit="${RE4_CHECK_CARD_LIMIT:-900}"
     section "7. Speicherkarte: Systemdatei anlegen, im Raum speichern, Neustart, im Titel laden"
     if [ ! -x "$dir/re4_host" ]; then
@@ -1016,7 +1021,7 @@ PY
 }
 
 run_tour() {
-    local dir="$src/port/build/whole-i686$opt" list
+    local dir="$src/port/build/whole-$host$opt" list
     list=$(tour_list "$rooms" | tr 'A-F' 'a-f')
     local count
     count=$(echo $list | wc -w)
@@ -1135,8 +1140,8 @@ run_tour() {
 # the player's reload motion ran, how close his left hand came to the gun,
 # what the weapon object did) and has GX pictures of both reloads.
 run_reload() {
-    local dir="$src/port/build/whole-i686$opt" log="$run/nachladen.log" trace="$run/nachladen.jsonl"
-    local dump="$run/gx-i686"
+    local dir="$src/port/build/whole-$host$opt" log="$run/nachladen.log" trace="$run/nachladen.jsonl"
+    local dump="$run/gx-$host"
     section "8. Nachlade-Prüfung: Waffe $reload_weapon in r100, mit gehaltenem und mit losgelassenem Zielen"
     if [ ! -x "$dir/re4_host" ]; then
         say "FEHLER: $dir/re4_host fehlt (Build fehlgeschlagen?)"
@@ -1215,7 +1220,7 @@ elif [ "$game_ok" -eq 1 ] && [ "$card_only" -eq 1 ]; then
     run_memcard
 elif [ "$game_ok" -eq 1 ]; then
     # limits in seconds: overall, until the main loop, without a new frame
-    run_game i686 "${RE4_CHECK_LIMIT:-3600}" "${RE4_CHECK_MAIN_LIMIT:-600}" "${RE4_CHECK_STALL:-180}"
+    run_game "$host" "${RE4_CHECK_LIMIT:-3600}" "${RE4_CHECK_MAIN_LIMIT:-600}" "${RE4_CHECK_STALL:-180}"
     render_pictures
     render_gx_pictures
     run_movies

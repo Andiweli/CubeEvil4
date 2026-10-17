@@ -55,18 +55,20 @@ def strip(c):
     return c
 
 
-def starts(t, base=0, out=None, depth=0):
-    """{offset: member path} of every member start (nested records included)"""
+def starts(t, base=0, out=None, depth=0, prefix=""):
+    """{offset: member path} of every member start (nested records included, as "tot.val": leaf
+    names repeat in nested records)"""
     import clang.cindex as ci
     out = {} if out is None else out
     for f in t.get_declaration().get_children():
         if f.kind != ci.CursorKind.FIELD_DECL or f.get_field_offsetof() < 0:
             continue
         off = base + f.get_field_offsetof() // 8
-        out.setdefault(off, f.spelling)
+        path = prefix + f.spelling
+        out.setdefault(off, path)
         ft = f.type.get_canonical()
         if ft.kind == ci.TypeKind.RECORD and depth < 3:
-            starts(ft, off, out, depth + 1)
+            starts(ft, off, out, depth + 1, path + ".")
     return out
 
 

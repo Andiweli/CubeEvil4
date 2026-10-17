@@ -47,10 +47,11 @@ android {
     }
     // classic: the app's own game modules (arm64-v8a), as before.
     // core: the original game core (port/whole) runs the whole game
-    //   (armeabi-v7a, its own app id "com.ast.re4decomp.core", installed next
-    //   to the classic app). Before building it, run in WSL/Linux:
+    //   (armeabi-v7a and, since milestone 12, arm64-v8a in one APK; its own
+    //   app id "com.ast.re4decomp.core", installed next to the classic app).
+    //   Before building it, run in WSL/Linux:
     //   port/tools/whole_build_android.sh  (copies the core libraries to
-    //   src/core/jniLibs/armeabi-v7a; see port/docs/whole-program-status.md)
+    //   src/core/jniLibs/<abi>; see port/docs/whole-program-status.md)
     flavorDimensions 'engine'
     productFlavors {
         classic {
@@ -64,7 +65,7 @@ android {
             // the core's libraries load each other from the APK by name
             // (the module libraries at run time): Android 6.0 and later
             minSdk 23
-            ndk { abiFilters 'armeabi-v7a' }
+            ndk { abiFilters 'armeabi-v7a', 'arm64-v8a' }
             externalNativeBuild { cmake { arguments '-DRE4_CORE_MODE=ON' } }
         }
     }
