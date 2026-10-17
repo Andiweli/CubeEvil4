@@ -45,10 +45,12 @@ android {
         versionName '0.37.17-fix6'
         externalNativeBuild { cmake { cppFlags '-std=c++17 -Wall -Wextra' } }
     }
-    // classic: the app's own game modules (arm64-v8a), as before.
+    // classic: the app's own game modules (arm64-v8a), as before; since
+    //   17.10.2026 app id "com.ast.re4decomp.classic" (installable next to the core app).
     // core: the original game core (port/whole) runs the whole game
-    //   (armeabi-v7a and, since milestone 12, arm64-v8a in one APK; its own
-    //   app id "com.ast.re4decomp.core", installed next to the classic app).
+    //   (armeabi-v7a and, since milestone 12, arm64-v8a in one APK; app id
+    //   "com.ast.re4decomp", until 17.10.2026 "com.ast.re4decomp.core";
+    //   decision of the project owner).
     //   Before building it, run in WSL/Linux:
     //   port/tools/whole_build_android.sh  (copies the core libraries to
     //   src/core/jniLibs/<abi>; see port/docs/whole-program-status.md)
@@ -56,11 +58,11 @@ android {
     productFlavors {
         classic {
             dimension 'engine'
+            applicationIdSuffix '.classic'
             ndk { abiFilters 'arm64-v8a' }
         }
         core {
             dimension 'engine'
-            applicationIdSuffix '.core'
             versionNameSuffix '-core'
             // the core's libraries load each other from the APK by name
             // (the module libraries at run time): Android 6.0 and later

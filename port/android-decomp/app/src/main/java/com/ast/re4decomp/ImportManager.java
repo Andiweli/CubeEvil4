@@ -24,8 +24,9 @@ public final class ImportManager {
   private final AtomicBoolean cancelled = new AtomicBoolean();
   private Listener listener;
   public volatile boolean busy;
-  public volatile String status =
-      "Select ISO/GCM files of the November 25, 2004 debug build.";
+  /** The status before anything happened (the core launcher's heading of the import). */
+  public static final String PROMPT = "Select ISO/GCM files of the November 25, 2004 debug build.";
+  public volatile String status = PROMPT;
   public final File root;
   public ImportManager(Context context) {
     this.context = context.getApplicationContext();

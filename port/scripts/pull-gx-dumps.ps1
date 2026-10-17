@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Holt die Grafik-Aufnahmen der App "RE4 Kern" vom Retroid (R3 im Spiel).
+Holt die Grafik-Aufnahmen der App "RE4 Kern" (com.ast.re4decomp) vom Retroid (R3 im Spiel).
 
 .DESCRIPTION
 Ein Druck auf den rechten Stick (R3) speichert in der App die vollstaendigen
@@ -20,7 +20,7 @@ param(
     [switch]$Keep
 )
 $ErrorActionPreference = 'Stop'
-$package = 'com.ast.re4decomp.core'
+$package = 'com.ast.re4decomp'
 $remote = "/sdcard/Android/data/$package/files/gx-dumps"
 if (-not $Adb) {
     $Adb = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'

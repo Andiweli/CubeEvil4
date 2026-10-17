@@ -503,9 +503,10 @@ dem Spielspeicher werden dafür nicht gebraucht. Statusanzeige im Overlay:
 letzten Log-Zeilen.
 
 **App-Variante** (`app/build.gradle`, `flavorDimensions 'engine'`):
-`classic` = bisherige App (arm64-v8a, `com.ast.re4decomp`, Standard in
-Android Studio), `core` = Kernmodus (armeabi-v7a, `com.ast.re4decomp.core`,
-Name „RE4 Kern“, ab Android 6.0, CMake `-DRE4_CORE_MODE=ON`). Im Kernmodus startet „Start
+`classic` = bisherige App (arm64-v8a, `com.ast.re4decomp.classic`, bis
+17.10.2026 `com.ast.re4decomp`, Standard in Android Studio), `core` =
+Kernmodus (armeabi-v7a und seit M12 arm64-v8a, `com.ast.re4decomp`, bis
+17.10.2026 `com.ast.re4decomp.core`, Name „RE4 Kern“, ab Android 6.0, CMake `-DRE4_CORE_MODE=ON`). Im Kernmodus startet „Start
 game“ die `CoreActivity` statt `StartupActivity`; Raumbrowser und
 Diagnosen (eigene Spielmodule `r100_scenario`, `enemy_encounter`,
 `event_playback` …) sind ausgeblendet und werden nie aufgerufen (sie bleiben
@@ -2459,8 +2460,8 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
   entsteht eine neue Karte, seit 17.10.2026 formatiert und leer, mit
   `RE4_MEMCARD_NEW=blank` unformatiert); `RE4_MEMCARD=none`: Schacht A leer;
   sonst der angegebene Pfad. In der App ist das
-  `Android/data/com.ast.re4decomp.core/files/game/memcard/card-a.bin` (ein
-  neuer Disc-Import lässt sie stehen). Schacht B bleibt leer.
+  `Android/data/com.ast.re4decomp/files/game/memcard/card-a.bin` (bis
+  17.10.2026 `com.ast.re4decomp.core`; ein neuer Disc-Import lässt sie stehen). Schacht B bleibt leer.
 - **Startprüfung echt:** Patch 0039 und `runtime/card.cpp` entfallen. Die
   automatischen Läufe (`whole_r100_check.sh` Hauptlauf und Filme,
   `test-core-app.ps1` ohne `-Manual`) setzen `RE4_MEMCARD=none`: ihr Zeitplan
@@ -3384,6 +3385,32 @@ Bild über schwarzem Grund oder ein ganzes Bildschirmbild ist, zeigt
 PNG und listet je Anordnung, welches Bild wo und wie groß in welchen Bildern
 des Zählers steht (getestet mit einem nachgebauten Archiv; mit den echten
 Daten noch nicht gelaufen).
+
+### Paketname und Startbildschirm (Entscheidung des Projektinhabers, 17.10.2026)
+
+- **Paketname:** Die Kern-App heißt jetzt `com.ast.re4decomp` (vorher
+  `com.ast.re4decomp.core`); die Variante `classic` mit den eigenen
+  Spielmodulen weicht auf `com.ast.re4decomp.classic` aus
+  (`app/build.gradle`). Eine Installation der Kern-App ersetzt eine noch
+  installierte frühere „RE4 Decomp“ mit diesem Namen. `test-core-app.ps1`
+  installiert mit `-d` (die frühere App kann eine höhere Versionsnummer haben),
+  erklärt den Fall eines anderen Signierschlüssels und kopiert einmal aus
+  `Android/data/com.ast.re4decomp.core/files/game` die vollständigen
+  Disc-Importe (`sys/fst.bin` und `ready.properties`, über einen
+  Zwischenordner `.copy-discN`) und `memcard/card-a.bin`, jeweils nur, wenn
+  die neue App sie noch nicht hat. Die Einstellungen der App (Grafik,
+  Tastentausch) liegen im privaten Speicher und beginnen neu.
+  `pull-gx-dumps.ps1` nutzt den neuen Namen.
+- **Startbildschirm** (nur zu sehen, solange Disc 1 fehlt; sonst startet das
+  Spiel sofort): zentriert „Resident Evil 4 Android“, darunter kleiner
+  „By Andreas ‘Andiweli’ Stürmer“, eine Linie, „Start game“, dann
+  „Controls“ und „Select ISO/GCM files …“ jeweils zentriert zwischen zwei
+  Linien mit der Tastenbelegung und dem Tausch-Schalter bzw. dem Stand der
+  Discs und „Import Disc 1“/„Import Disc 2“ darunter („Cancel import“ nur
+  während eines Imports). Der Knopf „Menu“ entfällt im Kernmodus: sein
+  einziger Eintrag war der Disc-Import, den der Startbildschirm jetzt immer
+  zeigt (`classic` behält ihn). Der Java-Code übersetzt gegen die
+  Android-Klassen (Cloud); auf dem Gerät noch nicht gesehen.
 
 ## Aufbau
 

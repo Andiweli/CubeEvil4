@@ -14,14 +14,21 @@ Drei Schritte, jeder einzeln abschaltbar:
      mit dem Android-SDK von Android Studio).
   3. Retroid per ADB, unter der gemeinsamen Sperre Global\Retroid_ADB_Exclusive
      (port/docs/adb-coordination.md): APK installieren (App "RE4 Kern",
-     com.ast.re4decomp.core, neben der bisherigen App), starten, mehrere
-     Bildschirmfotos aufnehmen, das Protokoll der App holen, App beenden.
+     com.ast.re4decomp), starten, mehrere Bildschirmfotos aufnehmen, das
+     Protokoll der App holen, App beenden.
 
-Beim ersten Mal in der App "RE4 Kern" Disc 1 importieren (Menu > Import Disc 1;
-Disc 2 erst fuer spaetere Raeume). Fehlt der Import, startet das Skript die App,
-bittet darum und wartet bis zu -ImportMinutes Minuten (Standard 45), ohne die App
-zu beenden; erst danach beginnt der Test. Der Kern braucht einen neuen, vollstaendigen
-Import in der App "RE4 Kern" (die bisherige App hat einen eigenen Datenordner).
+Paketname seit 17.10.2026 com.ast.re4decomp (vorher com.ast.re4decomp.core;
+Entscheidung des Projektinhabers). Die Installation ersetzt die bisherige App
+"RE4 Decomp" mit diesem Namen (deren eigene Spielmodule heissen jetzt
+com.ast.re4decomp.classic). Ist die fruehere App com.ast.re4decomp.core noch auf
+dem Retroid, kopiert das Skript einmal ihre importierten Discs und ihre
+Speicherkarte in die neue App (nur was dort fehlt; die fruehere App behaelt ihre
+Daten, bis du sie deinstallierst: adb uninstall com.ast.re4decomp.core).
+
+Beim ersten Mal in der App "RE4 Kern" Disc 1 importieren (Startbildschirm der App,
+"Import Disc 1"; Disc 2 erst fuer spaetere Raeume). Fehlt der Import, startet das
+Skript die App, bittet darum und wartet bis zu -ImportMinutes Minuten (Standard 45),
+ohne die App zu beenden; erst danach beginnt der Test.
 
 Standard ist ein Debug-Start in r120 (der Anfang eines neuen Spiels: Vorfilm,
 dann die Autofahrt mit den Polizisten, dann r100) mit derselben
@@ -55,7 +62,7 @@ Die Bilder des Kerns folgen dem Bildschirmtakt (60 Hz), damit Filme nicht ruckel
 (Standard, der sichtbare 16:9-Teil entspricht etwa 720p), 3 = 1920x1344 (etwa 1080p),
 4 = 2560x1792.
 Speicherkarte (Meilenstein 10): Steckplatz A ist eine Datei im Speicher der App
-(Android/data/com.ast.re4decomp.core/files/game/memcard/card-a.bin, 2 MB wie eine
+(Android/data/com.ast.re4decomp/files/game/memcard/card-a.bin, 2 MB wie eine
 Memory Card 251); der Start prueft sie wie der GameCube (Karte lesen, Systemdatei mit den Optionen).
 Gespeichert wird an der Schreibmaschine, geladen im Titel ("Load"). Die Optionen (Helligkeit,
 Steuerung, Ton) stehen in der Systemdatei; das Spiel schreibt sie wie auf dem GameCube nur
@@ -162,7 +169,9 @@ $ErrorActionPreference = 'Stop'
 if ($Manual -and -not $PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 1800 }
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $app = Join-Path $repo 'port\android-decomp'
-$package = 'com.ast.re4decomp.core'
+$package = 'com.ast.re4decomp'
+# the core app's id until 17.10.2026: its discs and memory card move over once (see below)
+$oldPackage = 'com.ast.re4decomp.core'
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $report = Join-Path $OutDir 'bericht.txt'
 Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue
@@ -383,11 +392,24 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     $abis = ((& $Adb -s $Serial shell getprop ro.product.cpu.abilist) -join '').Trim()
     Say "3. Geraet $Serial, ABIs: $abis"
     if ($Abi -ne 'auto' -and $abis -notmatch [regex]::Escape($Abi)) { throw "Das Geraet kann keine $Abi-Apps ausfuehren." }
-    # -Abi: the APK carries both; without it the device picks (64 bit where it can)
-    $installArgs = @('install', '-r')
+    # -Abi: the APK carries both; without it the device picks (64 bit where it can). -d: the
+    # app with this id may be an earlier "RE4 Decomp" (classic) build with a higher version
+    $installArgs = @('install', '-r', '-d')
     if ($Abi -ne 'auto') { $installArgs += @('--abi', $Abi) }
-    & $Adb -s $Serial @installArgs $apk | ForEach-Object { Say "   $_" }
-    if ($LASTEXITCODE -ne 0) { throw 'Installation fehlgeschlagen.' }
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $installOut = @(& $Adb -s $Serial @installArgs $apk 2>&1 | ForEach-Object { "$_" })
+    $installCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousPreference
+    $installOut | ForEach-Object { Say "   $_" }
+    if (($installOut -join "`n") -match 'INSTALL_FAILED_UPDATE_INCOMPATIBLE') {
+        throw ("Auf dem Retroid ist schon eine App $package mit einem anderen Signierschluessel " +
+            "(meist die bisherige App 'RE4 Decomp' von einem anderen Rechner). Sie muss einmal weg: " +
+            "& '$Adb' -s $Serial uninstall $package   (loescht auch ihre Daten; die Discs und " +
+            "Spielstaende der App 'RE4 Kern' in $oldPackage bleiben und werden danach uebernommen). " +
+            "Dann dieses Skript mit -SkipCore -SkipApk erneut starten.")
+    }
+    if ($installCode -ne 0) { throw 'Installation fehlgeschlagen.' }
     $info = (& $Adb -s $Serial shell dumpsys package $package) -join "`n"
     $runAbi = if ($info -match 'primaryCpuAbi=(\S+)') { $Matches[1] } else { '?' }
     if ($Abi -ne 'auto' -and $runAbi -ne $Abi) { throw "Die App laeuft als $runAbi statt $Abi." }
@@ -395,6 +417,39 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # The import runs inside the app (several minutes per disc): the test waits for it instead of
     # stopping the app, because stopping it cancels the import.
     $game = "/sdcard/Android/data/$package/files/game"
+    # the core app until 17.10.2026 ($oldPackage): its complete disc imports and its memory card
+    # are copied once into the new app's folder, each only where the new one lacks it (a disc
+    # first into a temporary folder, so a broken copy never passes for an import); the old app
+    # keeps its own until it is uninstalled
+    $oldGame = "/sdcard/Android/data/$oldPackage/files/game"
+    $hasOld = ((& $Adb -s $Serial shell "[ -d $oldGame ] && echo yes") -join '').Trim() -eq 'yes'
+    if ($hasOld) {
+        # what the new app lacks: a complete disc (file system table and import record), the card
+        $discCond = '[ -f OLD/$d/sys/fst.bin ] && [ -f OLD/$d/ready.properties ] && ' +
+            '! { [ -f NEW/$d/sys/fst.bin ] && [ -f NEW/$d/ready.properties ]; }'
+        $cardCond = '[ -f OLD/memcard/card-a.bin ] && [ ! -f NEW/memcard/card-a.bin ]'
+        $check = "for d in disc1 disc2; do if $discCond; then echo need-`$d; fi; done; " +
+            "if $cardCond; then echo need-card; fi"
+        $copy = "mkdir -p NEW; for d in disc1 disc2; do if $discCond; then " +
+            'rm -rf NEW/.copy-$d && cp -r OLD/$d NEW/.copy-$d && rm -rf NEW/$d && ' +
+            'mv NEW/.copy-$d NEW/$d && echo copied-$d || { rm -rf NEW/.copy-$d; echo failed-$d; }; fi; done; ' +
+            "if $cardCond; then " +
+            'mkdir -p NEW/memcard && cp OLD/memcard/card-a.bin NEW/memcard/card-a.bin && ' +
+            'echo copied-card || echo failed-card; fi'
+        $check = $check.Replace('OLD', $oldGame).Replace('NEW', $game)
+        $copy = $copy.Replace('OLD', $oldGame).Replace('NEW', $game)
+        $needed = ((& $Adb -s $Serial shell $check) -join ' ').Trim()
+        if ($needed) {
+            Say "   Fruehere App $oldPackage gefunden: ihre Discs und Speicherkarte werden uebernommen (dauert einige Minuten) ..."
+            $result = ((& $Adb -s $Serial shell $copy) -join ' ').Trim()
+            foreach ($item in @('disc1', 'disc2', 'card')) {
+                $name = if ($item -eq 'card') { 'Speicherkarte A' } else { "Disc $($item.Substring(4))" }
+                if ($result -match "copied-$item") { Say "   $name uebernommen." }
+                elseif ($result -match "failed-$item") { Say "   $name konnte NICHT kopiert werden (Speicherplatz?); bitte in der App neu importieren." }
+            }
+        }
+        Say "   Die fruehere App $oldPackage kann weg, sobald hier alles laeuft: & '$Adb' -s $Serial uninstall $oldPackage"
+    }
     function Get-ImportState {
         $out = (& $Adb -s $Serial shell "cd $game 2>/dev/null && ls -d disc1/sys/fst.bin disc1/ready.properties .incoming .work-disc1 .work-disc2 2>/dev/null; du -sm .incoming .work-disc1 .work-disc2 2>/dev/null") -join "`n"
         $mb = 0

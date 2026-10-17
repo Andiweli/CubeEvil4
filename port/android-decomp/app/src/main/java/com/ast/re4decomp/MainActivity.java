@@ -33,18 +33,28 @@ public final class MainActivity extends Activity implements ImportManager.Listen
     core = getResources().getBoolean(R.bool.core_mode);
     LinearLayout body = new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL);
     int p = dp(20); body.setPadding(p, p, p, p);
-    TextView title = new TextView(this); title.setText(R.string.app_title); title.setTextSize(25); body.addView(title);
-    TextView note = new TextView(this); note.setText(core ? R.string.core_notice : R.string.browser_notice);
-    note.setPadding(0, dp(8), 0, dp(12)); body.addView(note);
-    button(body,"Start game",this::startOriginalTitle);
     if (core) {
+      // the launcher of the core mode (project owner, 17.10.2026): title and author centred, a line,
+      // Start game, then the controls and the disc import, each under a centred heading between lines
+      centered(body, getString(R.string.core_title), 28, true, 0);
+      centered(body, getString(R.string.core_author), 15, false, dp(4));
+      line(body, dp(12));
+      button(body, getString(R.string.core_start), this::startOriginalTitle);
+      heading(body, getString(R.string.core_controls_heading));
       // the controller of the core mode (CoreActivity, CoreInput): the layout and its one switch
-      TextView controls = new TextView(this); controls.setText(R.string.core_controls); controls.setPadding(0, dp(8), 0, 0); body.addView(controls);
+      centered(body, getString(R.string.core_controls), 14, false, 0);
       final android.content.SharedPreferences input = getSharedPreferences(CoreActivity.INPUT_PREFS, MODE_PRIVATE);
       CheckBox swap = new CheckBox(this); swap.setText(R.string.core_swap_face);
       swap.setChecked(input.getBoolean(CoreActivity.SWAP_FACE, false));
       swap.setOnCheckedChangeListener((v, on) -> input.edit().putBoolean(CoreActivity.SWAP_FACE, on).apply());
-      body.addView(swap);
+      LinearLayout.LayoutParams middle = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+      middle.gravity = Gravity.CENTER_HORIZONTAL; middle.topMargin = dp(4); body.addView(swap, middle);
+      heading(body, ImportManager.PROMPT);
+    } else {
+      TextView title = new TextView(this); title.setText(R.string.app_title); title.setTextSize(25); body.addView(title);
+      TextView note = new TextView(this); note.setText(R.string.browser_notice);
+      note.setPadding(0, dp(8), 0, dp(12)); body.addView(note);
+      button(body,"Start game",this::startOriginalTitle);
     }
     // The room browser opens the app's own game modules; the core mode has none.
     Button browse = button(body, getString(R.string.launch_rooms), () -> {
@@ -58,9 +68,12 @@ public final class MainActivity extends Activity implements ImportManager.Listen
     roomNote = new TextView(this); roomNote.setPadding(0, dp(8), 0, dp(8)); roomBrowser.addView(roomNote);
     open = button(roomBrowser, getString(R.string.room_open_selected), this::openSelected);
     status = new TextView(this); status.setPadding(0, dp(8), 0, dp(8)); body.addView(status);
-    button(body, getString(R.string.browser_menu), this::showMenu);
-    importPanel = new LinearLayout(this); importPanel.setOrientation(LinearLayout.VERTICAL); importPanel.setVisibility(View.GONE); body.addView(importPanel);
+    // the menu's only entry in the core mode was the disc import, which its launcher shows anyway
+    if (!core) button(body, getString(R.string.browser_menu), this::showMenu);
+    importPanel = new LinearLayout(this); importPanel.setOrientation(LinearLayout.VERTICAL);
+    importPanel.setVisibility(core ? View.VISIBLE : View.GONE); body.addView(importPanel);
     discs = new TextView(this); importPanel.addView(discs);
+    if (core) { discs.setGravity(Gravity.CENTER_HORIZONTAL); status.setGravity(Gravity.CENTER_HORIZONTAL); }
     disc1 = button(importPanel, getString(R.string.import_disc1), () -> choose(1));
     disc2 = button(importPanel, getString(R.string.import_disc2), () -> choose(2));
     cancel = button(importPanel, getString(R.string.cancel_import), imports::cancel);
@@ -76,6 +89,31 @@ public final class MainActivity extends Activity implements ImportManager.Listen
   private void startOriginalTitle(){if(!loading&&!imports.busy&&discReady(1)){startupShown=true;Intent start=new Intent(this,core?CoreActivity.class:StartupActivity.class);if(core)start.putExtra("coreSettings",getIntent().getStringExtra("coreSettings"));startActivity(start);}else importPanel.setVisibility(View.VISIBLE);}
   @Override protected void onSaveInstanceState(Bundle state){state.putBoolean("startupShown",startupShown);super.onSaveInstanceState(state);}
   private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+  /** A centred line of text (the core launcher). */
+  private TextView centered(LinearLayout body, String text, int sp, boolean bold, int top) {
+    TextView t = new TextView(this); t.setText(text); t.setTextSize(sp); t.setGravity(Gravity.CENTER_HORIZONTAL);
+    if (bold) t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+    t.setPadding(0, top, 0, 0); body.addView(t); return t;
+  }
+  /** A thin line in the text colour (the core launcher's separators). */
+  private View rule(int color) {
+    View v = new View(this); v.setBackgroundColor((color & 0x00FFFFFF) | 0x60000000); return v;
+  }
+  private void line(LinearLayout body, int margin) {
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1)));
+    lp.topMargin = margin; lp.bottomMargin = margin; body.addView(rule(new TextView(this).getCurrentTextColor()), lp);
+  }
+  /** A centred heading with a line on its left and right. */
+  private void heading(LinearLayout body, String text) {
+    LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
+    TextView t = new TextView(this); t.setText(text); t.setTextSize(16); t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+    t.setGravity(Gravity.CENTER); t.setPadding(dp(12), 0, dp(12), 0);
+    LinearLayout.LayoutParams side = new LinearLayout.LayoutParams(0, Math.max(1, dp(1)), 1f);
+    LinearLayout.LayoutParams mid = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+    row.addView(rule(t.getCurrentTextColor()), side); row.addView(t, mid); row.addView(rule(t.getCurrentTextColor()), new LinearLayout.LayoutParams(side));
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+    lp.topMargin = dp(20); lp.bottomMargin = dp(8); body.addView(row, lp);
+  }
   private Button button(LinearLayout body, String label, Runnable action) {
     Button b = new Button(this); b.setText(label); b.setOnClickListener(v -> action.run()); body.addView(b); return b;
   }
@@ -160,11 +198,6 @@ public final class MainActivity extends Activity implements ImportManager.Listen
     });
   }
   private void showMenu() {
-    if (core) {  // only the import: the diagnostics run the app's own modules
-      importPanel.setVisibility(importPanel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
-      if (importPanel.getVisibility() == View.VISIBLE) disc1.requestFocus();
-      return;
-    }
     new AlertDialog.Builder(this).setTitle(R.string.browser_menu).setItems(new String[]{getString(R.string.browser_data), getString(R.string.browser_diagnostics)}, (dialog, which) -> {
       if (which == 0) { importPanel.setVisibility(importPanel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
         if (importPanel.getVisibility() == View.VISIBLE) disc1.requestFocus(); }
@@ -183,9 +216,11 @@ public final class MainActivity extends Activity implements ImportManager.Listen
   @Override protected void onResume() { super.onResume(); imports.attach(this); }
   @Override protected void onPause() { imports.detach(this); super.onPause(); }
   @Override public void changed() {
-    if (!loading) status.setText(imports.status);
+    // the core launcher shows the import prompt as its heading: the status line only for the rest
+    if (!loading) status.setText(core && ImportManager.PROMPT.equals(imports.status) ? "" : imports.status);
     discs.setText(getString(R.string.disc_status, getString(discReady(1) ? R.string.ready : R.string.missing), getString(discReady(2) ? R.string.ready : R.string.missing)));
     disc1.setEnabled(imports.root != null && !imports.busy && !loading); disc2.setEnabled(imports.root != null && !imports.busy && !loading); cancel.setEnabled(imports.busy);
+    if (core) cancel.setVisibility(imports.busy ? View.VISIBLE : View.GONE);  // the launcher's two buttons, Cancel while importing
     if (!discReady(1) || imports.busy) importPanel.setVisibility(View.VISIBLE);
     if (imports.busy || loading) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     updateOpenState();
