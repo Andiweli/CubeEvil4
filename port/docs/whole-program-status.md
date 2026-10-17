@@ -2993,9 +2993,31 @@ zeigt ihn). r215 lief trotzdem 750 Bilder.
   senkt Leon die linke Hand und die Patronen fliegen von selbst in die
   Waffe.
 - Raum r206 springt zurück ins Startmenü der App (Disc-Import): ein Absturz
-  des Kerns, gefunden und behoben (oben, „Absturz in r206“); in der
-  PC-Prüfung mit Disc-Daten läuft r206 jetzt (17.10.2026), auf dem Retroid
-  noch nicht nachgetestet.
+  des Kerns, gefunden und behoben (oben, „Absturz in r206“); läuft in der
+  PC-Prüfung mit Disc-Daten und **auf dem Retroid** (17.10.2026).
+
+### Zweiter Gerätelauf M11 (Retroid, 17.10.2026, Stand `3a9a8a6`, `-Manual`)
+
+- Menü (SELECT kurz): passt laut Projektinhaber („wunderbar“); Wünsche:
+  die Linie unter dem Titel weg (die Linien der Überschrift „Grafik“ reichen),
+  Titel „Resident Evil 4 Options“ zentriert, ohne Linien. Umgesetzt
+  (`CoreMenu.java`), Java-Übersetzung gegen die Android-Klassen geprüft,
+  **auf dem Gerät nicht geprüft**.
+- r206 läuft auf dem Gerät.
+- Super Magnum: die Nachlade-Animation ist weiter falsch (die Patronen
+  fliegen von selbst in die Waffe, Leon lädt nicht). Offen (10b-Liste).
+- „Bei einem Gegner abgebrochen“: kein Absturz. Das Testskript beendet die
+  App nach der Beobachtungszeit (240 s, Protokoll ohne Fehler). Mit
+  `-Manual` beobachtet `test-core-app.ps1` jetzt 30 Minuten (Q beendet
+  früher, `-Seconds` legt fest, Bilder alle 2 Minuten) und schreibt beim
+  Ablauf „Beobachtungszeit abgelaufen … kein Absturz“.
+- Leistung im Lauf: 60 Bilder/s angezeigt, Kern 33,3 ms je Spielbild (30 Hz
+  wie das Original) mit 12,9 ms Leerlauf, GPU 17,7–19,7 ms je Bild, Ton ohne
+  Verluste.
+- Ein Tester hat ein Gerät, das nur 64-bit-Apps ausführt (kein
+  `armeabi-v7a`): der Kernmodus läuft dort nicht. Der Projektinhaber möchte
+  die 32+64-bit-Fähigkeit (M12) vorziehen; Reihenfolge und Weg werden mit
+  ihm abgestimmt.
 
 ## Aufbau
 

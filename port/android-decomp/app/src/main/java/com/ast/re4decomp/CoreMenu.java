@@ -113,14 +113,6 @@ final class CoreMenu extends Dialog {
     return v;
   }
 
-  /** A line across the menu. */
-  private void separator() {
-    View v = line(text("", 12, false));
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1)));
-    lp.setMargins(0, dp(10), 0, dp(4));
-    body.addView(v, lp);
-  }
-
   /** A centred heading in small capitals with a line left and right of it. */
   private void heading(String s) {
     LinearLayout row = new LinearLayout(getContext());
@@ -191,10 +183,12 @@ final class CoreMenu extends Dialog {
   }
 
   private void build() {
-    body.addView(text(t("RE4 Kern – Menü", "RE4 Core – Menu"), 22, true));
+    TextView title = text("Resident Evil 4 Options", 22, true);
+    title.setGravity(Gravity.CENTER_HORIZONTAL);
+    body.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT));
     body.addView(text(t("SELECT: dieses Menü  ·  SELECT 1 Sekunde halten: Debug-Menü des Spiels  ·  B: zurück zum Spiel",
         "SELECT: this menu  ·  hold SELECT for a second: the game's debug menu  ·  B: back to the game"), 13, false));
-    separator();
 
     heading(t("Grafik", "Graphics"));
     int[] info = CoreBridge.graphicsInfo();

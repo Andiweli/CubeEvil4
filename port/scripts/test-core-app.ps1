@@ -30,7 +30,10 @@ steuert. Der Vorfilm (movie/opening.sfd) laeuft seit Meilenstein 9 wie im Origin
 mit Bild und Ton; START ueberspringt ihn (laut Originalcode entfaellt dann auch die
 Autofahrt). Fuer Film, Autofahrt und Ankunft in r100 reichen etwa -Seconds 480.
 -StartRoom 100 springt direkt nach r100 (nur die kurze Ankunft). -Manual
-startet ohne Tastenfolge (Titelbild, du spielst selbst).
+startet ohne Tastenfolge (Titelbild, du spielst selbst); dann beobachtet das
+Skript 30 Minuten statt 240 s (Taste Q beendet frueher, -Seconds legt die Zeit
+fest). Nach Ablauf der Zeit beendet das Skript die App selbst; das ist kein
+Absturz (der Bericht sagt es dazu).
 
 Die App zeigt, was das Spiel selbst zeichnet (GX-Nachbildung: Logos, Titel,
 Menues, Anzeigen, Effekte). -Bridge zeigt zum Vergleich die fruehere Ansicht
@@ -150,6 +153,8 @@ param(
     [switch]$SaveTest
 )
 $ErrorActionPreference = 'Stop'
+# -Manual: you play yourself, 30 minutes unless -Seconds is given (Q ends earlier)
+if ($Manual -and -not $PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 1800 }
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $app = Join-Path $repo 'port\android-decomp'
 $package = 'com.ast.re4decomp.core'
@@ -440,7 +445,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     Say "   gestartet ($(if ($Manual) { 'Titelbild, du steuerst' } else { "Debug-Start r$StartRoom mit Test-Tastenfolge" })), bis $Seconds s Beobachtung"
     # Every second: is the app still running? Pictures at the planned times; a crash ends the
     # observation at once, and the log is taken while the crash report is still in it.
-    $shots = @(@(15, 40) + @(70..([math]::Max(70, $Seconds)) | Where-Object { ($_ - 70) % 25 -eq 0 }) |
+    # pictures every 25 s, every 2 minutes on a long run
+    $every = if ($Seconds -gt 300) { 120 } else { 25 }
+    $shots = @(@(15, 40) + @(70..([math]::Max(70, $Seconds)) | Where-Object { ($_ - 70) % $every -eq 0 }) |
         Where-Object { $_ -le $Seconds })
     function Save-Shot([int]$At) {
         $remote = '/data/local/tmp/re4-core-shot.png'
@@ -544,7 +551,10 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
             Say ("   {0,3} s: Bild aufgenommen, App laeuft (PID {1})" -f $shots[$nextShot], $alive)
             while ($nextShot -lt $shots.Count -and $now -ge $shots[$nextShot]) { $nextShot++ }
         }
-        if ($now -ge $Seconds) { break }
+        if ($now -ge $Seconds) {
+            Say ("   {0,3} s: Beobachtungszeit abgelaufen: das Skript beendet die App (kein Absturz; laenger: -Seconds)" -f $now)
+            break
+        }
     }
     if ($keys) { try { [Console]::TreatControlCAsInput = $false } catch { } }
     if ($crashAt -ge 0) { Start-Sleep -Seconds 3 }  # the system is still writing the crash report
