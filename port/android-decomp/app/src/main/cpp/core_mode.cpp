@@ -9,16 +9,23 @@
 // state frames with CoreScene.
 #include "core_scene.h"
 #include "gx_gl.h"
+#include "re4_card_files.h"
 #include "re4_gx_frame.h"
 #include "re4_gx_frame_io.h"
 
 #include <android/log.h>
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <signal.h>
 #include <sys/stat.h>
+#include <ucontext.h>
+#include <unistd.h>
 #include <jni.h>
 
 #include <algorithm>
 #include <atomic>
+#include <cstdarg>
+#include <cstring>
 #include <cstdio>
 #include <cstdlib>
 #include <chrono>
@@ -50,6 +57,14 @@ struct CoreApi {
   void (*gxRelease)(const Re4GxChunk *){};
   void (*gxDetach)(void){};
   void (*vsync)(int64_t){};  // optional (cores since M9)
+  // optional (cores since M11): the app's menu
+  int (*pause)(int, int){};
+  void (*debugMenu)(void){};
+  int (*cardList)(Re4CardFile *, int){};
+  int (*cardFree)(void){};
+  int (*cardName)(int, char *, int){};
+  int (*cardExport)(int, unsigned char *, unsigned, char *, int){};
+  int (*cardImport)(const unsigned char *, unsigned, int, char *, int){};
 } api;
 
 template <class F> bool bind(F &slot, const char *name) {
@@ -86,6 +101,15 @@ void loadCore() {
   ok = bind(api.gxRelease, "re4_core_gx_release") && ok;
   ok = bind(api.gxDetach, "re4_core_gx_detach") && ok;
   api.vsync = reinterpret_cast<void (*)(int64_t)>(dlsym(api.main, "re4_core_vsync"));
+  api.pause = reinterpret_cast<int (*)(int, int)>(dlsym(api.main, "re4_core_pause"));
+  api.debugMenu = reinterpret_cast<void (*)(void)>(dlsym(api.main, "re4_core_debug_menu"));
+  api.cardList = reinterpret_cast<int (*)(Re4CardFile *, int)>(dlsym(api.main, "re4_core_card_list"));
+  api.cardFree = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_card_free_blocks"));
+  api.cardName = reinterpret_cast<int (*)(int, char *, int)>(dlsym(api.main, "re4_core_card_file_name"));
+  api.cardExport =
+      reinterpret_cast<int (*)(int, unsigned char *, unsigned, char *, int)>(dlsym(api.main, "re4_core_card_export"));
+  api.cardImport = reinterpret_cast<int (*)(const unsigned char *, unsigned, int, char *, int)>(
+      dlsym(api.main, "re4_core_card_import"));
   if (!ok) {
     LOG("%s", api.error.c_str());
     api.main = nullptr;
@@ -114,10 +138,20 @@ re4::CoreFrame frame;  // GL thread
 int width = 1, height = 1;
 std::chrono::steady_clock::time_point lastDraw;
 
-// GX view (GL thread): on unless RE4_VIEW=bridge; EFB scale from RE4_GX_SCALE
-// (default 2: 1280x1056)
+// GX view (GL thread): on unless RE4_VIEW=bridge; EFB scale from the menu
+// (CoreBridge.setGraphics; automatic: from the screen's height, at most 3),
+// else RE4_GX_SCALE
 std::unique_ptr<re4gx::GxRenderer> gx;
 int gxMode = -1;  // -1 undecided, 0 bridge, 1 GX
+// the menu's picture options (M11, any thread -> GL thread): a change builds
+// the renderer anew at the next picture while the game runs (the core then
+// starts over with the full state); 0 scale: automatic
+std::atomic<int> optScale{0}, optSamples{1}, optAnisotropy{1}, optAspect{-1};
+std::atomic<unsigned> optSerial{0};
+unsigned optApplied = ~0u;
+std::atomic<bool> corePaused{false};
+// what the device can do and what the renderer uses (CoreBridge.graphicsInfo)
+std::atomic<int> infoMaxSamples{0}, infoMaxAnisotropy{0}, infoScale{0}, infoSamples{0}, infoAnisotropy{0};
 unsigned gxChunks = 0;
 // timing of the GX view since the last log line
 std::chrono::steady_clock::time_point gxSince;
@@ -220,11 +254,29 @@ bool drawGx() {
     LOG("view: %s", gxMode ? "GX" : "bridge");
   }
   if (gxMode == 0) return false;
+  if (gx && optSerial.load() != optApplied && !corePaused.load()) {
+    // new picture options: the renderer anew, the core sends everything again
+    gx->Release();
+    gx.reset();
+    if (api.gxDetach) api.gxDetach();
+  }
   if (!gx) {
-    const char *scaleText = getenv("RE4_GX_SCALE");
-    int scale = scaleText ? std::atoi(scaleText) : 2;
-    if (scale < 1 || scale > 4) scale = 2;
+    optApplied = optSerial.load();
+    int scale = optScale.load();
+    if (scale < 1 || scale > 4) {
+      const char *scaleText = getenv("RE4_GX_SCALE");
+      scale = scaleText ? std::atoi(scaleText) : 0;
+    }
+    if (scale < 1 || scale > 4) {
+      // automatic: the 336 rows of the picture to about the screen's rows
+      const int rows = std::min(height, width * 9 / 16);
+      scale = std::max(1, std::min(3, (rows + 168) / 336));
+    }
     gx = std::make_unique<re4gx::GxRenderer>();
+    re4gx::GxOptions options;
+    options.samples = std::max(1, optSamples.load());
+    options.anisotropy = static_cast<float>(std::max(1, optAnisotropy.load()));
+    gx->SetOptions(options);
     std::string error;
     if (!gx->Init(scale, &error)) {
       LOG("GX renderer: %s; the bridge draws", error.c_str());
@@ -239,7 +291,16 @@ bool drawGx() {
       mkdir(cache, 0775);
       cached = gx->SetProgramCache(cache);
     }
-    LOG("GX renderer ready, EFB scale %d, program cache %s", scale, cached ? cache : "off");
+    int maxSamples = 1;
+    float maxAnisotropy = 1.0f;
+    re4gx::GxRenderer::Limits(&maxSamples, &maxAnisotropy);
+    infoMaxSamples = maxSamples;
+    infoMaxAnisotropy = static_cast<int>(maxAnisotropy);
+    infoScale = scale;
+    infoSamples = gx->Samples();
+    infoAnisotropy = static_cast<int>(gx->Anisotropy());
+    LOG("GX renderer ready, EFB scale %d, %d samples (of %d), anisotropy %.0f (of %.0f), program cache %s", scale,
+        gx->Samples(), maxSamples, gx->Anisotropy(), maxAnisotropy, cached ? cache : "off");
   }
   // one chunk per displayed frame: every picture the game makes is shown (a
   // renderer slower than the game slows the game down, the core waits for it,
@@ -412,8 +473,10 @@ bool drawGx() {
   glDisable(GL_SCISSOR_TEST);
   glClearColor(0, 0, 0, 1);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  // the menu's picture format (1: 4:3, 0: 16:9), else RE4_GX_ASPECT
   const char *aspect = getenv("RE4_GX_ASPECT");
-  if (aspect && std::string(aspect) == "4:3") {
+  const int format = optAspect.load();
+  if (format == 1 || (format < 0 && aspect && std::string(aspect) == "4:3")) {
     // the whole picture: 640 wide in a 4:3 frame of 480 lines (the XFB holds xh of them)
     int boxW = width, boxH = width * 3 / 4;
     if (boxH > height) {
@@ -441,10 +504,89 @@ re4::CoreScene *currentScene() {
   return scene.get();
 }
 
+// A crash (M11, the testers' error log): where it happened into the log and
+// into the crash file of the log folder (CoreBridge.setCrashFile), then the
+// system's handler as before (its crash report). Signal-safe as far as it
+// goes: write() into the file opened in advance; the log call and dladdr are
+// what crash handlers of Android apps commonly use.
+int crashFd = -1;
+struct sigaction oldActions[NSIG];
+const int kCrashSignals[] = {SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGABRT};
+
+void crashLine(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+void crashLine(const char *fmt, ...) {
+  char line[320];
+  va_list ap;
+  va_start(ap, fmt);
+  const int n = std::vsnprintf(line, sizeof(line) - 1, fmt, ap);
+  va_end(ap);
+  __android_log_print(ANDROID_LOG_ERROR, "RE4Crash", "%s", line);
+  if (crashFd >= 0 && n > 0) {
+    line[std::min<int>(n, sizeof(line) - 2)] = '\n';
+    (void)!write(crashFd, line, static_cast<size_t>(std::min<int>(n, sizeof(line) - 2) + 1));
+  }
+}
+
+void crashWhere(const char *what, uintptr_t address) {
+  Dl_info info{};
+  if (address && dladdr(reinterpret_cast<void *>(address), &info) && info.dli_fname) {
+    const char *file = std::strrchr(info.dli_fname, '/');
+    crashLine("  %s 0x%08lx  %s+0x%lx  %s", what, static_cast<unsigned long>(address), file ? file + 1 : info.dli_fname,
+              static_cast<unsigned long>(address - reinterpret_cast<uintptr_t>(info.dli_fbase)),
+              info.dli_sname ? info.dli_sname : "");
+  } else {
+    crashLine("  %s 0x%08lx", what, static_cast<unsigned long>(address));
+  }
+}
+
+void onCrash(int sig, siginfo_t *info, void *context) {
+  static volatile sig_atomic_t inside = 0;
+  if (!inside) {
+    inside = 1;
+    crashLine("crash: signal %d (%s), fault address %p, thread %d", sig, strsignal(sig), info ? info->si_addr : nullptr,
+              static_cast<int>(gettid()));
+#if defined(__arm__)
+    const auto *uc = static_cast<const ucontext_t *>(context);
+    const uintptr_t pc = uc->uc_mcontext.arm_pc, lr = uc->uc_mcontext.arm_lr, sp = uc->uc_mcontext.arm_sp;
+    crashWhere("pc", pc);
+    crashWhere("lr", lr);
+    // return addresses on the stack (a guess: words that point into a library)
+    const auto *word = reinterpret_cast<const uintptr_t *>(sp);
+    int found = 0;
+    for (int i = 0; i < 512 && found < 24; i++) {
+      Dl_info d{};
+      if (word[i] > 0x10000 && dladdr(reinterpret_cast<void *>(word[i]), &d) && d.dli_fname &&
+          std::strstr(d.dli_fname, ".so")) {
+        char what[24];
+        std::snprintf(what, sizeof(what), "sp+%03x", i * 4);
+        crashWhere(what, word[i]);
+        found++;
+      }
+    }
+#else
+    (void)context;
+#endif
+    if (crashFd >= 0) fsync(crashFd);
+  }
+  // the handler before (the system's crash report), with the signal again
+  for (std::size_t i = 0; i < sizeof(kCrashSignals) / sizeof(kCrashSignals[0]); i++)
+    sigaction(kCrashSignals[i], &oldActions[kCrashSignals[i]], nullptr);
+  if (sig == SIGABRT) raise(sig);
+}
+
+void installCrashHandler() {
+  struct sigaction action {};
+  action.sa_sigaction = onCrash;
+  action.sa_flags = SA_SIGINFO | SA_ONSTACK;
+  sigemptyset(&action.sa_mask);
+  for (int sig : kCrashSignals) sigaction(sig, &action, &oldActions[sig]);
+}
+
 }  // namespace
 
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *, void *) {
   loadCore();
+  installCrashHandler();
   return JNI_VERSION_1_6;
 }
 
@@ -610,4 +752,135 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_draw(JNIEnv 
   } catch (const std::exception &e) {
     LOG("draw: %s", e.what());
   }
+}
+
+// --- the app's menu (M11) ----------------------------------------------------
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_ast_re4decomp_CoreBridge_hasMenu(JNIEnv *, jclass) {
+  return api.pause && api.cardList ? JNI_TRUE : JNI_FALSE;
+}
+
+// The game stops at its next frame (on) or runs on; true when it stands.
+extern "C" JNIEXPORT jboolean JNICALL Java_com_ast_re4decomp_CoreBridge_pause(JNIEnv *, jclass, jboolean on,
+                                                                             jint waitMs) {
+  corePaused = on == JNI_TRUE;
+  if (!api.pause) return JNI_FALSE;
+  return api.pause(on ? 1 : 0, waitMs) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_debugMenu(JNIEnv *, jclass) {
+  if (api.debugMenu) api.debugMenu();
+}
+
+std::mutex cardLock;
+std::string cardNote;
+
+// The card's files, one row each: index, name, blocks, save, intact, room,
+// chapter, times saved, play time, year, month, day, hour, minute, the two
+// comment lines (tab-separated); null when the game uses the card or there is
+// none (cardNote says which).
+extern "C" JNIEXPORT jobjectArray JNICALL Java_com_ast_re4decomp_CoreBridge_cardList(JNIEnv *env, jclass) {
+  std::lock_guard<std::mutex> lock(cardLock);
+  static Re4CardFile files[127];
+  const int n = api.cardList ? api.cardList(files, 127) : RE4_CARD_NOCARD;
+  if (n < 0) {
+    cardNote = n == RE4_CARD_BUSY ? "busy" : "nocard";
+    return nullptr;
+  }
+  jobjectArray rows = env->NewObjectArray(n, env->FindClass("java/lang/String"), nullptr);
+  for (int i = 0; i < n; i++) {
+    const Re4CardFile &f = files[i];
+    char row[256];
+    std::snprintf(row, sizeof(row), "%d\t%s\t%u\t%d\t%d\t%u\t%u\t%u\t%u\t%d\t%d\t%d\t%d\t%d\t%s\t%s", f.index,
+                  f.name, f.blocks, f.save, f.intact, f.room, f.chapter, f.saveCount, f.playTime, f.year, f.month,
+                  f.day, f.hour, f.minute, f.comment[0], f.comment[1]);
+    for (char *c = row; *c; c++)  // the comments of other games may hold anything
+      if (static_cast<unsigned char>(*c) >= 0x80 || (*c < 0x20 && *c != '\t')) *c = '?';
+    jstring s = env->NewStringUTF(row);
+    env->SetObjectArrayElement(rows, i, s);
+    env->DeleteLocalRef(s);
+  }
+  return rows;
+}
+
+extern "C" JNIEXPORT jint JNICALL Java_com_ast_re4decomp_CoreBridge_cardFreeBlocks(JNIEnv *, jclass) {
+  std::lock_guard<std::mutex> lock(cardLock);
+  return api.cardFree ? api.cardFree() : RE4_CARD_NOCARD;
+}
+
+extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_cardFileName(JNIEnv *env, jclass,
+                                                                                   jint index) {
+  std::lock_guard<std::mutex> lock(cardLock);
+  char name[80] = "";
+  if (!api.cardName || api.cardName(index, name, sizeof(name)) != RE4_CARD_OK) return nullptr;
+  return env->NewStringUTF(name);
+}
+
+// The .gci of file `index` (GameCube byte order), null on an error (cardNote).
+extern "C" JNIEXPORT jbyteArray JNICALL Java_com_ast_re4decomp_CoreBridge_cardExport(JNIEnv *env, jclass,
+                                                                                    jint index) {
+  std::lock_guard<std::mutex> lock(cardLock);
+  if (!api.cardExport) return nullptr;
+  std::vector<unsigned char> out(RE4_GCI_HEADER + 251 * RE4_CARD_BLOCK);
+  char note[256] = "";
+  const int bytes = api.cardExport(index, out.data(), static_cast<unsigned>(out.size()), note, sizeof(note));
+  cardNote = note;
+  if (bytes <= 0) return nullptr;
+  jbyteArray result = env->NewByteArray(bytes);
+  env->SetByteArrayRegion(result, 0, bytes, reinterpret_cast<const jbyte *>(out.data()));
+  return result;
+}
+
+// A .gci onto the card: RE4_CARD_OK (0) or an error (re4_card_files.h; cardNote).
+extern "C" JNIEXPORT jint JNICALL Java_com_ast_re4decomp_CoreBridge_cardImport(JNIEnv *env, jclass, jbyteArray gci,
+                                                                              jboolean replace) {
+  std::lock_guard<std::mutex> lock(cardLock);
+  if (!api.cardImport) return RE4_CARD_NOCARD;
+  const jsize size = env->GetArrayLength(gci);
+  std::vector<unsigned char> in(static_cast<size_t>(size));
+  env->GetByteArrayRegion(gci, 0, size, reinterpret_cast<jbyte *>(in.data()));
+  char note[256] = "";
+  const int r = api.cardImport(in.data(), static_cast<unsigned>(size), replace ? 1 : 0, note, sizeof(note));
+  cardNote = note;
+  return r;
+}
+
+extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_cardNote(JNIEnv *env, jclass) {
+  std::lock_guard<std::mutex> lock(cardLock);
+  return env->NewStringUTF(cardNote.c_str());
+}
+
+// The picture options: scale 0 (automatic) or 1-4, samples 1/2/4, anisotropy
+// 1-16, aspect 0 (16:9) or 1 (4:3). Applied at the next picture while the game runs.
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setGraphics(JNIEnv *, jclass, jint scale,
+                                                                               jint samples, jint anisotropy,
+                                                                               jint aspect) {
+  const bool rebuild = optScale.load() != scale || optSamples.load() != samples || optAnisotropy.load() != anisotropy;
+  optScale = scale;
+  optSamples = samples;
+  optAnisotropy = anisotropy;
+  optAspect = aspect;
+  if (rebuild) optSerial++;
+  LOG("picture options: scale %d, %d samples, anisotropy %d, %s", scale, samples, anisotropy,
+      aspect == 1 ? "4:3" : "16:9");
+}
+
+// {most samples, strongest anisotropy, scale, samples, anisotropy in use}; null before the renderer started.
+extern "C" JNIEXPORT jintArray JNICALL Java_com_ast_re4decomp_CoreBridge_graphicsInfo(JNIEnv *env, jclass) {
+  if (!infoMaxSamples.load()) return nullptr;
+  const jint v[5] = {infoMaxSamples.load(), infoMaxAnisotropy.load(), infoScale.load(), infoSamples.load(),
+                     infoAnisotropy.load()};
+  jintArray result = env->NewIntArray(5);
+  env->SetIntArrayRegion(result, 0, 5, v);
+  return result;
+}
+
+// The file a crash writes where it happened (the error log's folder).
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setCrashFile(JNIEnv *env, jclass,
+                                                                                jstring path) {
+  const auto file = text(env, path);
+  const int fd = file.empty() ? -1 : open(file.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
+  const int old = crashFd;
+  crashFd = fd;
+  if (old >= 0) close(old);
 }

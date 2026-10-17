@@ -39,6 +39,8 @@ namespace {
 
 constexpr int kEfbWidth = 640;
 constexpr int kEfbHeight = 528;
+// GL_EXT_texture_filter_anisotropic (not in the GLES 3.0 headers)
+constexpr GLenum kMaxAnisotropy = 0x84FE, kMaxAnisotropyLimit = 0x84FF;
 constexpr unsigned kTlutBytes = 0x80000;
 
 float AsFloat(std::uint32_t v) {
@@ -212,6 +214,12 @@ struct GxRenderer::Impl {
 
   // GL objects
   GLuint efbFbo = 0, efbColor = 0, efbDepth = 0;
+  // multisampled EFB (GxOptions.samples > 1): the game draws into it; before
+  // a copy out of the EFB the region is resolved into efbColor / efbDepth
+  GLuint msaaFbo = 0, msaaColor = 0, msaaDepth = 0;
+  GxOptions options;
+  int samples = 1;
+  float anisotropy = 1.0f;
   GLuint xfbFbo = 0, xfbTex = 0;
   unsigned xfbWidth = 0, xfbHeight = 0;
   bool haveXfb = false;
@@ -578,6 +586,27 @@ struct GxRenderer::Impl {
     xfRegsDirty = false;
   }
 
+  // the frame buffer the game draws into
+  GLuint DrawFbo() const { return msaaFbo ? msaaFbo : efbFbo; }
+
+  // a multisampled EFB: the region (EFB pixels times the scale, with a pixel
+  // around it for the copy filter) into the single-sample textures the
+  // copies read
+  void Resolve(int x, int y, int w, int h, bool depth) {
+    if (!msaaFbo)
+      return;
+    const int fw = kEfbWidth * scale, fh = kEfbHeight * scale;
+    const int x0 = std::max(0, x - scale), y0 = std::max(0, y - scale);
+    const int x1 = std::min(fw, x + w + scale), y1 = std::min(fh, y + h + scale);
+    if (x1 <= x0 || y1 <= y0)
+      return;
+    glDisable(GL_SCISSOR_TEST);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, efbFbo);
+    glBlitFramebuffer(x0, y0, x1, y1, x0, y0, x1, y1, depth ? GL_DEPTH_BUFFER_BIT : GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, msaaFbo);
+  }
+
   // --- textures ----------------------------------------------------------------
 
   GLuint Sampler(std::uint32_t mode0, std::uint32_t mode1, unsigned levels) {
@@ -607,6 +636,10 @@ struct GxRenderer::Impl {
     glSamplerParameteri(s, GL_TEXTURE_MIN_FILTER, min);
     glSamplerParameterf(s, GL_TEXTURE_MIN_LOD, static_cast<float>(mode1 & 0xFF) / 16.0f);
     glSamplerParameterf(s, GL_TEXTURE_MAX_LOD, static_cast<float>((mode1 >> 8) & 0xFF) / 16.0f);
+    // anisotropic filtering (the menu's option): only where the game filters
+    // linearly through mipmaps; point-sampled effects keep their look
+    if (anisotropy > 1.0f && levels > 1 && ((mode0 >> 4) & 1) && minFilter >= 5 && minFilter <= 6)
+      glSamplerParameterf(s, kMaxAnisotropy, anisotropy);
     samplers[key] = s;
     return s;
   }
@@ -717,7 +750,7 @@ struct GxRenderer::Impl {
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glDeleteFramebuffers(1, &fbo);
     glDeleteTextures(1, &pal);
-    glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
     current = nullptr;
     paletted[key] = out;
     return out.id;
@@ -802,7 +835,7 @@ struct GxRenderer::Impl {
     std::memcpy(stateSig, sig, sizeof(sig));
     stateValid = true;
     stats.stateChanges++;
-    glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
     glViewport(0, 0, kEfbWidth * scale, kEfbHeight * scale);
     // scissor: registers in EFB pixels + 342, minus the scissor offset (BP 0x59, in 2 pixels)
     const int xoff = static_cast<int>(bp[0x59] & 0x3FF) * 2, yoff = static_cast<int>((bp[0x59] >> 10) & 0x3FF) * 2;
@@ -1262,7 +1295,7 @@ struct GxRenderer::Impl {
       // nothing to show, only the clear of the EFB
       stats.heldCopies++;
       SaveAndPlainState();
-      glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
+      glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
       ClearAfterCopy(control, x, y, w, h);
       return;
     }
@@ -1307,6 +1340,7 @@ struct GxRenderer::Impl {
       }
     }
     // render the EFB region into the target
+    Resolve(x * scale, y * scale, w * scale, h * scale, depth);
     glBindFramebuffer(GL_FRAMEBUFFER, xfbFbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target, 0);
     SaveAndPlainState();
@@ -1325,7 +1359,7 @@ struct GxRenderer::Impl {
     glBindVertexArray(quadVao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     current = nullptr;
-    glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
     ClearAfterCopy(control, x, y, w, h);
   }
 
@@ -1509,6 +1543,45 @@ bool GxRenderer::Init(int scale, std::string *error) {
     *error = "EFB framebuffer incomplete";
     return false;
   }
+  // the menu's options, as far as the device goes
+  {
+    int maxSamples = 1;
+    float maxAnisotropy = 1.0f;
+    Limits(&maxSamples, &maxAnisotropy);
+    m.anisotropy = std::max(1.0f, std::min(m.options.anisotropy, maxAnisotropy));
+    const int want = std::min(m.options.samples, maxSamples);
+    if (want > 1) {
+      while (glGetError() != GL_NO_ERROR) {
+      }
+      glGenRenderbuffers(1, &m.msaaColor);
+      glBindRenderbuffer(GL_RENDERBUFFER, m.msaaColor);
+      glRenderbufferStorageMultisample(GL_RENDERBUFFER, want, GL_RGBA8, w, h);
+      glGenRenderbuffers(1, &m.msaaDepth);
+      glBindRenderbuffer(GL_RENDERBUFFER, m.msaaDepth);
+      glRenderbufferStorageMultisample(GL_RENDERBUFFER, want, GL_DEPTH_COMPONENT24, w, h);
+      GLint got = 0;
+      glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_SAMPLES, &got);
+      glGenFramebuffers(1, &m.msaaFbo);
+      glBindFramebuffer(GL_FRAMEBUFFER, m.msaaFbo);
+      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, m.msaaColor);
+      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m.msaaDepth);
+      if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE && glGetError() == GL_NO_ERROR &&
+          got > 1) {
+        m.samples = got;
+        glViewport(0, 0, w, h);
+        glClearColor(0, 0, 0, 0);
+        glClearDepthf(1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+      } else {
+        glDeleteFramebuffers(1, &m.msaaFbo);
+        glDeleteRenderbuffers(1, &m.msaaColor);
+        glDeleteRenderbuffers(1, &m.msaaDepth);
+        m.msaaFbo = m.msaaColor = m.msaaDepth = 0;
+      }
+      glBindRenderbuffer(GL_RENDERBUFFER, 0);
+      glBindFramebuffer(GL_FRAMEBUFFER, m.efbFbo);
+    }
+  }
   glViewport(0, 0, w, h);
   // the EFB as every display copy of the game leaves it: cleared to the copy
   // clear colour, black with alpha 0 (bio4_GXSetCopyClear). The shadow maps
@@ -1564,7 +1637,7 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
   glBufferData(GL_ARRAY_BUFFER, chunk.vertexBytes ? chunk.vertexBytes : 4, chunk.vertices, GL_STREAM_DRAW);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.ibo);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, chunk.indexCount ? chunk.indexCount * 2 : 4, chunk.indices, GL_STREAM_DRAW);
-  glBindFramebuffer(GL_FRAMEBUFFER, m.efbFbo);
+  glBindFramebuffer(GL_FRAMEBUFFER, m.DrawFbo());
   // state other GL code of the app may have left
   glDisable(GL_POLYGON_OFFSET_FILL);
   glDisable(GL_STENCIL_TEST);
@@ -1685,6 +1758,25 @@ bool GxRenderer::Present(int x, int y, int w, int h, unsigned top, unsigned rows
 
 GLuint GxRenderer::EfbColor() const { return impl_->efbColor; }
 
+void GxRenderer::SetOptions(const GxOptions &options) { impl_->options = options; }
+
+int GxRenderer::Samples() const { return impl_->samples; }
+
+float GxRenderer::Anisotropy() const { return impl_->anisotropy; }
+
+void GxRenderer::Limits(int *maxSamples, float *maxAnisotropy) {
+  GLint samples = 1;
+  glGetIntegerv(GL_MAX_SAMPLES, &samples);
+  *maxSamples = std::max(1, static_cast<int>(samples));
+  *maxAnisotropy = 1.0f;
+  const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+  if (ext && std::strstr(ext, "GL_EXT_texture_filter_anisotropic")) {
+    GLfloat most = 1.0f;
+    glGetFloatv(kMaxAnisotropyLimit, &most);
+    *maxAnisotropy = std::max(1.0f, static_cast<float>(most));
+  }
+}
+
 int GxRenderer::Scale() const { return impl_->scale; }
 
 const GxStats &GxRenderer::Stats() const { return impl_->stats; }
@@ -1720,8 +1812,10 @@ void GxRenderer::Release() {
   m.samplers.clear();
   const GLuint textures[] = {m.efbColor, m.efbDepth, m.xfbTex, m.whiteTex};
   glDeleteTextures(4, textures);
-  const GLuint fbos[] = {m.efbFbo, m.xfbFbo};
-  glDeleteFramebuffers(2, fbos);
+  const GLuint fbos[] = {m.efbFbo, m.xfbFbo, m.msaaFbo};
+  glDeleteFramebuffers(3, fbos);
+  const GLuint renderbuffers[] = {m.msaaColor, m.msaaDepth};
+  glDeleteRenderbuffers(2, renderbuffers);
   const GLuint buffers[] = {m.vbo, m.ibo, m.xfUbo, m.pxUbo};
   glDeleteBuffers(4, buffers);
   m.StreamRelease();

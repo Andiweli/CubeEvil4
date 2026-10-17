@@ -48,6 +48,15 @@ struct GxStats {
   unsigned gpuTimed = 0;
 };
 
+// Picture options of the app's menu (M11), applied by Init: multisampling of
+// the EFB (resolved before every copy out of it) and anisotropic filtering of
+// the game's mipmapped, linearly filtered textures. Init keeps what the device
+// can do (Samples(), Anisotropy()).
+struct GxOptions {
+  int samples = 1;          // 1 (off), 2, 4
+  float anisotropy = 1.0f;  // 1 (off) .. 16
+};
+
 class GxRenderer {
 public:
   GxRenderer();
@@ -58,6 +67,14 @@ public:
   // Creates the GL objects (a GLES 3.0 context is current). `scale`: EFB
   // resolution multiple (1 = the GameCube's 640x528).
   bool Init(int scale, std::string *error);
+  // Before Init: the picture options (default: none).
+  void SetOptions(const GxOptions &options);
+  // After Init: the multisampling and the filtering in use.
+  int Samples() const;
+  float Anisotropy() const;
+  // What the device can do (a GLES 3.0 context is current): the most EFB
+  // samples and the strongest anisotropic filtering (1: none).
+  static void Limits(int *maxSamples, float *maxAnisotropy);
   // Runs one chunk (in sequence order).
   void Run(const Re4GxChunk &chunk);
   // The latest display copy: an RGBA8 texture, GameCube row 0 at GL row 0;

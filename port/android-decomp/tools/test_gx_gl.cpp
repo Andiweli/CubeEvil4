@@ -602,7 +602,9 @@ void TestLighting(re4gx::GxRenderer &r) {
   Check(Near(EfbPixel(r, 125, 25), 32, 32, 32), "lighting: a normal away from the light gets the ambient only");
 }
 
-void TestCopyAndPalette(re4gx::GxRenderer &r) {
+// viaXfb: read the result from a display copy (a multisampled EFB has the
+// picture in its samples until a copy resolves it)
+void TestCopyAndPalette(re4gx::GxRenderer &r, bool viaXfb = false) {
   // draw red into the EFB, copy 32x32 at (0, 0) to a texture at 0x200000
   // (RGBA8), then draw a quad with that copy as texture map 0
   Builder b;
@@ -654,10 +656,16 @@ void TestCopyAndPalette(re4gx::GxRenderer &r) {
   VT(v2, 440, 340, 0, kWhite, 1, 1);
   VT(v2, 400, 340, 0, kWhite, 0, 1);
   b.Draw(RE4_GX_V_COLOR0 | RE4_GX_V_TEX0, 24, v2, 4, 0x80);
+  if (viaXfb) {
+    b.Bp(0x49, 0);
+    b.Bp(0x4A, 639 | 527u << 10);
+    DisplayCopy(b, false, kBlack);
+  }
   r.Run(b.Chunk());
+  auto pixel = [&](int x, int y) { return viaXfb ? TexPixel(r.Xfb(nullptr, nullptr), x, y) : EfbPixel(r, x, y); };
   Check(r.Stats().textureCopies == 1, "one EFB copy to a texture");
-  Check(Near(EfbPixel(r, 320, 320), 255, 0, 0), "EFB copy used as a texture");
-  Check(Near(EfbPixel(r, 420, 320), 0, 255, 0), "paletted texture: C8 through an RGB565 palette");
+  Check(Near(pixel(320, 320), 255, 0, 0), "EFB copy used as a texture");
+  Check(Near(pixel(420, 320), 0, 255, 0), "paletted texture: C8 through an RGB565 palette");
 }
 
 void TestFog(re4gx::GxRenderer &r) {
@@ -766,6 +774,55 @@ void TestCopyFilter(re4gx::GxRenderer &r) {
   r.Run(b.Chunk());
 }
 
+// The menu's picture options (M11): a multisampled EFB is resolved before
+// every copy out of it (display copy, texture copy); a slanted edge comes out
+// between the two colours; anisotropic filtering does not change a picture
+// without mipmaps.
+void TestOptions() {
+  int maxSamples = 1;
+  float maxAnisotropy = 1.0f;
+  re4gx::GxRenderer::Limits(&maxSamples, &maxAnisotropy);
+  std::fprintf(stderr, "  options: up to %d samples, anisotropy up to %.0f\n", maxSamples, maxAnisotropy);
+  re4gx::GxRenderer r;
+  re4gx::GxOptions o;
+  o.samples = 4;
+  o.anisotropy = 8.0f;
+  r.SetOptions(o);
+  std::string error;
+  Require(r.Init(1, &error), error.c_str());
+  Check(r.Samples() == (maxSamples >= 4 ? 4 : 1) || (r.Samples() > 1 && r.Samples() <= maxSamples),
+        "options: the samples asked for, as far as the device goes");
+  Check(r.Anisotropy() == std::min(8.0f, maxAnisotropy), "options: the anisotropy, as far as the device goes");
+  {
+    Builder b;
+    Baseline(b);
+    DisplayCopy(b, true, kBlue);
+    Quad(b, 10, 20, 110, 70, 0, kGreen);
+    std::vector<std::uint8_t> v;  // a slanted edge from (200, 100) to (300, 160)
+    V(v, 200, 100, 0, kRed);
+    V(v, 300, 160, 0, kRed);
+    V(v, 200, 160, 0, kRed);
+    b.Draw(RE4_GX_V_COLOR0, 16, v, 3);
+    DisplayCopy(b, false, kBlue);
+    r.Run(b.Chunk());
+  }
+  GLuint xfb = r.Xfb(nullptr, nullptr);
+  Check(xfb && Near(TexPixel(xfb, 50, 40), 0, 255, 0), "multisampled: the display copy holds the picture");
+  Check(xfb && Near(TexPixel(xfb, 300, 300), 0, 0, 255), "multisampled: the clear colour elsewhere");
+  if (r.Samples() > 1 && xfb) {
+    int between = 0;
+    for (int x = 200; x < 300; x++) {
+      const int y = 100 + (x - 200) * 60 / 100;  // on the edge
+      auto px = TexPixel(xfb, x, y);
+      between += px[0] > 20 && px[0] < 235 && px[2] > 20 && px[2] < 235;
+    }
+    Check(between > 20, "multisampled: the slanted edge is smoothed");
+  }
+  TestCopyAndPalette(r, true);  // EFB copy to a texture (resolved first), palette
+  Check(glGetError() == GL_NO_ERROR, "options: no GL error");
+  r.Release();
+}
+
 int main() {
   Context();
   glGenFramebuffers(1, &gReadFbo);
@@ -783,6 +840,7 @@ int main() {
   TestCopyFilter(renderer);
   Check(glGetError() == GL_NO_ERROR, "no GL error");
   renderer.Release();
+  TestOptions();
   std::fprintf(stderr, "gx_gl_check: %d failed\n", gFailures);
   return gFailures ? 1 : 0;
 }
