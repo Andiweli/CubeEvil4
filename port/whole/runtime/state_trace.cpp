@@ -240,9 +240,15 @@ unsigned long g_stopAfter;
 // publicity build sets it in main.cpp): the event and score lines, the
 // process bars, the heap numbers, the debug text (EprintfDrawing) and the
 // green far fog of DBG_FOG_FAR_GREEN (game.cpp). The app sets it by default.
-// While the debug start menu (patch 0043) or the tool menu (L + START,
+// While the debug start menu (patch 0043) or the tool menu (SELECT held,
 // db_menu.cpp) is open, debug_mode is left on: their lines are debug text.
+// The bars that come with it (DebugControl: process time bars at the left
+// edge, primitive buffer and heap bars, the pad monitor; ConfigSet switches
+// DBG_PROC_BAR and DBG_PAD_INFO on at boot) are switched off once, the first
+// frame they are on (wish of the project owner, 17.10.2026: only the text);
+// the flag editor of the tool menu can switch them on again.
 bool g_hideDebugHud;
+bool g_debugBarsOff;
 unsigned long g_roomFrames;  // frames since the first main loop frame
 unsigned long g_loopFrames;  // of them in step 3
 // RE4_TEST_SOFT_RESET="free+N": N frames after the player is free, the soft
@@ -289,6 +295,12 @@ void frame(unsigned n)
     // the debug start menu (patch 0043) draws its lines with the debug text;
     // the tool menu (SELECT held in the app, patch 0061; db_menu.cpp DbMenuExec) sets its
     // own page and puts the old one back when it closes (DBG_TEST_MODE)
+    if (g_hideDebugHud && !g_debugBarsOff && (DbgFlagChk(g, DBG_PROC_BAR) || DbgFlagChk(g, DBG_PAD_INFO))) {
+        DbgFlagOff(g, DBG_PROC_BAR);
+        DbgFlagOff(g, DBG_PAD_INFO);
+        g_debugBarsOff = true;
+        re4_log("run: the debug bars (process time, pad monitor) switched off (RE4_DEBUG_HUD=0)");
+    }
     if (g_hideDebugHud && !DbgFlagChk(g, DBG_TEST_MODE)) {
         int page = re4_title_room_menu_open() ? 1 : 0;
         if ((g->debug_mode != 0) != (page != 0)) {

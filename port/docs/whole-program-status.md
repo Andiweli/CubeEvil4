@@ -2799,6 +2799,17 @@ Platz“ bietet das Spiel einen Neustart an; der Platzhalter kehrt zurück),
   `absturz.txt`. „Bericht senden“ packt beides mit Gerätedaten
   und der Dateiliste der Karte (ohne Spielstände) in eine ZIP und gibt sie
   an Mail/Messenger; „Bericht speichern“ legt sie in einen Ordner.
+- **Debug-Menüs nur mit Text** (Wunsch des Projektinhabers, 17.10.2026): die
+  senkrechten, flackernden Balken links und rechts im Debug-Startmenü (und im
+  Debug-Menü im Spiel) sind die Zeitbalken der Debug-Fassung (`debug.cpp`
+  `DebugControl`: Prozess-Zeitbalken, Primitivpuffer, Heap, dazu der
+  Controller-Monitor). `ConfigSet` schaltet `DBG_PROC_BAR` und `DBG_PAD_INFO`
+  beim Start ein, gezeichnet werden sie, sobald `debug_mode` an ist – also
+  genau, wenn ein Debug-Menü offen ist. `state_trace.cpp` schaltet beide
+  Flags bei `RE4_DEBUG_HUD=0` (Standard der App) einmal ab, sobald sie das
+  erste Mal an sind (Log: „run: the debug bars … switched off“); der
+  Flag-Editor des Debug-Menüs kann sie wieder einschalten, `-DebugHud` des
+  Testskripts lässt sie an.
 - **Werkzeuge:** `re4_host --gci-export KARTE ORDNER`, `--gci-import KARTE
   DATEI.gci [--replace]`; `memcard_list.py DATEI.gci` liest eine `.gci` für
   sich in GameCube-Reihenfolge (ohne den Umwandler des Ports).
@@ -2831,7 +2842,7 @@ Platz“ bietet das Spiel einen Neustart an; der Platzhalter kehrt zurück),
   `CoreInputTests` 69 Prüfungen bestanden.
 
 **Nicht geprüft:** der Android-Build (NDK, Gradle, Lint), alles auf dem
-Gerät (Menü, SELECT kurz/lang, Debug-Menü, Grafikoptionen und ihre
+Gerät (Menü, SELECT kurz/lang, Debug-Menü, Debug-Menüs ohne Balken, Grafikoptionen und ihre
 Leistung, Import/Export mit der Dateiauswahl, Fehlerprotokoll und Bericht,
 Absturzmelder), die PC-Prüfung mit Disc-Daten nach Patch 0061, und **ob
 Dolphin und ein GameCube die exportierten Spielstände laden** (dafür
