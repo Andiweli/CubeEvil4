@@ -1077,8 +1077,13 @@ run_tour() {
                 if grep -q "fatal signal\|backtrace of the running context" "$log"; then
                     sed -n '/fatal signal\|backtrace of the running context/,$p' "$log" | grep -v "pad: frame" | head -n 40 | sed 's/^/  /'
                 fi
-                echo "  letzte Zeilen:"
-                grep -v "pad: frame" "$log" | tail -n 12 | sed 's/^/    /'
+                # what the game and the format converter said before it stopped
+                # (the backtrace above is the end of the log)
+                echo "  letzte Zeilen davor:"
+                sed '/fatal signal\|backtrace of the running context/,$d' "$log" | grep -v "pad: frame" |
+                    tail -n 30 | sed 's/^/    /'
+                echo "  Meldungen des Formatumwandlers (die letzten 10):"
+                grep "formats: " "$log" | tail -n 10 | sed 's/^\[re4\] /    /'
                 echo
             } >> "$details"
         fi
@@ -1089,7 +1094,7 @@ run_tour() {
     if [ -n "$bad_rooms" ]; then
         overall=1
         say "Einzelheiten (rundgang-einzelheiten.txt):"
-        head -n 400 "$details" | tee -a "$report"
+        head -n 800 "$details" | tee -a "$report"
     fi
 }
 

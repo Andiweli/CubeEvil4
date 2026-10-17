@@ -23,6 +23,10 @@
 //   pause   the app's menu (M11): re4_core_pause stops the game in its next
 //           PADRead and lets it go again; the menu's card functions only
 //           while it stands; the debug menu request is taken once
+//   event   a room's event bundle (EVS): an asset one event only carries and
+//           another event's packet uses as light data is converted as light
+//           data in both events (the game takes the first event's copy;
+//           r215 / r227 crashed in cLightMgr::setEnv)
 #include "re4_card_files.h"
 #include "re4_core.h"
 #include "re4_runtime.h"
@@ -634,6 +638,81 @@ void testCamera()
     report("camera", ok);
 }
 
+// A room archive with an event bundle (EVS) of two events. Event A carries
+// the light data "r215_lit" (no extension) but no packet of its own uses
+// it; event B's Lit packet names it and B has a copy of its own. The game
+// registers A's copy first and gives it to B's packet (DatTbl::SetDat keeps
+// a name once), so A's copy has to be converted as light data too.
+void putLit(unsigned char* lit)
+{
+    put16be(lit + 0x00, 1);       // CutNum
+    lit[0x02] = 0x2C;             // Version
+    lit[0x03] = 4;                // nMaxLight
+    put32be(lit + 0x04, 0x10);    // cut 0
+    unsigned char* env = lit + 0x10;
+    put32be(env + 0x04, 0);       // nLight
+    put32be(env + 0x08, 1);       // Fog.Type
+    putf32be(env + 0x0C, 1000.0f);  // Fog.Start
+    putf32be(env + 0x10, 8000.0f);  // Fog.End
+}
+
+void putEvd(unsigned char* e, unsigned pacSize, unsigned binOfs)
+{
+    memcpy(e, "event", 5);
+    put32be(e + 0x40, 0x50);      // pacOfs
+    put32be(e + 0x44, pacSize);
+    put32be(e + 0x48, 1);         // nBin
+    put32be(e + 0x4C, binOfs);
+}
+
+void putPacket(unsigned char* p, unsigned id, unsigned size)
+{
+    put32be(p + 0x00, id);
+    put16be(p + 0x0C, (unsigned short) size);
+}
+
+bool litConverted(const unsigned char* lit)
+{
+    return get16(lit) == 1 && get32(lit + 4) == 0x10 && get32(lit + 0x10 + 8) == 1 &&
+           getf32(lit + 0x10 + 0x0C) == 1000.0f && getf32(lit + 0x10 + 0x10) == 8000.0f;
+}
+
+void testEvent()
+{
+    bool ok = true;
+    unsigned char* arc = (unsigned char*) (unsigned long) 0x82300000u;
+    memset(arc, 0, 0x400);
+    put32be(arc + 0x00, 1);
+    put32be(arc + 0x10, 0x20);
+    memcpy(arc + 0x14, "EVS\0", 4);
+    unsigned char* evs = arc + 0x20;
+    put32be(evs + 0x00, 2);       // events
+    put32be(evs + 0x04, 8);       // table
+    put32be(evs + 0x08, 0x20);    // event A
+    put32be(evs + 0x10, 0x200);   // event B
+    unsigned char* a = evs + 0x20;
+    putEvd(a, 0x10, 0x60);
+    putPacket(a + 0x50, 27, 0x10);  // EndPac
+    memcpy(a + 0x60, "r215_lit", 8);
+    put32be(a + 0x60 + 0x30, 0xA0);
+    putLit(a + 0xA0);
+    unsigned char* b = evs + 0x200;
+    putEvd(b, 0x30, 0x80);
+    putPacket(b + 0x50, 14, 0x20);  // Lit
+    memcpy(b + 0x50 + 0x10, "r215_lit", 8);
+    putPacket(b + 0x70, 27, 0x10);  // EndPac
+    memcpy(b + 0x80, "r215_lit", 8);
+    put32be(b + 0x80 + 0x30, 0xC0);
+    putLit(b + 0xC0);
+    Header h = { 0, 0x400, 0, 0, 0, 0, 0, 0 };
+    re4_formats_part_loaded("em/evs.das", 0, 0, &h, 0x82300000u);
+    CHECK(get32(evs) == 2 && get32(evs + 4) == 8 && get32(evs + 0x10) == 0x200);
+    CHECK(get32(a + 0x40) == 0x50 && get32(a + 0x60 + 0x30) == 0xA0);
+    CHECK(litConverted(b + 0xC0));
+    CHECK(litConverted(a + 0xA0));  // the copy the game uses
+    report("event", ok);
+}
+
 struct PadStatus {  // PADStatus
     unsigned short button;
     signed char stickX, stickY, substickX, substickY;
@@ -838,6 +917,7 @@ int re4_core_tests()
     testPad();
     testSound();
     testCamera();
+    testEvent();
     {
         int failed = re4probe_ax_test();
         gFailures += failed;

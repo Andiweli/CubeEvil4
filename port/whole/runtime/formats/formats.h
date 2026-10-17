@@ -134,7 +134,8 @@ void convertMapRoom(Blob& b, const Part& part);      // MAP (map screen rooms: m
 // formats_event.cpp
 void convertCameraAt(Blob& b, u32 base);
 void convertCamera(Blob& b, const Part& part);       // CAM
-void convertEvdAt(Blob& b, u32 base, u32 end);
+struct EvdMarks;  // what the packets of an event bundle do with assets (formats_event.cpp)
+void convertEvdAt(Blob& b, u32 base, u32 end, const EvdMarks* bundle);  // bundle: of an EVS, or 0
 void convertEvd(Blob& b, const Part& part);          // EVD, event/evd/*.evd
 void convertEvdFile(Blob& b, const Part& part);      // a top-level .evd: also noted for the bridge
 void convertEvs(Blob& b, const Part& part);          // EVS

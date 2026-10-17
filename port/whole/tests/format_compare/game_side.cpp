@@ -1131,7 +1131,7 @@ extern "C" int re4cmp_game_evd(const unsigned char* data, unsigned size, const c
 {
     Copy c(data, size);
     Blob b = blob(c.data, size, name);
-    convertEvdAt(b, 0, size);
+    convertEvdAt(b, 0, size, 0);
     Re4Out o = re4cmp_out(out);
     View v = { c.data, size };
     const EvtHeader* h = v.at<EvtHeader>(0);

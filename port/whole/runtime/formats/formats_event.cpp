@@ -7,7 +7,9 @@
 //
 // The assets of an EVD are converted by what the packets do with them (camera,
 // motion and shape curves, lights, fog / focus curves, effects, messages,
-// models and textures), the rest by the name's extension.
+// models and textures), the rest by the name's extension. In a bundle (EVS)
+// an asset no packet of its own event names takes what another event does
+// with that name: the game keeps the first event's copy for all of them.
 #include "formats.h"
 
 #include "cam_ctrl.h"
@@ -198,6 +200,48 @@ void convertCamera(Blob& b, const Part&)
 
 // ---- EVD ----------------------------------------------------------------------
 
+// What the packets do with assets, by name: the kind each named asset gets.
+// The game keeps one registration per name for all events of a room
+// (DatTbl::SetDat: a name already there is not taken again), so in a bundle
+// (EVS) the copy of the first event serves the packets of every other one:
+// the marks of the whole bundle apply to each of its events. Plain C memory
+// (see CamArrays).
+struct EvdMarks {
+    struct Mark {
+        char name[0x31];
+        int kind;  // AssetKind
+    };
+    Mark* m;
+    u32 n, cap;
+
+    EvdMarks() : m(0), n(0), cap(0) {}
+    ~EvdMarks() { free(m); }
+    // the name a packet gives at `str` (up to 0x30 bytes, as the game's strcmp reads it)
+    void add(Blob& b, u32 str, int kind)
+    {
+        if (str >= b.size) {
+            return;
+        }
+        if (n == cap) {
+            u32 more = cap ? cap * 2 : 64;
+            Mark* g = (Mark*) realloc(m, more * sizeof(Mark));
+            if (!g) {
+                return;
+            }
+            m = g;
+            cap = more;
+        }
+        u32 len = 0;
+        while (len < 0x30 && str + len < b.size && b.data[str + len]) {
+            len++;
+        }
+        memcpy(m[n].name, b.data + str, len);
+        m[n].name[len] = 0;
+        m[n].kind = kind;
+        n++;
+    }
+};
+
 namespace {
 
 enum AssetKind {
@@ -239,18 +283,90 @@ AssetKind kindByName(const char* name)
     return kAssetUnknown;
 }
 
-void mark(Asset* a, u32 n, const u8* name, AssetKind kind)
+// The marks on an event's asset table, in packet order: a later packet's kind wins.
+void applyMarks(const EvdMarks& marks, Asset* a, u32 nBin)
 {
-    for (u32 i = 0; i < n; i++) {
-        if (strncmp(a[i].name, (const char*) name, 0x30) == 0) {
-            a[i].kind = kind;
+    for (u32 k = 0; k < marks.n; k++) {
+        for (u32 i = 0; i < nBin; i++) {
+            if (strcmp(a[i].name, marks.m[k].name) == 0) {
+                a[i].kind = (AssetKind) marks.m[k].kind;
+            }
+        }
+    }
+}
+
+// The assets a packet names (EvtPacket at `p`, its type `id`).
+void packetMarks(Blob& b, u32 p, u32 id, EvdMarks& out)
+{
+    u32 str = p + 0x10;
+    switch (id) {
+    case EvpTpCam:
+        out.add(b, str, kAssetCurve);
+        break;
+    case EvpTpMot:
+    case EvpTpShp:
+        out.add(b, p + offsetof(EvtPacket, mod.bin), kAssetCurve);
+        break;
+    case EvpTpLit:
+        out.add(b, str, kAssetLit);
+        break;
+    case EvpTpFog:
+        out.add(b, str, kAssetFog);
+        break;
+    case EvpTpFocus:
+        out.add(b, str, kAssetFocus);
+        break;
+    case EvpTpSetEff:
+        out.add(b, str, kAssetEff);
+        break;
+    case EvpTpSetMdt:
+        out.add(b, str, kAssetMdt);
+        break;
+    case EvpTpSetOm:
+        out.add(b, p + offsetof(EvtPacket, mod.bin), kAssetBin);
+        out.add(b, p + offsetof(EvtPacket, mod.tpl), kAssetTpl);
+        break;
+    case EvpTpSetParts:
+        out.add(b, p + offsetof(EvtPacket, parts.bin), kAssetBin);
+        out.add(b, p + offsetof(EvtPacket, parts.tpl), kAssetTpl);
+        break;
+    default:
+        break;
+    }
+}
+
+// The packet stream of the (still big-endian) EVD at `base`: what it does
+// with its assets, without changing anything.
+void scanEvd(Blob& b, u32 base, EvdMarks& out)
+{
+    typedef EvtHeader H;
+    if (base + sizeof(H) > b.size || memcmp(b.data + base, "event", 5) != 0) {
+        return;
+    }
+    u32 pac = be32(b, base + offsetof(H, pacOfs));
+    u32 pacSize = be32(b, base + offsetof(H, pacSize));
+    if ((pac & 0x80000000u) || pac > b.size - base || pacSize > b.size - base - pac) {
+        return;
+    }
+    u32 p = base + pac;
+    u32 stop = p + pacSize;
+    while (p + 0x10 <= stop) {
+        u32 id = be32(b, p + offsetof(EvtPacket, id));
+        s16 size = (s16) be16(b, p + offsetof(EvtPacket, size));
+        if (size < 0x10 || (u32) size > stop - p) {
+            break;
+        }
+        packetMarks(b, p, id, out);
+        p += (u32) size;
+        if (id == EvpTpEndPac) {
+            break;
         }
     }
 }
 
 }  // namespace
 
-void convertEvdAt(Blob& b, u32 base, u32 end)
+void convertEvdAt(Blob& b, u32 base, u32 end, const EvdMarks* bundle)
 {
     typedef EvtHeader H;
     if (!fits(b, base, sizeof(H), "EvtHeader")) {
@@ -285,6 +401,10 @@ void convertEvdAt(Blob& b, u32 base, u32 end)
         assets[i].kind = kindByName(assets[i].name);
         RE4_SWAP(b, e, EvtBinEntry, ofs);
     }
+    if (bundle) {
+        applyMarks(*bundle, assets, nBin);
+    }
+    EvdMarks own;
     // packets: header words, then the numeric parameters of their type
     u32 p = base + pac;
     u32 stop = p + pacSize;
@@ -299,7 +419,6 @@ void convertEvdAt(Blob& b, u32 base, u32 end)
         swap16(b, p + offsetof(EvtPacket, cut), 4);
         u32 q = p + 0x10;
         u32 room = (u32) size - 0x10;
-        const u8* str = b.data + q;
         switch (id) {
         case EvpTpPos:  // pos[3], rot[3], partsNo
             if (room >= 0x34) {
@@ -319,44 +438,16 @@ void convertEvdAt(Blob& b, u32 base, u32 end)
         case EvpTpFade:  // val: no, arg, time
             swap32(b, q, room / 4 < 3 ? room / 4 : 3);
             break;
-        case EvpTpCam:
-            mark(assets, nBin, str, kAssetCurve);
-            break;
-        case EvpTpMot:
-        case EvpTpShp:
-            mark(assets, nBin, b.data + p + offsetof(EvtPacket, mod.bin), kAssetCurve);
-            break;
-        case EvpTpLit:
-            mark(assets, nBin, str, kAssetLit);
-            break;
-        case EvpTpFog:
-            mark(assets, nBin, str, kAssetFog);
-            break;
-        case EvpTpFocus:
-            mark(assets, nBin, str, kAssetFocus);
-            break;
-        case EvpTpSetEff:
-            mark(assets, nBin, str, kAssetEff);
-            break;
-        case EvpTpSetMdt:
-            mark(assets, nBin, str, kAssetMdt);
-            break;
-        case EvpTpSetOm:
-            mark(assets, nBin, b.data + p + offsetof(EvtPacket, mod.bin), kAssetBin);
-            mark(assets, nBin, b.data + p + offsetof(EvtPacket, mod.tpl), kAssetTpl);
-            break;
-        case EvpTpSetParts:
-            mark(assets, nBin, b.data + p + offsetof(EvtPacket, parts.bin), kAssetBin);
-            mark(assets, nBin, b.data + p + offsetof(EvtPacket, parts.tpl), kAssetTpl);
-            break;
-        default:  // names only, or no parameters
+        default:  // names (packetMarks), or no parameters
             break;
         }
+        packetMarks(b, p, id, own);
         p += (u32) size;
         if (id == EvpTpEndPac) {
             break;
         }
     }
+    applyMarks(own, assets, nBin);
     // assets: each extends to the next one (or the end of the file)
     Seen seen;
     for (u32 i = 0; i < nBin && b.ok; i++) {
@@ -412,12 +503,12 @@ void convertEvdAt(Blob& b, u32 base, u32 end)
 
 void convertEvd(Blob& b, const Part&)
 {
-    convertEvdAt(b, 0, b.size);
+    convertEvdAt(b, 0, b.size, 0);
 }
 
 void convertEvdFile(Blob& b, const Part& part)
 {
-    convertEvdAt(b, 0, b.size);
+    convertEvdAt(b, 0, b.size, 0);
     // event models (EvpTpSetOm / SetParts) point into the file: the bridge
     // finds them by their offset (re4_formats_locate, entry -2)
     if (b.size >= 0x50 && memcmp(b.data, "event", 5) == 0) {
@@ -440,6 +531,11 @@ void convertEvs(Blob& b, const Part&)
     for (u32 i = 0; i < n; i++) {
         offs[i] = be32(b, tbl + i * 8);
     }
+    // what every event does with its assets, before any is converted
+    EvdMarks marks;
+    for (u32 i = 0; i < n; i++) {
+        scanEvd(b, offs[i], marks);
+    }
     swap32(b, 0, 2);
     swap32(b, tbl, n * 2);
     for (u32 i = 0; i < n && b.ok; i++) {
@@ -452,7 +548,7 @@ void convertEvs(Blob& b, const Part&)
         if (tbl > offs[i] && tbl < next) {
             next = tbl;
         }
-        convertEvdAt(b, offs[i], next);
+        convertEvdAt(b, offs[i], next, &marks);
     }
 }
 

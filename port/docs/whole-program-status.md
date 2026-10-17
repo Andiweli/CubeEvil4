@@ -20,7 +20,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Gerätelauf von M9 („M8 Audio“) |
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
-| M11 Android-Feinschliff | in Arbeit (Branch `claude/nifty-feynman-jv729h`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Erster Gerätelauf 17.10.2026: Menü, Debug-Menü, Grafikwechsel, Export in Ordnung; Menü danach nach Wünschen umgebaut (nicht auf dem Gerät geprüft). Absturz r206 behoben (REL-Kopf; PC-Rundgang mit Disc-Daten: 26 von 27 Räumen laufen, auch r206). Absturz r311 (Division durch null, Patch 0062) behoben, mit Disc-Daten noch nicht nachgeprüft („M11 Android-Feinschliff“) |
+| M11 Android-Feinschliff | in Arbeit (Branch `claude/nifty-feynman-jv729h`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Erster Gerätelauf 17.10.2026: Menü, Debug-Menü, Grafikwechsel, Export in Ordnung; Menü danach nach Wünschen umgebaut (nicht auf dem Gerät geprüft). Absturz r206 behoben (REL-Kopf; PC-Rundgang mit Disc-Daten: 26 von 27 Räumen laufen, auch r206). Absturz r311 (Division durch null, Patch 0062) behoben. Rundgang über alle Räume: 122 von 126 laufen; r404 (Patch 0063) und r215/r227 (Lichtdaten in Zwischensequenzen) behoben, mit Disc-Daten nicht nachgeprüft, r229 offen („M11 Android-Feinschliff“) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -2955,6 +2955,23 @@ Weitere Divisionen durch null, die der GameCube still übergeht, sind
 möglich; der Rundgang über alle Räume (`-Rooms all`) findet sie auf dem PC
 als Absturz mit Funktionsnamen.
 
+### Rundgang über alle Räume (PC-Prüfung 17.10.2026, Stand `69bbc10`)
+
+`-Rooms all`, i686 -O2, je 1500 Bilder: **122 von 126 Räumen laufen**, r311
+läuft (Patch 0062 wirkt). Vier Fundstellen; die Adressen im Bericht passen
+genau zum gleichen Build in der Cloud, die Befehle an den Stellen sind
+nachgesehen:
+
+| Raum | Was | Ursache | Stand |
+|---|---|---|---|
+| r404 | Stillstand beim Raumstart (`SINF` ← `cLightInfo::updateMatrix` ← `cModel::setAng` ← `r404_initEmSet`) | Der Söldner-Raum wählt einen von drei Startpunkten und holt den Winkel über `&pos + n * 12 + 0x28`: für den Prüfsummen-Build geschrieben, setzt voraus, dass CodeWarrior `rot` 0x28 Bytes über `pos` in den Stapel legt. Clang ordnet anders, Leon bekam einen Winkel von irgendwo im Stapel, das Zurechtrücken des Winkels (`LIMIT_ANGLE`) endete nie. Im übrigen Spielcode (ohne `src/lib`) gibt es diese Art Adressrechnung sonst nicht | behoben (Patch 0063), Build geprüft; mit Disc-Daten nicht nachgeprüft |
+| r215, r227 | Absturz in `cLightMgr::setEnv` (Lesen bei Adresse 8: kein Lichtschnitt), aus dem Licht-Paket einer Zwischensequenz (`Event::ExePacket_Lit` → `LightMgr.update` → `registCut`) | Wahrscheinlich: Das Spiel trägt die Dateien aller Zwischensequenzen eines Raums (EVS-Bündel) unter ihrem Namen ein und behält bei gleichem Namen die **erste** Kopie (`DatTbl::SetDat`). Der Umwandler erkannte Lichtdaten aber nur, wenn die eigene Zwischensequenz sie als Licht benutzt oder der Name auf `.lit` endet. Eine Kopie, die nur eine andere Zwischensequenz als Licht benutzt, blieb big-endian, und genau diese Kopie gibt das Spiel dem Paket. Ohne Disc-Daten nicht bestätigt | Umwandler geändert: im Bündel gilt, was irgendeine Zwischensequenz mit dem Namen macht (eigene Pakete haben Vorrang); neuer Kerntest „event“ (schlägt ohne die Änderung fehl); mit Disc-Daten nicht nachgeprüft |
+| r229 | Absturz in `IdGeneralTrans` beim Funkgespräch (Codec, `ss/cmn/ss_oc205.dat` geladen) | Der Prozessor stand mitten in einem Befehl (`IdGeneralTrans+0x74`): ein Sprung über einen kaputten Funktionszeiger, wohl ein überschriebener Eintrag der Zeichenliste (`ExecOt`). Woher, ist offen | offen: braucht das Protokoll des Laufs |
+
+Der Rundgang-Bericht zeigt bei Problemen jetzt zusätzlich die letzten 30
+Zeilen **vor** dem Absturz (vorher nur die Rückverfolgung) und die letzten
+Meldungen des Formatumwandlers.
+
 ### Vom Projektinhaber gemeldet (17.10.2026, ohne Protokoll) – für 10b
 
 - Vereinzelt lässt sich ein Gegenstand nicht aufnehmen: das „A“-Symbol
@@ -3115,6 +3132,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0060 `card.cpp` | Die Startprüfung der Karte ohne die Fragen und Meldungen des GameCube (Entscheidungen des Projektinhabers, 17.10.2026): `firstCheck10` zeigt „Systemdatei wird geladen“ nicht mehr, `createSysfile` legt eine fehlende Systemdatei ohne Frage an (wie „Ja“) und ohne „wird gespeichert“/„gespeichert“; `RE4_CARD_BOOT_MESSAGE=1` (runtime/memcard.cpp) stellt das Original wieder her. Fehlermeldungen bleiben |
 | 0061 `game.cpp` | Das Debug-Menü (`DbMenuExec`) öffnet auf Wunsch der App (SELECT eine Sekunde gehalten, `re4_core_debug_menu` → `re4_debug_menu_request`) statt mit L + START (Entscheidung des Projektinhabers, 17.10.2026: L2 + START öffnete es versehentlich; SELECT ist keine GameCube-Taste). Die übrigen Bedingungen bleiben (Werbefassung: Controller 2; `DBG_TEST_MODE`) |
 | 0062 `se_at.cpp` | Raumgeräusche ohne feste Wartezeit: `rnd_base + Rnd() % rnd_interval` mit `rnd_interval` 0 (r311) ergibt wie auf dem GameCube `Rnd()` (`divw` durch 0: Quotient 0, Rest = Dividend) statt eines Abbruchs auf x86 (`SIGFPE`, PC-Rundgang 17.10.2026) bzw. eines unbestimmten Rests auf ARM; `Rnd()` weiter genau einmal |
+| 0063 `r404.cpp` | Startpunkt im Söldner-Raum r404: `&pos[n]` / `&rot[n]` statt `&pos + n * 12 + 0x28`, das auf die Stapel-Anordnung von CodeWarrior baut (Clang legt `rot` anders; Stillstand in `LIMIT_ANGLE`, PC-Rundgang 17.10.2026) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

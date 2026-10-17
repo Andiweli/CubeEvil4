@@ -1,0 +1,27 @@
+# r404_initEmSet (Mercenaries, the castle courtyard) picks one of three start
+# points and reaches its angle as &pos + n * 12 + 0x28: written so for the
+# matching build, it relies on CodeWarrior placing rot 0x28 bytes above pos
+# in the stack frame. Clang lays the frame out differently, the player got
+# an angle from elsewhere on the stack, and the angle wrap (LIMIT_ANGLE) of
+# the first matrix update never ended (r404 stood still at its start in the
+# PC room round, 17.10.2026). The port takes &pos[n] and &rot[n].
+--- a/src/st4/r404.cpp
++++ b/src/st4/r404.cpp
+@@ -215,13 +215,10 @@
+     // `&rot[n]` as the pos base plus the frame-slot distance, computed AFTER the two template copies.
+     // ONE variable `t` serves both address chains so cse1 keeps a second real mulli and the re-set
+     // chain gives the target's issue order.
+-    u32 t = n * 12;
+-    t += (u32) &pos;
+-    Vec* b = (Vec*) t;
+-    t = n * 12;
+-    t += (u32) &pos;
+-    t += 0x28;
+-    Vec* r = (Vec*) t;
++    /* port: the arrays themselves, not the CodeWarrior frame layout
++       (rot 0x28 bytes above pos) */
++    Vec* b = &pos[n];
++    Vec* r = &rot[n];
+     cPlayer* pl = pPL;
+ 
+     pl->setPos(b);
