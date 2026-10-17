@@ -1438,6 +1438,11 @@ nach `DataDir`.
   Raumnamen liegt bei y=44, über dem 16:9-Ausschnitt der App).
   Das Bild-Rucken nach dem Bestätigen: Dort beginnt im Original das
   Eröffnungsvideo (Meilenstein 9); nicht weiter untersucht.
+  **Seit 17.10.2026 (Wunsch des Projektinhabers) überspringt die App das
+  Startmenü** (`core_mode.cpp`: Voreinstellung `RE4_ROOM_MENU=0`): „New
+  Game“ startet das Spiel in r100 wie ein sofortiges A; Räume wählt man im
+  Debug-Menü im Spiel (SELECT halten). `test-core-app.ps1 -StartRoom` und
+  die PC-Prüfung setzen `RE4_ROOM_MENU=1` weiter ausdrücklich.
 - **Kurze Tastendrücke:** Die App gab dem Spiel den Tastenstand im Moment von
   `PADRead`; ein Druck kürzer als ein Spielbild (bei Rucklern länger) ging
   verloren. `pad.cpp` merkt sich jetzt Drücke seit dem letzten `PADRead` und

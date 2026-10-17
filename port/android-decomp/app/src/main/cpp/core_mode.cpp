@@ -628,8 +628,12 @@ Java_com_ast_re4decomp_CoreBridge_start(JNIEnv *env, jclass, jstring gameRoot, j
   const auto root = text(env, gameRoot);
   // the core's test switches: environment variables read when the game uses them
   if (api.state && api.state() == RE4_CORE_IDLE) {
-    // defaults of the app: no debug displays of the debug build (RE4_DEBUG_HUD=1 shows them)
+    // defaults of the app: no debug displays of the debug build (RE4_DEBUG_HUD=1 shows them);
+    // "New Game" starts the game without the debug build's start menu (room selection,
+    // patch 0043; wish of the project owner, 17.10.2026: rooms are chosen in the debug
+    // menu, SELECT held). RE4_ROOM_MENU=1 shows it (test-core-app.ps1 -StartRoom).
     setenv("RE4_DEBUG_HUD", "0", 0);
+    setenv("RE4_ROOM_MENU", "0", 0);
     std::string list = text(env, settings);
     std::size_t pos = 0;
     while (pos < list.size()) {
