@@ -536,7 +536,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       }
       Uri uri = ReportProvider.uri(this, zip);
       Intent send = new Intent(Intent.ACTION_SEND).setType("application/zip").putExtra(Intent.EXTRA_STREAM, uri)
-          .putExtra(Intent.EXTRA_SUBJECT, "RE4 Kern: " + zip.getName()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+          .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_label) + ": " + zip.getName()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
       send.setClipData(ClipData.newRawUri(zip.getName(), uri));
       startActivity(Intent.createChooser(send, "Send the error report"));
     } catch (IOException | RuntimeException e) {

@@ -24,7 +24,7 @@ public final class ImportManager {
   private final AtomicBoolean cancelled = new AtomicBoolean();
   private Listener listener;
   public volatile boolean busy;
-  /** The status before anything happened (the core launcher's heading of the import). */
+  /** The status before anything happened (the core launcher shows its own heading instead). */
   public static final String PROMPT = "Select ISO/GCM files of the November 25, 2004 debug build.";
   public volatile String status = PROMPT;
   public final File root;

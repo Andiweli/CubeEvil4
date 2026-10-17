@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Holt die Grafik-Aufnahmen der App "RE4 Kern" (com.ast.re4decomp) vom Retroid (R3 im Spiel).
+Holt die Grafik-Aufnahmen der App "Resident Evil 4 Android" (com.ast.re4decomp) vom Retroid (R3 im Spiel).
 
 .DESCRIPTION
 Ein Druck auf den rechten Stick (R3) speichert in der App die vollstaendigen

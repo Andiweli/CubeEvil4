@@ -22,7 +22,7 @@ public final class MainActivity extends Activity implements ImportManager.Listen
   /** Core flavor: the original game core runs the game (CoreActivity). */
   private boolean core;
   private ImportManager imports;
-  private TextView status, discs, roomNote;
+  private TextView status, discs, roomNote, disc1State, disc2State;
   private Button disc1, disc2, cancel, open;
   private LinearLayout importPanel, roomBrowser;
   private Spinner category, rooms, mode;
@@ -32,13 +32,13 @@ public final class MainActivity extends Activity implements ImportManager.Listen
     super.onCreate(state); startupShown=state!=null&&state.getBoolean("startupShown",false); imports = ((Re4Application)getApplication()).imports;
     core = getResources().getBoolean(R.bool.core_mode);
     LinearLayout body = new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL);
-    int p = dp(20); body.setPadding(p, p, p, p);
+    int p = dp(20); body.setPadding(p, core ? dp(12) : p, p, core ? dp(12) : p);
     if (core) {
       // the launcher of the core mode (project owner, 17.10.2026): title and author centred, a line,
       // Start game, then the controls and the disc import, each under a centred heading between lines
       centered(body, getString(R.string.core_title), 28, true, 0);
       centered(body, getString(R.string.core_author), 15, false, dp(4));
-      line(body, dp(12));
+      line(body, dp(10));
       button(body, getString(R.string.core_start), this::startOriginalTitle);
       heading(body, getString(R.string.core_controls_heading));
       // the controller of the core mode (CoreActivity, CoreInput): the layout and its one switch
@@ -49,7 +49,7 @@ public final class MainActivity extends Activity implements ImportManager.Listen
       swap.setOnCheckedChangeListener((v, on) -> input.edit().putBoolean(CoreActivity.SWAP_FACE, on).apply());
       LinearLayout.LayoutParams middle = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
       middle.gravity = Gravity.CENTER_HORIZONTAL; middle.topMargin = dp(4); body.addView(swap, middle);
-      heading(body, ImportManager.PROMPT);
+      heading(body, getString(R.string.core_import_heading));
     } else {
       TextView title = new TextView(this); title.setText(R.string.app_title); title.setTextSize(25); body.addView(title);
       TextView note = new TextView(this); note.setText(R.string.browser_notice);
@@ -73,10 +73,18 @@ public final class MainActivity extends Activity implements ImportManager.Listen
     importPanel = new LinearLayout(this); importPanel.setOrientation(LinearLayout.VERTICAL);
     importPanel.setVisibility(core ? View.VISIBLE : View.GONE); body.addView(importPanel);
     discs = new TextView(this); importPanel.addView(discs);
-    if (core) { discs.setGravity(Gravity.CENTER_HORIZONTAL); status.setGravity(Gravity.CENTER_HORIZONTAL); }
-    disc1 = button(importPanel, getString(R.string.import_disc1), () -> choose(1));
-    disc2 = button(importPanel, getString(R.string.import_disc2), () -> choose(2));
-    cancel = button(importPanel, getString(R.string.cancel_import), imports::cancel);
+    if (core) {
+      // the core launcher: each import button over the left half, its disc's state right of it
+      discs.setVisibility(View.GONE); status.setGravity(Gravity.CENTER_HORIZONTAL);
+      disc1State = new TextView(this); disc2State = new TextView(this);
+      disc1 = halfButton(importPanel, getString(R.string.import_disc1), () -> choose(1), disc1State);
+      disc2 = halfButton(importPanel, getString(R.string.import_disc2), () -> choose(2), disc2State);
+      cancel = halfButton(importPanel, getString(R.string.cancel_import), imports::cancel, null);
+    } else {
+      disc1 = button(importPanel, getString(R.string.import_disc1), () -> choose(1));
+      disc2 = button(importPanel, getString(R.string.import_disc2), () -> choose(2));
+      cancel = button(importPanel, getString(R.string.cancel_import), imports::cancel);
+    }
     try (Reader reader = new InputStreamReader(getAssets().open("rooms.tsv"), StandardCharsets.UTF_8)) { catalog = new RoomCatalog(reader); }
     catch (IOException e) { status.setText(e.getMessage()); }
     category.setOnItemSelectedListener(selected(this::fillRooms)); rooms.setOnItemSelectedListener(selected(this::roomChanged));
@@ -112,7 +120,17 @@ public final class MainActivity extends Activity implements ImportManager.Listen
     LinearLayout.LayoutParams mid = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
     row.addView(rule(t.getCurrentTextColor()), side); row.addView(t, mid); row.addView(rule(t.getCurrentTextColor()), new LinearLayout.LayoutParams(side));
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-    lp.topMargin = dp(20); lp.bottomMargin = dp(8); body.addView(row, lp);
+    lp.topMargin = dp(14); lp.bottomMargin = dp(2); body.addView(row, lp);
+  }
+  /** A button over the left half of a row, `beside` (or nothing) in the right half. */
+  private Button halfButton(LinearLayout body, String label, Runnable action, TextView beside) {
+    LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
+    Button b = new Button(this); b.setText(label); b.setOnClickListener(v -> action.run());
+    row.addView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+    View right = beside != null ? beside : new View(this);
+    if (beside != null) beside.setPadding(dp(16), 0, 0, 0);
+    row.addView(right, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+    body.addView(row); return b;
   }
   private Button button(LinearLayout body, String label, Runnable action) {
     Button b = new Button(this); b.setText(label); b.setOnClickListener(v -> action.run()); body.addView(b); return b;
@@ -220,7 +238,13 @@ public final class MainActivity extends Activity implements ImportManager.Listen
     if (!loading) status.setText(core && ImportManager.PROMPT.equals(imports.status) ? "" : imports.status);
     discs.setText(getString(R.string.disc_status, getString(discReady(1) ? R.string.ready : R.string.missing), getString(discReady(2) ? R.string.ready : R.string.missing)));
     disc1.setEnabled(imports.root != null && !imports.busy && !loading); disc2.setEnabled(imports.root != null && !imports.busy && !loading); cancel.setEnabled(imports.busy);
-    if (core) cancel.setVisibility(imports.busy ? View.VISIBLE : View.GONE);  // the launcher's two buttons, Cancel while importing
+    if (core) {
+      cancel.setVisibility(imports.busy ? View.VISIBLE : View.GONE);  // the launcher's two buttons, Cancel while importing
+      disc1State.setText(getString(R.string.core_disc_state, 1, getString(discReady(1) ? R.string.ready : R.string.missing)));
+      disc2State.setText(getString(R.string.core_disc_state, 2, getString(discReady(2) ? R.string.ready : R.string.missing)));
+      // no empty line between the import heading and its buttons
+      status.setVisibility(status.getText().length() == 0 ? View.GONE : View.VISIBLE);
+    }
     if (!discReady(1) || imports.busy) importPanel.setVisibility(View.VISIBLE);
     if (imports.busy || loading) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     updateOpenState();

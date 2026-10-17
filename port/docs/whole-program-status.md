@@ -506,7 +506,8 @@ letzten Log-Zeilen.
 `classic` = bisherige App (arm64-v8a, `com.ast.re4decomp.classic`, bis
 17.10.2026 `com.ast.re4decomp`, Standard in Android Studio), `core` =
 Kernmodus (armeabi-v7a und seit M12 arm64-v8a, `com.ast.re4decomp`, bis
-17.10.2026 `com.ast.re4decomp.core`, Name „RE4 Kern“, ab Android 6.0, CMake `-DRE4_CORE_MODE=ON`). Im Kernmodus startet „Start
+17.10.2026 `com.ast.re4decomp.core`, Name „Resident Evil 4 Android“, bis
+17.10.2026 „RE4 Kern“, ab Android 6.0, CMake `-DRE4_CORE_MODE=ON`). Im Kernmodus startet „Start
 game“ die `CoreActivity` statt `StartupActivity`; Raumbrowser und
 Diagnosen (eigene Spielmodule `r100_scenario`, `enemy_encounter`,
 `event_playback` …) sind ausgeblendet und werden nie aufgerufen (sie bleiben
@@ -3384,7 +3385,8 @@ Bild über schwarzem Grund oder ein ganzes Bildschirmbild ist, zeigt
 `port/tools/title_images.py` mit den Disc-Daten: es schreibt jedes Bild als
 PNG und listet je Anordnung, welches Bild wo und wie groß in welchen Bildern
 des Zählers steht (getestet mit einem nachgebauten Archiv; mit den echten
-Daten noch nicht gelaufen).
+Daten noch nicht gelaufen). Der Projektinhaber verzichtet auf ein eigenes Logo
+(17.10.2026); das Werkzeug bleibt für spätere Fragen zu den Titelbildern.
 
 ### Paketname und Startbildschirm (Entscheidung des Projektinhabers, 17.10.2026)
 
@@ -3402,13 +3404,19 @@ Daten noch nicht gelaufen).
   Startbildschirm ohne Discs zu sehen). Die Einstellungen der App (Grafik,
   Tastentausch) liegen im privaten Speicher und beginnen neu.
   `pull-gx-dumps.ps1` nutzt den neuen Namen.
+- **App-Name** unter dem Symbol: „Resident Evil 4 Android“ (vorher „RE4 Kern“),
+  ebenso im Betreff des Fehlerberichts.
 - **Startbildschirm** (nur zu sehen, solange Disc 1 fehlt; sonst startet das
   Spiel sofort): zentriert „Resident Evil 4 Android“, darunter kleiner
   „By Andreas ‘Andiweli’ Stürmer“, eine Linie, „Start game“, dann
-  „Controls“ und „Select ISO/GCM files …“ jeweils zentriert zwischen zwei
-  Linien mit der Tastenbelegung und dem Tausch-Schalter bzw. dem Stand der
-  Discs und „Import Disc 1“/„Import Disc 2“ darunter („Cancel import“ nur
-  während eines Imports). Der Knopf „Menu“ entfällt im Kernmodus: sein
+  „Controls“ und „Select ISO/GCM files of the November 25, 2004 debug build“
+  (ohne Punkt) jeweils zentriert zwischen zwei Linien mit der Tastenbelegung
+  und dem Tausch-Schalter bzw. den Import-Zeilen darunter: „Import Disc 1“
+  und „Import Disc 2“ über der linken Hälfte, rechts daneben „Disc N Data is
+  missing/ready“ („Cancel import“ ebenso, nur während eines Imports; die
+  Statuszeile nur, wenn sie etwas meldet). Nach dem ersten Gerätelauf
+  (17.10.2026: „zu hoch“) enger: kleinere Abstände oben, unten und an den
+  Überschriften. Der Knopf „Menu“ entfällt im Kernmodus: sein
   einziger Eintrag war der Disc-Import, den der Startbildschirm jetzt immer
   zeigt (`classic` behält ihn). Der Java-Code übersetzt gegen die
   Android-Klassen (Cloud); auf dem Gerät noch nicht gesehen.

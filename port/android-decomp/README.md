@@ -101,7 +101,7 @@ Alternativ: `bash ./gradlew assembleClassicDebug lintClassicDebug` beziehungswei
 | Variante | Inhalt |
 |---|---|
 | `classicDebug` (Standard) | die bisherige App „RE4 Decomp“ mit den eigenen Spielmodulen, ARM64, `com.ast.re4decomp.classic` (bis 17.10.2026 `com.ast.re4decomp`) |
-| `coreDebug` | Kernmodus „RE4 Kern“: der Original-Spielkern (`port/whole`) übernimmt die ganze Spiellogik, die App zeichnet, liest den Controller und importiert die Discs; ARM32 (`armeabi-v7a`) und ARM64 (`arm64-v8a`) in einer APK, ab Android 6.0, `com.ast.re4decomp` (bis 17.10.2026 `com.ast.re4decomp.core`; `test-core-app.ps1` übernimmt einmal deren Discs und Speicherkarte) |
+| `coreDebug` | Kernmodus „Resident Evil 4 Android“ (bis 17.10.2026 „RE4 Kern“): der Original-Spielkern (`port/whole`) übernimmt die ganze Spiellogik, die App zeichnet, liest den Controller und importiert die Discs; ARM32 (`armeabi-v7a`) und ARM64 (`arm64-v8a`) in einer APK, ab Android 6.0, `com.ast.re4decomp` (bis 17.10.2026 `com.ast.re4decomp.core`; `test-core-app.ps1` übernimmt einmal deren Discs und Speicherkarte) |
 
 Für `coreDebug` vorher die Kern-Bibliotheken bauen (WSL/Linux, Android-NDK r28c):
 `port/tools/whole_build_android.sh` legt sie nach `app/src/core/jniLibs/armeabi-v7a/`

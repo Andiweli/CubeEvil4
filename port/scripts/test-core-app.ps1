@@ -13,22 +13,22 @@ Drei Schritte, jeder einzeln abschaltbar:
   2. Windows: die App-Variante "core" bauen (gradlew.bat :app:assembleCoreDebug,
      mit dem Android-SDK von Android Studio).
   3. Retroid per ADB, unter der gemeinsamen Sperre Global\Retroid_ADB_Exclusive
-     (port/docs/adb-coordination.md): APK installieren (App "RE4 Kern",
+     (port/docs/adb-coordination.md): APK installieren (App "Resident Evil 4 Android",
      com.ast.re4decomp), starten, mehrere Bildschirmfotos aufnehmen, das
      Protokoll der App holen, App beenden.
 
 Paketname seit 17.10.2026 com.ast.re4decomp (vorher com.ast.re4decomp.core;
 Entscheidung des Projektinhabers). Die Installation ersetzt die bisherige App
 "RE4 Decomp" mit diesem Namen (deren eigene Spielmodule heissen jetzt
-com.ast.re4decomp.classic). Ist die fruehere App com.ast.re4decomp.core noch auf
-dem Retroid, kopiert das Skript einmal ihre importierten Discs und ihre
+com.ast.re4decomp.classic). Ist die fruehere App com.ast.re4decomp.core (Symbol
+"RE4 Kern") noch auf dem Retroid, kopiert das Skript einmal ihre importierten Discs und ihre
 Speicherkarte in die neue App (nur was dort fehlt; die fruehere App behaelt ihre
 Daten, bis du sie deinstallierst: adb uninstall com.ast.re4decomp.core).
 -NoCopy laesst das aus: ohne Disc 1 zeigt die App dann ihren Startbildschirm, und
 das Skript wartet wie unten beschrieben auf einen Import (Strg+C beendet es; ein
 zweiter Lauf mit -SkipCore -SkipApk ohne -NoCopy kopiert dann).
 
-Beim ersten Mal in der App "RE4 Kern" Disc 1 importieren (Startbildschirm der App,
+Beim ersten Mal in der App "Resident Evil 4 Android" Disc 1 importieren (Startbildschirm der App,
 "Import Disc 1"; Disc 2 erst fuer spaetere Raeume). Fehlt der Import, startet das
 Skript die App, bittet darum und wartet bis zu -ImportMinutes Minuten (Standard 45),
 ohne die App zu beenden; erst danach beginnt der Test.
@@ -410,7 +410,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         throw ("Auf dem Retroid ist schon eine App $package mit einem anderen Signierschluessel " +
             "(meist die bisherige App 'RE4 Decomp' von einem anderen Rechner). Sie muss einmal weg: " +
             "& '$Adb' -s $Serial uninstall $package   (loescht auch ihre Daten; die Discs und " +
-            "Spielstaende der App 'RE4 Kern' in $oldPackage bleiben und werden danach uebernommen). " +
+            "Spielstaende der frueheren App 'RE4 Kern' ($oldPackage) bleiben und werden danach uebernommen). " +
             "Dann dieses Skript mit -SkipCore -SkipApk erneut starten.")
     }
     if ($installCode -ne 0) { throw 'Installation fehlgeschlagen.' }
@@ -473,7 +473,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         # (DiscInstaller.recover) when it starts
         & $Adb -s $Serial shell input keyevent KEYCODE_WAKEUP
         & $Adb -s $Serial shell am start -n "$package/com.ast.re4decomp.MainActivity" | Out-Null
-        Say '   In der App "RE4 Kern" fehlt Disc 1 (oder ein Import laeuft noch).'
+        Say '   In der App "Resident Evil 4 Android" fehlt Disc 1 (oder ein Import laeuft noch).'
         Say '   Bitte jetzt auf dem Retroid in der App "Import Disc 1" waehlen und die Disc-1-Datei (.gcm/.iso) aussuchen.'
         Say '   Disc 2 ist fuer diesen Test nicht noetig. Das Skript wartet und beendet die App waehrenddessen NICHT.'
         Say "   Wartezeit hoechstens $ImportMinutes Minuten; Abbruch mit Strg+C."
