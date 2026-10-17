@@ -53,6 +53,13 @@
     ((void) sizeof(char[(sizeof(void*) != 4 || __builtin_offsetof(T, member) == (gc)) ? 1 : -1]), \
      __builtin_offsetof(T, member))
 
+/* A signed 32-bit value the game turns into a pointer (milestone 12,
+ * whole_prepare.py lp64_int_casts, port/whole/lp64_int_casts.json): read as
+ * unsigned, so the pointer gets the ILP32 bit pattern; the game's addresses
+ * have bit 31 set, which a signed value would extend to 0xFFFFFFFF8xxxxxxx on
+ * LP64 (primInit on the Retroid, 17.10.2026). The same value on ILP32. */
+#define RE4_ADDR32(x) ((unsigned int) (x))
+
 /* C equivalents of the Gekko instructions of the replaced inline asm. */
 #include "re4_ppc.h"
 

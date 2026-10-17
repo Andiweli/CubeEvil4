@@ -1,0 +1,1156 @@
+[
+ {
+  "file": "src/Sscrn/ss_pzzl.cpp",
+  "line": 2006,
+  "text": "(pzlBoard*) n",
+  "operand": "n",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em10/em10.cpp",
+  "line": 10253,
+  "text": "(void*) m1",
+  "operand": "m1",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em10/em10.cpp",
+  "line": 24422,
+  "text": "(void*) hit",
+  "operand": "hit",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em10/em10.cpp",
+  "line": 24424,
+  "text": "(void*) hit",
+  "operand": "hit",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em10/em10.cpp",
+  "line": 25482,
+  "text": "(void*) a",
+  "operand": "a",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em10/em10.cpp",
+  "line": 25491,
+  "text": "(void*) seq",
+  "operand": "seq",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em27/em27.cpp",
+  "line": 147,
+  "text": "(ESPSEQ_CONTROL*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2b/em2b.cpp",
+  "line": 972,
+  "text": "(cObj16*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2b/em2b.cpp",
+  "line": 3127,
+  "text": "(void*) end",
+  "operand": "end",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2b/em2b.cpp",
+  "line": 4088,
+  "text": "(void*) a",
+  "operand": "a",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2b/em2b.cpp",
+  "line": 4097,
+  "text": "(void*) arg",
+  "operand": "arg",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2b/em2b.cpp",
+  "line": 5392,
+  "text": "(void*) a",
+  "operand": "a",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2b/em2b.cpp",
+  "line": 5394,
+  "text": "(void*) b",
+  "operand": "b",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 2095,
+  "text": "(void*) hit",
+  "operand": "hit",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 2097,
+  "text": "(void*) hit",
+  "operand": "hit",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 2152,
+  "text": "(void*) hit",
+  "operand": "hit",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 2197,
+  "text": "(void*) hit",
+  "operand": "hit",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 2728,
+  "text": "(void*) w->mode",
+  "operand": "w->mode",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 4448,
+  "text": "(void*) hit",
+  "operand": "hit",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 4639,
+  "text": "(void*) hit",
+  "operand": "hit",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 5523,
+  "text": "(u8*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 5524,
+  "text": "(u8*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 5525,
+  "text": "(u8*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 5526,
+  "text": "(const u8*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 5529,
+  "text": "(f32*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 5530,
+  "text": "(f32*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 5531,
+  "text": "(const f32*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 5532,
+  "text": "(f32*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 5534,
+  "text": "(CLOTH_AT_SET*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 5543,
+  "text": "(cModel*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 5548,
+  "text": "(cParts**) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 6116,
+  "text": "(void*) a",
+  "operand": "a",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 6125,
+  "text": "(void*) arg",
+  "operand": "arg",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 6147,
+  "text": "(void*) a",
+  "operand": "a",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em2c/em2c.cpp",
+  "line": 6149,
+  "text": "(void*) b",
+  "operand": "b",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em32/em32.cpp",
+  "line": 2057,
+  "text": "(void*) hit",
+  "operand": "hit",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em32/em32.cpp",
+  "line": 2519,
+  "text": "(void*) act",
+  "operand": "act",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em32/em32.cpp",
+  "line": 2522,
+  "text": "(void*) act",
+  "operand": "act",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em32/em32.cpp",
+  "line": 3771,
+  "text": "(void*) arg",
+  "operand": "arg",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em35/em35.cpp",
+  "line": 4978,
+  "text": "(void*) seq",
+  "operand": "seq",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em38/em38.cpp",
+  "line": 1940,
+  "text": "(void*) seq",
+  "operand": "seq",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em39/em39.cpp",
+  "line": 775,
+  "text": "(cEmWep*) z0",
+  "operand": "z0",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em39/em39.cpp",
+  "line": 6286,
+  "text": "(cEmWep*) end",
+  "operand": "end",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em39/em39.cpp",
+  "line": 7344,
+  "text": "(EmiEntry*) st",
+  "operand": "st",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em3c/em3c.cpp",
+  "line": 1549,
+  "text": "(ESPSEQ_CONTROL*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/act_btn.cpp",
+  "line": 79,
+  "text": "(void*) w->d",
+  "operand": "w->d",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/event.cpp",
+  "line": 2417,
+  "text": "(void*) addr",
+  "operand": "addr",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/event.cpp",
+  "line": 2850,
+  "text": "(void*) d",
+  "operand": "d",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/exception.cpp",
+  "line": 536,
+  "text": "(u32*) -1",
+  "operand": "-1",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/exception.cpp",
+  "line": 543,
+  "text": "(u32*) -1",
+  "operand": "-1",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/game.cpp",
+  "line": 1537,
+  "text": "(void*) pG->prim_cnt",
+  "operand": "pG->prim_cnt",
+  "type": "s32",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/game.cpp",
+  "line": 1544,
+  "text": "(void*) pG->prim_cnt",
+  "operand": "pG->prim_cnt",
+  "type": "s32",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/obj00.cpp",
+  "line": 114,
+  "text": "(void*) a",
+  "operand": "a",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/pl_leon.cpp",
+  "line": 174,
+  "text": "(void*) type",
+  "operand": "type",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/scheduler.cpp",
+  "line": 17,
+  "text": "(TASK*) -1",
+  "operand": "-1",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/sscrn.cpp",
+  "line": 454,
+  "text": "(OSModuleHeader*) wk->relAddr",
+  "operand": "wk->relAddr",
+  "type": "s32",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/trans.cpp",
+  "line": 333,
+  "text": "(u8*) pG->prim_base",
+  "operand": "pG->prim_base",
+  "type": "s32",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/trans.cpp",
+  "line": 375,
+  "text": "(u8*) pG->prim_base",
+  "operand": "pG->prim_base",
+  "type": "s32",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/trans.cpp",
+  "line": 916,
+  "text": "(void*) -1",
+  "operand": "-1",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/trans.cpp",
+  "line": 917,
+  "text": "(void*) -1",
+  "operand": "-1",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/trans.cpp",
+  "line": 2418,
+  "text": "(u8*) pG->prim_cnt",
+  "operand": "pG->prim_cnt",
+  "type": "s32",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/game/trans.cpp",
+  "line": 2425,
+  "text": "(u8*) pG->prim_cnt",
+  "operand": "pG->prim_cnt",
+  "type": "s32",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl02/pl02.cpp",
+  "line": 250,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl06/pl06.cpp",
+  "line": 111,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl0a/pl_klauser.cpp",
+  "line": 323,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl0d/pl_wesker.cpp",
+  "line": 199,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl0e/pl0e.cpp",
+  "line": 993,
+  "text": "(void*) a",
+  "operand": "a",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl0e/pl0e.cpp",
+  "line": 1002,
+  "text": "(void*) f",
+  "operand": "f",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl0e/pl0e.cpp",
+  "line": 1023,
+  "text": "(void*) a",
+  "operand": "a",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl0e/pl0e.cpp",
+  "line": 1032,
+  "text": "(void*) f",
+  "operand": "f",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl0e/pl0e.cpp",
+  "line": 1573,
+  "text": "(void*) a",
+  "operand": "a",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl0e/pl0e.cpp",
+  "line": 1582,
+  "text": "(void*) f",
+  "operand": "f",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl0f/pl0f.cpp",
+  "line": 3197,
+  "text": "(void*) a",
+  "operand": "a",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl0f/pl0f.cpp",
+  "line": 3206,
+  "text": "(void*) f",
+  "operand": "f",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl0f/pl0f.cpp",
+  "line": 3226,
+  "text": "(void*) a",
+  "operand": "a",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/pl0f/pl0f.cpp",
+  "line": 3235,
+  "text": "(void*) f",
+  "operand": "f",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st1/r100.cpp",
+  "line": 947,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st1/r101.cpp",
+  "line": 819,
+  "text": "(void*) side",
+  "operand": "side",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st1/r11c.cpp",
+  "line": 906,
+  "text": "(void*) dir",
+  "operand": "dir",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st1/r11c.cpp",
+  "line": 907,
+  "text": "(void*) dir",
+  "operand": "dir",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st1/r11c.cpp",
+  "line": 999,
+  "text": "(void*) -1",
+  "operand": "-1",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st1/r11c.cpp",
+  "line": 1001,
+  "text": "(void*) -1",
+  "operand": "-1",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st1/r11c.cpp",
+  "line": 1019,
+  "text": "(void*) -1",
+  "operand": "-1",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r201.cpp",
+  "line": 788,
+  "text": "(void*) open",
+  "operand": "open",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r209.cpp",
+  "line": 1149,
+  "text": "(void*) arg",
+  "operand": "arg",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r20e.cpp",
+  "line": 369,
+  "text": "(void*) sw",
+  "operand": "sw",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r212.cpp",
+  "line": 638,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r213.cpp",
+  "line": 635,
+  "text": "(void*) which",
+  "operand": "which",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r213.cpp",
+  "line": 1115,
+  "text": "(void*) frame",
+  "operand": "frame",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r21a.cpp",
+  "line": 599,
+  "text": "(void*) (int) spd",
+  "operand": "(int) spd",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r21b.cpp",
+  "line": 176,
+  "text": "(void*) (no + 1)",
+  "operand": "(no + 1)",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r222.cpp",
+  "line": 598,
+  "text": "(void*) zero2",
+  "operand": "zero2",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r222.cpp",
+  "line": 598,
+  "text": "(ESPSEQ_CONTROL*) zero2",
+  "operand": "zero2",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r222.cpp",
+  "line": 691,
+  "text": "(void*) zero2",
+  "operand": "zero2",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r222.cpp",
+  "line": 691,
+  "text": "(ESPSEQ_CONTROL*) zero2",
+  "operand": "zero2",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r226.cpp",
+  "line": 595,
+  "text": "(void*) side",
+  "operand": "side",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r226.cpp",
+  "line": 1436,
+  "text": "(void*) smdNo",
+  "operand": "smdNo",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st2/r22c.cpp",
+  "line": 699,
+  "text": "(cObj*) tbl[(r + i) % 5]",
+  "operand": "tbl[(r + i) % 5]",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r30f.cpp",
+  "line": 216,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r318.cpp",
+  "line": 846,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r318.cpp",
+  "line": 876,
+  "text": "(void*) mode",
+  "operand": "mode",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31b.cpp",
+  "line": 518,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31b.cpp",
+  "line": 596,
+  "text": "(void*) room",
+  "operand": "room",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31b.cpp",
+  "line": 679,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31b.cpp",
+  "line": 800,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31b.cpp",
+  "line": 842,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31b.cpp",
+  "line": 974,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31b.cpp",
+  "line": 1002,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31b.cpp",
+  "line": 1612,
+  "text": "(void*) dir",
+  "operand": "dir",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31b.cpp",
+  "line": 1868,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31c.cpp",
+  "line": 606,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31c.cpp",
+  "line": 682,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31c.cpp",
+  "line": 833,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r31c.cpp",
+  "line": 1184,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r320.cpp",
+  "line": 540,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r320.cpp",
+  "line": 551,
+  "text": "(void*) zero2",
+  "operand": "zero2",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r320.cpp",
+  "line": 1585,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r320.cpp",
+  "line": 1608,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r320.cpp",
+  "line": 1631,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r320.cpp",
+  "line": 1928,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r320.cpp",
+  "line": 2002,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r320.cpp",
+  "line": 2059,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r320.cpp",
+  "line": 2091,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r320.cpp",
+  "line": 2130,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r320.cpp",
+  "line": 2164,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r320.cpp",
+  "line": 2493,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r327.cpp",
+  "line": 373,
+  "text": "(void*) idx",
+  "operand": "idx",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r327.cpp",
+  "line": 402,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r327.cpp",
+  "line": 428,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r327.cpp",
+  "line": 654,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r327.cpp",
+  "line": 675,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r327.cpp",
+  "line": 706,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r327.cpp",
+  "line": 813,
+  "text": "(cObj*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r332.cpp",
+  "line": 975,
+  "text": "(void*) type",
+  "operand": "type",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r332.cpp",
+  "line": 1323,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r332.cpp",
+  "line": 1387,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r333.cpp",
+  "line": 459,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/st3/r333.cpp",
+  "line": 725,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/t_camera/t_camera_data.cpp",
+  "line": 205,
+  "text": "(CAMERA_DATA*) found",
+  "operand": "found",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/wep01/objFn57.cpp",
+  "line": 98,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/wep06/wep06.cpp",
+  "line": 98,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/wep17/wep17.cpp",
+  "line": 859,
+  "text": "(void*) zero",
+  "operand": "zero",
+  "type": "int",
+  "action": "zero_extend"
+ },
+ {
+  "file": "src/em3d/em3d.cpp",
+  "line": 660,
+  "text": "(void*) (zero)",
+  "operand": "(zero)",
+  "type": "int",
+  "action": "zero_extend",
+  "note": "inside EM3D_GUN_SHOT (expanded at lines 725 and 726)"
+ },
+ {
+  "file": "src/st3/r332.cpp",
+  "line": 859,
+  "text": "(void*) no",
+  "operand": "no",
+  "type": "int",
+  "action": "zero_extend",
+  "note": "argument of R332_TASK_SET"
+ }
+]

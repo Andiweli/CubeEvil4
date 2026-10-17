@@ -208,6 +208,43 @@ def apply_byte_views(tree: Path) -> int:
     return done
 
 
+# Signed 32-bit values the game turns into pointers (milestone 12,
+# port/tools/m12/int_cast_check.py, reviewed list port/whole/lp64_int_casts.json):
+# the operand of each listed cast `(T*) x` becomes RE4_ADDR32(x)
+# (re4_whole_prelude.h), unsigned, so LP64 keeps the ILP32 bit pattern. Applied
+# last (the list records the lines of the prepared tree); a listed site whose
+# text is not on its line, or near it, as often as listed stops the build.
+INT_CASTS = ROOT / "port" / "whole" / "lp64_int_casts.json"
+
+
+def apply_int_casts(tree: Path) -> int:
+    groups = {}
+    for e in json.loads(INT_CASTS.read_text()):
+        if e["action"] == "zero_extend":
+            groups.setdefault((e["file"], e["line"], e["text"], e["operand"]), []).append(e)
+    texts = {}
+    done = 0
+    for (file, line, text, operand), same in sorted(groups.items()):
+        if not text.endswith(operand):
+            sys.exit(f"lp64_int_casts.json: {file}:{line}: `{text}` does not end with its operand `{operand}`")
+        path = tree / file
+        if path not in texts:
+            texts[path] = path.read_text(encoding="utf-8", errors="surrogateescape").split("\n")
+        lines = texts[path]
+        new = text[:len(text) - len(operand)] + f"RE4_ADDR32({operand})"
+        pattern = re.compile(re.escape(text) + r"(?![\w.\[(]|->)")  # the whole operand, not a prefix of it
+        order = sorted(range(max(0, line - 40), min(len(lines), line + 40)), key=lambda i: abs(i - (line - 1)))
+        hits = [i for i in order if len(pattern.findall(lines[i])) == len(same)]
+        if not hits:
+            sys.exit(f"int cast {file}:{line} `{text}` not found: rerun port/tools/m12/int_cast_check.py "
+                     "and review port/whole/lp64_int_casts.json")
+        lines[hits[0]] = pattern.sub(lambda m: new, lines[hits[0]])
+        done += len(same)
+    for path, lines in texts.items():
+        path.write_text("\n".join(lines), encoding="utf-8", errors="surrogateescape")
+    return done
+
+
 def mirror(src: Path, dst: Path) -> None:
     for path in src.rglob("*"):
         if path.is_dir():
@@ -444,13 +481,14 @@ def prepare(out: Path) -> Path:
     apply_patches(staging)
     sizes = lp64_sizes(staging)
     views = apply_byte_views(staging)
+    casts = apply_int_casts(staging)
     plan = module_plan()
     # Every dropped inline asm with real instructions needs a C replacement.
     found, problems = whole_asm_check.check(staging, whole_asm_check.plan_units(plan), OVERLAY)
     if problems:
         sys.exit("inline asm check failed (port/tools/whole_asm_check.py):\n  " + "\n  ".join(problems))
     print(f"whole_prepare: asm {whole_asm_check.summary(found)}; {views} byte views; "
-          f"{fixed} fixed-form pointer members; {sizes} LP64 work sizes")
+          f"{fixed} fixed-form pointer members; {sizes} LP64 work sizes; {casts} signed casts to pointers")
     sync(staging, tree)
     shutil.rmtree(staging)
     write_sdk_c_only(out)

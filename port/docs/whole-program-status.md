@@ -3474,6 +3474,25 @@ Daten noch nicht gelaufen). Der Projektinhaber verzichtet auf ein eigenes Logo
   und eine Nachbildung des Bereichs (beste Lücke, sonst Ende) mit fünf Fällen
   in Python (leer, mit Lücken, kurz vor MEM1, 300 KB vor der Seite, schon
   darüber: vier halten MEM1, der letzte bricht sauber ab).
+- **Zweiter 64-bit-Gerätelauf (23:12, Stand `4e7e180`):** MEM1 sitzt im Bereich
+  der großen Objekte („MEM1 held in ART's large object space …: the data of a
+  byte[] at 0x7ffff000..0x83000000 (190 MB below let go)“), der Kern läuft:
+  Kartenprüfung, Titel-Archiv geladen, 5 Tastendrücke kommen an. Nach 7 s
+  Absturz in `primInit` (aus `titleWait`): `memset` auf `0xffffffff80d427c0`.
+  `pG->prim_cnt` ist `s32`, `(void*) pG->prim_cnt` erweitert auf LP64 das
+  Vorzeichen. Behoben mit der Regel `lp64_int_casts` (Abschnitt „Mechanische
+  Umschreibungen“): `port/tools/m12/int_cast_check.py` fand mit libclang 145
+  solche Umwandlungen (142 einfache, 3 in Makros), alle bekommen `RE4_ADDR32`;
+  danach 0. Die frühere Suche mit `-Wint-to-pointer-cast` (Schritt A2, 14
+  Stellen) hatte die meisten übersehen. Dazu `port/tools/m12/ptr_word_check.py`:
+  Zeiger, die als 32-bit-Wort gelesen oder geschrieben werden (auf LP64 bliebe
+  beim Schreiben die obere Hälfte stehen): eine Stelle, `*(u32*) &pAnotherRoute
+  = 0` in `pl_npc.cpp`, harmlos (die obere Hälfte ist bei allem unter 4 GB
+  null). Geprüft: i686, armhf, x86_64 und aarch64 (qemu) alle Cloud-Tests ✅
+  (Selbsttest, Module, Laufzeit 10/10, Kern 16/16, Karte, Format-Vergleich,
+  Film); `int_cast_check.py` auf x86_64 und aarch64: 0. Der Titel und die Räume laufen in
+  der Cloud nicht (keine Disc-Daten): dafür die PC-Prüfung `-Lp64` mit den
+  Disc-Daten (noch nie gelaufen) und der nächste Gerätelauf.
 - **Falls das auf anderen Geräten nicht reicht** (MEM1 in einem anderen Bereich
   von ART): Auswege wären ein frischer App-Prozess über `wrap.sh` (nur
   Debug-APKs) oder ein eigener Prozess für den Kern; beides ändert die Art des
@@ -3566,6 +3585,7 @@ sie ersetzt.
 | Prelude: `#define _ctype_ re4_newlib_ctype_` (nach den System-Headern) | Bionic exportiert `_ctype_` als Zeiger, newlib (das Spiel, `t_movie`) als Feld; die Tabelle heißt jetzt `re4_newlib_ctype_` (`runtime/newlib_ctype.c`), Bionics Zeiger bleibt unberührt (K2) |
 | Prelude: `Re4BeBytes2` | Byte-Array-Sicht `b[0]` = hohes, `b[1]` = niedriges Byte eines Halbworts, unabhängig von der Host-Reihenfolge (Patch 0016: `cItem::lv8`, `SND_RND::b`) |
 | CodeWarrior-`asm { … }`-Blöcke, die nur Register umkopieren (`mr`) und keine C-Variable ändern → `/* port: register pin */;` (`whole_asm_check.drop_register_pins`, seit M9) | Registerbindungen des Decompilats (Reihenfolge der Register wie im Original), ohne Wirkung auf das Ergebnis; clang kennt die Syntax nicht. Blöcke mit echten Befehlen bleiben und brechen den Build ab (dann Patch) |
+| Vorzeichenbehaftete 32-bit-Werte, die zu Zeigern werden (`port/whole/lp64_int_casts.json`, `lp64_int_casts`, zuletzt, M12): der Operand jeder gelisteten Umwandlung `(T*) x` → `RE4_ADDR32(x)` (Prelude: `(unsigned int) (x)`) | auf LP64 wird aus einem `int`/`s32` mit gesetztem Bit 31 die Adresse `0xFFFFFFFF8…` (Absturz in `primInit` auf dem Retroid, 17.10.2026: `(void*) pG->prim_cnt`); vorzeichenlos gelesen behält der Zeiger das Bitmuster von ILP32, auch bei Zahlen, die keine Adressen sind (`(void*) -1`, Aufgabenparameter). Liste von `port/tools/m12/int_cast_check.py` (libclang, 142 Stellen, dazu zwei in Makros von Hand: `EM3D_GUN_SHOT`, `R332_TASK_SET`); eine Stelle, die nicht wie gelistet gefunden wird, bricht den Build ab |
 | `GXWGFifo.T = x` / `GXWGFifo->T = x` → `re4_gx_put_T(x)` (`GX_FIFO_STORE`, in `GXVert.h` als `re4_gx_put_##T`), Datei bekommt `#include "re4_gx_fifo.h"` | Die Schreibadresse `0xCC008000` des Grafikprozessors gibt es im Port nicht; der FIFO des Ports (`runtime/gx_fifo.cpp`) bekommt jeden Wert (G1) |
 
 Compiler-Schalter: `-std=gnu++11 -Wno-c++11-narrowing -fdelayed-template-parsing
