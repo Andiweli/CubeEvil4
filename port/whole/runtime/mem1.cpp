@@ -86,6 +86,8 @@ extern "C" void re4_check_game_address(const char* what, const void* addr)
                 what, base, RE4_MEM1_BASE);
         abort();
     }
+    // 64 bit: the whole library inside the window (its last byte as well)
+    re4_check_window(what, addr);
 }
 
 extern "C" int re4_in_mem1(const void* p)

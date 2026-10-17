@@ -29,6 +29,12 @@ extern "C" void* make_fcontext(void* stackTop, std::size_t size, void (*entry)(T
 #else
 #error "A tested stack context backend is required for this platform"
 #endif
+#ifndef _WIN32
+// The whole-program port on 64 bit (port/whole/runtime/game_window.cpp): game
+// code keeps addresses of its locals in 32 bits, so its stacks come from the
+// window below 4 GB. Weak: other users of this file map anywhere.
+extern "C" void* re4_window_map(unsigned long size, int prot) __attribute__((weak));
+#endif
 
 namespace re4::port::detail {
 ContextDomain::ContextDomain() {
@@ -93,8 +99,14 @@ struct StackContext::Impl {
         const auto usable = ((bytes + page - 1) / page) * page;
         mappingBytes = usable + 2 * page;
         // Both ends are protected. The stack is writable and never executable.
-        mapping = mmap(nullptr, mappingBytes, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        if (mapping == MAP_FAILED) throw std::system_error(errno, std::generic_category(), "mmap stack");
+        if (re4_window_map) {
+            mapping = re4_window_map(mappingBytes, PROT_NONE);
+            if (!mapping) mapping = MAP_FAILED;
+            if (mapping == MAP_FAILED) throw std::runtime_error("no room for a stack below 4 GB");
+        } else {
+            mapping = mmap(nullptr, mappingBytes, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+            if (mapping == MAP_FAILED) throw std::system_error(errno, std::generic_category(), "mmap stack");
+        }
         auto* bottom = static_cast<char*>(mapping) + page;
         if (mprotect(bottom, usable, PROT_READ | PROT_WRITE) != 0) {
             const int error = errno;

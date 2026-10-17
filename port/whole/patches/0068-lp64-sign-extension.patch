@@ -1,0 +1,66 @@
+# 64-bit build (milestone 12, way A): addresses that pass through a signed
+# 32-bit value. Everything the game reaches lies in 0x80000000..0xFFFFFFFF,
+# so bit 31 is set and an int turned into a pointer becomes 0xFFFFFFFF8xxxxxxx
+# on LP64 (sign extension). The same on ILP32.
+# - os.h: OS_BASE_CACHED (0x8000 << 16) is an int; the fixed OS globals
+#   (OS_BUS_CLOCK, __OSCurrentThread ...) were cast from it.
+# - model.h / model.cpp: cModel::modelInit returns the cModelInfo* as int,
+#   ten callers cast it back: u32.
+# - shape.cpp: the relocated shape table is s32: read as u32.
+# Found with -Wint-to-pointer-cast on x86_64 (14 casts from signed types, the
+# other four are zeros) and the crash in __AXVPBInit (OS_BUS_CLOCK).
+--- a/include/dolphin/os.h
++++ b/include/dolphin/os.h
+@@ -50,8 +50,8 @@
+ #define DOLPHIN_ALIGNMENT 32
+ 
+ // Upper words of the masks, since UIMM is only 16 bits
+-#define OS_CACHED_REGION_PREFIX   0x8000
+-#define OS_UNCACHED_REGION_PREFIX 0xC000
++#define OS_CACHED_REGION_PREFIX   0x8000u  /* port: patch 0068 */
++#define OS_UNCACHED_REGION_PREFIX 0xC000u
+ #define OS_PHYSICAL_MASK 0x3FFF
+ 
+ #define OS_BASE_CACHED   (OS_CACHED_REGION_PREFIX << 16)
+--- a/include/model.h
++++ b/include/model.h
+@@ -540,7 +540,7 @@
+     virtual void setNoSuspend(int onoff);
+ 
+     cParts* getPartsPtr(int idx);  // -1: the model itself; NULL (and a log) when out of range
+-    int modelInit(void* bin, void* tpl);  // returns the cModelInfo* (pl_leon range-checks it)
++    u32 modelInit(void* bin, void* tpl);  // returns the cModelInfo* (pl_leon range-checks it); port: patch 0068, u32
+     int initJoint(void* bin);     // parts list from the bin's parts records (makePartsList / setPartsParent / setPartsOffset / setJointInfo)
+     int initJoint(u32 binAddr) { return initJoint((void*) binAddr); }
+     void releaseJoint();          // releasePartsList(0) when there are parts
+--- a/src/game/model.cpp
++++ b/src/game/model.cpp
+@@ -96,7 +96,7 @@
+ // Loads a model: relocates bin/tpl, creates the first cModelInfo, builds the parts list from the
+ // model's joints (initJoint), sets visible/alive flags (invisible_factor 1, or 0 when the
+ // System_flg 0x800000 fade-in mode), enemies (kindid 0) get be_flag 0x10. Returns the info (0 on failure).
+-int cModel::modelInit(void* bin, void* tpl)
++u32 cModel::modelInit(void* bin, void* tpl)  /* port: patch 0068 */
+ {
+     cModelInfo* info;
+ 
+@@ -140,7 +140,7 @@
+     Motion.Seq_speed = 1.0f;
+     pCldShMd = 0;
+     Motion.pAttachCam = 0;
+-    return (int) info;
++    return (u32) info;
+ }
+ 
+ // Creates nParts cParts for the model's joints, links parents, sets rest offsets and the
+--- a/src/game/shape.cpp
++++ b/src/game/shape.cpp
+@@ -223,7 +223,7 @@
+             if (w->flags[i] & 4) {
+                 f32 v;
+                 pp->Data_fmt = w->flags[i] >> 12;
+-                pp->pData = (u8*) w->table[i];
++                pp->pData = (u8*) (u32) w->table[i];  /* port: patch 0068 */
+                 memclr_asm(out, 6);
+                 HermiteInterpolation(pp, (Vec*) result, (u16*) out);
+                 v = result[1] / 100.0f;

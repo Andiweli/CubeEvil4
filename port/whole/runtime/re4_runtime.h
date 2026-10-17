@@ -62,6 +62,15 @@ int re4_in_mem1(const void* p);
 /* Game libraries must lie at 0x80000000 and above: the game tells its data
  * from offsets and table links by bit 31. Logs and aborts otherwise. */
 void re4_check_game_address(const char* what, const void* addr);
+/* LP64 (milestone 12): what the game can address lies in 0x80000000..0xFFFFFFFF,
+ * MEM1 at its start, the rest from RE4_WINDOW_START (game_window.cpp). */
+#define RE4_WINDOW_START 0x83000000ul
+#define RE4_WINDOW_END 0x100000000ull
+/* Address space for the game in the window (ILP32: anywhere), 0 when full. */
+void* re4_window_map(unsigned long size, int prot);
+/* 1 when the game can hold p in 32 bits (ILP32: always); the check logs and aborts. */
+int re4_in_window(const void* p);
+void re4_check_window(const char* what, const void* p);
 
 /* Folder with the extracted disc files (dvd.cpp): <dir>/disc0, <dir>/disc1,
  * each with sys/fst.bin, sys/boot.bin and files/. Set by the launcher. */

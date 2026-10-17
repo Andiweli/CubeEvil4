@@ -21,7 +21,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
 | M11 Android-Feinschliff | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/nifty-feynman-jv729h`, Stand `093aa7a`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, „Depth of field“ mit dem Autofokus der ersten App, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester, alles auf Englisch), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Rundgang über alle Räume (PC mit Disc-Daten): 126 von 126 laufen (Patches 0062–0064). Super Magnum: kein Port-Fehler (Nachlade-Stufe Lv.5 aus dem Debug-Menü), mit Lv.1 bestätigt. Debug-Menü Waffenseite stürzte am Listenende ab (Patch 0066). Leistung: 60 Bilder/s, Kern 33,3 ms je Spielbild mit 13–15 ms Leerlauf, GPU um 20 ms („M11 Android-Feinschliff“) |
-| M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt, gleiche Stubs wie ILP32 (Abschnitt „M12 ARM64“); Bestandsaufnahme fertig (`arm64-bestandsaufnahme.md`, Werkzeuge `port/tools/m12/`): normaler 64-bit-Build 3060 Zeiger-Kürzungen und 835 von 1293 Strukturen größer (feste Plätze, Spielstand-Kopf, Dateistrukturen); 32-bit-Sandbox wasm32 0 von 1285 Strukturen anders, Geschwindigkeit 1,65-fach; Emulator 6-fach. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** (Empfehlung war W) |
+| M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt, gleiche Stubs wie ILP32; A2 (Linux) ✅ Adressen unter 4 GB, Laufzeittests 10 von 10 auf x86_64 (Abschnitt „M12 ARM64“); Bestandsaufnahme fertig (`arm64-bestandsaufnahme.md`, Werkzeuge `port/tools/m12/`): normaler 64-bit-Build 3060 Zeiger-Kürzungen und 835 von 1293 Strukturen größer (feste Plätze, Spielstand-Kopf, Dateistrukturen); 32-bit-Sandbox wasm32 0 von 1285 Strukturen anders, Geschwindigkeit 1,65-fach; Emulator 6-fach. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** (Empfehlung war W) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -3202,6 +3202,56 @@ Filmtests). Auf x86_64 bricht
 `save_layout.py --check` meldet auf x86_64 eine andere Form des Spielstands →
 Schritt A3.
 
+### Schritt A2: Adressen unter 4 GB (17.10.2026, Cloud, Linux)
+
+Alles, was das Spiel sieht, liegt im **Fenster `0x80000000–0xFFFFFFFF`**: MEM1
+wie bisher am Anfang, darüber Bibliotheken, Stacks und Speicher der
+Plattformschicht.
+
+- `runtime/game_window.cpp`: `re4_window_map` holt Adressraum ab `0x83000000`
+  (mit `MAP_FIXED_NOREPLACE`, sucht freie Lücken in `/proc/self/maps`);
+  `re4_check_window` bricht mit Logmeldung ab, wenn eine Adresse außerhalb
+  liegt; `re4_check_game_address` prüft auf LP64 auch die Obergrenze.
+- Stacks der Spiel-Threads (`port/src/stack_context.cpp`) kommen aus dem
+  Fenster (schwacher Verweis auf `re4_window_map`, sonst wie bisher).
+- Linux-Vorlader (`host/loader.c`): belegt auf 64 bit zuerst jede freie Lücke
+  zwischen 4 GB und dem Stack (vor dem ersten `malloc`, damit dessen
+  brk-Bereich nicht über 4 GB anfängt; `/proc/self/maps` ohne stdio gelesen),
+  dann wie bisher alles unter `0x83000000`. Bibliotheken, Thread-Stacks und
+  große `malloc`-Blöcke landen danach von selbst im Fenster (Bibliotheken
+  oben bei `0xFE…–0xFF…`). Prüft `malloc` auf eine Adresse unter 4 GB; der
+  Starter läuft auf einem eigenen Thread mit Stack im Fenster; eine
+  `malloc`-Arena. Auf Android legt die App selbst fest, wohin Bibliotheken und
+  Stacks kommen (späterer Schritt).
+- Patch 0068: Adressen über vorzeichenbehaftete 32-bit-Werte (auf LP64 wird
+  daraus `0xFFFFFFFF8…`): `OS_BASE_CACHED` (Absturz in `__AXVPBInit`),
+  `cModel::modelInit` (zehn Aufrufer), Formtabelle in `shape.cpp`. Gefunden
+  mit `-Wint-to-pointer-cast`: von 1049 Umwandlungen 32-bit-Zahl → Zeiger
+  kommen 14 aus vorzeichenbehafteten Typen, davon sind vier Nullen.
+- Patch 0069: `GXTexObj` hat im Spiel 32 Bytes; die SDK-Innensicht wuchs auf
+  LP64 auf 40 und überschrieb Nachbarspeicher (Division durch null in
+  `__GXGetNumXfbLines`). `userData` 4 Bytes, Größenprüfungen für die vier
+  Innensichten.
+- Testspiegel `TestFileInfo` je Zeigerbreite (`runtime_tests.cpp`).
+
+Ergebnis x86_64: `--self-test` ✅, `--check-modules` ✅ (114 Module, 0
+offen), **`--runtime-test` 10 von 10 ✅** (link, dvd, yz2, dvdq, stream, gx,
+math, trace, tasks, vsync). `--core-test` bis `axfx` ✅, dann hängt die
+Film-Bibliothek: `SFMPS_Init` bleibt absichtlich stehen, weil ihr
+Arbeitsblock auf LP64 größer ist als die feste Grenze (CRI, nächster Punkt).
+
+Prüfwerkzeug `port/tools/m12/fixed_layout_check.py`: vergleicht für jede
+Struktur, die die Formatumwandler nennen, Größe und Lage aller Glieder
+zwischen armhf (Vorbild, wie GameCube) und x86_64. Ergebnis: **83 von 83
+gleich**.
+
+Größere Strukturen der SDK- und CRI-Bibliotheken (`src/lib`, armhf → x86_64):
+48, darunter `SFD_OBJ` 0x3598 → 0x56F0 (Arbeitsplatz 0x4000), `MPV_OBJ`
+0x1378 → 0x16D0, `MWPLY_OBJ` 0x2B8 → 0x568, `SFH_OBJ` 0x10 → 0x20
+(feste Arbeitsfläche 0x204 für 32 Stück), dazu Zugriffe über feste Abstände
+mit 4-Byte-Schritt (`adx_tsvr.c`, `adx_sje.c`). Werden in Schritt A3 mit
+einem Patch angepasst.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -3367,6 +3417,8 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0065 `filter01.cpp` | Schalter „Depth of field“ des App-Menüs (M11, Wunsch des Projektinhabers, 17.10.2026): ist er aus (`re4_dof_enabled()`, `core_api.cpp`), legt `Filter01Trans` keinen Tiefenschärfe-Durchgang an und löscht die Anfragen dieses Bilds wie nach einem gezeichneten. Standard an. Ist er an und legt das Spiel keinen Fokus an, kommt bei freiem Spieler der Autofokus der App dazu (`re4_dof_autofocus`, OT-Eintrag `re4_dof_autofocus_mark` → BP 0x5A, `runtime/dof.cpp`; kein GameCube-Effekt, Wunsch des Projektinhabers „wie in RE4-Decomp“); `re4_dof_note` schreibt die Durchgänge eines Bilds ins Protokoll, wenn sie sich ändern |
 | 0066 `t_option.cpp` | Waffenseite des Debug-Menüs (`tp_pl_weapon`): der Cursor lief über 46 Plätze, `strWepName` hat aber 45 Namen und ein NULL-Ende; über den ersten Eintrag nach oben oder über den letzten nach unten zeigte die Liste den NULL-Namen, `eprintf` las Adresse 0 (GameCube: was dort liegt; Port: Absturz, Retroid 17.10.2026, `eprintf_main`, Fehleradresse 0). Der Cursor läuft jetzt über die 45 Waffen (letzte Seite 20..44); Auswahl und Stufenseite unverändert. Nicht auf dem Gerät geprüft |
 | 0067 `room_jmp.cpp`, `title.cpp`, `roomdata.cpp`, `seq.c` | 64 bit (M12): `eprintf` bekommt die Namen aus den Raumtabellen (Strukturen mit fester Form) über `re4_ptr(…)` als echten Zeiger; `re4_ptr` ist auf ILP32 ohne Wirkung. `roomdata.cpp`: die Fehlermeldung beim Lesen eines Raummoduls gibt für `%s` den Dateinamen statt der ganzen Tabellenzeile (die GameCube übergab deren Adresse, ARM und x86 kopieren die Struktur). `SEQGetVolume` mit `s32` wie seine Deklaration in `seq.h` (auf LP64 sonst zwei verschiedene Typen) |
+| 0068 `os.h`, `model.h`, `model.cpp`, `shape.cpp` | 64 bit (M12): Adressen, die über einen vorzeichenbehafteten 32-bit-Wert laufen, werden auf LP64 zu `0xFFFFFFFF8…` (alles, was das Spiel erreicht, hat Bit 31 gesetzt). `OS_CACHED_REGION_PREFIX`/`UNCACHED` als `unsigned` (feste OS-Variablen wie `OS_BUS_CLOCK`), `cModel::modelInit` gibt den `cModelInfo*` als `u32` zurück statt `int`, die verschobene Formtabelle (`shape.cpp`) wird als `u32` gelesen. Auf ILP32 gleiche Werte |
+| 0069 `GXTexture.c` | 64 bit (M12): `GXTexObj` ist im Spiel 32 Bytes (`u32 dummy[8]`), die SDK-Innensicht `__GXTexObjInt` wurde auf LP64 durch den `userData`-Zeiger 40 Bytes groß: `GXInitTexObj` schrieb über jedes Texturobjekt hinaus. `userData` bleibt 4 Bytes (`RE4_P32`), Größenprüfungen für die vier Innensichten (`_Static_assert`) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

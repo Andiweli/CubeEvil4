@@ -140,6 +140,7 @@ add_library(re4_platform_obj OBJECT
     runtime/card_files.cpp
     runtime/dolphin_os.cpp
     runtime/dvd.cpp
+    runtime/game_window.cpp
     runtime/gci.cpp
     runtime/gx_fifo.cpp
     runtime/gx_decode.cpp
@@ -498,7 +499,7 @@ if(NOT ANDROID)
     add_executable(re4_host host/loader.c)
     add_dependencies(re4_host re4_hostlib)
     target_link_options(re4_host PRIVATE -fuse-ld=lld)
-    target_link_libraries(re4_host PRIVATE ${CMAKE_DL_LIBS})
+    target_link_libraries(re4_host PRIVATE ${CMAKE_DL_LIBS} pthread)
 
     # --- format comparison (re4_format_compare) -----------------------------------------
     # The Formatumwandler against the checked big-endian readers of the app

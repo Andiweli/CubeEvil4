@@ -1,0 +1,56 @@
+# 64-bit build (milestone 12, way A): GXTexObj is 32 bytes in the game's own
+# structures (u32 dummy[8]); the SDK's internal view __GXTexObjInt grew to 40
+# bytes on LP64 through its userData pointer, so GXInitTexObj wrote past
+# every texture object (first seen: the GXTexObj local of __GXInitGX
+# overwrote the render mode pointer, division by zero in
+# __GXGetNumXfbLines). userData keeps 4 bytes (re4_ptr32.h, the game's data
+# lies below 4 GB); size checks for the four internal views.
+--- a/src/lib/GXTexture.c
++++ b/src/lib/GXTexture.c
+@@ -1,6 +1,7 @@
+ #include <dolphin/gx.h>
+ #include <dolphin/os.h>
+ #include "re4_gx_fifo.h" /* port: patch 0031 */
++#include "re4_ptr32.h" /* port: patch 0069 */
+ 
+ #include "__gx.h"
+ 
+@@ -10,7 +11,7 @@
+     u32 mode1;
+     u32 image0;
+     u32 image3;
+-    void* userData;
++    RE4_P32(void) userData;  /* port: patch 0069, 4 bytes as on the GameCube */
+     GXTexFmt fmt;
+     u32 tlutName;
+     u16 loadCnt;
+@@ -40,6 +41,12 @@
+     u32 loadTlut1;
+     __GXTlutObjInt tlutObj;
+ } __GXTlutRegionInt;
++
++/* port: patch 0069, the game keeps these objects in its own structures at their GameCube size */
++_Static_assert(sizeof(__GXTexObjInt) <= sizeof(GXTexObj), "__GXTexObjInt larger than GXTexObj");
++_Static_assert(sizeof(__GXTexRegionInt) <= sizeof(GXTexRegion), "__GXTexRegionInt larger than GXTexRegion");
++_Static_assert(sizeof(__GXTlutObjInt) <= sizeof(GXTlutObj), "__GXTlutObjInt larger than GXTlutObj");
++_Static_assert(sizeof(__GXTlutRegionInt) <= sizeof(GXTlutRegion), "__GXTlutRegionInt larger than GXTlutRegion");
+ 
+ u8 GXTexMode0Ids[8] = { 0x80, 0x81, 0x82, 0x83, 0xA0, 0xA1, 0xA2, 0xA3 };
+ u8 GXTexMode1Ids[8] = { 0x84, 0x85, 0x86, 0x87, 0xA4, 0xA5, 0xA6, 0xA7 };
+@@ -444,14 +451,14 @@
+ 
+     ASSERTMSGLINE(1068, obj, "Texture Object Pointer is null");
+     CHECK_GXBEGIN(1069, "GXInitTexObjUserData");
+-    t->userData = user_data;
++    t->userData = (RE4_P32(void)) user_data;  /* port: patch 0069 */
+ }
+ 
+ void* GXGetTexObjUserData(const GXTexObj* obj) {
+     const __GXTexObjInt* t = (const __GXTexObjInt *)obj;
+ 
+     ASSERTMSGLINE(1075, obj, "Texture Object Pointer is null");
+-    return t->userData;
++    return (void*) t->userData;
+ }
+ 
+ void GXGetTexObjAll(const GXTexObj* obj, void** image_ptr, u16* width, u16* height, GXTexFmt* format, GXTexWrapMode* wrap_s, GXTexWrapMode* wrap_t, u8* mipmap) {

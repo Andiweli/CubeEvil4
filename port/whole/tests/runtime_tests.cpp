@@ -182,12 +182,16 @@ static void testLink()
 
 // --- DVD ----------------------------------------------------------------------
 
+struct TestCommandBlock {  // DVDCommandBlock (dvd.h): 0x30 bytes, 0x48 on LP64 (four pointers)
+    unsigned char bytes[sizeof(void*) == 4 ? 0x30 : 0x48];
+} __attribute__((aligned(sizeof(void*))));
 struct TestFileInfo {  // DVDFileInfo (dvd.h)
-    unsigned cb[12];
+    TestCommandBlock cb;
     unsigned startAddr;
     unsigned length;
     void* callback;
 };
+static_assert(sizeof(TestFileInfo) == (sizeof(void*) == 4 ? 0x3C : 0x58), "DVDFileInfo (dvd.cpp)");
 struct TestDiskID {
     char gameName[4];
     char company[2];
@@ -200,9 +204,6 @@ struct TestDirEntry {
     unsigned entryNum;
     int isDir;
     char* name;
-};
-struct TestCommandBlock {
-    unsigned words[12];
 };
 
 extern "C" {
