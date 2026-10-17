@@ -27,7 +27,7 @@ Die Disc-Daten werden nie ins Repository kopiert.
 
 Vorher den Branch der aktuellen Aufgabe holen (Name steht in der Aufgabe), z. B.:
   git fetch origin
-  git checkout claude/re4-m10-speichern
+  git checkout claude/nifty-feynman-jv729h
   git pull
 
 .EXAMPLE
