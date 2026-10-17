@@ -267,6 +267,12 @@ bool drawGx() {
   }
   if (!gx) {
     optApplied = optSerial.load();
+    // a new renderer counts from 0: the log's figures per chunk start over too
+    gxWork = re4gx::GxStats();
+    gxDraws = 0;
+    gxRunMs = gxRunMax = 0;
+    gxRunCount = gxFrames = 0;
+    gxSince = std::chrono::steady_clock::now();
     int scale = optScale.load();
     if (scale < 1 || scale > 4) {
       const char *scaleText = getenv("RE4_GX_SCALE");

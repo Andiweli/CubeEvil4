@@ -4,6 +4,9 @@ import android.app.Dialog;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.RelativeSizeSpan;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -19,9 +22,11 @@ import java.util.Locale;
 
 /**
  * The core mode's menu (M11; SELECT pressed, decision of the project owner,
- * 17.10.2026): picture options, the memory card's files as .gci (export for
- * Dolphin or a GameCube, import from there), the error log and the end of
- * the game. The game stands while it is open (CoreActivity pauses the core).
+ * 17.10.2026): picture options with the resolution they give, the FPS
+ * display, the memory card's files as .gci (export for Dolphin or a
+ * GameCube, import from there) and the error log; centred headings in small
+ * capitals between lines (wishes of the project owner, 17.10.2026). The game
+ * stands while it is open (CoreActivity pauses the core).
  * Run with the controller: D-pad between the entries, A chooses, B / START /
  * SELECT close it. German on a German device, English otherwise.
  */
@@ -36,7 +41,7 @@ final class CoreMenu extends Dialog {
     void saveReport();
     void logChanged(boolean on);
     void toolsChanged(boolean on);
-    void quit();
+    void fpsChanged(boolean on);
   }
 
   static boolean german() {
@@ -50,15 +55,20 @@ final class CoreMenu extends Dialog {
   private final Host host;
   private final SharedPreferences graphics;
   private final boolean tools;
+  private final int screenWidth, screenHeight;
   private final LinearLayout body;
+  private RadioGroup firstChoice;
   private TextView graphicsLine, cardLine;
   private LinearLayout cardFiles;
   private Button exportAll;
 
-  CoreMenu(Context context, Host host, boolean tools) {
+  /** screenWidth/Height: the game's picture on the screen (Auto chooses the resolution from it). */
+  CoreMenu(Context context, Host host, boolean tools, int screenWidth, int screenHeight) {
     super(context);
     this.host = host;
     this.tools = tools;
+    this.screenWidth = screenWidth;
+    this.screenHeight = screenHeight;
     graphics = context.getSharedPreferences(CoreActivity.GRAPHICS_PREFS, Context.MODE_PRIVATE);
     requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
     body = new LinearLayout(context);
@@ -84,10 +94,59 @@ final class CoreMenu extends Dialog {
     return v;
   }
 
+  /** Small capitals: the lower-case letters as smaller capitals, the capitals as they are. */
+  static CharSequence smallCaps(String s) {
+    SpannableStringBuilder b = new SpannableStringBuilder();
+    for (int i = 0; i < s.length(); i++) {
+      char c = s.charAt(i);
+      int at = b.length();
+      b.append(Character.toUpperCase(c));
+      if (Character.isLowerCase(c)) b.setSpan(new RelativeSizeSpan(0.78f), at, at + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    }
+    return b;
+  }
+
+  /** A thin line in the text colour, faint. */
+  private View line(TextView colourOf) {
+    View v = new View(getContext());
+    v.setBackgroundColor((colourOf.getCurrentTextColor() & 0x00FFFFFF) | 0x60000000);
+    return v;
+  }
+
+  /** A line across the menu. */
+  private void separator() {
+    View v = line(text("", 12, false));
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1)));
+    lp.setMargins(0, dp(10), 0, dp(4));
+    body.addView(v, lp);
+  }
+
+  /** A centred heading in small capitals with a line left and right of it. */
   private void heading(String s) {
-    TextView v = text(s, 17, true);
-    v.setPadding(0, dp(14), 0, dp(4));
-    body.addView(v);
+    LinearLayout row = new LinearLayout(getContext());
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    TextView v = text("", 16, true);
+    v.setText(smallCaps(s));
+    v.setLetterSpacing(0.08f);
+    v.setPadding(dp(12), 0, dp(12), 0);
+    int h = Math.max(1, dp(1));
+    row.addView(line(v), new LinearLayout.LayoutParams(0, h, 1));
+    row.addView(v, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    row.addView(line(v), new LinearLayout.LayoutParams(0, h, 1));
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT);
+    lp.setMargins(0, dp(14), 0, dp(6));
+    body.addView(row, lp);
+  }
+
+  private CheckBox checkBox(ViewGroup parent, String label, boolean checked,
+                            android.widget.CompoundButton.OnCheckedChangeListener changed) {
+    CheckBox c = new CheckBox(getContext());
+    c.setText(label);
+    c.setChecked(checked);
+    c.setOnCheckedChangeListener(changed);
+    parent.addView(c, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+    return c;
   }
 
   private Button button(ViewGroup parent, String label, View.OnClickListener click) {
@@ -133,15 +192,14 @@ final class CoreMenu extends Dialog {
 
   private void build() {
     body.addView(text(t("RE4 Kern – Menü", "RE4 Core – Menu"), 22, true));
-    body.addView(text(t("SELECT: dieses Menü  ·  SELECT 1 Sekunde halten: Debug-Menü des Spiels",
-        "SELECT: this menu  ·  hold SELECT for a second: the game's debug menu"), 13, false));
-    Button resume = button(body, t("Weiterspielen", "Continue"), v -> dismiss());
-    resume.requestFocus();
+    body.addView(text(t("SELECT: dieses Menü  ·  SELECT 1 Sekunde halten: Debug-Menü des Spiels  ·  B: zurück zum Spiel",
+        "SELECT: this menu  ·  hold SELECT for a second: the game's debug menu  ·  B: back to the game"), 13, false));
+    separator();
 
     heading(t("Grafik", "Graphics"));
     int[] info = CoreBridge.graphicsInfo();
     int maxSamples = info != null ? info[0] : 0, maxAnisotropy = info != null ? info[1] : 0;
-    choices(t("Auflösung", "Resolution"), "scale", new String[] {"Auto", "1×", "2×", "3×", "4×"},
+    firstChoice = choices(t("Auflösung", "Resolution"), "scale", new String[] {"Auto", "1×", "2×", "3×", "4×"},
         new int[] {0, 1, 2, 3, 4}, 0, 0);
     choices(t("Kantenglättung", "Anti-aliasing"), "samples", new String[] {t("Aus", "Off"), "2× MSAA", "4× MSAA"},
         new int[] {1, 2, 4}, 1, maxSamples);
@@ -149,6 +207,13 @@ final class CoreMenu extends Dialog {
         new int[] {1, 2, 4, 8, 16}, 1, maxAnisotropy);
     choices(t("Bildformat", "Picture"), "aspect", new String[] {"16:9", t("4:3 (Original)", "4:3 (original)")},
         new int[] {0, 1}, 0, 0);
+    LinearLayout fpsRow = new LinearLayout(getContext());
+    checkBox(fpsRow, t("FPS-Anzeige unten links", "FPS display bottom left"), graphics.getBoolean("fps", false),
+        (b, on) -> {
+          graphics.edit().putBoolean("fps", on).apply();
+          host.fpsChanged(on);
+        });
+    body.addView(fpsRow);
     graphicsLine = text("", 12, false);
     body.addView(graphicsLine);
     showGraphics();
@@ -168,39 +233,35 @@ final class CoreMenu extends Dialog {
     refreshCard();
 
     heading(t("Fehlerprotokoll", "Error log"));
-    body.addView(text(t("Zeichnet auf, was die App meldet (auch bei einem Absturz). Der Bericht enthält das Protokoll "
-        + "dieses und des letzten Laufs und Angaben zum Gerät, keine Spielstände.",
-        "Records what the app reports (also when it crashes). The report holds the log of this run and the one "
-        + "before and the device's data, no saves."), 12, false));
-    CheckBox record = new CheckBox(getContext());
-    record.setText(t("Fehlerprotokoll aufzeichnen", "Record the error log"));
-    record.setChecked(CoreLog.enabled(getContext()));
-    record.setOnCheckedChangeListener((b, on) -> host.logChanged(on));
-    body.addView(record);
+    body.addView(text(t("Zeichnet auf, was die App meldet (auch bei einem Absturz oder Hänger). Der Bericht enthält das "
+        + "Protokoll dieses und des letzten Laufs und Angaben zum Gerät, keine Spielstände.",
+        "Records what the app reports (also when it crashes or hangs). The report holds the log of this run and the "
+        + "one before and the device's data, no saves."), 12, false));
+    LinearLayout checks = new LinearLayout(getContext());
+    checkBox(checks, t("Fehlerprotokoll aufzeichnen", "Record the error log"), CoreLog.enabled(getContext()),
+        (b, on) -> host.logChanged(on));
+    checkBox(checks, t("R3: Grafik-Aufnahme (Fehlersuche)", "R3: graphics capture (diagnosis)"), tools,
+        (b, on) -> host.toolsChanged(on));
+    body.addView(checks);
     LinearLayout reportButtons = new LinearLayout(getContext());
     button(reportButtons, t("Bericht senden …", "Send report …"), v -> host.shareReport());
     button(reportButtons, t("Bericht speichern …", "Save report …"), v -> host.saveReport());
     body.addView(reportButtons);
-    CheckBox capture = new CheckBox(getContext());
-    capture.setText(t("R3: Grafik-Aufnahme für die Fehlersuche", "R3: graphics capture for the diagnosis"));
-    capture.setChecked(tools);
-    capture.setOnCheckedChangeListener((b, on) -> host.toolsChanged(on));
-    body.addView(capture);
-
-    heading(t("Spiel", "Game"));
-    button(body, t("Spiel beenden", "Quit the game"), v -> host.quit());
   }
 
+  /** The resolution the chosen level gives (Auto: as core_mode.cpp chooses it from the screen). */
   private void showGraphics() {
-    int[] info = CoreBridge.graphicsInfo();
-    String now = info == null ? "" : String.format(Locale.ROOT, t("Jetzt: Stufe %d (%d×%d), %s, Texturfilter %s. ",
-        "Now: level %d (%d×%d), %s, texture filter %s. "), info[2], 640 * info[2], 528 * info[2],
-        info[3] > 1 ? info[3] + "× MSAA" : t("ohne Kantenglättung", "no anti-aliasing"),
-        info[4] > 1 ? info[4] + "×" : t("aus", "off"));
-    graphicsLine.setText(now + t("Änderungen gelten nach dem Schließen des Menüs. Auto: passend zum Bildschirm "
-        + "(höchstens 3×). Höhere Stufen brauchen mehr Leistung – ruckelt es, eine Stufe zurück.",
-        "Changes apply when the menu closes. Auto: to the screen (at most 3×). Higher levels need more power – "
-        + "if it stutters, go one level back."));
+    int chosen = graphics.getInt("scale", 0), scale = chosen;
+    if (scale < 1 || scale > 4) {
+      int rows = Math.min(screenHeight, screenWidth * 9 / 16);
+      scale = Math.max(1, Math.min(3, (rows + 168) / 336));
+    }
+    boolean original = graphics.getInt("aspect", 0) == 1;
+    graphicsLine.setText(String.format(Locale.ROOT, t("Auflösung: %d × %d Bildpunkte (Stufe %d%s) · Bildschirm %d × %d · "
+        + "gilt nach dem Schließen des Menüs. Höhere Stufen brauchen mehr Leistung.",
+        "Resolution: %d × %d pixels (level %d%s) · screen %d × %d · applies when the menu closes. Higher levels need "
+        + "more power."), 640 * scale, (original ? 448 : 336) * scale, scale, chosen == 0 ? ", Auto" : "",
+        screenWidth, screenHeight));
   }
 
   /** The card's files (the game stands, so the card can be read). */
@@ -260,6 +321,11 @@ final class CoreMenu extends Dialog {
 
   @Override protected void onStart() {
     super.onStart();
+    // the first choice has the focus (the controller starts there)
+    if (firstChoice != null) {
+      View checked = firstChoice.findViewById(firstChoice.getCheckedRadioButtonId());
+      if (checked != null) checked.requestFocus();
+    }
     if (getWindow() != null) {
       int available = getContext().getResources().getDisplayMetrics().widthPixels;
       getWindow().setLayout(Math.min(dp(860), Math.round(available * .96f)), ViewGroup.LayoutParams.WRAP_CONTENT);

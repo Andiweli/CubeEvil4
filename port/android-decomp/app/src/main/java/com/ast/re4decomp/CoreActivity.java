@@ -6,6 +6,8 @@ import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.hardware.input.InputManager;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
@@ -23,12 +25,14 @@ import android.os.VibratorManager;
 import android.provider.DocumentsContract;
 import android.util.Log;
 import android.view.Choreographer;
+import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -95,6 +99,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private long rumbleSeen, rumbleUntil;
   private volatile int preparedRoom = -1;
   private boolean roomBusy;
+  // the FPS display (menu switch): the game's frames per second, bottom left
+  private TextView fpsView;
+  private long fpsFrames = -1, fpsSince;
   // a game that stands without a pause (a hang): reported once per stand
   private long lastFrames = -1, framesSince;
   private boolean hangReported;
@@ -141,6 +148,15 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       @Override public void onDrawFrame(GL10 gl) { CoreBridge.draw(); }
     });
     root.addView(surface);
+    fpsView = new TextView(this);
+    fpsView.setTypeface(Typeface.MONOSPACE);
+    fpsView.setTextSize(11);
+    fpsView.setTextColor(Color.WHITE);
+    fpsView.setBackgroundColor(0x60000000);
+    fpsView.setPadding(8, 2, 8, 2);
+    root.addView(fpsView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,
+        FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START));
+    showFps(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("fps", false));
     setContentView(root);
     surface.setFocusable(true);
     surface.requestFocus();
@@ -176,13 +192,38 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
         | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
   }
 
-  /** Twice a second: the room the game wants; a game that stands without a pause. */
+  /** Twice a second: the room the game wants; the FPS display; a game that stands without a pause. */
   private void tick() {
     if (destroyed) return;
+    updateFps();
     checkHang();
     int room = CoreBridge.wantedRoom();
     if (room >= 0 && room != preparedRoom && !roomBusy) prepareRoom(room);
     main.postDelayed(this::tick, 500);
+  }
+
+  private void showFps(boolean on) {
+    fpsView.setVisibility(on && menuSupported ? View.VISIBLE : View.GONE);
+    fpsView.setText("-- FPS");
+    fpsFrames = -1;
+  }
+
+  /** The game's frames per second (one controller read per frame), counted over a second. */
+  private void updateFps() {
+    if (fpsView.getVisibility() != View.VISIBLE) return;
+    long now = SystemClock.uptimeMillis(), frames = CoreBridge.gameFrames();
+    if (frames < 0 || !resumed || menu != null) {
+      fpsFrames = -1;  // the game stands: count anew afterwards
+      return;
+    }
+    if (fpsFrames < 0) {
+      fpsFrames = frames;
+      fpsSince = now;
+    } else if (now - fpsSince >= 1000) {
+      fpsView.setText(String.format(Locale.ROOT, "%d FPS", Math.round((frames - fpsFrames) * 1000.0 / (now - fpsSince))));
+      fpsFrames = frames;
+      fpsSince = now;
+    }
   }
 
   /**
@@ -272,7 +313,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     audio.stop();
     stopVibrator();
     Log.i(TAG, "menu open" + (paused ? ", the game stands" : ", the game did not stop yet (loading?)"));
-    menu = new CoreMenu(this, menuHost, tools);
+    menu = new CoreMenu(this, menuHost, tools, surface.getWidth(), surface.getHeight());
     menu.setOnDismissListener(d -> {
       menu = null;
       releaseAll();
@@ -323,7 +364,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(R3_CAPTURE, on).apply();
     }
 
-    @Override public void quit() { askExit(); }
+    @Override public void fpsChanged(boolean on) { showFps(on); }
   };
 
   private void startForResult(Intent intent, int request) {
