@@ -1,0 +1,61 @@
+# 64-bit build (milestone 12, way A), places the compiler names:
+# - room_jmp.cpp / title.cpp: the room names of CRoomInfo (a fixed-form
+#   structure, fixed_form.json) go to the variadic eprintf; on LP64 the field
+#   is a 4-byte Re4Ptr32, which a variadic call would pass as it is, not as a
+#   pointer: re4_ptr() hands over the plain pointer (T* unchanged on ILP32).
+# - roomdata.cpp: the error message passes the whole FileTblEntry for "%s"
+#   (the PowerPC passes a struct by reference, so the GameCube printed its
+#   bytes; ARM and x86 copy it): the entry's name, which the text means.
+# - seq.c: SEQGetVolume is defined `long` but declared `s32` in seq.h: one type
+#   on ILP32, two on LP64.
+--- a/src/game/room_jmp.cpp
++++ b/src/game/room_jmp.cpp
+@@ -297,12 +297,12 @@
+     eprintf(0xD8, 0x38, 0, 0, "STAGE = %d", w->stage);
+     eprintf(0xD8, 0x46, 0, 0, "ROOM  = %02x", info->room);
+     eprintf(0xD8, 0x54, 0, 0, "POINT = %d", w->point);
+-    eprintf(0xD8, 0x2A, 4, 0, "%s", info->name);
++    eprintf(0xD8, 0x2A, 4, 0, "%s", re4_ptr(info->name));  /* port: patch 0067 */
+     if (info->person2[0] != 0) {
+-        eprintf(0xD8, 0x1C, 0, 0, "     SOFT(%s)", info->person2);
++        eprintf(0xD8, 0x1C, 0, 0, "     SOFT(%s)", re4_ptr(info->person2));
+     }
+     if (info->person[0] != 0) {
+-        eprintf(0xD8, 0xE, 0, 0, "     SCR(%s)", info->person);
++        eprintf(0xD8, 0xE, 0, 0, "     SCR(%s)", re4_ptr(info->person));
+     }
+     eprintf(0xD0, (w->r_no_1 + 4) * 0xE, 0, 0, ">");
+     if (joy->trg & 0x100) {
+--- a/src/game/roomdata.cpp
++++ b/src/game/roomdata.cpp
+@@ -297,7 +297,7 @@
+     id = DvdRead(m_RelNo, 0, 0, 0, 0, 0x104, __FILE__, __LINE__);
+     while ((ret = Dvd.ReadCheck(id, 0, 0, (void**) &m_pModule)) != 1) {
+         if (ret < 0) {
+-            pLog->err(0, 0, "cRoomData::readRelData(): RelDataReadError! %s", FileTbl[m_RelNo]);
++            pLog->err(0, 0, "cRoomData::readRelData(): RelDataReadError! %s", FileTbl[m_RelNo].name);  /* port: patch 0067 */
+             m_RelNo = 0;
+             m_pModule = 0;
+             return;
+--- a/src/game/title.cpp
++++ b/src/game/title.cpp
+@@ -1581,7 +1581,7 @@
+     y = w->menu_y;
+     info = pRj->getRoomInfo(w->Stage, w->Room[w->Stage] + w->JumpPoint);
+     if (pRj->checkRoomNo(w->Stage, w->Room[w->Stage]) == w->Room[w->Stage]) {
+-        eprintf(x, y - 16, 4, 0, "%s", info->name);
++        eprintf(x, y - 16, 4, 0, "%s", re4_ptr(info->name));  /* port: patch 0067 */
+     }
+     for (i = 0; i < lines; i++) {
+         int col = 0;
+--- a/src/lib/seq.c
++++ b/src/lib/seq.c
+@@ -462,7 +462,7 @@
+     SYNSetMasterVolume(&sequence->synth, dB);
+ }
+ 
+-long SEQGetVolume(SEQSEQUENCE* sequence) {
++s32 SEQGetVolume(SEQSEQUENCE* sequence) {  /* port: patch 0067, as seq.h declares it */
+     ASSERTLINE(756, sequence);
+     SYNGetMasterVolume(&sequence->synth);
+ }

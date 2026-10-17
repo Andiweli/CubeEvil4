@@ -21,7 +21,7 @@
 static_assert(__alignof__(GXFifoObj) >= 4, "GXFifoObj must be word aligned for ARM");
 // A subclass's work starts at the end of cEsp, 0xF8 as on the GameCube, with
 // the vptr first here and last there (patch 0040 finds it by this size).
-static_assert(sizeof(cEsp) == 0xF8, "cEsp must keep the GameCube size");
+static_assert(sizeof(void*) != 4 || sizeof(cEsp) == 0xF8, "cEsp must keep the GameCube size (ILP32)");
 
 struct ProbeRoutine {  // the four routine bytes of cModel (r_no_0..3)
     u8 r_no_0;

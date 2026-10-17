@@ -21,6 +21,7 @@
 //    by the header still holding the entry points OSLink wrote; a REL read
 //    from disc again holds section offsets there.
 #include "re4_runtime.h"
+#include "../include/re4_ptr32.h"
 
 #include <dlfcn.h>
 #include <stddef.h>
@@ -34,8 +35,8 @@ typedef unsigned u32;
 // 32 bits except the four section numbers at 0x30.
 struct ModuleInfo {
     u32 id;
-    ModuleInfo* next;
-    ModuleInfo* prev;
+    RE4_P32(ModuleInfo) next;  // four bytes in the disc header also on LP64 (milestone 12)
+    RE4_P32(ModuleInfo) prev;
     u32 numSections;
     u32 sectionInfoOffset;
     u32 nameOffset;

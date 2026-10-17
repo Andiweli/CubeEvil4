@@ -14,8 +14,20 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(i.86|x86)$")
     set(RE4_ARCH i686)
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(armv7.*|arm)$")
     set(RE4_ARCH armv7)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+    set(RE4_ARCH x86_64)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+    set(RE4_ARCH arm64)
 else()
-    message(FATAL_ERROR "unsupported processor ${CMAKE_SYSTEM_PROCESSOR}: the port is ILP32 for now (milestone 12 adds ARM64)")
+    message(FATAL_ERROR "unsupported processor ${CMAKE_SYSTEM_PROCESSOR}")
+endif()
+# Milestone 12, way A (port/docs/arm64-bestandsaufnahme.md): native 64 bit with
+# everything the game points to below 4 GB, so the game's 32-bit address
+# arithmetic stays right.
+if(RE4_ARCH STREQUAL "x86_64" OR RE4_ARCH STREQUAL "arm64")
+    set(RE4_LP64 ON)
+else()
+    set(RE4_LP64 OFF)
 endif()
 # __FILE__ without the checkout and build directory: DvdReadN copies it into
 # the 48-byte DVD_REQ_WORK::reqfile (include/dvd.h, src/game/dvd.cpp), so a
@@ -82,9 +94,20 @@ target_compile_options(re4_game_flags INTERFACE
     # unclamped value in the register). This flag makes clang clamp as well.
     -fno-strict-float-cast-overflow
     -fno-strict-return
-    -w
     -Wno-address-of-temporary
     -ferror-limit=0)
+if(RE4_LP64)
+    # The game keeps addresses in 32-bit integers ((u32) p, about 3000 places):
+    # C++ rejects such casts on LP64, the Microsoft extensions accept them (a
+    # warning). Right because every address the game sees lies below 4 GB.
+    # The 4-byte pointer fields of fixed-form structures (RE4_P32, TaskFunc) must
+    # not reach a variadic function as they are (printf("%s", info->name) would
+    # pass the 4-byte object, not a pointer): such calls are errors, and format
+    # warnings name them for printf-like functions (whole_build.sh counts them).
+    target_compile_options(re4_game_flags INTERFACE -fms-extensions -Wno-everything -Werror=class-varargs -Wformat)
+else()
+    target_compile_options(re4_game_flags INTERFACE -w)
+endif()
 
 set(RE4_LINK_OBJECTS "")
 function(re4_unit_list json_path out_var)
@@ -132,6 +155,13 @@ add_library(re4_platform_obj OBJECT
     "${RE4_ROOT}/port/src/stack_context.cpp")
 target_include_directories(re4_platform_obj PUBLIC runtime PRIVATE "${RE4_ROOT}/port/src")
 target_compile_features(re4_platform_obj PRIVATE cxx_std_17)
+if(RE4_ARCH STREQUAL "arm64")
+    # Stack switching: the Boost.Context assembly of the app's arm64 build
+    set(RE4_FCONTEXT
+        "${RE4_ROOT}/port/third_party/boost_context/make_arm64_aapcs_elf_gas.S"
+        "${RE4_ROOT}/port/third_party/boost_context/jump_arm64_aapcs_elf_gas.S")
+    target_sources(re4_platform_obj PRIVATE ${RE4_FCONTEXT})
+endif()
 if(RE4_ARCH STREQUAL "armv7")
     # Stack switching: the Boost.Context assembly of the Android build
     # (port/third_party/boost_context, see port/cmake/ContextSources.cmake).
@@ -365,6 +395,10 @@ if(ANDROID)
 endif()
 if(RE4_ARCH STREQUAL "i686" OR RE4_ARCH STREQUAL "armv7")  # size_t = unsigned int ('j')
     set(RE4_GAME_HEAP_WRAP -Wl,--wrap=_Znwj -Wl,--wrap=_Znaj -Wl,--wrap=_ZdlPv -Wl,--wrap=_ZdaPv)
+    set(RE4_MAIN_VER "${CMAKE_CURRENT_SOURCE_DIR}/runtime/libre4_main.ver")
+else()  # LP64: size_t = unsigned long ('m')
+    set(RE4_GAME_HEAP_WRAP -Wl,--wrap=_Znwm -Wl,--wrap=_Znam -Wl,--wrap=_ZdlPv -Wl,--wrap=_ZdaPv)
+    set(RE4_MAIN_VER "${CMAKE_CURRENT_SOURCE_DIR}/runtime/libre4_main_lp64.ver")
 endif()
 
 # --- libre4_platform ----------------------------------------------------------------
@@ -396,8 +430,8 @@ add_library(re4_main SHARED
 add_dependencies(re4_main re4_link_plan)
 target_include_directories(re4_main PRIVATE runtime)
 target_link_options(re4_main PRIVATE ${RE4_LINK_FLAGS}
-    "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/runtime/libre4_main.ver")
-set_property(TARGET re4_main APPEND PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/libre4_main.ver")
+    "-Wl,--version-script=${RE4_MAIN_VER}")
+set_property(TARGET re4_main APPEND PROPERTY LINK_DEPENDS "${RE4_MAIN_VER}")
 target_link_libraries(re4_main PUBLIC re4_platform PRIVATE m)
 
 # --- one library per REL module ---------------------------------------------------

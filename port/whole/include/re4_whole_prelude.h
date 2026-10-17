@@ -21,6 +21,22 @@
  * system declaration (runtime/newlib_ctype.c defines it). */
 #define _ctype_ re4_newlib_ctype_
 
+/* Symbol names of operator new / new[] for asm labels (whole_prepare.py
+ * SIZE_T_SYMBOLS): the Itanium name depends on the width of size_t. */
+/* the Itanium letter of u32 for asm labels (whole_prepare.py GCC295_SYMBOLS) */
+#if __SIZEOF_LONG__ == 4
+#define RE4_ASM_U32 "m"
+#else
+#define RE4_ASM_U32 "j"
+#endif
+#if __SIZEOF_SIZE_T__ == 4
+#define RE4_ASM_NEW "_Znwj"
+#define RE4_ASM_NEW_ARRAY "_Znaj"
+#else
+#define RE4_ASM_NEW "_Znwm"
+#define RE4_ASM_NEW_ARRAY "_Znam"
+#endif
+
 /* C equivalents of the Gekko instructions of the replaced inline asm. */
 #include "re4_ppc.h"
 
@@ -46,6 +62,9 @@ inline void* re4_memchr(const void* s, int c, size_t n) { return (void*)memchr(s
 #define memchr re4_memchr
 
 #ifdef __cplusplus
+/* Pointer members of fixed-form structures (fixed_form.json): RE4_P32(T). */
+#include "re4_ptr32.h"
+
 /* Two bytes of a big-endian halfword as an array view (u8 v[2] in a union
  * with the halfword, patch 0016): index 0 is the high byte, 1 the low byte,
  * as the original code expects, whatever the host byte order. */

@@ -42,6 +42,15 @@
 #include <string>
 #include <vector>
 
+// u32 of the game (port/whole/include/types.h): unsigned long on ILP32 (as the
+// GameCube headers write it), 32 bits on LP64; part of the C++ names of the
+// game functions declared here
+#if __SIZEOF_LONG__ == 4
+typedef unsigned long game_u32;
+#else
+typedef unsigned int game_u32;
+#endif
+
 namespace {
 
 int gFailures;
@@ -378,7 +387,7 @@ static void testDvd()
 // --- yz2 ----------------------------------------------------------------------
 
 // The game's set-up half (src/game/yz2code.cpp, in libre4_main).
-unsigned long Yz2DecodeSet(char* str, void* buf);
+game_u32 Yz2DecodeSet(char* str, void* buf);
 void Yz2DecodeExec(void* dst);
 
 static bool decodeFixture(const unsigned char* data, size_t size, size_t outSize, const char* sha)
@@ -854,10 +863,10 @@ void PSMTXIdentity(TMtx m);
 void PSMTXRotRad(TMtx m, char axis, float rad);
 void PSMTXTrans(TMtx m, float x, float y, float z);
 void PSMTXConcat(const TMtx a, const TMtx b, TMtx ab);
-unsigned long PSMTXInverse(const TMtx src, TMtx inv);
+game_u32 PSMTXInverse(const TMtx src, TMtx inv);
 void PSMTXMultVec(const TMtx m, const TVec* src, TVec* dst);
 void PSMTXReorder(const TMtx src, float dest[4][3]);
-void PSMTXROMultVecArray(const float m[4][3], const TVec* src, TVec* dst, unsigned long count);
+void PSMTXROMultVecArray(const float m[4][3], const TVec* src, TVec* dst, game_u32 count);
 void PSVECNormalize(const TVec* src, TVec* dst);
 float PSVECDotProduct(const TVec* a, const TVec* b);
 void PSVECCrossProduct(const TVec* a, const TVec* b, TVec* axb);
@@ -874,9 +883,9 @@ float SQRTF(float x);
 float SINF(float x);
 float COSF(float x);
 float LIMIT_ANGLE(float x);
-void CalcSk1_x(void* dst, void* src, unsigned long n);
-void CalcSk1_x2(void* dst, void* src, unsigned long n);
-void setupGQR6(unsigned long v);
+void CalcSk1_x(void* dst, void* src, game_u32 n);
+void CalcSk1_x2(void* dst, void* src, game_u32 n);
+void setupGQR6(game_u32 v);
 extern "C" {
 float re4probe_fabsf(float x);
 void re4probe_routine(unsigned char out[4]);
@@ -1004,7 +1013,7 @@ static bool testSkinning()
     };
     short dst[4 * 3 + 1];
     memset(dst, 0x55, sizeof dst);
-    unsigned long shift = 2;
+    game_u32 shift = 2;
     setupGQR6((shift << 24) | (shift << 8) | 0x00070007);
     CalcSk1_x(dst, src, 4);
     const short want[12] = {46, -92, 6, 35, 70, -8, 32767, -32768, 2, 34, 12, 56};
@@ -1106,7 +1115,7 @@ struct TestPadStatus {  // dolphin/pad.h PADStatus
     unsigned char triggerL, triggerR, analogA, analogB;
     signed char err;
 };
-extern "C" unsigned long PADRead(TestPadStatus* status);
+extern "C" game_u32 PADRead(TestPadStatus* status);
 extern "C" int PADInit(void);
 void* GetDataExt(void* arc, const char* tag, int no);
 

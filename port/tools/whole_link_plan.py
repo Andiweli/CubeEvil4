@@ -30,7 +30,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SYMBOLS_TXT = ROOT / "config" / "G4BE08" / "symbols.txt"
-CALL_RELOCS = {"R_386_PLT32", "R_386_PC32", "R_ARM_CALL", "R_ARM_JUMP24", "R_ARM_THM_CALL",
+CALL_RELOCS = {"R_386_PLT32", "R_386_PC32", "R_X86_64_PLT32", "R_X86_64_PC32", "R_ARM_CALL", "R_ARM_JUMP24", "R_ARM_THM_CALL",
                "R_ARM_THM_JUMP24", "R_AARCH64_CALL26", "R_AARCH64_JUMP26"}
 
 
@@ -158,6 +158,41 @@ def trampolines_asm(arch: str, names: list) -> str:
                     "    vpop {d0-d7}",
                     "    pop {r0-r3, r12, lr}",
                     "    bx r12"]
+        elif arch == "x86_64":
+            # SysV: integer arguments rdi rsi rdx rcx r8 r9, vector xmm0-7, al
+            # (vector register count of a variadic call); 7 pushes bring the
+            # stack back to 16-byte alignment for the call
+            out += ["    pushq %rdi", "    pushq %rsi", "    pushq %rdx", "    pushq %rcx",
+                    "    pushq %r8", "    pushq %r9", "    pushq %rax",
+                    "    subq $128, %rsp"]
+            out += [f"    movdqu %xmm{i}, {16 * i}(%rsp)" for i in range(8)]
+            out += [f"    movl ${k}, %edi",
+                    "    call re4_module_import_resolve@PLT",
+                    "    movq %rax, %r11"]
+            out += [f"    movdqu {16 * i}(%rsp), %xmm{i}" for i in range(8)]
+            out += ["    addq $128, %rsp",
+                    "    popq %rax", "    popq %r9", "    popq %r8", "    popq %rcx",
+                    "    popq %rdx", "    popq %rsi", "    popq %rdi",
+                    "    jmp *%r11"]
+        elif arch == "arm64":
+            # AAPCS64: arguments x0-x7, x8 (indirect result), q0-q7
+            out += ["    stp x29, x30, [sp, #-224]!",
+                    "    mov x29, sp",
+                    "    stp x0, x1, [sp, #16]", "    stp x2, x3, [sp, #32]",
+                    "    stp x4, x5, [sp, #48]", "    stp x6, x7, [sp, #64]",
+                    "    str x8, [sp, #80]",
+                    "    stp q0, q1, [sp, #96]", "    stp q2, q3, [sp, #128]",
+                    "    stp q4, q5, [sp, #160]", "    stp q6, q7, [sp, #192]",
+                    f"    mov w0, #{k}",
+                    "    bl re4_module_import_resolve",
+                    "    mov x16, x0",
+                    "    ldp q0, q1, [sp, #96]", "    ldp q2, q3, [sp, #128]",
+                    "    ldp q4, q5, [sp, #160]", "    ldp q6, q7, [sp, #192]",
+                    "    ldr x8, [sp, #80]",
+                    "    ldp x0, x1, [sp, #16]", "    ldp x2, x3, [sp, #32]",
+                    "    ldp x4, x5, [sp, #48]", "    ldp x6, x7, [sp, #64]",
+                    "    ldp x29, x30, [sp], #224",
+                    "    br x16"]
         else:
             sys.exit(f"no trampoline template for {arch}")
         out.append(f"    .size {name}, .-{name}")
@@ -219,7 +254,7 @@ def main() -> int:
     ap.add_argument("--objects", type=Path, required=True,
                     help="text file: lines '<target>=<obj1>;<obj2>;...' (main, runtime, <module>...); "
                          "a target may repeat")
-    ap.add_argument("--arch", required=True, choices=["i686", "armv7"])
+    ap.add_argument("--arch", required=True, choices=["i686", "armv7", "x86_64", "arm64"])
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("cxx", nargs=argparse.REMAINDER, help="-- compiler and target flags for the trial link")
     if "--emit-imports" in sys.argv:

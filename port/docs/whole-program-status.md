@@ -21,7 +21,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
 | M11 Android-Feinschliff | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/nifty-feynman-jv729h`, Stand `093aa7a`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, „Depth of field“ mit dem Autofokus der ersten App, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester, alles auf Englisch), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Rundgang über alle Räume (PC mit Disc-Daten): 126 von 126 laufen (Patches 0062–0064). Super Magnum: kein Port-Fehler (Nachlade-Stufe Lv.5 aus dem Debug-Menü), mit Lv.1 bestätigt. Debug-Menü Waffenseite stürzte am Listenende ab (Patch 0066). Leistung: 60 Bilder/s, Kern 33,3 ms je Spielbild mit 13–15 ms Leerlauf, GPU um 20 ms („M11 Android-Feinschliff“) |
-| M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`): Bestandsaufnahme fertig (`arm64-bestandsaufnahme.md`, Werkzeuge `port/tools/m12/`): normaler 64-bit-Build 3060 Zeiger-Kürzungen und 835 von 1293 Strukturen größer (feste Plätze, Spielstand-Kopf, Dateistrukturen); 32-bit-Sandbox wasm32 0 von 1285 Strukturen anders, Geschwindigkeit 1,65-fach; Emulator 6-fach. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** (Empfehlung war W) |
+| M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt, gleiche Stubs wie ILP32 (Abschnitt „M12 ARM64“); Bestandsaufnahme fertig (`arm64-bestandsaufnahme.md`, Werkzeuge `port/tools/m12/`): normaler 64-bit-Build 3060 Zeiger-Kürzungen und 835 von 1293 Strukturen größer (feste Plätze, Spielstand-Kopf, Dateistrukturen); 32-bit-Sandbox wasm32 0 von 1285 Strukturen anders, Geschwindigkeit 1,65-fach; Emulator 6-fach. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** (Empfehlung war W) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -3161,6 +3161,47 @@ Lv.1 lädt Leon richtig („Reload passt mit Lvl. 1“).
   vor 10b** (eine APK für 32- und 64-bit-Geräte). Der Weg für 64 bit wird
   in der Bestandsaufnahme von M12 mit Zahlen vorgelegt und dann entschieden.
 
+## M12 ARM64
+
+Bestandsaufnahme und Vergleich der Wege: `port/docs/arm64-bestandsaufnahme.md`.
+**Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit.** Alles,
+was das Spiel adressiert, liegt unter 4 GB (wegen der Bit-31-Prüfungen, siehe
+„Adressen der Spielbibliotheken“, genauer zwischen `0x80000000` und
+`0xFFFFFFFF`); Strukturen mit fester Form (Disc-Daten, Spielstand, feste Plätze)
+behalten ihre 32-bit-Form.
+
+Schritte: A1 64-bit-Linux-Ziel baut und linkt → A2 Adressen unter 4 GB →
+A3 feste Formen und feste Plätze → A4 Laufzeit- und Kerntests auf x86_64 →
+PC-Prüfung mit Disc-Daten → arm64-Build der App, eine APK mit beiden ABIs →
+Gerätetest.
+
+### Schritt A1: 64-bit-Linux-Ziel (17.10.2026, Cloud)
+
+`port/tools/whole_build.sh x86_64` (Ziel `x86_64-linux-gnu`,
+`cmake/linux-x86_64.cmake`, steht für `arm64-v8a`): **0 Fehler, alle 600
+Spieldateien, 114 Module gelinkt, 47 Funktions- und 1 Daten-Stub wie auf
+ILP32** (`stubs-expected.txt` unverändert). `--self-test` (Sprungstellen
+zwischen Modulen, neue x86_64-Vorlage) und `--check-modules` (114 Module, 0
+offene Importe) laufen. Neu:
+
+- Umschreibungen für LP64 (Tabelle „Mechanische Umschreibungen“): genaue
+  Breiten in den Original-`types.h`, Alias-Namen mit `RE4_ASM_U32`/`RE4_ASM_NEW`,
+  `size_t` in eigenen Deklarationen, Füllfelder, Strukturen mit fester Form
+  (`fixed_form.json`, 42 Zeiger-Glieder in 20 Strukturen), `TaskFunc` 4 Bytes.
+- Patch 0067 (variadische Aufrufe mit festen Zeigern, `SEQGetVolume`).
+- Sprungstellen für x86_64 und arm64 in `whole_link_plan.py`;
+  `libre4_main_lp64.ver` (Spiel-`new` heißt dort `_Znwm`), `game_heap.cpp`.
+- Größenprüfungen der SDK-Nachbauten (`dvd.cpp`, `os_thread.cpp`) je
+  Zeigerbreite; `OSModuleLink`/`ModuleInfo` mit 4-Byte-Verweisen.
+
+Prüfung ILP32 nach den Änderungen: i686 und armhf (qemu) komplett grün
+(Sprungstellen, Module, Laufzeit-, Kern-, Karten-, Spielstand-, Format- und
+Filmtests). Auf x86_64 bricht
+`--runtime-test` wie erwartet beim ersten Modul ab: die Bibliotheken liegen
+über 4 GB (`OSLink` springt an eine gekürzte Adresse) → Schritt A2.
+`save_layout.py --check` meldet auf x86_64 eine andere Form des Spielstands →
+Schritt A3.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -3226,7 +3267,12 @@ sie ersetzt.
 | `strstr/strchr/strrchr/strpbrk/memchr` → Wrapper mit C-Signatur | C++ deklariert `const`-Überladungen; das Spiel weist an `char*` zu |
 | System-C-Header werden vor allen Spielheadern eingebunden | ältere Eigen-Deklarationen (`memcpy` in `joy.h`) sind danach verträglich |
 | `types.h`: auf ILP32 bleiben `s32/u32` = `long` wie im Original | gleiche C++-Namen für `u32` und `unsigned long` (sonst 90 Scheinfehler beim Linken) |
-| `TaskFunc`: Klasse statt `void*` (`re4_task_func.h`, gleiche Größe) | GCC 2.95 wandelte Funktionszeiger still in `void*` um, modernes C++ nicht |
+| `include/types.h`, `include/dolphin/types.h`: `s32/u32` auf LP64 = 32-bit-Typen (`exact_width_types`, M12) | Spielheader holen mit `#include "types.h"` das Original (nicht den Ersatz-Header); `long` hat auf LP64 8 Bytes |
+| Alias-Namen, die von der Breite von `u32`/`size_t` abhängen: `{u32}` in `GCC295_SYMBOLS` → `"…" RE4_ASM_U32` (`m` auf ILP32, `j` auf LP64), `_Znwj/_Znaj` → `RE4_ASM_NEW(_ARRAY)` (Prelude, M12) | `FlgOnStatus__5EventUl` und `__builtin_new` passen sonst auf LP64 nicht zur Funktion; `whole_asm_check.py` kennt die `RE4_ASM_*`-Makros als Teil eines Namens |
+| `operator new(unsigned …)`, eigene `extern "C"`-Deklarationen von `memcpy/strlen …` mit `unsigned int` → `__SIZE_TYPE__` (`OPERATOR_SIZE`, `LIBC_DECL`, M12) | auf LP64 ist `size_t` 8 Bytes; sonst Widerspruch zu den System-Headern |
+| Füllfelder `[A - sizeof(X)]` → `[((A) > sizeof(X) ? (A) - sizeof(X) : 0)]` (`PAD_TO_SIZE`, M12) | auf LP64 ist `X` größer als der feste Platz `A`: sonst negative Feldgröße. Die festen Plätze selbst werden in M12-A3 angepasst |
+| Strukturen mit fester Form (`port/whole/fixed_form.json`): Zeiger-Glieder → `RE4_P32(T)` (`re4_ptr32.h`; ILP32: `T*`, LP64: 4 Bytes `Re4Ptr32<T>`), Datei bekommt `#include "re4_ptr32.h"` (`fixed_form_structs`, M12) | Daten, die das Spiel von der Disc liest und an Ort und Stelle umbiegt (Texturen, Kollision, Kamerabereiche, Modelle, Szenen-Treffer, Raumtabelle), der Kopf des Spielstands und die Modul-Verkettung: ihre Form ist durch die Disc bzw. die Speicherkarte festgelegt. Bricht ab, wenn ein Glied nicht umschreibbar ist |
+| `TaskFunc`: Klasse statt `void*` (`re4_task_func.h`, gleiche Größe; auf LP64 4 Bytes wie auf der GameCube, M12) | GCC 2.95 wandelte Funktionszeiger still in `void*` um, modernes C++ nicht |
 | `(u16*) &pG->stage_no` → `(u16*) &pG->room_id`, `stage_prev` → `room_id_prev` (`ROOM_ID_ADDR`) | `G_ROOM_ID` und `RsfCheck(*(u16*) &pG->stage_no, …)` lesen die Raumnummer über die Adresse ihres ersten Bytes; auf little-endian liegt `stage_no` nach Patch 0016 am anderen Ende (auf der GameCube dieselbe Adresse) |
 | `new (p) T()` → `new (p) T` (`PLACEMENT_VALUE_INIT`) | C++11 füllt eine Klasse ohne eigenen Konstruktor bei `T()` erst mit Nullen; der GameCube-Compiler nicht. `em.cpp` setzt `subArc` vor `new (em) cEm10()` (Absturz in `Em12Set`, 14.10.2026). Prüfung: `port/tools/whole_value_init.py` |
 | Prelude: `#define _ctype_ re4_newlib_ctype_` (nach den System-Headern) | Bionic exportiert `_ctype_` als Zeiger, newlib (das Spiel, `t_movie`) als Feld; die Tabelle heißt jetzt `re4_newlib_ctype_` (`runtime/newlib_ctype.c`), Bionics Zeiger bleibt unberührt (K2) |
@@ -3236,6 +3282,13 @@ sie ersetzt.
 
 Compiler-Schalter: `-std=gnu++11 -Wno-c++11-narrowing -fdelayed-template-parsing
 -fno-strict-aliasing -ffp-contract=off -fwrapv -fno-strict-float-cast-overflow -w`.
+Auf LP64 (M12) statt `-w`: `-fms-extensions -Wno-everything -Werror=class-varargs
+-Wformat`. `-fms-extensions` macht aus den 3060 Zeiger-Kürzungen
+(`(u32) ptr`) Warnungen statt Fehler; das ist nur richtig, solange alles, was
+das Spiel adressiert, unter 4 GB liegt (M12-A2). `-Werror=class-varargs`
+bricht ab, wenn ein `Re4Ptr32`-Glied an eine Funktion mit `...` geht (dort
+käme es als 4-Byte-Objekt an statt als Zeiger; Abhilfe `re4_ptr(…)`, Patch
+0067).
 C++11 wird gebraucht, damit `TaskFunc` trotz Konstruktoren in Unions stehen darf.
 `-fno-strict-float-cast-overflow` (seit 15.10.2026): ProDG wandelt mit
 `-mfast-cast` Kommazahlen in u8/s8/u16/s16 über `psq_st` mit GQR2–5 um, und
@@ -3313,6 +3366,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0064 `shape.cpp` | `CalculateShape_new`: ein Kanal, der einen Eintrag **hinter** der Formen-Tabelle nennt (Anzahl im Wort vor der Tabelle), bekommt keine Werte. Das Spiel liest dort die Eckpunkt-Listen als Eintrag; big-endian ist dessen Anzahl negativ (nichts passiert), in Host-Reihenfolge 65535 (r229: Codec-Gesicht schrieb in die Zeichenliste, Funktionszeiger um 0x74 verschoben). Außerdem wird eine Eckpunkt-Nummer außerhalb des Modells übersprungen. Beides einmal gemeldet (`check: shape: …`); richtige Daten haben beides nicht |
 | 0065 `filter01.cpp` | Schalter „Depth of field“ des App-Menüs (M11, Wunsch des Projektinhabers, 17.10.2026): ist er aus (`re4_dof_enabled()`, `core_api.cpp`), legt `Filter01Trans` keinen Tiefenschärfe-Durchgang an und löscht die Anfragen dieses Bilds wie nach einem gezeichneten. Standard an. Ist er an und legt das Spiel keinen Fokus an, kommt bei freiem Spieler der Autofokus der App dazu (`re4_dof_autofocus`, OT-Eintrag `re4_dof_autofocus_mark` → BP 0x5A, `runtime/dof.cpp`; kein GameCube-Effekt, Wunsch des Projektinhabers „wie in RE4-Decomp“); `re4_dof_note` schreibt die Durchgänge eines Bilds ins Protokoll, wenn sie sich ändern |
 | 0066 `t_option.cpp` | Waffenseite des Debug-Menüs (`tp_pl_weapon`): der Cursor lief über 46 Plätze, `strWepName` hat aber 45 Namen und ein NULL-Ende; über den ersten Eintrag nach oben oder über den letzten nach unten zeigte die Liste den NULL-Namen, `eprintf` las Adresse 0 (GameCube: was dort liegt; Port: Absturz, Retroid 17.10.2026, `eprintf_main`, Fehleradresse 0). Der Cursor läuft jetzt über die 45 Waffen (letzte Seite 20..44); Auswahl und Stufenseite unverändert. Nicht auf dem Gerät geprüft |
+| 0067 `room_jmp.cpp`, `title.cpp`, `roomdata.cpp`, `seq.c` | 64 bit (M12): `eprintf` bekommt die Namen aus den Raumtabellen (Strukturen mit fester Form) über `re4_ptr(…)` als echten Zeiger; `re4_ptr` ist auf ILP32 ohne Wirkung. `roomdata.cpp`: die Fehlermeldung beim Lesen eines Raummoduls gibt für `%s` den Dateinamen statt der ganzen Tabellenzeile (die GameCube übergab deren Adresse, ARM und x86 kopieren die Struktur). `SEQGetVolume` mit `s32` wie seine Deklaration in `seq.h` (auf LP64 sonst zwei verschiedene Typen) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

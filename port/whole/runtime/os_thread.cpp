@@ -77,10 +77,12 @@ struct OSThread {
     void* specific[2];
 };
 
+// the SDK's form (include/dolphin/os/OSThread.h), which the game allocates:
+// the GameCube's on ILP32, pointers of 8 bytes on LP64 (milestone 12)
 static_assert(offsetof(OSThread, state) == 0x2C8, "OSThread layout");
-static_assert(offsetof(OSThread, queue) == 0x2DC, "OSThread layout");
-static_assert(offsetof(OSThread, stackBase) == 0x304, "OSThread layout");
-static_assert(sizeof(OSThread) == 0x318, "OSThread layout");
+static_assert(offsetof(OSThread, queue) == (sizeof(void*) == 4 ? 0x2DC : 0x2E0), "OSThread layout");
+static_assert(offsetof(OSThread, stackBase) == (sizeof(void*) == 4 ? 0x304 : 0x330), "OSThread layout");
+static_assert(sizeof(OSThread) == (sizeof(void*) == 4 ? 0x318 : 0x358), "OSThread layout");
 
 struct OSSemaphore {
     s32 count;

@@ -41,24 +41,37 @@ PLACEMENT_VALUE_INIT = re.compile(r"\bnew\s*\(([^()]*)\)\s*([A-Za-z_][\w:]*)\s*\
 # GameCube-era size parameters of the allocation operators are unsigned int;
 # the C++ ABI on LP64 requires size_t.
 OPERATOR_SIZE = re.compile(
-    r"(operator\s+(?:new|delete)\s*(?:\[\])?\s*\([^)]*?)\bunsigned\s+int\b")
+    r"(operator\s+(?:new|delete)\s*(?:\[\])?\s*\([^)]*?)\bunsigned(?:\s+int)?\b(?!\s*(?:char|short|long)\b)")
+# Game headers declare a few C library functions themselves with `unsigned int`
+# for size_t (joy.h memcpy, db_toolbase.h / db_widget.h strlen): the same type
+# on ILP32, a conflicting declaration on LP64 (milestone 12).
+LIBC_DECL = re.compile(r'extern\s+"C"[^;]*\b(?:memcpy|memset|memmove|memcmp|strlen|strncpy|strncmp|strncat)\s*\(')
+LIBC_UNSIGNED = re.compile(r"\bunsigned\s+int\b")
+# Padding up to the GameCube size of a structure: `u8 pad[0x320 - sizeof(cModel)]`
+# (four effect/cloth units) and sfd.h `padFA4[0x1018 - 0xD28 - sizeof(SFCON)]`.
+# On LP64 the structure is larger and the size negative; it becomes 0 there,
+# on ILP32 the value stays the same (milestone 12).
+PAD_TO_SIZE = re.compile(r"\[([^\[\]]*?)\s*-\s*sizeof\s*\(([^()]*)\)\s*\]")
 TEXT_SUFFIXES = (".c", ".cpp", ".h", ".hpp", ".inc")
 
 # `decl asm("symbol")` outside a register declaration is a symbol alias, not
 # code: the original declares a second name (often with a different signature)
 # for an existing function or variable. It is kept as __asm (which the prelude
-# does not drop); GCC 2.95 mangled names are translated to Itanium C++ names for
-# ILP32 (u32 = unsigned long = 'm', size_t = unsigned int = 'j').
+# does not drop); GCC 2.95 mangled names are translated to Itanium C++ names
+# (u32: '{u32}' = RE4_ASM_U32, 'm' on ILP32, 'j' on LP64; size_t: SIZE_T_SYMBOLS).
 ASM_LABEL = re.compile(r'\b(?:asm|__asm__)(\s*\(\s*")([A-Za-z_][A-Za-z0-9_$.]*)("\s*\))')
 GCC295_SYMBOLS = {
     "DrawTile__FiiiiP7GXColor": "_Z8DrawTileiiiiP7GXColor",
     "Filter09Render__Fv": "_Z14Filter09Renderv",
-    "FlgOnStatus__5EventUl": "_ZN5Event11FlgOnStatusEm",
+    "FlgOnStatus__5EventUl": "_ZN5Event11FlgOnStatusE{u32}",
     "ScreenReSize__FUsUs": "_Z12ScreenReSizett",
     "SetCallBack__7cObjScrPFP4cObj_v": "_ZN7cObjScr11SetCallBackEPFvP4cObjE",
     "SndCall__FUsUsP3VeciiP5cUnit": "_Z7SndCallttP3VeciiP5cUnit",
     "__builtin_new": "_Znwj",
 }
+# Itanium names that depend on the width of size_t: written as a macro of the
+# prelude (re4_whole_prelude.h), "_Znwj" on ILP32, "_Znwm" on LP64.
+SIZE_T_SYMBOLS = {"_Znwj": "RE4_ASM_NEW", "_Znaj": "RE4_ASM_NEW_ARRAY"}
 GCC295_MANGLED = re.compile(r"__(F|\d|builtin)")
 
 
@@ -70,6 +83,13 @@ def keep_asm_label(match: re.Match, line: str) -> str:
         name = GCC295_SYMBOLS[name]
     elif GCC295_MANGLED.search(name):
         sys.exit(f"unmapped GCC 2.95 symbol alias {name!r}: add it to GCC295_SYMBOLS")
+    if name in SIZE_T_SYMBOLS:
+        return f"__asm({SIZE_T_SYMBOLS[name]})"
+    if "{u32}" in name:
+        # GCC 2.95 `Ul` (u32): 'm' on ILP32 (unsigned long), 'j' on LP64
+        # (unsigned int); RE4_ASM_U32 of the prelude, joined to the literal
+        head, tail = name.split("{u32}", 1)
+        return f'__asm("{head}" RE4_ASM_U32 "{tail}")'
     return f"__asm{match.group(1)}{name}{match.group(3)}"
 
 
@@ -134,6 +154,12 @@ def rewrite(text: str) -> str:
                      for line in text.split("\n"))
     text = ASM_VOLATILE.sub(r"\1", text)
     text = OPERATOR_SIZE.sub(r"\1__SIZE_TYPE__", text)
+    if "extern" in text:
+        text = "\n".join(LIBC_UNSIGNED.sub("__SIZE_TYPE__", line) if LIBC_DECL.search(line) else line
+                         for line in text.split("\n"))
+    if "sizeof" in text:
+        text = PAD_TO_SIZE.sub(lambda m: "[((%s) > sizeof(%s) ? (%s) - sizeof(%s) : 0)]" % (
+            m.group(1).strip(), m.group(2), m.group(1).strip(), m.group(2)), text)
     if "new" in text:
         text = PLACEMENT_VALUE_INIT.sub(r"new (\1) \2", text)
     if "pG->stage_" in text:
@@ -288,6 +314,90 @@ def sync(staging: Path, tree: Path) -> None:
             path.unlink()
 
 
+# s32 / u32 are `long` in include/types.h and include/dolphin/types.h: 32 bits
+# on ILP32 as on the GameCube, 64 on LP64. Game headers include "types.h"
+# with quotes, so the copy next to them wins over port/whole/include/types.h;
+# their typedefs get the same exact-width form as the port's (milestone 12).
+TYPEDEF_LONG32 = re.compile(r"^typedef\s+(signed|unsigned)\s+long\s+(s32|u32)\s*;", re.M)
+
+
+def exact_width_types(staging: Path) -> None:
+    for rel in ("include/types.h", "include/dolphin/types.h"):
+        path = staging / rel
+        text = path.read_text()
+        new = TYPEDEF_LONG32.sub(
+            lambda m: "#if __SIZEOF_LONG__ == 4\ntypedef %s long %s;\n#else\ntypedef __%sINT32_TYPE__ %s;\n#endif" % (
+                m.group(1), m.group(2), "U" if m.group(1) == "unsigned" else "", m.group(2)), text)
+        if new.count("__SIZEOF_LONG__") != 2:
+            sys.exit(f"exact_width_types: s32/u32 typedefs not found in {rel}")
+        path.write_text(new)
+
+
+# Structures with a fixed form (port/whole/fixed_form.json): their pointer
+# members become RE4_P32(T) (re4_ptr32.h): four bytes as on the GameCube on
+# LP64, unchanged T* on ILP32 (milestone 12). `T* p;`, `T** p;`, `T* p[n];`
+# and function pointers `R (*f)(A);`; anything else with a `*` in a listed
+# structure stops the build (to be written by hand).
+FIXED_FORM = ROOT / "port" / "whole" / "fixed_form.json"
+MEMBER_PTR = re.compile(
+    r"^(?P<ind>\s*)(?P<type>(?:(?:const|volatile|struct|class|union|unsigned|signed)\s+)*[A-Za-z_][\w:]*"
+    r"(?:\s+const)?)\s*(?P<stars>\*+)\s*(?P<name>\w+)\s*(?P<dims>(?:\[[^\]]*\])*)\s*;(?P<rest>.*)$")
+MEMBER_FUNC_PTR = re.compile(
+    r"^(?P<ind>\s*)(?P<ret>(?:const\s+)?[A-Za-z_][\w:]*\s*\**)\s*\(\s*\*\s*(?P<name>\w+)\s*\)\s*"
+    r"\((?P<args>[^()]*)\)\s*;(?P<rest>.*)$")
+
+
+def rewrite_fixed_struct(text: str, name: str, where: str) -> tuple:
+    m = re.search(r"\b(?:struct|class)\s+" + re.escape(name) + r"\b[^;{()]*\{", text)
+    if not m:
+        sys.exit(f"fixed_form.json: no definition of {name} in {where}")
+    start = m.end()
+    depth, i = 1, start
+    while depth and i < len(text):
+        depth += {"{": 1, "}": -1}.get(text[i], 0)
+        i += 1
+    body = text[start:i - 1]
+    lines = body.split("\n")
+    changed = 0
+    for k, line in enumerate(lines):
+        code, sep, comment = line.partition("//")
+        if "*" not in code:
+            continue
+        fm = MEMBER_FUNC_PTR.match(code)
+        if fm:
+            lines[k] = f"{fm['ind']}RE4_P32({fm['ret'].strip()}({fm['args']})) {fm['name']};{fm['rest']}{sep}{comment}"
+            changed += 1
+            continue
+        pm = MEMBER_PTR.match(code)
+        if pm and not re.search(r"\b(static|typedef|friend|operator|return)\b", code):
+            t = pm["type"].strip()
+            for _ in pm["stars"]:
+                t = f"RE4_P32({t})"
+            lines[k] = f"{pm['ind']}{t} {pm['name']}{pm['dims']};{pm['rest']}{sep}{comment}"
+            changed += 1
+            continue
+        if re.search(r"\(", code) and not re.search(r"\(\s*\*", code):
+            continue  # a member function
+        sys.exit(f"fixed_form.json: {name} in {where}: cannot rewrite `{line.strip()}`")
+    if not changed:
+        sys.exit(f"fixed_form.json: {name} in {where} has no pointer member")
+    return text[:start] + "\n".join(lines) + text[i - 1:], changed
+
+
+def fixed_form_structs(staging: Path) -> int:
+    spec = json.loads(FIXED_FORM.read_text())
+    total = 0
+    for rel, names in spec["structs"].items():
+        path = staging / rel
+        text = path.read_text(encoding="utf-8", errors="surrogateescape")
+        for name in names:
+            text, n = rewrite_fixed_struct(text, name, rel)
+            total += n
+        text = '#include "re4_ptr32.h"  /* port: fixed_form.json */\n' + text
+        path.write_text(text, encoding="utf-8", errors="surrogateescape")
+    return total
+
+
 def prepare(out: Path) -> Path:
     tree = out / "tree"
     staging = out / "staging"
@@ -295,6 +405,8 @@ def prepare(out: Path) -> Path:
         shutil.rmtree(staging)
     mirror(ROOT / "src", staging / "src")
     mirror(ROOT / "include", staging / "include")
+    exact_width_types(staging)
+    fixed = fixed_form_structs(staging)
     apply_patches(staging)
     views = apply_byte_views(staging)
     plan = module_plan()
@@ -302,7 +414,8 @@ def prepare(out: Path) -> Path:
     found, problems = whole_asm_check.check(staging, whole_asm_check.plan_units(plan), OVERLAY)
     if problems:
         sys.exit("inline asm check failed (port/tools/whole_asm_check.py):\n  " + "\n  ".join(problems))
-    print(f"whole_prepare: asm {whole_asm_check.summary(found)}; {views} byte views")
+    print(f"whole_prepare: asm {whole_asm_check.summary(found)}; {views} byte views; "
+          f"{fixed} fixed-form pointer members")
     sync(staging, tree)
     shutil.rmtree(staging)
     write_sdk_c_only(out)

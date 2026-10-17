@@ -225,7 +225,12 @@ def scan_text(path: str, text: str):
         sections = split_top(code[open_paren + 1:end - 1], ":")
         raw = sections[0]
         template = string_text(raw)
-        computed = re.sub(r'"(?:[^"\\]|\\.)*"', "", raw).strip() != ""
+        # RE4_ASM_* (re4_whole_prelude.h): parts of a symbol alias name that
+        # depend on the width of u32/size_t (whole_prepare.py keep_asm_label)
+        name_macros = re.findall(r"\bRE4_ASM_\w+", raw)
+        computed = re.sub(r"\bRE4_ASM_\w+", "", re.sub(r'"(?:[^"\\]|\\.)*"', "", raw)).strip() != ""
+        if name_macros and not computed:
+            template = template + "".join(name_macros) if template else name_macros[0]
         # what precedes the asm in C (preprocessor lines do not count)
         prev = re.sub(r"(?m)^[ \t]*#.*$", "", code[max(0, m.start() - 4000):m.start()]).rstrip()
         prev_word = re.search(r"([\w\])]+)$", prev)

@@ -1,0 +1,21 @@
+{
+  "_comment": [
+    "Structures that keep the GameCube form on LP64 (milestone 12, way A): their pointer",
+    "members become RE4_P32(T) (port/whole/include/re4_ptr32.h, whole_prepare.py",
+    "fixed_form_structs): four bytes as on the GameCube, T* on ILP32. Listed are data the",
+    "game reads straight from the disc and relocates in place (checked by the size asserts",
+    "of the format converters, port/whole/runtime/formats) and the save image header.",
+    "Each listed structure must have at least one pointer member."
+  ],
+  "structs": {
+    "include/tpl.h": ["CLUTHeader", "TEXHeader", "TEXDescriptor", "TEXPalette"],
+    "include/cam_ctrl.h": ["_AREA_DATA", "_CUT_INFO", "_CAMERA_DATA"],
+    "include/room_jmp.h": ["CRoomInfo"],
+    "include/atari.h": ["cSatBlock"],
+    "include/model.h": ["cModelData"],
+    "include/sce_at.h": ["SCE_AT_DATA_ITEM", "SCE_AT_DATA_DOOR", "SCE_AT_DATA_NORMAL", "SCE_AT_DATA_SCR_AT",
+                         "SCE_AT_DATA_FIELD_INFO", "SCE_AT_DATA_HIDE", "SCE_AT_DATA_SKEY", "SCE_AT_UNIT"],
+    "include/game.h": ["SAVE_DATA_HEAD"],
+    "include/dolphin/os/OSModule.h": ["OSModuleLink"]
+  }
+}

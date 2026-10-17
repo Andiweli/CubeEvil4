@@ -83,8 +83,10 @@ struct DVDDirEntry {
 };
 
 static_assert(sizeof(DVDDiskID) == 0x20, "DVDDiskID layout");
-static_assert(sizeof(DVDCommandBlock) == 0x30, "DVDCommandBlock layout on ILP32");
-static_assert(sizeof(DVDFileInfo) == 0x3C, "DVDFileInfo layout on ILP32");
+// the SDK's form (include/dolphin/dvd.h), which the game allocates: the
+// GameCube's on ILP32, pointers of 8 bytes on LP64 (milestone 12)
+static_assert(sizeof(DVDCommandBlock) == (sizeof(void*) == 4 ? 0x30 : 0x48), "DVDCommandBlock layout");
+static_assert(sizeof(DVDFileInfo) == (sizeof(void*) == 4 ? 0x3C : 0x58), "DVDFileInfo layout");
 
 const int kStateEnd = 0;
 const int kStateBusy = 1;

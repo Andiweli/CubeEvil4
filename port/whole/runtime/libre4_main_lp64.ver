@@ -1,0 +1,6 @@
+/* Exports of libre4_main on LP64 (milestone 12): as libre4_main.ver, with the
+   Itanium names of operator new / new[] for a 64-bit size_t. */
+{
+    global: *;
+    local: _Znwm; _Znam; _ZdlPv; _ZdaPv;
+};
