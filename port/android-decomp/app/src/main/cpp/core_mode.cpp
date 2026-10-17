@@ -89,6 +89,9 @@ template <class F> bool bind(F &slot, const char *name) {
 // it, RE4_MEM1_PLACEHOLDER), and the linker loads the two core libraries into
 // ranges reserved at the top of the window. The core puts its module
 // libraries and stacks there itself (module_loader.cpp, game_window.cpp).
+#ifndef MAP_FIXED_NOREPLACE
+#define MAP_FIXED_NOREPLACE 0x100000
+#endif
 constexpr unsigned long kWindowStart = 0x83000000ul;
 constexpr unsigned long kWindowEnd = 0x100000000ul;
 
@@ -618,9 +621,14 @@ void crashWhere(const char *what, uintptr_t address) {
 // pc, lr and the words on the stack that point into a library (a guess at
 // the return addresses), from a signal's context
 void crashContext(void *context) {
-#if defined(__arm__)
+#if defined(__arm__) || defined(__aarch64__)
   const auto *uc = static_cast<const ucontext_t *>(context);
+#if defined(__arm__)
   const uintptr_t pc = uc->uc_mcontext.arm_pc, lr = uc->uc_mcontext.arm_lr, sp = uc->uc_mcontext.arm_sp;
+#else
+  // 64 bit (milestone 12): x30 is the link register
+  const uintptr_t pc = uc->uc_mcontext.pc, lr = uc->uc_mcontext.regs[30], sp = uc->uc_mcontext.sp;
+#endif
   crashWhere("pc", pc);
   crashWhere("lr", lr);
   const auto *word = reinterpret_cast<const uintptr_t *>(sp);
@@ -630,7 +638,7 @@ void crashContext(void *context) {
     if (word[i] > 0x10000 && dladdr(reinterpret_cast<void *>(word[i]), &d) && d.dli_fname &&
         std::strstr(d.dli_fname, ".so")) {
       char what[24];
-      std::snprintf(what, sizeof(what), "sp+%03x", i * 4);
+      std::snprintf(what, sizeof(what), "sp+%03x", static_cast<unsigned>(i * sizeof(uintptr_t)));
       crashWhere(what, word[i]);
       found++;
     }

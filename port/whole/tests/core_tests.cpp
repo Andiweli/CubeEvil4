@@ -133,6 +133,39 @@ void testCodec()
     report("codec", ok);
 }
 
+// Files the game reads one by one outside an archive (formats.cpp): the
+// chapter title of r101's bell event (etc/eng/id101.eff, id texture data in
+// the EFF layout; etc/eng/event001.uwf, its screen layout) left big-endian
+// crashed IDSystem::set on the Retroid (17.10.2026); the item model of the
+// pickup screen (ss/cmn/itmXX.bin) hung it. Version word and an entry
+// position come out in host order.
+void testSingleFiles()
+{
+    bool ok = true;
+    unsigned char* eff = (unsigned char*) (unsigned long) 0x82400000u;
+    memset(eff, 0, 0x40);
+    put32be(eff, 0xB);  // version, no tables
+    Header h = { 0, 0x40, 0, 0, 0, 0, 0, 0 };
+    re4_formats_part_loaded("etc/eng/id101.eff", 0, 0, &h, 0x82400000u);
+    unsigned version;
+    memcpy(&version, eff, 4);
+    CHECK(version == 0xB);
+    unsigned char* uwf = (unsigned char*) (unsigned long) 0x82401000u;
+    memset(uwf, 0, 0x100);
+    memcpy(uwf, "1.00", 4);
+    uwf[5] = 1;  // UnitNum: one ID_DATA_V1 at 8
+    float x = 1.5f;
+    unsigned bits;
+    memcpy(&bits, &x, 4);
+    put32be(uwf + 8 + 0x14, bits);  // pos.x
+    Header hu = { 0, 8 + 0x88, 0, 0, 0, 0, 0, 0 };
+    re4_formats_part_loaded("etc/eng/event001.uwf", 0, 0, &hu, 0x82401000u);
+    float got;
+    memcpy(&got, uwf + 8 + 0x14, 4);
+    CHECK(got == 1.5f);
+    report("single files", ok);
+}
+
 // A REL read from disc as a file of its own: the header (version 3, bssSize
 // with a low byte above 0x7F: read big-endian it is a negative size) comes
 // out in host order; converting again changes nothing; a later part of the
@@ -997,6 +1030,7 @@ int re4_core_tests()
     testBridge();
     testCodec();
     testRel();
+    testSingleFiles();
     testThread();
     testPad();
     testSound();

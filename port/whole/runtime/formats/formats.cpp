@@ -559,6 +559,17 @@ const Rule kRules[] = {
     { "etc/sizetbl.dat", convertSizeTbl, "file size table" },
     { "font/*.fnt", convertFont, "message font" },
     { "*.tpl", convertTpl, "texture palette" },
+    // files the game reads one by one, outside an archive: the item models of
+    // the pickup screen (sce_at.cpp, ss/cmn/itmXX.bin) and the inventory's
+    // examine view (ss_main.cpp, ss/item/idmXXX.bin, capXX.bin), the costume
+    // models of r300 (etc/pl0*.bin), the chapter title over the bell event of
+    // r101 (etc/<lang>/id101.eff: id texture data, the EFF layout;
+    // event001.uwf: its screen layout)
+    { "ss/cmn/itm*.bin", convertBin, "item model" },
+    { "ss/item/*.bin", convertBin, "item model" },
+    { "etc/*.bin", convertBin, "model" },
+    { "etc/*.eff", convertEffect, "id texture data" },
+    { "etc/*.uwf", convertIdLayout, "screen layout (id system)" },
     { "st*/r*.das", packed, "room archive (Yz2)" },
     { "st*/r*_*.dat", convertArchive, "room block archive" },
     { "etc/*.esl", convertEmList, "enemy list" },

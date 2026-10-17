@@ -395,6 +395,33 @@ std::vector<Input> discInputs(const std::string& dir)
             in.push_back(i);
         }
     }
+    // models the game reads one by one, outside an archive (formats.cpp: the
+    // pickup screen's item models, the inventory's examine view, the costume
+    // models of r300): each as the only entry of an archive, so that both
+    // sides read it as the BIN of an archive
+    auto standaloneBins = [&](const std::string& dir, const char* prefix) {
+        std::string path = findPath(files, dir);
+        if (path.empty()) {
+            return;
+        }
+        for (const auto& name : listDir(path)) {
+            if (!endsWithNoCase(name, ".bin") ||
+                (prefix && strncasecmp(name.c_str(), prefix, std::strlen(prefix)) != 0)) {
+                continue;
+            }
+            Input i{ path.substr(files.size() + 1) + "/" + name, kArchive, {}, "", false };
+            Bytes file;
+            if (!readFile(path + "/" + name, file)) {
+                i.error = "nicht lesbar";
+            } else {
+                i.bytes = makeArchive({ { "BIN", file } });
+            }
+            in.push_back(i);
+        }
+    };
+    standaloneBins("ss/cmn", "itm");
+    standaloneBins("ss/item", nullptr);
+    standaloneBins("etc", nullptr);
     {
         Input i{ "debug/roominfo.dat", kRoomInfo, {}, "", false };
         std::string path = findPath(files, "debug/roominfo.dat");
@@ -500,6 +527,8 @@ int writeSamples(const std::string& dir)
             break;
         }
     }
+    // a model the game reads on its own (the pickup screen's item model)
+    ok = writeFile(files + "SS/cmn/itm1a.bin", makeBin(false, true, false)) && ok;
     std::printf("%s: %s\n", dir.c_str(), ok ? "samples written" : "write failed");
     return ok ? 0 : 1;
 }

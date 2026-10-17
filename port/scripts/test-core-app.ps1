@@ -240,16 +240,19 @@ if (-not $SkipCore) {
         & wsl.exe @wslBase -u root --exec bash "$repoWsl/port/tools/whole_setup_linux.sh" --android
         if ($LASTEXITCODE -ne 0) { throw 'Einrichtung in WSL fehlgeschlagen (Internet noetig).' }
     }
-    Say '1. Spielkern fuer ARM32 und ARM64 bauen (beim ersten Mal 20 bis 60 Minuten) ...'
+    # -Abi: only that core (the other one stays as it was in the app folder)
+    $buildAbi = if ($Abi -eq 'auto') { 'all' } else { $Abi }
+    Say "1. Spielkern bauen ($(if ($buildAbi -eq 'all') { 'ARM32 und ARM64' } else { $buildAbi }); beim ersten Mal 10 bis 60 Minuten) ..."
     $coreLog = Join-Path $OutDir 'kern-build.log'
     $code = Invoke-Logged $coreLog {
         wsl.exe @wslBase --exec bash "$repoWsl/port/tools/whole_build_android.sh" --source $repoWsl `
-            --into "$repoWsl/port/android-decomp/app"
+            --into "$repoWsl/port/android-decomp/app" --abi $buildAbi
     }
     Add-ReportTail $coreLog 30
     if ($code -ne 0) { throw 'Kern-Build fehlgeschlagen (Einzelheiten oben und in kern-build.log).' }
 }
-foreach ($libAbi in @('armeabi-v7a', 'arm64-v8a')) {
+$needAbis = if ($Abi -eq 'auto') { @('armeabi-v7a', 'arm64-v8a') } else { @($Abi) }
+foreach ($libAbi in $needAbis) {
     $libs = Join-Path $app "app\src\core\jniLibs\$libAbi"
     if (-not (Test-Path -LiteralPath (Join-Path $libs 'libre4_main.so'))) {
         throw "Kern-Bibliotheken fehlen in $libs (Schritt 1 ausfuehren)."

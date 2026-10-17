@@ -3356,6 +3356,20 @@ nur gegen einen nachgebildeten Header übersetzt. Offen und erst auf dem Gerät
 messbar: ob ART oder die Grafiktreiber Teile des Fensters
 0x80000000–0xFFFFFFFF schon belegen.
 
+### Gerätefehler vom 17.10.2026 (Retroid, ARM32, Berichte 17:19 und 17:29)
+
+| Meldung | Ursache laut Bericht | Stand |
+|---|---|---|
+| Nach der Glocken-Szene in r101 landet die App im Startmenü (Import) | Absturz (SIGSEGV) in `FuncPathParametrize` ← `IDSystem::set` ← `r101_Event30_TitleCall` (`libre4_st1_1.so`): der Kapiteltitel über dem Glocken-Ereignis liest `etc/eng/id101.eff` (Bilder, EFF-Form) und `etc/eng/event001.uwf` (Anordnung) **einzeln** über `DC.setData`; für einzeln geladene `.eff`/`.uwf` gab es keine Regel, beide blieben big-endian („no converter“) | **behoben** (Regeln in `formats.cpp`), Kerntest „single files“; **auf dem Gerät noch nicht geprüft** |
+| Beim Aufheben eines Gegenstands bleibt die A-Anzeige stehen, das Spiel läuft nicht weiter (SELECT geht) | Die Aufheben-Anzeige lädt das Modell `ss/cmn/itm1a.bin` einzeln (`sce_at.cpp`, `DvdReadN`); keine Regel für einzelne `.bin`, das Modell blieb big-endian | **behoben**: Regeln für `ss/cmn/itm*.bin`, `ss/item/*.bin` (Untersuchen im Inventar) und `etc/*.bin` (Kostüm-Modelle in r300, `r300.cpp`); der Formatvergleich mit Disc-Daten nimmt diese Modelle jetzt mit (als einziger Eintrag eines Archivs, gegen den Modell-Leser der App), der synthetische Vergleich enthält eins (8 statt 7 Dateien); **auf dem Gerät noch nicht geprüft** |
+
+Gesucht wurde in allen Ladestellen des Spiels (`DC.setData`, `DvdReadN`):
+die übrigen einzeln gelesenen Dateien sind Archive (`ss/*/*.dat`, Regel
+vorhanden), Texturen (`*.tpl`) und Ereignisse (`*.evd`). Im Rundgang 10b
+achten auf: `st1/r101.das` Eintrag #24 `EVS` (32 Bytes) meldet „conversion
+incomplete“ (wohl ein leeres Ereignis), dazu die bekannten Kürzel ohne
+Umwandler `DRA` und `FNT`.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |

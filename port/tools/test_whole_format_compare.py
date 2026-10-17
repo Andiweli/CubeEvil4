@@ -32,7 +32,7 @@ def yz2_file(data: bytes) -> bytes:
 
 
 EXPECTED = ["st1/r100.das", "etc/emleon00.esl", "debug/roominfo.dat", "Evd/r100s03.evd", "em/pl00.drs", "op/op01.das",
-            "SS/cmn/map_obj1.dat"]
+            "SS/cmn/map_obj1.dat", "SS/cmn/itm1a.bin"]
 
 
 def main() -> int:
