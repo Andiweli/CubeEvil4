@@ -44,7 +44,10 @@ enum Re4GxOp {
     /* payload 1 word: reg << 24 | value. The register's new full value (the
      * BP mask is applied already). Written registers with side effects come
      * in order: 0x52 (EFB copy: to the XFB or to a texture, clear), 0x55/0x56
-     * (bounding box), 0x66 (texture cache invalidate), 0x67 (metrics). Writes
+     * (bounding box), 0x66 (texture cache invalidate), 0x67 (metrics), and
+     * 0x5A, which the GameCube does not have: the port's marker for the
+     * app's gameplay autofocus (runtime/dof.cpp; the renderer blurs the EFB
+     * behind the focus there, a renderer without it ignores it). Writes
      * that leave a plain state register unchanged are left out; 0x45/0x47/
      * 0x48 (draw done, tokens), 0x64/0x65 (TLUT loads, see RE4_GX_OP_TLUT)
      * and 0xFE (mask) are handled by the core. */

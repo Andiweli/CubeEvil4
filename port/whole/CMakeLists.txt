@@ -172,9 +172,11 @@ target_include_directories(re4_formats_obj PRIVATE runtime runtime/formats)
 string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_formats_obj>\n")
 
 # Port code that reads the game's own state, compiled as game code into
-# libre4_main: the per-frame state trace (RE4_TRACE) and the snapshot of the
-# core bridge for the app's renderer (runtime/re4_core.h).
-add_library(re4_gamehooks_obj OBJECT runtime/state_trace.cpp runtime/core_bridge.cpp runtime/movie_status.cpp)
+# libre4_main: the per-frame state trace (RE4_TRACE), the snapshot of the
+# core bridge for the app's renderer (runtime/re4_core.h) and the depth of
+# field notes and gameplay autofocus (runtime/dof.cpp, patch 0065).
+add_library(re4_gamehooks_obj OBJECT runtime/state_trace.cpp runtime/core_bridge.cpp runtime/movie_status.cpp
+    runtime/dof.cpp)
 target_link_libraries(re4_gamehooks_obj PRIVATE re4_game_flags)
 target_include_directories(re4_gamehooks_obj PRIVATE runtime)
 string(APPEND RE4_LINK_OBJECTS "main=$<TARGET_OBJECTS:re4_gamehooks_obj>\n")

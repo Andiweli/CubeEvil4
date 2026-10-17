@@ -206,6 +206,7 @@ void re4_gx_host_order_list(const void* list, unsigned int size);
 void VISetNextFrameBuffer(void* fb);
 void VIFlush(void);
 void VISetBlack(int black);
+void re4_dof_autofocus_mark(void* w);
 }
 
 namespace {
@@ -608,6 +609,26 @@ extern "C" int re4probe_gx_frame_test(void* fifo, void* mem)
     if (c6) {
         re4_core_gx_release(c6);
     }
+    // the marker of the app's gameplay autofocus (runtime/dof.cpp, the OT
+    // callback of patch 0065): BP 0x5A, not a GameCube register, in the chunk
+    // each time, also with the value it already has
+    re4_dof_autofocus_mark(0);
+    triangle();
+    re4_dof_autofocus_mark(0);
+    copyDisp(xfb);
+    const Re4GxChunk* c7 = re4_core_gx_acquire();
+    {
+        int marks = 0;
+        for (uint32_t at = 0; c7 && at < c7->opWords; at += 1 + (c7->ops[at] >> 8)) {
+            marks += (c7->ops[at] & 0xFF) == RE4_GX_OP_BP && c7->ops[at + 1] == (0x5Au << 24 | 1);
+        }
+        if (marks != 2) {
+            failed |= 0x8000;
+        }
+    }
+    if (c7) {
+        re4_core_gx_release(c7);
+    }
     re4_core_gx_detach();
     copyDisp(xfb);  // no renderer: nothing is built
     if (re4_core_gx_acquire() != 0) {
@@ -824,6 +845,7 @@ extern "C" unsigned long long re4probe_gx_fingerprint(void* fifo, void* mem, voi
         Stream s = {bytes, 0};
         bp(s, 0x64, 0);
         bp(s, 0x0F, 0);  // left by the tests before, which differ between the hosts
+        bp(s, 0x5A, 0);  // the autofocus marker of the frame test
         for (uint32_t reg = 0x94; reg < 0x98; reg++) {
             bp(s, reg, 0);
             bp(s, reg + 0x20, 0);

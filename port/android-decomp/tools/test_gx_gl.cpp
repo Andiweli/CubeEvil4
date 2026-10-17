@@ -774,6 +774,89 @@ void TestCopyFilter(re4gx::GxRenderer &r) {
   r.Run(b.Chunk());
 }
 
+// The gameplay autofocus (BP 0x5A, the core's marker; runtime/dof.cpp): a
+// perspective scene (near 100, far 1,000,000 as the game's): far behind, a
+// red / blue edge at x = 160 (20 m away); at the centre a grey card 1 m
+// away (the focus); right of it a near green / white edge at 1.5 m. The
+// marker softens the far edge, the near one stays sharp; with nothing near at
+// the centre (looking into the distance) the picture stays as it is.
+void QuadAt(Builder &b, float sx0, float sy0, float sx1, float sy1, float distance, const std::uint8_t c[4]) {
+  // screen pixels through the viewport of Baseline (centre 320, 264; half 320 x 264)
+  auto x = [&](float sx) { return (sx - 320.0f) / 320.0f * distance; };
+  auto y = [&](float sy) { return (264.0f - sy) / 264.0f * distance; };
+  std::vector<std::uint8_t> v;
+  V(v, x(sx0), y(sy0), -distance, c);
+  V(v, x(sx1), y(sy0), -distance, c);
+  V(v, x(sx1), y(sy1), -distance, c);
+  V(v, x(sx0), y(sy1), -distance, c);
+  b.Draw(RE4_GX_V_COLOR0, 16, v, 4, 0x80);
+}
+
+void AutofocusScene(Builder &b, bool nearCentre, bool mark) {
+  Baseline(b);
+  DisplayCopy(b, true, kBlack);
+  const float n = 100.0f, f = 1000000.0f;
+  b.XfF(0x1020, {1.0f, 0.0f, 1.0f, 0.0f, -n / (f - n), -f * n / (f - n)});
+  b.Xf(0x1026, {0});
+  const std::uint8_t red[4] = {255, 0, 0, 128}, blue[4] = {0, 0, 255, 128}, grey[4] = {128, 128, 128, 255};
+  QuadAt(b, 0, 0, 160, 528, 20000.0f, red);
+  QuadAt(b, 160, 0, 640, 528, 20000.0f, blue);
+  if (nearCentre)
+    QuadAt(b, 280, 224, 360, 304, 1000.0f, grey);
+  QuadAt(b, 440, 400, 480, 480, 1500.0f, kGreen);
+  QuadAt(b, 480, 400, 520, 480, 1500.0f, kWhite);
+  if (mark)
+    b.Bp(0x5A, 1);
+  DisplayCopy(b, false, kBlack);
+}
+
+void TestAutofocus(re4gx::GxRenderer &r, bool multisampled = false) {
+  const char *tag = multisampled ? "autofocus (multisampled)" : "autofocus";
+  auto run = [&](bool nearCentre, bool mark) {
+    Builder b;
+    AutofocusScene(b, nearCentre, mark);
+    r.Run(b.Chunk());
+    return r.Xfb(nullptr, nullptr);
+  };
+  char what[160];
+  const unsigned before = r.Stats().autofocus;
+  GLuint xfb = run(true, false);
+  auto sharpL = TexPixel(xfb, 159, 100), sharpR = TexPixel(xfb, 160, 100);
+  std::snprintf(what, sizeof(what), "%s: without the marker the far edge is sharp", tag);
+  Check(Near(sharpL, 255, 0, 0) && Near(sharpR, 0, 0, 255), what);
+  xfb = run(true, true);
+  std::snprintf(what, sizeof(what), "%s: one blur pass for the marker", tag);
+  Check(r.Stats().autofocus == before + 1, what);
+  auto l = TexPixel(xfb, 159, 100), rr = TexPixel(xfb, 160, 100);
+  std::snprintf(what, sizeof(what), "%s: the far edge behind the focus gets soft", tag);
+  Check(l[2] > 20 && l[0] < 240 && rr[0] > 20 && rr[2] < 240, what);
+  if (!(l[2] > 20 && l[0] < 240 && rr[0] > 20 && rr[2] < 240)) {
+    Print("left of the edge", l);
+    Print("right of the edge", rr);
+  }
+  std::snprintf(what, sizeof(what), "%s: away from the edge the background keeps its colour", tag);
+  Check(Near(TexPixel(xfb, 80, 100), 255, 0, 0) && Near(TexPixel(xfb, 600, 100), 0, 0, 255), what);
+  std::snprintf(what, sizeof(what), "%s: the focused card stays as it is", tag);
+  Check(Near(TexPixel(xfb, 320, 264), 128, 128, 128), what);
+  auto g = TexPixel(xfb, 479, 440), w = TexPixel(xfb, 480, 440);
+  std::snprintf(what, sizeof(what), "%s: the near edge in front of the focus stays sharp", tag);
+  Check(Near(g, 0, 255, 0) && Near(w, 255, 255, 255), what);
+  if (!multisampled) {
+    std::snprintf(what, sizeof(what), "%s: the EFB alpha stays", tag);
+    Check(EfbPixel(r, 159, 100)[3] == 128, what);
+  }
+  xfb = run(false, true);
+  l = TexPixel(xfb, 159, 100);
+  rr = TexPixel(xfb, 160, 100);
+  std::snprintf(what, sizeof(what), "%s: looking into the distance leaves the picture sharp", tag);
+  Check(Near(l, 255, 0, 0) && Near(rr, 0, 0, 255), what);
+  // back to the orthographic projection of the other tests
+  Builder b;
+  Baseline(b);
+  DisplayCopy(b, true, kBlack);
+  r.Run(b.Chunk());
+}
+
 // The menu's picture options (M11): a multisampled EFB is resolved before
 // every copy out of it (display copy, texture copy); a slanted edge comes out
 // between the two colours; anisotropic filtering does not change a picture
@@ -819,6 +902,7 @@ void TestOptions() {
     Check(between > 20, "multisampled: the slanted edge is smoothed");
   }
   TestCopyAndPalette(r, true);  // EFB copy to a texture (resolved first), palette
+  TestAutofocus(r, r.Samples() > 1);
   Check(glGetError() == GL_NO_ERROR, "options: no GL error");
   r.Release();
 }
@@ -838,6 +922,7 @@ int main() {
   TestFog(renderer);
   TestShaderVariety(renderer);
   TestCopyFilter(renderer);
+  TestAutofocus(renderer);
   Check(glGetError() == GL_NO_ERROR, "no GL error");
   renderer.Release();
   TestOptions();

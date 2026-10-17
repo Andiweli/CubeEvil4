@@ -507,6 +507,27 @@ void frame(unsigned n)
         }
         g_weaponRoutine = routine;
     }
+    // A reload level past the three columns of PlReloadEndTbl (pl_class.cpp;
+    // the debug menu's weapon page goes up to RELOAD Lv.5): the handgun,
+    // shotgun, rifle and machine gun routines then read the end frame from
+    // the next weapon's row, often 1, so letting go of R cuts the reload
+    // short and the weapon's own reload motion plays on alone. The GameCube
+    // reads the same; the hint tells a tester's log what it was.
+    {
+        static u32 lastLevel = ~0u;
+        const u32 level = (u32) g->weapon_no << 8 | g->weapon_lv_reload;
+        if (g->Rno0 == 3 && level != lastLevel) {
+            lastLevel = level;
+            const u32 at = (u32) g->weapon_no * 3 + g->weapon_lv_reload;
+            if (g->weapon_lv_reload > 2 && at < 45 * 3) {
+                re4_log("check: weapon %u has reload level %u (Lv.%u, the debug menu's weapon page): the reload "
+                        "table has 3 levels, the end frame comes from the next weapon's row (%.0f), so letting go "
+                        "of R cuts the reload short (as on the GameCube)",
+                        (unsigned) g->weapon_no, (unsigned) g->weapon_lv_reload, (unsigned) g->weapon_lv_reload + 1,
+                        (double) ((const f32*) PlReloadEndTbl)[at]);
+            }
+        }
+    }
     if (g_weaponStop >= 0 && g_freeAt >= 0 && (long) n >= g_freeAt + g_weaponStop) {
         re4_log("run: stopped %ld frames after the player was free (RE4_TEST_WEAPON stop)", g_weaponStop);
         if (g_trace) {

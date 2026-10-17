@@ -233,7 +233,9 @@ int re4_core_pause(int on, int waitMs);
 void re4_core_debug_menu(void);
 /* The depth of field (filter01.cpp, patch 0065): on = 0 draws no blur in
  * front of / behind the focus, as the app's menu switch asks; on by
- * default. re4_dof_enabled is what the patched game code reads. */
+ * default. With it on, frames without a focus of the game get the app's
+ * gameplay autofocus while the player is free (runtime/dof.cpp, BP 0x5A in
+ * the GX stream). re4_dof_enabled is what the patched game code reads. */
 void re4_core_set_dof(int on);
 int re4_dof_enabled(void);
 /* Game frames so far (one per PADRead) and the game's host thread id: the

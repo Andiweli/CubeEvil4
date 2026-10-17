@@ -66,7 +66,8 @@ public final class CoreBridge {
   public static native boolean pause(boolean on, int waitMs);
   /** The game's debug menu at its next frame (SELECT held, patch 0061). */
   public static native void debugMenu();
-  /** The game's depth of field (patch 0065); on unless switched off. */
+  /** The game's depth of field (patch 0065) and, where the game asks for none while the player is free, the
+   *  gameplay autofocus of the first Android port; on unless switched off. */
   public static native void setDof(boolean on);
   /**
    * The memory card's files, one tab-separated row each (index, name,

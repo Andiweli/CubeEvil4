@@ -1444,10 +1444,12 @@ void tlutLoad()
     }
 }
 
+// 0x5A: not a GameCube register, the port's marker of the app's gameplay
+// autofocus (runtime/dof.cpp): sent each time like the registers that act
 bool isAction(u8 reg)
 {
-    return reg == 0x52 || reg == 0x55 || reg == 0x56 || (reg >= 0x60 && reg <= 0x63) || reg == 0x66 ||
-           reg == 0x67;
+    return reg == 0x52 || reg == 0x55 || reg == 0x56 || reg == 0x5A || (reg >= 0x60 && reg <= 0x63) ||
+           reg == 0x66 || reg == 0x67;
 }
 
 void efbCopy(u32 control)

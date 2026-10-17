@@ -5,13 +5,25 @@
 # re4_dof_enabled() (runtime/core_api.cpp, re4_core_set_dof) says off, no
 # pass is queued and the near/far requests of the frame are cleared, as
 # after a drawn pass. On by default: the game as it is.
+#
+# With the switch on, a frame in which the game queues no focus of its own
+# gets the app's gameplay autofocus while the player is free (the blur of
+# the first Android port, wish of the project owner, 17.10.2026; not a
+# GameCube effect): re4_dof_autofocus() (runtime/dof.cpp) decides, the OT
+# callback re4_dof_autofocus_mark marks the place in the GX stream (BP 0x5A)
+# and the app's GX renderer draws the blur there. re4_dof_note() logs which
+# passes a frame has when that changes ("dof: ...").
 --- a/src/game/filter01.cpp
 +++ b/src/game/filter01.cpp
-@@ -54,12 +54,21 @@
+@@ -54,24 +54,47 @@
      g_LeFar.Mode = 1;
  }
  
-+extern "C" int re4_dof_enabled(void); /* port: runtime/core_api.cpp */
++/* port: runtime/core_api.cpp and runtime/dof.cpp */
++extern "C" int re4_dof_enabled(void);
++extern "C" int re4_dof_autofocus(void);
++extern "C" void re4_dof_autofocus_mark(void* w);
++extern "C" void re4_dof_note(int kind, int mode, f32 level, int z, int type);
 +
  // Queues a render for the light environment's focus (when no explicit near/far request is pending)
  // and for each of the near/far requests set this frame, then clears the requests.
@@ -21,6 +33,7 @@
          cLightEnv* env = LightMgr.getEnvPtr();
 +        /* port: the app's depth of field switch; off: no pass this frame and
 +           the requests of this frame cleared, as after a drawn one */
++        re4_dof_note(0, 0, 0.0f, 0, 0);
 +        if (!re4_dof_enabled()) {
 +            g_LeNear.on = 0;
 +            g_LeFar.on = 0;
@@ -29,3 +42,24 @@
          if (g_LeNear.on == 0 && g_LeFar.on == 0 && env->FocusLevel) {
              g_LeLit.on = 1;
              g_LeLit.z = env->FocusZ;
+             g_LeLit.level = (f32) env->FocusLevel;
+             g_LeLit.Mode = env->FocusMode;
+             AddOtDirect(0x12, &g_LeLit, (void (*)()) Filter01Render, 7, 0x400, 0, 0.0f);
++            re4_dof_note(1, g_LeLit.Mode, g_LeLit.level, g_LeLit.z, g_LeLit.type);
++        } else if (g_LeNear.on == 0 && g_LeFar.on == 0 && re4_dof_autofocus()) {
++            /* port: no focus from the game this frame: the app's gameplay
++               autofocus (the first Android port's blur) at the filter's
++               place in the OT, after the scene and before the HUD */
++            AddOtDirect(0x12, &g_LeLit, (void (*)()) re4_dof_autofocus_mark, 7, 0x400, 0, 0.0f);
++            re4_dof_note(4, 1, 0.0f, 0, 0);
+         }
+         if (g_LeNear.on) {
+             AddOtDirect(0x12, &g_LeNear, (void (*)()) Filter01Render, 7, 0x400, 0, 0.0f);
++            re4_dof_note(2, g_LeNear.Mode, g_LeNear.level, g_LeNear.z, g_LeNear.type);
+         }
+         if (g_LeFar.on) {
+             AddOtDirect(0x12, &g_LeFar, (void (*)()) Filter01Render, 7, 0x400, 0, 0.0f);
++            re4_dof_note(3, g_LeFar.Mode, g_LeFar.level, g_LeFar.z, g_LeFar.type);
+         }
+         g_LeNear.on = 0;
+         g_LeFar.on = 0;

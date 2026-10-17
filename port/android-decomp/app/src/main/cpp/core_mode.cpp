@@ -455,10 +455,11 @@ bool drawGx() {
       const double seconds = std::chrono::duration<double>(now - gxSince).count();
       LOG("GX: %u chunks, %u draws (%u per chunk), run %.1f ms (max %.1f), shown %.1f/s, %u programs, %u textures, "
           "%u copies, %u held pictures, %u missing, %u shader errors, %u inexact dst alpha, %u programs from the cache, "
-          "base vertex %s",
+          "base vertex %s, %u autofocus passes",
           s.chunks, s.draws, gxRunCount ? (s.draws - gxDraws) / gxRunCount : 0, gxRunCount ? gxRunMs / gxRunCount : 0.0,
           gxRunMax, seconds > 0 ? gxFrames / seconds : 0.0, s.programs, s.textures, s.textureCopies, s.heldCopies,
-          s.missingTextures, s.shaderErrors, s.dstAlphaApprox, s.programsLoaded, gx->BaseVertex() ? "yes" : "no");
+          s.missingTextures, s.shaderErrors, s.dstAlphaApprox, s.programsLoaded, gx->BaseVertex() ? "yes" : "no",
+          s.autofocus);
       // the GL work per chunk since the last line, and the GPU time when the driver measures it
       if (gxRunCount) {
         const double n = gxRunCount;

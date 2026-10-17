@@ -37,6 +37,7 @@ struct GxStats {
   unsigned missingTextures = 0;  // bound keys the renderer did not have
   unsigned shaderErrors = 0;
   unsigned dstAlphaApprox = 0;   // draws whose constant destination alpha is not 0 and not exact
+  unsigned autofocus = 0;        // blur passes of the gameplay autofocus (BP 0x5A, the core's marker)
   // GL work per draw (what costs driver time): uniform block uploads and their
   // bytes, program switches, texture and sampler binds, render state changes,
   // vertex attribute setups

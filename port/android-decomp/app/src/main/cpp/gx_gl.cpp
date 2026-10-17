@@ -238,6 +238,16 @@ struct GxRenderer::Impl {
   std::unordered_map<std::uint32_t, Copy> copies;  // by destination address
   std::unordered_map<std::uint64_t, Texture> paletted; // copies read through a palette
   std::unordered_map<std::uint64_t, GLuint> samplers;
+  // the gameplay autofocus (Autofocus): made at its first marker
+  GLuint focusProgram = 0, blurProgram = 0;
+  GLint focusRegion = -1, focusSize = -1, focusZ = -1;
+  GLint blurRegion = -1, blurSize = -1, blurZ = -1, blurRadius = -1;
+  GLuint blurTex = 0, focusTex = 0, blurFbo = 0, focusFbo = 0;
+  bool autofocusFailed = false;
+  // the last perspective projection (XF 0x1024/0x1025, type 0 at 0x1026):
+  // the scene's, for the distances behind the depths
+  float perspA = 0.0f, perspB = 0.0f;
+  bool havePerspective = false;
 
   // --- what GL already has (per-draw work is skipped while it holds) --------
   bool keyDirty = true;              // a register that shapes the shader changed
@@ -506,6 +516,8 @@ struct GxRenderer::Impl {
     }
     if (action && reg == 0x52)
       EfbCopy(value);
+    if (action && reg == 0x5A)
+      Autofocus();
   }
 
   void Dirty(int lo, int hi) {
@@ -529,6 +541,7 @@ struct GxRenderer::Impl {
   }
 
   void XfWrite(std::uint32_t address, const std::uint32_t *words, std::uint32_t n) {
+    bool projection = false;
     for (std::uint32_t i = 0; i < n; i++) {
       const std::uint32_t a = address + i;
       if (a < 0x800) {
@@ -539,11 +552,18 @@ struct GxRenderer::Impl {
         xfReg[r] = words[i];
         if (r == 0x09 || (r >= 0x0E && r <= 0x12) || r == 0x26 || r >= 0x3F)
           keyDirty = true;
+        if (r >= 0x20 && r <= 0x26)
+          projection = true;
         xfRegsDirty = true;
       } else {
         continue;
       }
       DirtyAddress(a);
+    }
+    if (projection && xfReg[0x26] == 0) {
+      perspA = AsFloat(xfReg[0x24]);
+      perspB = AsFloat(xfReg[0x25]);
+      havePerspective = true;
     }
   }
 
@@ -1363,6 +1383,199 @@ struct GxRenderer::Impl {
     ClearAfterCopy(control, x, y, w, h);
   }
 
+  // The app's gameplay autofocus (BP 0x5A: the core marks the place,
+  // port/whole/runtime/dof.cpp, in the game's filter table after the scene
+  // and before the interface): the blur of the first Android port
+  // (depth_of_field_gl.cpp, RE4-Decomp) on the EFB. The distance at the centre
+  // of the picture (median of nine depths) is the focus; what lies well
+  // behind it gets soft (at most 60 %), nearer parts stay sharp, and only taps
+  // behind the focus are mixed in, so the sharp foreground does not bleed into
+  // the background. A focus beyond 6 m (looking into the distance) leaves the
+  // picture as it is. Distances from the depths through the scene's
+  // perspective projection and the XF viewport (GL depth = (zRange * (A + B /
+  // distance) + zFar) / 2^24-1, see the vertex shader); the picture is the
+  // XF viewport (the game's 512x448 at the top left of the EFB).
+  void Autofocus() {
+    if (autofocusFailed || !havePerspective)
+      return;
+    Touched(); // its own passes
+    const int fw = kEfbWidth * scale, fh = kEfbHeight * scale;
+    if (!blurProgram && !MakeAutofocus(fw, fh)) {
+      autofocusFailed = true;
+      GXLOG("gameplay autofocus could not be set up; left out");
+      glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
+      return;
+    }
+    // the picture: the XF viewport, in EFB pixels
+    const float halfW = AsFloat(xfReg[0x1A]), halfH = -AsFloat(xfReg[0x1B]);
+    const float cx = AsFloat(xfReg[0x1D]) - 342.0f, cy = AsFloat(xfReg[0x1E]) - 342.0f;
+    int x0 = static_cast<int>(std::lround(cx - halfW)), y0 = static_cast<int>(std::lround(cy - halfH));
+    int x1 = static_cast<int>(std::lround(cx + halfW)), y1 = static_cast<int>(std::lround(cy + halfH));
+    x0 = std::max(0, x0);
+    y0 = std::max(0, y0);
+    x1 = std::min(kEfbWidth, x1);
+    y1 = std::min(kEfbHeight, y1);
+    if (!(halfW > 0.0f && halfH > 0.0f) || x1 - x0 < 16 || y1 - y0 < 16) {
+      x0 = y0 = 0;
+      x1 = kEfbWidth;
+      y1 = kEfbHeight;
+    }
+    const float rx = static_cast<float>(x0 * scale), ry = static_cast<float>(y0 * scale);
+    const float rw = static_cast<float>((x1 - x0) * scale), rh = static_cast<float>((y1 - y0) * scale);
+    float zRange = AsFloat(xfReg[0x1C]);
+    if (!(std::fabs(zRange) > 1.0f))
+      zRange = 16777215.0f;
+    const float zFar = AsFloat(xfReg[0x1F]);
+    Resolve(0, 0, fw, fh, false);
+    Resolve(0, 0, fw, fh, true);
+    SaveAndPlainState();
+    glDepthMask(GL_FALSE);
+    glBindVertexArray(quadVao);
+    for (int i = 0; i < 3; i++)
+      glBindSampler(i, 0);
+    // the focus into one texel: distance (16 bits in r, g), strength (b)
+    glBindFramebuffer(GL_FRAMEBUFFER, focusFbo);
+    glViewport(0, 0, 1, 1);
+    glUseProgram(focusProgram);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, efbDepth);
+    glUniform4f(focusRegion, rx, ry, rw, rh);
+    glUniform2f(focusSize, static_cast<float>(fw), static_cast<float>(fh));
+    glUniform4f(focusZ, perspA, perspB, zRange, zFar);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    // the blurred picture into blurTex
+    glBindFramebuffer(GL_FRAMEBUFFER, blurFbo);
+    glViewport(x0 * scale, y0 * scale, (x1 - x0) * scale, (y1 - y0) * scale);
+    glUseProgram(blurProgram);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, efbColor);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, efbDepth);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, focusTex);
+    glUniform4f(blurRegion, rx, ry, rw, rh);
+    glUniform2f(blurSize, static_cast<float>(fw), static_cast<float>(fh));
+    glUniform4f(blurZ, perspA, perspB, zRange, zFar);
+    // the first port's tap distance: 1.5 pixels of a 480-line picture
+    glUniform1f(blurRadius, std::min(4.0f, std::max(1.0f, rh / 480.0f * 1.5f)));
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    // back into the EFB: colour only, alpha and depth stay
+    glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
+    glViewport(x0 * scale, y0 * scale, (x1 - x0) * scale, (y1 - y0) * scale);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+    glUseProgram(copyProgram);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, blurTex);
+    glUniform1i(copyMode, 0);
+    glUniform4f(copyRect, rx, ry, rw, rh);
+    glUniform2f(copySize, static_cast<float>(fw), static_cast<float>(fh));
+    glUniform1i(copyHalf, 0);
+    glUniform1f(copyGain, 1.0f);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    current = nullptr;
+    stats.autofocus++;
+  }
+
+  bool MakeAutofocus(int fw, int fh) {
+    static const char kQuadVs[] = "#version 300 es\n"
+                                  "out vec2 vUv;\n"
+                                  "void main() {\n"
+                                  "  vec2 p = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));\n"
+                                  "  vUv = p;\n"
+                                  "  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);\n"
+                                  "}\n";
+    // region: the picture in EFB texels (x, y, w, h); size: the EFB texture;
+    // zmap: projection A, B, viewport zRange, zFar
+    static const char kDistance[] =
+        "uniform highp sampler2D depths;\nuniform vec4 region;\nuniform vec2 size;\nuniform vec4 zmap;\n"
+        "float distanceAt(vec2 t) {\n"
+        "  float q = (texture(depths, t / size).r * 16777215.0 - zmap.w) / zmap.z + zmap.x;\n"
+        "  return q < 0.0 ? zmap.y / q : 1.0e9;\n"
+        "}\n";
+    const std::string focusFs =
+        std::string("#version 300 es\nprecision highp float;\nprecision highp int;\n") + kDistance +
+        "out vec4 o;\n"
+        "void main() {\n"
+        "  float z[9];\n"
+        "  int n = 0;\n"
+        "  vec2 c = region.xy + 0.5 * region.zw;\n"
+        "  for (int y = -1; y <= 1; ++y)\n"
+        "    for (int x = -1; x <= 1; ++x) z[n++] = distanceAt(c + vec2(float(x), float(y)) * 0.006 * region.zw);\n"
+        "  for (int i = 0; i < 8; ++i)\n"
+        "    for (int j = i + 1; j < 9; ++j)\n"
+        "      if (z[j] < z[i]) { float t = z[i]; z[i] = z[j]; z[j] = t; }\n"
+        "  uint d = uint(clamp(round(z[4]), 0.0, 65535.0));\n"
+        "  float amount = 1.0 - smoothstep(3000.0, 6000.0, z[4]);\n"
+        "  o = vec4(float(d >> 8u) / 255.0, float(d & 255u) / 255.0, amount, 1.0);\n"
+        "}\n";
+    const std::string blurFs =
+        std::string("#version 300 es\nprecision highp float;\nprecision highp int;\n") + kDistance +
+        "uniform sampler2D frame;\nuniform sampler2D focus;\nuniform float radius;\nout vec4 o;\n"
+        "void main() {\n"
+        "  vec2 t = gl_FragCoord.xy;\n"
+        "  vec4 original = texelFetch(frame, ivec2(t), 0);\n"
+        "  vec4 f = texelFetch(focus, ivec2(0), 0);\n"
+        "  float focal = round(f.r * 255.0) * 256.0 + round(f.g * 255.0);\n"
+        "  float start = focal + max(800.0, focal * 0.25), end = focal + max(2500.0, focal);\n"
+        "  float amount = 0.6 * f.b * smoothstep(start, end, distanceAt(t));\n"
+        "  if (amount <= 0.0) { o = original; return; }\n"
+        "  vec3 sum = original.rgb * 2.0;\n"
+        "  float weight = 2.0;\n"
+        "  const vec2 taps[8] = vec2[8](vec2(-1, 0), vec2(1, 0), vec2(0, -1), vec2(0, 1), vec2(-0.707, -0.707),\n"
+        "                               vec2(0.707, 0.707), vec2(-0.707, 0.707), vec2(0.707, -0.707));\n"
+        "  vec2 lo = region.xy + 0.5, hi = region.xy + region.zw - 0.5;\n"
+        "  for (int i = 0; i < 8; ++i) {\n"
+        "    vec2 p = clamp(t + taps[i] * radius, lo, hi);\n"
+        "    if (distanceAt(p) >= start) { sum += texture(frame, p / size).rgb; weight += 1.0; }\n"
+        "  }\n"
+        "  o = vec4(mix(original.rgb, sum / weight, amount), original.a);\n"
+        "}\n";
+    std::string log;
+    focusProgram = Link(kQuadVs, focusFs, &log);
+    blurProgram = focusProgram ? Link(kQuadVs, blurFs, &log) : 0;
+    if (!blurProgram) {
+      GXLOG("autofocus shader: %s", log.c_str());
+      return false;
+    }
+    glUseProgram(focusProgram);
+    glUniform1i(glGetUniformLocation(focusProgram, "depths"), 0);
+    focusRegion = glGetUniformLocation(focusProgram, "region");
+    focusSize = glGetUniformLocation(focusProgram, "size");
+    focusZ = glGetUniformLocation(focusProgram, "zmap");
+    glUseProgram(blurProgram);
+    glUniform1i(glGetUniformLocation(blurProgram, "frame"), 0);
+    glUniform1i(glGetUniformLocation(blurProgram, "depths"), 1);
+    glUniform1i(glGetUniformLocation(blurProgram, "focus"), 2);
+    blurRegion = glGetUniformLocation(blurProgram, "region");
+    blurSize = glGetUniformLocation(blurProgram, "size");
+    blurZ = glGetUniformLocation(blurProgram, "zmap");
+    blurRadius = glGetUniformLocation(blurProgram, "radius");
+    glGenTextures(1, &blurTex);
+    glBindTexture(GL_TEXTURE_2D, blurTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, fw, fh, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glGenTextures(1, &focusTex);
+    glBindTexture(GL_TEXTURE_2D, focusTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glGenFramebuffers(1, &blurFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, blurFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, blurTex, 0);
+    bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    glGenFramebuffers(1, &focusFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, focusFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, focusTex, 0);
+    ok = ok && glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    if (!ok)
+      GXLOG("autofocus framebuffers incomplete");
+    return ok;
+  }
+
   // clear the copied region: colour if colour/alpha update is on, depth if
   // depth update is on (GXCopyDisp/GXCopyTex set the registers for it)
   void ClearAfterCopy(std::uint32_t control, int x, int y, int w, int h) {
@@ -1826,6 +2039,12 @@ void GxRenderer::Release() {
   glDeleteProgram(m.copyProgram);
   glDeleteProgram(m.paletteProgram);
   glDeleteProgram(m.presentProgram);
+  glDeleteProgram(m.focusProgram);
+  glDeleteProgram(m.blurProgram);
+  const GLuint autofocusTextures[] = {m.blurTex, m.focusTex};
+  glDeleteTextures(2, autofocusTextures);
+  const GLuint autofocusFbos[] = {m.blurFbo, m.focusFbo};
+  glDeleteFramebuffers(2, autofocusFbos);
   impl_.reset(new Impl);
 }
 
