@@ -165,6 +165,109 @@ void recordLowMappings(const char *when) {
   LOG("%s", sum);
 }
 
+// The mapping that holds `addr` (start, end, name), false when none does.
+bool mappingAt(unsigned long addr, unsigned long &start, unsigned long &end, std::string &name) {
+  FILE *f = fopen("/proc/self/maps", "re");
+  if (!f) return false;
+  char line[512];
+  bool found = false;
+  while (!found && fgets(line, sizeof(line), f)) {
+    unsigned long a, b;
+    int at = 0;
+    if (sscanf(line, "%lx-%lx %*s %*s %*s %*s %n", &a, &b, &at) < 2 || addr < a || addr >= b) continue;
+    start = a;
+    end = b;
+    name = at > 0 ? line + at : "";
+    while (!name.empty() && (name.back() == '\n' || name.back() == ' ')) name.pop_back();
+    found = true;
+  }
+  fclose(f);
+  return found;
+}
+
+// ART on arm64 keeps every Java object below 4 GB. Its area for large objects
+// ("free list large object space", as large as dalvik.vm.heapsize) comes from
+// the 64-bit zygote and lies in the first gap behind the boot image; on the
+// Retroid (heapsize 512m) 0x73f8a000..0x93f8a000, over MEM1 (first 64-bit run,
+// 17.10.2026). ART fills it from the bottom, objects there never move, and it
+// never touches the data of a live byte[]. So the app takes MEM1 from it as the
+// data of one array that it holds for the life of the process: arrays are put
+// below it until the next one starts at the page before 0x80000000, that one
+// reaches to 0x83000000, and the arrays below are let go (ART gets them back as
+// free space). Needs the large heap (android:largeHeap): for a moment the
+// arrays from the area's fill level up to 0x83000000 count as Java memory.
+jobject gMem1Holder;
+
+bool holdMem1InLargeObjectSpace(JNIEnv *env) {
+  unsigned long a = 0, b = 0;
+  std::string name;
+  if (!env || !mappingAt(0x80000000ul, a, b, name) || name.find("large object space") == std::string::npos ||
+      b < kWindowStart) {
+    return false;
+  }
+  const unsigned long page = (unsigned long)sysconf(_SC_PAGESIZE);
+  const unsigned long holderStart = 0x80000000ul - page;  // the array's own header in the page before MEM1
+  // a byte[] taking `bytes` of the area (whole pages: its header is smaller than 64 bytes); its start
+  auto take = [&](unsigned long bytes, unsigned long &at) -> jbyteArray {
+    jbyteArray array = env->NewByteArray((jsize)(bytes - 64));
+    if (env->ExceptionCheck()) {
+      env->ExceptionClear();
+      return nullptr;
+    }
+    if (!array) return nullptr;
+    void *data = env->GetPrimitiveArrayCritical(array, nullptr);
+    at = (unsigned long)data & ~(page - 1);
+    if (data) env->ReleasePrimitiveArrayCritical(array, data, JNI_ABORT);
+    return data ? array : nullptr;
+  };
+  std::vector<jbyteArray> below;
+  jbyteArray holder = nullptr;
+  unsigned long size = 32ul << 20, at = 0;  // first a probe: where the area is filled up to
+  char note[256];
+  const char *problem = nullptr;
+  jbyteArray array = take(size, at);
+  for (int step = 0; step < 8 && array && !holder && !problem; step++) {
+    unsigned long end = at + size;
+    if (at >= a && end <= b && at <= holderStart && end >= kWindowStart) {
+      holder = array;
+    } else if (at < a || at > holderStart || end > holderStart) {
+      problem = "the large object space is filled beyond MEM1's start";
+      below.push_back(array);
+    } else {
+      below.push_back(array);
+      unsigned long gap = holderStart - end;
+      // up to the holder's page, or for a small gap the holder at once from here
+      size = gap >= (1ul << 20) ? gap : kWindowStart - end;
+      array = take(size, at);
+    }
+  }
+  if (!holder && !problem) problem = array ? "no array landed at MEM1" : "the Java heap refused the arrays";
+  unsigned long filler = 0;
+  for (jbyteArray x : below) {
+    jsize n = env->GetArrayLength(x);
+    filler += (unsigned long)n;
+    env->DeleteLocalRef(x);
+  }
+  if (!holder) {
+    snprintf(note, sizeof(note), "MEM1 in ART's large object space %lx-%lx: not possible (%s)\n", a, b, problem);
+    gAddressMap += note;
+    LOG("%s", note);
+    return false;
+  }
+  gMem1Holder = env->NewGlobalRef(holder);
+  env->DeleteLocalRef(holder);
+  snprintf(note, sizeof(note),
+           "MEM1 held in ART's large object space %lx-%lx: the data of a byte[] at 0x%lx..0x%lx (%lu MB below "
+           "let go)\n",
+           a, b, at, at + size, filler >> 20);
+  gAddressMap += note;
+  LOG("%s", note);
+  // the placeholder over the array's data, which MEM1 then replaces (re4_mem1_init)
+  void *want = reinterpret_cast<void *>(0x80000000ul);
+  return mmap(want, kWindowStart - 0x80000000ul, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED,
+              -1, 0) == want;
+}
+
 void *openInWindow(const char *name, unsigned long size) {
   void *range = reserveInWindow(size);
   if (!range) {
@@ -190,7 +293,7 @@ void *openInWindow(const char *name, unsigned long size) {
 }
 #endif
 
-void loadCore() {
+void loadCore(JNIEnv *env) {
   // libre4_main.so brings libre4_platform.so and libc++_shared.so (DT_NEEDED);
   // the module libraries are loaded by name later (re4_module_load).
   // RTLD_LOCAL: the game's symbols must not serve libraries loaded later
@@ -199,6 +302,9 @@ void loadCore() {
   if (reserveFixed(0x80000000ul, kWindowStart - 0x80000000ul)) {
     setenv("RE4_MEM1_PLACEHOLDER", "1", 1);
     gAddressMap += "MEM1 placeholder: reserved\n";
+  } else if (holdMem1InLargeObjectSpace(env)) {
+    setenv("RE4_MEM1_PLACEHOLDER", "1", 1);
+    gAddressMap += "MEM1 placeholder: reserved inside the large object space\n";
   } else {
     gAddressMap += "MEM1 placeholder: NOT reserved\n";
   }
@@ -208,6 +314,7 @@ void loadCore() {
     api.main = openInWindow("libre4_main.so", 64ul << 20);
   }
 #else
+  (void)env;
   api.main = dlopen("libre4_main.so", RTLD_NOW | RTLD_LOCAL);
 #endif
   if (!api.main) {
@@ -760,8 +867,10 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_addressMa
 #endif
 }
 
-extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *, void *) {
-  loadCore();
+extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
+  JNIEnv *env = nullptr;
+  if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) != JNI_OK) env = nullptr;
+  loadCore(env);
   installCrashHandler();
   return JNI_VERSION_1_6;
 }

@@ -5,7 +5,10 @@
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <!-- the core mode passes the game's rumble to the device's vibrator -->
     <uses-permission android:name="android.permission.VIBRATE" />
-    <application android:name=".Re4Application" android:label="@string/app_label" android:icon="@drawable/ic_launcher"
+    <!-- largeHeap: on 64 bit the core takes MEM1 from ART's large object space
+         (core_mode.cpp holdMem1InLargeObjectSpace), for a moment with up to
+         about 250 MB of arrays that count as Java memory -->
+    <application android:largeHeap="true" android:name=".Re4Application" android:label="@string/app_label" android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher"
         android:banner="@drawable/tv_banner"
         android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false"

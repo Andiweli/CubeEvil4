@@ -3448,8 +3448,36 @@ Daten noch nicht gelaufen). Der Projektinhaber verzichtet auf ein eigenes Logo
   (`dalvik.vm.heapsize`, `heapgrowthlimit`). Ohne neuen Build liest
   `port/scripts/pull-address-map.ps1` (ADB-Sperre, `run-as`) die Belegung des
   laufenden App-Prozesses und schreibt `adressen-64bit.txt`.
-- **Nächster Schritt:** aus der Belegung den Ausweg wählen (mit dem
-  Projektinhaber, falls er die Art des App-Starts ändert).
+- **Gemessen** (`pull-address-map.ps1`, 22:57, PID 14277, arm64-v8a;
+  `dalvik.vm.heapsize` 512m, `heapgrowthlimit` 256m, Build `user`):
+  `12c00000-32c00000` ART-Hauptbereich, `6f7e6000-6ff8a000` Boot-Image,
+  `6ff8a000-73f8a000` Zygote- und Non-moving-Bereich,
+  **`73f8a000-93f8a000 [anon:dalvik-free list large object space]` über MEM1**
+  (512 MB, vom 64-bit-Zygote geerbt), `93f8a000-9bf8a000` JIT-Caches (Zygote
+  und App), `fa000000`/`fe000000` die beiden Kern-Bibliotheken (oben im
+  Fenster, wie geplant). Frei im Fenster: `9bf8a000-ebad6000` (1,3 GB) und
+  darüber bis `fa000000`. Die Vermutung stimmt damit für den Bereich der großen
+  Objekte; die JIT-Caches liegen im Fenster, aber nicht in MEM1.
+- **Ausweg (umgesetzt, auf dem Gerät noch nicht gelaufen):** ART füllt diesen
+  Bereich von unten, verschiebt dort nichts und fasst die Daten eines
+  lebenden `byte[]` nie an. `core_mode.cpp holdMem1InLargeObjectSpace` legt
+  beim Laden des Kerns Java-Arrays in den Bereich, bis eines auf der Seite vor
+  0x80000000 beginnt und bis 0x83000000 reicht; dieses hält die App für die
+  Lebensdauer des Prozesses (globale Referenz), die Arrays darunter gibt sie
+  frei (ART bekommt den Platz zurück). Über die Daten dieses Arrays legt sie
+  den Platzhalter, den MEM1 ersetzt (`RE4_MEM1_PLACEHOLDER`). Dauerhaft zählen
+  48 MB als Java-Speicher, kurz beim Start bis etwa 240 MB; dafür
+  `android:largeHeap="true"` (Grenze dann `heapsize`, 512 MB). Geht es nicht
+  (Bereich schon über MEM1 hinaus gefüllt, Array woanders, Java-Speicher zu
+  klein), bricht der Start wie bisher mit Meldung ab, und `address-map.txt`
+  sagt warum. Geprüft: Übersetzung für arm64 und ARM32 (nachgebildete Header)
+  und eine Nachbildung des Bereichs (beste Lücke, sonst Ende) mit fünf Fällen
+  in Python (leer, mit Lücken, kurz vor MEM1, 300 KB vor der Seite, schon
+  darüber: vier halten MEM1, der letzte bricht sauber ab).
+- **Falls das auf anderen Geräten nicht reicht** (MEM1 in einem anderen Bereich
+  von ART): Auswege wären ein frischer App-Prozess über `wrap.sh` (nur
+  Debug-APKs) oder ein eigener Prozess für den Kern; beides ändert die Art des
+  App-Starts und wird vorher mit dem Projektinhaber abgestimmt.
 - Nebenbei: Der Bericht heißt jetzt `memory-card.txt` statt `speicherkarte.txt`
   und ist englisch (Regel: Dateinamen für Tester englisch).
 
