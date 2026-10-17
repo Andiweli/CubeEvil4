@@ -448,9 +448,15 @@ void convertEvdAt(Blob& b, u32 base, u32 end, const EvdMarks* bundle)
         }
     }
     applyMarks(own, assets, nBin);
-    // assets: each extends to the next one (or the end of the file)
+    // assets: each extends to the next one (or the end of the file); each is
+    // a block of its own: one that stops does not keep the others as they are
+    // (r215s02.evd: its light data came after a message table that stopped)
+    if (!b.ok) {
+        return;
+    }
+    bool incomplete = false;
     Seen seen;
-    for (u32 i = 0; i < nBin && b.ok; i++) {
+    for (u32 i = 0; i < nBin; i++) {
         u32 o = base + assets[i].ofs;
         u32 next = end;
         for (u32 k = 0; k < nBin; k++) {
@@ -496,8 +502,11 @@ void convertEvdAt(Blob& b, u32 base, u32 end, const EvdMarks* bundle)
             break;
         }
         if (!a.ok) {
-            b.ok = false;
+            incomplete = true;
         }
+    }
+    if (incomplete) {
+        b.ok = false;
     }
 }
 
@@ -538,7 +547,13 @@ void convertEvs(Blob& b, const Part&)
     }
     swap32(b, 0, 2);
     swap32(b, tbl, n * 2);
-    for (u32 i = 0; i < n && b.ok; i++) {
+    // each event on its own: one that stops does not keep the others as they are
+    if (!b.ok) {
+        return;
+    }
+    bool complete = true;
+    for (u32 i = 0; i < n; i++) {
+        b.ok = true;
         u32 next = b.size;
         for (u32 k = 0; k < n; k++) {
             if (offs[k] > offs[i] && offs[k] < next) {
@@ -549,7 +564,11 @@ void convertEvs(Blob& b, const Part&)
             next = tbl;
         }
         convertEvdAt(b, offs[i], next, &marks);
+        if (!b.ok) {
+            complete = false;
+        }
     }
+    b.ok = complete;
 }
 
 }  // namespace re4fmt

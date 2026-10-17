@@ -1055,9 +1055,20 @@ run_tour() {
         wait "$pid" 2> /dev/null
         local code=$? secs=$((SECONDS - start)) state line
         state=$(trace_state "$trace")
+        # the port's own checks ("check: ..."): wrong data it caught and skipped
+        local checks
+        checks=$(grep -c "check: " "$log")
         if [ -z "$reason" ] && [ "$code" -eq 0 ] && grep -q "run: stopped after" "$log"; then
             line="läuft ($(grep -m1 'run: main loop reached' "$log" | grep -o 'at frame [0-9]*' | sed 's/at frame/Hauptschleife ab Bild/'), $secs s)"
             ok=$((ok + 1))
+            if [ "$checks" -gt 0 ]; then
+                line="$line, $checks Hinweise der Prüfungen"
+                {
+                    echo "== r$r: $line"
+                    grep "check: " "$log" | head -n 10 | sed 's/^\[re4\] /  /'
+                    echo
+                } >> "$details"
+            fi
         else
             if grep -q "fatal signal" "$log"; then
                 # where: library + offset and the function (readable with c++filt)
@@ -1075,7 +1086,7 @@ run_tour() {
                 echo "== r$r: $line"
                 grep -E "fatal signal|  pc 0x|stub called|OSPanic|error|Error" "$log" | grep -v "pad: frame" | sed 's/^\[re4\] /  /' | head -n 12
                 if grep -q "fatal signal\|backtrace of the running context" "$log"; then
-                    sed -n '/fatal signal\|backtrace of the running context/,$p' "$log" | grep -v "pad: frame" | head -n 40 | sed 's/^/  /'
+                    sed -n '/fatal signal\|backtrace of the running context/,$p' "$log" | grep -v "pad: frame" | head -n 90 | sed 's/^/  /'
                 fi
                 # what the game and the format converter said before it stopped
                 # (the backtrace above is the end of the log)
@@ -1084,6 +1095,12 @@ run_tour() {
                     tail -n 30 | sed 's/^/    /'
                 echo "  Meldungen des Formatumwandlers (die letzten 10):"
                 grep "formats: " "$log" | tail -n 10 | sed 's/^\[re4\] /    /'
+                echo "  Umwandlungen, die abbrachen (alle, höchstens 20):"
+                grep "formats: .*conversion stopped" "$log" | sort -u | head -n 20 | sed 's/^\[re4\] /    /'
+                if [ "$checks" -gt 0 ]; then
+                    echo "  Hinweise der Prüfungen:"
+                    grep "check: " "$log" | head -n 10 | sed 's/^\[re4\] /    /'
+                fi
                 echo
             } >> "$details"
         fi
@@ -1093,6 +1110,8 @@ run_tour() {
     say "Ergebnis: $ok von $count Räumen laufen${bad_rooms:+; Probleme:$bad_rooms}"
     if [ -n "$bad_rooms" ]; then
         overall=1
+    fi
+    if [ -s "$details" ]; then
         say "Einzelheiten (rundgang-einzelheiten.txt):"
         head -n 800 "$details" | tee -a "$report"
     fi

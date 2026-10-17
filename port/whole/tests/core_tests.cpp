@@ -25,8 +25,14 @@
 //           while it stands; the debug menu request is taken once
 //   event   a room's event bundle (EVS): an asset one event only carries and
 //           another event's packet uses as light data is converted as light
-//           data in both events (the game takes the first event's copy;
-//           r215 / r227 crashed in cLightMgr::setEnv)
+//           data in both events (the game takes the first event's copy); a
+//           message table cut off after its first block word (events without
+//           text) neither stops nor keeps the light data behind it (r215 /
+//           r227 crashed in cLightMgr::setEnv)
+//   morph   a model whose two shapes share one delta list: the list comes
+//           out in host order once, not turned back (vertex indices
+//           big-endian again sent the codec's face shapes far outside the
+//           vertices; r229)
 #include "re4_card_files.h"
 #include "re4_core.h"
 #include "re4_runtime.h"
@@ -642,7 +648,9 @@ void testCamera()
 // the light data "r215_lit" (no extension) but no packet of its own uses
 // it; event B's Lit packet names it and B has a copy of its own. The game
 // registers A's copy first and gives it to B's packet (DatTbl::SetDat keeps
-// a name once), so A's copy has to be converted as light data too.
+// a name once), so A's copy has to be converted as light data too. In B a
+// 32-byte message table comes first, its block cut off after x0 (as in
+// r215s02.evd): the light data behind it is still converted.
 void putLit(unsigned char* lit)
 {
     put16be(lit + 0x00, 1);       // CutNum
@@ -656,12 +664,12 @@ void putLit(unsigned char* lit)
     putf32be(env + 0x10, 8000.0f);  // Fog.End
 }
 
-void putEvd(unsigned char* e, unsigned pacSize, unsigned binOfs)
+void putEvd(unsigned char* e, unsigned pacSize, unsigned nBin, unsigned binOfs)
 {
     memcpy(e, "event", 5);
     put32be(e + 0x40, 0x50);      // pacOfs
     put32be(e + 0x44, pacSize);
-    put32be(e + 0x48, 1);         // nBin
+    put32be(e + 0x48, nBin);
     put32be(e + 0x4C, binOfs);
 }
 
@@ -681,7 +689,7 @@ void testEvent()
 {
     bool ok = true;
     unsigned char* arc = (unsigned char*) (unsigned long) 0x82300000u;
-    memset(arc, 0, 0x400);
+    memset(arc, 0, 0x600);
     put32be(arc + 0x00, 1);
     put32be(arc + 0x10, 0x20);
     memcpy(arc + 0x14, "EVS\0", 4);
@@ -691,26 +699,71 @@ void testEvent()
     put32be(evs + 0x08, 0x20);    // event A
     put32be(evs + 0x10, 0x200);   // event B
     unsigned char* a = evs + 0x20;
-    putEvd(a, 0x10, 0x60);
+    putEvd(a, 0x10, 1, 0x60);
     putPacket(a + 0x50, 27, 0x10);  // EndPac
     memcpy(a + 0x60, "r215_lit", 8);
     put32be(a + 0x60 + 0x30, 0xA0);
     putLit(a + 0xA0);
     unsigned char* b = evs + 0x200;
-    putEvd(b, 0x30, 0x80);
+    putEvd(b, 0x30, 2, 0x80);
     putPacket(b + 0x50, 14, 0x20);  // Lit
     memcpy(b + 0x50 + 0x10, "r215_lit", 8);
     putPacket(b + 0x70, 27, 0x10);  // EndPac
-    memcpy(b + 0x80, "r215_lit", 8);
-    put32be(b + 0x80 + 0x30, 0xC0);
-    putLit(b + 0xC0);
-    Header h = { 0, 0x400, 0, 0, 0, 0, 0, 0 };
+    memcpy(b + 0x80, "r215s02.mdt", 11);
+    put32be(b + 0x80 + 0x30, 0x100);
+    memcpy(b + 0xC0, "r215_lit", 8);
+    put32be(b + 0xC0 + 0x30, 0x120);
+    unsigned char* mdt = b + 0x100;  // six languages, one block at 0x1C: x0 only
+    put32be(mdt, 6);
+    for (int k = 1; k <= 6; k++) {
+        put32be(mdt + k * 4, 0x1C);
+    }
+    put32be(mdt + 0x1C, 0x11223344u);
+    putLit(b + 0x120);
+    Header h = { 0, 0x500, 0, 0, 0, 0, 0, 0 };
     re4_formats_part_loaded("em/evs.das", 0, 0, &h, 0x82300000u);
     CHECK(get32(evs) == 2 && get32(evs + 4) == 8 && get32(evs + 0x10) == 0x200);
     CHECK(get32(a + 0x40) == 0x50 && get32(a + 0x60 + 0x30) == 0xA0);
-    CHECK(litConverted(b + 0xC0));
+    CHECK(get32(mdt) == 6 && get32(mdt + 4) == 0x1C && get32(mdt + 0x18) == 0x1C && get32(mdt + 0x1C) == 0x11223344u);
+    CHECK(litConverted(b + 0x120));
     CHECK(litConverted(a + 0xA0));  // the copy the game uses
     report("event", ok);
+}
+
+// A model (BIN, version 0x20010801) with four vertices and a shape table of
+// two shapes that name the same delta list (vertex 2: +0x74, -1, +3).
+void testMorph()
+{
+    bool ok = true;
+    unsigned char* arc = (unsigned char*) (unsigned long) 0x82300000u;
+    memset(arc, 0, 0x200);
+    put32be(arc + 0x00, 1);
+    put32be(arc + 0x10, 0x20);
+    memcpy(arc + 0x14, "BIN\0", 4);
+    unsigned char* bin = arc + 0x20;
+    put32be(bin + 0x2C, 0x80);        // shapeOfs
+    put32be(bin + 0x30, 0x60);        // vtxOrig
+    put16be(bin + 0x38, 4);           // nVtx
+    put32be(bin + 0x3C, 0x20010801);  // version
+    for (int k = 0; k < 4; k++) {
+        put16be(bin + 0x60 + k * 8, (unsigned) (100 * k));
+    }
+    put32be(bin + 0x80, 2);           // shapes
+    put32be(bin + 0x84, 0x10);        // shape 0: list at entries + 0x10
+    put32be(bin + 0x88, 1);
+    put32be(bin + 0x8C, 0x10);        // shape 1: the same list
+    put32be(bin + 0x90, 1);
+    unsigned char* list = bin + 0x84 + 0x10;
+    put16be(list + 0, 2);
+    put16be(list + 2, 0x74);
+    put16be(list + 4, 0xFFFF);
+    put16be(list + 6, 3);
+    Header h = { 0, 0x100, 0, 0, 0, 0, 0, 0 };
+    re4_formats_part_loaded("em/shp.das", 0, 0, &h, 0x82300000u);
+    CHECK(get32(bin + 0x2C) == 0x80 && get16(bin + 0x38) == 4 && get16(bin + 0x60 + 8) == 100);
+    CHECK(get32(bin + 0x80) == 2 && get32(bin + 0x84) == 0x10 && get32(bin + 0x90) == 1);
+    CHECK(get16(list) == 2 && get16(list + 2) == 0x74 && get16(list + 4) == 0xFFFF && get16(list + 6) == 3);
+    report("morph", ok);
 }
 
 struct PadStatus {  // PADStatus
@@ -918,6 +971,7 @@ int re4_core_tests()
     testSound();
     testCamera();
     testEvent();
+    testMorph();
     {
         int failed = re4probe_ax_test();
         gFailures += failed;

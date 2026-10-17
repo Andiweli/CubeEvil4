@@ -38,6 +38,7 @@
 #include <libgen.h>
 #include <limits.h>
 #include <signal.h>
+#include <sys/mman.h>
 #include <ucontext.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,6 +60,34 @@ static void printAddress(const char* what, void* address)
     }
 }
 
+// Game memory around a register that points into MEM1: what the code that
+// crashed was working on (r229: a draw list entry with a broken function
+// pointer). Only mapped pages are read (mincore), inside the handler.
+static bool pageMapped(unsigned long a)
+{
+    unsigned char v;
+    unsigned long page = (unsigned long) sysconf(_SC_PAGESIZE);
+    return mincore((void*) (a & ~(page - 1)), 1, &v) == 0;
+}
+
+static void dumpAround(const char* reg, unsigned long v)
+{
+    if (v < RE4_MEM1_BASE || v >= (unsigned long) RE4_MEM1_BASE + RE4_MEM1_SIZE) {
+        return;
+    }
+    unsigned long from = (v & ~0xFUL) - 0x40, to = (v & ~0xFUL) + 0x20;
+    if (from < RE4_MEM1_BASE || to > (unsigned long) RE4_MEM1_BASE + RE4_MEM1_SIZE || !pageMapped(from) ||
+        !pageMapped(to - 1)) {
+        return;
+    }
+    fprintf(stderr, "[re4]   memory around %s 0x%08lx (host order):\n", reg, v);
+    for (unsigned long a = from; a < to; a += 16) {
+        const unsigned* w = (const unsigned*) a;
+        fprintf(stderr, "[re4]     %08lx: %08x %08x %08x %08x%s\n", a, w[0], w[1], w[2], w[3],
+                v >= a && v < a + 16 ? "  <-" : "");
+    }
+}
+
 static void crashHandler(int sig, siginfo_t* si, void* context)
 {
     void* frames[64];
@@ -70,8 +99,32 @@ static void crashHandler(int sig, siginfo_t* si, void* context)
 #if defined(__arm__)
     printAddress("pc", (void*) uc->uc_mcontext.arm_pc);
     printAddress("lr", (void*) uc->uc_mcontext.arm_lr);
+    const unsigned long* r = &uc->uc_mcontext.arm_r0;  // r0..r10, fp, ip, sp in a row
+    static const char* const kNames[] = { "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
+                                          "r8", "r9", "r10", "fp", "ip", "sp" };
+    fprintf(stderr, "[re4]   registers:");
+    for (int i = 0; i < 14; i++) {
+        fprintf(stderr, " %s=%08lx", kNames[i], r[i]);
+    }
+    fprintf(stderr, "\n");
+    for (int i = 0; i < 14; i++) {
+        dumpAround(kNames[i], r[i]);
+    }
 #elif defined(__i386__)
     printAddress("pc", (void*) uc->uc_mcontext.gregs[REG_EIP]);
+    static const struct {
+        const char* name;
+        int reg;
+    } kRegs[] = { { "eax", REG_EAX }, { "ebx", REG_EBX }, { "ecx", REG_ECX }, { "edx", REG_EDX },
+                  { "esi", REG_ESI }, { "edi", REG_EDI }, { "ebp", REG_EBP }, { "esp", REG_ESP } };
+    fprintf(stderr, "[re4]   registers:");
+    for (const auto& k : kRegs) {
+        fprintf(stderr, " %s=%08lx", k.name, (unsigned long) (unsigned) uc->uc_mcontext.gregs[k.reg]);
+    }
+    fprintf(stderr, "\n");
+    for (const auto& k : kRegs) {
+        dumpAround(k.name, (unsigned long) (unsigned) uc->uc_mcontext.gregs[k.reg]);
+    }
 #elif defined(__x86_64__)
     printAddress("pc", (void*) uc->uc_mcontext.gregs[REG_RIP]);
 #else

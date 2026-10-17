@@ -1,0 +1,33 @@
+# CalculateShape_new adds a shape's deltas to the vertices its list names
+# (s16 vertex index, dx, dy, dz). An index outside the model's vertices can
+# only come from shape data the format converter got wrong; the add then
+# changes whatever lies there. In the codec call of r229 (PC room round,
+# 17.10.2026) a draw list entry's function pointer came out 0x74 higher and
+# the game jumped into the middle of IdGeneralTrans. The port reports such an
+# index once ("check: shape: ...") and skips that vertex; correct data never
+# has one, so nothing changes for it.
+--- a/src/game/shape.cpp
++++ b/src/game/shape.cpp
+@@ -236,6 +236,22 @@
+                     s32 n;
+ 
+                     for (n = 0; n < num; n++) {
++                        /* port: a vertex index outside the model's vertices
++                           (shape data the format converter got wrong) is
++                           reported and skipped instead of adding the delta
++                           to whatever lies there */
++                        if ((u16) *src >= info->model_addr->nVtx) {
++                            static int reported;
++                            if (reported < 8) {
++                                reported++;
++                                re4_log("check: shape: vertex index %d outside the %u vertices of model data %p "
++                                        "(shape table entry %u, %d deltas), skipped",
++                                        *src, (unsigned) info->model_addr->nVtx, (void*) info->model_addr,
++                                        (unsigned) w->idx[i], (int) num);
++                            }
++                            src += 4;
++                            continue;
++                        }
+                         s16* vtx = (s16*) (dst + *src++ * 8);
+                         PSQ_ST_S16(PSQ_L_S16(src++) * v, tmp);
+                         *vtx++ += tmp[0];

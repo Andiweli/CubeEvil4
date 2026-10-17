@@ -16,6 +16,8 @@
 #include "model.h"
 #include "re4_runtime.h"
 
+#include <stdlib.h>
+
 using namespace re4fmt;
 
 static_assert(sizeof(cModelData) == 0x48, "cModelData layout");
@@ -157,17 +159,49 @@ void convertBinAt(Blob& b, u32 base, u32 end)
         p += sizeof(cPolyHeader) + size;
     }
     // shape (morph) table: u32 count, {u32 offset, s32 entries} per shape,
-    // delta lists of s16 vertex index, dx, dy, dz (shape.cpp)
+    // delta lists of s16 vertex index, dx, dy, dz (shape.cpp). Shapes may
+    // share a list or part of one: every 16-bit unit is turned once (turned
+    // twice, the vertex indices came out big-endian again and the shape
+    // wrote far outside the model's vertices).
     if (shape != 0 && fits(b, base + shape, 4, "shape table")) {
         u32 t = base + shape + 4;
         u32 n = be32(b, base + shape);
         swap32(b, base + shape);
         if (fits(b, t, n * 8, "shape entries")) {
+            u32 lo = 0xFFFFFFFFu, hi = 0;
+            for (u32 i = 0; i < n; i++) {
+                u32 ofs = be32(b, t + i * 8);
+                u32 cnt = be32(b, t + i * 8 + 4);
+                if (cnt != 0 && fits(b, t + ofs, cnt * 8, "shape deltas")) {
+                    lo = t + ofs < lo ? t + ofs : lo;
+                    hi = t + ofs + cnt * 8 > hi ? t + ofs + cnt * 8 : hi;
+                }
+            }
+            u8* done = lo < hi ? (u8*) calloc((hi - lo) / 2 + 1, 1) : 0;
+            u32 twice = 0;
             for (u32 i = 0; i < n && b.ok; i++) {
                 u32 ofs = be32(b, t + i * 8);
                 u32 cnt = be32(b, t + i * 8 + 4);
                 swap32(b, t + i * 8, 2);
-                swap16(b, t + ofs, cnt * 4);
+                if (cnt == 0 || !done || t + ofs < lo || t + ofs + cnt * 8 > hi) {
+                    continue;
+                }
+                for (u32 k = 0; k < cnt * 4; k++) {
+                    u32 unit = (t + ofs - lo) / 2 + k;
+                    if (done[unit]) {
+                        twice++;
+                        continue;
+                    }
+                    done[unit] = 1;
+                    swap16(b, t + ofs + k * 2);
+                }
+            }
+            free(done);
+            static u32 reported;
+            if (twice && reported < 8) {
+                reported++;
+                re4_log("formats: %s: BIN at 0x%x: shapes share delta lists (%u halfwords named again), each "
+                        "turned once", b.name, (unsigned) base, (unsigned) twice);
             }
         }
     }

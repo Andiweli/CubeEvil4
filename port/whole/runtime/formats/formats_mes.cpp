@@ -23,7 +23,10 @@ u32 headerWords(Blob& b, u32 from)
 
 // u32 word 0 (number of languages), u32 offset of each language block. A block
 // is mes.cpp's MesTblBlock: u32 x0, u32 count, u32 ofs[count] (from the block),
-// then the u16 message codes up to the next block.
+// then the u16 message codes up to the next block. Events without text carry
+// a 32-byte table whose block is cut off after x0 (r215s02, r227s02, entry 17
+// of r215's room archive): the game would read the count from what follows
+// and never asks for a message there. x0 is turned, the rest left alone.
 void convertMdt(Blob& b, const Part&)
 {
     u32 words = headerWords(b, 1);
@@ -47,6 +50,12 @@ void convertMdt(Blob& b, const Part&)
             if (blocks[j] > o && blocks[j] < end) {
                 end = blocks[j];
             }
+        }
+        if (o < b.size && b.size - o < 8) {
+            if (b.size - o >= 4) {
+                swap32(b, o);
+            }
+            continue;
         }
         u32 count = be32(b, o + 4);
         if (!fits(b, o, 8 + count * 4, "message offsets") || 8 + count * 4 > end - o) {
