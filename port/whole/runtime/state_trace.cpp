@@ -57,6 +57,22 @@
 //                          game is doing, with its step, room and whether a
 //                          card screen is open (the card runs of the PC check
 //                          must end even when a screen waits for a key)
+//   RE4_TEST_WEAPON="free+N:W[,T][,stop=S]"  N frames after the player is
+//                          free, weapon W (type T) is equipped the way the
+//                          debug option tool does it (t_option.cpp:
+//                          weaponRelease, weaponLoad, weaponInit,
+//                          ItemMgr.debugWeapon; in a task of its own, as the
+//                          tool menu runs, since the load waits with
+//                          TaskSleep), with the debug flag for endless ammo
+//                          (a reload is always possible). From then on one
+//                          "wep:" line per frame: the player's routine
+//                          (r_no 0..3), his motion (archive entry, frame,
+//                          sequence length), the aim key, the aim pitch, the
+//                          weapon object's routine and motion, and how far
+//                          his left hand is from the right one (the gun).
+//                          stop=S ends the run S frames after the player is
+//                          free (the reload check of the PC check, M11:
+//                          the Super Magnum's reload looked wrong)
 //
 // Always logged (the memory card, M10): the end of the boot card check with
 // the options then in force, and a save loaded from the card.
@@ -73,7 +89,10 @@
 #include "scheduler.h"
 #include "mes.h"
 #include "game.h"
+#include "item.h"
+#include "pl_wep.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -267,6 +286,75 @@ long g_continueAfter = -1;   // RE4_TEST_CONTINUE
 long g_continueAt = -1;
 bool g_continueLeft;         // the room stopped running after the retry
 unsigned long g_stopAtFrame;  // RE4_STOP_AT_FRAME
+// RE4_TEST_WEAPON="free+N:W[,T][,stop=S]"
+long g_weaponAfter = -1;
+int g_weaponNo, g_weaponType;
+long g_weaponStop = -1;
+long g_weaponAt = -1;   // the frame it was asked for
+unsigned g_weaponLines;
+
+// The weapon change of the debug option tool (t_option.cpp), in a task of
+// its own: ReadWepData waits for the read with TaskSleep.
+void weaponTask()
+{
+    cPlayer* pl = pPL;
+    pl->weaponRelease();
+    pl->weaponLoad(g_weaponNo, g_weaponType);
+    pl->weaponInit();
+    pl->r_no_0 = 0;
+    pl->r_no_1 = 0;
+    pl->r_no_2 = 0;
+    pl->r_no_3 = 0;
+    ItemMgr.debugWeapon((ITEM_ID) WeaponNo2WeaponId((u8) g_weaponNo, (u8) g_weaponType));
+    re4_log("run: weapon %d (type %d) equipped (RE4_TEST_WEAPON), archive %p", g_weaponNo, g_weaponType,
+            (void*) pG->pWep);
+    TaskExit();
+}
+
+// Which archive entry a motion is: "wNN" (weapon archive), "pNN" (player
+// archive), else the address.
+const char* entryName(const void* data, char* buf, size_t size)
+{
+    if (!data) {
+        return "-";
+    }
+    PlArc* arcs[2] = { live(pG->pWep) ? pG->pWep : 0, live(pG->pPlayer) ? pG->pPlayer : 0 };
+    for (int k = 0; k < 2; k++) {
+        PlArc* a = arcs[k];
+        if (!a) {
+            continue;
+        }
+        u32 count = a->ofs[0] < 0xFC ? a->ofs[0] : 0xFC;
+        for (u32 i = 4; i < 4 + count; i++) {
+            if (PL_ARC_PTR(a, i) == data) {
+                snprintf(buf, size, "%c%02X", k == 0 ? 'w' : 'p', (unsigned) i);
+                return buf;
+            }
+        }
+    }
+    snprintf(buf, size, "%p", data);
+    return buf;
+}
+
+void weaponLine(unsigned n)
+{
+    cPlayer* pl = pPL;
+    char m[24], om[24];
+    float hand = -1.0f;
+    if (live(pl->pList) && pl->nParts > 0x10) {
+        Vec l = pl->getPartsPtr(0x10)->world, r = pl->getPartsPtr(0xA)->world;
+        float dx = l.x - r.x, dy = l.y - r.y, dz = l.z - r.z;
+        hand = sqrtf(dx * dx + dy * dy + dz * dz);
+    }
+    cObjWep* obj = live(pl->Wep) ? WEP_OBJ(pl) : 0;
+    bool o = live(obj);
+    re4_log("wep: %u pl %u/%u/%u/%u mot %s %.1f/%u kamae %d m3r %.2f | obj %u/%u mot %s %.1f | hand %.0f", n,
+            (unsigned) pl->r_no_0, (unsigned) pl->r_no_1, (unsigned) pl->r_no_2, (unsigned) pl->r_no_3,
+            entryName(pl->Motion.pMot, m, sizeof(m)), (double) pl->Motion.Mot_frame,
+            (unsigned) pl->Motion.Seq_frame_num, joyKamae(), (double) (f32) m3r, o ? (unsigned) obj->r_no_0 : 0u,
+            o ? (unsigned) obj->r_no_1 : 0u, o ? entryName(obj->Motion.pMot, om, sizeof(om)) : "-",
+            o ? (double) obj->Motion.Mot_frame : 0.0, (double) hand);
+}
 std::atomic<unsigned> g_playerHits(0);  // re4_core_player_hits
 
 void frame(unsigned n)
@@ -379,6 +467,26 @@ void frame(unsigned n)
         pPL->setAng(&ang);
         re4_log("run: player placed at (%.0f %.0f %.0f), facing %.2f, frame %u", (double) pos.x, (double) pos.y,
                 (double) pos.z, (double) g_placeAng, n);
+    }
+    if (g_weaponAfter >= 0 && g_freeAt >= 0 && g_weaponAt < 0 && (long) n >= g_freeAt + g_weaponAfter &&
+        g->Rno0 == 3 && live(pPL) && TaskStatus(2) == 0) {
+        g_weaponAt = (long) n;
+        DbgFlagOn(g, DBG_INF_BULLET2);
+        TaskExec(2, (TaskFunc) weaponTask, 0);
+        re4_log("run: weapon %d asked for (RE4_TEST_WEAPON) at frame %u, endless ammo on", g_weaponNo, n);
+    }
+    if (g_weaponAt >= 0 && (long) n > g_weaponAt && g_weaponLines < 3000 && live(pPL) && g->Rno0 == 3) {
+        g_weaponLines++;
+        weaponLine(n);
+    }
+    if (g_weaponStop >= 0 && g_freeAt >= 0 && (long) n >= g_freeAt + g_weaponStop) {
+        re4_log("run: stopped %ld frames after the player was free (RE4_TEST_WEAPON stop)", g_weaponStop);
+        if (g_trace) {
+            fflush(g_trace);
+        }
+        fflush(stdout);
+        fflush(stderr);
+        _exit(0);
     }
     if (g_resetAfter >= 0 && g_freeAt >= 0 && g_resetAt < 0 && (long) n == g_freeAt + g_resetAfter) {
         g_resetAt = (long) n;
@@ -515,6 +623,22 @@ void configure()
     const char* retry = getenv("RE4_TEST_CONTINUE");
     if (retry && strncmp(retry, "free+", 5) == 0) {
         g_continueAfter = strtol(retry + 5, 0, 10);
+    }
+    const char* weapon = getenv("RE4_TEST_WEAPON");
+    if (weapon && strncmp(weapon, "free+", 5) == 0) {
+        char* end = 0;
+        g_weaponAfter = strtol(weapon + 5, &end, 10);
+        g_weaponNo = end && *end == ':' ? (int) strtol(end + 1, &end, 0) : -1;
+        g_weaponType = 0;
+        if (end && *end == ',' && end[1] != 's') {
+            g_weaponType = (int) strtol(end + 1, &end, 0);
+        }
+        const char* stopAt = end ? strstr(end, "stop=") : 0;
+        g_weaponStop = stopAt ? strtol(stopAt + 5, 0, 10) : -1;
+        if (g_weaponNo < 0) {
+            g_weaponAfter = -1;
+            re4_log("run: RE4_TEST_WEAPON \"%s\" not understood (free+N:W[,T][,stop=S])", weapon);
+        }
     }
     const char* yes = getenv("RE4_TEST_CARD_YES");
     g_cardYes = yes && *yes && *yes != '0';

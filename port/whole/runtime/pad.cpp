@@ -310,6 +310,12 @@ u32 PADRead(PADStatus* status)
     status[0].button = scripted.buttons;
     status[0].stickX = scripted.stickX;
     status[0].stickY = scripted.stickY;
+    // like a real pad: a trigger that clicks is pressed all the way, A and B
+    // are full when pressed (game/pad.cpp takes the click or any trigger value)
+    status[0].triggerRight = (scripted.buttons & 0x0020) ? 0xFF : 0;
+    status[0].triggerLeft = (scripted.buttons & 0x0040) ? 0xFF : 0;
+    status[0].analogA = (scripted.buttons & 0x0100) ? 0xFF : 0;
+    status[0].analogB = (scripted.buttons & 0x0200) ? 0xFF : 0;
     if (!gScriptLen) {
         std::lock_guard<std::mutex> lock(g_liveLock);
         if (g_hasLive) {

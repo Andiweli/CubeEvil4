@@ -3005,7 +3005,35 @@ zeigt ihn). r215 lief trotzdem 750 Bilder.
   **auf dem Gerät nicht geprüft**.
 - r206 läuft auf dem Gerät.
 - Super Magnum: die Nachlade-Animation ist weiter falsch (die Patronen
-  fliegen von selbst in die Waffe, Leon lädt nicht). Offen (10b-Liste).
+  fliegen von selbst in die Waffe, Leon lädt nicht). Wird vor den Testern
+  angegangen (Entscheidung des Projektinhabers, 17.10.2026), siehe unten.
+
+### Super Magnum: Nachladen (M11, offen)
+
+Ablauf im Spiel: `wep15` (Broken Butterfly, im Debug-Menü „SUPER MAGNUM“)
+lässt die Pistolen-Steuerung `wep/pl_handgun.cpp` laufen. Beim Nachladen
+spielt Leon die Bewegung `0x2D/0x2E/0x2F` des Waffenarchivs (nach Stufe), die
+Waffe selbst `0x33/0x36/0x35` (Trommel und Patronen), beide ab Bild 0.
+`wep02_r2_reload` Schritt 1 lässt Leons Bewegung bis `PlReloadEndTbl[15]`
+(96/80/52 Bilder) laufen, auch wenn das Zielen losgelassen wird; erst danach
+senkt er die Waffe. Gemeldet: mit gehaltenem R lädt Leon, lässt man R los,
+senkt er sofort die linke Hand und die Patronen fliegen allein in die Waffe.
+Im Code (Tabelle, Waffennummer, Bildzähler, `joyKamae`, `keyReload`,
+`EmRoutineSetW`/Patch 0023) ist ohne Lauf keine Port-Abweichung zu sehen.
+
+Werkzeug dafür: **Nachlade-Prüfung** der PC-Prüfung
+(`test-r100-core.ps1 -Reload 15`, `whole_r100_check.sh --reload W`):
+Debug-Start in r100, sobald Leon frei ist, gibt `RE4_TEST_WEAPON`
+(`state_trace.cpp`) ihm die Waffe wie das Debug-Werkzeug `t_option.cpp`
+(in einer eigenen Aufgabe auf Platz 2, wie das Werkzeug-Menü; endlose
+Munition), dann zweimal Nachladen (einmal mit gehaltenem R, einmal mit R
+25 Bilder nach dem Beginn losgelassen). Je Bild eine `wep:`-Zeile (Leons
+Zustand und Bewegung, Zielen, Neigung, Zustand und Bewegung der Waffe,
+Abstand der linken Hand zur rechten), im Bericht je Nachladen eine
+Zusammenfassung, ein Verlaufsauszug und GX-Bilder. Simulierte R/L-Tasten
+setzen jetzt auch den Analogwert (`pad.cpp`, wie ein echter Controller).
+In der Cloud nur gebaut und die Auswertung mit erfundenen Zeilen geprüft;
+**mit Disc-Daten nicht gelaufen**.
 - „Bei einem Gegner abgebrochen“: kein Absturz. Das Testskript beendet die
   App nach der Beobachtungszeit (240 s, Protokoll ohne Fehler). Mit
   `-Manual` beobachtet `test-core-app.ps1` jetzt 30 Minuten (Q beendet

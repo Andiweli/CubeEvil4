@@ -53,6 +53,7 @@ build=1
 card_only=0
 rooms=""
 tour_frames=1500
+reload_weapon=""
 while [ $# -gt 0 ]; do
     case "$1" in
     --data) data="$2"; shift 2 ;;
@@ -66,6 +67,7 @@ while [ $# -gt 0 ]; do
     --card-only) card_only=1; shift ;;
     --rooms) rooms="$2"; shift 2 ;;
     --tour-frames) tour_frames="$2"; shift 2 ;;
+    --reload) reload_weapon="$2"; shift 2 ;;
     *) echo "unbekannte Angabe: $1" >&2; exit 2 ;;
     esac
 done
@@ -204,9 +206,10 @@ fi
 
 # ---- format comparison with the disc files ---------------------------------------------
 cmp="$src/port/build/whole-i686$opt/re4_format_compare"
-[ "$card_only" -eq 0 ] && [ -z "$rooms" ] && section "2. Formatvergleich App-Leser gegen Kern-Umwandler mit Disc-Daten"
-if [ "$card_only" -eq 1 ] || [ -n "$rooms" ]; then
-    : # --card-only / --rooms: straight to the memory card / the round of rooms
+[ "$card_only" -eq 0 ] && [ -z "$rooms" ] && [ -z "$reload_weapon" ] &&
+    section "2. Formatvergleich App-Leser gegen Kern-Umwandler mit Disc-Daten"
+if [ "$card_only" -eq 1 ] || [ -n "$rooms" ] || [ -n "$reload_weapon" ]; then
+    : # --card-only / --rooms / --reload: straight to the memory card / the round of rooms / the reload
 elif [ -x "$cmp" ]; then
     "$cmp" --data "$layout" --room "r$room" > "$run/formatvergleich.txt" 2> "$run/formatvergleich.log"
     code=$?
@@ -1117,7 +1120,96 @@ run_tour() {
     fi
 }
 
-if [ "$game_ok" -eq 1 ] && [ -n "$rooms" ]; then
+# ---- the reload check (--reload W): weapon W in r100 (M11) ---------------------------------
+# The debug start into r100; once the player is free (the opening event and
+# the radio call over), weapon W is equipped the way the debug option tool
+# does it (RE4_TEST_WEAPON, state_trace.cpp; endless ammo, so a reload is
+# always possible), then two reloads (frames from the moment he is free):
+#   1  aim held through it: R from 100 to 380, a shot (A) at 140, the
+#      reload (B with R held) at 200
+#   2  aim let go early: R from 460 to 585, a shot at 500, the reload at
+#      560, R released 25 frames into it
+# The Super Magnum (15) reloaded wrongly on the Retroid (17.10.2026): the
+# rounds flew into the gun while Leon's left hand stayed down. One "wep:"
+# line per frame in nachladen.log; the report sums each reload up (how long
+# the player's reload motion ran, how close his left hand came to the gun,
+# what the weapon object did) and has GX pictures of both reloads.
+run_reload() {
+    local dir="$src/port/build/whole-i686$opt" log="$run/nachladen.log" trace="$run/nachladen.jsonl"
+    local dump="$run/gx-i686"
+    section "8. Nachlade-Prüfung: Waffe $reload_weapon in r100, mit gehaltenem und mit losgelassenem Zielen"
+    if [ ! -x "$dir/re4_host" ]; then
+        say "FEHLER: $dir/re4_host fehlt (Build fehlgeschlagen?)"
+        overall=1
+        return
+    fi
+    local script="R@100-380/1 A@140 B@200 R@460-585/1 A@500 B@560"
+    local shots="190,205,220,235,250,265,280,300,320,345,550,565,575,585,595,610,625,640,660"
+    rm -rf "$dump"
+    mkdir -p "$dump"
+    local start=$SECONDS
+    (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM=0x100 RE4_PAD_UNTIL_ROOM=1 \
+        RE4_MEMCARD=none RE4_ROOM_MENU=1 RE4_PAD_SCRIPT="$pad_script" RE4_PAD_FREE_SCRIPT="$script" \
+        RE4_TEST_WEAPON="free+20:$reload_weapon,stop=760" RE4_GX_DUMP="$dump" RE4_GX_DUMP_FREE="$shots" \
+        RE4_STOP_AFTER=20000 RE4_TRACE="$trace" timeout 900 ./re4_host --data "$layout") > "$log" 2>&1
+    local code=$?
+    rm -f "$trace"
+    say "  Lauf: Exit-Code $code, $((SECONDS - start)) s ($(grep -m1 'run: player free' "$log" | sed 's/.*\] //'))"
+    grep -E "run: weapon|RE4_TEST_WEAPON|Wep[0-9]+ .*prolog|fatal signal|  pc 0x" "$log" | sed 's/^\[re4\] /  /' |
+        head -n 12 | tee -a "$report"
+    if ! grep -q "^\[re4\] wep: " "$log"; then
+        say "FEHLER: keine Aufzeichnung der Waffe (wep:-Zeilen fehlen)"
+        overall=1
+        return
+    fi
+    # each reload: the frames with the player's routine in its reload state
+    # (r_no_2 4 while r_no_1 is 6, the weapon routine)
+    grep "^\[re4\] wep: " "$log" | sed 's/^\[re4\] wep: //' | awk -v free="$(grep -m1 'run: player free' "$log" |
+        sed -n 's/.* at frame \([0-9]*\).*/\1/p')" '
+        function flush() {
+            if (!inr) return
+            printf "  Nachladen %d: Bild %d..%d (frei+%d, %d Bilder), Leons Bewegung %s bis Bild %.1f (Länge %d), " \
+                "Zielen %s; linke Hand zur Waffe: vor dem Nachladen %.0f, dabei %.0f..%.0f; Waffe: Zustand %s, " \
+                "Bewegung %s bis Bild %.1f; danach Leon %s\n", count, first, last, first - free, last - first + 1,
+                mot, maxf, len, released ? "losgelassen bei Bild " released : "gehalten", before, hmin, hmax,
+                ostates, omot, omax, after
+            inr = 0
+        }
+        {
+            n = $1; split($3, r, "/"); routine = r[1] "/" r[2] "/" r[3] "/" r[4]
+            split($6, f, "/"); kam = $8; hand = $NF
+            reloading = (r[2] == 6 && r[3] == 4)
+            if (reloading && !inr) {
+                inr = 1; count++; first = n; mot = $5; maxf = 0; len = f[2]; released = 0
+                hmin = 1e9; hmax = -1; before = lasthand; ostates = ""; omot = "-"; omax = 0
+            }
+            if (inr && !reloading) { after = routine; flush() }
+            if (inr) {
+                last = n
+                if (f[1] + 0 > maxf) maxf = f[1] + 0
+                if (kam == 0 && !released) released = n
+                if (hand + 0 >= 0) { if (hand + 0 < hmin) hmin = hand + 0; if (hand + 0 > hmax) hmax = hand + 0 }
+                split($13, o, "/"); st = o[1] "/" o[2]
+                if (index(" " ostates " ", " " st " ") == 0) ostates = ostates (ostates == "" ? "" : " ") st
+                if ($15 != "-" && omot == "-") omot = $15
+                if ($16 + 0 > omax) omax = $16 + 0
+            }
+            if (!reloading) lasthand = hand
+        }
+        END { after = "(Ende der Aufzeichnung)"; flush(); if (!count) print "  kein Nachladen aufgezeichnet" }' |
+        tee -a "$report"
+    # the frames of each reload, every fourth (the whole record: nachladen.log)
+    say "  Verlauf (jedes vierte Bild beim Nachladen; Spalten: Bild, Leon r_no 0/1/2/3, Bewegung, Bild/Länge,"
+    say "  Zielen, Neigung | Waffe r_no, Bewegung, Bild | Abstand linke Hand zur rechten):"
+    grep "^\[re4\] wep: " "$log" | sed 's/^\[re4\] wep: //' |
+        awk '{split($3, r, "/"); if (r[2] == 6 && r[3] == 4) { if (k++ % 4 == 0) print "    " $0 } else k = 0}' |
+        head -n 120 | tee -a "$report"
+    render_gx_pictures
+}
+
+if [ "$game_ok" -eq 1 ] && [ -n "$reload_weapon" ]; then
+    run_reload
+elif [ "$game_ok" -eq 1 ] && [ -n "$rooms" ]; then
     run_tour
 elif [ "$game_ok" -eq 1 ] && [ "$card_only" -eq 1 ]; then
     run_memcard

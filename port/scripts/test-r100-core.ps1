@@ -26,6 +26,13 @@ Raum (laeuft / Absturz mit Stelle / Stillstand). -Rooms 206,300,401 nimmt diese
 Raeume, -Rooms set zwei Raeume je Raumprogramm (27 Raeume, etwa eine halbe
 Stunde), -Rooms all jeden Raum des Spiels (etwa 150, mehrere Stunden).
 
+Nachlade-Pruefung (-Reload WAFFE): statt Spiellauf, Filmen und Speicherkarte
+startet das Skript r100, gibt Leon die Waffe (15 = Super Magnum) wie das
+Debug-Menue und laedt zweimal nach: einmal mit gehaltenem Zielen (R), einmal
+mit frueh losgelassenem. Der Bericht fasst beide zusammen (wie lange Leons
+Nachlade-Bewegung lief, wie nah seine linke Hand der Waffe kam) und legt
+Bilder beider Nachladevorgaenge in bilder-gx ab.
+
 Disc-Daten (-DataDir), eine dieser Formen:
   - ein Ordner mit den Disc-Abbildern (.iso oder .gcm), z. B. D:\RE4\Disc
   - mit Dolphin entpackte Disc ("Gesamte Disc extrahieren": Ordner mit sys und files)
@@ -49,6 +56,10 @@ Falls Windows das Ausfuehren von Skripten sperrt.
 
 .EXAMPLE
 .\port\scripts\test-r100-core.ps1 -Rooms set
+
+.EXAMPLE
+.\port\scripts\test-r100-core.ps1 -Reload 15
+Die Nachlade-Pruefung mit der Super Magnum.
 Nur bauen und den Speicherkarten-Teil pruefen (Abschnitt 7, wenige Minuten).
 
 .EXAMPLE
@@ -64,6 +75,7 @@ param(
     [switch]$OnlyCard,
     [string]$Rooms = '',
     [int]$TourFrames = 1500,
+    [int]$Reload = 0,
     [switch]$SkipSetup,
     [string]$Distro = ''
 )
@@ -118,6 +130,7 @@ $checkArgs = @('--source', $repoWsl, '--data', $dataWsl, '--out', $outWsl, '--fr
 if ($Arm) { $checkArgs += '--arm' }
 if ($OnlyCard) { $checkArgs += '--card-only' }
 if ($Rooms) { $checkArgs += @('--rooms', $Rooms, '--tour-frames', "$TourFrames") }
+if ($Reload -gt 0) { $checkArgs += @('--reload', "$Reload") }
 Write-Host 'Pruefung laeuft (Build beim ersten Mal 10 bis 30 Minuten, danach schneller) ...'
 & wsl.exe @wslBase --exec bash "$repoWsl/port/tools/whole_r100_check.sh" @checkArgs
 $code = $LASTEXITCODE
