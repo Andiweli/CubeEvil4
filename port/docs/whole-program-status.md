@@ -20,8 +20,8 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Gerätelauf von M9 („M8 Audio“) |
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
-| Reihenfolge | Entscheidung des Projektinhabers (16.10.2026): erst M9 Videos und M10 Speichern/Laden, danach der Raum-Rundgang (10b) |
-| Geplant für M11 | Entscheidung des Projektinhabers (17.10.2026): Karten-Import/Export (`.gci`) in einem App-Menü, das SELECT nach einer Sekunde Halten öffnet („M10 Speichern/Laden“, letzter Abschnitt). Gestrichen: Baum-Kollision in r100 (G17) |
+| M11 Android-Feinschliff | in Arbeit (Branch `claude/nifty-feynman-jv729h`): Menü der App über SELECT (Grafikoptionen, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund; in der Cloud geprüft, **Android-Build und Gerät nicht geprüft** („M11 Android-Feinschliff“) |
+| Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
 RE4-Android-Decomp (`port/android-decomp/`, Subtree von `re4-standalone`). Der
@@ -2669,6 +2669,10 @@ des Geräts und ist nicht mit GameCube/Dolphin austauschbar. Ein Umwandler für
 
 ### Entscheidung des Projektinhabers (17.10.2026): Karten-Import/Export im SELECT-Menü
 
+(Überholt durch die Entscheidungen unter „M11 Android-Feinschliff“: SELECT
+kurz öffnet das Menü, SELECT gehalten das Debug-Menü; Austausch mit Dolphin
+und GameCube.)
+
 Der Import und Export von Spielständen (`.gci`, eine Datei je Spielstand
 wie bei Dolphin) kommt in ein **Menü der App, das sich öffnet, wenn man
 SELECT eine Sekunde lang hält** (wie im früheren Android-Port des
@@ -2700,6 +2704,149 @@ nicht erreichbar) und alles auf dem Gerät. Nicht nachgebildet: Karte während
 des Spiels herausziehen/einstecken, Schacht B, `OSResetSystem` (bei „kein
 Platz“ bietet das Spiel einen Neustart an; der Platzhalter kehrt zurück),
 `.gci`-Import/Export.
+
+## M11 Android-Feinschliff
+
+### Entscheidungen des Projektinhabers (17.10.2026)
+
+- **Reihenfolge:** M11 kommt vor dem Raum-Rundgang (10b); danach soll die
+  APK an einige Tester gehen.
+- **Diagnose-Anzeige** (SELECT, Text oben links) ausgebaut.
+- **SELECT kurz** öffnet das Menü der App: Grafikoptionen, Import/Export der
+  Speicherkarte, (Antwort auf die Frage nach einer Offline-Protokollfunktion)
+  das Fehlerprotokoll.
+- **SELECT eine Sekunde halten** öffnet das Debug-Menü des Spiels (bisher
+  L + START, L2 + START auf dem Retroid).
+- **`.gci`-Import/Export** soll mit Dolphin und einem echten GameCube
+  gehen.
+
+### Bestandsaufnahme (17.10.2026, Cloud)
+
+- Das „alte“ SELECT-Menü ist das „Ingame Options“ des ARM64-Modus
+  (`CheatDialog.java`: Cheats, Waffe hinzufügen, MSAA, AF, Mipmapping,
+  Raum-FPS, Tiefenunschärfe, Kreiselsensor). Im Kernmodus übernehmen die
+  Cheats das Debug-Menü des Spiels; Raum-FPS, Kreisel und Tiefenunschärfe
+  gehören zu den eigenen Spielmodulen der App bzw. bräuchten einen Fokus aus
+  dem Spielzustand (nicht in M11).
+- Der GX-Renderer der App kannte nur die EFB-Stufe (`RE4_GX_SCALE`) und das
+  4:3-Bild (`RE4_GX_ASPECT`), beides nur als Testschalter.
+- Ein Spielstand ist eine Kopie von Spielvariablen (`card.cpp`
+  `makeSaveData`): GLOBAL_WK 0x4F80..0x8678, Gegenstände, Räume, Menü-Wort,
+  Händler, dazu Banner/Symbol (Texel bleiben im Port big-endian) und zwei
+  CRCs. Für den GameCube muss jedes Feld nach seiner Größe umgedreht werden.
+  Die Typen kommen vollständig aus den Headern; unbekannt sind nur
+  Platzhalter (`pad_*`, 884 Bytes in GLOBAL_WK, je 2–4 Bytes in Gegenständen
+  und Gegnerliste). In allen fünf Spielständen des Projektinhabers (PC-Prüfung
+  und Retroid) sind diese Bytes 0.
+- Der Kern lief im Hintergrund weiter (die App hielt nur den Ton an).
+
+### Umsetzung (17.10.2026, Cloud)
+
+- **Byte-Reihenfolge der Spielstände** aus den Headern statt von Hand:
+  `port/tools/save_layout.py` übersetzt eine Probe mit den vorbereiteten
+  Headern (Schalter wie `card.cpp`, also mit den umgedrehten Unions von Patch
+  0016), liest die Debug-Information (`llvm-dwarfdump`) und schreibt
+  `runtime/save_layout.inc`: je Struktur die Läufe der Felder breiter als ein
+  Byte (Unions: das breiteste Mitglied) und die Platzhalter. `whole_build.sh`
+  prüft mit `--check`, dass die Tabelle zu den Headern passt.
+- **`runtime/gci.cpp`:** dreht `bh4_system` und `bh4_dataNN` Feld für Feld
+  um, prüft vorher die CRCs in der Reihenfolge der Quelle (und die Version
+  0x116) und rechnet sie danach neu (Kopf-CRC zuerst, sie liegt im Bereich
+  der Datei-CRC). Der Verzeichniseintrag (`CARDDir`) wird ebenso umgedreht;
+  eine `.gci` ist Eintrag + Blöcke wie bei Dolphin, Dateiname wie Dolphins
+  GCI-Ordner (`08-G4BE-bh4_data00.gci`). Abgewiesen: andere Spiele, andere
+  Version, falsche CRC, zu kurz. Bytes der Platzhalter, die nicht 0 sind,
+  gehen als Bytes mit und werden geloggt.
+- **`runtime/card_files.cpp`:** Dateien auf dem Kartenabbild von
+  `memcard.cpp` wie die Bibliothek: aktuelle Verzeichnis-/FAT-Kopie
+  (höherer Prüfcode), Blöcke wie `__CARDAllocBlock`, neue Kopie mit Prüfcode
+  + 1 in die andere Hälfte (erst die Blöcke, dann FAT, dann Verzeichnis),
+  Ersetzen gibt die alten Blöcke frei.
+- **Kern (`core_api.cpp`):** `re4_core_pause` hält das Spiel in seinem
+  nächsten `PADRead` an (Frame-Hook) und lässt es wieder laufen; die
+  Kartenfunktionen des Menüs nur, wenn das Spiel steht **und** die
+  Karten-Bibliothek die Karte nicht eingebunden hat (`__CARDBlock[0].attached`,
+  also zwischen den Kartenbildschirmen des Spiels); sonst `RE4_CARD_BUSY`.
+  `re4_core_debug_menu` + Patch 0061: das Debug-Menü auf Wunsch der App.
+- **Renderer (`gx_gl.cpp`):** `GxOptions` – Mehrfachabtastung des EFB
+  (MSAA 2×/4×; vor jeder Kopie aus dem EFB wird der Bereich in die Texturen
+  aufgelöst, die die Kopien lesen) und anisotrope Filterung (nur Texturen mit
+  Mipmaps und linearem Filter; Effekte mit Punktfilter bleiben). Grenzen des
+  Geräts (`Limits`). `core_mode.cpp`: eine Änderung baut den Renderer beim
+  nächsten Bild neu, sobald das Spiel wieder läuft (der Kern schickt dann
+  den ganzen Zustand); Stufe „Auto“ = 336 Bildzeilen auf etwa die
+  Bildschirmhöhe, höchstens 3×; 4:3 zur Laufzeit.
+- **App:** `CoreMenu.java` (Grafik: Auflösung Auto/1×–4×, Kantenglättung,
+  Texturfilter, Bildformat 16:9/4:3; Speicherkarte: Dateien mit Raum,
+  Spielzeit, Datum, einzeln oder alle exportieren, importieren mit Frage vor
+  dem Ersetzen; Fehlerprotokoll; Spiel beenden). Deutsch auf deutschen
+  Geräten, sonst Englisch. `CoreActivity.java`: SELECT kurz (beim Loslassen)
+  = Menü, 1 s gehalten = Debug-Menü (kurze Vibration); Spiel steht im Menü
+  und solange die App nicht vorne ist; R3-Grafikaufnahme nur mit
+  `RE4_APP_TOOLS=1` (Testskript) oder dem Schalter im Menü.
+- **Fehlerprotokoll (`CoreLog.java`, `ReportProvider.java`):** zeichnet
+  ab dem Start auf (Standard an): `logcat` der App in
+  `Android/data/<app>/files/logs/protokoll.txt` (2 × 4 MB); ein Absturz
+  schreibt Signal, Stelle (Bibliothek + Versatz) und mögliche Rücksprünge in
+  `absturz.txt` (`core_mode.cpp`, danach der Absturzbericht des Systems wie
+  bisher). Beim nächsten Start wandert alles nach `logs/vorher/`, dazu was
+  Android über das Ende sagt (`ApplicationExitInfo`, ab Android 11) und die
+  Absturzzeilen des Systems. **Hänger:** stehen die Spielbilder 8 s lang
+  still, ohne dass das Spiel angehalten ist (Menü, Hintergrund), schreibt
+  die App dreimal im Abstand von 200 ms, wo der Spiel-Thread steckt
+  (`re4_core_frame_count`, `re4_core_game_thread`, SIGUSR2 an diesen Thread,
+  pc/lr/Stapel mit den Funktionsnamen aus `dladdr`), ebenfalls in
+  `absturz.txt`. „Bericht senden“ packt beides mit Gerätedaten
+  und der Dateiliste der Karte (ohne Spielstände) in eine ZIP und gibt sie
+  an Mail/Messenger; „Bericht speichern“ legt sie in einen Ordner.
+- **Werkzeuge:** `re4_host --gci-export KARTE ORDNER`, `--gci-import KARTE
+  DATEI.gci [--replace]`; `memcard_list.py DATEI.gci` liest eine `.gci` für
+  sich in GameCube-Reihenfolge (ohne den Umwandler des Ports).
+
+### Prüfungen (Cloud, 17.10.2026)
+
+- Kern-Build i686 und armhf (unter qemu) mit allen Prüfungen grün. Neu im Kerntest „card“: ein
+  Spielstand und die Systemdatei, mit der Bibliothek angelegt, als `.gci`
+  exportiert – Felder gegen die Strukturen geprüft (Spielzeit, Geld, Raum
+  mit dem Stage-Byte zuerst, Position als float, Statuswort, Gegenstände,
+  Räume, Händler), Banner unverändert, CRCs wie ein GameCube sie rechnet –,
+  wieder importiert (ohne Ersetzen abgewiesen, mit Ersetzen und als neue
+  Datei angenommen); danach findet die Bibliothek Verzeichnis und FAT in
+  Ordnung und liest genau ihre Bytes zurück, auch nach einem Neustart;
+  andere Spiele, zu kurze Dateien, falsche CRC abgewiesen. Neuer Kerntest
+  „pause“: das Spiel steht im `PADRead`, Kartenfunktionen nur dann, das
+  Debug-Menü einmal je Wunsch. `memcard_list.py` liest die exportierte
+  `.gci` unabhängig: CRCs in Ordnung, Version 0x116, Raum r100.
+  `save_layout.py --check` passt.
+- Die echten Karten des Projektinhabers (PC-Prüfung, Retroid): Export →
+  `memcard_list.py` liest Optionen, Raum, Datum richtig in
+  GameCube-Reihenfolge; Export → Import auf eine neue Karte ergibt
+  byte-gleiche Dateien und Einträge.
+- App-Renderer (`gx_gl_check`): alle bisherigen Prüfungen, neu mit 4× MSAA
+  und 8× AF: Bildkopie, schräge Kante geglättet, EFB-Kopie als Textur und
+  Palette über den aufgelösten EFB. `libre4decomp_link_check` (core_mode.cpp
+  auf dem Host) gebaut.
+- Java der App gegen die Android-Klassen (Robolectric `android-all`, API 35,
+  mit einer erzeugten `R`-Klasse) mit `javac` übersetzt: fehlerfrei.
+  `CoreInputTests` 69 Prüfungen bestanden.
+
+**Nicht geprüft:** der Android-Build (NDK, Gradle, Lint), alles auf dem
+Gerät (Menü, SELECT kurz/lang, Debug-Menü, Grafikoptionen und ihre
+Leistung, Import/Export mit der Dateiauswahl, Fehlerprotokoll und Bericht,
+Absturzmelder), die PC-Prüfung mit Disc-Daten nach Patch 0061, und **ob
+Dolphin und ein GameCube die exportierten Spielstände laden** (dafür
+braucht es Dolphin mit der Debug-Disc auf dem PC).
+
+### Vom Projektinhaber gemeldet (17.10.2026, ohne Protokoll) – für 10b
+
+- Vereinzelt lässt sich ein Gegenstand nicht aufnehmen: das „A“-Symbol
+  erscheint, danach reagiert das Spiel nicht mehr.
+- Super Magnum: lädt nur nach, solange R2 gehalten wird; lässt man los,
+  senkt Leon die linke Hand und die Patronen fliegen von selbst in die
+  Waffe.
+- Raum r206 springt zurück ins Startmenü der App (Disc-Import): vermutlich
+  ein Absturz des Kerns (Android startet dann die Activity darunter neu).
+  PC-Prüfung möglich: `test-r100-core.ps1 -Room 206`.
 
 ## Aufbau
 
@@ -2847,6 +2994,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0058 `card.cpp` | `cCard::MainLoop` meldet je Bild Modus und Schritt des Speicherkarten-Bildschirms an `re4_card_screen` (runtime/memcard.cpp), das Änderungen ins Log schreibt („card: save: saving (file 1, step 5)“, Fehlermeldungen mit Code); nur Diagnose |
 | 0059 `snd.cpp` | `SndRoomBgmLoad` wartet beim Raumstart, bis die Musik des Raums davor ausgeblendet ist; die Schleife ruft `re4_wait_interrupt()` (runtime/vi.cpp) wie 0045, sonst hing das Spiel bei „Retry from a continue point“ und beim Laden aus dem Pausemenü (Retroid, 17.10.2026) |
 | 0060 `card.cpp` | Die Startprüfung der Karte ohne die Fragen und Meldungen des GameCube (Entscheidungen des Projektinhabers, 17.10.2026): `firstCheck10` zeigt „Systemdatei wird geladen“ nicht mehr, `createSysfile` legt eine fehlende Systemdatei ohne Frage an (wie „Ja“) und ohne „wird gespeichert“/„gespeichert“; `RE4_CARD_BOOT_MESSAGE=1` (runtime/memcard.cpp) stellt das Original wieder her. Fehlermeldungen bleiben |
+| 0061 `game.cpp` | Das Debug-Menü (`DbMenuExec`) öffnet auf Wunsch der App (SELECT eine Sekunde gehalten, `re4_core_debug_menu` → `re4_debug_menu_request`) statt mit L + START (Entscheidung des Projektinhabers, 17.10.2026: L2 + START öffnete es versehentlich; SELECT ist keine GameCube-Taste). Die übrigen Bedingungen bleiben (Werbefassung: Controller 2; `DBG_TEST_MODE`) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -2974,9 +3122,11 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `exi.cpp` (M10) | EXI (die Schnittstelle der Speicherkarten-Schächte) in C wie `EXIBios.c`: Sperren mit Warteschlange, Auswahl, Sofort- und DMA-Übertragungen, Probe, Anstecken, Kennung; das Ende einer Übertragung und der „fertig“-Interrupt der Karte kommen an den Interrupt-Punkten (`re4_exi_deliver`: Leerlauf, `OSSleepThread`), im Interrupt-Kontext |
 | `memcard.cpp` (M10) | die Karte in Schacht A: Memory Card 251 (2 MB, 8-KB-Blöcke) als Datei mit den Befehlen der echten Karte (Lesen 0x52, Seite schreiben 0xF2, Block löschen 0xF1, alles löschen 0xF4, Status, Hersteller); Status „entsperrt“ (kein DSP-Handshake); jede Änderung sofort in die Datei, 1 s danach `fsync`; SRAM (`__OSLockSram*`, Flash-ID aus dem Kartenkopf abgeleitet); `RE4_MEMCARD` (siehe „M10“); Log der Dateien auf der Karte und der Schritte des Kartenbildschirms (Patch 0058) |
 | `host_file.cpp` (M10) | Dateizugriffe für Code mit den Schaltern des Spiels (Kartendatei): Öffnen samt Ordnern, Lesen/Schreiben an einer Stelle, `fsync`, Schließen; dort wirken die Umbenennungen der C-Bibliothek (64-bit-Dateistellen, Android-Fortify) |
+| `card_files.cpp` (M11) | Dateien auf dem Kartenabbild für das Menü der App: Liste, Lesen, Schreiben/Ersetzen wie die Bibliothek (zwei Kopien von Verzeichnis und FAT, Blöcke wie `__CARDAllocBlock`) |
+| `gci.cpp` (M11) | `.gci` für Dolphin/GameCube: Spielstände und Systemdatei Feld für Feld in GameCube-Reihenfolge und zurück (`save_layout.inc` aus den Headern, `port/tools/save_layout.py`), CRCs neu |
 | `alarm.cpp` (M10) | `OSAlarm` (Zeitüberwachung der CARD-Befehle: 100 ms je Seite, 2 s je Block), fällig an den Interrupt-Punkten |
 | `pad.cpp` (M4 B) | Controller: Kanal 0 angeschlossen, Kanäle 1–3 leer (ein zweiter Controller ließe den Titel die Logos überspringen). Tasten aus der Testfolge `RE4_PAD_SCRIPT` (`TASTEN@BILD` drückt 3 Bilder lang, `TASTEN@VON-BIS/ALLE` wiederholt; Tasten `A B X Y Z L R START UP DOWN LEFT RIGHT`, mit `+` verbunden; Bild = Zahl der `PADRead`-Aufrufe). Seit K2 zusätzlich `re4_pad_live` (Controller der App, sobald kein Testskript läuft) und Bildhaken `re4_add_frame_hook` (bis 4, je `PADRead`). Seit M7: Rohwerte wie die Hardware (das eigene No-op-`PADClamp` ist entfernt, siehe SDK `Padclamp.c`), `PADControlMotor` merkt den Rüttelmotor je Bild (`re4_core_rumble`) |
-| `core_api.cpp` (K2) | Einbettungs-Schnittstelle `re4_core.h` für die App: Kern-Thread, Status, Controller, Dreifachpuffer der Schnappschüsse; Testausgaben `RE4_BRIDGE_DUMP`, `RE4_BRIDGE_SNAPSHOT`, `RE4_GX_DUMP` (GX-Bildstücke als Dateien, `re4_gx_frame_io.h`) |
+| `core_api.cpp` (K2) | Einbettungs-Schnittstelle `re4_core.h` für die App: Kern-Thread, Status, Controller, Dreifachpuffer der Schnappschüsse; seit M11 Anhalten für das Menü (`re4_core_pause`), Debug-Menü auf Wunsch, Kartenfunktionen nur bei stehendem Spiel und freier Karte; Testausgaben `RE4_BRIDGE_DUMP`, `RE4_BRIDGE_SNAPSHOT`, `RE4_GX_DUMP` (GX-Bildstücke als Dateien, `re4_gx_frame_io.h`) |
 | `core_bridge.cpp` (K2) | Schnappschuss des Spielzustands (Kamera, Raum, Modelle aus EmMgr/ObjMgr mit Teile-Matrizen und Disc-Herkunft); mit den Schaltern des Spielcodes gebaut |
 | `log.cpp` | Log (Linux: stderr, Android: logcat-Tag `re4`), seit K2 mit den letzten 24 Zeilen für das Overlay der App (`re4_log_tail`) |
 | `tex_palette.cpp` (M4 B) | `TEXGet` des SDK (`src/lib/texPalette.c` braucht sonst den SDK-Dateicache) |

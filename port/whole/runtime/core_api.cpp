@@ -14,6 +14,8 @@
 
 #include <dlfcn.h>
 #include <pthread.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -113,9 +115,12 @@ void frameHook(unsigned frame)
 }
 
 int (*gEntry)(void) = re4_game_main;
+// the game's host thread (re4_core_game_thread: the app's hang report samples it)
+volatile int gGameTid;
 
 void* gameThread(void*)
 {
+    gGameTid = (int) syscall(SYS_gettid);
     re4_log("core: starting the game");
     int ret = re4_os_run(gEntry);
     char text[64];
@@ -516,6 +521,19 @@ void re4_core_release(const Re4CoreSnapshot* snapshot)
 int re4_core_log_tail(char* out, int size)
 {
     return re4_log_tail(out, size);
+}
+
+unsigned re4_core_frame_count(void)
+{
+    pthread_mutex_lock(&gLock);
+    unsigned n = gSerial;
+    pthread_mutex_unlock(&gLock);
+    return n;
+}
+
+int re4_core_game_thread(void)
+{
+    return gGameTid;
 }
 
 int re4_core_pause(int on, int waitMs)

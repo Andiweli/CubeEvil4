@@ -123,12 +123,14 @@ Bauen und prüfen: `port/tools/whole_build.sh`.
 10. ✅ Speichern/Laden: CARD-Bibliothek aus `src/lib`, Speicherkarte als Datei
    in der App, Speichern an der Schreibmaschine, Laden, Systemdaten
    (Retroid und PC-Prüfung, 17.10.2026)
+11. Android-Feinschliff (vor 10b, Entscheidung des Projektinhabers, 17.10.2026:
+   danach geht die APK an Tester): Menü der App über SELECT (Grafikoptionen,
+   Speicherkarten-Import/Export `.gci` für Dolphin und GameCube,
+   Fehlerprotokoll), SELECT 1 Sekunde halten = Debug-Menü des Spiels,
+   Diagnose-Anzeige ausgebaut, Leistung
 10b. Raum-Rundgang: viele Räume per Raumauswahl anspielen, Abstürze und
    Grafikfehler sammeln (Entscheidung des Projektinhabers, 16.10.2026: nach
-   Ton, Videos und Speichern/Laden)
-11. Android-Feinschliff: Grafikoptionen (`port/docs/graphics-settings.md`), Leistung,
-   App-Menü über SELECT (1 Sekunde halten) mit Speicherkarten-Import/Export `.gci`
-   (Entscheidung des Projektinhabers, 17.10.2026)
+   Ton, Videos und Speichern/Laden; seit 17.10.2026 nach M11)
 12. ARM64: Zeiger-Kürzungen beheben
 
 ## Git

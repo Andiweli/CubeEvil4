@@ -36,6 +36,7 @@ final class CoreLog {
   static final String PREFS = "core_log", RECORD = "record";
   private static final String TAG = "RE4Log";
   private static Process recorder;
+  private static boolean started;  // once per process (the Activity may be made anew, the core runs on)
 
   private CoreLog() {}
 
@@ -57,6 +58,8 @@ final class CoreLog {
 
   /** At the start of the core: the run before kept, then the recording of this one. */
   static synchronized void start(Context c, String settings) {
+    if (started) return;
+    started = true;
     File dir = folder(c);
     File before = new File(dir, "vorher");
     deleteTree(before);

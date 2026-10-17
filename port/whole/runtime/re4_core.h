@@ -231,6 +231,10 @@ unsigned re4_core_player_hits(void);
 int re4_core_pause(int on, int waitMs);
 /* The game's debug menu at its next frame (SELECT held, patch 0061). */
 void re4_core_debug_menu(void);
+/* Game frames so far (one per PADRead) and the game's host thread id: the
+ * app notices a game that stands without a pause and samples where it is. */
+unsigned re4_core_frame_count(void);
+int re4_core_game_thread(void);
 /* The memory card for the menu (runtime/re4_card_files.h, Re4CardFile):
  * only while the game stands and does not use the card, RE4_CARD_BUSY
  * otherwise. List, free blocks, the .gci name Dolphin gives a file, export

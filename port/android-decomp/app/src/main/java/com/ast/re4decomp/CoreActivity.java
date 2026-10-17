@@ -95,6 +95,10 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private long rumbleSeen, rumbleUntil;
   private volatile int preparedRoom = -1;
   private boolean roomBusy;
+  // a game that stands without a pause (a hang): reported once per stand
+  private long lastFrames = -1, framesSince;
+  private boolean hangReported;
+  private static final long HANG_MS = 8000;
 
   @Override
   public void onCreate(Bundle state) {
@@ -172,12 +176,36 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
         | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
   }
 
-  /** Twice a second: the room the game wants. */
+  /** Twice a second: the room the game wants; a game that stands without a pause. */
   private void tick() {
     if (destroyed) return;
+    checkHang();
     int room = CoreBridge.wantedRoom();
     if (room >= 0 && room != preparedRoom && !roomBusy) prepareRoom(room);
     main.postDelayed(this::tick, 500);
+  }
+
+  /**
+   * The game reads the controller every frame; when its frames stand still
+   * for 8 s while it is neither paused nor in the background, the error log
+   * gets where its thread is (a loop or a wait that never ends).
+   */
+  private void checkHang() {
+    if (!menuSupported) return;
+    long now = SystemClock.uptimeMillis();
+    long frames = CoreBridge.gameFrames();
+    if (frames < 0) return;
+    if (frames != lastFrames || !resumed || menu != null) {
+      if (frames != lastFrames) hangReported = false;  // the game moves (again)
+      lastFrames = frames;
+      framesSince = now;
+      return;
+    }
+    if (!hangReported && now - framesSince > HANG_MS) {
+      hangReported = true;
+      Log.w(TAG, "hang: no game frame for " + (now - framesSince) / 1000 + " s");
+      rooms.execute(() -> CoreBridge.reportHang((int) ((SystemClock.uptimeMillis() - framesSince) / 1000)));
+    }
   }
 
   /** Decodes the room archive the game entered with the app's room loader. */
@@ -389,6 +417,27 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     }
   }
 
+  /** The file name inside a .gci (its directory entry, bytes 8..39). */
+  private static String gciName(byte[] gci) {
+    if (gci.length < 0x40) return "?";
+    int n = 0;
+    while (n < 32 && gci[8 + n] != 0) n++;
+    return new String(gci, 8, n, java.nio.charset.StandardCharsets.ISO_8859_1);
+  }
+
+  /** What became of an import, in the menu's language. */
+  private static String importText(int r, String name) {
+    switch (r) {
+      case CoreBridge.CARD_OK: return CoreMenu.t("Importiert: ", "Imported: ") + name;
+      case CoreBridge.CARD_NOSPACE: return CoreMenu.t("Kein Platz auf der Karte für ", "No space on the card for ") + name;
+      case CoreBridge.CARD_BUSY: return CoreMenu.t("Die Karte wird gerade vom Spiel benutzt: ", "The game uses the card: ") + name;
+      case CoreBridge.CARD_NOCARD: return CoreMenu.t("Keine Speicherkarte: ", "No memory card: ") + name;
+      default:
+        return CoreMenu.t("Keine Datei dieses Spiels oder beschädigt: ", "Not a file of this game, or damaged: ") + name
+            + " (" + CoreBridge.cardNote() + ")";
+    }
+  }
+
   /** The chosen .gci files one by one; a file already on the card is replaced only when asked. */
   private void importNext(StringBuilder report) {
     if (pendingImports.isEmpty()) {
@@ -397,23 +446,23 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       return;
     }
     byte[] gci = pendingImports.remove(0);
+    String name = gciName(gci);
     int r = CoreBridge.cardImport(gci, false);
+    Log.i(TAG, "import " + name + ": " + r + " " + CoreBridge.cardNote());
     if (r == CoreBridge.CARD_EXISTS) {
-      String note = CoreBridge.cardNote();
       new AlertDialog.Builder(this)
-          .setMessage(note + "\n" + CoreMenu.t("Ersetzen?", "Replace it?"))
+          .setMessage(name + CoreMenu.t(" ist schon auf der Karte. Ersetzen?", " is on the card already. Replace it?"))
           .setPositiveButton(CoreMenu.t("Ersetzen", "Replace"), (d, w) -> {
             int again = CoreBridge.cardImport(gci, true);
-            report.append(again == CoreBridge.CARD_OK ? CoreMenu.t("Ersetzt: ", "Replaced: ") : "")
-                .append(CoreBridge.cardNote()).append('\n');
+            Log.i(TAG, "import " + name + " (replace): " + again + " " + CoreBridge.cardNote());
+            report.append(importText(again, name)).append('\n');
             importNext(report);
           })
           .setNegativeButton(CoreMenu.t("Überspringen", "Skip"), (d, w) -> importNext(report))
           .setCancelable(false).show();
       return;
     }
-    report.append(r == CoreBridge.CARD_OK ? CoreMenu.t("Importiert: ", "Imported: ")
-        : CoreMenu.t("Nicht importiert: ", "Not imported: ")).append(CoreBridge.cardNote()).append('\n');
+    report.append(importText(r, name)).append('\n');
     importNext(report);
   }
 

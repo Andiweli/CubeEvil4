@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <ucontext.h>
 #include <unistd.h>
 #include <jni.h>
@@ -65,6 +66,8 @@ struct CoreApi {
   int (*cardName)(int, char *, int){};
   int (*cardExport)(int, unsigned char *, unsigned, char *, int){};
   int (*cardImport)(const unsigned char *, unsigned, int, char *, int){};
+  unsigned (*frameCount)(void){};
+  int (*gameThread)(void){};
 } api;
 
 template <class F> bool bind(F &slot, const char *name) {
@@ -110,6 +113,8 @@ void loadCore() {
       reinterpret_cast<int (*)(int, unsigned char *, unsigned, char *, int)>(dlsym(api.main, "re4_core_card_export"));
   api.cardImport = reinterpret_cast<int (*)(const unsigned char *, unsigned, int, char *, int)>(
       dlsym(api.main, "re4_core_card_import"));
+  api.frameCount = reinterpret_cast<unsigned (*)(void)>(dlsym(api.main, "re4_core_frame_count"));
+  api.gameThread = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_game_thread"));
   if (!ok) {
     LOG("%s", api.error.c_str());
     api.main = nullptr;
@@ -539,33 +544,38 @@ void crashWhere(const char *what, uintptr_t address) {
   }
 }
 
+// pc, lr and the words on the stack that point into a library (a guess at
+// the return addresses), from a signal's context
+void crashContext(void *context) {
+#if defined(__arm__)
+  const auto *uc = static_cast<const ucontext_t *>(context);
+  const uintptr_t pc = uc->uc_mcontext.arm_pc, lr = uc->uc_mcontext.arm_lr, sp = uc->uc_mcontext.arm_sp;
+  crashWhere("pc", pc);
+  crashWhere("lr", lr);
+  const auto *word = reinterpret_cast<const uintptr_t *>(sp);
+  int found = 0;
+  for (int i = 0; i < 512 && found < 24; i++) {
+    Dl_info d{};
+    if (word[i] > 0x10000 && dladdr(reinterpret_cast<void *>(word[i]), &d) && d.dli_fname &&
+        std::strstr(d.dli_fname, ".so")) {
+      char what[24];
+      std::snprintf(what, sizeof(what), "sp+%03x", i * 4);
+      crashWhere(what, word[i]);
+      found++;
+    }
+  }
+#else
+  (void)context;
+#endif
+}
+
 void onCrash(int sig, siginfo_t *info, void *context) {
   static volatile sig_atomic_t inside = 0;
   if (!inside) {
     inside = 1;
     crashLine("crash: signal %d (%s), fault address %p, thread %d", sig, strsignal(sig), info ? info->si_addr : nullptr,
               static_cast<int>(gettid()));
-#if defined(__arm__)
-    const auto *uc = static_cast<const ucontext_t *>(context);
-    const uintptr_t pc = uc->uc_mcontext.arm_pc, lr = uc->uc_mcontext.arm_lr, sp = uc->uc_mcontext.arm_sp;
-    crashWhere("pc", pc);
-    crashWhere("lr", lr);
-    // return addresses on the stack (a guess: words that point into a library)
-    const auto *word = reinterpret_cast<const uintptr_t *>(sp);
-    int found = 0;
-    for (int i = 0; i < 512 && found < 24; i++) {
-      Dl_info d{};
-      if (word[i] > 0x10000 && dladdr(reinterpret_cast<void *>(word[i]), &d) && d.dli_fname &&
-          std::strstr(d.dli_fname, ".so")) {
-        char what[24];
-        std::snprintf(what, sizeof(what), "sp+%03x", i * 4);
-        crashWhere(what, word[i]);
-        found++;
-      }
-    }
-#else
-    (void)context;
-#endif
+    crashContext(context);
     if (crashFd >= 0) fsync(crashFd);
   }
   // the handler before (the system's crash report), with the signal again
@@ -574,12 +584,24 @@ void onCrash(int sig, siginfo_t *info, void *context) {
   if (sig == SIGABRT) raise(sig);
 }
 
+// The game stands without a pause (CoreBridge.reportHang): the game thread
+// says where it is (SIGUSR2 to that thread), the game runs on.
+void onHangSample(int, siginfo_t *, void *context) {
+  crashLine("hang: the game thread (%d) is at", static_cast<int>(gettid()));
+  crashContext(context);
+}
+
 void installCrashHandler() {
   struct sigaction action {};
   action.sa_sigaction = onCrash;
   action.sa_flags = SA_SIGINFO | SA_ONSTACK;
   sigemptyset(&action.sa_mask);
   for (int sig : kCrashSignals) sigaction(sig, &action, &oldActions[sig]);
+  struct sigaction sample {};
+  sample.sa_sigaction = onHangSample;
+  sample.sa_flags = SA_SIGINFO | SA_RESTART;
+  sigemptyset(&sample.sa_mask);
+  sigaction(SIGUSR2, &sample, nullptr);
 }
 
 }  // namespace
@@ -883,4 +905,23 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setCrashFile
   const int old = crashFd;
   crashFd = fd;
   if (old >= 0) close(old);
+}
+
+// Game frames so far (one per PADRead), -1 without the core's counter.
+extern "C" JNIEXPORT jlong JNICALL Java_com_ast_re4decomp_CoreBridge_gameFrames(JNIEnv *, jclass) {
+  return api.frameCount ? static_cast<jlong>(api.frameCount()) : -1;
+}
+
+// The game stands without a pause: three samples of where its thread is, 200 ms apart
+// (a loop shows as places in one function, a wait as the same place).
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_reportHang(JNIEnv *, jclass, jint seconds) {
+  const int tid = api.gameThread ? api.gameThread() : 0;
+  crashLine("hang: no game frame for %d s (frame %u)", static_cast<int>(seconds),
+            api.frameCount ? api.frameCount() : 0u);
+  if (tid <= 0) return;
+  for (int i = 0; i < 3; i++) {
+    syscall(SYS_tgkill, getpid(), tid, SIGUSR2);
+    usleep(200000);
+  }
+  if (crashFd >= 0) fsync(crashFd);
 }

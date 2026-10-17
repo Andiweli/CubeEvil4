@@ -97,4 +97,8 @@ public final class CoreBridge {
   public static native int[] graphicsInfo();
   /** Where a crash writes where it happened (the error log's folder). */
   public static native void setCrashFile(String path);
+  /** Game frames so far (one per controller read), -1 without the counter. */
+  public static native long gameFrames();
+  /** The game stands without a pause for `seconds`: where its thread is, into the error log. */
+  public static native void reportHang(int seconds);
 }
