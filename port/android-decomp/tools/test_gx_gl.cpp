@@ -850,6 +850,55 @@ void TestAutofocus(re4gx::GxRenderer &r, bool multisampled = false) {
   rr = TexPixel(xfb, 160, 100);
   std::snprintf(what, sizeof(what), "%s: looking into the distance leaves the picture sharp", tag);
   Check(Near(l, 255, 0, 0) && Near(rr, 0, 0, 255), what);
+  // standing (Retroid, 17.10.2026): Leon (a card 1 m away) covers the centre,
+  // behind him a green / white wall 3 m away, the far edge at 20 m. Without
+  // his depth in the marker he is the focus and the wall goes soft; with it
+  // (1.5 m) the focus is the wall around him: the wall stays sharp, the far
+  // edge gets soft, Leon stays as he is
+  auto standing = [&](std::uint32_t player) {
+    Builder b;
+    Baseline(b);
+    DisplayCopy(b, true, kBlack);
+    const float n = 100.0f, f = 1000000.0f;
+    b.XfF(0x1020, {1.0f, 0.0f, 1.0f, 0.0f, -n / (f - n), -f * n / (f - n)});
+    b.Xf(0x1026, {0});
+    const std::uint8_t red[4] = {255, 0, 0, 255}, blue[4] = {0, 0, 255, 255}, grey[4] = {128, 128, 128, 255};
+    QuadAt(b, 0, 0, 160, 528, 20000.0f, red);
+    QuadAt(b, 160, 0, 640, 528, 20000.0f, blue);
+    QuadAt(b, 200, 120, 260, 408, 3000.0f, kGreen);
+    QuadAt(b, 260, 120, 440, 408, 3000.0f, kWhite);
+    QuadAt(b, 280, 224, 360, 304, 1000.0f, grey);
+    b.Bp(0x5A, player);
+    DisplayCopy(b, false, kBlack);
+    r.Run(b.Chunk());
+    return r.Xfb(nullptr, nullptr);
+  };
+  xfb = standing(1);
+  g = TexPixel(xfb, 259, 150);
+  w = TexPixel(xfb, 260, 150);
+  std::snprintf(what, sizeof(what), "%s: Leon as the focus softens the wall behind him (the problem)", tag);
+  Check(!(Near(g, 0, 255, 0) && Near(w, 255, 255, 255)), what);
+  xfb = standing(1500);
+  g = TexPixel(xfb, 259, 150);
+  w = TexPixel(xfb, 260, 150);
+  std::snprintf(what, sizeof(what), "%s: with Leon's depth the wall around him is the focus and stays sharp", tag);
+  Check(Near(g, 0, 255, 0) && Near(w, 255, 255, 255), what);
+  if (!(Near(g, 0, 255, 0) && Near(w, 255, 255, 255))) {
+    Print("wall green", g);
+    Print("wall white", w);
+  }
+  l = TexPixel(xfb, 159, 100);
+  rr = TexPixel(xfb, 160, 100);
+  std::snprintf(what, sizeof(what), "%s: with Leon's depth the far edge behind the wall gets soft", tag);
+  Check(l[2] > 20 && l[0] < 240 && rr[0] > 20 && rr[2] < 240, what);
+  std::snprintf(what, sizeof(what), "%s: Leon himself stays sharp", tag);
+  Check(Near(TexPixel(xfb, 320, 264), 128, 128, 128), what);
+  // all the picture is Leon or nearer: no focus, no blur
+  xfb = standing(30000);
+  l = TexPixel(xfb, 159, 100);
+  rr = TexPixel(xfb, 160, 100);
+  std::snprintf(what, sizeof(what), "%s: nothing behind Leon: the picture stays sharp", tag);
+  Check(Near(l, 255, 0, 0) && Near(rr, 0, 0, 255), what);
   // back to the orthographic projection of the other tests
   Builder b;
   Baseline(b);

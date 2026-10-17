@@ -1,0 +1,33 @@
+# The weapon page of the debug menu (tp_pl_weapon, SELECT held -> weapon)
+# wraps its cursor over 46 entries, but strWepName has 45 names and a NULL
+# end: moving up from the first weapon or down past the last puts the
+# cursor on entry 45, and the list printed from there hands eprintf the NULL
+# name. The GameCube read whatever lies at address 0; the port has no memory
+# there and crashed (Retroid, 17.10.2026: libre4_main eprintf_main, fault
+# address 0). The cursor now wraps over the 45 weapons (the last screen shows
+# 20..44); selecting and the level page are unchanged.
+--- a/src/game/t_option.cpp
++++ b/src/game/t_option.cpp
+@@ -454,16 +454,18 @@
+         pT->rno[4] = 0;
+         pT->rno[2] = 1;
+     case 1:
++        /* port: 45 weapons; entry 45 of strWepName is the list's NULL end,
++           which the 46-entry wrap reached (its name printed from address 0) */
+         if (pT->joy[0].rep & JOY_UP) {
+-            pT->cursor = (pT->cursor + 45) % 46;
+-            if (pT->cursor == 45) {
+-                pT->rno[4] = 21;
++            pT->cursor = (pT->cursor + 44) % 45;
++            if (pT->cursor == 44) {
++                pT->rno[4] = 20;
+             } else if (pT->cursor < pT->rno[4]) {
+                 pT->rno[4] = pT->cursor;
+             }
+             pT->rno[3] = 0;
+         } else if (pT->joy[0].rep & JOY_DOWN) {
+-            pT->cursor = (pT->cursor + 47) % 46;
++            pT->cursor = (pT->cursor + 46) % 45;
+             if (pT->cursor == 0) {
+                 pT->rno[4] = 0;
+             } else if (pT->cursor >= pT->rno[4] + 25) {

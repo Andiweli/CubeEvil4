@@ -20,7 +20,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M8 Audio | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m8-audio`): Originalton über die SDK-Bibliotheken auf nachgebautem DSP/AI, Hall/Chorus in C, Tonausgabe der App; klingt laut Projektinhaber sauber. Vereinzelt abgebrochene Schüsse (AX-Budget) behoben, Nachtest im ersten Gerätelauf von M9 („M8 Audio“) |
 | M9 Videos | ✅ 16.10.2026 (Retroid, Branch `claude/re4-m9-videos`): die Filme laufen über die CRI-Middleware (ADX, Sofdec, MPEG) aus `src/lib`, Bild über die GX-Nachbildung, Ton synchron, START bricht ab; Vorfilm vor der Autofahrt und Demo-Filme des Titels auf dem Gerät, alle 13 Filme der Discs in der PC-Prüfung ohne Fehler. Dabei behoben: Ruckler (Takt an den 60-Hz-Bildschirm gekoppelt), abgebrochene Töne (SYN, Patch 0056, 0 Abbrüche), Helligkeit. **Nicht auf dem Gerät geprüft:** `VISetBlack` (der Titel blitzte vor dem Demo-Film kurz auf) („M9 Videos“) |
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
-| M11 Android-Feinschliff | in Arbeit (Branch `claude/nifty-feynman-jv729h`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Erster Gerätelauf 17.10.2026: Menü, Debug-Menü, Grafikwechsel, Export in Ordnung; Menü danach nach Wünschen umgebaut (nicht auf dem Gerät geprüft). Absturz r206 behoben (REL-Kopf; PC-Rundgang mit Disc-Daten: 26 von 27 Räumen laufen, auch r206). Absturz r311 (Division durch null, Patch 0062) behoben. Rundgang über alle Räume: 122 von 126 laufen; r404 behoben (Patch 0063, mit Disc-Daten geprüft); r215/r227 (abgebrochene Umwandlung in Zwischensequenzen) und r229 (Gesichts-Animation, Patch 0064) behoben; **vierter Rundgang: 126 von 126 Räumen laufen** (PC mit Disc-Daten). Super Magnum: kein Port-Fehler (Nachlade-Stufe Lv.5 aus dem Debug-Menü, die Tabelle hat 3; Gerätelauf 17.10.2026). „Depth of field“ an = dazu der Autofokus der ersten App (nicht auf dem Gerät geprüft). Offen in M11: Gerätetest des umgebauten Menüs und des Autofokus, Bestätigung Magnum mit Lv.1, Leistung („M11 Android-Feinschliff“) |
+| M11 Android-Feinschliff | in Arbeit (Branch `claude/nifty-feynman-jv729h`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Erster Gerätelauf 17.10.2026: Menü, Debug-Menü, Grafikwechsel, Export in Ordnung; Menü danach nach Wünschen umgebaut (nicht auf dem Gerät geprüft). Absturz r206 behoben (REL-Kopf; PC-Rundgang mit Disc-Daten: 26 von 27 Räumen laufen, auch r206). Absturz r311 (Division durch null, Patch 0062) behoben. Rundgang über alle Räume: 122 von 126 laufen; r404 behoben (Patch 0063, mit Disc-Daten geprüft); r215/r227 (abgebrochene Umwandlung in Zwischensequenzen) und r229 (Gesichts-Animation, Patch 0064) behoben; **vierter Rundgang: 126 von 126 Räumen laufen** (PC mit Disc-Daten). Super Magnum: kein Port-Fehler (Nachlade-Stufe Lv.5 aus dem Debug-Menü, die Tabelle hat 3), mit Lv.1 auf dem Retroid bestätigt. „Depth of field“ an = dazu der Autofokus der ersten App (läuft auf dem Retroid; Leon als Fokus behoben, nicht auf dem Gerät geprüft). Absturz in der Waffenseite des Debug-Menüs behoben (Patch 0066, nicht auf dem Gerät geprüft). Offen in M11: Gerätetest dieser beiden Punkte, dann Abschluss („M11 Android-Feinschliff“) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -3034,7 +3034,29 @@ zeigt ihn). r215 lief trotzdem 750 Bilder.
   4-fach-MSAA: ferne Kante weich 209/46, nahe Kante scharf, Alpha bleibt,
   Blick in die Ferne scharf), Kern-Laufzeittest „gx“ (die Markierung kommt
   jedes Mal im Strom an, Decoder-Prüfsumme unverändert), i686 und armhf.
-  **Auf dem Gerät nicht geprüft.**
+- Fünfter Gerätelauf: Absturz im Debug-Menü (SELECT halten), Waffenseite,
+  beim Navigieren über den ersten bzw. letzten Eintrag hinaus
+  (`eprintf_main`, Fehleradresse 0, aus `tp_pl_weapon`): Patch 0066. Die
+  anderen Seiten des Debug-Menüs (`t_option.cpp`, `t_util.cpp`
+  `ToolMenu`, `t_flag.cpp`, `t_log.cpp`, `t_bugcheck.cpp`) laufen mit
+  richtiger Anzahl im Kreis bzw. begrenzen.
+- Fünfter Gerätelauf (17.10.2026, Stand `d929d4b`): der Autofokus läuft
+  (941 Durchgänge im Protokoll), aber **im Stand ist alles unscharf**: die
+  Bildmitte liegt dann auf Leon bzw. seiner Waffe, er wird zum Fokus und
+  alles hinter ihm weich (in RE4-Decomp dasselbe Problem; dort wurde der
+  Fokus vor dem Zeichnen Leons gemessen). Behoben: der Kern rechnet je Bild
+  aus, wie tief Leon und seine Waffe ins Bild reichen (Tiefe ihrer Gelenke
+  in Blickrichtung der Kamera, `cParts::mat`, plus 60 cm für Körper, Hand
+  und Lauf; `re4_dof_player_depth`, `dof.cpp`) und schickt das als Wert der
+  Markierung (BP 0x5A). Der GX-Nachbau nimmt den Fokus nur aus Punkten
+  dahinter: die 9 Tiefen der Mitte, oder, wenn weniger als 5 davon hinter
+  Leon liegen, 35 um die Mitte (15 % breit, 12 % hoch); keiner dahinter =
+  keine Unschärfe. Geprüft: `gx_gl_check` mit einer Szene wie im Stand
+  (Leon 1 m in der Mitte, Wand 3 m, ferne Kante 20 m): ohne Leons Tiefe wird
+  die Wand weich (36/219, der gemeldete Fehler), mit ihr bleibt sie scharf
+  (0/255) und die ferne Kante wird weich (209/46), Leon bleibt scharf;
+  nichts hinter Leon = scharf; mit und ohne MSAA. **Auf dem Gerät nicht
+  geprüft.**
 - Menü (SELECT kurz): passt laut Projektinhaber („wunderbar“); Wünsche:
   die Linie unter dem Titel weg (die Linien der Überschrift „Grafik“ reichen),
   Titel „Resident Evil 4 Options“ zentriert, ohne Linien. Umgesetzt
@@ -3111,8 +3133,8 @@ denselben Bytes genauso (der Build trifft die SHA1). Mit einer echten Stufe
 wird, und senkt die Waffe erst ab Bild 96/80/52 (PC-Prüfung oben). Keine
 Änderung am Spiel; neu ist der Hinweis `check: weapon … has reload level …`
 (`state_trace.cpp`) im Protokoll, sobald eine Waffe eine Stufe über 3 hat.
-**Auf dem Gerät noch zu bestätigen:** Debug-Menü, Waffenseite, RELOAD
-Lv.1 einstellen, nachladen, R2 loslassen → Leon lädt fertig.
+**Auf dem Retroid bestätigt (Projektinhaber, 17.10.2026):** mit RELOAD
+Lv.1 lädt Leon richtig („Reload passt mit Lvl. 1“).
 - „Bei einem Gegner abgebrochen“: kein Absturz. Das Testskript beendet die
   App nach der Beobachtungszeit (240 s, Protokoll ohne Fehler). Mit
   `-Manual` beobachtet `test-core-app.ps1` jetzt 30 Minuten (Q beendet
@@ -3279,6 +3301,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0063 `r404.cpp` | Startpunkt im Söldner-Raum r404: `&pos[n]` / `&rot[n]` statt `&pos + n * 12 + 0x28`, das auf die Stapel-Anordnung von CodeWarrior baut (Clang legt `rot` anders; Stillstand in `LIMIT_ANGLE`, PC-Rundgang 17.10.2026) |
 | 0064 `shape.cpp` | `CalculateShape_new`: ein Kanal, der einen Eintrag **hinter** der Formen-Tabelle nennt (Anzahl im Wort vor der Tabelle), bekommt keine Werte. Das Spiel liest dort die Eckpunkt-Listen als Eintrag; big-endian ist dessen Anzahl negativ (nichts passiert), in Host-Reihenfolge 65535 (r229: Codec-Gesicht schrieb in die Zeichenliste, Funktionszeiger um 0x74 verschoben). Außerdem wird eine Eckpunkt-Nummer außerhalb des Modells übersprungen. Beides einmal gemeldet (`check: shape: …`); richtige Daten haben beides nicht |
 | 0065 `filter01.cpp` | Schalter „Depth of field“ des App-Menüs (M11, Wunsch des Projektinhabers, 17.10.2026): ist er aus (`re4_dof_enabled()`, `core_api.cpp`), legt `Filter01Trans` keinen Tiefenschärfe-Durchgang an und löscht die Anfragen dieses Bilds wie nach einem gezeichneten. Standard an. Ist er an und legt das Spiel keinen Fokus an, kommt bei freiem Spieler der Autofokus der App dazu (`re4_dof_autofocus`, OT-Eintrag `re4_dof_autofocus_mark` → BP 0x5A, `runtime/dof.cpp`; kein GameCube-Effekt, Wunsch des Projektinhabers „wie in RE4-Decomp“); `re4_dof_note` schreibt die Durchgänge eines Bilds ins Protokoll, wenn sie sich ändern |
+| 0066 `t_option.cpp` | Waffenseite des Debug-Menüs (`tp_pl_weapon`): der Cursor lief über 46 Plätze, `strWepName` hat aber 45 Namen und ein NULL-Ende; über den ersten Eintrag nach oben oder über den letzten nach unten zeigte die Liste den NULL-Namen, `eprintf` las Adresse 0 (GameCube: was dort liegt; Port: Absturz, Retroid 17.10.2026, `eprintf_main`, Fehleradresse 0). Der Cursor läuft jetzt über die 45 Waffen (letzte Seite 20..44); Auswahl und Stufenseite unverändert. Nicht auf dem Gerät geprüft |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

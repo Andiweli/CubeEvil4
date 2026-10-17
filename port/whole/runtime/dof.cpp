@@ -15,16 +15,27 @@
 //    the app's GX renderer (gx_gl.cpp, Autofocus) draws the blur there: in
 //    the filter table (OT 0x12) like the game's own depth of field, after
 //    the scene and before the tables of the interface (0x13..0x15).
+//    Leon and his weapon are no focus (Retroid, 17.10.2026: standing, the
+//    centre of the picture is on Leon, and all behind him went soft): the
+//    marker's value is how deep Leon reaches into the picture (camera depth
+//    of his and the weapon's joints plus a margin); the renderer takes the
+//    focus only from what lies deeper.
 //    RE4_DOF_AUTOFOCUS=0 leaves it out (the game's own picture only).
 #include "types.h"
 #include "global.h"
+#include "em.h"
+#include "model.h"
+#include "player.h"
+#include "pl_wep.h"
 #include "re4_gx_fifo.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 extern GLOBAL_WK* pG;
+extern cPlayer* pPL;
 
 extern "C" void re4_log(const char* fmt, ...);
 
@@ -134,10 +145,72 @@ extern "C" int re4_dof_autofocus(void)
     return gAutofocus && g && g->Rno0 == 3 && !StaFlagChk(g, STA_EVENT) && !StaFlagChk(g, STA_SUB_SCRN);
 }
 
-// The OT callback (filter table 0x12): the marker in the GX command stream.
+namespace {
+
+bool inMem1(const void* p)
+{
+    unsigned long a = (unsigned long) p;
+    return a >= 0x80000000ul && a < 0x83000000ul;
+}
+
+// The deepest camera depth of the joints of model m (cParts::mat, the world
+// matrices of this frame) along the view direction `look` from `eye`.
+f32 deepestJoint(const cModel* m, const Vec& eye, const Vec& look, f32 deepest)
+{
+    if (!inMem1(m)) {
+        return deepest;
+    }
+    const cParts* p = m->pList;
+    for (u32 i = 0; i < m->nParts && inMem1(p); i++, p = p->pList) {
+        const f32 d = (p->mat[0][3] - eye.x) * look.x + (p->mat[1][3] - eye.y) * look.y +
+                      (p->mat[2][3] - eye.z) * look.z;
+        if (d > deepest) {
+            deepest = d;
+        }
+    }
+    return deepest;
+}
+
+}  // namespace
+
+// How deep Leon and his weapon reach into the picture (game units along the
+// camera's view), 0 when there is no player.
+extern "C" unsigned re4_dof_player_depth(void)
+{
+    GLOBAL_WK* g = pG;
+    cPlayer* pl = pPL;
+    if (!g || !inMem1(pl)) {
+        return 0;
+    }
+    const Vec& eye = g->Camera.param.Campos;
+    const Vec& at = g->Camera.param.Target;
+    Vec look = { at.x - eye.x, at.y - eye.y, at.z - eye.z };
+    const f32 len = sqrtf(look.x * look.x + look.y * look.y + look.z * look.z);
+    if (!(len > 1.0f)) {
+        return 0;
+    }
+    look.x /= len;
+    look.y /= len;
+    look.z /= len;
+    f32 deepest = deepestJoint(pl, eye, look, 0.0f);
+    if (inMem1(pl->Wep) && inMem1(pl->Wep->m_pWep)) {
+        deepest = deepestJoint(pl->Wep->m_pWep, eye, look, deepest);
+    }
+    if (!(deepest > 0.0f)) {
+        return 0;
+    }
+    // joints are inside the body: the chest, the hand around the grip and a
+    // barrel in front of it reach about this much further
+    deepest += 600.0f;
+    return deepest < 16777215.0f ? (unsigned) deepest : 16777215u;
+}
+
+// The OT callback (filter table 0x12): the marker in the GX command stream,
+// its value Leon's depth (at least 1).
 extern "C" void re4_dof_autofocus_mark(void* w)
 {
     (void) w;
+    unsigned depth = re4_dof_player_depth();
     re4_gx_put_u8(0x61);
-    re4_gx_put_u32(0x5Au << 24 | 1);
+    re4_gx_put_u32(0x5Au << 24 | (depth ? depth : 1));
 }

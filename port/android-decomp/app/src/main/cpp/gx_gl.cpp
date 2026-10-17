@@ -240,7 +240,7 @@ struct GxRenderer::Impl {
   std::unordered_map<std::uint64_t, GLuint> samplers;
   // the gameplay autofocus (Autofocus): made at its first marker
   GLuint focusProgram = 0, blurProgram = 0;
-  GLint focusRegion = -1, focusSize = -1, focusZ = -1;
+  GLint focusRegion = -1, focusSize = -1, focusZ = -1, focusPlayer = -1;
   GLint blurRegion = -1, blurSize = -1, blurZ = -1, blurRadius = -1;
   GLuint blurTex = 0, focusTex = 0, blurFbo = 0, focusFbo = 0;
   bool autofocusFailed = false;
@@ -517,7 +517,7 @@ struct GxRenderer::Impl {
     if (action && reg == 0x52)
       EfbCopy(value);
     if (action && reg == 0x5A)
-      Autofocus();
+      Autofocus(value);
   }
 
   void Dirty(int lo, int hi) {
@@ -1394,8 +1394,13 @@ struct GxRenderer::Impl {
   // picture as it is. Distances from the depths through the scene's
   // perspective projection and the XF viewport (GL depth = (zRange * (A + B /
   // distance) + zFar) / 2^24-1, see the vertex shader); the picture is the
-  // XF viewport (the game's 512x448 at the top left of the EFB).
-  void Autofocus() {
+  // XF viewport (the game's 512x448 at the top left of the EFB). `player`
+  // (the marker's value): how deep Leon and his weapon reach into the
+  // picture; only what lies deeper can be the focus (standing, the centre is
+  // often on Leon): the nine depths at the centre, or, when fewer than five
+  // of them lie behind Leon, 35 around it (15 % across, 12 % up and down);
+  // none behind him: no blur.
+  void Autofocus(std::uint32_t player) {
     if (autofocusFailed || !havePerspective)
       return;
     Touched(); // its own passes
@@ -1442,6 +1447,7 @@ struct GxRenderer::Impl {
     glUniform4f(focusRegion, rx, ry, rw, rh);
     glUniform2f(focusSize, static_cast<float>(fw), static_cast<float>(fh));
     glUniform4f(focusZ, perspA, perspB, zRange, zFar);
+    glUniform1f(focusPlayer, static_cast<float>(player));
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     // the blurred picture into blurTex
     glBindFramebuffer(GL_FRAMEBUFFER, blurFbo);
@@ -1495,18 +1501,32 @@ struct GxRenderer::Impl {
         "}\n";
     const std::string focusFs =
         std::string("#version 300 es\nprecision highp float;\nprecision highp int;\n") + kDistance +
-        "out vec4 o;\n"
+        "uniform float player;\nout vec4 o;\n"
         "void main() {\n"
-        "  float z[9];\n"
+        "  float z[35];\n"
+        "  for (int i = 0; i < 35; ++i) z[i] = 0.0;\n"
         "  int n = 0;\n"
         "  vec2 c = region.xy + 0.5 * region.zw;\n"
         "  for (int y = -1; y <= 1; ++y)\n"
-        "    for (int x = -1; x <= 1; ++x) z[n++] = distanceAt(c + vec2(float(x), float(y)) * 0.006 * region.zw);\n"
-        "  for (int i = 0; i < 8; ++i)\n"
-        "    for (int j = i + 1; j < 9; ++j)\n"
-        "      if (z[j] < z[i]) { float t = z[i]; z[i] = z[j]; z[j] = t; }\n"
-        "  uint d = uint(clamp(round(z[4]), 0.0, 65535.0));\n"
-        "  float amount = 1.0 - smoothstep(3000.0, 6000.0, z[4]);\n"
+        "    for (int x = -1; x <= 1; ++x) {\n"
+        "      float d = distanceAt(c + vec2(float(x), float(y)) * 0.006 * region.zw);\n"
+        "      if (d > player) z[n++] = d;\n"
+        "    }\n"
+        "  if (n < 5) {\n"
+        "    n = 0;\n"
+        "    for (int y = -2; y <= 2; ++y)\n"
+        "      for (int x = -3; x <= 3; ++x) {\n"
+        "        float d = distanceAt(c + vec2(float(x) * 0.05, float(y) * 0.06) * region.zw);\n"
+        "        if (d > player) z[n++] = d;\n"
+        "      }\n"
+        "  }\n"
+        "  if (n == 0) { o = vec4(0.0); return; }\n"
+        "  for (int i = 0; i < 34; ++i)\n"
+        "    for (int j = i + 1; j < 35; ++j)\n"
+        "      if (j < n && z[j] < z[i]) { float t = z[i]; z[i] = z[j]; z[j] = t; }\n"
+        "  float f = z[n / 2];\n"
+        "  uint d = uint(clamp(round(f), 0.0, 65535.0));\n"
+        "  float amount = 1.0 - smoothstep(3000.0, 6000.0, f);\n"
         "  o = vec4(float(d >> 8u) / 255.0, float(d & 255u) / 255.0, amount, 1.0);\n"
         "}\n";
     const std::string blurFs =
@@ -1543,6 +1563,7 @@ struct GxRenderer::Impl {
     focusRegion = glGetUniformLocation(focusProgram, "region");
     focusSize = glGetUniformLocation(focusProgram, "size");
     focusZ = glGetUniformLocation(focusProgram, "zmap");
+    focusPlayer = glGetUniformLocation(focusProgram, "player");
     glUseProgram(blurProgram);
     glUniform1i(glGetUniformLocation(blurProgram, "frame"), 0);
     glUniform1i(glGetUniformLocation(blurProgram, "depths"), 1);
