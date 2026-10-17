@@ -7,6 +7,7 @@
 // takes the newest one. Three buffers: the game writes one, the newest waits
 // in another, the reader holds the third, so neither side ever waits for the
 // other's work and a reader never sees a half-written frame.
+#include "re4_card_files.h"
 #include "re4_core.h"
 #include "re4_gx_frame_io.h"
 #include "re4_runtime.h"
@@ -22,6 +23,9 @@ extern "C" unsigned re4_pad_rumble(void);
 extern "C" void re4_add_frame_hook(void (*hook)(unsigned));
 extern "C" int re4_log_tail(char* out, int size);
 extern "C" void re4_state_trace_reconfigure(void);
+// the card library's control blocks (src/lib/__card.h, CARDControl): the
+// first word of slot A's says whether the library has the card mounted
+extern "C" char __CARDBlock[];
 
 namespace {
 
@@ -44,9 +48,53 @@ void setMessage(const char* text)
     re4_log("core: %s", text);
 }
 
+// The app's menu (M11) stops the game at its next frame until it closes
+// (re4_core_pause): the game thread waits here, in PADRead, so nothing of the
+// game runs meanwhile (no sound, no card access, no time for the enemies).
+pthread_mutex_t gPauseLock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t gPauseCond = PTHREAD_COND_INITIALIZER;
+bool gPauseWanted, gPaused;
+// SELECT held in the app: the debug menu (patch 0061, re4_debug_menu_request)
+volatile int gDebugMenuWanted;
+
+void pausePoint()
+{
+    pthread_mutex_lock(&gPauseLock);
+    if (gPauseWanted) {
+        gPaused = true;
+        pthread_cond_broadcast(&gPauseCond);
+        re4_log("core: paused (the app's menu)");
+        while (gPauseWanted) {
+            pthread_cond_wait(&gPauseCond, &gPauseLock);
+        }
+        gPaused = false;
+        re4_log("core: running again");
+    }
+    pthread_mutex_unlock(&gPauseLock);
+}
+
+// The card functions of the menu only while the game stands and the card
+// library has the card unmounted (between the game's card screens): then
+// nothing else touches the card image, and the library reads directory and
+// FAT anew at its next mount.
+int cardFree()
+{
+    pthread_mutex_lock(&gPauseLock);
+    bool paused = gPaused;
+    pthread_mutex_unlock(&gPauseLock);
+    int attached;
+    memcpy(&attached, __CARDBlock, sizeof(attached));
+    if (!paused || attached) {
+        re4_log("core: card functions refused (%s)", paused ? "the game uses the card" : "the game does not stand");
+        return 0;
+    }
+    return 1;
+}
+
 // PADRead, once per game frame, on the game's thread.
 void frameHook(unsigned frame)
 {
+    pausePoint();
     Re4CoreSnapshot* s = &gBuffers[gWriting];
     re4_bridge_capture(s);
     s->frame = frame;
@@ -468,6 +516,80 @@ void re4_core_release(const Re4CoreSnapshot* snapshot)
 int re4_core_log_tail(char* out, int size)
 {
     return re4_log_tail(out, size);
+}
+
+int re4_core_pause(int on, int waitMs)
+{
+    pthread_mutex_lock(&gPauseLock);
+    gPauseWanted = on != 0;
+    pthread_cond_broadcast(&gPauseCond);
+    if (on && waitMs > 0 && !gPaused && re4_core_state() == RE4_CORE_RUNNING) {
+        struct timespec until;
+        clock_gettime(CLOCK_REALTIME, &until);
+        until.tv_sec += waitMs / 1000;
+        until.tv_nsec += (long) (waitMs % 1000) * 1000000L;
+        if (until.tv_nsec >= 1000000000L) {
+            until.tv_sec++;
+            until.tv_nsec -= 1000000000L;
+        }
+        while (!gPaused && gPauseWanted) {
+            if (pthread_cond_timedwait(&gPauseCond, &gPauseLock, &until) != 0) {
+                break;
+            }
+        }
+    }
+    int paused = gPaused;
+    pthread_mutex_unlock(&gPauseLock);
+    return paused;
+}
+
+void re4_core_debug_menu(void)
+{
+    gDebugMenuWanted = 1;
+    re4_log("core: debug menu asked for (SELECT held)");
+}
+
+// patch 0061 (src/game/game.cpp gameDebug), every game frame
+int re4_debug_menu_request(void)
+{
+    if (!gDebugMenuWanted) {
+        return 0;
+    }
+    gDebugMenuWanted = 0;
+    return 1;
+}
+
+int re4_core_card_list(Re4CardFile* out, int max)
+{
+    return cardFree() ? re4_card_list(out, max) : RE4_CARD_BUSY;
+}
+
+int re4_core_card_free_blocks(void)
+{
+    return cardFree() ? re4_card_free_blocks() : RE4_CARD_BUSY;
+}
+
+int re4_core_card_file_name(int index, char* out, int size)
+{
+    return cardFree() ? re4_gci_file_name(index, out, size) : RE4_CARD_BUSY;
+}
+
+int re4_core_card_export(int index, unsigned char* out, unsigned capacity, char* note, int noteSize)
+{
+    if (!cardFree()) {
+        snprintf(note, (size_t) noteSize, "the game uses the memory card");
+        return RE4_CARD_BUSY;
+    }
+    return re4_gci_export(index, out, capacity, note, noteSize);
+}
+
+int re4_core_card_import(const unsigned char* gci, unsigned size, int replace, char* note, int noteSize)
+{
+    if (!cardFree()) {
+        snprintf(note, (size_t) noteSize, "the game uses the memory card");
+        return RE4_CARD_BUSY;
+    }
+    return re4_gci_import(gci, size, replace, note, noteSize);
 }
 
 }  // extern "C"

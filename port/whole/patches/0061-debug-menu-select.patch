@@ -1,0 +1,25 @@
+# The debug menu (DbMenuExec: area jump, flag edit, weapons, life) opens when
+# the app's SELECT is held for a second (decision of the project owner,
+# 17.10.2026) instead of with L + START: the Retroid's L2 + START opened it
+# by accident, and SELECT is no GameCube button. The app asks through
+# re4_core_debug_menu (runtime/core_api.cpp); gameDebug takes the request
+# once (re4_debug_menu_request). The menu itself and its other checks
+# (publicity version: pad 2 connected; DBG_TEST_MODE) stay as they are.
+--- a/src/game/game.cpp
++++ b/src/game/game.cpp
+@@ -1762,11 +1762,14 @@
+     }
+ }
+ 
++extern "C" int re4_debug_menu_request(void); /* port: runtime/core_api.cpp */
++
+ // Debug input: START + pad button opens the debug menu; in the shooting range mode pad 4 moves and
+ // turns the player directly.
+ void gameDebug()
+ {
+-    if ((Joy[0].trg & 0x1000) && (Joy[0].on & 0x40) && !FlagChkSign(pG->Debug_flg, DBG_TEST_MODE)) {
++    /* port: the app's SELECT held for a second asks for the menu instead of L + START */
++    if (re4_debug_menu_request() && !FlagChkSign(pG->Debug_flg, DBG_TEST_MODE)) {
+         if (SysFlagChk(pG, SYS_PUBLICITY_VER)) {
+             if (PadCheckStatus(&Joy[1]) == 1) {
+                 DbMenuExec();

@@ -225,6 +225,23 @@ int re4_core_log_tail(char* out, int size);
  * records the pictures after a hit for the analysis (RE4_GX_DUMP_ON_HIT). */
 unsigned re4_core_player_hits(void);
 
+/* The app's menu (M11). on = 1: the game stops at its next frame (it waits
+ * in PADRead until on = 0); waits up to waitMs for that. 1 when the game
+ * stands. Optional for the app (cores since M11), like those below. */
+int re4_core_pause(int on, int waitMs);
+/* The game's debug menu at its next frame (SELECT held, patch 0061). */
+void re4_core_debug_menu(void);
+/* The memory card for the menu (runtime/re4_card_files.h, Re4CardFile):
+ * only while the game stands and does not use the card, RE4_CARD_BUSY
+ * otherwise. List, free blocks, the .gci name Dolphin gives a file, export
+ * (into `out`, its size) and import (replace: over a file of that name). */
+struct Re4CardFile;
+int re4_core_card_list(struct Re4CardFile* out, int max);
+int re4_core_card_free_blocks(void);
+int re4_core_card_file_name(int index, char* out, int size);
+int re4_core_card_export(int index, unsigned char* out, unsigned capacity, char* note, int noteSize);
+int re4_core_card_import(const unsigned char* gci, unsigned size, int replace, char* note, int noteSize);
+
 /* Tests: like re4_core_start with another boot thread entry. */
 int re4_core_start_entry(int (*entry)(void));
 

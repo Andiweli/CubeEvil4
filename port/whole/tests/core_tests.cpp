@@ -15,9 +15,16 @@
 //           game's ranges (dead zones, octagon, trigger threshold); the
 //           rumble motor per frame (re4_core_rumble)
 //   card    the SDK's memory card library on the port's card file
-//           (tests/card_probe.cpp): format, files, a new start, no card
+//           (tests/card_probe.cpp): format, files, a new start, no card;
+//           .gci export and import
+//   pause   the app's menu (M11): re4_core_pause stops the game in its next
+//           PADRead and lets it go again; the menu's card functions only
+//           while it stands; the debug menu request is taken once
+#include "re4_card_files.h"
 #include "re4_core.h"
 #include "re4_runtime.h"
+
+#include <pthread.h>
 
 #include <math.h>
 #include <stdio.h>
@@ -728,6 +735,61 @@ void testPad()
     report("pad", ok);
 }
 
+volatile int gPauseFrames;
+
+void* pauseGame(void*)
+{
+    PadStatus pads[4];
+    for (int i = 0; i < 3; i++) {
+        PADRead(pads);  // the frame hook: waits while the menu is open
+        gPauseFrames++;
+    }
+    return 0;
+}
+
+extern "C" int re4_debug_menu_request(void);
+extern "C" void re4_memcard_open(const char* path);
+
+void testPause()
+{
+    bool ok = true;
+    char path[64];
+    snprintf(path, sizeof(path), "/tmp/re4-pause-card-%d.bin", (int) getpid());
+    unlink(path);
+    re4_memcard_open(path);  // a new card: formatted, empty
+    Re4CardFile files[4];
+    CHECK(re4_core_card_list(files, 4) == RE4_CARD_BUSY);  // the game does not stand
+    CHECK(re4_core_pause(1, 0) == 0);
+    gPauseFrames = 0;
+    pthread_t game;
+    CHECK(pthread_create(&game, 0, pauseGame, 0) == 0);
+    double end = now() + 5.0;
+    while (!re4_core_pause(1, 0) && now() < end) {
+        usleep(1000);
+    }
+    CHECK(re4_core_pause(1, 0) == 1);
+    usleep(30000);
+    CHECK(gPauseFrames == 0);  // stands in its first PADRead
+    CHECK(re4_core_card_list(files, 4) == 0);
+    CHECK(re4_core_card_free_blocks() == 251);
+    char note[128];
+    unsigned char out[64];
+    CHECK(re4_core_card_export(0, out, sizeof(out), note, sizeof(note)) == RE4_CARD_NOFILE);
+    re4_core_pause(0, 0);  // the menu closes
+    pthread_join(game, 0);
+    CHECK(gPauseFrames == 3);
+    CHECK(re4_core_pause(0, 0) == 0);
+    CHECK(re4_core_card_free_blocks() == RE4_CARD_BUSY);
+    // SELECT held: the debug menu at the next frame, once
+    CHECK(re4_debug_menu_request() == 0);
+    re4_core_debug_menu();
+    CHECK(re4_debug_menu_request() == 1);
+    CHECK(re4_debug_menu_request() == 0);
+    re4_memcard_open(0);
+    unlink(path);
+    report("pause", ok);
+}
+
 }  // namespace
 
 int re4_core_tests()
@@ -763,6 +825,7 @@ int re4_core_tests()
         gFailures += failed;
         report("card", failed == 0);
     }
+    testPause();
     re4_log("core-test: %d failed", gFailures);
     return gFailures;
 }

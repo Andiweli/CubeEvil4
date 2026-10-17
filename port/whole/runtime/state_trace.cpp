@@ -287,7 +287,7 @@ void frame(unsigned n)
         cMes.SetCursor(0, 0);
     }
     // the debug start menu (patch 0043) draws its lines with the debug text;
-    // the tool menu (L + START in the game, db_menu.cpp DbMenuExec) sets its
+    // the tool menu (SELECT held in the app, patch 0061; db_menu.cpp DbMenuExec) sets its
     // own page and puts the old one back when it closes (DBG_TEST_MODE)
     if (g_hideDebugHud && !DbgFlagChk(g, DBG_TEST_MODE)) {
         int page = re4_title_room_menu_open() ? 1 : 0;
