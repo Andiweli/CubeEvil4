@@ -24,6 +24,9 @@ com.ast.re4decomp.classic). Ist die fruehere App com.ast.re4decomp.core noch auf
 dem Retroid, kopiert das Skript einmal ihre importierten Discs und ihre
 Speicherkarte in die neue App (nur was dort fehlt; die fruehere App behaelt ihre
 Daten, bis du sie deinstallierst: adb uninstall com.ast.re4decomp.core).
+-NoCopy laesst das aus: ohne Disc 1 zeigt die App dann ihren Startbildschirm, und
+das Skript wartet wie unten beschrieben auf einen Import (Strg+C beendet es; ein
+zweiter Lauf mit -SkipCore -SkipApk ohne -NoCopy kopiert dann).
 
 Beim ersten Mal in der App "RE4 Kern" Disc 1 importieren (Startbildschirm der App,
 "Import Disc 1"; Disc 2 erst fuer spaetere Raeume). Fehlt der Import, startet das
@@ -162,6 +165,7 @@ param(
     [switch]$BlankCard,
     [switch]$SaveTest,
     [switch]$WeaponTrace,
+    [switch]$NoCopy,
     [ValidateSet('auto', 'armeabi-v7a', 'arm64-v8a')][string]$Abi = 'auto'
 )
 $ErrorActionPreference = 'Stop'
@@ -423,7 +427,10 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # keeps its own until it is uninstalled
     $oldGame = "/sdcard/Android/data/$oldPackage/files/game"
     $hasOld = ((& $Adb -s $Serial shell "[ -d $oldGame ] && echo yes") -join '').Trim() -eq 'yes'
-    if ($hasOld) {
+    if ($hasOld -and $NoCopy) {
+        Say "   Fruehere App $oldPackage gefunden; ihre Daten werden nicht uebernommen (-NoCopy)."
+    }
+    if ($hasOld -and -not $NoCopy) {
         # what the new app lacks: a complete disc (file system table and import record), the card
         $discCond = '[ -f OLD/$d/sys/fst.bin ] && [ -f OLD/$d/ready.properties ] && ' +
             '! { [ -f NEW/$d/sys/fst.bin ] && [ -f NEW/$d/ready.properties ]; }'

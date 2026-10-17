@@ -3398,7 +3398,8 @@ Daten noch nicht gelaufen).
   `Android/data/com.ast.re4decomp.core/files/game` die vollständigen
   Disc-Importe (`sys/fst.bin` und `ready.properties`, über einen
   Zwischenordner `.copy-discN`) und `memcard/card-a.bin`, jeweils nur, wenn
-  die neue App sie noch nicht hat. Die Einstellungen der App (Grafik,
+  die neue App sie noch nicht hat (`-NoCopy` lässt das aus, etwa um den
+  Startbildschirm ohne Discs zu sehen). Die Einstellungen der App (Grafik,
   Tastentausch) liegen im privaten Speicher und beginnen neu.
   `pull-gx-dumps.ps1` nutzt den neuen Namen.
 - **Startbildschirm** (nur zu sehen, solange Disc 1 fehlt; sonst startet das
