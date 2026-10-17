@@ -60,7 +60,8 @@ set_source_files_properties(hit_geometry.cpp leon_preview.cpp enemy_encounter.cp
 set_target_properties(re4_platform PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(re4_platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(re4_platform PRIVATE -Wall -Wextra -Werror -fno-fast-math)
-# Core mode (Gradle flavor "core", armeabi-v7a): the original game core
+# Core mode (Gradle flavor "core", armeabi-v7a and since milestone 12
+# arm64-v8a): the original game core
 # (port/whole) runs the game; core_mode.cpp/core_scene.cpp start it and draw
 # its state. The game core itself is built by port/tools/whole_build_android.sh
 # and packaged from app/src/core/jniLibs.
@@ -68,8 +69,8 @@ option(RE4_CORE_MODE "core mode: the original game core runs the game" OFF)
 set(RE4_CORE_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../whole/runtime")
 if(ANDROID)
     if(RE4_CORE_MODE)
-        if(NOT ANDROID_ABI STREQUAL "armeabi-v7a")
-            message(FATAL_ERROR "The core mode is armeabi-v7a only (the game core is 32-bit)")
+        if(NOT ANDROID_ABI STREQUAL "armeabi-v7a" AND NOT ANDROID_ABI STREQUAL "arm64-v8a")
+            message(FATAL_ERROR "The core mode is armeabi-v7a and arm64-v8a only")
         endif()
     elseif(NOT ANDROID_ABI STREQUAL "arm64-v8a")
         message(FATAL_ERROR "This port supports arm64-v8a only")

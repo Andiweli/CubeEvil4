@@ -117,6 +117,10 @@ final class CoreLog {
     b.append("ABIs:");
     for (String abi : Build.SUPPORTED_ABIS) b.append(' ').append(abi);
     b.append('\n');
+    // which of the APK's two cores runs (milestone 12)
+    if (Build.VERSION.SDK_INT >= 23) {
+      b.append("Process: ").append(android.os.Process.is64Bit() ? "64-bit" : "32-bit").append('\n');
+    }
     ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
     if (am != null) {
       ActivityManager.MemoryInfo m = new ActivityManager.MemoryInfo();
