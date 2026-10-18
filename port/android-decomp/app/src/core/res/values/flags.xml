@@ -2,5 +2,5 @@
     <!-- Core mode (armeabi-v7a, arm64-v8a): the original game core (port/whole) runs the
          whole game; the app imports the discs, draws, reads the controller. -->
     <bool name="core_mode">true</bool>
-    <string name="app_label">Resident Evil 4 Android</string>
+    <string name="app_label">CubeEvil4</string>
 </resources>

@@ -41,16 +41,17 @@ android {
         applicationId 'com.ast.re4decomp'
         minSdk 21
         targetSdk 35
-        versionCode 55
-        versionName '0.37.17-fix6'
+        versionCode 56
+        versionName '0.38.0'
         externalNativeBuild { cmake { cppFlags '-std=c++17 -Wall -Wextra' } }
     }
     // classic: the app's own game modules (arm64-v8a), as before; since
     //   17.10.2026 app id "com.ast.re4decomp.classic" (installable next to the core app).
     // core: the original game core (port/whole) runs the whole game
-    //   (armeabi-v7a and, since milestone 12, arm64-v8a in one APK; app id
-    //   "com.ast.re4decomp", until 17.10.2026 "com.ast.re4decomp.core";
-    //   decision of the project owner).
+    //   (armeabi-v7a and, since milestone 12, arm64-v8a in one APK). The app is called
+    //   "CubeEvil4", app id "com.ast.cubeevil4" since 18.10.2026 (until then
+    //   "com.ast.re4decomp", until 17.10.2026 "com.ast.re4decomp.core"; decisions of the
+    //   project owner). The Java package (namespace) stays com.ast.re4decomp.
     //   Before building it, run in WSL/Linux:
     //   port/tools/whole_build_android.sh  (copies the core libraries to
     //   src/core/jniLibs/<abi>; see port/docs/whole-program-status.md)
@@ -63,6 +64,7 @@ android {
         }
         core {
             dimension 'engine'
+            applicationId 'com.ast.cubeevil4'
             versionNameSuffix '-core'
             // the core's libraries load each other from the APK by name
             // (the module libraries at run time): Android 6.0 and later

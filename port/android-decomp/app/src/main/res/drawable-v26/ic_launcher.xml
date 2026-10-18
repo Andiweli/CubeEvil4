@@ -2,7 +2,7 @@
     <background android:drawable="@color/launcher_background" />
     <foreground>
         <inset android:inset="16.666667%">
-            <bitmap android:src="@drawable/icon_illuminati" android:gravity="fill" />
+            <bitmap android:src="@drawable/icon_cubeevil4" android:gravity="fill" />
         </inset>
     </foreground>
 </adaptive-icon>

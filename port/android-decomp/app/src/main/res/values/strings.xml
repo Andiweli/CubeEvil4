@@ -4,8 +4,9 @@
     <string name="test_title">Original texture · Graphics and controller test</string>
     <string name="swap_layout">Swap A/B and X/Y (alternate controller layout)</string>
     <string name="core_controls">Controls as on the GameCube: A, B, X, Y by their labels · left stick: control stick · right stick: C stick · D-pad · START · R2: R (ready weapon) · L2: L (knife) · R1: Z (map) · SELECT: menu (graphics, memory card, error log) · hold SELECT: the game\'s debug menu</string>
-    <string name="core_title">Resident Evil 4 Android</string>
+    <string name="core_title">CubeEvil4</string>
     <string name="core_author">By Andreas ‘Andiweli’ Stürmer</string>
+    <string name="core_notice">Requires your own game discs. Not affiliated with Capcom.</string>
     <string name="core_start">Start game</string>
     <string name="core_controls_heading">Controls</string>
     <string name="core_import_heading">Select ISO/GCM files of the November 25, 2004 debug build</string>

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Holt die Speicherbelegung der App "Resident Evil 4 Android" unter 4 GB vom Retroid
+Holt die Speicherbelegung der App "CubeEvil4" unter 4 GB vom Retroid
 (Meilenstein 12, 64 bit).
 
 .DESCRIPTION
@@ -22,7 +22,7 @@ param(
     [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'RE4-Kern-App')
 )
 $ErrorActionPreference = 'Stop'
-$package = 'com.ast.re4decomp'
+$package = 'com.ast.cubeevil4'  # until 18.10.2026 com.ast.re4decomp
 if (-not $Adb) {
     $Adb = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'
     if (-not (Test-Path -LiteralPath $Adb)) { $Adb = 'adb' }

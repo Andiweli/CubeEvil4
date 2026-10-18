@@ -27,7 +27,9 @@
 Ziel: das komplette Originalspiel nativ auf Android, mit dem Originalcode aus `src/`.
 
 **Endprodukt (Entscheidung des Projektinhabers, 14.10.2026):** die App
-**RE4-Android-Decomp** in `port/android-decomp/` (Android Studio 2025,
+**RE4-Android-Decomp** in `port/android-decomp/` (seit 18.10.2026 heißt die App
+**CubeEvil4**, Paketname `com.ast.cubeevil4`, eigenes Symbol statt der Capcom-Grafik;
+Entscheidung des Projektinhabers, weil „Resident Evil“ eine Marke ist) (Android Studio 2025,
 Gradle-Projekt der App; per Subtree-Merge aus dem Branch `re4-standalone`
 übernommen, der Branch selbst bleibt als Vergleichsstand unverändert). Der
 Original-Spielkern aus dem Ganzprogramm-Build (`port/whole/`) übernimmt dort

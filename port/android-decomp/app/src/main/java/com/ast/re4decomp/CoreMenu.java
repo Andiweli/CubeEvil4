@@ -175,7 +175,7 @@ final class CoreMenu extends Dialog {
   }
 
   private void build() {
-    TextView title = text("Resident Evil 4 Options", 22, true);
+    TextView title = text("CubeEvil4 Options", 22, true);
     title.setGravity(Gravity.CENTER_HORIZONTAL);
     body.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.WRAP_CONTENT));

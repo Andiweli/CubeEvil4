@@ -4045,6 +4045,31 @@ alles, Stage 1-1 lief problemlos“ (kein Bericht mitgeschickt). Noch offen: Kon
 32 bit (`-Abi armeabi-v7a`); Speichern/Laden auf dem Gerät mit 64 bit ausdrücklich
 bestätigen. Der Release-Bau (`coreRelease`, signiert) ist noch nie gebaut worden.
 
+**Tester (18.10.2026):** „Beim Tester läuft alles soweit.“ Sein Rat: ein anderer App-Name
+wegen der Marke „Resident Evil“.
+
+**Neuer Name (Entscheidung des Projektinhabers, 18.10.2026): CubeEvil4, Paketname
+`com.ast.cubeevil4`, eigenes Symbol.**
+- App-Name unter dem Symbol, Titel des Startbildschirms, Überschrift des App-Menüs
+  („CubeEvil4 Options“), Name der Fehlerbericht-Datei (`cubeevil4-report-….zip`); unter dem
+  Titel der Hinweis „Requires your own game discs. Not affiliated with Capcom.“ Die Texte
+  des Spiels selbst (von der Disc) bleiben, wie sie sind.
+- Paketname nur der Variante `core` (`applicationId 'com.ast.cubeevil4'`); das Java-Paket
+  (`namespace`, die Klassen und ihre JNI-Namen) bleibt `com.ast.re4decomp`, die Variante
+  `classic` bleibt `com.ast.re4decomp.classic`. Version 0.38.0 (versionCode 56).
+- Symbol: eigene Zeichnung (`port/android-decomp/docs/icon/`): ein Drahtgitter-Würfel mit
+  Flügeln, Seitenhaken, Spitze und langer Klinge im Stil des Kult-Zeichens, auf rotem
+  Grund; ersetzt das Zeichen der Los Illuminados (`icon_illuminati.jpg`, Capcom-Grafik,
+  entfernt). Das Android-TV-Banner (vorher ein Vektorbild mit „R4“) zeigt jetzt Symbol und
+  Namen.
+- Android sieht `com.ast.cubeevil4` als neue App: die bisherige (`com.ast.re4decomp`) bleibt
+  mit ihren Daten installiert. `test-core-app.ps1` kopiert beim ersten Lauf ihre Discs und
+  ihre Speicherkarte einmal in die neue App (wie zuvor von `com.ast.re4decomp.core`); Tester
+  exportieren ihre Spielstände vorher im App-Menü als `.gci` und importieren die Discs neu.
+  `pull-gx-dumps.ps1` und `pull-address-map.ps1` nutzen den neuen Paketnamen.
+- Getestet: XML-Dateien wohlgeformt, Java-Tests der App (`tools/test_host.sh`); der Bau der
+  APK und das Gerät noch nicht (kein Android-SDK in der Cloud).
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)

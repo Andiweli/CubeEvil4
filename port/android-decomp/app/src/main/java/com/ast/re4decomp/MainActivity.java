@@ -38,6 +38,8 @@ public final class MainActivity extends Activity implements ImportManager.Listen
       // Start game, then the controls and the disc import, each under a centred heading between lines
       centered(body, getString(R.string.core_title), 28, true, 0);
       centered(body, getString(R.string.core_author), 15, false, dp(4));
+      // under the name (CubeEvil4 since 18.10.2026): own discs needed, not the original's maker
+      centered(body, getString(R.string.core_notice), 12, false, dp(2));
       line(body, dp(10));
       start = button(body, getString(R.string.core_start), this::startOriginalTitle);
       heading(body, getString(R.string.core_controls_heading));

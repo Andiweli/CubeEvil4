@@ -13,22 +13,21 @@ Drei Schritte, jeder einzeln abschaltbar:
   2. Windows: die App-Variante "core" bauen (gradlew.bat :app:assembleCoreDebug,
      mit dem Android-SDK von Android Studio).
   3. Retroid per ADB, unter der gemeinsamen Sperre Global\Retroid_ADB_Exclusive
-     (port/docs/adb-coordination.md): APK installieren (App "Resident Evil 4 Android",
-     com.ast.re4decomp), starten, mehrere Bildschirmfotos aufnehmen, das
+     (port/docs/adb-coordination.md): APK installieren (App "CubeEvil4",
+     com.ast.cubeevil4), starten, mehrere Bildschirmfotos aufnehmen, das
      Protokoll der App holen, App beenden.
 
-Paketname seit 17.10.2026 com.ast.re4decomp (vorher com.ast.re4decomp.core;
-Entscheidung des Projektinhabers). Die Installation ersetzt die bisherige App
-"RE4 Decomp" mit diesem Namen (deren eigene Spielmodule heissen jetzt
-com.ast.re4decomp.classic). Ist die fruehere App com.ast.re4decomp.core (Symbol
-"RE4 Kern") noch auf dem Retroid, kopiert das Skript einmal ihre importierten Discs und ihre
-Speicherkarte in die neue App (nur was dort fehlt; die fruehere App behaelt ihre
-Daten, bis du sie deinstallierst: adb uninstall com.ast.re4decomp.core).
+App-Name "CubeEvil4" und Paketname com.ast.cubeevil4 seit 18.10.2026 (Entscheidung des
+Projektinhabers; vorher "Resident Evil 4 Android", com.ast.re4decomp, bis 17.10.2026
+"RE4 Kern", com.ast.re4decomp.core). Ist eine dieser frueheren Apps noch auf dem Retroid,
+kopiert das Skript einmal ihre importierten Discs und ihre Speicherkarte in die neue App
+(nur was dort fehlt; die fruehere App behaelt ihre Daten, bis du sie deinstallierst:
+adb uninstall com.ast.re4decomp bzw. com.ast.re4decomp.core).
 -NoCopy laesst das aus: ohne beide Discs zeigt die App dann ihren Startbildschirm, und
 das Skript wartet wie unten beschrieben auf einen Import (Strg+C beendet es; ein
 zweiter Lauf mit -SkipCore -SkipApk ohne -NoCopy kopiert dann).
 
-Beim ersten Mal in der App "Resident Evil 4 Android" beide Discs importieren (Startbildschirm der
+Beim ersten Mal in der App "CubeEvil4" beide Discs importieren (Startbildschirm der
 App, "Import Disc 1" und "Import Disc 2"; seit 17.10.2026 startet das Spiel erst mit beiden,
 Entscheidung des Projektinhabers). Fehlt ein Import, startet das
 Skript die App, bittet darum und wartet bis zu -ImportMinutes Minuten (Standard 45),
@@ -66,7 +65,7 @@ Die Bilder des Kerns folgen dem Bildschirmtakt (60 Hz), damit Filme nicht ruckel
 (Standard, der sichtbare 16:9-Teil entspricht etwa 720p), 3 = 1920x1344 (etwa 1080p),
 4 = 2560x1792.
 Speicherkarte (Meilenstein 10): Steckplatz A ist eine Datei im Speicher der App
-(Android/data/com.ast.re4decomp/files/game/memcard/card-a.bin, 2 MB wie eine
+(Android/data/com.ast.cubeevil4/files/game/memcard/card-a.bin, 2 MB wie eine
 Memory Card 251); der Start prueft sie wie der GameCube (Karte lesen, Systemdatei mit den Optionen).
 Gespeichert wird an der Schreibmaschine, geladen im Titel ("Load"). Die Optionen (Helligkeit,
 Steuerung, Ton) stehen in der Systemdatei; das Spiel schreibt sie wie auf dem GameCube nur
@@ -174,9 +173,12 @@ $ErrorActionPreference = 'Stop'
 if ($Manual -and -not $PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 1800 }
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $app = Join-Path $repo 'port\android-decomp'
-$package = 'com.ast.re4decomp'
-# the core app's id until 17.10.2026: its discs and memory card move over once (see below)
-$oldPackage = 'com.ast.re4decomp.core'
+$package = 'com.ast.cubeevil4'
+# the core app's ids before (until 18.10.2026 com.ast.re4decomp, until 17.10.2026
+# com.ast.re4decomp.core): their discs and memory card move over once (see below); the
+# activities keep their Java package com.ast.re4decomp
+$oldPackages = @('com.ast.re4decomp', 'com.ast.re4decomp.core')
+$activity = "$package/com.ast.re4decomp.MainActivity"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $report = Join-Path $OutDir 'bericht.txt'
 Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue
@@ -409,10 +411,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     $installOut | ForEach-Object { Say "   $_" }
     if (($installOut -join "`n") -match 'INSTALL_FAILED_UPDATE_INCOMPATIBLE') {
         throw ("Auf dem Retroid ist schon eine App $package mit einem anderen Signierschluessel " +
-            "(meist die bisherige App 'RE4 Decomp' von einem anderen Rechner). Sie muss einmal weg: " +
-            "& '$Adb' -s $Serial uninstall $package   (loescht auch ihre Daten; die Discs und " +
-            "Spielstaende der frueheren App 'RE4 Kern' ($oldPackage) bleiben und werden danach uebernommen). " +
-            "Dann dieses Skript mit -SkipCore -SkipApk erneut starten.")
+            "(z. B. die signierte Release-APK oder ein Bau von einem anderen Rechner). Sie muss einmal weg: " +
+            "& '$Adb' -s $Serial uninstall $package   (loescht auch ihre Daten; Speicherstaende vorher im " +
+            "App-Menue als .gci exportieren). Dann dieses Skript mit -SkipCore -SkipApk erneut starten.")
     }
     if ($installCode -ne 0) { throw 'Installation fehlgeschlagen.' }
     $info = (& $Adb -s $Serial shell dumpsys package $package) -join "`n"
@@ -422,41 +423,43 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # The import runs inside the app (several minutes per disc): the test waits for it instead of
     # stopping the app, because stopping it cancels the import.
     $game = "/sdcard/Android/data/$package/files/game"
-    # the core app until 17.10.2026 ($oldPackage): its complete disc imports and its memory card
+    # the earlier core apps ($oldPackages): their complete disc imports and their memory card
     # are copied once into the new app's folder, each only where the new one lacks it (a disc
     # first into a temporary folder, so a broken copy never passes for an import); the old app
     # keeps its own until it is uninstalled
-    $oldGame = "/sdcard/Android/data/$oldPackage/files/game"
-    $hasOld = ((& $Adb -s $Serial shell "[ -d $oldGame ] && echo yes") -join '').Trim() -eq 'yes'
-    if ($hasOld -and $NoCopy) {
-        Say "   Fruehere App $oldPackage gefunden; ihre Daten werden nicht uebernommen (-NoCopy)."
-    }
-    if ($hasOld -and -not $NoCopy) {
-        # what the new app lacks: a complete disc (file system table and import record), the card
-        $discCond = '[ -f OLD/$d/sys/fst.bin ] && [ -f OLD/$d/ready.properties ] && ' +
-            '! { [ -f NEW/$d/sys/fst.bin ] && [ -f NEW/$d/ready.properties ]; }'
-        $cardCond = '[ -f OLD/memcard/card-a.bin ] && [ ! -f NEW/memcard/card-a.bin ]'
-        $check = "for d in disc1 disc2; do if $discCond; then echo need-`$d; fi; done; " +
-            "if $cardCond; then echo need-card; fi"
-        $copy = "mkdir -p NEW; for d in disc1 disc2; do if $discCond; then " +
-            'rm -rf NEW/.copy-$d && cp -r OLD/$d NEW/.copy-$d && rm -rf NEW/$d && ' +
-            'mv NEW/.copy-$d NEW/$d && echo copied-$d || { rm -rf NEW/.copy-$d; echo failed-$d; }; fi; done; ' +
-            "if $cardCond; then " +
-            'mkdir -p NEW/memcard && cp OLD/memcard/card-a.bin NEW/memcard/card-a.bin && ' +
-            'echo copied-card || echo failed-card; fi'
-        $check = $check.Replace('OLD', $oldGame).Replace('NEW', $game)
-        $copy = $copy.Replace('OLD', $oldGame).Replace('NEW', $game)
-        $needed = ((& $Adb -s $Serial shell $check) -join ' ').Trim()
-        if ($needed) {
-            Say "   Fruehere App $oldPackage gefunden: ihre Discs und Speicherkarte werden uebernommen (dauert einige Minuten) ..."
-            $result = ((& $Adb -s $Serial shell $copy) -join ' ').Trim()
-            foreach ($item in @('disc1', 'disc2', 'card')) {
-                $name = if ($item -eq 'card') { 'Speicherkarte A' } else { "Disc $($item.Substring(4))" }
-                if ($result -match "copied-$item") { Say "   $name uebernommen." }
-                elseif ($result -match "failed-$item") { Say "   $name konnte NICHT kopiert werden (Speicherplatz?); bitte in der App neu importieren." }
-            }
+    foreach ($oldPackage in $oldPackages) {
+        $oldGame = "/sdcard/Android/data/$oldPackage/files/game"
+        $hasOld = ((& $Adb -s $Serial shell "[ -d $oldGame ] && echo yes") -join '').Trim() -eq 'yes'
+        if ($hasOld -and $NoCopy) {
+            Say "   Fruehere App $oldPackage gefunden; ihre Daten werden nicht uebernommen (-NoCopy)."
         }
-        Say "   Die fruehere App $oldPackage kann weg, sobald hier alles laeuft: & '$Adb' -s $Serial uninstall $oldPackage"
+        if ($hasOld -and -not $NoCopy) {
+            # what the new app lacks: a complete disc (file system table and import record), the card
+            $discCond = '[ -f OLD/$d/sys/fst.bin ] && [ -f OLD/$d/ready.properties ] && ' +
+                '! { [ -f NEW/$d/sys/fst.bin ] && [ -f NEW/$d/ready.properties ]; }'
+            $cardCond = '[ -f OLD/memcard/card-a.bin ] && [ ! -f NEW/memcard/card-a.bin ]'
+            $check = "for d in disc1 disc2; do if $discCond; then echo need-`$d; fi; done; " +
+                "if $cardCond; then echo need-card; fi"
+            $copy = "mkdir -p NEW; for d in disc1 disc2; do if $discCond; then " +
+                'rm -rf NEW/.copy-$d && cp -r OLD/$d NEW/.copy-$d && rm -rf NEW/$d && ' +
+                'mv NEW/.copy-$d NEW/$d && echo copied-$d || { rm -rf NEW/.copy-$d; echo failed-$d; }; fi; done; ' +
+                "if $cardCond; then " +
+                'mkdir -p NEW/memcard && cp OLD/memcard/card-a.bin NEW/memcard/card-a.bin && ' +
+                'echo copied-card || echo failed-card; fi'
+            $check = $check.Replace('OLD', $oldGame).Replace('NEW', $game)
+            $copy = $copy.Replace('OLD', $oldGame).Replace('NEW', $game)
+            $needed = ((& $Adb -s $Serial shell $check) -join ' ').Trim()
+            if ($needed) {
+                Say "   Fruehere App $oldPackage gefunden: ihre Discs und Speicherkarte werden uebernommen (dauert einige Minuten) ..."
+                $result = ((& $Adb -s $Serial shell $copy) -join ' ').Trim()
+                foreach ($item in @('disc1', 'disc2', 'card')) {
+                    $name = if ($item -eq 'card') { 'Speicherkarte A' } else { "Disc $($item.Substring(4))" }
+                    if ($result -match "copied-$item") { Say "   $name uebernommen." }
+                    elseif ($result -match "failed-$item") { Say "   $name konnte NICHT kopiert werden (Speicherplatz?); bitte in der App neu importieren." }
+                }
+            }
+            Say "   Die fruehere App $oldPackage kann weg, sobald hier alles laeuft: & '$Adb' -s $Serial uninstall $oldPackage"
+        }
     }
     function Get-ImportState {
         $out = (& $Adb -s $Serial shell "cd $game 2>/dev/null && ls -d disc1/sys/fst.bin disc1/ready.properties disc2/sys/fst.bin disc2/ready.properties .incoming .work-disc1 .work-disc2 2>/dev/null; du -sm .incoming .work-disc1 .work-disc2 2>/dev/null") -join "`n"
@@ -477,8 +480,8 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         # the installation above ended any running import; the app clears what it left behind
         # (DiscInstaller.recover) when it starts
         & $Adb -s $Serial shell input keyevent KEYCODE_WAKEUP
-        & $Adb -s $Serial shell am start -n "$package/com.ast.re4decomp.MainActivity" | Out-Null
-        Say "   In der App `"Resident Evil 4 Android`" fehlt $(if ($state.Missing) { $state.Missing } else { 'nichts' }) (oder ein Import laeuft noch)."
+        & $Adb -s $Serial shell am start -n $activity | Out-Null
+        Say "   In der App `"CubeEvil4`" fehlt $(if ($state.Missing) { $state.Missing } else { 'nichts' }) (oder ein Import laeuft noch)."
         Say '   Bitte jetzt auf dem Retroid in der App "Import Disc 1" bzw. "Import Disc 2" waehlen und die Datei (.gcm/.iso) aussuchen.'
         Say '   Das Spiel startet erst mit beiden Discs. Das Skript wartet und beendet die App waehrenddessen NICHT.'
         Say "   Wartezeit hoechstens $ImportMinutes Minuten; Abbruch mit Strg+C."
@@ -524,7 +527,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         }
     }
     & $Adb -s $Serial shell input keyevent KEYCODE_WAKEUP
-    $start = "am start -n $package/com.ast.re4decomp.MainActivity"
+    $start = "am start -n $activity"
     if ($settings) { $start += " --es coreSettings '$settings'" }
     & $Adb -s $Serial shell $start | ForEach-Object { Say "   $_" }
     Say "   gestartet ($(if ($Manual) { 'Titelbild, du steuerst' } else { "Debug-Start r$StartRoom mit Test-Tastenfolge" })), bis $Seconds s Beobachtung"

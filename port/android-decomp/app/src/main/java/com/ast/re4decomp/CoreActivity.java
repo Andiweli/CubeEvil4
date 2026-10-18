@@ -508,7 +508,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   }
 
   private String reportName() {
-    return "re4-report-" + new SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(new Date()) + ".zip";
+    return "cubeevil4-report-" + new SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(new Date()) + ".zip";
   }
 
   /** The card's file list (without the saves themselves) for the report. */
