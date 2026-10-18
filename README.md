@@ -216,6 +216,18 @@ purpose. Constants use the PS2 build's enums. `docs/naming.md` has the details.
 See `CONTRIBUTING.md` for the build, the three checks a change has to pass and the rules. The main rule
 is that the output bytes never change.
 
+## Support
+
+Further support is available on [Discord](https://discord.gg/AB3WVBqD5G).
+
+If you enjoy this project and would like to support my work, you can make a small contribution via PayPal.
+
+Your support helps me spend more time maintaining existing projects, fixing bugs, improving compatibility, and working on new features.
+
+[![Support via PayPal](https://img.shields.io/badge/Support%20via-PayPal-0070BA?logo=paypal&logoColor=white)](https://paypal.me/andiweli)
+
+Thank you for your support!
+
 ## Legal
 
 CubeEvil4 is an unofficial fan project, not affiliated with or endorsed by Capcom, Nintendo or CRI
