@@ -12,6 +12,7 @@
 #include "esp.h"
 #include "at_sub.h"
 #include "cam_extra.h"
+#include "obj.h"
 
 #include <new>
 #include <stdlib.h>
@@ -99,6 +100,41 @@ extern "C" int re4probe_debug_mode(int set)
         pG->debug_mode = (s8) set;
     }
     return pG->debug_mode;
+}
+
+// The state trace after a soft reset (state_trace.cpp inArray): ObjMgr's alive list as the
+// title found it there, two works of the manager's array and then a next pointer into memory the
+// title used again (PC check 18.10.2026: the trace followed it and crashed). set 1 puts the list
+// in place (step 3, so the trace counts the works), 0 puts ObjMgr and the step back.
+extern "C" void re4probe_stale_list(int set)
+{
+    static u8 works[2 * 0x400] __attribute__((aligned(16)));
+    static cObj* array;
+    static u32 n, size;
+    static cObj* alive;
+    static u8 step;
+    static_assert(sizeof(cUnit) <= 0x400, "the fake works hold a cUnit each");
+    if (set) {
+        array = ObjMgr.pArray;
+        n = ObjMgr.nArray;
+        size = ObjMgr.size;
+        alive = ObjMgr.pAlive;
+        step = pG->Rno0;
+        memset(works, 0, sizeof(works));
+        ((cUnit*) works)->setNext((cUnit*) (works + 0x400));
+        ((cUnit*) (works + 0x400))->setNext((cUnit*) (unsigned long) 0xC7D14C2Bul);
+        ObjMgr.pArray = (cObj*) works;
+        ObjMgr.nArray = 2;
+        ObjMgr.size = 0x400;
+        ObjMgr.pAlive = (cObj*) works;
+        pG->Rno0 = 3;
+    } else {
+        ObjMgr.pArray = array;
+        ObjMgr.nArray = n;
+        ObjMgr.size = size;
+        ObjMgr.pAlive = alive;
+        pG->Rno0 = step;
+    }
 }
 
 extern "C" int re4probe_byte_views(void)

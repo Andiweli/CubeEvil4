@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Test of port/tools/trace_compare.py with synthetic state traces (no disc data): identical
 runs, float noise within the tolerance, a run that parts at a known frame (random generator,
-GP counts, an enemy, a position beyond the tolerance), a run that ends early and one with
-allocations that found no room. Exit code 0 when every case is judged as expected.
+GP counts, an enemy, a position beyond the tolerance), a run that ends early, one with
+allocations that found no room, and one that parts only at the boot (the sections of the run). Exit code 0 when every case is judged as expected.
 
     port/tools/test_trace_compare.py
 """
@@ -18,8 +18,8 @@ HERE = Path(__file__).resolve().parent
 TOOL = HERE / "trace_compare.py"
 
 
-def frame(n, rnd=None, gx=None, em_hp=500, pos=None, hf=0):
-    rec = {"frame": n, "Rno0": 3, "room": "0x100", "pl": pos or [1000.0 + n, 860.0, -38480.0 + n * 0.5],
+def frame(n, rnd=None, gx=None, em_hp=500, pos=None, hf=0, step=3):
+    rec = {"frame": n, "Rno0": step, "room": "0x100", "pl": pos or [1000.0 + n, 860.0, -38480.0 + n * 0.5],
            "cam": {"eye": [0.0, 1000.0, 2000.0 + n], "at": [0.0, 0.0, 0.0], "fov": 50.0, "sw": "C", "r0": 10,
                    "ctrl": [1.0, 2.0, 3.0]},
            "em": [{"slot": 1, "id": "0x12", "r": [1, 11, 0, 0], "hp": em_hp, "pos": [5.0, 6.0, 7.0 + n]}],
@@ -84,7 +84,22 @@ def main():
     write(tmp / "heap.jsonl", [frame(n, hf=3 if n >= 120 else 0) for n in range(300)])
     cases.append(("Speicheranforderungen ohne Platz", "heap", 1, None))
 
+    # boot (step 0) parts in its GP counts, the room (step 3) does not: the sections tell them apart
+    boot = [frame(n, step=0) if n < 100 else frame(n) for n in range(300)]
+    write(tmp / "boot-a.jsonl", boot)
+    write(tmp / "boot-b.jsonl", [frame(n, step=0, gx=[901, 250, 7000, 30, 400, 600, 90, 12000, 1, 2, 3, 0])
+                                 if n < 100 else frame(n) for n in range(300)])
+
     bad = 0
+    code, out = run(tmp / "boot-a.jsonl", tmp / "boot-b.jsonl", ["--json", str(tmp / "boot.json")])
+    got = json.loads((tmp / "boot.json").read_text())
+    secs = [(x["step"], x["from"], x["to"], x["first"]) for x in got.get("sections", [])]
+    ok = (code == 1 and got.get("first") == 0 and got.get("counts", {}).get("GX-Kennzahlen") == 100 and
+          secs == [(0, 0, 99, 0), (3, 100, 299, None)])
+    bad += not ok
+    print(f"{'ok' if ok else 'FEHLER'}: GX nur beim Start verschieden, Raum gleich (Abschnitte {secs})")
+    if not ok:
+        print("  " + out.replace("\n", "\n  "))
     for title, name, want_code, want_frame in cases:
         code, out = run(tmp / "a.jsonl", tmp / f"{name}.jsonl", ["--json", str(tmp / f"{name}.json")])
         got = json.loads((tmp / f"{name}.json").read_text()).get("first")
@@ -93,7 +108,7 @@ def main():
         print(f"{'ok' if ok else 'FEHLER'}: {title} (Exit {code}, erstes Bild {got})")
         if not ok:
             print("  " + out.replace("\n", "\n  "))
-    print(f"trace_compare: {len(cases) - bad} von {len(cases)} Fällen richtig beurteilt")
+    print(f"trace_compare: {len(cases) + 1 - bad} von {len(cases) + 1} Fällen richtig beurteilt")
     return 1 if bad else 0
 
 

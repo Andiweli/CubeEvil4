@@ -317,7 +317,11 @@ set_game_env() {
         RE4_PAD_FREE_SCRIPT="$free_script" RE4_TEST_PLACE="$place" RE4_STOP_AFTER="$frames"
         RE4_GX_DUMP_FREE="$map_dump" RE4_TEST_SOFT_RESET="free+$soft_reset")
     if [ "$compare" -eq 1 ]; then
-        GAME_ENV+=(LD_PRELOAD="$src/port/build/whole-$1$opt/libre4_detmath.so")
+        # the debug build's own displays off, as in the app: its process time bars print the
+        # time each part of the frame took (debug.cpp processBarDisp, OSGetTick), so their digits,
+        # and with them the GP counts, depend on how fast the computer was (first compare run
+        # 18.10.2026: 2 draws more on i686 in frame 2)
+        GAME_ENV+=(LD_PRELOAD="$src/port/build/whole-$1$opt/libre4_detmath.so" RE4_DEBUG_HUD=0)
     fi
 }
 
@@ -1281,7 +1285,8 @@ run_compare() {
     done
     section "9. Vergleichslauf 32/64 bit: i686 gegen x86_64, gleiche Tastenfolge, Start r$room, $frames Bilder"
     say "  (Gleitkomma beider über SSE; die float-Funktionen der C-Bibliothek über ihre double-Fassung,"
-    say "  libre4_detmath.so; Positionen bis 1 Einheit toleriert)"
+    say "  libre4_detmath.so; Debug-Anzeige des Spiels aus wie in der App, RE4_DEBUG_HUD=0: ihre"
+    say "  Zeitbalken messen echte Zeit; Positionen bis 1 Einheit toleriert)"
     python3 "$src/port/tools/trace_compare.py" "$run/trace-i686.jsonl.gz" "$run/trace-x86_64.jsonl.gz" \
         --names i686,x86_64 --json "$run/vergleich.json" 2>&1 | tee -a "$report"
     code=${PIPESTATUS[0]}
@@ -1291,7 +1296,7 @@ run_compare() {
     if [ -z "$first" ]; then
         return
     fi
-    say "GX-Bilder am ersten Unterschied (Bilder $first), je ein kurzer Lauf bis dorthin:"
+    say "GX-Bilder am ersten Unterschied (und am ersten im Raum, Schritt 3; Bilder $first), je ein kurzer Lauf bis dorthin:"
     local last=${first##*,} pics="$run/bilder-vergleich" tool_build="$src/port/build/app-host-gl"
     mkdir -p "$pics"
     if ! cmake -S "$src/port/android-decomp/app/src/main/cpp" -B "$tool_build" -G Ninja \

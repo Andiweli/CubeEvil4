@@ -897,6 +897,7 @@ int re4probe_camera_double_delete(void);
 unsigned re4probe_cast_u8(float f);
 int re4probe_cast_s16(float f);
 int re4probe_debug_mode(int set);
+void re4probe_stale_list(int set);
 }
 
 static unsigned bitsOf(float f)
@@ -1141,6 +1142,35 @@ static void testTrace()
         lines++;
         CHECK(strncmp(line, "{\"frame\":", 9) == 0 && strstr(line, "\"Rno0\":") && strstr(line, "\"room\":\"0x") &&
               strstr(line, "\"em\":[") && line[strlen(line) - 2] == '}');
+    }
+    if (f) {
+        fclose(f);
+    }
+    CHECK(lines == 2);
+    unlink(path);
+    // after a soft reset (step 0 again) the trace leaves the managers alone, and in a room it
+    // walks an alive list only through works of the manager's own array: two works, then a
+    // next pointer into reused memory (PC check 18.10.2026, crash at the title's demo movie)
+    f = fopen(path, "w");
+    if (f) {
+        fclose(f);
+    }
+    CHECK(re4_state_trace_open(path) == 1);
+    PADRead(pads);
+    re4probe_stale_list(1);
+    PADRead(pads);
+    re4probe_stale_list(0);
+    re4_state_trace_open(0);
+    f = fopen(path, "r");
+    lines = 0;
+    while (f && fgets(line, sizeof(line), f)) {
+        lines++;
+        const char* works = strstr(line, "\"n\":[");
+        if (strstr(line, "\"Rno0\":0,")) {
+            CHECK(works == 0 && !strstr(line, "\"plr\":") && !strstr(line, "\"evt\":"));
+        } else {
+            CHECK(strstr(line, "\"Rno0\":3,") && works && strncmp(works + 5, "2,", 2) == 0);
+        }
     }
     if (f) {
         fclose(f);

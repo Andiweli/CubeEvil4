@@ -3913,6 +3913,50 @@ Fund. **Nicht getestet:** Android-Bau (kein NDK in der Cloud), Vergleichslauf un
 `-Lp64` mit Disc-Daten, Speichern auf 64 bit nach der Regel (Ursache bestätigt), Patch 0082 im
 Spiel (r20d, r20e, r21d, Szenen-Treffer, Kamera-Ziel), Gerät.
 
+**PC-Prüfung 15:50–15:56 (Stand `7afb2d0`, -O2, Disc-Daten): drei Läufe, Auswertung:**
+- `-Compare` (Start r120), `-Lp64` (r100, x86_64) und 32 bit (r100, i686): Build, alle
+  Prüfungen ohne Disc-Daten, Filmvergleich 250/250 ✅; Formatvergleich 408 Dateien ✅,
+  alle Filme beider Discs ✅ (beide r100-Läufe).
+- **Speicherkarte auf 64 bit: ✅** Systemdatei angelegt, Datei 1 gespeichert, Neustart,
+  Optionen und Spielstand geladen, r100 läuft (auch nach „Retry“); 32 bit ebenso. Die
+  Regel für das Budget des Speicherbildschirms (Einheiten-Vorrat) ist damit bestätigt.
+- **Absturz in allen vier Spielläufen**, immer nach dem Soft-Reset im Titel beim Vorfilm
+  `demo0.sfd` (i686 und x86_64, r100 und r120). **Ursache: der Zustands-Trace, nicht das
+  Spiel** (Werkzeug: die O2-Bauten desselben Stands in der Cloud, `addr2line`/`objdump`):
+  die Absturzstelle liegt in `state_trace.cpp` `frame()`, in der Schleife von
+  `aliveCount` (neu mit dem Vergleichslauf, Commit `9863875`); die Fehladresse ist das
+  Register + 8 (i686) bzw. ein Unsinn-Zeiger (x86_64), genau der Lesezugriff auf
+  `cUnit::next`. Nach dem Soft-Reset läuft der Titel mit den Managern des letzten Raums,
+  deren Felder mit den Heaps zurückgegeben sind; der Vorfilm lädt in diesen Speicher, und
+  die Schleife folgte einem Zeiger aus den Filmdaten. Der Stand `6a799f4` (ohne diese
+  Schleife) lief dieselbe Stelle ohne Absturz.
+  - Behoben (`runtime/state_trace.cpp`): die Listen werden nur über Werke des eigenen
+    Feldes des Managers verfolgt (`inArray`: Adresse im Feld, auf Werk-Grenze), und
+    `plr`, `n` und `evt` kommen erst ab Spielschritt 1 in den Trace (in Schritt 0 sind
+    Spieler und Manager Reste des letzten Raums).
+  - Test (`--runtime-test` trace, neu, `tests/game_probe.cpp re4probe_stale_list`): eine
+    Liste aus zwei Werken des Feldes und dahinter dem Zeiger 0xC7D14C2B; die alte
+    Schleife stürzt im Test genau wie im Bericht ab (Fehladresse 0xc7d14c33), die neue
+    zählt 2. Im Schritt 0 stehen `plr`, `n`, `evt` nicht im Trace.
+- **Vergleichslauf: bis zum Absturz unterscheidet sich nur die Gruppe GX-Kennzahlen**
+  (6637 gemeinsame Bilder: Zufall, Spieler, Gegner, Werke, Ereignisse, Positionen, Kamera,
+  Tonspuren und Raum-Flags in jedem Bild gleich, durch Vorfilm, Polizeifahrt, r100 und
+  den Soft-Reset). Erste Abweichung Bild 2 (Start): 2 Zeichenaufträge, 2 Befehle und 8
+  Ecken mehr auf i686. Ursache (im Code belegt, mit dem nächsten Lauf zu bestätigen):
+  die Debug-Anzeige des Debug-Builds; ihre Zeitbalken (`debug.cpp` `processBarDisp`)
+  schreiben die mit `OSGetTick` gemessene Zeit jedes Teils des Bildes als Zahlen
+  (`%4.0f`, `%5.0f`), also je nach Tempo des Rechners mehr oder weniger Ziffern (je
+  Ziffer ein Viereck); die Heap-Zahlen der Anzeige sind auf 64 bit ohnehin andere.
+  - Geändert: der Vergleichslauf startet beide Seiten mit `RE4_DEBUG_HUD=0` (wie die
+    App); `trace_compare.py` zeigt jetzt je Gruppe, in wie vielen Bildern sie abweicht,
+    und jeden Abschnitt des Laufs (Raum, Spielschritt) mit seiner ersten Abweichung; GX-
+    Bilder auch an der ersten Abweichung in einem Raum (Schritt 3). Selbsttest 9 von 9
+    (neu: Abweichung nur beim Start, Raum gleich), läuft jetzt in `whole_build.sh`.
+- Die GX-Bilder der beiden r100-Läufe haben gleich viele Zeichenaufträge, die Dreiecke
+  weichen um 2–50 ab (z. B. Bild 652: 78779 / 78783, Karte 3244: 4286 / 4328); das passt
+  zur Textanzeige des Debug-Builds (2 Dreiecke je Zeichen), ist aber erst mit dem
+  Vergleichslauf ohne Debug-Anzeige entschieden.
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
@@ -4101,7 +4145,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0078 `motion.cpp`, `r320.cpp` | 64 bit (M12): GameCube-Abstände in Summen mit Variablen. `MOT_HIST` (Schlüssel-Verlauf der Wurzel für `MotionGetSpeed` und `MotionGetPosition`) über `RE4_OFS(MOTION_INFO, Key_hist, 8)`: vorher schrieb `HermiteInterpolation` auf LP64 in die obere Hälfte von `pHermite_data` (Absturz des ersten Ganados in r100, Gerät und PC-Prüfung; gefunden mit einem Hardware-Haltepunkt, `runtime/watch.cpp`). `R320_EM_OFS` über `RE4_OFS(R320Work, em, 0xC)` |
 | 0079 `cam_extra.cpp` | 64 bit (M12): die Kamera beim Öffnen einer Tür liest die z-Spalte von `FREE_EMDOOR::base_mat` über den Namen statt als `((f32*) em)[0x784 / 4]`. Gefunden mit `raw_offset_check.py --words` |
 | 0080 `include/trans.h` | 64 bit (M12): `ModelTexInfo`, die Sicht des Zeichners auf `cModelInfo` ab `flagsDC` (`MODEL_TEX`), legt jedes Glied dorthin, wo `cModelInfo` es hat: auf LP64 4-Byte-Packung und eine Lücke aus den Abständen von `cModelInfo` (auf dem GameCube 2 Bytes, auf LP64 6), `static_assert` je Glied. Vorher las `RefractShaderSetup` auf LP64 `blendTbl` 4 Bytes zu früh (Absturz im ersten Bild von r100, PC-Prüfung 18.10.2026). Gefunden mit `cast_check.py`, seit es den Operator `&` bei libclang abfragt (vorher im Makro übersehen) |
-| 0081 `main_mem.cpp`, `rnd.cpp` | Diagnose (M12), ändert das Verhalten des Spiels nicht: jede Speicheranforderung ohne Platz (`mem_alloc` mit jedem `flag`, `Debug_alloc`) ruft `re4_heap_failed` (runtime/log.cpp: „heap: no room for … in heap N (datei(zeile), flag F)“, Zähler für den Zustands-Trace); `re4_rnd_state` gibt den Zustand des Zufallsgenerators für den Trace. Anlass: der Absturz im Speicherbildschirm auf LP64 (PC-Prüfung 18.10.2026), vermutlich ein zu kleines Speicherbudget (noch mit dem Protokoll zu bestätigen); Speicherbudgets aus GameCube-Größen sind statisch kaum zu finden, der Vergleichslauf 32/64 bit zeigt jetzt jede Anforderung, die nur auf 64 bit scheitert |
+| 0081 `main_mem.cpp`, `rnd.cpp` | Diagnose (M12), ändert das Verhalten des Spiels nicht: jede Speicheranforderung ohne Platz (`mem_alloc` mit jedem `flag`, `Debug_alloc`) ruft `re4_heap_failed` (runtime/log.cpp: „heap: no room for … in heap N (datei(zeile), flag F)“, Zähler für den Zustands-Trace); `re4_rnd_state` gibt den Zustand des Zufallsgenerators für den Trace. Anlass: der Absturz im Speicherbildschirm auf LP64 (PC-Prüfung 18.10.2026), ein zu kleines Speicherbudget (bestätigt durch das Protokoll; seit der Regel speichert und lädt die PC-Prüfung auf 64 bit); Speicherbudgets aus GameCube-Größen sind statisch kaum zu finden, der Vergleichslauf 32/64 bit zeigt jetzt jede Anforderung, die nur auf 64 bit scheitert |
 | 0082 `sce_sys.cpp`, `sce_at.cpp`, `r20d.cpp`, `r20e.cpp`, `r21d.cpp` | 64 bit (M12): GameCube-Abstände an einer Adresse als Zahl oder in einer Summe mit Index (`(u32) em + 0x320`, `i * sizeof(T) + (u32) w + 0x2C`, `base += 0x30C`) über `RE4_OFS(T, glied, gc)`: Szenen-Bedingung „Gegner tot“ (`cEm::hp`, LP64 0x3B8), Kamera-Ecken (`SceAtSysWork::pCamAt`, LP64 0x1B0, jetzt zeigerbreit geschrieben: `RAW_CAM_AT`), Schiebepuzzle r20e (Teile LP64 0x18, Felder 0x1C8), Zäune r20d (`fence[i].t`), Fallen r21d (`trap[]`, LP64 0x380). Gefunden mit `raw_offset_check.py` (Adressen als Zahl, Summen) und `sizeof_ptr_check.py` (18.10.2026) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,

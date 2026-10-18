@@ -136,6 +136,11 @@ for t in "${targets[@]}"; do
     echo "  re4_host --movie-test (synthetic movie): exit $code | $(echo "$out" | grep -E '^  (frames|sound|A/V|GX picture[^:]*|fast mode \(RE4_VI_FAST, the PC check\)|60 Hz fields):' | sed 's/^  //' | tr '\n' ';') $(echo "$out" | tail -1)"
     [ "$code" -ne 0 ] && { echo "$out" | sed 's/^/    /'; status=1; }
 done
+# the comparison tool of the PC check (port/tools/trace_compare.py) on synthetic traces
+out=$(python3 "$root/port/tools/test_trace_compare.py" 2>&1)
+code=$?
+echo "trace_compare self-test: exit $code | $(echo "$out" | tail -1)"
+[ "$code" -ne 0 ] && { echo "$out" | grep -v "^ok" | sed 's/^/  /'; status=1; }
 # the 32/64-bit comparison without game data (milestone 12): the synthetic movie on i686 and
 # x86_64, frame by frame (port/tools/test_movie_compare.py), when both were built here
 built=" ${targets[*]} "

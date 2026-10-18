@@ -181,11 +181,24 @@ void logAreas()
     }
 }
 
+// A work of the manager's own array (cManager::create hands out only those): the walks below
+// follow cUnit::next only that far. After a soft reset the title runs with the managers of the
+// last room as they were, their arrays given back with the heaps; what loads there next (the
+// title's demo movie) turned the lists into garbage, and the walk read a next pointer at a wild
+// address (PC check 18.10.2026: crash at the start of demo0.sfd after the soft reset, i686 and
+// x86_64, fault address = register + 8, the offset of cUnit::next).
+template <class T> bool inArray(const cManager<T>& m, const cUnit* u)
+{
+    unsigned long a = (unsigned long) u, base = (unsigned long) m.pArray;
+    return live(m.pArray) && m.size != 0 && a >= base && a < base + (unsigned long) m.nArray * m.size &&
+           (a - base) % m.size == 0;
+}
+
 // Live works of a manager (its alive list, cUnit::next), at most `limit`.
 template <class T> int aliveCount(cManager<T>& m, int limit = 4096)
 {
     int count = 0;
-    for (cUnit* u = (cUnit*) m.pAlive; live(u) && count < limit; u = u->getNext()) {
+    for (cUnit* u = (cUnit*) m.pAlive; inArray(m, u) && count < limit; u = u->getNext()) {
         count++;
     }
     return count;
@@ -198,27 +211,32 @@ template <class T> int aliveCount(cManager<T>& m, int limit = 4096)
 // (commands, draws, vertices, display list calls, XF and BP writes, textures, texture bytes,
 // copies to the picture and to textures, TLUT loads, unknown commands), every 60 frames
 // "heap": [number, free bytes, size] of each active heap (OSCheckHeap, which also reports a
-// broken heap), and "hf" the allocations that found no room so far (patch 0081).
+// broken heap), and "hf" the allocations that found no room so far (patch 0081). "plr", "n" and
+// "evt" only from step 1 on: in step 0 (boot, title, also after a soft reset) the player and the
+// managers are what the last room left, in memory the title uses again.
 unsigned g_gxLast[20];
 
 void traceMore(FILE* f, unsigned n, GLOBAL_WK* g)
 {
     fprintf(f, ",\"rnd\":%u", re4_rnd_state());
     cPlayer* pl = pPL;
-    if (live(pl)) {
+    bool works = live(g) && g->Rno0 != 0;
+    if (works && live(pl)) {
         fprintf(f, ",\"plr\":[%u,%u,%u,%u,%d]", (unsigned) pl->r_no_0, (unsigned) pl->r_no_1,
                 (unsigned) pl->r_no_2, (unsigned) pl->r_no_3, (int) pl->hp);
     }
-    int esp = live(g_pEspSys) ? (int) g_pEspSys->ActiveEspNum : -1;
-    fprintf(f, ",\"n\":[%d,%d,%d,%d,%d,%d,%d,%d,%d]", aliveCount(ObjMgr), aliveCount(EvtMgr), esp,
-            aliveCount(ModInfoMgr), aliveCount(PartsMgr), aliveCount(LightMgr), aliveCount(DmgMgr),
-            aliveCount(SatMgr), aliveCount(EatMgr));
-    fprintf(f, ",\"evt\":[");
-    int k = 0;
-    for (cUnit* u = (cUnit*) EvtMgr.pAlive; live(u) && k < 16; u = u->getNext(), k++) {
-        fprintf(f, "%s%d", k ? "," : "", ((Event*) u)->GetNowTotalFrame());
+    if (works) {
+        int esp = live(g_pEspSys) ? (int) g_pEspSys->ActiveEspNum : -1;
+        fprintf(f, ",\"n\":[%d,%d,%d,%d,%d,%d,%d,%d,%d]", aliveCount(ObjMgr), aliveCount(EvtMgr), esp,
+                aliveCount(ModInfoMgr), aliveCount(PartsMgr), aliveCount(LightMgr), aliveCount(DmgMgr),
+                aliveCount(SatMgr), aliveCount(EatMgr));
+        fprintf(f, ",\"evt\":[");
+        int k = 0;
+        for (cUnit* u = (cUnit*) EvtMgr.pAlive; inArray(EvtMgr, u) && k < 16; u = u->getNext(), k++) {
+            fprintf(f, "%s%d", k ? "," : "", ((Event*) u)->GetNowTotalFrame());
+        }
+        fprintf(f, "]");
     }
-    fprintf(f, "]");
     unsigned a[11], b[9];
     re4_gx_stats(a);
     re4_gx_stats2(b);

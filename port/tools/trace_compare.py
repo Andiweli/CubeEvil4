@@ -17,9 +17,10 @@ reads complete at once), so both traces should agree frame by frame. Compared pe
             no error (--abs, --rel)
 
 Reported: the first frame where the two part (with the values of both sides), the first frame
-of each group, how far the positions drift before the first exact difference, the end of each
-trace (a crash ends one early), and the heaps: the least free space of each heap on both sides
-and the allocations that found no room (patch 0081).
+of each group and in how many frames it differs, each section of the run (room and game step, in
+the order the run passes them) with its first difference, how far the positions drift before
+the first exact difference, the end of each trace (a crash ends one early), and the heaps: the
+least free space of each heap on both sides and the allocations that found no room (patch 0081).
 
     port/tools/trace_compare.py REF.jsonl OTHER.jsonl [--names i686,x86_64] [--abs 1.0]
         [--rel 1e-4] [--json OUT]
@@ -155,17 +156,27 @@ def main():
     common = [n for n in oa if n in fb]
     first = None          # (frame, [lines])
     first_group = {}      # group -> frame
+    count_group = {}      # group -> frames that differ in it
+    sections = []         # runs of frames in one room and game step: [room, step, first, last, frames, diff, groups]
     first_exact = None
     drift = {}            # name -> (largest difference, frame) before the first exact difference
     for n in common:
         a, b = fa[n], fb[n]
+        key = (a.get("room"), a.get("Rno0"))
+        if not sections or (sections[-1][0], sections[-1][1]) != key:
+            sections.append([key[0], key[1], n, n, 0, None, set()])
+        sec = sections[-1]
+        sec[3] = n
+        sec[4] += 1
         lines = []
+        groups = set()
         ea, eb = exact(a), exact(b)
         exact_diff = False
         for g in sorted(set(ea) | set(eb)):
             if ea.get(g) != eb.get(g):
                 exact_diff = True
                 first_group.setdefault(g, n)
+                groups.add(g)
                 lines += [f"{g}: {d}" for d in detail(g, ea.get(g), eb.get(g))]
         pa, pb = floats(a), floats(b)
         for name in sorted(set(pa) & set(pb)):
@@ -177,11 +188,18 @@ def main():
             if d != float("inf") and all(near(x, y, args.abs, args.rel) for x, y in zip(va, vb)):
                 continue
             first_group.setdefault("Positionen", n)
+            groups.add("Positionen")
             lines.append(f"{name}: {show('', va)} / {show('', vb)} (Unterschied {d:.3f})")
         if exact_diff and first_exact is None:
             first_exact = n
         if lines and first is None:
             first = (n, lines)
+        for g in groups:
+            count_group[g] = count_group.get(g, 0) + 1
+        if groups:
+            if sec[5] is None:
+                sec[5] = n
+            sec[6] |= groups
     print(f"Vergleich {na} / {nb}: {len(oa)} / {len(ob)} Bilder im Trace, {len(common)} gemeinsame")
     result = {"frames": [len(oa), len(ob)], "common": len(common), "first": None, "groups": {}}
     code = 0
@@ -200,16 +218,37 @@ def main():
             print(f"    (+{len(lines) - 24} weitere)")
         if before is not None:
             print(f"  Bild davor ({before}) stimmt noch überein.")
-        print("  Erstes Bild je Bereich:")
+        print("  Erstes Bild je Bereich (und in wie vielen der gemeinsamen Bilder er abweicht):")
         for g, m in sorted(first_group.items(), key=lambda x: x[1]):
-            print(f"    {g}: Bild {m}")
+            print(f"    {g}: Bild {m} ({count_group.get(g, 0)} von {len(common)} Bildern)")
         if drift:
             worst = sorted(drift.items(), key=lambda x: -x[1][0])[:4]
             print("  Größte Abweichung der Positionen vor der ersten genauen Abweichung: " +
                   ", ".join(f"{k} {v[0]:.3f} (Bild {v[1]})" for k, v in worst))
         result["first"] = n
         result["groups"] = first_group
+        result["counts"] = count_group
         result["gx_frames"] = [m for m in (before, n) if m is not None]
+    # each section of the run: does it part, and where first
+    if sections:
+        print("  Abschnitte (Raum, Spielschritt; in der Reihenfolge des Laufs):")
+        shown = sections if len(sections) <= 24 else sections[:12] + [None] + sections[-11:]
+        for sec in shown:
+            if sec is None:
+                print(f"    ... ({len(sections) - 23} weitere Abschnitte)")
+                continue
+            room, step, lo, hi, count, diff, groups = sec
+            what = (f"erste Abweichung Bild {diff} ({', '.join(sorted(groups))})" if diff is not None
+                    else "keine Abweichung")
+            print(f"    Raum {room} Schritt {step}: Bilder {lo}-{hi} ({count}), {what}")
+    result["sections"] = [{"room": r, "step": st, "from": lo, "to": hi, "frames": c, "first": d,
+                           "groups": sorted(g)} for r, st, lo, hi, c, d, g in sections]
+    # GX pictures also at the first difference in a room's main loop (step 3), when the run
+    # parted before (boot, title, loading)
+    room_diff = next((sec[5] for sec in sections if sec[1] == 3 and sec[5] is not None), None)
+    if first is not None and room_diff is not None and room_diff != first[0]:
+        prev = max([m for m in common if m < room_diff], default=None)
+        result["gx_frames"] += [m for m in (prev, room_diff) if m is not None and m not in result["gx_frames"]]
     last_a, last_b = oa[-1], ob[-1]
     if last_a != last_b:
         code = 1
