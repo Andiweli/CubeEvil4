@@ -4028,6 +4028,18 @@ Spiel (r20d, r20e, r21d, Szenen-Treffer, Kamera-Ziel), Gerät.
   verglichen: andere Räume (10b), Speicherbildschirm im Vergleichslauf (die Kartenläufe
   von `-Lp64` und 32 bit sind einzeln grün).
 
+**Gerät, 64 bit, automatischer Lauf (Retroid, 18.10.2026 16:54, Stand `8f0c425`,
+`test-core-app.ps1 -Abi arm64-v8a -Seconds 480`): ✅ ohne Auffälligkeiten** (Projektinhaber:
+„ohne sichtliche Auffälligkeiten“). Kern arm64-v8a mit NDK r28c gebaut (0 Fehler, 114
+Module, 47 Stubs wie erwartet), App läuft als arm64-v8a (64 bit). Vorfilm `opening.sfd`
+ganz (2278 Bilder, 0 übersprungen, Status 3), Polizeifahrt r120, Funkspruch, Ankunft r100,
+Gegner, Zielen mit Laser, Untermenüs auf/zu; 480 s ohne Absturz; GX: 0 fehlende Texturen,
+0 Shader-Fehler, 59–60 Bilder/s angezeigt; keine Speicheranforderung ohne Platz; Ton 0
+verlorene Blöcke, 0 übersprungene Stimmen (53 Mal lief der Tonpuffer leer, vor allem beim
+Laden; mit dem 32-bit-Kontrolllauf zu vergleichen). Bildschirmfotos (15–430 s): Logos,
+Vorfilm, Polizeiauto im Nebel, Funkspruch, Haus in r100 mit Ganado. Noch offen: Lauf von
+Hand (64 bit), Kontrolllauf 32 bit.
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
