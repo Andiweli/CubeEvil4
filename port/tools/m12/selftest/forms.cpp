@@ -36,6 +36,19 @@ struct Base {
 struct Derived : Base {
     s32 own;
 };
+struct DiscHead {   // laid over disc data: an offset that becomes a pointer in place
+    s32 count;
+    Wide* table;
+};
+struct Owner {
+    void* pWork;   // a Wide in one place, read at the GameCube offset of Wide::b in another
+};
+struct EspBase {  // 0x10 bytes on ILP32; on LP64 its data ends at 0x1C, sizeof 0x20 (tail padding)
+    virtual ~EspBase();
+    s32 x;
+    void* p;
+    s32 y;
+};
 
 #define VIEW(h) ((Narrow*) &(h)->w)          // a view over a member, in a macro (MODEL_TEX)
 #define FIELD_B(p) (*(s32*) ((u8*) (p) + 8))  // a GameCube byte offset in a macro
@@ -45,6 +58,8 @@ struct Derived : Base {
 #define ADDR32(x) RE4_ADDR32(x)
 
 s32 g_value;
+void* myAlloc(u32 n) { return MEM_ALLOC(n, 1, 13); }   // an allocator of the program (a wrapper)
+void* myAlloc2(u32 n) { return myAlloc(n + 0x20); }    // and a wrapper of it
 u8 g_table[0xC];                  // decl_size_check: forms_b.cpp declares Wide2 g_table[1]
 extern "C" void takes(Wide* w);   // proto_check: forms_b.cpp has takes(Narrow2*)
 struct Shared {                   // view_check: forms_b.cpp has a view with a GameCube pad
@@ -53,6 +68,23 @@ struct Shared {                   // view_check: forms_b.cpp has a view with a G
     s32 b;
 };
 s32 useShared(Shared* s) { takes(0); return s->b; }
+
+void forms2(EspBase* e, u8* buf, Owner* o)
+{
+    Wide* ow = (Wide*) o->pWork;
+    g_value = *(s32*) ((u8*) o->pWork + 8);          // expect: work_view_check
+    g_value = ((s32*) o->pWork)[2];                  // expect: work_view_check
+    (void) ow;
+    Narrow nw;
+    memcpy(&nw, ((Holder*) buf)->w.p ? &((Holder*) buf)->w : 0, sizeof(Narrow));  // expect: copy_view_check
+    memcpy(buf, e, 0x10);                            // expect: copy_view_check
+    g_value = nw.b;
+    DiscHead* dh = (DiscHead*) buf;
+    dh->table = (Wide*) ((u8*) dh->table + (u32) (unsigned long) dh);  // expect: reloc_check
+    g_value = *(s32*) ((u8*) e + sizeof(EspBase));   // expect: sizeof_ptr_check
+    g_value = *(s32*) (buf + sizeof(Wide));          // expect: sizeof_ptr_check
+    g_value = *(s32*) ((u8*) e + RE4_OWN(EspBase, s32, 0x10));
+}
 
 void forms(Holder* h, Wide* w, s32 n, u8* pool, int i)
 {
@@ -65,6 +97,12 @@ void forms(Holder* h, Wide* w, s32 n, u8* pool, int i)
     g_value = FIELD_B(w);                            // expect: raw_offset_check raw_offset_words
     g_value = *(s32*) ((u8*) w + (n * 12 + 8));      // expect: raw_offset_check raw_offset_words
     g_value = ((s32*) w)[2];                         // expect: raw_offset_words
+    g_value = *(s32*) (n * sizeof(Wide) + (u32) (unsigned long) h + 0x14);  // expect: raw_offset_check raw_offset_words sizeof_ptr_check
+    {
+        u32 base = n * 4 + (u32) (unsigned long) h;
+        base += 0x14;                                // expect: raw_offset_check raw_offset_words
+        g_value = *(s32*) (unsigned long) base;
+    }
     Wide* a1 = (Wide*) MEM_ALLOC(0xC, 1, 13);        // expect: alloc_size_check
     void** a2 = (void**) MEM_ALLOC(n * 4, 1, 13);    // expect: alloc_size_check
     memclr_asm(w, 0xC);                              // expect: alloc_size_check
@@ -73,6 +111,9 @@ void forms(Holder* h, Wide* w, s32 n, u8* pool, int i)
     g_value = h->free[0x14];                         // expect: array_view_check
     Wide* o1 = (Wide*) h->free;                      // expect: overlay_check
     CLEAR_WIDE(w);                                   // expect: alloc_size_check
+    Wide* a7 = (Wide*) myAlloc2(0xC);                // expect: alloc_size_check
+    Wide* a8 = (Wide*) new u8[0xC];                  // expect: alloc_size_check
+    (void) a7; (void) a8;
     (void) c1; (void) v1; (void) v2; (void) a1; (void) a2; (void) a3; (void) o1;
 }
 

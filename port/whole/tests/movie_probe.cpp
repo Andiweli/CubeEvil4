@@ -49,10 +49,22 @@ void re4_os_idle(void);
 int re4_audio_take(short* out, int frames);
 const char* re4_data_dir(void);
 int re4_mem1_init(void);
+void re4_gx_stats(unsigned out[11]);
+void re4_gx_stats2(unsigned out[9]);
 }
 #include <dolphin/dvd.h>
 
 namespace {
+
+unsigned fnv1a(const void* data, size_t n)
+{
+    const unsigned char* p = (const unsigned char*) data;
+    unsigned h = 2166136261u;
+    for (size_t i = 0; i < n; i++) {
+        h = (h ^ p[i]) * 16777619u;
+    }
+    return h;
+}
 
 int gErrors;
 char gLastError[256];
@@ -324,15 +336,28 @@ extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const
     // RE4_MOVIE_EVERY=N: a frame record at most every N fields (stills of a
     // whole movie; the count in the end line stays the frames handed out)
     int every = getenv("RE4_MOVIE_EVERY") ? atoi(getenv("RE4_MOVIE_EVERY")) : 0, nextRecord = 0;
+    // fields that began more than half a field after their time (the machine was busy): the CRI
+    // clock is real time, a frame then stays one or three fields (test_whole_movie.py excuses those)
+    int lateFields = 0;
+    // RE4_TRACE=FILE: a state trace line per field (port/tools/trace_compare.py): the frame shown,
+    // the player status, checksums of the decoded picture (Y8 and C4:4 textures) and of the sound
+    // of the field, the GP counts; the same movie on a 32- and a 64-bit build must give the same
+    // lines (the CRI middleware's own 64-bit view of its structures, milestone 12)
+    FILE* stateTrace = getenv("RE4_TRACE") ? fopen(getenv("RE4_TRACE"), "w") : NULL;
+    unsigned gxLast[12] = {0};
+    unsigned picY = 0, picC = 0;
     struct timespec start;
     clock_gettime(CLOCK_MONOTONIC, &start);
     for (; f < maxFields; f++) {
         long long due = (long long) f * fieldNs;
-        for (; !fast;) {
+        for (bool first = true; !fast; first = false) {
             struct timespec now;
             clock_gettime(CLOCK_MONOTONIC, &now);
             long long ns = (now.tv_sec - start.tv_sec) * 1000000000LL + (now.tv_nsec - start.tv_nsec);
             if (ns >= due) {
+                if (first && f > 0 && ns - due > fieldNs / 2) {
+                    lateFields++;
+                }
                 break;
             }
             struct timespec wait = {0, (long) (due - ns)};
@@ -349,6 +374,7 @@ extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const
             fwrite(pcm, 4, (size_t) n, wav);
             audioFrames += (unsigned) n;
         }
+        unsigned sound = n > 0 ? fnv1a(pcm, (size_t) n * 4) : 0;
         // cSofdec::appMain
         struct timespec t0, t1;
         clock_gettime(CLOCK_MONOTONIC, &t0);
@@ -376,10 +402,30 @@ extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const
             if (frm.fno != lastFno) {
                 lastFno = frm.fno;
                 frames++;
+                if (stateTrace) {
+                    picY = fnv1a(ybuf, ysize);
+                    picC = fnv1a(cbuf, csize);
+                }
             }
             mwPlyRelCurFrm(hn);
         }
         stat = mwPlyGetStat(hn);
+        if (stateTrace) {
+            int c = 0, sc = 1;
+            mwPlyGetTime(hn, &c, &sc);
+            unsigned a[11], b[9];
+            re4_gx_stats(a);
+            re4_gx_stats2(b);
+            const unsigned now[12] = {a[1], a[6], a[7], a[8], a[4], a[2], b[3], b[4], b[0], b[1], b[2], a[9]};
+            fprintf(stateTrace, "{\"frame\":%d,\"Rno0\":%d,\"room\":\"movie\",\"n\":[%d,%d],"
+                                "\"chk\":[%u,%u,%u],\"gx\":[",
+                    f, stat, lastFno, c, picY, picC, sound);
+            for (int i = 0; i < 12; i++) {
+                fprintf(stateTrace, "%s%u", i ? "," : "", now[i] - gxLast[i]);
+                gxLast[i] = now[i];
+            }
+            fprintf(stateTrace, "]}\n");
+        }
         if (trace && f % 10 == 0) {
             int c = 0, s = 1;
             mwPlyGetTime(hn, &c, &s);
@@ -391,8 +437,11 @@ extern "C" int re4probe_movie_play(const char* fname, const char* yuvPath, const
     }
     int count = 0, scale = 0;
     mwPlyGetTime(hn, &count, &scale);
-    fprintf(stderr, "[movie] end: status %d after %d fields, %d frames, time %d/%d, skipped %d decode / %d display, %d CRI errors\n",
-            stat, f, frames, count, scale, mwPlyGetNumSkipDec(hn), mwPlyGetNumSkipDisp(hn), gErrors);
+    fprintf(stderr, "[movie] end: status %d after %d fields, %d frames, time %d/%d, skipped %d decode / %d display, %d CRI errors, %d late fields\n",
+            stat, f, frames, count, scale, mwPlyGetNumSkipDec(hn), mwPlyGetNumSkipDisp(hn), gErrors, lateFields);
+    if (stateTrace) {
+        fclose(stateTrace);
+    }
     fprintf(stderr, "[movie] step (ADXM_ExecMain): %.2f ms on average, at most %.2f ms; size %d x %d\n",
             f > 0 ? stepTotal / 1000.0 / f : 0.0, stepMax / 1000.0, width, height);
     if (gErrors) {

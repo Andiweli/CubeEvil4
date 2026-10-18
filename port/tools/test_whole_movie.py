@@ -299,14 +299,22 @@ def main():
                                str(hwav), str(fields)], cwd=build, env=env, capture_output=True, timeout=600)
         hframes = read_frames(hyuv)
         uneven = lambda fr: sum(1 for a, b in zip(fr[1:], fr[2:]) if b[1] - a[1] != 2)
+        # fields the probe began more than half a field late (the machine was busy: another build,
+        # qemu): the CRI clock is real time, the frames around such a field are one or three fields
+        # long without anything being wrong; each late field excuses two uneven frames (the 60 Hz
+        # part was red now and then while other jobs ran, 17./18.10.2026)
+        late = lambda text: int(next((l.rsplit(", ", 1)[1].split()[0] for l in text.splitlines()
+                                      if "[movie] end: " in l and l.endswith(" late fields")), "0"))
+        hlate = late(proc.stderr.decode(errors="replace"))
         # as even as at 59.94 Hz; under qemu the steps come too late for real
         # time (the run at 59.94 Hz is uneven as well): then only the end counts
         base = uneven(frames)
-        timed = base <= 5
-        print(f"  60 Hz fields: {len(hframes)} frames, {uneven(hframes)} not two fields apart "
+        timed = base <= 5 + 2 * late(log)
+        print(f"  60 Hz fields: {len(hframes)} frames, {uneven(hframes)} not two fields apart, {hlate} fields late "
               f"(at 59.94 Hz: {base}{'' if timed else ', too slow for real time: not judged'}), "
               f"exit {proc.returncode}")
-        if proc.returncode != 0 or len(hframes) < len(ref_frames) * 0.9 or (timed and uneven(hframes) > base + 2):
+        if proc.returncode != 0 or len(hframes) < len(ref_frames) * 0.9 or \
+                (timed and uneven(hframes) > base + 2 + 2 * hlate):
             failures.append("60 Hz fields: the movie did not play evenly")
     finally:
         if os.environ.get("RE4_MOVIE_KEEP"):

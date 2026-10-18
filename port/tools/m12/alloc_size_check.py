@@ -12,7 +12,8 @@ MotionMoveCore for a Ganado in r100).
 
 With libclang this check parses the units of an LP64 build and lists every
 call of an allocator (mem_alloc, mem_calloc, Debug_alloc, OSAllocFromHeap,
-OSAllocFromArenaLo, malloc, calloc, realloc) with a constant size, or a size
+OSAllocFromArenaLo, malloc, calloc, realloc, and every function of the program that hands a
+parameter on as the size of one of them, found in a first pass; `new u8[K]`) with a constant size, or a size
 `count * K` with a constant element size K, whose result is cast to, or
 stored into, a pointer to an object larger than that size on LP64, or to a
 pointer to pointers (a table of 4-byte entries on the GameCube; sizes
@@ -37,8 +38,8 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from raw_offset_check import (args_of, binary_op, const_value, entries, has_sizeof,  # noqa: E402
-                              reviewed_lp64, strip)
+from raw_offset_check import (args_of, binary_op, const_value, descendants, entries,  # noqa: E402
+                              has_sizeof, reviewed_lp64, strip)
 
 ROOT = Path(__file__).resolve().parents[3]
 # allocator: index of its size argument (OSAllocFromHeap(heap, size), realloc(p, size))
@@ -65,11 +66,80 @@ def per_element(c):
     return None
 
 
+def wrappers_of(job):
+    """per function of a unit that returns a pointer: (name, [(callee, argument index, parameter
+    index)]) for each call whose argument names one of its parameters (the pass that finds the
+    allocators of the game: functions that hand a parameter on as the size of a known one)"""
+    import clang.cindex as ci
+    entry, resource_dir = job
+    tu = ci.Index.create().parse(entry["file"], args=args_of(entry, resource_dir))
+    out = []
+
+    def walk(c):
+        for k in c.get_children():
+            if k.kind in (ci.CursorKind.FUNCTION_DECL, ci.CursorKind.CXX_METHOD) and k.is_definition() and \
+                    k.result_type.get_canonical().kind == ci.TypeKind.POINTER:
+                params = {a.get_usr(): i for i, a in enumerate(k.get_arguments())}
+                calls = []
+
+                def body(b):
+                    for x in b.get_children():
+                        if x.kind == ci.CursorKind.CALL_EXPR and x.spelling:
+                            for ai, a in enumerate(x.get_arguments()):
+                                for d in descendants(a):
+                                    if d.kind == ci.CursorKind.DECL_REF_EXPR and d.referenced is not None and \
+                                            d.referenced.get_usr() in params:
+                                        calls.append((x.spelling, ai, params[d.referenced.get_usr()]))
+                                        break
+                        body(x)
+                body(k)
+                if calls:
+                    out.append((k.spelling, calls))
+                continue
+            walk(k)
+
+    walk(tu.cursor)
+    return out
+
+
+def discover(build, pattern, jobs, resource_dir):
+    """the allocators of the program: ALLOCATORS and every function that passes one of its
+    parameters on as the size of an allocator (to a fixed point: wrappers of wrappers)"""
+    units = entries(build, pattern)
+    funcs = {}
+    with concurrent.futures.ProcessPoolExecutor(jobs) as pool:
+        for found in pool.map(wrappers_of, [(units[n], resource_dir) for n in sorted(units)], chunksize=2):
+            for name, calls in found:
+                funcs.setdefault(name, set()).update(calls)
+    known = dict(ALLOCATORS)
+    changed = True
+    while changed:
+        changed = False
+        for name, calls in funcs.items():
+            if name in known:
+                continue
+            for callee, ai, pi in calls:
+                if callee in known and known[callee] == ai:
+                    known[name] = pi
+                    changed = True
+                    break
+    return known
+
+
 def alloc_size(c):
     """(byte count, whether it is a constant total or a per-element size, sizeof used) of an
-    allocator call (c stripped), else None"""
+    allocator call (c stripped), else None; also `new u8[K]`"""
     import clang.cindex as ci
     c = strip(c)
+    if c is not None and c.kind == ci.CursorKind.CXX_NEW_EXPR:
+        t = c.type.get_canonical()
+        if t.kind == ci.TypeKind.POINTER and t.get_pointee().get_canonical().kind in (
+                ci.TypeKind.CHAR_S, ci.TypeKind.CHAR_U, ci.TypeKind.SCHAR, ci.TypeKind.UCHAR):
+            sizes = [x for x in c.get_children() if x.kind != ci.CursorKind.TYPE_REF]
+            n = const_value(sizes[0]) if sizes else None
+            if n is not None:
+                return n, "total", has_sizeof(sizes[0]) or reviewed_lp64(sizes[0])
+        return None
     if c is None or c.kind != ci.CursorKind.CALL_EXPR or c.spelling not in ALLOCATORS:
         return None
     args = list(c.get_arguments())
@@ -104,7 +174,8 @@ def polymorphic(rec):
 
 def scan(job):
     import clang.cindex as ci
-    entry, resource_dir, lp64 = job
+    entry, resource_dir, lp64, allocators = job
+    ALLOCATORS.update(allocators)
     tree = entry["file"].split("/prepared/tree/")[0] + "/prepared/tree/"
     tu = ci.Index.create().parse(entry["file"], args=args_of(entry, resource_dir))
     found = []
@@ -237,7 +308,8 @@ def collect(build, pattern, jobs, resource_dir, lp64):
     units = entries(build, pattern)
     sites = {}
     with concurrent.futures.ProcessPoolExecutor(jobs) as pool:
-        for found in pool.map(scan, [(units[n], resource_dir, lp64) for n in sorted(units)], chunksize=2):
+        for found in pool.map(scan, [(units[n], resource_dir, lp64, dict(ALLOCATORS)) for n in sorted(units)],
+                              chunksize=2):
             for f in found:
                 sites.setdefault(f[:3], f)
     return sites, len(units)
@@ -251,6 +323,12 @@ def main():
     ap.add_argument("--jobs", type=int, default=8)
     args = ap.parse_args()
     resource_dir = subprocess.run(["clang", "-print-resource-dir"], capture_output=True, text=True).stdout.strip()
+    # the game's own allocators (MemAlloc, the managers' memAlloc, PL_MEM_ALLOC ...), found once
+    found = discover(args.lp64, args.pattern, args.jobs, resource_dir)
+    extra = sorted(set(found) - set(ALLOCATORS))
+    ALLOCATORS.update(found)
+    print(f"alloc_size_check: allocators: {len(ALLOCATORS)} ({len(extra)} found in the program: "
+          f"{', '.join(extra[:12])}{' ...' if len(extra) > 12 else ''})")
     sites, n = collect(args.lp64, args.pattern, args.jobs, resource_dir, True)
     # sizes already short on ILP32 (clearing only a header on purpose): not LP64's
     ref, _ = collect(args.ref, args.pattern, args.jobs, resource_dir, False)

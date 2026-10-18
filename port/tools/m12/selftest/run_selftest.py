@@ -44,8 +44,11 @@ CHECKS = {
     "view_check": ["view_check.py", "--ref", "REF", "--lp64", "LP64", "--pattern", "PAT", "--jobs", "1"],
     "proto_check": ["proto_check.py", "--ref", "REF", "--lp64", "LP64", "--pattern", "PAT", "--jobs", "1"],
     "decl_size_check": ["decl_size_check.py", "LP64", "--jobs", "1"],
+    "sizeof_ptr_check": ["sizeof_ptr_check.py", "--ref", "REF", "--lp64", "LP64", "--pattern", "PAT", "--jobs", "1"],
+    "work_view_check": ["work_view_check.py", "--ref", "REF", "--lp64", "LP64", "--pattern", "PAT", "--jobs", "1"],
+    "copy_view_check": ["copy_view_check.py", "--ref", "REF", "--lp64", "LP64", "--pattern", "PAT", "--jobs", "1"],
+    "reloc_check": ["reloc_check.py", "--lp64", "LP64", "--pattern", "PAT", "--jobs", "1"],
 }
-EXTRA = sorted(M12.glob("selftest/checks/*.json"))  # further checks register themselves here
 
 
 def make_tree(base):
@@ -100,9 +103,6 @@ def main():
     builds = make_tree(base)
     want = expected()
     checks = dict(CHECKS)
-    for spec in EXTRA:
-        e = json.loads(spec.read_text())
-        checks[e["name"]] = e["command"]
     bad = 0
     for check, cmd in checks.items():
         argv = [sys.executable, str(M12 / cmd[0])] + [

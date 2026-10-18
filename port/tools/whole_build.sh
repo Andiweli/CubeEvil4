@@ -24,6 +24,8 @@
 #                              same as a disc folder: test_whole_format_compare.py)
 #   test_whole_movie.py        a synthetic Sofdec movie (ffmpeg) through the CRI
 #                              middleware: frames against ffmpeg, pacing, sound
+# With i686 and x86_64 in one call, test_movie_compare.py plays that movie on both and
+# compares them frame by frame (pictures, sound, GP counts: the 32/64-bit comparison).
 # Further targets: x86_64 and aarch64 (64 bit, milestone 12; aarch64 is the
 # arm64-v8a code generation). armhf runs under qemu-arm, aarch64 under
 # qemu-aarch64 when it is installed. Then the port's runtime files
@@ -134,6 +136,24 @@ for t in "${targets[@]}"; do
     echo "  re4_host --movie-test (synthetic movie): exit $code | $(echo "$out" | grep -E '^  (frames|sound|A/V|GX picture[^:]*|fast mode \(RE4_VI_FAST, the PC check\)|60 Hz fields):' | sed 's/^  //' | tr '\n' ';') $(echo "$out" | tail -1)"
     [ "$code" -ne 0 ] && { echo "$out" | sed 's/^/    /'; status=1; }
 done
+# the 32/64-bit comparison without game data (milestone 12): the synthetic movie on i686 and
+# x86_64, frame by frame (port/tools/test_movie_compare.py), when both were built here
+built=" ${targets[*]} "
+if [[ "$built" == *" i686 "* && "$built" == *" x86_64 "* ]]; then
+    out=$(python3 "$root/port/tools/test_movie_compare.py" "$root/port/build/whole-i686${RE4_OPT:+-O$RE4_OPT}" \
+        "$root/port/build/whole-x86_64${RE4_OPT:+-O$RE4_OPT}" 2>&1)
+    code=$?
+    echo "movie comparison i686 / x86_64: exit $code | $(echo "$out" | grep -E 'Vergleich|ERSTES|stimmen|Ende' | sed 's/^ *//' | tr '\n' ';')"
+    [ "$code" -ne 0 ] && status=1
+fi
+# the self-test of the 64-bit checks (port/tools/m12/selftest): every check finds exactly its
+# examples; only where the libclang Python bindings are installed (the cloud)
+if python3 -c "import clang.cindex" 2> /dev/null; then
+    out=$(python3 "$root/port/tools/m12/selftest/run_selftest.py" 2>&1)
+    code=$?
+    echo "m12 check self-test: exit $code | $(echo "$out" | tail -1)"
+    [ "$code" -ne 0 ] && { echo "$out" | grep -v ": ok" | sed 's/^/  /'; status=1; }
+fi
 first="$root/port/build/whole-${targets[0]}${RE4_OPT:+-O$RE4_OPT}"
 if [ -f "$first/compile_commands.json" ]; then
     python3 "$root/port/tools/whole_libcxx_check.py" "$first" || status=1

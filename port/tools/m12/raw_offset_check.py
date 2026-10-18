@@ -94,6 +94,14 @@ def view_of(c):
     if not kids:
         return None
     src = strip(kids[-1])
+    # `(u32) (uintptr_t) p`: through further integer casts to the pointer
+    while src is not None and src.kind in (ci.CursorKind.CSTYLE_CAST_EXPR, ci.CursorKind.CXX_REINTERPRET_CAST_EXPR,
+                                           ci.CursorKind.CXX_STATIC_CAST_EXPR) and \
+            src.type.get_canonical().kind in (K.INT, K.UINT, K.LONG, K.ULONG, K.LONGLONG, K.ULONGLONG):
+        inner = [x for x in src.get_children() if x.kind != ci.CursorKind.TYPE_REF]
+        src = strip(inner[-1]) if inner else None
+    if src is None:
+        return None
     st = src.type.get_canonical()
     if st.kind == ci.TypeKind.POINTER:
         rec = st.get_pointee().get_canonical()
@@ -389,8 +397,13 @@ def scan_lp64(job):
                     if op == "=":
                         r = view_of(rhs)
                         ls = strip(lhs)
-                        if r is not None and ls.kind == ci.CursorKind.DECL_REF_EXPR and ls.referenced is not None:
-                            byte_vars[ls.referenced.get_usr()] = r
+                        if ls is not None and ls.kind == ci.CursorKind.DECL_REF_EXPR and ls.referenced is not None:
+                            if r is not None:
+                                byte_vars[ls.referenced.get_usr()] = r
+                            else:
+                                # the variable now holds something else (code translated from
+                                # assembler reuses its "registers"): no view of the record any more
+                                byte_vars.pop(ls.referenced.get_usr(), None)
                     elif op in ("+", "-"):
                         val = const_value(rhs)
                         if val is None:
@@ -434,6 +447,96 @@ def scan_lp64(job):
             walk(k, byte_vars)
 
     walk(tu.cursor, {})
+
+    # Sums with the address in the middle: `i * sizeof(T) + (u32) w + 0x2C`, `(u32) p + i * 4 + 0x10`,
+    # `base = i * sizeof(T) + (u32) w; base += 0x30C;` (r20d, r20e, r21d): the constant terms are the
+    # GameCube offset of a member array, whatever the index adds. Each outermost sum is cut into its
+    # terms; with exactly one byte or integer view of a structure among them, the constant terms
+    # count as an offset into it.
+    def terms(c, sign, out):
+        c = strip(c)
+        if c is not None and c.kind == ci.CursorKind.BINARY_OPERATOR and binary_op(c) in ("+", "-"):
+            kids = list(c.get_children())
+            if len(kids) == 2:
+                terms(kids[0], sign, out)
+                terms(kids[1], sign if binary_op(c) == "+" else -sign, out)
+                return out
+        out.append((sign, c))
+        return out
+
+    def split(c, views):
+        """(record, constant sum, has variable terms) of a sum with one view, else None"""
+        ts = terms(c, 1, [])
+        if len(ts) < 2 or any(t is None or layout_offset(t) for _, t in ts):
+            return None
+        hit, const, var = None, 0, False
+        for sg, t in ts:
+            v = view_of(t)
+            if v is None and t.kind == ci.CursorKind.DECL_REF_EXPR and t.referenced is not None:
+                v = views.get(t.referenced.get_usr())
+            if v is not None and v[1] == 1:
+                if hit is not None or sg < 0:
+                    return None
+                hit = v[0]
+                continue
+            n = const_value(t)
+            if n is None:
+                var = True
+            else:
+                const += sg * n
+        return (hit, const, var) if hit is not None else None
+
+    def note(k, rec, val):
+        loc = k.location
+        found.append((rec.get_declaration().get_usr(), rec.spelling, val,
+                      f"{loc.file.name if loc.file else '?'}:{loc.line}"))
+
+    def sums(c, parent_add, views, sum_vars):
+        for k in c.get_children():
+            if k.kind in (ci.CursorKind.FUNCTION_DECL, ci.CursorKind.CXX_METHOD):
+                sums(k, False, {}, {})
+                continue
+            add = k.kind == ci.CursorKind.BINARY_OPERATOR and binary_op(k) in ("+", "-")
+            if k.kind == ci.CursorKind.VAR_DECL:
+                init = [x for x in k.get_children() if x.kind != ci.CursorKind.TYPE_REF]
+                if init:
+                    r = view_of(init[-1])
+                    if r is not None:
+                        views[k.get_usr()] = r
+                    sp = split(init[-1], views)
+                    if sp is not None and sp[2]:
+                        sum_vars[k.get_usr()] = sp
+            if k.kind == ci.CursorKind.BINARY_OPERATOR and binary_op(k) == "=":
+                kids = list(k.get_children())
+                ls = strip(kids[0]) if kids else None
+                if ls is not None and ls.kind == ci.CursorKind.DECL_REF_EXPR and ls.referenced is not None:
+                    usr = ls.referenced.get_usr()
+                    r = view_of(kids[1])
+                    if r is not None:
+                        views[usr] = r
+                    else:
+                        views.pop(usr, None)
+                    sp = split(kids[1], views)
+                    if sp is not None and sp[2]:
+                        sum_vars[usr] = sp
+                    else:
+                        sum_vars.pop(usr, None)
+            if k.kind == ci.CursorKind.COMPOUND_ASSIGNMENT_OPERATOR:
+                kids = list(k.get_children())
+                ls = strip(kids[0]) if kids else None
+                if ls is not None and ls.kind == ci.CursorKind.DECL_REF_EXPR and ls.referenced is not None and \
+                        ls.referenced.get_usr() in sum_vars:
+                    n = const_value(kids[1])
+                    rec, c0, _ = sum_vars.pop(ls.referenced.get_usr())
+                    if n is not None and 0 < c0 + n < 0x1000000:
+                        note(k, rec, c0 + n)
+            if add and not parent_add:
+                sp = split(k, views)
+                if sp is not None and sp[2] and 0 < sp[1] < 0x1000000:
+                    note(k, sp[0], sp[1])
+            sums(k, add, views, sum_vars)
+
+    sums(tu.cursor, False, {}, {})
     layouts = {}
     for usr, spelling, val, where in found:
         if usr not in layouts:
@@ -490,6 +593,8 @@ def main():
     bad, total = [], 0
     for (name, (found, lay)), ref in zip(results.items(), refs):
         for usr, spelling, val, where in found:
+            if abs(val) >= 0x1000000:
+                continue  # `(u32) p - 0x80000000`: an address mask (the cached / physical region), no member
             total += 1
             if val < 0:
                 # the outer object is not known here: every such place is listed

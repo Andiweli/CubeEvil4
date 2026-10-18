@@ -1,0 +1,120 @@
+# 64 bit (M12): GameCube byte offsets added to an address kept as a number
+# (`(u32) em + 0x320`) or in a sum with an index (`i * sizeof(T) + (u32) w + 0x2C`),
+# which raw_offset_check.py saw only since it follows integer views of a structure
+# pointer and the constant terms of whole sums, and sizeof_ptr_check.py (18.10.2026).
+# Each offset is now RE4_OFS(T, member, gc) (on ILP32 checked against the GameCube
+# value at compile time); index and stride stay as they were.
+# - sce_sys.cpp: the scene condition "this enemy is dead" read cEm::hp at 0x320;
+#   on LP64 hp lies at 0x3B8 and the test read other bytes of the enemy.
+# - sce_at.cpp: the corner logic of the camera stores SceAtSysWork::pCamAt with a
+#   non-struct store at 0x120 (RAW_U32, kept for the GameCube's instruction order);
+#   on LP64 pCamAt lies at 0x1B0 and is 8 bytes: the store hit another member and
+#   pCamAt kept its old value. RAW_CAM_AT stores a pointer-wide value at the
+#   member's offset (on ILP32 the same u32 store at 0x120).
+# - r20e.cpp (the sliding puzzle): PUZZLE_PIECE (pieces at 0x10, LP64 0x18) and
+#   PUZZLE_CELL / the cursor frame (cells at 0x178, LP64 0x1C8): on LP64 the
+#   puzzle read and moved the wrong bytes.
+# - r20d.cpp: the raise state of a fence (fence[i].t at 0x2C, LP64 0x40).
+# - r21d.cpp: the traps (trap[] at 0x30C, LP64 0x380).
+--- a/src/game/sce_at.cpp
++++ b/src/game/sce_at.cpp
+@@ -125,6 +125,9 @@
+ // the original's `lwz pPL` stays behind the store).
+ #define RAW_F32(p, ofs) (*(f32*) ((u32) (p) + (ofs)))
+ #define RAW_U32(p, ofs) (*(u32*) ((u32) (p) + (ofs)))
++// port: patch 0082, the pointer pCamAt through the same non-struct store, at its own offset and with
++// its own width (on LP64 at 0x1B0, 8 bytes; on ILP32 the GameCube store of a u32 at 0x120)
++#define RAW_CAM_AT(p) (*(__UINTPTR_TYPE__*) ((u32) (p) + RE4_OFS(SceAtSysWork, pCamAt, 0x120)))
+ 
+ #define EM_DEAD_BIT(n, i) (*(u32*) (((i) << 2) + emDeadRow(n)))
+ #define SAVE_ITEM_HALF(i, f) (*(u16*) (saveItemBase(PG_OFS(item_save[0].f)) + ((i) << 4)))
+@@ -2772,7 +2775,7 @@
+         found = c;
+     }
+     if (found != 0) {
+-        RAW_U32(pS, 0x120) = (u32) found;
++        RAW_CAM_AT(pS) = (__UINTPTR_TYPE__) found;  // port: patch 0082
+         CamCtrl.m_QuasiFPS.LRinfo(found);
+         return;
+     }
+@@ -2782,7 +2785,7 @@
+     }
+     if (ret > 1) {
+         if (ret == 2) {
+-            RAW_U32(pS, 0x120) = (u32) &auto_work;
++            RAW_CAM_AT(pS) = (__UINTPTR_TYPE__) &auto_work;  // port: patch 0082
+             auto_work.pos = pPL->pos;
+             auto_work.ang_y = pPL->ang.y;
+             CamCtrl.m_QuasiFPS.LRinfo(&auto_work);
+@@ -2792,11 +2795,11 @@
+             f32 lim = 250000.0f;
+ 
+             if (lim < PSVECSquareDistance(&pPL->pos, &pS->pCamAt->pos)) {
+-                RAW_U32(pS, 0x120) = 0;
++                RAW_CAM_AT(pS) = 0;  // port: patch 0082
+             } else {
+                 a = LIMIT_ANGLE(pS->pCamAt->ang_y - pPL->ang.y);
+                 if (a < -1.2217305f || a > 1.2217305f) {
+-                    RAW_U32(pS, 0x120) = 0;
++                    RAW_CAM_AT(pS) = 0;  // port: patch 0082
+                 }
+             }
+         }
+--- a/src/game/sce_sys.cpp
++++ b/src/game/sce_sys.cpp
+@@ -428,7 +428,7 @@
+     case 2:
+         em = (cEm*) pP->value;
+         // Raw (non-struct) read: keeps the load behind the store of `em` to its stack slot.
+-        if (*(s16*) ((u32) em + 0x320) <= 0 && em->r_no_0 == 3) {
++        if (*(s16*) ((u32) em + RE4_OFS(cEm, hp, 0x320)) <= 0 && em->r_no_0 == 3) {  // port: patch 0082
+             return 1;
+         }
+         break;
+--- a/src/st2/r20d.cpp
++++ b/src/st2/r20d.cpp
+@@ -498,7 +498,7 @@
+     // `idx*36 + work + 0x2c` (mult first): the target adds the scaled index to the work pointer and
+     // keeps 0x2c as the displacement (`add r11,r28,r11; lfs f31,0x2c(r11)`); the zero-inits of the
+     // loop state follow the switch (issued in the block before the beginEvent calls).
+-    t = *(f32*) (idx * sizeof(cFence) + (u32) r20d_work + 0x2c);
++    t = *(f32*) (idx * sizeof(cFence) + (u32) r20d_work + RE4_OFS(R20dWork, fence[0].t, 0x2c));  // port: patch 0082
+     spd = 0;
+     lastMot = 0;
+     accel = 0;
+--- a/src/st2/r20e.cpp
++++ b/src/st2/r20e.cpp
+@@ -103,11 +103,11 @@
+ 
+ // `&p->piece[i]` as integer arithmetic, index first (`mulli; add idx, p; addi 0x10`): the array
+ // subscript folds the 0x10 into the product and puts the pointer first in the add.
+-#define PUZZLE_PIECE(p, i) ((R20ePiece*) ((i) * sizeof(R20ePiece) + (u32) (p) + 0x10))
++#define PUZZLE_PIECE(p, i) ((R20ePiece*) ((i) * sizeof(R20ePiece) + (u32) (p) + RE4_OFS(R20ePuzzle, piece, 0x10)))  // port: patch 0082
+ // `&p->cell[x][y]` as integer arithmetic, so that fold and EXPAND_SUM give the operand order the
+ // puzzleMove and slide loops need. The `y*16` is never grouped with 0x178 so that `(k-1)*16`
+ // distributes to `k*16 - 16`.
+-#define PUZZLE_CELL(p, x, y) ((R20eCell*) ((x) * sizeof(R20eCell[3]) + 0x178 + (u32) (p) + (y) * sizeof(R20eCell)))
++#define PUZZLE_CELL(p, x, y) ((R20eCell*) ((x) * sizeof(R20eCell[3]) + RE4_OFS(R20ePuzzle, cell, 0x178) + (u32) (p) + (y) * sizeof(R20eCell)))  // port: patch 0082
+ 
+ 
+ struct R20eThrough {
+@@ -995,7 +995,7 @@
+         // cy*16 first, then (cx*48 + p), 0x178 last: `mulli cx; add p; add cy16; lwzu 0x178`
+         Vec pos;
+ 
+-        r20e_framePos(pos, (R20eCell*) (p->cy * 0x10 + (p->cx * 0x30 + (u32) p) + 0x178));
++        r20e_framePos(pos, (R20eCell*) (p->cy * 0x10 + (p->cx * 0x30 + (u32) p) + RE4_OFS(R20ePuzzle, cell, 0x178)));  // port: patch 0082
+         pos.y += 10.0f;
+         p->frame->pos = pos;
+         p->frame->be_flag |= 2;
+--- a/src/st2/r21d.cpp
++++ b/src/st2/r21d.cpp
+@@ -956,7 +956,7 @@
+         cObj* obj = SmdGetObjPtr(d->objId);
+         TRAP* t;
+ 
+-        base += 0x30C;   // reassigned: cse cannot re-base the zero-offset store on the old value
++        base += RE4_OFS(R21dWork, trap, 0x30C);   // reassigned: cse cannot re-base the zero-offset store on the old value (port: patch 0082)
+         t = (TRAP*) base;
+         t->obj = obj;
+         t->obj->be_flag |= 0x20;

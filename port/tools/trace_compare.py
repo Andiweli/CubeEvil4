@@ -6,7 +6,8 @@ Both runs see the same key presses at the same frames (RE4_PAD_SCRIPT, RE4_VI_FA
 reads complete at once), so both traces should agree frame by frame. Compared per frame:
 
   exact     game step, room, the random generator, the player's routine and hit points, the
-            live works (objects, events, effect slots), the frames of the running events, every
+            live works (objects, events, effect slots, model infos, model parts, lights, damage,
+            collision and hit works), the frames of the running events, every
             enemy (slot, id, routine, hit points), the sound streams, the camera switches and
             routine, the room save flags, the GP counts of the frame (commands, draws,
             vertices, display list calls, XF/BP writes, textures, texture bytes, copies, TLUT
@@ -35,12 +36,14 @@ import sys
 # fields compared exactly; the value is the group name in the report
 EXACT = {
     "Rno0": "Spielschritt", "room": "Raum", "rnd": "Zufall", "plr": "Spieler (Routine, HP)",
-    "n": "Anzahl Objekte/Ereignisse/Effekte", "evt": "Ereignisbild", "rsf": "Raum-Flags",
-    "str": "Tonspuren", "gx": "GX-Kennzahlen",
+    "n": "Anzahl Werke", "evt": "Ereignisbild", "rsf": "Raum-Flags",
+    "str": "Tonspuren", "gx": "GX-Kennzahlen", "chk": "Prüfsummen",
 }
 GX_NAMES = ["Befehle", "Zeichenaufträge", "Ecken", "Listenaufrufe", "XF", "BP", "Texturen", "Texturbytes",
             "Bildkopien", "Texturkopien", "TLUT", "unbekannt"]
 PLR_NAMES = ["r0", "r1", "r2", "r3", "HP"]
+N_NAMES = ["Objekte", "Ereignisse", "Effekte", "Modelle", "Modellteile", "Lichter", "Schaden", "Kollision",
+           "Treffer"]
 
 
 def read(path):
@@ -107,14 +110,17 @@ def show(group, value):
         return ", ".join(f"{n} {v}" for n, v in zip(GX_NAMES, value))
     if group == "Spieler (Routine, HP)" and isinstance(value, list):
         return " ".join(f"{n} {v}" for n, v in zip(PLR_NAMES, value))
+    if group == "Anzahl Werke" and isinstance(value, list):
+        return ", ".join(f"{n} {v}" for n, v in zip(N_NAMES, value))
     text = json.dumps(value, separators=(",", ":"))
     return text if len(text) <= 300 else text[:300] + " ..."
 
 
 def detail(group, a, b):
     """the parts of a group that differ (GX counts, player fields, enemies by slot)"""
-    if isinstance(a, list) and isinstance(b, list) and group in ("GX-Kennzahlen", "Spieler (Routine, HP)"):
-        names = GX_NAMES if group == "GX-Kennzahlen" else PLR_NAMES
+    if isinstance(a, list) and isinstance(b, list) and group in ("GX-Kennzahlen", "Spieler (Routine, HP)",
+                                                                 "Anzahl Werke"):
+        names = {"GX-Kennzahlen": GX_NAMES, "Spieler (Routine, HP)": PLR_NAMES, "Anzahl Werke": N_NAMES}[group]
         return [f"{n}: {x} / {y}" for n, x, y in zip(names, a, b) if x != y]
     if group == "Gegner":
         sa = {e[0]: e for e in a}

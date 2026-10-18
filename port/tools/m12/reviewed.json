@@ -1,0 +1,230 @@
+{
+ "comment": [
+  "Milestone 12: findings of the 64-bit checks (port/tools/m12) that were looked at and are right as",
+  "they are, each with the reason (German, like the status file). port/tools/m12/run_all.py takes",
+  "them off; `finding` is the report line without line and column numbers, exactly. A finding not",
+  "listed here is new (fix it or add it with its reason); an entry no check reports any more is",
+  "reported as well (remove it). Sources: the review of 18.10.2026 (port/docs/whole-program-status.md,",
+  "M12 'Bestandsaufnahme')."
+ ],
+ "reviewed": {
+  "cast_check": [
+   {
+    "finding": "Event -> TexRenderEvt (src/st2/r20b.cpp) (+20: src/st2/r20b.cpp, src/st3/r304.cpp, src/st3/r304.cpp ...): GameCube 0x44 at LP64 0x60 / 0x44 (StatusFlag / flags)",
+    "why": "Nur Weitergabe des Zeigers an TexRenderCamAddOt; TexRender liest seit Patch 0074 die Glieder von Event selbst (evtFlag, GetNowFrame ...), nicht die der Sicht TexRenderEvt."
+   },
+   {
+    "finding": "R20ePuzzle -> KEY (src/st2/r20e.cpp); own members used: src/st2/r20e.cpp KEY::trg: GameCube 0x10 at LP64 0x18 / 0x10 (piece / on)",
+    "why": "Absichtlich tote Zuweisung (COMPILER-DIFF in r20e.cpp): key wird vor jeder Benutzung mit &Key überschrieben; KEY::trg wird nie über die Puzzle-Adresse gelesen."
+   },
+   {
+    "finding": "TexRenderEvt -> Event (src/game/TexRender.cpp) (+3: src/game/TexRender.cpp, src/game/TexRender.cpp, src/game/TexRender.cpp); own members used: src/game/TexRender.cpp Event::StatusFlag; src/game/TexRender.cpp Event::GetNowFrame; src/game/TexRender.cpp Event::GetFFNowFrame; src/game/TexRender.cpp Event::GetMaxFrame: GameCube 0x44 at LP64 0x44 / 0x60 (flags / StatusFlag)",
+    "why": "Der Zeiger ist ein Event (Gegenstück von Event -> TexRenderEvt); gelesen werden Glieder von Event über Event (Patch 0074): richtig auf beiden Breiten."
+   },
+   {
+    "finding": "cEm -> LightAreaLauncher (src/game/light_area.cpp) (+5: src/game/light_area.cpp, src/game/light_area.cpp, src/game/light_area.cpp ...); own members used: src/game/light_area.cpp LightAreaLauncher::rocket; src/game/light_area.cpp LightAreaLauncher::rocket; src/game/light_area.cpp LightAreaLauncher::rocket; src/game/light_area.cpp LightAreaLauncher::rocket; src/game/light_area.cpp LightAreaLauncher::rocket; src/game/light_area.cpp LightAreaLauncher::rocket: GameCube 0x384 at LP64 0x434 / 0x430 (lockOfs.y / rocket)",
+    "why": "Das Objekt ist ein cObjLauncher (Prüfung id == 0x23); LightAreaLauncher legt rocket über RE4_OFS(cObjLauncher, pRocket, 0x384) an dessen Stelle (Patch 0074). Das Werkzeug vergleicht mit cEm, dem statischen Typ der Quelle."
+   },
+   {
+    "finding": "cEm -> cObj (src/st3/r300.cpp) (+1: src/st3/r300.cpp): GameCube 0x324 at LP64 0x3c0 / 0x3bc (dmg / blk)",
+    "why": "setAslPos liest nur mat und ang (cCoord/cModel, die gemeinsame Grundklasse von cEm und cObj)."
+   },
+   {
+    "finding": "cEm -> cObj16 (src/em10/em10.cpp) (+3: src/em10/em10.cpp, src/em10/em10.cpp, src/game/obj16.cpp); own members used: src/em10/em10.cpp cObj16::setBurn; src/em10/em10.cpp cObj16::clearLostWait; src/em10/em10.cpp cObj16::clearLostWait; src/game/obj16.cpp cObj16::free: GameCube 0x328 at LP64 0x3c4 / 0x3c0 (dmg.m_PosFrom / free); cObj16 0x4b0 > cEm 0x4a0 bytes on LP64",
+    "why": "Der Zeiger kommt aus einem cEm*-Feld (pEmCatch, pTen[]), in dem das Spiel das Objekt selbst abgelegt hat (SetPlDamage, SetSubDamage, MotSetObj16): das Objekt hat den Zieltyp, seine eigenen Glieder (free, setBurn, getType ...) sind richtig."
+   },
+   {
+    "finding": "cEm -> cObjLadder (src/game/obj13.cpp) (+3: src/game/obj13.cpp, src/game/obj13.cpp, src/game/obj13.cpp); own members used: src/game/obj13.cpp cObjLadder::free, cObjLadder::setReset; src/game/obj13.cpp cObjLadder::free, cObjLadder::getLadderNum, cObjLadder::getType; src/game/obj13.cpp cObjLadder::free, cObjLadder::getLadderNum, cObjLadder::getType; src/game/obj13.cpp cObjLadder::free, cObjLadder::getType, cObjLadder::setDown: GameCube 0x328 at LP64 0x3c4 / 0x3c0 (dmg.m_PosFrom / free); cObjLadder 0x4b0 > cEm 0x4a0 bytes on LP64",
+    "why": "Der Zeiger kommt aus einem cEm*-Feld (pEmCatch, pTen[]), in dem das Spiel das Objekt selbst abgelegt hat (SetPlDamage, SetSubDamage, MotSetObj16): das Objekt hat den Zieltyp, seine eigenen Glieder (free, setBurn, getType ...) sind richtig."
+   },
+   {
+    "finding": "cEm -> cObjPillar (src/game/objPillar.cpp) (+1: src/game/objPillar.cpp); own members used: src/game/objPillar.cpp cObjPillar::free; src/game/objPillar.cpp cObjPillar::free: GameCube 0x328 at LP64 0x3c4 / 0x3c0 (dmg.m_PosFrom / free); cObjPillar 0x4b0 > cEm 0x4a0 bytes on LP64",
+    "why": "Der Zeiger kommt aus einem cEm*-Feld (pEmCatch, pTen[]), in dem das Spiel das Objekt selbst abgelegt hat (SetPlDamage, SetSubDamage, MotSetObj16): das Objekt hat den Zieltyp, seine eigenen Glieder (free, setBurn, getType ...) sind richtig."
+   },
+   {
+    "finding": "cEm -> cObjRobo (src/st2/r226.cpp); own members used: src/st2/r226.cpp cObjRobo::free: GameCube 0x328 at LP64 0x3c4 / 0x3c0 (dmg.m_PosFrom / free); cObjRobo 0x4b0 > cEm 0x4a0 bytes on LP64",
+    "why": "Der Zeiger kommt aus einem cEm*-Feld (pEmCatch, pTen[]), in dem das Spiel das Objekt selbst abgelegt hat (SetPlDamage, SetSubDamage, MotSetObj16): das Objekt hat den Zieltyp, seine eigenen Glieder (free, setBurn, getType ...) sind richtig."
+   },
+   {
+    "finding": "cEm -> cObjTrolley (src/game/objTrolley.cpp) (+1: src/game/objTrolley.cpp): GameCube 0x328 at LP64 0x3c4 / 0x3c0 (dmg.m_PosFrom / free); cObjTrolley 0x4b0 > cEm 0x4a0 bytes on LP64",
+    "why": "Der Zeiger kommt aus einem cEm*-Feld (pEmCatch, pTen[]), in dem das Spiel das Objekt selbst abgelegt hat (SetPlDamage, SetSubDamage, MotSetObj16): das Objekt hat den Zieltyp, seine eigenen Glieder (free, setBurn, getType ...) sind richtig."
+   },
+   {
+    "finding": "cEmMark -> EmMarkView (src/em3e/em3e.cpp) (+40: src/em3e/em3e.cpp, src/em3e/em3e.cpp, src/em3e/em3e.cpp ...); own members used: src/em3e/em3e.cpp EmMarkView::hit; src/em3e/em3e.cpp EmMarkView::hit; src/em3e/em3e.cpp EmMarkView::hit; src/em3e/em3e.cpp EmMarkView::hit; src/em3e/em3e.cpp EmMarkView::hit; src/em3e/em3e.cpp EmMarkView::hit (+35): GameCube 0x3e0 at LP64 0x49c / 0x4a0 (free / hit)",
+    "why": "EmMarkView ist die einzige Sicht auf cEmMark::free (beginnt bei RE4_OWN(cEm, u8, 0x3E0)); hit liegt auf LP64 4 Bytes hinter dem Anfang von free (8-Byte-Ausrichtung von YARARE_INFO), alle Zugriffe gehen über EmMarkView."
+   },
+   {
+    "finding": "cEsp -> cEspgen (src/game/espgen01.cpp); own members used: src/game/espgen01.cpp cEspgen::Free: GameCube 0x10 at LP64 0x18 / 0x14 (m_Be_flg / Rno0)",
+    "why": "pDat ist der Zeiger, den espgen01.cpp selbst als (cEsp*) an EspAddOtAfterRender übergibt (AddOtDirect reicht ihn nur weiter): das Objekt ist ein cEspgen."
+   },
+   {
+    "finding": "cEspgen -> cEsp (src/game/espgen01.cpp): GameCube 0x10 at LP64 0x14 / 0x18 (Rno0 / m_Be_flg)",
+    "why": "Nur Weitergabe an EspAddOtAfterRender / AddOtDirect als Rückrufwert, keine Glieder von cEsp."
+   },
+   {
+    "finding": "cModel -> cParts (src/game/model.cpp) (+1: src/game/model.cpp); own members used: src/game/model.cpp cParts::pList: GameCube 0x1c4 at LP64 0x210 / 0x1dc (LightInfo.Offset.z / pad_1C4)",
+    "why": "cModel und cParts haben bis 0x1C4 dieselbe Form (beide über cCoord); pList liegt in beiden bei 244 (GameCube) bzw. 264 (LP64): makePartsList hängt die Teile über p->pList an, getPartsPtr(-1) gibt das Modell als Teil zurück."
+   },
+   {
+    "finding": "cModelInfo -> cModel (src/em10/em10.cpp) (+17: src/em10/em10.cpp, src/em10/em10.cpp, src/em10/em10.cpp ...): GameCube 0xf4 at LP64 0x154 / 0x108 (uvScrollV / pList)",
+    "why": "EM10_ACC_PARTS legt die cModelInfo in cModel*-Feldern ab (pHood, pWhood, pAccesory); benutzt wird nur be_flag (cUnit, gleiche Stelle)."
+   },
+   {
+    "finding": "cObj -> cEm (src/em10/em10.cpp) (+7: src/em10/em10.cpp, src/em10/em10.cpp, src/em10/em10.cpp ...): GameCube 0x324 at LP64 0x3bc / 0x3c0 (blk / dmg)",
+    "why": "Ablage eines Objekts in einem cEm*-Feld (pEmCatch über SetPlDamage/SetSubDamage, pCart, pTen[]) oder Aufruf von EmAtCheck(cModel*); über das Feld benutzt werden nur Glieder von cUnit/cModel (isAlive, setNoSuspend, atari, Motion, pos, mat), die in cEm und cObj an derselben Stelle liegen."
+   },
+   {
+    "finding": "cObj12 -> cEm (src/em10/em10.cpp): GameCube 0x328 at LP64 0x3c0 / 0x3c4 (free / dmg.m_PosFrom)",
+    "why": "Ablage eines Objekts in einem cEm*-Feld (pEmCatch über SetPlDamage/SetSubDamage, pCart, pTen[]) oder Aufruf von EmAtCheck(cModel*); über das Feld benutzt werden nur Glieder von cUnit/cModel (isAlive, setNoSuspend, atari, Motion, pos, mat), die in cEm und cObj an derselben Stelle liegen."
+   },
+   {
+    "finding": "cObj16 -> cEm (src/game/obj16.cpp): GameCube 0x328 at LP64 0x3c0 / 0x3c4 (free / dmg.m_PosFrom)",
+    "why": "Ablage eines Objekts in einem cEm*-Feld (pEmCatch über SetPlDamage/SetSubDamage, pCart, pTen[]) oder Aufruf von EmAtCheck(cModel*); über das Feld benutzt werden nur Glieder von cUnit/cModel (isAlive, setNoSuspend, atari, Motion, pos, mat), die in cEm und cObj an derselben Stelle liegen."
+   },
+   {
+    "finding": "cObjBull -> cEm (src/game/objBull.cpp) (+2: src/game/objBull.cpp, src/game/objBull.cpp): GameCube 0x328 at LP64 0x3c0 / 0x3c4 (free / dmg.m_PosFrom)",
+    "why": "Ablage eines Objekts in einem cEm*-Feld (pEmCatch über SetPlDamage/SetSubDamage, pCart, pTen[]) oder Aufruf von EmAtCheck(cModel*); über das Feld benutzt werden nur Glieder von cUnit/cModel (isAlive, setNoSuspend, atari, Motion, pos, mat), die in cEm und cObj an derselben Stelle liegen."
+   },
+   {
+    "finding": "cObjLadder -> cEm (src/game/obj13.cpp) (+4: src/game/obj13.cpp, src/game/obj13.cpp, src/game/obj13.cpp ...): GameCube 0x328 at LP64 0x3c0 / 0x3c4 (free / dmg.m_PosFrom)",
+    "why": "Ablage eines Objekts in einem cEm*-Feld (pEmCatch über SetPlDamage/SetSubDamage, pCart, pTen[]) oder Aufruf von EmAtCheck(cModel*); über das Feld benutzt werden nur Glieder von cUnit/cModel (isAlive, setNoSuspend, atari, Motion, pos, mat), die in cEm und cObj an derselben Stelle liegen."
+   },
+   {
+    "finding": "cObjPillar -> cEm (src/game/objPillar.cpp) (+1: src/game/objPillar.cpp): GameCube 0x328 at LP64 0x3c0 / 0x3c4 (free / dmg.m_PosFrom)",
+    "why": "Ablage eines Objekts in einem cEm*-Feld (pEmCatch über SetPlDamage/SetSubDamage, pCart, pTen[]) oder Aufruf von EmAtCheck(cModel*); über das Feld benutzt werden nur Glieder von cUnit/cModel (isAlive, setNoSuspend, atari, Motion, pos, mat), die in cEm und cObj an derselben Stelle liegen."
+   },
+   {
+    "finding": "cObjRobo -> cEm (src/st2/r226.cpp) (+1: src/st2/r226.cpp): GameCube 0x328 at LP64 0x3c0 / 0x3c4 (free / dmg.m_PosFrom)",
+    "why": "Ablage eines Objekts in einem cEm*-Feld (pEmCatch über SetPlDamage/SetSubDamage, pCart, pTen[]) oder Aufruf von EmAtCheck(cModel*); über das Feld benutzt werden nur Glieder von cUnit/cModel (isAlive, setNoSuspend, atari, Motion, pos, mat), die in cEm und cObj an derselben Stelle liegen."
+   },
+   {
+    "finding": "cObjTrolley -> cEm (src/game/objTrolley.cpp) (+1: src/game/objTrolley.cpp): GameCube 0x328 at LP64 0x3c0 / 0x3c4 (free / dmg.m_PosFrom)",
+    "why": "Ablage eines Objekts in einem cEm*-Feld (pEmCatch über SetPlDamage/SetSubDamage, pCart, pTen[]) oder Aufruf von EmAtCheck(cModel*); über das Feld benutzt werden nur Glieder von cUnit/cModel (isAlive, setNoSuspend, atari, Motion, pos, mat), die in cEm und cObj an derselben Stelle liegen."
+   },
+   {
+    "finding": "cSubChar -> cPlayer (src/em10/em10.cpp); own members used: src/em10/em10.cpp cPlayer::m_Work0: GameCube 0x3e0 at LP64 0x4a0 / 0x49c (pEm / m_Work0)",
+    "why": "subem10_NeckHang_Ashley ist eine Schadensroutine des Spielers (EmCatchPLSet) und bekommt pPL: wenn man Ashley spielt, ist sie ein cPlayer, cPlayer::m_Work0 ist ihr eigenes Feld."
+   },
+   {
+    "finding": "cSubLuis -> cSubChar (src/pl14/pl14.cpp): GameCube 0x400 at LP64 0x4c8 / 0x4c4 (routine.mot3 / flg)",
+    "why": "pSUB zeigt auf Luis; über pSUB greift der übrige Code nur auf Glieder von cEm/cModel zu (pos, dmg, atari, hp, Motion, setPos ...), die in cSubLuis und cSubChar an derselben Stelle liegen."
+   },
+   {
+    "finding": "pzlPiece -> cItem (src/game/puzzle.cpp); own members used: src/game/puzzle.cpp cItem::board, cItem::orient, cItem::x, cItem::y: GameCube 0x4 at LP64 0x8 / 0x4 (m_p_data / flags)",
+    "why": "Absichtlich tote Kopie (COMPILER-DIFF in puzzle.cpp): last wird vor jeder Benutzung mit ItemMgr.newbie() neu gesetzt."
+   }
+  ],
+  "raw_offset_check": [
+   {
+    "finding": "src/game/main_mem.cpp: OSHeapCell + 0x20: past the record (0x20 bytes on ILP32, 0x28 on LP64), check by hand",
+    "why": "Kopf einer Heap-Zelle: Spiel und OSAlloc.c rechnen mit den 0x20 Bytes Kopf der SDK-Zellen; der Kopf hat auf beiden Breiten 0x20 Bytes (geprüft in M12-A3), nur die Sicht der Glieder ist auf LP64 größer."
+   },
+   {
+    "finding": "src/lib/OSAlloc.c: struct Cell + 0x20: past the record (0xc bytes on ILP32, 0x18 on LP64), check by hand",
+    "why": "Kopf einer Heap-Zelle: Spiel und OSAlloc.c rechnen mit den 0x20 Bytes Kopf der SDK-Zellen; der Kopf hat auf beiden Breiten 0x20 Bytes (geprüft in M12-A3), nur die Sicht der Glieder ist auf LP64 größer."
+   },
+   {
+    "finding": "src/st2/r22c.cpp: cObj + 0xdb (prevMat) lies at 0xeb on LP64",
+    "why": "getCap gibt eine Kappen-Nummer (1..15) als cObj* zurück (so dekompiliert); cap ist eine Zahl, kein Objekt."
+   },
+   {
+    "finding": "src/st2/r22c.cpp: cObj - 0x1: an outer object found from this one, check by hand",
+    "why": "getCap gibt eine Kappen-Nummer (1..15) als cObj* zurück (so dekompiliert); cap ist eine Zahl, kein Objekt."
+   }
+  ],
+  "raw_offset_words": [
+   {
+    "finding": "src/game/main_mem.cpp: OSHeapCell + 0x20: past the record (0x20 bytes on ILP32, 0x28 on LP64), check by hand",
+    "why": "Kopf einer Heap-Zelle (siehe raw_offset_check)."
+   },
+   {
+    "finding": "src/lib/OSAlloc.c: struct Cell + 0x20: past the record (0xc bytes on ILP32, 0x18 on LP64), check by hand",
+    "why": "Kopf einer Heap-Zelle (siehe raw_offset_check)."
+   },
+   {
+    "finding": "src/lib/sfd_tim.c: SFD_VFRM + 0x14 (inf) lies at 0x1c on LP64",
+    "why": "Patch 0070: auf LP64 liest sfd_tim.c tunit und ftime als Wörter 6 und 5 der Bildinformation SFD_VFRM_INF (#if __SIZEOF_POINTER__); gemeldet wird die ILP32-Fassung inf.raw[4]/[3]. Filmvergleich 32/64 bit gleich."
+   },
+   {
+    "finding": "src/lib/sfd_tim.c: SFD_VFRM + 0x18 (inf) lies at 0x20 on LP64",
+    "why": "Patch 0070: auf LP64 liest sfd_tim.c tunit und ftime als Wörter 6 und 5 der Bildinformation SFD_VFRM_INF (#if __SIZEOF_POINTER__); gemeldet wird die ILP32-Fassung inf.raw[4]/[3]. Filmvergleich 32/64 bit gleich."
+   },
+   {
+    "finding": "src/st2/r22c.cpp: cObj + 0xdb (prevMat) lies at 0xeb on LP64",
+    "why": "getCap gibt eine Kappen-Nummer zurück (siehe raw_offset_check)."
+   },
+   {
+    "finding": "src/st2/r22c.cpp: cObj - 0x1: an outer object found from this one, check by hand",
+    "why": "getCap gibt eine Kappen-Nummer zurück (siehe raw_offset_check)."
+   }
+  ],
+  "ptr_slot_check": [
+   {
+    "finding": "src/lib/mwsfdcre.c: int seen as void **",
+    "why": "MWPLY_OBJ::x48 (Sint32) liegt auf LP64 bei 0x60, dahinter 4 Füllbytes bis lsc (0x68): SFD_GetTrHn schreibt 8 Bytes in x48 und die Füllbytes; x48 wird nirgends gelesen."
+   },
+   {
+    "finding": "src/st2/r20d.cpp: unsigned char seen as void **",
+    "why": "st ist immer 0 (COMPILER-DIFF #12 in r20d.cpp); gelesen wird mot[1], ein void*-Glied."
+   }
+  ],
+  "ptr_word_check": [
+   {
+    "finding": "src/game/pl_npc.cpp: write of `struct EmiEntry *` as a 32-bit word",
+    "why": "*(u32*) &pAnotherRoute = 0: auf LP64 bleibt die obere Hälfte stehen; sie ist 0, weil alles, worauf das Spiel zeigt, unter 4 GB liegt (Weg A)."
+   }
+  ],
+  "span_check": [
+   {
+    "finding": "src/t_light/t_scroll.cpp: 0xaf bytes from cObjScr.free (destination): ILP32 6 members free..CallBackFunc, ends inside CallBackFunc; LP64 5 members free..dummy73",
+    "why": "Licht-Werkzeug (Debug, im Spiel nicht erreichbar): die Länge 0xAF löscht auf dem GameCube auch 3 Bytes von CallBackFunc, auf LP64 nur bis dummy73; das Werkzeug setzt Typ und Spiegelmodell danach neu."
+   }
+  ],
+  "array_view_check": [
+   {
+    "finding": "src/game/datactrl.cpp: cDataCtrl.m_DataUnit[0x20] (length 0x20): byte 0xa00 of 0xaa4 on ILP32, 0xd00 of 0xdb0 on LP64  <- moves",
+    "why": "&m_DataUnit[32] ist die Endmarke der Schleife über die 32 Einträge, dahinter wird nichts gelesen."
+   },
+   {
+    "finding": "src/st2/r203.cpp: R203Work.em[0x6] (length 0x3): byte 0x48 of 0xac on ILP32, 0x60 of 0xc0 on LP64  <- moves",
+    "why": "Der Raum benutzt em[0..8], deklariert sind 3 (das Original nutzte mehr, als es anlegte): auf beiden Breiten liegt em[3] genau über pt[] wie auf dem GameCube, em[4..8] im Füllfeld, alles vor data (LP64: em[8] endet bei 0x90, data bei 0xB8)."
+   }
+  ],
+  "sizeof_ptr_check": [
+   {
+    "finding": "src/lib/CARDUnlock.c: struct CARDDecParam pointer +/- sizeof(struct CARDDecParam): size: sizeof(struct CARDDecParam) 0x10 on ILP32, 0x18 on LP64",
+    "why": "Parameter und Daten dahinter schreibt und liest dieselbe Kartenbibliothek im selben Bau; die DSP-Abfrage überspringt der Port (runtime/memcard.cpp), keine GameCube-Daten."
+   },
+   {
+    "finding": "src/lib/sfd_buf.c: struct SFD_OBJ pointer +/- sizeof(SFBUF_WORK): size: sizeof(SFBUF_WORK) 0x74 on ILP32, 0x88 on LP64",
+    "why": "Puffer n des Sofdec-Handles: die Sichten SFBUF_HN / SFMPS_BUFHN haben auf LP64 den Platzhalter aus SFD_OBJ (0x1360, Patch 0070), die Schrittweite sizeof(SFBUF_WORK) ist die des LP64-Feldes SFD_OBJ::buf[]. Der Filmvergleich 32/64 bit (test_movie_compare.py) ist Bild für Bild gleich."
+   },
+   {
+    "finding": "src/lib/sfd_mps.c: struct SFD_OBJ pointer +/- sizeof(SFBUF_WORK): size: sizeof(SFBUF_WORK) 0x74 on ILP32, 0x88 on LP64",
+    "why": "Puffer n des Sofdec-Handles: die Sichten SFBUF_HN / SFMPS_BUFHN haben auf LP64 den Platzhalter aus SFD_OBJ (0x1360, Patch 0070), die Schrittweite sizeof(SFBUF_WORK) ist die des LP64-Feldes SFD_OBJ::buf[]. Der Filmvergleich 32/64 bit (test_movie_compare.py) ist Bild für Bild gleich."
+   },
+   {
+    "finding": "src/lib/sfd_pts.c: struct SFD_OBJ pointer +/- sizeof(SFBUF_WORK): size: sizeof(SFBUF_WORK) 0x74 on ILP32, 0x88 on LP64",
+    "why": "Puffer n des Sofdec-Handles: die Sichten SFBUF_HN / SFMPS_BUFHN haben auf LP64 den Platzhalter aus SFD_OBJ (0x1360, Patch 0070), die Schrittweite sizeof(SFBUF_WORK) ist die des LP64-Feldes SFD_OBJ::buf[]. Der Filmvergleich 32/64 bit (test_movie_compare.py) ist Bild für Bild gleich."
+   },
+   {
+    "finding": "src/st2/r21d.cpp: R21dWork pointer +/- sizeof(TRAP): size: sizeof(TRAP) 0x30 on ILP32, 0x38 on LP64",
+    "why": "Die Fallen-Tabelle: der Platz kommt in der nächsten Zeile aus dem Layout (base += RE4_OFS(R21dWork, trap, 0x30C), Patch 0082), die Schrittweite sizeof(TRAP) ist die des LP64-Feldes trap[]."
+   }
+  ],
+  "reloc_check": [
+   {
+    "finding": "src/Sscrn/ss_map.cpp: SUB_SCREEN::pMapObj relocated in place, 8 bytes on LP64",
+    "why": "Arbeitsstruktur des Untermenüs (vom Code angelegt): der Abstand zu pBuf entsteht im selben Programm (beim Auslagern ins ARAM), keine Disc-Daten; (int) pMapObj >= 0 trennt Abstand und Adresse auf beiden Breiten (Adressen haben Bit 31)."
+   },
+   {
+    "finding": "src/lib/sfd_adxt.c: SFADXT_PARA::buf relocated in place, 8 bytes on LP64",
+    "why": "Ausrichtung auf 32 Bytes ((Uint32) para->buf + 31) & ~31, gelesen aus einer anderen Struktur gleichen Typs: keine Umrechnung eines Abstands."
+   },
+   {
+    "finding": "src/lib/sfd_adxt.c: SFADXT_PARA::work relocated in place, 8 bytes on LP64",
+    "why": "Ausrichtung auf 32 Bytes ((Uint32) para->buf + 31) & ~31, gelesen aus einer anderen Struktur gleichen Typs: keine Umrechnung eines Abstands."
+   }
+  ]
+ }
+}

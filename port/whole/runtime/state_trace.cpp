@@ -6,7 +6,8 @@
 //   {"frame":N,"Rno0":3,"room":"0x100","pl":[x,y,z],"rsf":["0x80000000"],
 //    "str":[{"w":0,"id":"0x..","be":"0x0013","rno":2,"req":"0x0","vol":..,"dvd":[busy,reqs,status],"dma":0,"err":0}],
 //    "em":[{"slot":1,"id":"0x12","r":[1,11,0,0],"hp":500,"pos":[x,y,z]}, ...],
-//    "rnd":N,"plr":[r0,r1,r2,r3,hp],"n":[objects,events,effects],"evt":[frame,...],
+//    "rnd":N,"plr":[r0,r1,r2,r3,hp],"n":[objects,events,effects,models,parts,lights,
+//    dmg,sat,eat],"evt":[frame,...],
 //    "gx":[12 counts of this frame],"heap":[[no,free,size],...],"hf":N}  (traceMore)
 //
 // Rno0 is the game task step (2 room init, 3 main loop), "rsf" the room save
@@ -104,6 +105,10 @@
 #include "event.h"
 #include "espgen.h"
 #include "main_mem.h"
+#include "model.h"
+#include "light.h"
+#include "dmg.h"
+#include "atari.h"
 #include <dolphin/os/OSAlloc.h>
 
 #include <math.h>
@@ -189,7 +194,7 @@ template <class T> int aliveCount(cManager<T>& m, int limit = 4096)
 // More of the state for the 32/64-bit comparison of the PC check (port/tools/trace_compare.py):
 // "rnd" the game's random generator (it parts first when two runs call Rnd differently), "plr"
 // the player's routine and hit points, "n" the live works (objects, events, effect slots in
-// use), "evt" the total frame of each running event, "gx" what the GP got since the last frame
+// use, model infos, model parts, lights, damage, collision and hit works), "evt" the total frame of each running event, "gx" what the GP got since the last frame
 // (commands, draws, vertices, display list calls, XF and BP writes, textures, texture bytes,
 // copies to the picture and to textures, TLUT loads, unknown commands), every 60 frames
 // "heap": [number, free bytes, size] of each active heap (OSCheckHeap, which also reports a
@@ -205,7 +210,9 @@ void traceMore(FILE* f, unsigned n, GLOBAL_WK* g)
                 (unsigned) pl->r_no_2, (unsigned) pl->r_no_3, (int) pl->hp);
     }
     int esp = live(g_pEspSys) ? (int) g_pEspSys->ActiveEspNum : -1;
-    fprintf(f, ",\"n\":[%d,%d,%d]", aliveCount(ObjMgr), aliveCount(EvtMgr), esp);
+    fprintf(f, ",\"n\":[%d,%d,%d,%d,%d,%d,%d,%d,%d]", aliveCount(ObjMgr), aliveCount(EvtMgr), esp,
+            aliveCount(ModInfoMgr), aliveCount(PartsMgr), aliveCount(LightMgr), aliveCount(DmgMgr),
+            aliveCount(SatMgr), aliveCount(EatMgr));
     fprintf(f, ",\"evt\":[");
     int k = 0;
     for (cUnit* u = (cUnit*) EvtMgr.pAlive; live(u) && k < 16; u = u->getNext(), k++) {
