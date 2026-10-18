@@ -3956,6 +3956,11 @@ Spiel (r20d, r20e, r21d, Szenen-Treffer, Kamera-Ziel), Gerät.
   weichen um 2–50 ab (z. B. Bild 652: 78779 / 78783, Karte 3244: 4286 / 4328); das passt
   zur Textanzeige des Debug-Builds (2 Dreiecke je Zeichen), ist aber erst mit dem
   Vergleichslauf ohne Debug-Anzeige entschieden.
+- Geprüft (Cloud, Stand `f59b9a4`): `whole_build.sh i686 x86_64 armhf aarch64` und
+  `RE4_OPT=2 whole_build.sh i686 x86_64` (wie die PC-Prüfung): 0 Baufehler, alle Tests
+  bestanden (Laufzeittest mit dem neuen Fall auf allen Zielen), Filmvergleich 250/250,
+  `trace_compare` 9 von 9, M12-Selbsttest 17 von 17. **Nicht getestet:** die drei Läufe
+  mit Disc-Daten (lokal), Gerät.
 
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
