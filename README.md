@@ -43,6 +43,50 @@ picture identical. Later rooms have not been played through yet; that is the nex
 of many rooms). Progress, test results and every patch are recorded in
 `port/docs/whole-program-status.md` (German).
 
+The game is the debug build, and its debug features are still switched on for the test runs:
+after **New Game** the game's debug start menu lets you choose a room, and holding SELECT opens
+the game's own debug menu. Its on-screen debug displays are hidden.
+
+## How to use?
+
+**You need**
+
+- An Android device with Android 6.0 or later, OpenGL ES 3.0 and a 32- or 64-bit ARM processor.
+- A game controller (built in, USB or Bluetooth). There are no touch controls.
+- Your own disc images (ISO or GCM) of **both** discs of the GameCube debug build from
+  November 25, 2004 (`G4BE08`), and enough free storage to import them.
+
+**First start**
+
+1. Install the APK and open **CubeEvil4**.
+2. Choose **Import Disc 1** and **Import Disc 2** and pick the image files. The game starts only
+   once both discs are imported.
+3. Choose **Start game**. If your controller's face buttons are labelled the other way round,
+   tick "Swap A/B and X/Y" on the start screen.
+
+**SELECT button**
+
+- **Press SELECT:** the app menu: graphics (resolution, anti-aliasing, texture filter, 16:9 or
+  4:3 picture, FPS display, depth of field), memory card (export and import saves as `.gci` for
+  Dolphin and the GameCube) and the error log (send or save a report). B returns to the game.
+- **Hold SELECT for a second:** the game's own debug menu.
+
+**Buttons**
+
+| Controller | GameCube | In the game |
+|---|---|---|
+| A, B, X, Y | A, B, X, Y | by their labels |
+| Left stick | Control stick | move |
+| Right stick | C stick | |
+| D-pad | D-pad | |
+| START | START | |
+| R2 | R | ready weapon |
+| L2 | L | knife |
+| R1 | Z | map |
+| SELECT | – | app menu (hold: debug menu) |
+
+The controller (or the device) vibrates where the game uses the rumble, if it can.
+
 ## Building the app
 
 No disc images or game files ever go into the repository.
