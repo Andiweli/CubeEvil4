@@ -7,7 +7,7 @@
 ![Controller only](https://img.shields.io/badge/Input-Controller%20only-9A1B1C)
 [![Support via PayPal](https://img.shields.io/badge/Support%20via-PayPal-0070BA?logo=paypal&logoColor=white)](https://paypal.me/andiweli)
 
-**[STATUS](#status) | [HOW TO USE](#how-to-use) | [DISCORD](https://discord.gg/AB3WVBqD5G) | [ALPHA RELEASE](https://github.com/Andiweli/CubeEvil4/releases)**
+**[STATUS](#status) | [HOW TO USE](#how-to-use) | [DISCORD](https://discord.gg/AB3WVBqD5G) | [ALPHA RELEASE](https://github.com/Andiweli/CubeEvil4-Android/releases)**
 
 **CubeEvil4** is an unofficial, native Android port of the GameCube debug build of Resident Evil 4
 (`G4BE08`, the "Nov 25 2004" prototype on two discs). It does not recreate the game: the app runs

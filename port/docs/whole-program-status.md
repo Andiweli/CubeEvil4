@@ -4094,6 +4094,10 @@ wegen der Marke „Resident Evil“.
   umgeschrieben); die GitHub-Startseite zeigt seitdem die README von CubeEvil4 mit Symbol.
   Weitergearbeitet wird im Arbeitsbranch; `master` bekommt neue Stände auf Wunsch oder am Ende
   eines Meilensteins.
+- Repository erneut umbenannt (Projektinhaber, 18.10.2026): `Andiweli/CubeEvil4` →
+  **`Andiweli/CubeEvil4-Android`** (beide alten Namen leiten weiter). README-Link „ALPHA
+  RELEASE“ zeigt auf die neue Adresse; Text des ersten Alpha-Releases:
+  `port/android-decomp/docs/releases/v0.38.0-alpha1.md`.
 
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
