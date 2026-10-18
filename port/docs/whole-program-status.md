@@ -4098,6 +4098,18 @@ wegen der Marke „Resident Evil“.
   **`Andiweli/CubeEvil4-Android`** (beide alten Namen leiten weiter). README-Link „ALPHA
   RELEASE“ zeigt auf die neue Adresse; Text des ersten Alpha-Releases:
   `port/android-decomp/docs/releases/v0.38.0-alpha1.md`.
+- Tester, FPS-Aufzeichnung mit der App „Scene“ (18.10.2026 22:24, POCO X7 Pro, Dimensity 8400,
+  Android 16, Bildschirm 1080×2400 mit 120 Hz, CubeEvil4 0.38.0-core): Bilder je Sekunde an den
+  Bildschirm im Mittel 105,6, höchstens 121, 5 %-Tief 22, tiefster Wert 16; 86,2 % der Zeit
+  mindestens 45; Grafikchip 237 s lang zu mindestens 96 % ausgelastet (höchstens 100 %);
+  Temperatur höchstens 43,9 °C, Leistung im Mittel 4,4 W. Die tiefen Einbrüche (16–25) häufen
+  sich im ersten Teil der Aufzeichnung, bei noch niedriger Temperatur, später nur einzelne.
+  Gemessen sind die an den Bildschirm gegebenen Bilder (bis 120 je Sekunde, das Spiel selbst
+  liefert 60 Halbbilder); Ursache noch offen: die Aufzeichnung zeigt weder Einstellungen noch
+  Spielstelle. Die App wählt bei „Auto“ auf diesem Bildschirm die 3-fache Auflösung
+  (1920×1344, wie auf dem Retroid). Angefordert: Fehlerbericht der App direkt nach einem
+  solchen Lauf (GX-Werte alle 10 s), Einstellungen, Spielstelle, ein zweiter Lauf derselben
+  Stelle und ein Lauf mit 2-facher Auflösung und ohne Tiefenschärfe/Kantenglättung.
 
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
