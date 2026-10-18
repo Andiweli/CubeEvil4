@@ -4067,8 +4067,14 @@ wegen der Marke „Resident Evil“.
   ihre Speicherkarte einmal in die neue App (wie zuvor von `com.ast.re4decomp.core`); Tester
   exportieren ihre Spielstände vorher im App-Menü als `.gci` und importieren die Discs neu.
   `pull-gx-dumps.ps1` und `pull-address-map.ps1` nutzen den neuen Paketnamen.
-- Getestet: XML-Dateien wohlgeformt, Java-Tests der App (`tools/test_host.sh`); der Bau der
-  APK und das Gerät noch nicht (kein Android-SDK in der Cloud).
+- Getestet: XML-Dateien wohlgeformt; `tools/test_host.sh`: alle Java-Tests der App
+  bestanden (Discs, Steuerung, Menüs, Start, Räume …), von 42 C++-Tests 40 bestanden. Rot
+  sind `enemy_feedback_tests` („Invalid source input rejected“) und
+  `inventory_case_contracts` (Assertion in `tests/inventory_case_tests.cpp:23`): beides
+  Module der Variante `classic`, ihr Code und ihre Tests sind seit der Übernahme der App
+  (Subtree-Merge `4b2df69`) unverändert, also schon vorher rot und unabhängig von der
+  Umbenennung (eigene Aufgabe). Der Bau der APK und das Gerät noch nicht (kein Android-SDK
+  in der Cloud).
 
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
