@@ -25,7 +25,7 @@ data: you need your own images of both debug discs.
 
 ## Status
 
-Work in progress. Tested on a Retroid Pocket Flip 2 (Android 13), 32 and 64 bit: title, opening
+Work in progress. Tested on a Retroid Pocket Flip 2 (Android 13) and POCO X7 Pro (Android 16), 32 and 64 bit: title, opening
 movie, the police car ride and the start of the village (stage 1-1); saving and loading on the
 device in 32 bit and in the PC check in 64 bit. On the PC, a comparison run plays the 32- and
 64-bit core with the same input through these parts and finds every frame and every compared
