@@ -4006,6 +4006,12 @@ Spiel (r20d, r20e, r21d, Szenen-Treffer, Kamera-Ziel), Gerät.
   - Selbsttest `port/tools/test_compare_tools.py` (Bildvergleich PNG/PPM, GX-Vergleich:
     gleich, nur Adressen verschoben, XF-Wert, Ecke, Texel): 6 von 6; läuft in
     `whole_build.sh`.
+- Geprüft (Cloud, Stand `fbeb173`): `whole_build.sh i686 x86_64 armhf aarch64` und
+  `RE4_OPT=2 whole_build.sh i686 x86_64`: 0 Baufehler (Patch 0083 auf allen Zielen), alle
+  Tests bestanden (Laufzeittest: im Schritt 0 weder `pl` noch Gegner im Trace), Filmvergleich
+  250/250, `trace_compare` 9 von 9, Vergleichswerkzeuge 6 von 6, M12-Selbsttest 17 von 17;
+  der Bildteil des Vergleichslaufs mit nachgebauten GX-Daten. **Nicht getestet:** der
+  Vergleichslauf mit Disc-Daten (Bild 301), Gerät.
 
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
