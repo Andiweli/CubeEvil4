@@ -461,6 +461,11 @@ run_game() {
     game_msgs=$(grep -h "^\[re4\] game: " "$log" | sed 's/^\[re4\] game: //; s/ ([0-9]* times)$//' | awk '!seen[$0]++')
     say "Spielmeldungen (pLog): $game_lines Zeilen, $(echo -n "$game_msgs" | grep -c .) verschiedene"
     [ -n "$game_msgs" ] && echo "$game_msgs" | head -40 | sed 's/^/  /' | tee -a "$report"
+    # diagnosis on 64 bit (patch 0078, runtime/watch.cpp): who writes a watched place
+    if grep -q "^\[re4\] \(watch\|MotionMoveCore\):" "$log"; then
+        say "Überwachung (Hardware-Haltepunkte, Patch 0078):"
+        grep -h "^\[re4\] \(watch\|MotionMoveCore\):" "$log" | head -80 | sed 's/^\[re4\] /  /' | tee -a "$report"
+    fi
     if [ -f "$trace" ]; then
         local lines enemies last
         lines=$(wc -l < "$trace")

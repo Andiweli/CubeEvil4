@@ -1,0 +1,31 @@
+# 64-bit build (milestone 12, way A): GameCube offsets into an object as
+# float indices. Found with port/tools/m12/raw_offset_check.py --words (views
+# as 2-, 4- or 8-byte elements).
+# - cam_extra.cpp: the event camera looks along the z column of a door's
+#   base_mat, read as ((f32*) em)[0x784 / 4] ...: on LP64 cEm and the door's
+#   work start elsewhere; now FREE_EMDOOR::base_mat by name.
+--- a/src/game/cam_extra.cpp
++++ b/src/game/cam_extra.cpp
+@@ -22,6 +22,7 @@
+ #include "cockpit.h"
+ #include <string.h>
+ #include "filter.h"
++#include "emdoor.h"  // port: patch 0079
+ 
+ 
+ static u8 init_focus_frame = 30;
+@@ -961,9 +962,11 @@
+         Vec look;
+         Vec axis = {0.0f, 1.0f, 0.0f};
+         if (em->id == 0x41) {
+-            look.x = ((f32*) em)[0x784 / 4];
+-            look.y = ((f32*) em)[0x794 / 4];
+-            look.z = ((f32*) em)[0x7A4 / 4];
++            // port: patch 0079, the z column of the door's base_mat (0x77C on the GameCube) by name
++            FREE_EMDOOR* door = EMDOOR_WK(em);
++            look.x = door->base_mat[0][2];
++            look.y = door->base_mat[1][2];
++            look.z = door->base_mat[2][2];
+         } else {
+             look.x = em->mat[0][2];
+             look.y = em->mat[1][2];

@@ -153,6 +153,7 @@ add_library(re4_platform_obj OBJECT
     runtime/os_thread.cpp
     runtime/pad.cpp
     runtime/vi.cpp
+    runtime/watch.cpp
     "${RE4_ROOT}/port/src/stack_context.cpp")
 target_include_directories(re4_platform_obj PUBLIC runtime PRIVATE "${RE4_ROOT}/port/src")
 target_compile_features(re4_platform_obj PRIVATE cxx_std_17)

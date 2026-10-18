@@ -1293,6 +1293,39 @@ static void testVsync()
     report("vsync", ok);
 }
 
+// Write watchpoints (runtime/watch.cpp, diagnosis on 64 bit): three writes to a watched word,
+// one to its neighbour; where the kernel refuses breakpoints the test says so and passes.
+extern "C" void re4_watch_write(const void* address, const char* label, const char* quiet);
+extern "C" int re4_watch_hits(void);
+static volatile unsigned gWatched[2];
+
+__attribute__((noinline)) static void watchStore(int i, unsigned v)
+{
+    gWatched[i] = v;
+}
+
+static void testWatch()
+{
+    bool ok = true;
+    re4_watch_write((const void*) &gWatched[1], "the runtime test's word", "");
+    if (re4_watch_hits() < 0) {
+        re4_log("  watch: no hardware breakpoints here (the kernel refused)");
+        report("watch", ok);
+        return;
+    }
+    const int before = re4_watch_hits();
+    watchStore(1, 5);
+    watchStore(1, 7);
+    watchStore(0, 1);
+    watchStore(1, 9);
+    const int hits = re4_watch_hits() - before;
+    CHECK(hits == 3);
+    if (hits != 3) {
+        re4_log("  watch: %d hits for 3 writes", hits);
+    }
+    report("watch", ok);
+}
+
 int re4_runtime_tests()
 {
     gFailures = 0;
@@ -1306,6 +1339,7 @@ int re4_runtime_tests()
     testTrace();
     testTasks();
     testVsync();
+    testWatch();
     re4_log("runtime-test: %d failed", gFailures);
     return gFailures;
 }

@@ -3621,6 +3621,51 @@ Daten noch nicht gelaufen). Der Projektinhaber verzichtet auf ein eigenes Logo
     Pausen laufen; die „fehlenden Sekunden“ sind wahrscheinlich die Ereignisse,
     die nach einer Pause zum Ton aufschließen. Bestätigung mit dem nächsten
     Gerätelauf.
+- **Sechster 64-bit-Gerätelauf (01:27, Stand `e60ddde`):** Die Autofahrt r120
+  läuft jetzt bis zum Ende (Leons Spiegelung im Fenster, viel mehr Bäume, die
+  Nebeleffekte sind da). Der Projektinhaber meldet: einige Schattierungen
+  stimmen nicht, als ein Polizist austreten geht, sieht man kurz nur
+  Grashalme, als das Auto wegfährt klebt eine Nebelwand am Auto und man sieht
+  nur Gestrüpp; dann Absturz. Der Absturz kommt beim Aufbau von r100 (der erste
+  Ganado, `cEm10::move` aus `R100Init`): `MotionMoveCore` liest
+  `pEm->Motion.pHermite_data` = `0x00010000813d85b8`, die untere Hälfte
+  stimmt, in der oberen steht 0x00010000. Derselbe Fehler war schon der
+  Absturz der PC-Prüfung von `3756798` (auf x86_64 ist so eine Adresse nicht
+  kanonisch: „fault address (nil)“). Die Heap-Beschädigung von damals ist weg.
+  - **Effekt-Pool in est.cpp:** `EspDelete` (die Effekte eines Besitzers) und
+    `EspDeleteEvent` (die Effekte eines Ereignisses an seinem Ende) gingen den
+    Pool noch in Schritten von 0x150 durch: sie ließen die echten Effekte
+    stehen und gaben Stücke anderer frei. Passt zu Nebel am Auto und Grashalmen
+    vor der Kamera. Jetzt 0x1A8 (`lp64_sizes.json`). Gefunden mit der neuen
+    Schrittweiten-Prüfung von `alloc_size_check.py` (`(T*) (Anfang + i * K)`;
+    bei einer Klasse mit virtuellen Funktionen meldet sie jede feste Schrittweite,
+    weil abgeleitete Klassen größer sein können): genau diese 2 Stellen.
+  - **Löschen über das Ende hinaus:** Neues Werkzeug `span_check.py` (Löschen
+    und Kopieren ab einem Glied über die folgenden): `systemRestartInit` löscht
+    `pG` ab `Rno0` mit `sizeof(GLOBAL_WK) - 0x20` (auf LP64 liegt `Rno0` bei
+    0x24: 4 Bytes hinter `Global`), jeder Raumwechsel löscht `Snd` ab `room_ok`
+    mit `sizeof(SND_WORK) - 0x90` (auf LP64 0x98: 8 Bytes dahinter). Beide jetzt
+    mit dem Abstand des Glieds (`lp64_sizes.json`). Dritter Fund im
+    Licht-Werkzeug (`t_scroll.cpp`, Debug), gleich auf beiden Breiten.
+  - **Wort-Abstände:** `raw_offset_check.py --words` prüft auch Sichten als 2-,
+    4- oder 8-Byte-Felder (`((f32*) em)[0x784 / 4]`): die Kamera beim Öffnen
+    einer Tür las so `base_mat` der Tür (Patch 0079, jetzt über den Namen); die
+    übrigen Funde (`sfd_tim.c`) behandelt Patch 0070.
+  - **Absturz in r100, Diagnose:** Statisch nicht gefunden (geprüft: alle
+    Schreiber von `pHermite_data`, Abstände, Sichten, Löschlängen, alle 805
+    Units sehen `cModel`, `cEm`, `MOTION_INFO` gleich). Neu: Hardware-Haltepunkte
+    (`runtime/watch.cpp`, `perf_event_open` mit einem Schreib-Haltepunkt, je
+    Treffer ein Signal; Laufzeittest „watch“). Patch 0078 lässt
+    `MotionSetCore` die obere Hälfte von `pHermite_data` jedes Gegners
+    überwachen und `MotionMoveCore` einen Zeiger über 4 GB mit den Wörtern
+    daneben melden; jeder Schreibzugriff kommt als „watch: …“ mit Befehl und
+    Rücksprungadressen ins Protokoll (Berichte: Abschnitt „Überwachung“). Auf
+    dem PC geht das (WSL2: `perf_event_paranoid` 2), auf Android nur, wenn der
+    Kernel es erlaubt (sonst eine Zeile „refused“).
+  - Geprüft: i686, armhf, x86_64 und aarch64 alle Cloud-Tests ✅ (Laufzeit jetzt
+    11/11 mit „watch“: 3 Treffer für 3 Schreibzugriffe); `alloc_size_check.py`
+    und `span_check.py` danach 0. Noch nicht geprüft: Gerät und PC-Prüfung mit
+    Disc-Daten.
 - **Falls das auf anderen Geräten nicht reicht** (MEM1 in einem anderen Bereich
   von ART): Auswege wären ein frischer App-Prozess über `wrap.sh` (nur
   Debug-APKs) oder ein eigener Prozess für den Kern; beides ändert die Art des
@@ -3813,6 +3858,8 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0075 `event.cpp`, `ss_pzzl.cpp`, `ss_shop.cpp`, `eprintf.cpp`, `r332.cpp`, `r20d.cpp` | 64 bit (M12): Zeiger in 4-Byte-Plätzen. `EventMgr::GetRead` (Absturz beim Laden des Autofahrt-Ereignisses r120) und `Event::PFuncTbl` über eine Zeiger-Variable; die bin/tpl-Wörter von `ITEM_PIECE_INFO::model` als u32 geschrieben und gelesen; Debug-Textzeiger in 4-Byte-Plätzen (`RE4_P32`); r332-Makros und r20d mit Index statt GameCube-Byteabstand. Gefunden mit `ptr_slot_check.py` |
 | 0076 `db_log.cpp` | Die Spielmeldungen (`pLog->err/warn/mes`, auf dem GameCube Bildschirm und `printf`-Konsole) gehen über `re4_game_log` ins Protokoll des Ports: jede Meldung (nach ihrem Format) die ersten 3 Male, dann jedes 1000. Mal mit Zählung. Auf Android gab es keine Konsole, Meldungen wie „GetPrimBuff() : OVERFLOW“ gingen verloren |
 | 0077 `r117.cpp` | 64 bit (M12): Byte 0xF9 der Lichtstrahlen (Byte 1 der eigenen Arbeitsfläche hinter `cEsp`) über `RE4_OWN(cEsp, u8, 0xF8) + 1`; auf LP64 beginnt die Fläche bei 0x10C. Gefunden mit `raw_offset_check.py` (Abstände hinter dem Ende einer Struktur) |
+| 0078 `motion.cpp` | 64 bit (M12), Diagnose: `MotionSetCore` lässt die obere Hälfte von `pHermite_data` jedes Gegners per Hardware-Haltepunkt überwachen (`re4_watch_write`, `runtime/watch.cpp`; die eigenen Schreibzugriffe von `MotionSetCore` zählen nicht), `MotionMoveCore` meldet einen Zeiger über 4 GB mit den Wörtern daneben. Nur LP64; wird entfernt, wenn der Absturz in r100 behoben ist |
+| 0079 `cam_extra.cpp` | 64 bit (M12): die Kamera beim Öffnen einer Tür liest die z-Spalte von `FREE_EMDOOR::base_mat` über den Namen statt als `((f32*) em)[0x784 / 4]`. Gefunden mit `raw_offset_check.py --words` |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

@@ -757,6 +757,12 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     }
     Say "Spielmeldungen (pLog):            $($gameLines.Count) Zeilen, $($gameSeen.Count) verschiedene"
     foreach ($message in @($gameSeen.Keys | Select-Object -First 30)) { Say "  $message" }
+    # diagnosis on 64 bit (patch 0078, runtime/watch.cpp): who writes a watched place
+    $watch = @($keep | Where-Object { $_ -match 're4\s*: (watch|MotionMoveCore): ' })
+    if ($watch.Count) {
+        Say "Ueberwachung (Hardware-Haltepunkte, Patch 0078):"
+        foreach ($line in @($watch | Select-Object -First 80)) { Say "  $(($line -split 're4\s*: ', 2)[-1])" }
+    }
     # R3 (picture dump): where the player stood, for checks on the PC
     $r3 = @($keep | Where-Object { $_ -match 'RE4Core.*R3: room' })
     foreach ($line in $r3) { Say "R3-Aufnahme:                      $(($line -split 'R3: ')[-1])" }

@@ -18,8 +18,10 @@ object larger than that size on LP64, or to a pointer to pointers (a table
 of 4-byte entries on the GameCube; sizes written with sizeof are right),
 and every memclr_asm / memset / memcpy with a constant length shorter than
 the LP64 size of the structure its destination points to (the tail is left
-as it was). Sizes that are short on ILP32 too (armhf, the reference: only a
-header cleared on purpose) are left out.
+as it was), and every `(T*) (base + i * K)` with a constant stride K smaller
+than T on LP64 (a pool walked in GameCube steps). Sizes that are short on
+ILP32 too (armhf, the reference: only a header cleared on purpose) are left
+out.
 
     port/tools/m12/alloc_size_check.py [--ref BUILD] [--lp64 BUILD] [--pattern REGEX]
 
@@ -85,6 +87,20 @@ def alloc_size(c):
     return (k, "element", False) if k is not None else None
 
 
+def polymorphic(rec):
+    """the record has virtual functions (own or inherited): a pool of it holds derived classes"""
+    import clang.cindex as ci
+    decl = rec.get_declaration()
+    for c in decl.get_children():
+        if c.kind == ci.CursorKind.CXX_METHOD and c.is_virtual_method():
+            return True
+        if c.kind == ci.CursorKind.DESTRUCTOR and c.is_virtual_method():
+            return True
+        if c.kind == ci.CursorKind.CXX_BASE_SPECIFIER and polymorphic(c.type.get_canonical()):
+            return True
+    return False
+
+
 def scan(job):
     import clang.cindex as ci
     entry, resource_dir, lp64 = job
@@ -142,10 +158,49 @@ def scan(job):
             found.append((path[len(tree):], loc.line, loc.column, n, obj.spelling, obj.get_size(),
                           f"{k.spelling} of a table of pointers" if table else f"{k.spelling} shorter than the object"))
 
+    def stride(k):
+        """`(T*) (base + i * K)`: element `i` of a pool or table with a constant stride K; on LP64 T
+        may be larger than K (the effect pool: 0x150 per slot, cEsp3f 0x1A8)"""
+        t = k.type.get_canonical()
+        if t.kind != ci.TypeKind.POINTER:
+            return
+        obj = t.get_pointee().get_canonical()
+        if obj.kind != ci.TypeKind.RECORD or obj.get_size() <= 0:
+            return
+        kids = [x for x in k.get_children() if x.kind != ci.CursorKind.TYPE_REF]
+        e = strip(kids[-1]) if kids else None
+        if e is None or e.kind != ci.CursorKind.BINARY_OPERATOR:
+            return
+        parts = list(e.get_children())
+        if len(parts) != 2:
+            return
+        between = [x.spelling for x in e.get_tokens()
+                   if parts[0].extent.end.offset <= x.extent.start.offset < parts[1].extent.start.offset]
+        if between[:1] != ["+"]:
+            return
+        n = per_element(parts[1])
+        if n is None:
+            return
+        if {"RE4_LP64_SIZE", "sizeof"} & {x.spelling for x in parts[1].get_tokens()}:
+            return
+        loc = k.extent.start
+        path = loc.file.name if loc.file else ""
+        if not path.startswith(tree):
+            return
+        if obj.get_size() > n:
+            found.append((path[len(tree):], loc.line, loc.column, n, obj.spelling, obj.get_size(),
+                          "object, stride of a pool"))
+        elif lp64 and polymorphic(obj):
+            # a pool of a base class: its derived classes may be larger than K on LP64 only
+            found.append((path[len(tree):], loc.line, loc.column, n, obj.spelling, obj.get_size(),
+                          "stride of a pool of a polymorphic class: check K against its largest derived class"))
+
     def walk(c):
         for k in c.get_children():
             if k.kind == ci.CursorKind.CALL_EXPR:
                 fill(k)
+            if k.kind.name in CASTS:
+                stride(k)
             if k.kind.name in CASTS:
                 kids = [x for x in k.get_children() if x.kind != ci.CursorKind.TYPE_REF]
                 alloc = alloc_size(kids[-1]) if kids else None

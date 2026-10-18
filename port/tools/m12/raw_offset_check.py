@@ -13,7 +13,7 @@ set from one in the same function) and compares where the member covering
 that offset on ILP32 lies on LP64. Reported: offsets that land on another
 place on LP64.
 
-    port/tools/m12/raw_offset_check.py [--ref BUILD] [--lp64 BUILD] [--pattern REGEX]
+    port/tools/m12/raw_offset_check.py [--ref BUILD] [--lp64 BUILD] [--pattern REGEX] [--words]
 
 Needs the libclang Python bindings (pip install libclang==18.1.1).
 """
@@ -21,6 +21,7 @@ Needs the libclang Python bindings (pip install libclang==18.1.1).
 import argparse
 import concurrent.futures
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -66,16 +67,23 @@ def strip(c):
     return c
 
 
-def byte_view_of(c):
-    """(record type) when c is a cast of a record pointer to a byte pointer."""
+def view_of(c):
+    """(record type, element size) when c is a cast of a record pointer to a byte pointer (with
+    --words also to a pointer to a 2-, 4- or 8-byte integer or float: `((u32*) em)[0x8D]`)."""
     import clang.cindex as ci
     c = strip(c)
     if c is None or c.kind not in (ci.CursorKind.CSTYLE_CAST_EXPR, ci.CursorKind.CXX_REINTERPRET_CAST_EXPR,
                                    ci.CursorKind.CXX_STATIC_CAST_EXPR):
         return None
     t = c.type.get_canonical()
-    if t.kind != ci.TypeKind.POINTER or t.get_pointee().get_canonical().spelling.replace("const ", "") \
-            not in BYTE_TYPES:
+    if t.kind != ci.TypeKind.POINTER:
+        return None
+    pointee = t.get_pointee().get_canonical()
+    if pointee.spelling.replace("const ", "") in BYTE_TYPES:
+        elem = 1
+    elif os.environ.get("RE4_RAW_WORDS") and pointee.kind in WORD_KINDS() and pointee.get_size() in (2, 4, 8):
+        elem = pointee.get_size()
+    else:
         return None
     kids = list(c.get_children())
     if not kids:
@@ -85,8 +93,20 @@ def byte_view_of(c):
     if st.kind == ci.TypeKind.POINTER:
         rec = st.get_pointee().get_canonical()
         if rec.kind == ci.TypeKind.RECORD:
-            return rec
+            return rec, elem
     return None
+
+
+def WORD_KINDS():
+    import clang.cindex as ci
+    K = ci.TypeKind
+    return (K.SHORT, K.USHORT, K.INT, K.UINT, K.LONG, K.ULONG, K.LONGLONG, K.ULONGLONG, K.FLOAT, K.DOUBLE)
+
+
+def byte_view_of(c):
+    """(record type) when c is a cast of a record pointer to a byte pointer."""
+    v = view_of(c)
+    return v[0] if v else None
 
 
 _LIB = {}
@@ -203,7 +223,7 @@ def scan_lp64(job):
             if k.kind == ci.CursorKind.VAR_DECL:
                 init = [x for x in k.get_children() if x.kind != ci.CursorKind.TYPE_REF]
                 if init:
-                    r = byte_view_of(init[-1])
+                    r = view_of(init[-1])
                     if r is not None:
                         byte_vars[k.get_usr()] = r
             if k.kind == ci.CursorKind.BINARY_OPERATOR:
@@ -212,7 +232,7 @@ def scan_lp64(job):
                     lhs, rhs = kids
                     op = binary_op(k)
                     if op == "=":
-                        r = byte_view_of(rhs)
+                        r = view_of(rhs)
                         ls = strip(lhs)
                         if r is not None and ls.kind == ci.CursorKind.DECL_REF_EXPR and ls.referenced is not None:
                             byte_vars[ls.referenced.get_usr()] = r
@@ -220,11 +240,14 @@ def scan_lp64(job):
                         val = const_value(rhs)
                         if val is not None and op == "-":
                             val = -val
-                        rec = byte_view_of(lhs)
+                        view = view_of(lhs)
                         ls = strip(lhs)
-                        if rec is None and ls is not None and ls.kind == ci.CursorKind.DECL_REF_EXPR and \
+                        if view is None and ls is not None and ls.kind == ci.CursorKind.DECL_REF_EXPR and \
                                 ls.referenced is not None:
-                            rec = byte_vars.get(ls.referenced.get_usr())
+                            view = byte_vars.get(ls.referenced.get_usr())
+                        rec = view[0] if view else None
+                        if view is not None and val is not None:
+                            val *= view[1]
                         if rec is not None and val is not None and val != 0:
                             loc = k.location
                             found.append((rec.get_declaration().get_usr(), rec.spelling, val,
@@ -232,8 +255,15 @@ def scan_lp64(job):
             if k.kind == ci.CursorKind.ARRAY_SUBSCRIPT_EXPR:
                 kids = list(k.get_children())
                 if len(kids) == 2:
-                    rec = byte_view_of(kids[0])
+                    view = view_of(kids[0])
+                    if view is None:
+                        ls = strip(kids[0])
+                        if ls is not None and ls.kind == ci.CursorKind.DECL_REF_EXPR and ls.referenced is not None:
+                            view = byte_vars.get(ls.referenced.get_usr())
+                    rec = view[0] if view else None
                     val = const_value(kids[1])
+                    if view is not None and val is not None:
+                        val *= view[1]
                     if rec is not None and val is not None and val > 0:
                         loc = k.location
                         found.append((rec.get_declaration().get_usr(), rec.spelling, val,
@@ -279,7 +309,11 @@ def main():
     ap.add_argument("--lp64", default=str(ROOT / "port/build/whole-x86_64"))
     ap.add_argument("--pattern", default=r"/prepared/tree/src/.*\.(c|cpp)$")
     ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--words", action="store_true",
+                    help="also views as 2-, 4- or 8-byte elements (`((u32*) em)[0x8D]`), offsets scaled")
     args = ap.parse_args()
+    if args.words:
+        os.environ["RE4_RAW_WORDS"] = "1"
     resource_dir = subprocess.run(["clang", "-print-resource-dir"], capture_output=True, text=True).stdout.strip()
     ea, eb = entries(args.ref, args.pattern), entries(args.lp64, args.pattern)
     common = sorted(set(ea) & set(eb))

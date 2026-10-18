@@ -1,0 +1,57 @@
+# 64-bit build (milestone 12, way A), diagnosis: on the Retroid and in the PC
+# check the first Ganado of r100 crashes in MotionMoveCore (18.10.2026): the
+# upper half of its pHermite_data holds 0x00010000, the lower half is right.
+# MotionSetCore writes the whole pointer; someone writes the upper half later.
+# MotionSetCore asks the CPU (runtime/watch.cpp, a hardware write breakpoint)
+# to report every write to that upper half of an enemy's motion work (but its
+# own); MotionMoveCore logs a pointer that is not below 4 GB with the words
+# around it. LP64 only.
+--- a/src/game/motion.cpp
++++ b/src/game/motion.cpp
+@@ -8,6 +8,9 @@
+ #include "player.h"
+ #include "eprintf.h"
+ #include <string.h>
++
++// port: patch 0078 (diagnosis), runtime/watch.cpp
++extern "C" void re4_watch_write(const void* address, const char* label, const char* quiet);
+ 
+ 
+ // Matrix copy written out as loops, a variant of MTX_COPY (vec.h), because the original never calls
+@@ -224,6 +227,13 @@
+         }
+     }
+     w->pHermite_data = tbl;
++#if __SIZEOF_POINTER__ == 8
++    // port: patch 0078 (diagnosis, milestone 12): the CPU reports who writes the upper half of an
++    // enemy's key data pointer (r100, 18.10.2026: 0x00010000 there, crash in MotionMoveCore)
++    if (m->kindid == 0) {
++        re4_watch_write((u8*) &w->pHermite_data + 4, "the upper half of an enemy's pHermite_data", "MotionSetCore");
++    }
++#endif
+     w->Null_rot = 0xFFFF;
+     w->Null_pos = 0xFFFF;
+     if (w->pAttachCam != 0) {
+@@ -633,6 +643,22 @@
+     if (w->pMot == 0) {
+         return;
+     }
++#if __SIZEOF_POINTER__ == 8
++    // port: patch 0078 (diagnosis): a key data pointer that is not below 4 GB
++    if ((unsigned long) w->pHermite_data >> 32) {
++        static int told;
++        if (told++ < 4) {
++            re4_log("MotionMoveCore: model %p (id 0x%x, kind %d) has pHermite_data %p (motion work %p)", (void*) pEm,
++                    pEm->id, pEm->kindid, (void*) w->pHermite_data, (void*) w);
++            // the words around it: the end of LightInfo, the motion work's first 0x60 bytes
++            for (int k = -0x20; k < 0x60; k += 0x20) {
++                const u32* q = (const u32*) ((u8*) w + k);
++                re4_log("MotionMoveCore:   %+04x: %08x %08x %08x %08x %08x %08x %08x %08x", k, q[0], q[1], q[2], q[3], q[4],
++                        q[5], q[6], q[7]);
++            }
++        }
++    }
++#endif
+     if (!(w->Mot_attr & 0x8000)) {
+         w->Mot_frame = SEQ_FRAME(w->Seq.Frame);
+     } else {
