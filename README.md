@@ -57,7 +57,7 @@ leave the game (and a save made afterwards) in an odd state. Such problems come 
 **You need**
 
 - An Android device with Android 6.0 or later, OpenGL ES 3.0 and a 32- or 64-bit ARM processor.
-- A game controller (built in, USB or Bluetooth). There are no touch controls.
+- A game controller (built in, USB or Bluetooth). There are no touch controls at the moment. 
 - Your own disc images (ISO or GCM) of **both** discs of the GameCube debug build from
   November 25, 2004 (`G4BE08`), and enough free storage to import them.
 
