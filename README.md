@@ -1,5 +1,7 @@
 # CubeEvil4
 
+[![Support via PayPal](https://img.shields.io/badge/Support%20via-PayPal-0070BA?logo=paypal&logoColor=white)](https://paypal.me/andiweli)
+
 **CubeEvil4** is an unofficial, native Android port of the GameCube debug build of Resident Evil 4
 (`G4BE08`, the "Nov 25 2004" prototype on two discs). It does not recreate the game: the app runs
 the original game code, compiled from the complete decompilation in this repository for ARM. It is
@@ -25,8 +27,12 @@ data: you need your own images of both debug discs.
 
 ## Status
 
-Work in progress. Tested on a Retroid Pocket Flip 2 (Android 13) and POCO X7 Pro (Android 16), 32 and 64 bit: title, opening
-movie, the police car ride and the start of the village (stage 1-1); saving and loading on the
+Work in progress.  
+Tested on the following devices:
+- Retroid Pocket Flip 2 (Android 13)
+- POCO X7 Pro (Android 16)
+
+32 and 64 bit: title, opening movie, the police car ride and the start of the village (stage 1-1); saving and loading on the
 device in 32 bit and in the PC check in 64 bit. On the PC, a comparison run plays the 32- and
 64-bit core with the same input through these parts and finds every frame and every compared
 picture identical. Later rooms have not been played through yet; that is the next step (a tour
