@@ -3897,7 +3897,16 @@ echte Zeit misst, stand ein Filmbild 1 oder 3 Halbbilder. `movie_probe.cpp` zäh
 jetzt verspätete Halbbilder (mehr als ein halbes zu spät), `test_whole_movie.py`
 rechnet je verspätetem Halbbild zwei ungleiche Bilder nicht an.
 
-Geprüft (Cloud): BUILDS_PLACEHOLDER
+Geprüft (Cloud, `whole_build.sh i686 x86_64 armhf aarch64`, 18.10.2026): alle vier Ziele
+0 Baufehler, 47 Stubs wie erwartet, Selbsttest, 114 Module, Laufzeit- und Kerntest (0
+Fehler), Speicherkarte und `.gci`, Spielstand-Layout, Formatvergleich (5283 Werte, mit
+synthetischem Disc-Ordner 7090 Werte gleich), Filmtest bestanden (i686 und x86_64 0
+verspätete Halbbilder; armhf und aarch64 unter qemu 71 bzw. 91 verspätete Halbbilder,
+jetzt richtig angerechnet), **Filmvergleich i686 / x86_64: 250 von 250 Halbbildern
+gleich**, Selbsttest der M12-Prüfungen 17 von 17, `run_all.py` 18 Prüfungen ohne neuen
+Fund. **Nicht getestet:** Android-Bau (kein NDK in der Cloud), Vergleichslauf und
+`-Lp64` mit Disc-Daten, Bestätigung der Kartenursache (Protokollzeile), Patch 0082 im
+Spiel (r20d, r20e, r21d, Szenen-Treffer, Kamera-Ziel), Gerät.
 
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
