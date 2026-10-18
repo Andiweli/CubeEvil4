@@ -3651,17 +3651,23 @@ Daten noch nicht gelaufen). Der Projektinhaber verzichtet auf ein eigenes Logo
     4- oder 8-Byte-Felder (`((f32*) em)[0x784 / 4]`): die Kamera beim Öffnen
     einer Tür las so `base_mat` der Tür (Patch 0079, jetzt über den Namen); die
     übrigen Funde (`sfd_tim.c`) behandelt Patch 0070.
-  - **Absturz in r100, Diagnose:** Statisch nicht gefunden (geprüft: alle
-    Schreiber von `pHermite_data`, Abstände, Sichten, Löschlängen, alle 805
-    Units sehen `cModel`, `cEm`, `MOTION_INFO` gleich). Neu: Hardware-Haltepunkte
-    (`runtime/watch.cpp`, `perf_event_open` mit einem Schreib-Haltepunkt, je
-    Treffer ein Signal; Laufzeittest „watch“). Patch 0078 lässt
-    `MotionSetCore` die obere Hälfte von `pHermite_data` jedes Gegners
-    überwachen und `MotionMoveCore` einen Zeiger über 4 GB mit den Wörtern
-    daneben melden; jeder Schreibzugriff kommt als „watch: …“ mit Befehl und
-    Rücksprungadressen ins Protokoll (Berichte: Abschnitt „Überwachung“). Auf
-    dem PC geht das (WSL2: `perf_event_paranoid` 2), auf Android nur, wenn der
-    Kernel es erlaubt (sonst eine Zeile „refused“).
+  - **Absturz in r100, Diagnose:** Statisch zuerst nicht gefunden. Neu:
+    Hardware-Haltepunkte (`runtime/watch.cpp`, `re4_watch_write`:
+    `perf_event_open` mit einem Schreib-Haltepunkt, je Treffer ein Signal, das
+    Befehl und Rücksprungadressen ins Protokoll schreibt; Laufzeittest
+    „watch“). Ein Diagnose-Patch ließ `MotionSetCore` die obere Hälfte von
+    `pHermite_data` jedes Gegners überwachen. **PC-Prüfung 02:03 (Stand
+    `ca46a7f`):** der Schreiber ist `HermiteInterpolation` aus
+    `MotionGetSpeed`, Ziel `MOT_HIST(w, flip, n)` = `(u8*) w + (flip * 12 + 8 +
+    n * 6)`: 8 ist die GameCube-Lage von `Key_hist`, auf LP64 liegt es hinter
+    den zwei Zeigern bei 0x10, der Schlüssel-Verlauf landete in der oberen
+    Hälfte von `pHermite_data` (0x000b0000 auf dem PC, 0x00010000 auf dem
+    Retroid). Behoben mit Patch 0078 (jetzt `RE4_OFS(MOTION_INFO, Key_hist,
+    8)`; der Diagnose-Patch ist entfernt, `watch.cpp` bleibt als Werkzeug).
+    `raw_offset_check.py` zählt jetzt auch die festen Teile von Summen mit
+    Variablen (`(u8*) w + (flip * 12 + 8 + n * 6)`): dabei derselbe Fehler in
+    r320 (`R320_EM_OFS`, `em[]` bei 0x0C statt 0x10), ebenfalls Patch 0078.
+    Noch nicht mit Disc-Daten geprüft.
   - Geprüft: i686, armhf, x86_64 und aarch64 alle Cloud-Tests ✅ (Laufzeit jetzt
     11/11 mit „watch“: 3 Treffer für 3 Schreibzugriffe); `alloc_size_check.py`
     und `span_check.py` danach 0. Noch nicht geprüft: Gerät und PC-Prüfung mit
@@ -3858,7 +3864,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0075 `event.cpp`, `ss_pzzl.cpp`, `ss_shop.cpp`, `eprintf.cpp`, `r332.cpp`, `r20d.cpp` | 64 bit (M12): Zeiger in 4-Byte-Plätzen. `EventMgr::GetRead` (Absturz beim Laden des Autofahrt-Ereignisses r120) und `Event::PFuncTbl` über eine Zeiger-Variable; die bin/tpl-Wörter von `ITEM_PIECE_INFO::model` als u32 geschrieben und gelesen; Debug-Textzeiger in 4-Byte-Plätzen (`RE4_P32`); r332-Makros und r20d mit Index statt GameCube-Byteabstand. Gefunden mit `ptr_slot_check.py` |
 | 0076 `db_log.cpp` | Die Spielmeldungen (`pLog->err/warn/mes`, auf dem GameCube Bildschirm und `printf`-Konsole) gehen über `re4_game_log` ins Protokoll des Ports: jede Meldung (nach ihrem Format) die ersten 3 Male, dann jedes 1000. Mal mit Zählung. Auf Android gab es keine Konsole, Meldungen wie „GetPrimBuff() : OVERFLOW“ gingen verloren |
 | 0077 `r117.cpp` | 64 bit (M12): Byte 0xF9 der Lichtstrahlen (Byte 1 der eigenen Arbeitsfläche hinter `cEsp`) über `RE4_OWN(cEsp, u8, 0xF8) + 1`; auf LP64 beginnt die Fläche bei 0x10C. Gefunden mit `raw_offset_check.py` (Abstände hinter dem Ende einer Struktur) |
-| 0078 `motion.cpp` | 64 bit (M12), Diagnose: `MotionSetCore` lässt die obere Hälfte von `pHermite_data` jedes Gegners per Hardware-Haltepunkt überwachen (`re4_watch_write`, `runtime/watch.cpp`; die eigenen Schreibzugriffe von `MotionSetCore` zählen nicht), `MotionMoveCore` meldet einen Zeiger über 4 GB mit den Wörtern daneben. Nur LP64; wird entfernt, wenn der Absturz in r100 behoben ist |
+| 0078 `motion.cpp`, `r320.cpp` | 64 bit (M12): GameCube-Abstände in Summen mit Variablen. `MOT_HIST` (Schlüssel-Verlauf der Wurzel für `MotionGetSpeed` und `MotionGetPosition`) über `RE4_OFS(MOTION_INFO, Key_hist, 8)`: vorher schrieb `HermiteInterpolation` auf LP64 in die obere Hälfte von `pHermite_data` (Absturz des ersten Ganados in r100, Gerät und PC-Prüfung; gefunden mit einem Hardware-Haltepunkt, `runtime/watch.cpp`). `R320_EM_OFS` über `RE4_OFS(R320Work, em, 0xC)` |
 | 0079 `cam_extra.cpp` | 64 bit (M12): die Kamera beim Öffnen einer Tür liest die z-Spalte von `FREE_EMDOOR::base_mat` über den Namen statt als `((f32*) em)[0x784 / 4]`. Gefunden mit `raw_offset_check.py --words` |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,

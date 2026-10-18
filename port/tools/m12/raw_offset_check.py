@@ -146,6 +146,28 @@ def binary_op(c):
     return ops[k]
 
 
+def const_terms(c, depth=0):
+    """(sum of the constant terms, whether there are variable ones) of a sum `a + 8 + b * 6`; a sum
+    with RE4_OFS / RE4_OWN (re4_whole_prelude.h) is reviewed already: (0, False)"""
+    import clang.cindex as ci
+    c = strip(c)
+    if c is None or depth > 12:
+        return 0, True
+    if depth == 0 and {"RE4_OFS", "RE4_OWN"} & {t.spelling for t in c.get_tokens()}:
+        return 0, False
+    v = const_value(c)
+    if v is not None:
+        return v, False
+    if c.kind == ci.CursorKind.BINARY_OPERATOR:
+        op = binary_op(c)
+        kids = list(c.get_children())
+        if op in ("+", "-") and len(kids) == 2:
+            a, va = const_terms(kids[0], depth + 1)
+            b, vb = const_terms(kids[1], depth + 1)
+            return a + (b if op == "+" else -b), va or vb
+    return 0, True
+
+
 def names_member(c, depth=0):
     """the expression names a member (`&((T*) 0)->m`, offsetof): its value follows the layout"""
     import clang.cindex as ci
@@ -238,6 +260,11 @@ def scan_lp64(job):
                             byte_vars[ls.referenced.get_usr()] = r
                     elif op in ("+", "-"):
                         val = const_value(rhs)
+                        if val is None:
+                            # `(u8*) w + (flip * 12 + 8 + n * 6)` (motion.cpp MOT_HIST): the constant
+                            # terms of a sum with variable ones, the GameCube offset of a member
+                            c, var = const_terms(rhs)
+                            val = c if var and c else None
                         if val is not None and op == "-":
                             val = -val
                         view = view_of(lhs)
@@ -262,6 +289,9 @@ def scan_lp64(job):
                             view = byte_vars.get(ls.referenced.get_usr())
                     rec = view[0] if view else None
                     val = const_value(kids[1])
+                    if val is None and view is not None:
+                        c, var = const_terms(kids[1])
+                        val = c if var and c else None
                     if view is not None and val is not None:
                         val *= view[1]
                     if rec is not None and val is not None and val > 0:

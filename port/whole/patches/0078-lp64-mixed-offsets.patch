@@ -1,0 +1,37 @@
+# 64-bit build (milestone 12, way A): GameCube offsets in sums with variable
+# terms, `(u8*) w + (flip * 12 + 8 + n * 6)`. Found with a hardware write
+# breakpoint (runtime/watch.cpp) in the PC check, 18.10.2026, then with
+# port/tools/m12/raw_offset_check.py, which now adds up the constant terms of
+# such sums.
+# - motion.cpp MOT_HIST: the key history of the root position / rotation
+#   (Key_hist, 0x08 on the GameCube) for MotionGetSpeed and MotionGetPosition;
+#   on LP64 Key_hist lies at 0x10, and HermiteInterpolation wrote the history
+#   into the upper half of pHermite_data (0x000b0000: the first Ganado of
+#   r100 crashed in MotionMoveCore, on the Retroid and in the PC check).
+# - r320.cpp R320_EM_OFS: em[] of R320Work (0x0C on the GameCube, 0x10 on
+#   LP64).
+--- a/src/game/motion.cpp
++++ b/src/game/motion.cpp
+@@ -32,7 +32,9 @@
+     }
+ 
+ // Root key history for the current flip state: hist[flip][rot = 0 / pos = 1]
+-#define MOT_HIST(w, flip, n) ((u16*) ((u8*) (w) + ((flip) * 12 + 8 + (n) * 6)))
++// port: patch 0078, Key_hist by its offset (0x08 on the GameCube; 0x10 on LP64, behind the two pointers:
++// the GameCube 8 wrote the key history into the upper half of pHermite_data)
++#define MOT_HIST(w, flip, n) ((u16*) ((u8*) (w) + ((flip) * 12 + RE4_OFS(MOTION_INFO, Key_hist, 8) + (n) * 6)))
+ 
+ // Fixed 10.6 sequence frame -> float
+ #define SEQ_FRAME(k) ((f32)((k) >> 6) + (f32)((k) & 0x3F) * 0.015625f)
+--- a/src/st3/r320.cpp
++++ b/src/st3/r320.cpp
+@@ -1058,7 +1058,8 @@
+ 
+ // Replaces the enemy of em[idx] (list entry `no`) by em[idx2] (entry `no2`) once the first one is
+ // gone: the same slot resets the enemy, another slot creates it. 1 when an enemy was set.
+-#define R320_EM_OFS(n) ((n) * sizeof(cEmWrap) + 0xC)
++// port: patch 0078, em[] by its offset (0x0C on the GameCube; 0x10 on LP64, cEmWrap holds a pointer)
++#define R320_EM_OFS(n) ((n) * sizeof(cEmWrap) + RE4_OFS(R320Work, em, 0xC))
+ #define R320_EM(ofs) (*(cEmWrap*) ((u8*) r320_work + (ofs)))
+ 
+ // Replace enemy slot idx2 (list no2) by slot idx (list no) once the old one may be reset, unless more
