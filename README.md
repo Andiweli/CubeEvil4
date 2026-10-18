@@ -1,5 +1,7 @@
 # CubeEvil4
 
+[![Support via PayPal](https://img.shields.io/badge/Support%20via-PayPal-0070BA?logo=paypal&logoColor=white)](https://paypal.me/andiweli)
+
 **CubeEvil4** is an unofficial, native Android port of the GameCube debug build of Resident Evil 4
 (`G4BE08`, the "Nov 25 2004" prototype on two discs). It does not recreate the game: the app runs
 the original game code, compiled from the complete decompilation in this repository for ARM. It is
