@@ -3,6 +3,7 @@
 // (re4_core_log_tail).
 #include "re4_runtime.h"
 
+#include <atomic>
 #include <mutex>
 #include <stdarg.h>
 #include <stdio.h>
@@ -109,6 +110,50 @@ extern "C" void re4_game_log(const char* format, const char* text)
     } else if (count % 1000 == 0) {
         re4_log("game: %s (%u times)", text, count);
     }
+}
+
+// An allocation of the game that found no room (main_mem.cpp, patch 0081):
+// heap number, size, the flag of mem_alloc (1 the game reports it itself, 0 a
+// try with a fallback such as cDataSwap's ARAM, -1 Debug_alloc) and the place
+// ("card.cpp(2190)"). Each place the first 3 times, then every 1000th time;
+// re4_heap_fail_count for the state trace.
+static std::atomic<unsigned> gHeapFails{0};
+
+extern "C" void re4_heap_failed(int heap, unsigned size, int flag, const char* where)
+{
+    unsigned n = ++gHeapFails;
+    struct Seen {
+        char where[32];
+        unsigned count;
+    };
+    static Seen seen[256];
+    static int used;
+    static std::mutex lock;
+    unsigned count = 4;
+    {
+        std::lock_guard<std::mutex> guard(lock);
+        const char* w = where ? where : "?";
+        int i = 0;
+        while (i < used && strncmp(seen[i].where, w, sizeof(seen[i].where) - 1) != 0) {
+            i++;
+        }
+        if (i == used && used < 256) {
+            snprintf(seen[used].where, sizeof(seen[used].where), "%s", w);
+            seen[used++].count = 0;
+        }
+        if (i < used) {
+            count = ++seen[i].count;
+        }
+    }
+    if (count <= 3 || count % 1000 == 0) {
+        re4_log("heap: no room for 0x%x bytes in heap %d (%s, flag %d; %u failures so far)", size, heap,
+                where ? where : "?", flag, n);
+    }
+}
+
+extern "C" unsigned re4_heap_fail_count(void)
+{
+    return gHeapFails.load();
 }
 
 extern "C" void re4_stub_hit(const char* const* names, unsigned char* seen, int index)

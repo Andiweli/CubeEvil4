@@ -499,6 +499,12 @@ if(NOT ANDROID)
     set_target_properties(re4_hostlib PROPERTIES OUTPUT_NAME re4_host)
     add_executable(re4_host host/loader.c)
     add_dependencies(re4_host re4_hostlib)
+    # the float functions of libm through their double versions (host/det_math.c): LD_PRELOAD
+    # of the 32/64-bit comparison of the PC check only (whole_r100_check.sh --compare)
+    add_library(re4_detmath SHARED host/det_math.c)
+    target_compile_options(re4_detmath PRIVATE -fno-builtin -O2)
+    target_link_libraries(re4_detmath PRIVATE m)
+    add_dependencies(re4_host re4_detmath)
     target_link_options(re4_host PRIVATE -fuse-ld=lld)
     target_link_libraries(re4_host PRIVATE ${CMAKE_DL_LIBS} pthread)
 

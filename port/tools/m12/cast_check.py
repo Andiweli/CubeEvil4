@@ -29,7 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from raw_offset_check import unary_op  # noqa: E402
+from raw_offset_check import binary_op, unary_op  # noqa: E402
 
 
 def args_of(entry, resource_dir):
@@ -103,7 +103,28 @@ def scan(job):
         holder = field.semantic_parent.type.get_canonical()
         return holder, field.spelling, field.get_field_offsetof() // 8
 
-    def walk(c):
+    def ancestors(t, out=None, depth=0):
+        """spellings of a record and all its base classes"""
+        out = set() if out is None else out
+        d = t.get_declaration()
+        out.add(t.spelling)
+        for b in d.get_children():
+            if b.kind == ci.CursorKind.CXX_BASE_SPECIFIER and depth < 10:
+                ancestors(b.type.get_canonical(), out, depth + 1)
+        return out
+
+    # cast sites whose result goes into a variable: var usr -> (key, site index)
+    var_sites = {}
+    # (key, site index) -> members used on the result: [(member, declaring class)]
+    uses = {}
+
+    def use_of(member_cursor):
+        m = member_cursor.referenced
+        if m is None or m.semantic_parent is None:
+            return None
+        return m.spelling, m.semantic_parent.type.get_canonical().spelling
+
+    def walk(c, parents):
         for k in c.get_children():
             if k.kind == ci.CursorKind.CSTYLE_CAST_EXPR:
                 b = rec(k.type)
@@ -113,18 +134,58 @@ def scan(job):
                 view = member_view(src)
                 loc = k.location
                 where = f"{loc.file.name if loc.file else '?'}:{loc.line}"
+                key = None
                 if view is not None and b is not None and view[0].spelling != b.spelling:
                     holder, member, base = view
                     key = (f"{holder.spelling}.{member}", b.spelling)
                     if key not in found:
-                        found[key] = (holder.get_size(), starts(holder), b.get_size(), starts(b), where, base)
+                        found[key] = (holder.get_size(), starts(holder), b.get_size(), starts(b), [], base, set())
                 elif a is not None and b is not None and a.spelling != b.spelling:
                     key = (a.spelling, b.spelling)
                     if key not in found:
-                        found[key] = (a.get_size(), starts(a), b.get_size(), starts(b), where, 0)
-            walk(k)
+                        found[key] = (a.get_size(), starts(a), b.get_size(), starts(b), [], 0,
+                                      ancestors(a) & ancestors(b))
+                if key is not None:
+                    found[key][4].append(where)
+                    site = (key, len(found[key][4]) - 1)
+                    uses[site] = []
+                    # what the result is used for: a member of it, or a variable that keeps it
+                    up = [x for x in reversed(parents) if x.kind not in (ci.CursorKind.PAREN_EXPR,
+                                                                          ci.CursorKind.UNEXPOSED_EXPR)]
+                    first = up[0] if up else c
+                    if first.kind == ci.CursorKind.MEMBER_REF_EXPR:
+                        u = use_of(first)
+                        if u:
+                            uses[site].append(u)
+                    elif first.kind == ci.CursorKind.VAR_DECL:
+                        var_sites[first.get_usr()] = site
+                    elif first.kind == ci.CursorKind.BINARY_OPERATOR and binary_op(first) == "=":
+                        lhs = strip(list(first.get_children())[0])
+                        if lhs is not None and lhs.kind == ci.CursorKind.DECL_REF_EXPR and lhs.referenced is not None:
+                            var_sites[lhs.referenced.get_usr()] = site
+            walk(k, parents + [k])
 
-    walk(tu.cursor)
+    def walk_uses(c):
+        for k in c.get_children():
+            if k.kind == ci.CursorKind.MEMBER_REF_EXPR:
+                base = [strip(x) for x in k.get_children()]
+                if base and base[0] is not None and base[0].kind == ci.CursorKind.DECL_REF_EXPR and \
+                        base[0].referenced is not None:
+                    site = var_sites.get(base[0].referenced.get_usr())
+                    if site is not None:
+                        u = use_of(k)
+                        if u:
+                            uses[site].append(u)
+            walk_uses(k)
+
+    walk(tu.cursor, [])
+    walk_uses(tu.cursor)
+    # per site: the members it uses that belong to neither a common base (the object's real type
+    # decides whether those are right)
+    for (key, i), us in uses.items():
+        common = found[key][6]
+        own = sorted({f"{cls}::{m}" for m, cls in us if cls not in common})
+        found[key][4][i] = (found[key][4][i], tuple(own))
     return found
 
 
@@ -140,7 +201,10 @@ def collect(build, pattern, jobs_n, resource_dir):
     with concurrent.futures.ProcessPoolExecutor(jobs_n) as pool:
         for res in pool.map(scan, jobs, chunksize=4):
             for k, v in res.items():
-                out.setdefault(k, v)
+                if k in out:
+                    out[k][4].extend(w for w in v[4] if w not in out[k][4])
+                else:
+                    out[k] = v
     return out, len(jobs)
 
 
@@ -155,10 +219,10 @@ def main():
     ra, n = collect(args.ref, args.pattern, args.jobs, resource_dir)
     rb, _ = collect(args.lp64, args.pattern, args.jobs, resource_dir)
     bad = []
-    for key, (asz, astarts, bsz, bstarts, where, base) in sorted(ra.items()):
+    for key, (asz, astarts, bsz, bstarts, where, base, _) in sorted(ra.items()):
         if key not in rb:
             continue
-        asz2, astarts2, bsz2, bstarts2, _, base2 = rb[key]
+        asz2, astarts2, bsz2, bstarts2, where, base2, _ = rb[key]
         # a view over a member and what follows it: its offsets in the holder's coordinates
         bstarts = {base + o: n for o, n in bstarts.items()}
         bstarts2 = {base2 + o: n for o, n in bstarts2.items()}
@@ -177,7 +241,16 @@ def main():
         grow = base + bsz <= asz and base2 + bsz2 > asz2
         if clash or grow:
             o = clash[0] if clash else None
-            bad.append(f"{key[0]} -> {key[1]} ({where.split('/prepared/tree/')[-1]}): " +
+            # every place of the cast (the same pair in other units: each needs its own look)
+            places = sorted({w.split('/prepared/tree/')[-1] for w, _ in where})
+            more = f" (+{len(places) - 1}: {', '.join(places[1:4])}{' ...' if len(places) > 4 else ''})" \
+                if len(places) > 1 else ""
+            # the places that use members of their own type on the result (not of a common base)
+            own = sorted({(w.split('/prepared/tree/')[-1], o) for w, o in where if o})
+            if own:
+                more += "; own members used: " + "; ".join(f"{w} {', '.join(o)}" for w, o in own[:6]) + \
+                    (f" (+{len(own) - 6})" if len(own) > 6 else "")
+            bad.append(f"{key[0]} -> {key[1]} ({places[0]}){more}: " +
                        (f"GameCube {o:#x} at LP64 {amap[o]:#x} / {bmap[o]:#x} ({astarts[o]} / {bstarts[o]})"
                         if clash else "") +
                        (f"; {key[1]} {bsz2:#x} > {key[0]} {asz2:#x} bytes on LP64" if grow else ""))

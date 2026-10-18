@@ -107,13 +107,51 @@ def layouts(entry):
     return res
 
 
-def named_types(source):
-    """Identifiers of the converter source, without the structures it defines
-    itself (its own bookkeeping, not disc data)."""
-    text = Path(source).read_text()
-    text = re.sub(r"//[^\n]*|/\*.*?\*/", " ", text, flags=re.S)
-    own = set(re.findall(r"\b(?:struct|class|union)\s+(\w+)\s*(?:\{|:)", text))
-    return set(IDENT.findall(text)) - own
+def named_types(entry):
+    """Structures the converter unit names (libclang: references to types and members written in the
+    converter source, also inside macros and template arguments), without those it defines itself
+    (its own bookkeeping, not disc data: only records of the game's headers count). The names are
+    those of the layout dump: the record's own
+    name, also when the code names it through a typedef."""
+    import clang.cindex as ci
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from raw_offset_check import args_of
+    resource_dir = subprocess.run(["clang", "-print-resource-dir"], capture_output=True, text=True).stdout.strip()
+    source = entry["file"]
+    tu = ci.Index.create().parse(source, args=args_of(entry, resource_dir))
+    names = set()
+
+    def record(t):
+        t = t.get_canonical()
+        while t.kind in (ci.TypeKind.POINTER, ci.TypeKind.CONSTANTARRAY, ci.TypeKind.INCOMPLETEARRAY,
+                         ci.TypeKind.LVALUEREFERENCE):
+            t = (t.get_pointee() if t.kind in (ci.TypeKind.POINTER, ci.TypeKind.LVALUEREFERENCE)
+                 else t.get_array_element_type()).get_canonical()
+        if t.kind != ci.TypeKind.RECORD:
+            return
+        d = t.get_declaration()
+        d = d.get_definition() or d
+        # disc data: the game's own structures (prepared tree, replacement headers), not the
+        # converter's bookkeeping (runtime/formats) or the C library's
+        where = d.location.file.name if d.location.file else ""
+        if "/prepared/tree/" not in where and "/port/whole/include/" not in where:
+            return
+        names.add(clean(re.sub(r"^(struct|class|union) ", "", t.spelling)))
+
+    def walk(c):
+        for k in c.get_children():
+            if k.location.file and k.location.file.name == source:
+                if k.kind == ci.CursorKind.TYPE_REF and k.referenced is not None:
+                    record(k.referenced.type)
+                elif k.kind in (ci.CursorKind.MEMBER_REF, ci.CursorKind.MEMBER_REF_EXPR) and \
+                        k.referenced is not None and k.referenced.semantic_parent is not None:
+                    record(k.referenced.semantic_parent.type)
+                elif k.kind.is_expression() or k.kind == ci.CursorKind.VAR_DECL:
+                    record(k.type)
+            walk(k)
+
+    walk(tu.cursor)
+    return names
 
 
 def main():
@@ -131,8 +169,9 @@ def main():
         a = list(pool.map(lambda n: layouts(ref[n]), common))
         b = list(pool.map(lambda n: layouts(lp[n]), common))
     bad, checked = [], 0
-    for name, la, lb in zip(common, a, b):
-        wanted = named_types(FORMATS / name)
+    with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
+        wanted_all = list(pool.map(lambda n: named_types(lp[n]), common))
+    for name, la, lb, wanted in zip(common, a, b, wanted_all):
         for rec in sorted(wanted):
             if rec not in la or rec not in lb:
                 continue

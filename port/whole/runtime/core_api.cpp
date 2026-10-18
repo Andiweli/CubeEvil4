@@ -302,9 +302,28 @@ bool gxWantedAfterFree(unsigned frame)
     return false;
 }
 
+// RE4_GX_DUMP_AT="4711,4712": these frames (the frame number of the state trace), e.g. the
+// first frame where the 32- and the 64-bit run part (port/tools/trace_compare.py)
+bool gxWantedAt(unsigned frame)
+{
+    static const char* frames = getenv("RE4_GX_DUMP_AT");
+    for (const char* p = frames; p && *p;) {
+        char* end = 0;
+        unsigned long f = strtoul(p, &end, 10);
+        if (end == p) {
+            break;
+        }
+        if (frame == f) {
+            return true;
+        }
+        p = *end == ',' ? end + 1 : end;
+    }
+    return false;
+}
+
 bool gxWanted(unsigned frame)
 {
-    if (gxWantedAfterFree(frame)) {
+    if (gxWantedAfterFree(frame) || gxWantedAt(frame)) {
         return true;
     }
     static const unsigned kEarly[] = {60, 300, 600, 900, 1200, 1500, 1800, 2400};

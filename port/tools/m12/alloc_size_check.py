@@ -37,7 +37,8 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from raw_offset_check import args_of, binary_op, const_value, entries, strip  # noqa: E402
+from raw_offset_check import (args_of, binary_op, const_value, entries, has_sizeof,  # noqa: E402
+                              reviewed_lp64, strip)
 
 ROOT = Path(__file__).resolve().parents[3]
 # allocator: index of its size argument (OSAllocFromHeap(heap, size), realloc(p, size))
@@ -54,9 +55,8 @@ def per_element(c):
     if c is None or c.kind != ci.CursorKind.BINARY_OPERATOR:
         return None
     kids = list(c.get_children())
-    toks = [t.spelling for t in c.get_tokens()]
-    # (the operator by libclang, not by token: also inside macros)
-    if len(kids) != 2 or "sizeof" in toks or binary_op(c) != "*":
+    # (operator and sizeof by libclang, not by token: also inside macros)
+    if len(kids) != 2 or has_sizeof(c) or binary_op(c) != "*":
         return None
     for a, b in ((kids[0], kids[1]), (kids[1], kids[0])):
         k = const_value(a)
@@ -76,8 +76,8 @@ def alloc_size(c):
     if len(args) <= ALLOCATORS[c.spelling]:
         return None
     size = args[ALLOCATORS[c.spelling]]
-    # sizeof, or a size already given for LP64 (lp64_sizes.json): reviewed
-    uses_sizeof = bool({"sizeof", "RE4_LP64_SIZE"} & {t.spelling for t in size.get_tokens()})
+    # sizeof, or a size already given for LP64 (lp64_sizes.json, RE4_LP64_SIZE): reviewed
+    uses_sizeof = has_sizeof(size) or reviewed_lp64(size)
     n = const_value(size)
     if c.spelling == "calloc" and len(args) == 2:
         m = const_value(args[1])
@@ -136,7 +136,7 @@ def scan(job):
         if len(args) < 2:
             return
         n = const_value(args[-1])
-        if {"sizeof", "RE4_LP64_SIZE"} & {t.spelling for t in args[-1].get_tokens()}:
+        if has_sizeof(args[-1]) or reviewed_lp64(args[-1]):
             return
         k = per_element(args[-1]) if n is None else None
         if n is None and k is None:
@@ -191,7 +191,7 @@ def scan(job):
         n = per_element(parts[1])
         if n is None:
             return
-        if {"RE4_LP64_SIZE", "sizeof"} & {x.spelling for x in parts[1].get_tokens()}:
+        if has_sizeof(parts[1]) or reviewed_lp64(parts[1]):
             return
         loc = k.extent.start
         path = loc.file.name if loc.file else ""

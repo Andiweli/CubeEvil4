@@ -33,7 +33,8 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from raw_offset_check import args_of, const_value, entries  # noqa: E402
+from raw_offset_check import (args_of, const_value, entries, macro_instantiations,  # noqa: E402
+                              written_text)
 
 ROOT = Path(__file__).resolve().parents[3]
 LIST = ROOT / "port" / "whole" / "lp64_int_casts.json"
@@ -49,16 +50,15 @@ def signed_small(t):
         and t.get_size() <= 4
 
 
-def text_of(data, extent):
-    return data[extent.start.offset:extent.end.offset].decode("utf-8", "surrogateescape")
-
-
 def scan(job):
-    """(file, line, col, text, operand, type, macro) of each signed cast in one unit"""
+    """(file, line, col, text, operand, type, macro) of each signed cast in one unit; `macro`: the cast
+    is written in the body of a macro (or over several lines), the list cannot rewrite it"""
     import clang.cindex as ci
     entry, resource_dir = job
     tree = entry["file"].split("/prepared/tree/")[0] + "/prepared/tree/"
-    tu = ci.Index.create().parse(entry["file"], args=args_of(entry, resource_dir))
+    tu = ci.Index.create().parse(entry["file"], args=args_of(entry, resource_dir),
+                                 options=ci.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD)
+    instantiations = macro_instantiations(tu)
     files, found = {}, []
 
     def source(path):
@@ -77,11 +77,15 @@ def scan(job):
                     path = loc.file.name if loc.file else ""
                     if (value is None or value < 0) and path.startswith(tree) and "/src/lib/" not in path:
                         data = source(path)
-                        text = text_of(data, k.extent)
-                        operand = text_of(data, op.extent)
-                        macro = not (text.startswith("(") or text.startswith("reinterpret_cast")) \
-                            or not text.endswith(operand) or "\n" in text or op.extent.start.offset < loc.offset
-                        found.append((path[len(tree):], loc.line, loc.column, text, operand,
+                        # where the cast and its operand are written (spelling locations and the
+                        # macro expansions of libclang, not a comparison of texts)
+                        cast = written_text(k, data, instantiations)
+                        operand = written_text(op, data, instantiations)
+                        macro = cast is None or operand is None or "\n" in cast[0] or \
+                            not cast[0].endswith(operand[0])
+                        text = cast[0] if cast else "?"
+                        line = cast[1] if cast else loc.line
+                        found.append((path[len(tree):], line, loc.column, text, operand[0] if operand else "?",
                                       op.type.spelling, macro))
             walk(k)
 

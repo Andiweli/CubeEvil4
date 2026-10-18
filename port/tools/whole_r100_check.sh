@@ -27,6 +27,12 @@
 #              stand still); LIST: room numbers ("206,300,401"), "set" (two
 #              rooms of every room program rel/stX_Y.rel) or "all" (every
 #              room of the game's room tables, src/game/roomdata.cpp)
+# --compare    the 32/64-bit comparison (milestone 12) instead of the normal steps: builds i686
+#              and x86_64, plays both with the same keys (start room as --room, default 120:
+#              the opening movie, the car ride, r100; 30000 frames unless --frames), records the
+#              state trace of every frame and compares them (port/tools/trace_compare.py): the
+#              first frame where 64 bit parts, with the values of both, and GX pictures of
+#              both sides at that frame (a second, short run of each up to it)
 #
 # Steps: build and the cloud checks (whole_build.sh), the format comparison
 # with the disc files (re4_format_compare --data), then the game from the
@@ -57,11 +63,15 @@ card_only=0
 rooms=""
 tour_frames=1500
 reload_weapon=""
+compare=0
+room_given=0
+frames_given=0
 while [ $# -gt 0 ]; do
     case "$1" in
     --data) data="$2"; shift 2 ;;
-    --room) room="${2#r}"; shift 2 ;;
-    --frames) frames="$2"; shift 2 ;;
+    --room) room="${2#r}"; room_given=1; shift 2 ;;
+    --frames) frames="$2"; frames_given=1; shift 2 ;;
+    --compare) compare=1; shift ;;
     --out) out="$2"; shift 2 ;;
     --source) source="$2"; shift 2 ;;
     --work) work="$2"; shift 2 ;;
@@ -78,6 +88,11 @@ done
 if [ -z "$data" ]; then
     echo "Aufruf: $0 --data ORDNER [--room 100] [--frames 10000] [--out ORDNER] [--source REPO] [--arm]" >&2
     exit 2
+fi
+if [ "$compare" -eq 1 ]; then
+    # the comparison starts with the car ride by default and runs into r100
+    [ "$room_given" -eq 0 ] && room=120
+    [ "$frames_given" -eq 0 ] && frames=30000
 fi
 room=$(echo "$room" | tr 'A-F' 'a-f')
 mkdir -p "$work"
@@ -144,7 +159,11 @@ say "Zeit:    $(date '+%Y-%m-%d %H:%M:%S')"
 say "Stand:   $commit"
 say "System:  $(uname -srm), $(nproc) Kerne, $((mem_kb / 1048576)) GB Speicher, $jobs Build-Jobs"
 say "Daten:   $data"
-say "Kern:    $host$([ "$host" = x86_64 ] && echo ' (64 bit, wie arm64-v8a)' || echo ' (32 bit, wie armeabi-v7a)')"
+if [ "$compare" -eq 1 ]; then
+    say "Kern:    i686 und x86_64 (Vergleichslauf 32/64 bit)"
+else
+    say "Kern:    $host$([ "$host" = x86_64 ] && echo ' (64 bit, wie arm64-v8a)' || echo ' (32 bit, wie armeabi-v7a)')"
+fi
 
 # ---- disc data -------------------------------------------------------------------------
 layout=""
@@ -198,6 +217,7 @@ fi
 export RE4_OPT="${RE4_OPT-2}"
 opt="${RE4_OPT:+-O$RE4_OPT}"
 targets=("$host")
+[ "$compare" -eq 1 ] && targets=(i686 x86_64)
 [ "$arm" -eq 1 ] && targets+=(armhf)
 if [ "$build" -eq 1 ]; then
     section "1. Build und Prüfungen ohne Disc-Daten (whole_build.sh ${targets[*]})"
@@ -211,10 +231,11 @@ fi
 
 # ---- format comparison with the disc files ---------------------------------------------
 cmp="$src/port/build/whole-$host$opt/re4_format_compare"
-[ "$card_only" -eq 0 ] && [ -z "$rooms" ] && [ -z "$reload_weapon" ] &&
+[ "$card_only" -eq 0 ] && [ -z "$rooms" ] && [ -z "$reload_weapon" ] && [ "$compare" -eq 0 ] &&
     section "2. Formatvergleich App-Leser gegen Kern-Umwandler mit Disc-Daten"
-if [ "$card_only" -eq 1 ] || [ -n "$rooms" ] || [ -n "$reload_weapon" ]; then
-    : # --card-only / --rooms / --reload: straight to the memory card / the round of rooms / the reload
+if [ "$card_only" -eq 1 ] || [ -n "$rooms" ] || [ -n "$reload_weapon" ] || [ "$compare" -eq 1 ]; then
+    : # --card-only / --rooms / --reload / --compare: straight to the memory card / the round of
+      # rooms / the reload / the comparison
 elif [ -x "$cmp" ]; then
     "$cmp" --data "$layout" --room "r$room" > "$run/formatvergleich.txt" 2> "$run/formatvergleich.log"
     code=$?
@@ -286,6 +307,20 @@ trace_state() {
     fi
 }
 
+# The environment of a game run (run_game and the short runs of run_compare): the test
+# script, the test helpers, the end. In the comparison both builds get the float functions of
+# the C library through their double versions (host/det_math.c, LD_PRELOAD): glibc's float
+# code differs between i686 and x86_64 in the last bits, the runs would part over that alone.
+set_game_env() {
+    GAME_ENV=(RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1
+        RE4_MEMCARD=none RE4_ROOM_MENU=1 RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script"
+        RE4_PAD_FREE_SCRIPT="$free_script" RE4_TEST_PLACE="$place" RE4_STOP_AFTER="$frames"
+        RE4_GX_DUMP_FREE="$map_dump" RE4_TEST_SOFT_RESET="free+$soft_reset")
+    if [ "$compare" -eq 1 ]; then
+        GAME_ENV+=(LD_PRELOAD="$src/port/build/whole-$1$opt/libre4_detmath.so")
+    fi
+}
+
 # target, overall limit, limit until the main loop, stall limit (seconds)
 run_game() {
     local t="$1" limit="$2" main_limit="$3" stall="$4" dir="$src/port/build/whole-$1$opt"
@@ -303,9 +338,8 @@ run_game() {
     rm -rf "$cov" "$trace" "$trace.gz" "$bridge" "$snaps" "$gxdump" "$run/ton-$t.wav"
     mkdir -p "$snaps" "$gxdump"
     local start=$SECONDS
-    (cd "$dir" && exec env RE4_VI_FAST=1 RE4_WAIT_TRACE=1 RE4_START_ROOM="0x$room" RE4_PAD_UNTIL_ROOM=1 \
-        RE4_MEMCARD=none RE4_ROOM_MENU=1 RE4_PAD_SCRIPT="$pad_script" RE4_PAD_ROOM_SCRIPT="$room_script" RE4_PAD_FREE_SCRIPT="$free_script" RE4_TEST_PLACE="$place" RE4_STOP_AFTER="$frames" \
-        RE4_GX_DUMP_FREE="$map_dump" RE4_TEST_SOFT_RESET="free+$soft_reset" \
+    set_game_env "$t"
+    (cd "$dir" && exec env "${GAME_ENV[@]}" \
         RE4_TRACE="$trace" RE4_COVERAGE_LOG="$cov" RE4_BRIDGE_DUMP="$bridge" RE4_BRIDGE_SNAPSHOT="$snaps" RE4_GX_DUMP="$gxdump" \
         RE4_AUDIO_WAV="$run/ton-$t.wav" RE4_AUDIO_WAV_SECONDS=240 \
         "${runner[@]}" ./re4_host --data "$layout") > "$log" 2>&1 &
@@ -1234,7 +1268,61 @@ run_reload() {
     render_gx_pictures
 }
 
-if [ "$game_ok" -eq 1 ] && [ -n "$reload_weapon" ]; then
+# ---- the 32/64-bit comparison (--compare, milestone 12) -----------------------------------
+# Both builds play the same input (run_game: RE4_VI_FAST, the same test script, the disc
+# reads complete at once), so their state traces should agree frame by frame; the first frame
+# where the 64-bit run parts points at a 64-bit error (a structure read at GameCube offsets,
+# a pointer cut short ...), long before it crashes or looks wrong on the device. At that frame
+# both runs are made once more, up to it, with GX pictures of the frame before and the frame.
+run_compare() {
+    local t first code
+    for t in i686 x86_64; do
+        run_game "$t" "${RE4_CHECK_LIMIT:-3600}" "${RE4_CHECK_MAIN_LIMIT:-900}" "${RE4_CHECK_STALL:-180}"
+    done
+    section "9. Vergleichslauf 32/64 bit: i686 gegen x86_64, gleiche Tastenfolge, Start r$room, $frames Bilder"
+    say "  (Gleitkomma beider über SSE; die float-Funktionen der C-Bibliothek über ihre double-Fassung,"
+    say "  libre4_detmath.so; Positionen bis 1 Einheit toleriert)"
+    python3 "$src/port/tools/trace_compare.py" "$run/trace-i686.jsonl.gz" "$run/trace-x86_64.jsonl.gz" \
+        --names i686,x86_64 --json "$run/vergleich.json" 2>&1 | tee -a "$report"
+    code=${PIPESTATUS[0]}
+    [ "$code" -ne 0 ] && overall=1
+    first=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(",".join(map(str, d.get("gx_frames") or [])))' \
+        "$run/vergleich.json" 2> /dev/null)
+    if [ -z "$first" ]; then
+        return
+    fi
+    say "GX-Bilder am ersten Unterschied (Bilder $first), je ein kurzer Lauf bis dorthin:"
+    local last=${first##*,} pics="$run/bilder-vergleich" tool_build="$src/port/build/app-host-gl"
+    mkdir -p "$pics"
+    if ! cmake -S "$src/port/android-decomp/app/src/main/cpp" -B "$tool_build" -G Ninja \
+        -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release \
+        -DRE4_BUILD_GL_CHECK=ON > "$run/gx-werkzeug.log" 2>&1 ||
+        ! ninja -C "$tool_build" ${RE4_JOBS:+-j "$RE4_JOBS"} gx_chunk_render >> "$run/gx-werkzeug.log" 2>&1; then
+        say "  FEHLER: GX-Bild-Werkzeug nicht gebaut (Log: gx-werkzeug.log)"
+        return
+    fi
+    for t in i686 x86_64; do
+        local dir="$src/port/build/whole-$t$opt" dump="$run/gx-vergleich-$t"
+        rm -rf "$dump"
+        mkdir -p "$dump" "$pics/$t"
+        set_game_env "$t"
+        (cd "$dir" && exec env "${GAME_ENV[@]}" RE4_GX_DUMP="$dump" RE4_GX_DUMP_AT="$first" \
+            RE4_STOP_AT_FRAME=$((last + 3)) timeout 1800 ./re4_host --data "$layout") > "$run/vergleich-$t.log" 2>&1
+        if ls "$dump"/*.bin > /dev/null 2>&1; then
+            "$tool_build/gx_chunk_render" "$pics/$t" "$dump"/*.bin 2>> "$run/gx-werkzeug-lauf.log" |
+                sed "s/^/  $t: /" | tee -a "$report"
+            ppm_to_png "$pics/$t"
+        else
+            say "  $t: kein GX-Bild aufgezeichnet (Log: vergleich-$t.log)"
+        fi
+        rm -rf "$dump"
+    done
+    say "Bilder: Ordner bilder-vergleich (i686/ und x86_64/, bitte mitschicken)"
+}
+
+if [ "$game_ok" -eq 1 ] && [ "$compare" -eq 1 ]; then
+    run_compare
+elif [ "$game_ok" -eq 1 ] && [ -n "$reload_weapon" ]; then
     run_reload
 elif [ "$game_ok" -eq 1 ] && [ -n "$rooms" ]; then
     run_tour

@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from raw_offset_check import args_of, const_value, entries, strip, unary_op  # noqa: E402
+from raw_offset_check import args_of, const_value, entries, reviewed_lp64, strip, unary_op  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[3]
 CALLS = {"memclr_asm": (0, -1), "memset": (0, -1), "bzero": (0, -1), "memclr": (0, -1),
@@ -99,7 +99,8 @@ def scan(job):
         for k in c.get_children():
             if k.kind == ci.CursorKind.CALL_EXPR and k.spelling in CALLS:
                 args = list(k.get_arguments())
-                n = const_value(args[-1]) if len(args) >= 2 else None
+                # a length given for LP64 (RE4_LP64_SIZE, lp64_sizes.json) is reviewed
+                n = const_value(args[-1]) if len(args) >= 2 and not reviewed_lp64(args[-1]) else None
                 if n is not None and n > 0:
                     for which in [0] + ([SOURCES[k.spelling]] if k.spelling in SOURCES else []):
                         m = member_start(args[which])

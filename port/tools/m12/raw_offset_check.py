@@ -29,7 +29,6 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-BYTE_TYPES = {"char", "signed char", "unsigned char"}
 
 
 def entries(build, pattern):
@@ -68,23 +67,29 @@ def strip(c):
 
 
 def view_of(c):
-    """(record type, element size) when c is a cast of a record pointer to a byte pointer (with
-    --words also to a pointer to a 2-, 4- or 8-byte integer or float: `((u32*) em)[0x8D]`)."""
+    """(record type, element size) when c is a cast of a record pointer to a byte pointer or to an
+    integer (the address as a number: `(u32) em + 0x378`), with --words also to a pointer to a 2-,
+    4- or 8-byte integer or float (`((u32*) em)[0x8D]`); types by their kind, not their spelling."""
     import clang.cindex as ci
     c = strip(c)
     if c is None or c.kind not in (ci.CursorKind.CSTYLE_CAST_EXPR, ci.CursorKind.CXX_REINTERPRET_CAST_EXPR,
                                    ci.CursorKind.CXX_STATIC_CAST_EXPR):
         return None
     t = c.type.get_canonical()
-    if t.kind != ci.TypeKind.POINTER:
-        return None
-    pointee = t.get_pointee().get_canonical()
-    if pointee.spelling.replace("const ", "") in BYTE_TYPES:
+    K = ci.TypeKind
+    if t.kind in (K.INT, K.UINT, K.LONG, K.ULONG, K.LONGLONG, K.ULONGLONG) and t.get_size() >= 4:
+        # the address as a number: `(u32) em + 0x378`, `(T*) ((u32) p + 8)`
         elem = 1
-    elif os.environ.get("RE4_RAW_WORDS") and pointee.kind in WORD_KINDS() and pointee.get_size() in (2, 4, 8):
-        elem = pointee.get_size()
-    else:
+    elif t.kind != K.POINTER:
         return None
+    else:
+        pointee = t.get_pointee().get_canonical()
+        if pointee.kind in (K.CHAR_S, K.CHAR_U, K.SCHAR, K.UCHAR):
+            elem = 1
+        elif os.environ.get("RE4_RAW_WORDS") and pointee.kind in WORD_KINDS() and pointee.get_size() in (2, 4, 8):
+            elem = pointee.get_size()
+        else:
+            return None
     kids = list(c.get_children())
     if not kids:
         return None
@@ -164,12 +169,13 @@ def binary_op(c):
 
 def const_terms(c, depth=0):
     """(sum of the constant terms, whether there are variable ones) of a sum `a + 8 + b * 6`; a sum
-    with RE4_OFS / RE4_OWN (re4_whole_prelude.h) is reviewed already: (0, False)"""
+    with an offsetof (RE4_OFS / RE4_OWN of re4_whole_prelude.h, offsetof) follows the layout: (0, False)"""
     import clang.cindex as ci
     c = strip(c)
     if c is None or depth > 12:
         return 0, True
-    if depth == 0 and {"RE4_OFS", "RE4_OWN"} & {t.spelling for t in c.get_tokens()}:
+    # (an offsetof in the syntax tree, not the macro's name in the tokens: also inside other macros)
+    if depth == 0 and layout_offset(c):
         return 0, False
     v = const_value(c)
     if v is not None:
@@ -187,9 +193,120 @@ def const_terms(c, depth=0):
 def names_member(c, depth=0):
     """the expression names a member (`&((T*) 0)->m`, offsetof): its value follows the layout"""
     import clang.cindex as ci
-    if c.kind in (ci.CursorKind.MEMBER_REF_EXPR, ci.CursorKind.MEMBER_REF):
+    if c.kind in (ci.CursorKind.MEMBER_REF_EXPR, ci.CursorKind.MEMBER_REF) or is_offsetof(c):
         return True
     return depth < 12 and any(names_member(k, depth + 1) for k in c.get_children())
+
+
+def descendants(c, depth=0, limit=16):
+    """c and the cursors below it (expressions are shallow; the limit guards against huge trees)"""
+    yield c
+    if depth < limit:
+        for k in c.get_children():
+            yield from descendants(k, depth + 1, limit)
+
+
+def is_offsetof(c):
+    """`__builtin_offsetof(T, m)` (also offsetof of stddef.h, RE4_OFS / RE4_OWN): libclang shows it
+    as an unexposed expression over a reference to the type and one to the member"""
+    import clang.cindex as ci
+    return c.kind == ci.CursorKind.UNEXPOSED_EXPR and \
+        any(k.kind == ci.CursorKind.MEMBER_REF for k in c.get_children())
+
+
+def layout_offset(c):
+    """the expression takes an offset from the layout: an offsetof, or `&((T*) 0)->m`"""
+    import clang.cindex as ci
+    for k in descendants(c):
+        if is_offsetof(k):
+            return True
+        if k.kind == ci.CursorKind.UNARY_OPERATOR and unary_op(k) == "&":
+            kids = [strip(x) for x in k.get_children()]
+            if kids and kids[0] is not None and kids[0].kind == ci.CursorKind.MEMBER_REF_EXPR:
+                base = [strip(x) for x in kids[0].get_children()]
+                b = base[0] if base else None
+                while b is not None and b.kind == ci.CursorKind.CSTYLE_CAST_EXPR:
+                    inner = [x for x in b.get_children() if x.kind != ci.CursorKind.TYPE_REF]
+                    b = strip(inner[-1]) if inner else None
+                if b is not None and const_value_plain(b) == 0:
+                    return True
+    return False
+
+
+def has_sizeof(c):
+    """the expression uses sizeof / alignof (a size that follows the layout)"""
+    import clang.cindex as ci
+    return any(k.kind == ci.CursorKind.CXX_UNARY_EXPR for k in descendants(c))
+
+
+def reviewed_lp64(c):
+    """the expression is a size given for LP64: RE4_LP64_SIZE of re4_whole_prelude.h adds the
+    enumerator re4_lp64_size there (port/whole/lp64_sizes.json)"""
+    import clang.cindex as ci
+    for k in descendants(c):
+        if k.kind == ci.CursorKind.DECL_REF_EXPR and k.referenced is not None and \
+                k.referenced.kind == ci.CursorKind.ENUM_CONSTANT_DECL and k.referenced.spelling == "re4_lp64_size":
+            return True
+    return False
+
+
+def const_value_plain(c):
+    """the constant value of an expression (also a cast of 0 to a pointer), None otherwise"""
+    L = lib()
+    r = L.clang_Cursor_Evaluate(c)
+    if not r:
+        return None
+    try:
+        return L.clang_EvalResult_getAsLongLong(r) if L.clang_EvalResult_getKind(r) == 1 else None
+    finally:
+        L.clang_EvalResult_dispose(r)
+
+
+def macro_instantiations(tu):
+    """{file name: [(start offset, end offset, macro name)]} of the macro expansions of a unit parsed
+    with the detailed preprocessing record (libclang: MACRO_INSTANTIATION cursors)"""
+    import clang.cindex as ci
+    out = {}
+    for c in tu.cursor.get_children():
+        if c.kind == ci.CursorKind.MACRO_INSTANTIATION and c.extent.start.file:
+            out.setdefault(c.extent.start.file.name, []).append(
+                (c.extent.start.offset, c.extent.end.offset, c.spelling))
+    return out
+
+
+def written_text(c, data, instantiations):
+    """(text, line) of an expression as written in its file, or None when it comes from the body of
+    a macro (the text is in the #define, not at the place of use); inside a macro argument the text
+    of the argument"""
+    start, end = spelling(c.extent.start), spelling(c.extent.end)
+    loc = c.extent.start
+    if not loc.file or start[0] != loc.file.name or end[0] != start[0] or end[3] < start[3]:
+        return None
+    for a, b, _ in instantiations.get(loc.file.name, ()):
+        if a <= loc.offset < b:
+            # expanded from a macro: written in one of its arguments, or in its body
+            if not (a < start[3] and end[3] <= b):
+                return None
+            break
+    return data[start[3]:end[3]].decode("utf-8", "surrogateescape"), start[1]
+
+
+def spelling(loc):
+    """(file name, line, column, offset) where the text of a location is written: inside a macro
+    argument the place in the source, inside a macro body the #define (the location of a cursor is
+    where the outermost macro is expanded)"""
+    import ctypes
+    import clang.cindex as ci
+    L = lib()
+    if "spell" not in _LIB:
+        L.clang_getSpellingLocation.argtypes = [ci.SourceLocation, ctypes.POINTER(ci.c_object_p),
+                                                ctypes.POINTER(ctypes.c_uint), ctypes.POINTER(ctypes.c_uint),
+                                                ctypes.POINTER(ctypes.c_uint)]
+        _LIB["spell"] = True
+    f, line, col, off = ci.c_object_p(), ctypes.c_uint(), ctypes.c_uint(), ctypes.c_uint()
+    L.clang_getSpellingLocation(loc, ctypes.byref(f), ctypes.byref(line), ctypes.byref(col), ctypes.byref(off))
+    name = ci.File(f).name if f else ""
+    return name, line.value, col.value, off.value
 
 
 def const_value(c):

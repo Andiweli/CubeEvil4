@@ -9,7 +9,9 @@ Retroid, 17.10.2026: "stack corruption detected" in EventMgr::EvtReadSub).
 
 With libclang this check parses the units of an LP64 build and lists every
 cast to a pointer to a pointer (`(T**) x`) whose operand points to an object
-that is not a pointer and smaller than one (`&int_var`, an int array, a u32*).
+that is not a pointer and smaller than one (`&int_var`, an int array, a u32*),
+except a byte pointer moved by an offset of the layout (`(u8*) p + RE4_OFS(...)`:
+the slot is that member).
 
     port/tools/m12/ptr_slot_check.py [--lp64 BUILD] [--pattern REGEX]
 
@@ -24,7 +26,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from raw_offset_check import args_of, entries, strip  # noqa: E402
+from raw_offset_check import args_of, entries, layout_offset, strip  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[3]
 CASTS = ("CSTYLE_CAST_EXPR", "CXX_REINTERPRET_CAST_EXPR")
@@ -45,6 +47,10 @@ def scan(job):
                     kids = [x for x in k.get_children() if x.kind != ci.CursorKind.TYPE_REF]
                     op = strip(kids[-1]) if kids else None
                     src = op.type.get_canonical() if op is not None else None
+                    # `(T**) ((u8*) p + RE4_OFS(R, m, gc))`: the slot is the member m itself, found by the
+                    # layout (offsetof in the syntax tree), and has the type the cast names
+                    if op is not None and layout_offset(op):
+                        src = None
                     if src is not None and src.kind in (ci.TypeKind.POINTER, ci.TypeKind.CONSTANTARRAY):
                         obj = (src.get_pointee() if src.kind == ci.TypeKind.POINTER
                                else src.get_array_element_type()).get_canonical()

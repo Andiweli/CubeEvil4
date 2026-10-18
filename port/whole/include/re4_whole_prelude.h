@@ -39,11 +39,15 @@
 
 /* Fixed work areas and pool slots on 64 bit (milestone 12, whole_prepare.py
  * lp64_sizes, port/whole/lp64_sizes.json): the GameCube size on ILP32, on LP64
- * the size the classes and the works laid over the areas need there. */
+ * the size the classes and the works laid over the areas need there. The value
+ * carries the enumerator re4_lp64_size (0) on both widths: the checks in
+ * port/tools/m12 see a reviewed size in the syntax tree, also inside other
+ * macros (no token names); `+ 0` keeps the value and its type. */
+enum { re4_lp64_size = 0 };
 #if __SIZEOF_POINTER__ == 4
-#define RE4_LP64_SIZE(gc, lp64) (gc)
+#define RE4_LP64_SIZE(gc, lp64) ((gc) + re4_lp64_size)
 #else
-#define RE4_LP64_SIZE(gc, lp64) (lp64)
+#define RE4_LP64_SIZE(gc, lp64) ((lp64) + re4_lp64_size)
 #endif
 
 /* A GameCube byte offset into a structure whose members move on LP64

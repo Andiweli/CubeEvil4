@@ -20,3 +20,9 @@ if(NOT EXISTS /usr/include/asm AND EXISTS /usr/include/x86_64-linux-gnu/asm)
     set(CMAKE_C_FLAGS_INIT "-idirafter ${RE4_ASM_SHIM}")
     set(CMAKE_CXX_FLAGS_INIT "-idirafter ${RE4_ASM_SHIM}")
 endif()
+
+# Floating point in SSE registers (IEEE single and double as on ARM32 and in the 64-bit builds)
+# instead of the x87 stack with its 80-bit intermediates: the 32/64-bit comparison of the PC
+# check (whole_r100_check.sh --compare) runs both with the same arithmetic (milestone 12).
+string(APPEND CMAKE_C_FLAGS_INIT " -msse2 -mfpmath=sse")
+string(APPEND CMAKE_CXX_FLAGS_INIT " -msse2 -mfpmath=sse")

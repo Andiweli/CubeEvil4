@@ -66,6 +66,13 @@ Nur bauen und den Speicherkarten-Teil pruefen (Abschnitt 7, wenige Minuten).
 .\port\scripts\test-r100-core.ps1 -DataDir 'D:\RE4\Disc' -Arm
 Zusaetzlich der ARM32-Build unter qemu (wie auf dem Retroid, aber langsam).
 .EXAMPLE
+.\port\scripts\test-r100-core.ps1 -Compare
+Vergleichslauf 32/64 bit (Meilenstein 12): baut i686 und x86_64, spielt beide mit derselben
+Tastenfolge ab r120 (Vorfilm, Polizeifahrt, r100; 30000 Bilder, mit -Room und -Frames
+aenderbar), vergleicht Bild fuer Bild und meldet das erste Bild, ab dem 64 bit abweicht, mit
+den Werten beider Seiten und GX-Bildern beider Seiten (Ordner bilder-vergleich).
+
+.EXAMPLE
 .\port\scripts\test-r100-core.ps1 -Lp64
 Alles mit dem 64-bit-Build (x86_64, steht fuer arm64-v8a) statt dem 32-bit-PC-Build;
 laesst sich mit -OnlyCard, -Rooms und -Reload kombinieren.
@@ -77,6 +84,7 @@ param(
     [string]$Room = '100',
     [switch]$Arm,
     [switch]$Lp64,
+    [switch]$Compare,
     [switch]$OnlyCard,
     [string]$Rooms = '',
     [int]$TourFrames = 1500,
@@ -131,9 +139,13 @@ if (-not $SkipSetup) {
     if ($LASTEXITCODE -ne 0) { throw 'Einrichtung der Werkzeuge in WSL fehlgeschlagen (Internetverbindung noetig).' }
 }
 
-$checkArgs = @('--source', $repoWsl, '--data', $dataWsl, '--out', $outWsl, '--frames', "$Frames", '--room', $Room)
+$checkArgs = @('--source', $repoWsl, '--data', $dataWsl, '--out', $outWsl)
+# the comparison (-Compare) starts in r120 with 30000 frames unless -Room / -Frames are given
+if (-not $Compare -or $PSBoundParameters.ContainsKey('Frames')) { $checkArgs += @('--frames', "$Frames") }
+if (-not $Compare -or $PSBoundParameters.ContainsKey('Room')) { $checkArgs += @('--room', $Room) }
 if ($Arm) { $checkArgs += '--arm' }
 if ($Lp64) { $checkArgs += '--lp64' }
+if ($Compare) { $checkArgs += '--compare' }
 if ($OnlyCard) { $checkArgs += '--card-only' }
 if ($Rooms) { $checkArgs += @('--rooms', $Rooms, '--tour-frames', "$TourFrames") }
 if ($Reload -gt 0) { $checkArgs += @('--reload', "$Reload") }

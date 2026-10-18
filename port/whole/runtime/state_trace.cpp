@@ -5,7 +5,9 @@
 //
 //   {"frame":N,"Rno0":3,"room":"0x100","pl":[x,y,z],"rsf":["0x80000000"],
 //    "str":[{"w":0,"id":"0x..","be":"0x0013","rno":2,"req":"0x0","vol":..,"dvd":[busy,reqs,status],"dma":0,"err":0}],
-//    "em":[{"slot":1,"id":"0x12","r":[1,11,0,0],"hp":500,"pos":[x,y,z]}, ...]}
+//    "em":[{"slot":1,"id":"0x12","r":[1,11,0,0],"hp":500,"pos":[x,y,z]}, ...],
+//    "rnd":N,"plr":[r0,r1,r2,r3,hp],"n":[objects,events,effects],"evt":[frame,...],
+//    "gx":[12 counts of this frame],"heap":[[no,free,size],...],"hf":N}  (traceMore)
 //
 // Rno0 is the game task step (2 room init, 3 main loop), "rsf" the room save
 // flag word of the current room (flag_rsf.h), "em" every live enemy work of
@@ -98,6 +100,11 @@
 #include "item.h"
 #include "joy.h"
 #include "pl_wep.h"
+#include "obj.h"
+#include "event.h"
+#include "espgen.h"
+#include "main_mem.h"
+#include <dolphin/os/OSAlloc.h>
 
 #include <math.h>
 #include <stdio.h>
@@ -118,6 +125,10 @@ extern "C" void re4_log(const char* fmt, ...);
 extern "C" int re4_title_room_menu_open(void);
 extern "C" void re4_gx_mark(void);
 extern "C" void re4_memcard_flush(int force);
+extern "C" unsigned re4_rnd_state(void);          // game/rnd.cpp (patch 0081)
+extern "C" unsigned re4_heap_fail_count(void);    // runtime/log.cpp (patch 0081)
+extern "C" void re4_gx_stats(unsigned out[11]);   // runtime/gx_decode.cpp
+extern "C" void re4_gx_stats2(unsigned out[9]);
 
 namespace {
 
@@ -163,6 +174,70 @@ void logAreas()
                     (double) e.z, (double) e.radius, (double) e.ang_x, (double) e.ang_y, (double) e.open_ang);
         }
     }
+}
+
+// Live works of a manager (its alive list, cUnit::next), at most `limit`.
+template <class T> int aliveCount(cManager<T>& m, int limit = 4096)
+{
+    int count = 0;
+    for (cUnit* u = (cUnit*) m.pAlive; live(u) && count < limit; u = u->getNext()) {
+        count++;
+    }
+    return count;
+}
+
+// More of the state for the 32/64-bit comparison of the PC check (port/tools/trace_compare.py):
+// "rnd" the game's random generator (it parts first when two runs call Rnd differently), "plr"
+// the player's routine and hit points, "n" the live works (objects, events, effect slots in
+// use), "evt" the total frame of each running event, "gx" what the GP got since the last frame
+// (commands, draws, vertices, display list calls, XF and BP writes, textures, texture bytes,
+// copies to the picture and to textures, TLUT loads, unknown commands), every 60 frames
+// "heap": [number, free bytes, size] of each active heap (OSCheckHeap, which also reports a
+// broken heap), and "hf" the allocations that found no room so far (patch 0081).
+unsigned g_gxLast[20];
+
+void traceMore(FILE* f, unsigned n, GLOBAL_WK* g)
+{
+    fprintf(f, ",\"rnd\":%u", re4_rnd_state());
+    cPlayer* pl = pPL;
+    if (live(pl)) {
+        fprintf(f, ",\"plr\":[%u,%u,%u,%u,%d]", (unsigned) pl->r_no_0, (unsigned) pl->r_no_1,
+                (unsigned) pl->r_no_2, (unsigned) pl->r_no_3, (int) pl->hp);
+    }
+    int esp = live(g_pEspSys) ? (int) g_pEspSys->ActiveEspNum : -1;
+    fprintf(f, ",\"n\":[%d,%d,%d]", aliveCount(ObjMgr), aliveCount(EvtMgr), esp);
+    fprintf(f, ",\"evt\":[");
+    int k = 0;
+    for (cUnit* u = (cUnit*) EvtMgr.pAlive; live(u) && k < 16; u = u->getNext(), k++) {
+        fprintf(f, "%s%d", k ? "," : "", ((Event*) u)->GetNowTotalFrame());
+    }
+    fprintf(f, "]");
+    unsigned a[11], b[9];
+    re4_gx_stats(a);
+    re4_gx_stats2(b);
+    // commands, draws, vertices, calls, xf, bp, textures, texture bytes, xfb copies, texture
+    // copies, tlut loads, unknown
+    const unsigned now[12] = {a[1], a[6], a[7], a[8], a[4], a[2], b[3], b[4], b[0], b[1], b[2], a[9]};
+    fprintf(f, ",\"gx\":[");
+    for (int i = 0; i < 12; i++) {
+        fprintf(f, "%s%u", i ? "," : "", now[i] - g_gxLast[i]);
+        g_gxLast[i] = now[i];
+    }
+    fprintf(f, "]");
+    if (n % 60 == 0) {
+        fprintf(f, ",\"heap\":[");
+        bool first = true;
+        for (int h = 0; h < MEM_HEAP_NUM; h++) {
+            if (Heap[h].handle < 0 || Heap[h].status != 0) {
+                continue;
+            }
+            long size = (long) ((u8*) Heap[h].end - (u8*) Heap[h].start);
+            fprintf(f, "%s[%d,%ld,%ld]", first ? "" : ",", h, (long) OSCheckHeap(Heap[h].handle), size);
+            first = false;
+        }
+        fprintf(f, "],\"hf\":%u", re4_heap_fail_count());
+    }
+    (void) g;
 }
 
 void trace(unsigned n)
@@ -243,7 +318,9 @@ void trace(unsigned n)
             first = false;
         }
     }
-    fprintf(f, "]}\n");
+    fprintf(f, "]");
+    traceMore(f, n, g);
+    fprintf(f, "}\n");
     fflush(f);  // a crash must not lose the last frames
 }
 

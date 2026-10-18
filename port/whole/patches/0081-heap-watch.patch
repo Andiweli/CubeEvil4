@@ -1,0 +1,60 @@
+# Diagnosis for milestone 12 (64 bit), no change of the game's behaviour:
+# - main_mem.cpp: every allocation that finds no room (mem_alloc of any flag,
+#   Debug_alloc) calls re4_heap_failed (runtime/log.cpp: "heap: no room ..."
+#   in the log, a count for the state trace). A heap budget made from the
+#   GameCube sizes can be short on LP64, where blocks holding pointers are
+#   larger (the save screen's id pool, PC check 18.10.2026); flag 0 failures
+#   (SwapOut tries the heap before ARAM) are counted as well.
+# - rnd.cpp: re4_rnd_state, the state of the game's random generator, for the
+#   state trace: two runs of the same input part there first when they call
+#   Rnd differently (the 32/64-bit comparison of the PC check).
+--- a/src/game/main_mem.cpp
++++ b/src/game/main_mem.cpp
+@@ -16,6 +16,11 @@
+ #include <dolphin/os/OSAlloc.h>
+ #include "main.h"
+ 
++// port: patch 0081, every allocation that finds no room (heap, size, flag, "file(line)") into the
++// port log and the state trace (runtime/log.cpp): a heap budget made for the GameCube sizes can be
++// short on LP64, where the blocks holding pointers are larger (the save screen, 18.10.2026)
++extern "C" void re4_heap_failed(int heap, unsigned size, int flag, const char* where);
++
+ 
+ // Fixed memory map of the debug build.
+ struct SYS_MEM_TBL {
+@@ -397,6 +402,9 @@
+             strcpy((char*) tag + 4, str);
+         }
+     }
++    if (p == NULL) {
++        re4_heap_failed(heap, size, flag, str);  // port: patch 0081
++    }
+     if (flag == 1 && p == NULL) {
+         pLog->err(0, 0, "alloc[%x]:free[%x] %s", size, OSCheckHeap(Heap[heap].handle), str);
+     }
+@@ -480,6 +488,9 @@
+     }
+     size = (size + 0x1F) & ~0x1F;
+     p = (u8*) OSAllocFromHeap(Heap[CurrentDbgHeap].handle, size);
++    if (p == NULL) {
++        re4_heap_failed(CurrentDbgHeap, size, -1, "Debug_alloc");  // port: patch 0081
++    }
+     if (p != NULL) {
+         memclr_asm(p, size);
+         if (Dalloc_flg == 1 && release_flag == 1) {
+--- a/src/game/rnd.cpp
++++ b/src/game/rnd.cpp
+@@ -5,6 +5,13 @@
+ #include "rnd.h"
+ 
+ static u16 Random;
++
++// port: patch 0081, the state of the generator for the state trace (runtime/state_trace.cpp):
++// two runs of the same input that call Rnd differently part here first (the 32/64-bit comparison)
++extern "C" unsigned re4_rnd_state(void)
++{
++    return Random;
++}
+ 
+ // Seeds the global 16-bit generator (Rnd / fRand*).
+ void RndInit(u16 seed)
