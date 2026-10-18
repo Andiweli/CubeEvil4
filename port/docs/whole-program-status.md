@@ -4013,6 +4013,21 @@ Spiel (r20d, r20e, r21d, Szenen-Treffer, Kamera-Ziel), Gerät.
   der Bildteil des Vergleichslaufs mit nachgebauten GX-Daten. **Nicht getestet:** der
   Vergleichslauf mit Disc-Daten (Bild 301), Gerät.
 
+**PC-Prüfung 16:48 (Stand `fbeb173`, -O2, Disc-Daten), Vergleichslauf 32/64 bit: ALLES OK.**
+- Beide Seiten 30.000 Bilder ab der Hauptschleife ohne Absturz (Vorfilm, Polizeifahrt
+  r120, r100, Soft-Reset, Titel mit den Filmen `demo0`/`demo1`).
+- Trace: **alle 30.619 Bilder gleich** (Zufall, Spieler, Gegner, Werke, Ereignisse,
+  Positionen, Kamera, Tonspuren, Raum-Flags, alle GX-Kennzahlen; jeder Abschnitt von r120
+  Schritt 0 bis zum Titel nach dem Soft-Reset „keine Abweichung“); keine Speicheranforderung
+  ohne Platz; der wenigste freie Platz je Heap auf 64 bit im Rahmen (Heap 4: 0xC6B80 frei).
+- Bilder: **24 von 24 Pixel für Pixel gleich** (Start, Warnbild, Logos, r120, r100, Titel
+  nach dem Soft-Reset). **Bild 301 (WARNING) jetzt gleich: Patch 0083 bestätigt** – die
+  Abweichung kam aus dem nicht initialisierten `indMtx` in `IdShimmerTrans`.
+- Damit ist Schritt 3 von M12 (Vergleichslauf) erledigt; der Kern rechnet und zeichnet auf
+  64 bit wie auf 32 bit, so weit der Lauf reicht (r120, r100, Titel). Noch nicht
+  verglichen: andere Räume (10b), Speicherbildschirm im Vergleichslauf (die Kartenläufe
+  von `-Lp64` und 32 bit sind einzeln grün).
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
