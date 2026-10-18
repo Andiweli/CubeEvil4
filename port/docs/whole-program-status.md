@@ -4089,6 +4089,11 @@ wegen der Marke „Resident Evil“.
   `re4-standalone` und die Branches von M6 bis M10. Tags und Löschen sperrt die Zugangsschranke
   der Cloud-Sitzung (HTTP 403; nur der eigene Arbeitsbranch ist beschreibbar): der
   Projektinhaber führt es vom PC aus.
+- `master` übernimmt den Arbeitsstand (Wunsch des Projektinhabers, 18.10.2026): vorgespult
+  von `15cf64f` auf `121b3dd` (208 Commits, ohne Zusammenführungs-Commit, kein Verlauf
+  umgeschrieben); die GitHub-Startseite zeigt seitdem die README von CubeEvil4 mit Symbol.
+  Weitergearbeitet wird im Arbeitsbranch; `master` bekommt neue Stände auf Wunsch oder am Ende
+  eines Meilensteins.
 
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
