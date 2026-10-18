@@ -1,8 +1,68 @@
-# Resident Evil 4 (GameCube) decompilation
+# CubeEvil4
 
-This is a complete decompilation of the GameCube debug build of Resident Evil 4, `G4BE08`, the
-"Nov 25 2004" prototype on two discs. The debug build shipped with `Bio4.sym` symbol files that name
-every function, and that is what made a full decompilation possible.
+**CubeEvil4** is an unofficial, native Android port of the GameCube debug build of Resident Evil 4
+(`G4BE08`, the "Nov 25 2004" prototype on two discs). It does not recreate the game: the app runs
+the original game code, compiled from the complete decompilation in this repository for ARM. It is
+not affiliated with or endorsed by Capcom, Nintendo or CRI Middleware, and it contains no game
+data: you need your own images of both debug discs.
+
+<p align="center"><img src="port/android-decomp/app/src/main/res/drawable-nodpi/icon_cubeevil4.png" width="160" alt="CubeEvil4 icon"></p>
+
+## What the app does
+
+- The whole game code (`src/`, all 114 REL modules) runs natively, as ARM32 (`armeabi-v7a`) and
+  ARM64 (`arm64-v8a`) in one APK. Only the GameCube platform layer is replaced (graphics, video
+  timing, OS, disc, controller, sound, memory card, ARAM, movies).
+- Graphics: the game's own GX commands are translated to OpenGL ES 3 (logos, menus, rooms,
+  characters, effects, subtitles), at 1080p and above, with optional anti-aliasing,
+  anisotropic filtering and depth of field.
+- Sound: the original SDK sound libraries with an emulated DSP; movies through the original CRI
+  middleware with picture and ADX sound.
+- Memory card as a file inside the app, with `.gci` import and export (Dolphin, GameCube).
+- Controller like the GameCube pad, with vibration. SELECT opens the app menu (graphics,
+  memory card, error report); holding SELECT opens the game's own debug menu.
+- Android 6.0 or later, OpenGL ES 3.0.
+
+## Status
+
+Work in progress. Tested on a Retroid Pocket Flip 2 (Android 13), 32 and 64 bit: title, opening
+movie, the police car ride and the start of the village (stage 1-1); saving and loading on the
+device in 32 bit and in the PC check in 64 bit. On the PC, a comparison run plays the 32- and
+64-bit core with the same input through these parts and finds every frame and every compared
+picture identical. Later rooms have not been played through yet; that is the next step (a tour
+of many rooms). Progress, test results and every patch are recorded in
+`port/docs/whole-program-status.md` (German).
+
+## Building the app
+
+No disc images or game files ever go into the repository.
+
+1. Build the game core for Android (Linux or WSL2, Android NDK r28c):
+   `port/tools/whole_build_android.sh` (on Windows,
+   `powershell -ExecutionPolicy Bypass -File .\port\scripts\test-core-app.ps1 -SkipApk -SkipDevice`
+   does the same through WSL). The libraries land in
+   `port/android-decomp/app/src/core/jniLibs/` (not in git).
+2. Open `port/android-decomp` in Android Studio, choose the build variant **coreRelease** and
+   build a signed APK (Build → Generate Signed App Bundle or APK).
+3. Install the APK, start **CubeEvil4** and import Disc 1 and Disc 2 (ISO or GCM of the debug
+   build).
+
+`port/scripts/test-core-app.ps1` builds, installs and tests the app on a device in one go;
+`port/tools/whole_build.sh` and `port/tools/whole_r100_check.sh` check the core on Linux.
+
+## Where the port lives
+
+- `port/whole/` builds the whole game for the host and for Android: the rewrites, replacement
+  headers and patches applied to the unchanged `src/` and `include/`, and the platform layer
+  (`port/whole/runtime/`).
+- `port/android-decomp/` is the Android app (Gradle project, Android Studio).
+- `port/tools/` has the build and check scripts, `port/docs/` the plans and the status file.
+
+## The decompilation
+
+The port is built on a complete decompilation of the debug build. The debug build shipped with
+`Bio4.sym` symbol files that name every function, and that is what made a full decompilation
+possible.
 
 Building the repository gives back the exact original files: `main.dol` and all 114 REL overlays,
 checked against `config/G4BE08/build.sha1` on every build. The source is about 570,000 lines of C and
@@ -19,32 +79,13 @@ The code is built with the compilers the original was built with:
 There are no game assets in this repository. To build it you need your own images of the debug
 discs. Disc 1 has `main.dol` and most of the RELs, disc 2 has the four RELs for the island stages.
 
-## Android port (work in progress)
+This repository is a fork of the decompilation by
+[adonis-singh](https://github.com/adonis-singh/re4); its build and research documentation follows.
+The CC0 terms in [LICENSE](LICENSE) apply only to the project's own tools, configuration and
+documentation, not to Capcom's game code or Nintendo/CRI SDK and middleware code. The Android
+port does not change those ownership or licensing limitations.
 
-This fork is also being used to develop a **native Android port** of the GameCube debug build
-(G4BE08, November 25, 2004). The goal is to reuse the original C/C++ game logic, room scripts,
-enemy AI, events and resource formats rather than recreate each room manually.
-
-**Current development status:** Early engine-porting work. A separate Android NDK build supports
-`armeabi-v7a` and `arm64-v8a`. Initial original-code routines, a stack-preserving task
-scheduler, background processing and Yz2 decoding have passed host and Android 13 device tests.
-The Android port is **not yet playable**. This work is currently on a local development branch
-and has not been pushed to this repository.
-
-**Planned work:** Import resources from both original debug discs, connect the original
-gameplay and room systems, and implement Android graphics, audio and controller support.
-Optional graphics settings are planned for MSAA (off/2x/4x), anisotropic filtering
-(2x/4x/8x) and depth of field, subject to device capabilities.
-
-This fork is based on the decompilation by
-[adonis-singh](https://github.com/adonis-singh/re4). The original project's build and
-research documentation remains below. **No game assets are included.** Users must supply
-their own legally obtained matching debug-disc images. The CC0 terms in [LICENSE](LICENSE)
-apply only to the original project's own tools, configuration and documentation—not to
-Capcom's game code or Nintendo/CRI SDK and middleware code. The Android port does not
-change those ownership or licensing limitations.
-
-## Building
+### Building the original files
 
 You need Linux, Python 3 and [ninja](https://ninja-build.org/). The first configure run downloads
 decomp-toolkit, objdiff, wibo and the CodeWarrior compilers. The SN GCC is built once from SN's
@@ -67,7 +108,7 @@ python3 configure.py && ninja
 When working on one unit, `python3 tools/bytecmp.py game/foo` compares its object file with the
 original, and `python3 tools/fdiff.py game/foo <symbol>` shows one function side by side.
 
-## What's where
+### What's where
 
 - `src/game/` is the game itself. `src/em*/` are the enemies, `src/wep*/` the weapons, `src/pl*/` the
   player characters and `src/st*/` the rooms, one REL per room. `src/t_*/`, `src/Tools/` and
@@ -80,7 +121,7 @@ original, and `python3 tools/fdiff.py game/foo <symbol>` shows one function side
 - `docs/overview.md` is a guide to how the engine fits together. `docs/matching.md` explains how the
   matching was done and `docs/unit-notes.md` has notes per unit. `docs/research/` is the detailed log.
 
-## How close is the match
+### How close is the match
 
 Every unit compiles to the original bytes with the original compilers. In some places the compiler
 only picks the same registers or instruction order as the original if the code is written in a
@@ -98,7 +139,7 @@ instructions of it, with the eight assembly units counted separately. The except
 libraries: one small block in `dct_ac` that works around a difference between our build of
 CodeWarrior and Capcom's, and 28 register pins that emit nothing. `docs/naming.md` lists all of it.
 
-## Names
+### Names
 
 Function names are Capcom's own, from `Bio4.sym`. They are C++ mangled names, which is why the game
 code is C++ and the SDK, CRI and C library code is C. File names and the split into units come from
@@ -110,13 +151,16 @@ from how the code uses them. The rest are placeholders like `x1C`, named after t
 their meaning isn't known yet. Capcom's names keep Capcom's spelling, so the naming style is mixed on
 purpose. Constants use the PS2 build's enums. `docs/naming.md` has the details.
 
-## Contributing
+### Contributing
 
 See `CONTRIBUTING.md` for the build, the three checks a change has to pass and the rules. The main rule
 is that the output bytes never change.
 
 ## Legal
 
-The reconstructed game and SDK source is the property of Capcom, Nintendo and CRI Middleware and is
-published for research and preservation only. The build scripts, tools, configuration and
-documentation written for this project are released under CC0, see `LICENSE`.
+CubeEvil4 is an unofficial fan project, not affiliated with or endorsed by Capcom, Nintendo or CRI
+Middleware. Resident Evil is a trademark of Capcom; it is named here only to say which game the
+port runs. The reconstructed game and SDK source is the property of Capcom, Nintendo and CRI
+Middleware and is published for research and preservation only. No game data is included or
+distributed; you need your own discs. The build scripts, tools, configuration and documentation
+written for this project are released under CC0, see `LICENSE`.
