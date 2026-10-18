@@ -4040,6 +4040,11 @@ Laden; mit dem 32-bit-Kontrolllauf zu vergleichen). Bildschirmfotos (15–430 s)
 Vorfilm, Polizeiauto im Nebel, Funkspruch, Haus in r100 mit Ganado. Noch offen: Lauf von
 Hand (64 bit), Kontrolllauf 32 bit.
 
+**Gerät, 64 bit, von Hand (Retroid, 18.10.2026):** Projektinhaber: „es läuft scheinbar
+alles, Stage 1-1 lief problemlos“ (kein Bericht mitgeschickt). Noch offen: Kontrolllauf
+32 bit (`-Abi armeabi-v7a`); Speichern/Laden auf dem Gerät mit 64 bit ausdrücklich
+bestätigen. Der Release-Bau (`coreRelease`, signiert) ist noch nie gebaut worden.
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
