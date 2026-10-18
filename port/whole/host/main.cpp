@@ -127,6 +127,34 @@ static void crashHandler(int sig, siginfo_t* si, void* context)
     }
 #elif defined(__x86_64__)
     printAddress("pc", (void*) uc->uc_mcontext.gregs[REG_RIP]);
+    static const struct {
+        const char* name;
+        int reg;
+    } kRegs[] = { { "rax", REG_RAX }, { "rbx", REG_RBX }, { "rcx", REG_RCX }, { "rdx", REG_RDX },
+                  { "rsi", REG_RSI }, { "rdi", REG_RDI }, { "rbp", REG_RBP }, { "rsp", REG_RSP },
+                  { "r8", REG_R8 },   { "r9", REG_R9 },   { "r12", REG_R12 }, { "r13", REG_R13 },
+                  { "r14", REG_R14 }, { "r15", REG_R15 } };
+    fprintf(stderr, "[re4]   registers:");
+    for (const auto& k : kRegs) {
+        fprintf(stderr, " %s=%016lx", k.name, (unsigned long) uc->uc_mcontext.gregs[k.reg]);
+    }
+    fprintf(stderr, "\n");
+    for (const auto& k : kRegs) {
+        dumpAround(k.name, (unsigned long) uc->uc_mcontext.gregs[k.reg]);
+    }
+#elif defined(__aarch64__)
+    printAddress("pc", (void*) uc->uc_mcontext.pc);
+    printAddress("lr", (void*) uc->uc_mcontext.regs[30]);
+    fprintf(stderr, "[re4]   registers:");
+    for (int i = 0; i < 31; i++) {
+        fprintf(stderr, " x%d=%016llx", i, (unsigned long long) uc->uc_mcontext.regs[i]);
+    }
+    fprintf(stderr, "\n");
+    for (int i = 0; i < 31; i++) {
+        char name[8];
+        snprintf(name, sizeof(name), "x%d", i);
+        dumpAround(name, (unsigned long) uc->uc_mcontext.regs[i]);
+    }
 #else
     (void) uc;
 #endif

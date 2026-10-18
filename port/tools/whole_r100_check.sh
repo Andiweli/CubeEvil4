@@ -916,6 +916,17 @@ run_card_game() {
     [ -n "$reason" ] && say "  $reason (Log: $name.log)"
     grep -E "memcard: (files|.* saved)|card: |run: (memory card check|save |main loop|player free|stopped|retry|after the retry)|fatal signal|stub called: (OSResetSystem|CARD|__CARD)" \
         "$log" | sed 's/^\[re4\] /  /' | head -n 80 | tee -a "$report"
+    # what the game itself reported (pLog, patch 0076: "alloc[...]:free[...]" when a heap is full)
+    if grep -q "game: " "$log"; then
+        say "  Spielmeldungen (pLog):"
+        grep "game: " "$log" | sed 's/^\[re4\] //' | sort | uniq -c | sort -rn | head -n 30 |
+            sed 's/^/    /' | tee -a "$report"
+    fi
+    # a crash: the faulting place, registers and the call chain (host/main.cpp)
+    if grep -q "fatal signal" "$log"; then
+        say "  Absturzstelle und Aufrufkette:"
+        sed -n '/fatal signal/,$p' "$log" | grep -v "pad: frame" | head -n 60 | sed 's/^/    /' | tee -a "$report"
+    fi
     if [ -n "$reason" ] && grep -q "backtrace of the running context" "$log"; then
         say "  Rückverfolgung (wo das Programm hing):"
         sed -n '/backtrace of the running context/,$p' "$log" | grep -v "pad: frame" | head -n 60 |
