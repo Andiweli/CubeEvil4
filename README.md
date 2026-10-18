@@ -46,7 +46,9 @@ of many rooms). Progress, test results and every patch are recorded in
 
 The game is the debug build, and its debug menu is still switched on for the test runs: holding
 SELECT opens it (rooms are chosen there). **New Game** starts the game directly, without the debug
-build's start menu, and the debug displays on screen are hidden.
+build's start menu, and the debug displays on screen are hidden. Use the debug menu with care: it is
+the developers' internal tool from 2004, and some of its options can hang or crash the game or
+leave the game (and a save made afterwards) in an odd state. Such problems come from the debug build itself, not from the port.
 
 ## How to use?
 
@@ -70,7 +72,8 @@ build's start menu, and the debug displays on screen are hidden.
 - **Press SELECT:** the app menu: graphics (resolution, anti-aliasing, texture filter, 16:9 or
   4:3 picture, FPS display, depth of field), memory card (export and import saves as `.gci` for
   Dolphin and the GameCube) and the error log (send or save a report). B returns to the game.
-- **Hold SELECT for a second:** the game's own debug menu.
+- **Hold SELECT for a second:** the game's own debug menu (use with care, see Status: some of
+  its options can break the game in ways the port has nothing to do with).
 
 **Buttons**
 
