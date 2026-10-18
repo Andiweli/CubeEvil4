@@ -3704,9 +3704,10 @@ Daten noch nicht gelaufen). Der Projektinhaber verzichtet auf ein eigenes Logo
     Module, Laufzeit 11/11, Kern 16/16, Karte, Format-Vergleich ✅; Filmtest
     auf armhf und aarch64 ✅. Auf i686 und x86_64 war im Gesamtlauf der
     60-Hz-Teil des Filmtests rot (4 Bilder nicht zwei Halbbilder auseinander),
-    einzeln wiederholt x86_64 3 von 3 und i686 2 von 3 grün: ein Echtzeit-Test,
-    der auf diesem Rechner wackelt (schon beim Stand `3756798` einmal), der
-    Filmcode ist unverändert. `cast_check.py`, `alloc_size_check.py` 0. Noch
+    einzeln wiederholt x86_64 3 von 3 und i686 2 von 3 grün, im zweiten
+    Gesamtlauf auf allen vier Zielen grün: ein Echtzeit-Test, der auf diesem
+    Rechner wackelt (schon beim Stand `3756798` einmal), der Filmcode ist
+    unverändert. Ursache noch nicht untersucht. `cast_check.py`, `alloc_size_check.py` 0. Noch
     nicht geprüft: PC-Prüfung mit Disc-Daten und Gerät.
 - **Falls das auf anderen Geräten nicht reicht** (MEM1 in einem anderen Bereich
   von ART): Auswege wären ein frischer App-Prozess über `wrap.sh` (nur
