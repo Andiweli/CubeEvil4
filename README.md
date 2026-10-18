@@ -1,5 +1,9 @@
 # CubeEvil4
 
+![Android 6.0+](https://img.shields.io/badge/Android-6.0%2B-3DDC84?logo=android&logoColor=white)
+![ARM 32/64-bit](https://img.shields.io/badge/ARM-32%2F64--bit-0091BD?logo=arm&logoColor=white)
+![OpenGL ES 3.0+](https://img.shields.io/badge/OpenGL%20ES-3.0%2B-5586A4?logo=opengl&logoColor=white)
+![Controller only](https://img.shields.io/badge/Input-Controller%20only-9A1B1C)
 [![Support via PayPal](https://img.shields.io/badge/Support%20via-PayPal-0070BA?logo=paypal&logoColor=white)](https://paypal.me/andiweli)
 
 **CubeEvil4** is an unofficial, native Android port of the GameCube debug build of Resident Evil 4
