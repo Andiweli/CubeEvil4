@@ -3730,7 +3730,7 @@ Branch `claude/exciting-bohr-6akwfd` (von `claude/re4-m12-arm64`, Stand `6a799f4
 - **Speicherkarte: Absturz** im Speicherbildschirm beim Aufbau der Dateiliste
   („card: save: file list“, SIGSEGV an Adresse 0x7). Der Bericht hatte keine
   Aufrufkette (die Kartenläufe zeigten nur ausgewählte Zeilen).
-  - Ursache (sehr wahrscheinlich, noch mit dem Protokoll zu bestätigen): 0x7 ist
+  - Ursache (**bestätigt durch das Protokoll**, siehe unten): 0x7 ist
     `FUNC_PATH_PTR::nPoint`, gelesen über einen Nullzeiger in `FuncPathParametrize`
     aus `CardID::wait` (genau beim Öffnen der Dateiliste). Leer ist `path0` dann,
     wenn `IDSystem::gameInit(0x100)` des Speicherbildschirms keinen Platz bekam und
@@ -3739,8 +3739,13 @@ Branch `claude/exciting-bohr-6akwfd` (von `claude/re4-m12-arm64`, Stand `6a799f4
     summiert; darin wächst auf LP64 nur der Einheiten-Vorrat (256 × `ID_UNIT`,
     0x138 → 0x158 Bytes: +8 KB).
   - Behoben (Regel `lp64_sizes`): das Budget bekommt auf LP64 genau diese 8 KB dazu.
-    Bestätigung: das Protokoll `karte-speichern.log` des Laufs vom 18.10. enthält
-    „game: IDSystem::gameInit() malloc failed“, und der nächste Kartenlauf speichert.
+    **Bestätigt** (Protokoll `karte-speichern.log` des Laufs 11:54, Zeilen 419–435,
+    vom Projektinhaber gelesen): „game: alloc[15800]:free[156a0] id_sys.cpp(66)“,
+    „game: IDSystem::gameInit() malloc failed“, danach „IDSystem::set() work full“,
+    „IDSystem::unitPtr(...): Not found.“ und SIGSEGV an Adresse 0x7. 0x15800 sind
+    genau 0x100 × 0x158 (der Vorrat auf LP64), frei waren 0x156A0: es fehlten 0x160
+    Bytes; die Regel gibt 0x2000 dazu. Ob der nächste Kartenlauf speichert, zeigt die
+    nächste PC-Prüfung.
   - Neue Fehlerart **Speicherbudgets aus GameCube-Größen** (Heap 11 des
     Speicherbildschirms, Heap 10 der Türen, Heap 12 der Untermenüs, Heap 11 der
     Filme, `cDataSwap::SwapOut`): statisch kaum zu fassen (was hineinkommt,
@@ -3905,7 +3910,7 @@ verspätete Halbbilder; armhf und aarch64 unter qemu 71 bzw. 91 verspätete Halb
 jetzt richtig angerechnet), **Filmvergleich i686 / x86_64: 250 von 250 Halbbildern
 gleich**, Selbsttest der M12-Prüfungen 17 von 17, `run_all.py` 18 Prüfungen ohne neuen
 Fund. **Nicht getestet:** Android-Bau (kein NDK in der Cloud), Vergleichslauf und
-`-Lp64` mit Disc-Daten, Bestätigung der Kartenursache (Protokollzeile), Patch 0082 im
+`-Lp64` mit Disc-Daten, Speichern auf 64 bit nach der Regel (Ursache bestätigt), Patch 0082 im
 Spiel (r20d, r20e, r21d, Szenen-Treffer, Kamera-Ziel), Gerät.
 
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
