@@ -3962,6 +3962,51 @@ Spiel (r20d, r20e, r21d, Szenen-Treffer, Kamera-Ziel), Gerät.
   `trace_compare` 9 von 9, M12-Selbsttest 17 von 17. **Nicht getestet:** die drei Läufe
   mit Disc-Daten (lokal), Gerät.
 
+**PC-Prüfung 16:25–16:32 (Stand `0e9e653`, -O2, Disc-Daten): drei Läufe, Auswertung:**
+- **`-Lp64` (r100, x86_64): ALLES OK** – Build, Formatvergleich 408 Dateien, Spiellauf
+  10.000 Bilder ohne Absturz (auch nach dem Soft-Reset durch die Titel-Filme), alle Filme
+  beider Discs, Speicherkarte (speichern, Neustart, laden). **32 bit (r100, i686): ALLES
+  OK**, ebenso. Die Trace-Korrektur (`inArray`) ist damit mit Disc-Daten bestätigt.
+- **Vergleichslauf (Start r120, 30.000 Bilder, Debug-Anzeige aus): beide Seiten ohne
+  Absturz bis zum Ende; Vorfilm, Polizeifahrt r120, r100 und Soft-Reset in jedem Bild
+  gleich** – Zufall, Spieler, Gegner, Werke, Ereignisse, Positionen, Kamera, Tonspuren,
+  Raum-Flags und **alle GX-Kennzahlen** (Abschnitte r120 Schritt 0–4 und r100 Schritt 1–3:
+  „keine Abweichung“). Die Abweichung der GX-Kennzahlen im ersten Lauf (Bild 2) ist damit
+  als Debug-Anzeige bestätigt (ohne sie gleich).
+  - Einzige Abweichung: „Leon“ im Titel nach dem Soft-Reset (ab Bild 6968, Schritt 0),
+    Werte wie 3297810 oder 4,6·10^18: die Position las der Trace aus dem Spieler des
+    letzten Raums, dessen Speicher der Titel wieder benutzt. Kein Spielwert. Behoben im
+    Trace: `pl` und die Gegnerliste erst ab Spielschritt 1 (wie `plr`, `n`, `evt`).
+  - **Bilder** (GX-Nachbildung, `bilder-vergleich`, Pixel für Pixel in der Cloud
+    verglichen): Bilder 61, 601, 901, 1119, 1201 (r120), 1501, 1801, 2401, 2501, 5001
+    (r100) und 6968 (Titel) **auf beiden Seiten Pixel für Pixel gleich**. Bild 2 war ein
+    altes Bild des ersten Laufs (der Ordner auf dem Desktop behielt es). **Bild 301
+    (WARNING-Bild) verschieden**: 136.914 Pixel, höchstens 35 von 255, Helligkeit im
+    Mittel gleich, keine Verschiebung; die großen Unterschiede (über 20) nur an den Kanten
+    der Schrift (Zeilen 189–278), dazu schwache Wellen daneben – das Muster einer
+    Verzerrung über eine indirekte Textur.
+  - Ursache (im Code gefunden, mit dem nächsten Lauf zu bestätigen): `IdShimmerTrans`
+    (`id_sys.cpp`, der Flimmer-Effekt der Bildschirm-Elemente) liest die Tiefe `dot`,
+    die die Stärke der Verzerrung bestimmt, aus `indMtx`, bevor `indMtx` beschrieben ist
+    (so schon im Original; die Effekt-Fassung in `esp_sub.cpp` nimmt die echte Tiefe des
+    Effekts). Was dort auf dem Stapel liegt, hängt vom Build ab. **Patch 0083**: `indMtx`
+    beginnt mit Nullen, `dot` damit 0 → 1500 (die Untergrenze, die stärkste Verzerrung),
+    auf jedem Build gleich. Was der GameCube dort las, ist nicht bekannt.
+- Werkzeuge erweitert:
+  - Der Vergleichslauf rechnet die Bilder beider Seiten jetzt immer (die GX-Daten der
+    beiden Spielläufe, bis 24 Bilder je Seite, dazu die Bilder am ersten Unterschied der
+    Traces) und vergleicht sie Pixel für Pixel (`port/tools/picture_compare.py`, nur
+    Standardbibliothek). Verschiedene Bilder machen den Lauf rot; für jedes zeigt
+    `gx_chunk_inspect.py diff` die ersten verschiedenen GX-Befehle mit den Werten beider
+    Seiten (BP-Register, XF-Werte, Ecken, Texel, Paletten; Adressen bleiben außen vor,
+    die Heaps liegen auf 64 bit anders), und die GX-Daten beider Seiten kommen in
+    `gx-vergleich-daten.zip`.
+  - Der Ordner auf dem Desktop: was ein Lauf neu schreibt, ersetzt den gleichnamigen
+    Eintrag des letzten Laufs (`copy_out`), es bleiben keine alten Bilder stehen.
+  - Selbsttest `port/tools/test_compare_tools.py` (Bildvergleich PNG/PPM, GX-Vergleich:
+    gleich, nur Adressen verschoben, XF-Wert, Ecke, Texel): 6 von 6; läuft in
+    `whole_build.sh`.
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
@@ -4152,6 +4197,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0080 `include/trans.h` | 64 bit (M12): `ModelTexInfo`, die Sicht des Zeichners auf `cModelInfo` ab `flagsDC` (`MODEL_TEX`), legt jedes Glied dorthin, wo `cModelInfo` es hat: auf LP64 4-Byte-Packung und eine Lücke aus den Abständen von `cModelInfo` (auf dem GameCube 2 Bytes, auf LP64 6), `static_assert` je Glied. Vorher las `RefractShaderSetup` auf LP64 `blendTbl` 4 Bytes zu früh (Absturz im ersten Bild von r100, PC-Prüfung 18.10.2026). Gefunden mit `cast_check.py`, seit es den Operator `&` bei libclang abfragt (vorher im Makro übersehen) |
 | 0081 `main_mem.cpp`, `rnd.cpp` | Diagnose (M12), ändert das Verhalten des Spiels nicht: jede Speicheranforderung ohne Platz (`mem_alloc` mit jedem `flag`, `Debug_alloc`) ruft `re4_heap_failed` (runtime/log.cpp: „heap: no room for … in heap N (datei(zeile), flag F)“, Zähler für den Zustands-Trace); `re4_rnd_state` gibt den Zustand des Zufallsgenerators für den Trace. Anlass: der Absturz im Speicherbildschirm auf LP64 (PC-Prüfung 18.10.2026), ein zu kleines Speicherbudget (bestätigt durch das Protokoll; seit der Regel speichert und lädt die PC-Prüfung auf 64 bit); Speicherbudgets aus GameCube-Größen sind statisch kaum zu finden, der Vergleichslauf 32/64 bit zeigt jetzt jede Anforderung, die nur auf 64 bit scheitert |
 | 0082 `sce_sys.cpp`, `sce_at.cpp`, `r20d.cpp`, `r20e.cpp`, `r21d.cpp` | 64 bit (M12): GameCube-Abstände an einer Adresse als Zahl oder in einer Summe mit Index (`(u32) em + 0x320`, `i * sizeof(T) + (u32) w + 0x2C`, `base += 0x30C`) über `RE4_OFS(T, glied, gc)`: Szenen-Bedingung „Gegner tot“ (`cEm::hp`, LP64 0x3B8), Kamera-Ecken (`SceAtSysWork::pCamAt`, LP64 0x1B0, jetzt zeigerbreit geschrieben: `RAW_CAM_AT`), Schiebepuzzle r20e (Teile LP64 0x18, Felder 0x1C8), Zäune r20d (`fence[i].t`), Fallen r21d (`trap[]`, LP64 0x380). Gefunden mit `raw_offset_check.py` (Adressen als Zahl, Summen) und `sizeof_ptr_check.py` (18.10.2026) |
+| 0083 `id_sys.cpp` | Nicht initialisierter Lesezugriff in `IdShimmerTrans` (Flimmer-Effekt der Bildschirm-Elemente, z. B. die WARNING-Schrift): die Tiefe `dot`, die die Stärke der indirekten Verzerrung bestimmt, kam aus `indMtx`, bevor es beschrieben war (so schon im Original), also aus Resten auf dem Stapel, die je Build andere sind (Vergleichslauf 18.10.2026: Bild 301 an den Schriftkanten verschieden, alles andere gleich). `indMtx` beginnt jetzt mit Nullen: `dot` 0 → 1500 (Untergrenze), auf jedem Build gleich; was der GameCube dort las, ist nicht bekannt. Bestätigung: der nächste Vergleichslauf (Bild 301 gleich) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

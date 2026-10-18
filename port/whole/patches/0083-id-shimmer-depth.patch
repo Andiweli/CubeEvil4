@@ -1,0 +1,23 @@
+# Uninitialised read in IdShimmerTrans (id_sys.cpp, the heat-shimmer quad of the 2D screen
+# units: the WARNING screen's text, title and menu units with trans_type shimmer): the depth
+# `dot` that scales the indirect warp is read from indMtx before indMtx is written (the
+# effect version, esp_sub.cpp, takes the effect's real depth along the camera). What the
+# stack held there differs between builds: the compare run 32/64 bit of 18.10.2026 had frame
+# 301 (WARNING) different only where such a warp acts (the edges of the text, faint waves
+# around it; max 35 of 255, same GX counts), every compared frame of r120 and r100 identical
+# (the next compare run confirms the cause). indMtx now starts at zero: dot 0 -> 1500 (the
+# clamp), the strongest warp, on every build alike.
+--- a/src/game/id_sys.cpp
++++ b/src/game/id_sys.cpp
+@@ -1333,7 +1333,10 @@
+     GXSetIndTexOrder(0, 1, 0);
+     GXSetIndTexCoordScale(0, 0, 0);
+     {
+-        f32 indMtx[2][3];
++        // PORT: the depth below reads indMtx before anything is stored in it (in the original as
++        // well, what the GameCube found there is not known): zeros give dot = 0, clamped to 1500,
++        // the strongest warp, the same on every build (patch 0083)
++        f32 indMtx[2][3] = {};
+         Vec d3;
+         Vec d2;
+         d2.x = ((Vec*) indMtx)->x;

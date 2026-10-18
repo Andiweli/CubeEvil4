@@ -13,7 +13,8 @@
 // Rno0 is the game task step (2 room init, 3 main loop), "rsf" the room save
 // flag word of the current room (flag_rsf.h), "em" every live enemy work of
 // EmMgr except the player (id 0). Every pointer is checked against MEM1 first,
-// so the trace can run from the first frame on.
+// so the trace can run from the first frame on; "pl", "em" (empty), "plr", "n"
+// and "evt" only from step 1 on.
 //
 // Run control of the local checks (port/tools/whole_r100_check.sh):
 //
@@ -298,8 +299,12 @@ void trace(unsigned n)
             fprintf(f, "]");
         }
     }
+    // the player and the enemies only from step 1 on (as "plr", "n", "evt" in traceMore): in step 0
+    // (boot, title, also after a soft reset) they are what the last room left, in memory the title
+    // uses again (compare run 18.10.2026: Leon "moved" to 3297810 in the title on one side)
+    bool inGame = g->Rno0 != 0;
     cPlayer* pl = pPL;
-    if (live(pl)) {
+    if (inGame && live(pl)) {
         fprintf(f, ",\"pl\":");
         vec(f, pl->pos);
     }
@@ -329,7 +334,7 @@ void trace(unsigned n)
     u32 n2 = EmMgr.nArray;
     u32 stride = EmMgr.size;
     bool first = true;
-    if (live(arr) && stride != 0 && n2 < 4096) {
+    if (inGame && live(arr) && stride != 0 && n2 < 4096) {
         for (u32 i = 0; i < n2; i++) {
             cEm* e = (cEm*) ((u8*) arr + i * stride);
             if (!(e->be_flag & 1) || e->id == 0) {

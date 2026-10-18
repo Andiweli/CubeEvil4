@@ -103,6 +103,15 @@ report="$run/bericht.txt"
 : > "$report"
 say() { echo "$@" | tee -a "$report"; }
 section() { say ""; say "== $* =="; }
+# the report and the logs to --out (the Windows folder): what this run made replaces the entry of
+# the same name from an earlier run there (a picture folder keeps no pictures of the run before)
+copy_out() {
+    local e
+    for e in "$run"/* "$run"/.[!.]*; do
+        [ -e "$e" ] && rm -rf "$out/${e##*/}"
+    done
+    cp -r "$run"/. "$out"/
+}
 overall=0
 # Ctrl+C (also through wsl.exe): the game runs in the background (its
 # SIGINT is ignored there), so it is ended here; the report and the logs so
@@ -117,7 +126,7 @@ on_abort() {
     say "ABGEBROCHEN (Strg+C)"
     if [ -n "$out" ]; then
         mkdir -p "$out"
-        cp -r "$run"/. "$out"/
+        copy_out
         echo "Bericht und Logs bis hierher: $out"
     fi
     exit 130
@@ -1293,35 +1302,75 @@ run_compare() {
     [ "$code" -ne 0 ] && overall=1
     first=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(",".join(map(str, d.get("gx_frames") or [])))' \
         "$run/vergleich.json" 2> /dev/null)
-    if [ -z "$first" ]; then
-        return
-    fi
-    say "GX-Bilder am ersten Unterschied (und am ersten im Raum, Schritt 3; Bilder $first), je ein kurzer Lauf bis dorthin:"
-    local last=${first##*,} pics="$run/bilder-vergleich" tool_build="$src/port/build/app-host-gl"
-    mkdir -p "$pics"
+    # the pictures of both sides from their GX data (the frames RE4_GX_DUMP picks in the main runs,
+    # and the frames around the first difference of the traces), compared pixel by pixel: what the
+    # traces do not hold (texels, matrices, colours) shows there; for each picture that differs, the
+    # first differing GX ops (gx_chunk_inspect.py diff), and the data of both sides go into
+    # gx-vergleich-daten.zip
+    local pics="$run/bilder-vergleich" tool_build="$src/port/build/app-host-gl" diffs="$run/bilder-verschieden.txt"
+    rm -rf "$pics" "$diffs" "$run/gx-vergleich-daten.zip"
+    mkdir -p "$pics/i686" "$pics/x86_64"
     if ! cmake -S "$src/port/android-decomp/app/src/main/cpp" -B "$tool_build" -G Ninja \
         -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release \
         -DRE4_BUILD_GL_CHECK=ON > "$run/gx-werkzeug.log" 2>&1 ||
         ! ninja -C "$tool_build" ${RE4_JOBS:+-j "$RE4_JOBS"} gx_chunk_render >> "$run/gx-werkzeug.log" 2>&1; then
         say "  FEHLER: GX-Bild-Werkzeug nicht gebaut (Log: gx-werkzeug.log)"
+        overall=1
         return
     fi
+    if [ -n "$first" ]; then
+        local last=${first##*,}
+        say "GX-Daten am ersten Unterschied (und am ersten im Raum, Schritt 3; Bilder $first): je ein kurzer Lauf bis dorthin"
+        for t in i686 x86_64; do
+            local dir="$src/port/build/whole-$t$opt" dump="$run/gx-vergleich-$t"
+            rm -rf "$dump"
+            mkdir -p "$dump" "$run/gx-$t"
+            set_game_env "$t"
+            (cd "$dir" && exec env "${GAME_ENV[@]}" RE4_GX_DUMP="$dump" RE4_GX_DUMP_AT="$first" \
+                RE4_STOP_AT_FRAME=$((last + 3)) timeout 1800 ./re4_host --data "$layout") > "$run/vergleich-$t.log" 2>&1
+            if ls "$dump"/*.bin > /dev/null 2>&1; then
+                mv -f "$dump"/*.bin "$run/gx-$t"/
+            else
+                say "  $t: kein GX-Bild aufgezeichnet (Log: vergleich-$t.log)"
+            fi
+            rm -rf "$dump"
+        done
+    fi
+    say "Bilder beider Seiten aus ihren GX-Daten, Pixel für Pixel verglichen:"
     for t in i686 x86_64; do
-        local dir="$src/port/build/whole-$t$opt" dump="$run/gx-vergleich-$t"
-        rm -rf "$dump"
-        mkdir -p "$dump" "$pics/$t"
-        set_game_env "$t"
-        (cd "$dir" && exec env "${GAME_ENV[@]}" RE4_GX_DUMP="$dump" RE4_GX_DUMP_AT="$first" \
-            RE4_STOP_AT_FRAME=$((last + 3)) timeout 1800 ./re4_host --data "$layout") > "$run/vergleich-$t.log" 2>&1
-        if ls "$dump"/*.bin > /dev/null 2>&1; then
-            "$tool_build/gx_chunk_render" "$pics/$t" "$dump"/*.bin 2>> "$run/gx-werkzeug-lauf.log" |
-                sed "s/^/  $t: /" | tee -a "$report"
+        if ls "$run/gx-$t"/*.bin > /dev/null 2>&1; then
+            "$tool_build/gx_chunk_render" "$pics/$t" "$run/gx-$t"/*.bin > "$run/bilder-vergleich-$t.txt" \
+                2>> "$run/gx-werkzeug-lauf.log"
             ppm_to_png "$pics/$t"
         else
-            say "  $t: kein GX-Bild aufgezeichnet (Log: vergleich-$t.log)"
+            say "  $t: keine GX-Daten aufgezeichnet"
         fi
-        rm -rf "$dump"
     done
+    python3 "$src/port/tools/picture_compare.py" "$pics/i686" "$pics/x86_64" --names i686,x86_64 \
+        --list "$diffs" 2>&1 | tee -a "$report"
+    [ "${PIPESTATUS[0]}" -ne 0 ] && overall=1
+    if [ -s "$diffs" ]; then
+        local stem kept=()
+        for stem in $(head -n 6 "$diffs"); do
+            if [ -f "$run/gx-i686/$stem.bin" ] && [ -f "$run/gx-x86_64/$stem.bin" ]; then
+                say "  $stem, GX-Daten i686 / x86_64:"
+                python3 "$src/port/tools/gx_chunk_inspect.py" diff "$run/gx-i686/$stem.bin" "$run/gx-x86_64/$stem.bin" \
+                    --lines 10 2>&1 | sed 's/^/    /' | tee -a "$report"
+                kept+=("$stem")
+            fi
+        done
+        python3 - "$run" "${kept[@]}" <<'PY'
+import sys, zipfile
+from pathlib import Path
+run = Path(sys.argv[1])
+with zipfile.ZipFile(run / "gx-vergleich-daten.zip", "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+    for stem in sys.argv[2:]:
+        for t in ("i686", "x86_64"):
+            z.write(run / f"gx-{t}" / f"{stem}.bin", f"{t}/{stem}.bin")
+PY
+        say "  GX-Daten der verschiedenen Bilder: gx-vergleich-daten.zip ($(du -h "$run/gx-vergleich-daten.zip" | cut -f1); bitte mitschicken)"
+    fi
+    rm -rf "$run/gx-i686" "$run/gx-x86_64"  # large; the pictures and the zip stay
     say "Bilder: Ordner bilder-vergleich (i686/ und x86_64/, bitte mitschicken)"
 }
 
@@ -1352,7 +1401,7 @@ fi
 say "Logs und Trace: $run"
 if [ -n "$out" ]; then
     mkdir -p "$out"
-    cp -r "$run"/. "$out"/
+    copy_out
     echo "Bericht: $out/bericht.txt"
 fi
 exit $overall

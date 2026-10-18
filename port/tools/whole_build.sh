@@ -141,6 +141,11 @@ out=$(python3 "$root/port/tools/test_trace_compare.py" 2>&1)
 code=$?
 echo "trace_compare self-test: exit $code | $(echo "$out" | tail -1)"
 [ "$code" -ne 0 ] && { echo "$out" | grep -v "^ok" | sed 's/^/  /'; status=1; }
+# and its picture and GX data comparisons (picture_compare.py, gx_chunk_inspect.py diff)
+out=$(python3 "$root/port/tools/test_compare_tools.py" 2>&1)
+code=$?
+echo "compare tools self-test: exit $code | $(echo "$out" | tail -1)"
+[ "$code" -ne 0 ] && { echo "$out" | grep -v "^ok" | sed 's/^/  /'; status=1; }
 # the 32/64-bit comparison without game data (milestone 12): the synthetic movie on i686 and
 # x86_64, frame by frame (port/tools/test_movie_compare.py), when both were built here
 built=" ${targets[*]} "

@@ -1167,7 +1167,8 @@ static void testTrace()
         lines++;
         const char* works = strstr(line, "\"n\":[");
         if (strstr(line, "\"Rno0\":0,")) {
-            CHECK(works == 0 && !strstr(line, "\"plr\":") && !strstr(line, "\"evt\":"));
+            CHECK(works == 0 && !strstr(line, "\"plr\":") && !strstr(line, "\"evt\":") && !strstr(line, "\"pl\":") &&
+                  strstr(line, "\"em\":[]"));
         } else {
             CHECK(strstr(line, "\"Rno0\":3,") && works && strncmp(works + 5, "2,", 2) == 0);
         }
