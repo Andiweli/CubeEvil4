@@ -4075,6 +4075,10 @@ wegen der Marke „Resident Evil“.
   (Subtree-Merge `4b2df69`) unverändert, also schon vorher rot und unabhängig von der
   Umbenennung (eigene Aufgabe). Der Bau der APK und das Gerät noch nicht (kein Android-SDK
   in der Cloud).
+- Repository auf GitHub umbenannt (Projektinhaber, 18.10.2026): `Andiweli/RE4` →
+  **`Andiweli/CubeEvil4`** (der alte Name leitet weiter, solange kein neues Repository „RE4“
+  angelegt wird). README beginnt jetzt mit CubeEvil4 (App, Stand, Bauen), die Beschreibung
+  der Decompilation folgt darunter.
 
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
