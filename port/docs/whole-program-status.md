@@ -4079,6 +4079,16 @@ wegen der Marke „Resident Evil“.
   **`Andiweli/CubeEvil4`** (der alte Name leitet weiter, solange kein neues Repository „RE4“
   angelegt wird). README beginnt jetzt mit CubeEvil4 (App, Stand, Bauen), die Beschreibung
   der Decompilation folgt darunter.
+- Tester-Gerät: POCO X7 Pro (Android 16) läuft (Projektinhaber, README-Änderung 18.10.2026).
+- Aufräumen der Branches (Entscheidung des Projektinhabers, 18.10.2026): Meilenstein-Tags
+  `m4-boot`, `m5-r100`, `m6-gx`, `m7-controls`, `m8-audio`, `m9-movies`, `m10-save-load`,
+  `m11-polish` (je die Spitze des Meilenstein-Branches); gelöscht werden
+  `claude/re4-gamecube-android-port-97hbjj`, `claude/re4-android-decomp-core`,
+  `claude/nifty-feynman-jv729h`, `codex`, `android-port-deprecated`, `claude/re4-m12-arm64`
+  (alle vollständig im Arbeitsbranch enthalten); es bleiben `master`, der Arbeitsbranch,
+  `re4-standalone` und die Branches von M6 bis M10. Tags und Löschen sperrt die Zugangsschranke
+  der Cloud-Sitzung (HTTP 403; nur der eigene Arbeitsbranch ist beschreibbar): der
+  Projektinhaber führt es vom PC aus.
 
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
