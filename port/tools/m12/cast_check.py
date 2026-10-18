@@ -27,6 +27,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from raw_offset_check import unary_op  # noqa: E402
 
 
 def args_of(entry, resource_dir):
@@ -89,9 +92,8 @@ def scan(job):
     def member_view(src):
         """`&x.m` / `&p->m`: (record holding m, m, its offset in bytes) - a view laid over the rest of
         that record from m on (`(GxWork*) &pG->gxStage`)"""
-        if src is None or src.kind != ci.CursorKind.UNARY_OPERATOR or \
-                [t.spelling for t in src.get_tokens()][:1] != ["&"]:
-            return None
+        if src is None or src.kind != ci.CursorKind.UNARY_OPERATOR or unary_op(src) != "&":
+            return None  # (the operator by libclang, not by token: MODEL_TEX(info) in a macro)
         kids = [strip(x) for x in src.get_children()]
         if not kids or kids[0] is None or kids[0].kind != ci.CursorKind.MEMBER_REF_EXPR:
             return None

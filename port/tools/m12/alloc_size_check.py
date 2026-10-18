@@ -12,13 +12,14 @@ MotionMoveCore for a Ganado in r100).
 
 With libclang this check parses the units of an LP64 build and lists every
 call of an allocator (mem_alloc, mem_calloc, Debug_alloc, OSAllocFromHeap,
-malloc, calloc) with a constant size, or a size `count * K` with a constant
-element size K, whose result is cast to, or stored into, a pointer to an
-object larger than that size on LP64, or to a pointer to pointers (a table
-of 4-byte entries on the GameCube; sizes written with sizeof are right),
-and every memclr_asm / memset / memcpy with a constant length shorter than
-the LP64 size of the structure its destination points to (the tail is left
-as it was), and every `(T*) (base + i * K)` with a constant stride K smaller
+OSAllocFromArenaLo, malloc, calloc, realloc) with a constant size, or a size
+`count * K` with a constant element size K, whose result is cast to, or
+stored into, a pointer to an object larger than that size on LP64, or to a
+pointer to pointers (a table of 4-byte entries on the GameCube; sizes
+written with sizeof are right), and every memclr_asm / memset / memcpy with
+a constant length shorter than the LP64 size of the structure its
+destination points to (the tail is left as it was) or with a length
+`count * K` on elements larger than K, and every `(T*) (base + i * K)` with a constant stride K smaller
 than T on LP64 (a pool walked in GameCube steps). Sizes that are short on
 ILP32 too (armhf, the reference: only a header cleared on purpose) are left
 out.
@@ -36,10 +37,12 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from raw_offset_check import args_of, const_value, entries, strip  # noqa: E402
+from raw_offset_check import args_of, binary_op, const_value, entries, strip  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[3]
-ALLOCATORS = {"mem_alloc", "mem_calloc", "Debug_alloc", "OSAllocFromHeap", "malloc", "calloc", "OSAllocFixed"}
+# allocator: index of its size argument (OSAllocFromHeap(heap, size), realloc(p, size))
+ALLOCATORS = {"mem_alloc": 0, "mem_calloc": 0, "Debug_alloc": 0, "OSAllocFromHeap": 1, "OSAllocFromArenaLo": 0,
+              "malloc": 0, "calloc": 0, "realloc": 1}
 CASTS = ("CSTYLE_CAST_EXPR", "CXX_REINTERPRET_CAST_EXPR", "CXX_STATIC_CAST_EXPR")
 FILLERS = {"memclr_asm", "memset", "memcpy", "memmove", "bzero", "memclr", "memcpy_asm"}
 
@@ -52,11 +55,8 @@ def per_element(c):
         return None
     kids = list(c.get_children())
     toks = [t.spelling for t in c.get_tokens()]
-    if len(kids) != 2 or "sizeof" in toks:
-        return None
-    between = [t.spelling for t in c.get_tokens()
-               if kids[0].extent.end.offset <= t.extent.start.offset < kids[1].extent.start.offset]
-    if between[:1] != ["*"]:
+    # (the operator by libclang, not by token: also inside macros)
+    if len(kids) != 2 or "sizeof" in toks or binary_op(c) != "*":
         return None
     for a, b in ((kids[0], kids[1]), (kids[1], kids[0])):
         k = const_value(a)
@@ -73,17 +73,18 @@ def alloc_size(c):
     if c is None or c.kind != ci.CursorKind.CALL_EXPR or c.spelling not in ALLOCATORS:
         return None
     args = list(c.get_arguments())
-    if not args:
+    if len(args) <= ALLOCATORS[c.spelling]:
         return None
+    size = args[ALLOCATORS[c.spelling]]
     # sizeof, or a size already given for LP64 (lp64_sizes.json): reviewed
-    uses_sizeof = bool({"sizeof", "RE4_LP64_SIZE"} & {t.spelling for t in args[0].get_tokens()})
-    n = const_value(args[0])
+    uses_sizeof = bool({"sizeof", "RE4_LP64_SIZE"} & {t.spelling for t in size.get_tokens()})
+    n = const_value(size)
     if c.spelling == "calloc" and len(args) == 2:
         m = const_value(args[1])
         n = n * m if n is not None and m is not None else None
     if n is not None:
         return n, "total", uses_sizeof
-    k = per_element(args[0])
+    k = per_element(size)
     return (k, "element", False) if k is not None else None
 
 
@@ -125,16 +126,20 @@ def scan(job):
                 found.append((path[len(tree):], loc.line, loc.column, size, obj.spelling, obj.get_size(),
                               kind if how == "total" else kind + ", per element"))
 
-    def fill(k):
+    def fill(call):
         """memclr_asm / memset / memcpy ... with a constant length on a record that is longer on
-        LP64: the tail stays as it was (or is not copied)"""
-        if k.spelling not in FILLERS:
+        LP64 (the tail stays as it was, or is not copied), or with `count * K` on elements larger
+        than K"""
+        if call.spelling not in FILLERS:
             return
-        args = list(k.get_arguments())
+        args = list(call.get_arguments())
         if len(args) < 2:
             return
         n = const_value(args[-1])
-        if n is None or {"sizeof", "RE4_LP64_SIZE"} & {t.spelling for t in args[-1].get_tokens()}:
+        if {"sizeof", "RE4_LP64_SIZE"} & {t.spelling for t in args[-1].get_tokens()}:
+            return
+        k = per_element(args[-1]) if n is None else None
+        if n is None and k is None:
             return
         dest = args[0]
         while dest is not None and dest.kind in (ci.CursorKind.UNEXPOSED_EXPR, ci.CursorKind.PAREN_EXPR,
@@ -149,14 +154,21 @@ def scan(job):
         if t.kind != ci.TypeKind.POINTER:
             return
         obj = t.get_pointee().get_canonical()
+        loc = call.extent.start
+        path = loc.file.name if loc.file else ""
+        if not path.startswith(tree):
+            return
+        if n is None:
+            # `count * K` bytes: K per element, short when the element grew (a pointer: 8 bytes)
+            if obj.kind in (ci.TypeKind.POINTER, ci.TypeKind.RECORD) and obj.get_size() > k:
+                found.append((path[len(tree):], loc.line, loc.column, k, obj.spelling, obj.get_size(),
+                              f"{call.spelling}, per element"))
+            return
         table = obj.kind == ci.TypeKind.POINTER and n > obj.get_size()
         if not table and (obj.kind != ci.TypeKind.RECORD or obj.get_size() <= n):
             return
-        loc = k.extent.start
-        path = loc.file.name if loc.file else ""
-        if path.startswith(tree):
-            found.append((path[len(tree):], loc.line, loc.column, n, obj.spelling, obj.get_size(),
-                          f"{k.spelling} of a table of pointers" if table else f"{k.spelling} shorter than the object"))
+        found.append((path[len(tree):], loc.line, loc.column, n, obj.spelling, obj.get_size(),
+                      f"{call.spelling} of a table of pointers" if table else f"{call.spelling} shorter than the object"))
 
     def stride(k):
         """`(T*) (base + i * K)`: element `i` of a pool or table with a constant stride K; on LP64 T
@@ -174,9 +186,7 @@ def scan(job):
         parts = list(e.get_children())
         if len(parts) != 2:
             return
-        between = [x.spelling for x in e.get_tokens()
-                   if parts[0].extent.end.offset <= x.extent.start.offset < parts[1].extent.start.offset]
-        if between[:1] != ["+"]:
+        if binary_op(e) != "+":
             return
         n = per_element(parts[1])
         if n is None:

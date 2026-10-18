@@ -3672,6 +3672,42 @@ Daten noch nicht gelaufen). Der Projektinhaber verzichtet auf ein eigenes Logo
     11/11 mit „watch“: 3 Treffer für 3 Schreibzugriffe); `alloc_size_check.py`
     und `span_check.py` danach 0. Noch nicht geprüft: Gerät und PC-Prüfung mit
     Disc-Daten.
+- **PC-Prüfung 02:20 (Stand `39a2ace`, x86_64 -O2, Disc-Daten):** Formatvergleich
+  ✅ (408 Dateien, 0 Fehler), Filme ✅. Der Spiellauf erreicht zum ersten Mal auf
+  64 bit die Hauptschleife von r100 (Bild 621, 18 Gegner, Leon und Kamera an
+  ihrem Platz): der Absturz in `MotionMoveCore` ist behoben. Danach Absturz im
+  ersten gezeichneten Bild: `RefractShaderSetup` aus `commonModelTrans` /
+  `ModelRender` / `ExecOt` („fault address (nil)“: eine nicht kanonische
+  Adresse).
+  - **Ursache:** `ModelTexInfo`, die Sicht des Zeichners auf `cModelInfo` ab
+    `flagsDC` (`MODEL_TEX(info)`, Textur-Animation und Überblendung). Auf LP64
+    liegt `flagsDC` bei 0x134 und `texBlendTbl` 0xC dahinter, die Sicht hatte
+    den Zeiger bei +8 und las 4 Bytes Lücke plus die halbe Adresse. Behoben mit
+    Patch 0080 (auf LP64 4-Byte-Packung, Lücke aus den Abständen von
+    `cModelInfo`, `static_assert` für jedes Glied, auf allen vier Zielen
+    übersetzt).
+  - **Warum die Werkzeuge es übersehen hatten:** `cast_check.py` erkannte `&`
+    am ersten Wort des Ausdrucks; in einem Makro ist das der Makroname
+    (`MODEL_TEX`), die Sicht wurde nie angesehen. Jetzt fragen `cast_check.py`,
+    `span_check.py`, `ptr_word_check.py` (`&`, `*`), `array_view_check.py` und
+    `alloc_size_check.py` (`+`, `*`) den Operator bei libclang ab, auch in
+    Makros. Neu dabei: zwei Zeigertabellen mit 4 Bytes je Eintrag
+    (`MEM_ALLOC(n * 4)` im Makro): die Puzzle-Teile (`puzzle.cpp`) und die
+    Schatten-Objekte jedes Raums (`ShdInit` in `shadow.cpp`: auf LP64 schrieb
+    die zweite Hälfte der Zeiger hinter den Block in den nächsten Heap-Platz).
+    Beide in `lp64_sizes.json`. `alloc_size_check.py` liest die Größe jetzt am
+    richtigen Argument (`OSAllocFromHeap(heap, size)`, `realloc`) und prüft auch
+    Löschen und Kopieren mit `n * K` (keine weiteren Funde). Die übrigen
+    Werkzeuge melden nur bekannte, geprüfte Stellen.
+  - Geprüft: i686, armhf, x86_64 und aarch64 bauen fehlerfrei (die
+    `static_assert` von Patch 0080 halten auf beiden Breiten), Selbsttest,
+    Module, Laufzeit 11/11, Kern 16/16, Karte, Format-Vergleich ✅; Filmtest
+    auf armhf und aarch64 ✅. Auf i686 und x86_64 war im Gesamtlauf der
+    60-Hz-Teil des Filmtests rot (4 Bilder nicht zwei Halbbilder auseinander),
+    einzeln wiederholt x86_64 3 von 3 und i686 2 von 3 grün: ein Echtzeit-Test,
+    der auf diesem Rechner wackelt (schon beim Stand `3756798` einmal), der
+    Filmcode ist unverändert. `cast_check.py`, `alloc_size_check.py` 0. Noch
+    nicht geprüft: PC-Prüfung mit Disc-Daten und Gerät.
 - **Falls das auf anderen Geräten nicht reicht** (MEM1 in einem anderen Bereich
   von ART): Auswege wären ein frischer App-Prozess über `wrap.sh` (nur
   Debug-APKs) oder ein eigener Prozess für den Kern; beides ändert die Art des
@@ -3758,7 +3794,7 @@ sie ersetzt.
 | Füllfelder `[A - sizeof(X)]` → `[((A) > sizeof(X) ? (A) - sizeof(X) : 0)]` (`PAD_TO_SIZE`, M12) | auf LP64 ist `X` größer als der feste Platz `A`: sonst negative Feldgröße. Die festen Plätze selbst werden in M12-A3 angepasst |
 | Strukturen mit fester Form (`port/whole/fixed_form.json`): Zeiger-Glieder → `RE4_P32(T)` (`re4_ptr32.h`; ILP32: `T*`, LP64: 4 Bytes `Re4Ptr32<T>`), Datei bekommt `#include "re4_ptr32.h"` (`fixed_form_structs`, M12) | Daten, die das Spiel von der Disc liest und an Ort und Stelle umbiegt (Texturen, Kollision, Kamerabereiche, Modelle, Szenen-Treffer, Raumtabelle), der Kopf des Spielstands und die Modul-Verkettung: ihre Form ist durch die Disc bzw. die Speicherkarte festgelegt. Dazu `GxWork`, `SaveDataPtrs` (Sichten solcher Daten) und `OtData`/`OtPrim` (Zeichenreihenfolge: aus dem Bildpuffer des Raums, dessen Größe für die GameCube-Form gemacht ist). Bricht ab, wenn ein Glied nicht umschreibbar ist |
 | `TaskFunc`: Klasse statt `void*` (`re4_task_func.h`, gleiche Größe; auf LP64 4 Bytes wie auf der GameCube, M12) | GCC 2.95 wandelte Funktionszeiger still in `void*` um, modernes C++ nicht |
-| Feste Plätze und Arbeitsflächen (`port/whole/lp64_sizes.json`, `lp64_sizes`, nach den Patches, M12): die Größe in `EM_WORK_SIZE`, `OBJ_WORK_SIZE`, den 57 `u8 free[0xDE0 - 0x3E0]` der Gegner, den 25 `u8 free[OBJ_WORK_SIZE - 0x328]` der Objekte und `cEspgen::Free` → `RE4_LP64_SIZE(gc, lp64)` (Prelude; ILP32 der GameCube-Wert) | auf LP64 wird `cEm` 0xC0 Bytes größer, `cObj` 0x98; die eigenen Arbeitsbereiche mit Zeigern wachsen über ihre Fläche (bis 0xAB8 statt 0xA00). LP64: Gegner-Platz 0xF60, Fläche 0xAC0; Objekt-Platz 0x4B0, Fläche 0xF0; Effekt-Fläche 0xD0; Effekt-Pool-Platz 0x1A8. Dazu Speicher mit fester GameCube-Größe und Löschen mit fester Länge (`ATTACH_CAMERA`, `MOTION_INFO`, Bewegungstabellen des Spielers, Debug-Listen; `alloc_size_check.py`). Geprüft mit `overlay_check.py`; eine andere Anzahl Fundstellen bricht den Build ab |
+| Feste Plätze und Arbeitsflächen (`port/whole/lp64_sizes.json`, `lp64_sizes`, nach den Patches, M12): die Größe in `EM_WORK_SIZE`, `OBJ_WORK_SIZE`, den 57 `u8 free[0xDE0 - 0x3E0]` der Gegner, den 25 `u8 free[OBJ_WORK_SIZE - 0x328]` der Objekte und `cEspgen::Free` → `RE4_LP64_SIZE(gc, lp64)` (Prelude; ILP32 der GameCube-Wert) | auf LP64 wird `cEm` 0xC0 Bytes größer, `cObj` 0x98; die eigenen Arbeitsbereiche mit Zeigern wachsen über ihre Fläche (bis 0xAB8 statt 0xA00). LP64: Gegner-Platz 0xF60, Fläche 0xAC0; Objekt-Platz 0x4B0, Fläche 0xF0; Effekt-Fläche 0xD0; Effekt-Pool-Platz 0x1A8. Dazu Speicher mit fester GameCube-Größe und Löschen mit fester Länge (`ATTACH_CAMERA`, `MOTION_INFO`, Bewegungstabellen des Spielers, Zeigertabellen der Puzzle-Teile und der Schatten-Objekte, Debug-Listen; `alloc_size_check.py`). Geprüft mit `overlay_check.py`; eine andere Anzahl Fundstellen bricht den Build ab |
 | `(u16*) &pG->stage_no` → `(u16*) &pG->room_id`, `stage_prev` → `room_id_prev` (`ROOM_ID_ADDR`) | `G_ROOM_ID` und `RsfCheck(*(u16*) &pG->stage_no, …)` lesen die Raumnummer über die Adresse ihres ersten Bytes; auf little-endian liegt `stage_no` nach Patch 0016 am anderen Ende (auf der GameCube dieselbe Adresse) |
 | `new (p) T()` → `new (p) T` (`PLACEMENT_VALUE_INIT`) | C++11 füllt eine Klasse ohne eigenen Konstruktor bei `T()` erst mit Nullen; der GameCube-Compiler nicht. `em.cpp` setzt `subArc` vor `new (em) cEm10()` (Absturz in `Em12Set`, 14.10.2026). Prüfung: `port/tools/whole_value_init.py` |
 | Prelude: `#define _ctype_ re4_newlib_ctype_` (nach den System-Headern) | Bionic exportiert `_ctype_` als Zeiger, newlib (das Spiel, `t_movie`) als Feld; die Tabelle heißt jetzt `re4_newlib_ctype_` (`runtime/newlib_ctype.c`), Bionics Zeiger bleibt unberührt (K2) |
@@ -3866,6 +3902,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0077 `r117.cpp` | 64 bit (M12): Byte 0xF9 der Lichtstrahlen (Byte 1 der eigenen Arbeitsfläche hinter `cEsp`) über `RE4_OWN(cEsp, u8, 0xF8) + 1`; auf LP64 beginnt die Fläche bei 0x10C. Gefunden mit `raw_offset_check.py` (Abstände hinter dem Ende einer Struktur) |
 | 0078 `motion.cpp`, `r320.cpp` | 64 bit (M12): GameCube-Abstände in Summen mit Variablen. `MOT_HIST` (Schlüssel-Verlauf der Wurzel für `MotionGetSpeed` und `MotionGetPosition`) über `RE4_OFS(MOTION_INFO, Key_hist, 8)`: vorher schrieb `HermiteInterpolation` auf LP64 in die obere Hälfte von `pHermite_data` (Absturz des ersten Ganados in r100, Gerät und PC-Prüfung; gefunden mit einem Hardware-Haltepunkt, `runtime/watch.cpp`). `R320_EM_OFS` über `RE4_OFS(R320Work, em, 0xC)` |
 | 0079 `cam_extra.cpp` | 64 bit (M12): die Kamera beim Öffnen einer Tür liest die z-Spalte von `FREE_EMDOOR::base_mat` über den Namen statt als `((f32*) em)[0x784 / 4]`. Gefunden mit `raw_offset_check.py --words` |
+| 0080 `include/trans.h` | 64 bit (M12): `ModelTexInfo`, die Sicht des Zeichners auf `cModelInfo` ab `flagsDC` (`MODEL_TEX`), legt jedes Glied dorthin, wo `cModelInfo` es hat: auf LP64 4-Byte-Packung und eine Lücke aus den Abständen von `cModelInfo` (auf dem GameCube 2 Bytes, auf LP64 6), `static_assert` je Glied. Vorher las `RefractShaderSetup` auf LP64 `blendTbl` 4 Bytes zu früh (Absturz im ersten Bild von r100, PC-Prüfung 18.10.2026). Gefunden mit `cast_check.py`, seit es den Operator `&` bei libclang abfragt (vorher im Makro übersehen) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

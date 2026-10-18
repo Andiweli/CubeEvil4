@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from raw_offset_check import args_of, entries, strip  # noqa: E402
+from raw_offset_check import args_of, entries, strip, unary_op  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[3]
 CASTS = ("CSTYLE_CAST_EXPR", "CXX_REINTERPRET_CAST_EXPR")
@@ -41,9 +41,8 @@ def pointer_object(op):
     if op is None:
         return None
     if op.kind == ci.CursorKind.UNARY_OPERATOR:
-        toks = [t.spelling for t in op.get_tokens()]
         kids = list(op.get_children())
-        if toks[:1] == ["&"] and kids:
+        if unary_op(op) == "&" and kids:
             t = kids[0].type.get_canonical()
             return kids[0].type.spelling if t.kind in (ci.TypeKind.POINTER, ci.TypeKind.MEMBERPOINTER) else None
     t = op.type.get_canonical()
@@ -79,9 +78,8 @@ def scan(job):
         for k in c.get_children():
             target = None
             if k.kind == ci.CursorKind.UNARY_OPERATOR:
-                toks = [t.spelling for t in k.get_tokens()][:1]
                 kids = list(k.get_children())
-                if toks == ["*"] and kids:
+                if unary_op(k) == "*" and kids:
                     target = word_view(kids[0])
             elif k.kind == ci.CursorKind.ARRAY_SUBSCRIPT_EXPR:
                 kids = list(k.get_children())

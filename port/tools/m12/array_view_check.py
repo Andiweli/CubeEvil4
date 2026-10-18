@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from raw_offset_check import args_of, const_value, entries, strip  # noqa: E402
+from raw_offset_check import args_of, binary_op, const_value, entries, strip  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -79,16 +79,12 @@ def scan(job):
                         report(k, arr, index, "[]")
             elif k.kind == ci.CursorKind.BINARY_OPERATOR:
                 kids = list(k.get_children())
-                toks = [t.spelling for t in k.get_tokens()]
-                if len(kids) == 2 and "+" in toks:
+                # (the operator by libclang, not by token: also inside macros)
+                if len(kids) == 2 and binary_op(k) == "+":
                     arr = member_array(kids[0])
                     index = const_value(kids[1]) if arr else None
-                    if arr and index is not None and strip(kids[0]).extent.end.offset < kids[1].extent.start.offset:
-                        between = [t.spelling for t in k.get_tokens()
-                                   if strip(kids[0]).extent.end.offset <= t.extent.start.offset
-                                   < kids[1].extent.start.offset]
-                        if between[:1] == ["+"]:
-                            report(k, arr, index, "+")
+                    if arr and index is not None:
+                        report(k, arr, index, "+")
             walk(k)
 
     walk(tu.cursor)

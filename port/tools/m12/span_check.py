@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from raw_offset_check import args_of, const_value, entries, strip  # noqa: E402
+from raw_offset_check import args_of, const_value, entries, strip, unary_op  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[3]
 CALLS = {"memclr_asm": (0, -1), "memset": (0, -1), "bzero": (0, -1), "memclr": (0, -1),
@@ -65,7 +65,7 @@ def member_start(c):
     if c is None:
         return None
     index = 0
-    if c.kind == ci.CursorKind.UNARY_OPERATOR and [t.spelling for t in c.get_tokens()][:1] == ["&"]:
+    if c.kind == ci.CursorKind.UNARY_OPERATOR and unary_op(c) == "&":
         kids = [strip(x) for x in c.get_children()]
         c = kids[0] if kids else None
         if c is not None and c.kind == ci.CursorKind.ARRAY_SUBSCRIPT_EXPR:

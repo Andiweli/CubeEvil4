@@ -1,0 +1,54 @@
+# 64-bit build (milestone 12, way A): ModelTexInfo, the renderer's view of
+# cModelInfo from flagsDC on (MODEL_TEX in trans.cpp). On LP64 flagsDC lies at
+# 0x134 and texBlendTbl at +0xC; the view had blendTbl at +8 and read a wrong
+# pointer (PC check 18.10.2026, stand 39a2ace: crash in RefractShaderSetup
+# through loadBlendTex, the first frame of r100). Now 4-byte packing on LP64
+# and a pad sized from cModelInfo's offsets; static_asserts check every
+# member. Found by cast_check.py once it read the operator of `&x.m` from
+# libclang instead of the first token (inside a macro that is the macro's
+# name: the view was never looked at).
+--- a/include/trans.h
++++ b/include/trans.h
+@@ -20,12 +20,19 @@
+ 
+ // The texture animation / blend block of a cModelInfo (0xDC..0xFC), which the renderer reads
+ // through a pointer (`ModelTexInfo* t = MODEL_TEX(info)`).
++// port: patch 0080 (64 bit): the view must put every member where cModelInfo has it relative to
++// flagsDC. On LP64 flagsDC lies at 0x134 (4 bytes past an 8-byte boundary) and texBlendTbl at
++// +0xC, not +8: 4-byte packing and a pad sized from cModelInfo's own offsets (2 on the GameCube);
++// the static_asserts below check each member.
++#if __SIZEOF_POINTER__ != 4
++#pragma pack(push, 4)
++#endif
+ struct ModelTexInfo {
+     u16 flags;        // 0x00  = cModelInfo::flagsDC
+     u16 blendRatio;   // 0x02
+     u8 frame;         // 0x04  texture animation frame
+     u8 blendType;     // 0x05
+-    u8 pad_6[2];
++    u8 pad_6[__builtin_offsetof(cModelInfo, texBlendTbl) - __builtin_offsetof(cModelInfo, flagsDC) - 6];
+     u8* blendTbl;     // 0x08  = texBlendTbl
+     f32 u;            // 0x0C  uv scroll offset
+     f32 v;            // 0x10
+@@ -33,6 +40,21 @@
+     f32 sv;           // 0x18
+     u8* anim;         // 0x1C  texture animation table ([1] frames, [4 + frame] texture id)
+ };
++#if __SIZEOF_POINTER__ != 4
++#pragma pack(pop)
++#endif
++#define RE4_MTI(a, b) static_assert(__builtin_offsetof(ModelTexInfo, a) == \
++    __builtin_offsetof(cModelInfo, b) - __builtin_offsetof(cModelInfo, flagsDC), "ModelTexInfo::" #a)
++RE4_MTI(blendRatio, blendRatio);
++RE4_MTI(frame, anm_no);
++RE4_MTI(blendType, blendType);
++RE4_MTI(blendTbl, texBlendTbl);
++RE4_MTI(u, uvU);
++RE4_MTI(v, uvV);
++RE4_MTI(su, uvScrollU);
++RE4_MTI(sv, uvScrollV);
++RE4_MTI(anim, pTexAnim);
++#undef RE4_MTI
+ #define MODEL_TEX(info) ((ModelTexInfo*) &(info)->flagsDC)
+ 
+ // C++ linkage

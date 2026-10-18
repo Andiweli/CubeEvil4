@@ -131,9 +131,25 @@ def lib():
         L.clang_EvalResult_getAsLongLong.argtypes = [ctypes.c_void_p]
         L.clang_EvalResult_getAsLongLong.restype = ctypes.c_longlong
         L.clang_EvalResult_dispose.argtypes = [ctypes.c_void_p]
+        L.clang_getCursorUnaryOperatorKind.argtypes = [ci.Cursor]
+        L.clang_getCursorUnaryOperatorKind.restype = ctypes.c_int
+        L.clang_getUnaryOperatorKindSpelling.argtypes = [ctypes.c_int]
+        L.clang_getUnaryOperatorKindSpelling.restype = ci._CXString
         _LIB["L"] = L
         _LIB["ops"] = {}
+        _LIB["uops"] = {}
     return _LIB["L"]
+
+
+def unary_op(c):
+    """the operator of a unary expression ("&", "*", "-" ...), also inside macro expansions"""
+    import clang.cindex as ci
+    L = lib()
+    k = L.clang_getCursorUnaryOperatorKind(c)
+    ops = _LIB["uops"]
+    if k not in ops:
+        ops[k] = ci._CXString.from_result(L.clang_getUnaryOperatorKindSpelling(k))
+    return ops[k]
 
 
 def binary_op(c):
