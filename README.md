@@ -44,9 +44,9 @@ picture identical. Later rooms have not been played through yet; that is the nex
 of many rooms). Progress, test results and every patch are recorded in
 `port/docs/whole-program-status.md` (German).
 
-The game is the debug build, and its debug features are still switched on for the test runs:
-after **New Game** the game's debug start menu lets you choose a room, and holding SELECT opens
-the game's own debug menu. Its on-screen debug displays are hidden.
+The game is the debug build, and its debug menu is still switched on for the test runs: holding
+SELECT opens it (rooms are chosen there). **New Game** starts the game directly, without the debug
+build's start menu, and the debug displays on screen are hidden.
 
 ## How to use?
 
