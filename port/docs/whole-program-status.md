@@ -4883,6 +4883,13 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   `build.gradle` nehmen**, nie fest in den Code schreiben. Geprüft: Menü (`CoreMenu.version`),
   Startbildschirm (`MainActivity.versionName`) und Fehlerbericht (`CoreLog`) lesen sie aus der
   App; sonst steht keine Versionsnummer im Code der App.
+- **FPS-Anzeige mit der Rate des Bildschirms (Wunsch des Projektinhabers, 20.10.2026):** der
+  Tester mit 120-Hz-Bildschirm (POCO X7 Pro) sah im Zähler des Handys 60, in unserem 30: unser
+  Zähler zählt die Spielbilder (ein Controller-Lesen je Bild; das Spiel macht wie auf dem
+  GameCube 30 je Sekunde, `SetSystemVcnt(2)`), das Handy die Wiederholrate des Bildschirms (seit
+  GPU-Schritt c auf 60 Hz gebeten, jedes Spielbild zweimal gezeigt). Die Anzeige lautet jetzt
+  „30 FPS (Game) · 60 Hz“: die Rate gemessen (`FramePacing.hz`), bis dahin die von Android
+  gemeldete. Alle Java-Dateien übersetzt; auf dem Gerät nicht gesehen.
 - **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter
   linksbündig, „Back to the game“ in derselben Zeile rechts.
 - **Release 0.38.2 Alpha 03** (Entscheidung des Projektinhabers, 19.10.2026: auf GitHub liegt

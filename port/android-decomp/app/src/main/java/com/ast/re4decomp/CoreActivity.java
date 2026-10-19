@@ -121,7 +121,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private long rumbleSeen, rumbleUntil;
   private volatile int preparedRoom = -1;
   private boolean roomBusy;
-  // the FPS display (menu switch): the game's frames per second, bottom left
+  // the FPS display (menu switch): the game's frames per second and the screen's rate, bottom left
+  // ("30 FPS (Game) · 60 Hz": the game makes 30 pictures a second, as on the GameCube; a phone's
+  // own counter shows the screen's rate, which is not the game's)
   private TextView fpsView;
   private long fpsFrames = -1, fpsSince;
   // a game that stands without a pause (a hang): reported once per stand
@@ -247,8 +249,18 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
 
   private void showFps(boolean on) {
     fpsView.setVisibility(on && menuSupported ? View.VISIBLE : View.GONE);
-    fpsView.setText("-- FPS");
+    fpsView.setText("-- FPS (Game)" + screenHz());
     fpsFrames = -1;
+  }
+
+  /** " · 60 Hz": the screen's rate as measured (FramePacing), else as Android says; "" unknown. */
+  private String screenHz() {
+    double hz = pacing.hz();
+    if (!(hz > 0)) {
+      Display display = getWindowManager().getDefaultDisplay();
+      hz = display != null ? display.getRefreshRate() : 0;
+    }
+    return hz > 0 ? String.format(Locale.ROOT, " · %d Hz", Math.round(hz)) : "";
   }
 
   /** The game's frames per second (one controller read per frame), counted over a second. */
@@ -263,7 +275,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       fpsFrames = frames;
       fpsSince = now;
     } else if (now - fpsSince >= 1000) {
-      fpsView.setText(String.format(Locale.ROOT, "%d FPS", Math.round((frames - fpsFrames) * 1000.0 / (now - fpsSince))));
+      fpsView.setText(String.format(Locale.ROOT, "%d FPS (Game)%s",
+          Math.round((frames - fpsFrames) * 1000.0 / (now - fpsSince)), screenHz()));
       fpsFrames = frames;
       fpsSince = now;
     }
