@@ -827,7 +827,8 @@ render_gx_pictures() {
     mkdir -p "$msaa_own" "$msaa_tiles"
     "${zink[@]}" RE4_GX_MSAA_TILES=0 "$tool_build/gx_chunk_render" "$msaa_own" "$dump"/*.bin > /dev/null \
         2> "$run/gx-msaa-puffer.log"
-    "${zink[@]}" "$tool_build/gx_chunk_render" "$msaa_tiles" "$dump"/*.bin > /dev/null 2> "$run/gx-msaa-kacheln.log"
+    "${zink[@]}" RE4_GX_MSAA_TILES=1 "$tool_build/gx_chunk_render" "$msaa_tiles" "$dump"/*.bin > /dev/null \
+        2> "$run/gx-msaa-kacheln.log"
     if grep -q "MSAA: .* in own buffers" "$run/gx-msaa-puffer.log" && grep -q "MSAA: .* on the tiles" "$run/gx-msaa-kacheln.log"; then
         ppm_to_png "$msaa_own"
         ppm_to_png "$msaa_tiles"

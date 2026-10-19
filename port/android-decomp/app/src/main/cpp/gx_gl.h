@@ -74,8 +74,10 @@ struct GxOptions {
   bool poison = false;
   // MSAA on the tiles (GPU step d, 19.10.2026): the EFB's own textures take the samples
   // (EXT_multisampled_render_to_texture2); off, or without the extension: separate multisampled
-  // buffers, resolved with a blit before every copy
-  bool tiledMsaa = true;
+  // buffers, resolved with a blit before every copy. Off: the Retroid's Adreno 650 keeps the
+  // colour but not the depth after a pass ends (the extension leaves the samples undefined
+  // then), and the game draws on after its EFB copies (Leon's hair, fog, whole objects missing)
+  bool tiledMsaa = false;
 };
 
 class GxRenderer {

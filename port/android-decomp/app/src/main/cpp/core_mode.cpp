@@ -396,9 +396,10 @@ int gxMode = -1;  // -1 undecided, 0 bridge, 1 GX
 // starts over with the full state); 0 scale: automatic
 std::atomic<int> optScale{0}, optSamples{1}, optAnisotropy{1}, optAspect{-1};
 // GPU step b (GxOptions::invalidate): off (it saved nothing on the Retroid) unless
-// RE4_GX_INVALIDATE=1; GPU step d (GxOptions::tiledMsaa): on (RE4_GX_MSAA_TILES=0 in the renderer
-// turns it off); the GPU measurement switches both
-std::atomic<int> optInvalidate{-1}, optTiled{1};
+// RE4_GX_INVALIDATE=1; GPU step d (GxOptions::tiledMsaa): off (the Adreno 650 loses the depth
+// after every EFB copy) unless RE4_GX_MSAA_TILES=1 in the renderer; the GPU measurement
+// switches both
+std::atomic<int> optInvalidate{-1}, optTiled{0};
 std::atomic<unsigned> optSerial{0};
 unsigned optApplied = ~0u;
 std::atomic<bool> corePaused{false};
@@ -460,7 +461,7 @@ unsigned gxShotW = 0, gxShotH = 0;
 struct BenchStep {
   int scale, samples, anisotropy, dof;
   int invalidate = 0;  // GPU step b: copy targets forgotten before they are drawn over
-  int tiled = 1;       // GPU step d: MSAA on the tiles
+  int tiled = 0;       // GPU step d: MSAA on the tiles
 };
 struct Bench {
   std::vector<BenchStep> steps;
@@ -475,7 +476,7 @@ struct Bench {
   unsigned clockCount = 0, busyCount = 0, workCount = 0;
   bool waitFree = false;  // waiting for the player to be free (api.freeAt)
   int delay = 0;          // seconds from then to the first step
-  int keepScale = 0, keepSamples = 1, keepAnisotropy = 1, keepInvalidate = 0, keepTiled = 1;
+  int keepScale = 0, keepSamples = 1, keepAnisotropy = 1, keepInvalidate = 0, keepTiled = 0;
 };
 Bench bench;
 std::atomic<int> optDof{-1};  // the menu's depth of field (CoreBridge.setDof); -1 not set yet

@@ -713,7 +713,9 @@ struct GxRenderer::Impl {
   // multisampled buffers instead were written out, resolved with a blit and read in again at every
   // copy (the Retroid, 19.10.2026: MSAA +74 % work, with the depth of field +114 %). What was
   // drawn before a copy keeps its resolved colour and depth, not its samples, after it. False:
-  // the device cannot (efbFbo has its plain textures again).
+  // the device cannot (efbFbo has its plain textures again). Not used unless asked for
+  // (GxOptions::tiledMsaa): the extension leaves the samples undefined after a pass, and the
+  // Adreno 650 then has the colour but not the depth (R3 capture, 19.10.2026).
   bool TiledMsaa(int want) {
     const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
     if (!HasExtension(ext, "GL_EXT_multisampled_render_to_texture") ||
@@ -1956,8 +1958,10 @@ bool GxRenderer::Init(int scale, std::string *error) {
     Limits(&maxSamples, &maxAnisotropy);
     m.anisotropy = std::max(1.0f, std::min(m.options.anisotropy, maxAnisotropy));
     const int want = std::min(m.options.samples, maxSamples);
+    // RE4_GX_MSAA_TILES=1 / 0: on the tiles or not, whatever the options say (experiments)
     const char *tiles = std::getenv("RE4_GX_MSAA_TILES");
-    if (want > 1 && m.options.tiledMsaa && !(tiles && *tiles == '0'))
+    const bool tiled = tiles && (*tiles == '0' || *tiles == '1') ? *tiles == '1' : m.options.tiledMsaa;
+    if (want > 1 && tiled)
       m.TiledMsaa(want);
     if (want > 1 && !m.tiledMsaa) {
       while (glGetError() != GL_NO_ERROR) {

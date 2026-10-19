@@ -4544,6 +4544,33 @@ PC-Prüfung (zink, 2 Proben) findet aber in 16 von 19 Bildern Unterschiede zu de
 in den Ereignisbildern 8000–14700 Pixel (höchstens 66 von 255), bei Leon in r100 83 Pixel
 (höchstens 94). Ob das nur Kanten sind, ist ohne die Bilder offen; Schritt d bleibt im GPU-Branch.
 
+**Leons Haare / Flackern: Ursache gefunden – Schritt d (19.10.2026, R3-Aufnahme des Projektinhabers,
+32 bit, 4× MSAA auf den Kacheln).** Der Projektinhaber bestätigt: Haare fehlen und Texturen flackern
+in 32 wie in 64 bit, bei 2× und 4× MSAA (im GPU-Branch beides auf den Kacheln). Die 12 Bilder der
+Aufnahme:
+- **Die Daten des Kerns sind richtig:** in der Cloud nachgezeichnet (llvmpipe ohne MSAA, zink 4× in
+  eigenen Puffern und auf den Kacheln) hat Leon seine blonden Strähnen; die Geräte-Bilder zeigen
+  eine dunkle Kappe (die Innenschicht), das Haus im Hintergrund ohne Nebel.
+- **Flackern gemessen:** von Bild zu Bild ändern sich auf dem Gerät sonst 137–275 Pixel (über 24
+  von 255), in Bild 2 aber 59.886 (Leon samt Waffe fehlt) und in Bild 5 154.672 von 229.376 (fast
+  alles graubraun, nur die Anzeige); in der Cloud 132–255 in jedem Bild.
+- **Haar-Aufträge gefunden** (jeden der 521 Aufträge einzeln weggelassen): Nr. 464 u. a., 1252
+  Punkte, Textur 64×128 CMPR, Licht, 4 TEV-Stufen, Rückseiten weg (`GX_CULL_FRONT`).
+- **Beleg:** `EXT_multisampled_render_to_texture` lässt die Proben nach dem Ende eines Durchgangs
+  undefiniert; zink lädt sie zurück, der Adreno offenbar nicht verlässlich. Im Versuch (Renderer mit
+  nachgebildetem Verlust bei jedem erneuten Binden des EFB nach einer Kopie, zink, 4× auf den Kacheln)
+  weichen vom Gerätebild ab: ohne Verlust 22.254 Pixel, **Tiefe verloren (0) 14.957** (mittlerer
+  Unterschied 6,4 statt 8,7; dunkle Kappe und Haus ohne Nebel wie auf dem Gerät), Tiefe 1,0 33.713,
+  Farbe verloren 168.944. Der Adreno 650 behält also die Farbe und verliert die Tiefe; was das Spiel
+  nach einer EFB-Kopie mit Tiefenprüfung zeichnet (Haar, Nebel, ganze Figuren), fällt aus.
+- **Behoben:** Schritt d ist aus (`GxOptions::tiledMsaa = false`); `RE4_GX_MSAA_TILES=1` schaltet
+  ihn für Versuche ein (die PC-Prüfung tut das für ihren Vergleich, der Messlauf je Schritt). Der
+  M12-Branch hatte Schritt d nie. Ein späteres „d2“ müsste die Tiefe nach jeder Kopie selbst
+  zurückschreiben (oder `QCOM_tiled_rendering` mit Erhalt der Tiefe) und das mit nachgebildetem
+  Verlust prüfen. Getestet: `gx_gl_check` 0 Fehler (llvmpipe und zink), `gx_chunk_render` zeichnet
+  4× ohne Schalter in eigenen Puffern, mit `RE4_GX_MSAA_TILES=1` auf den Kacheln. Nicht getestet:
+  das Gerät mit MSAA in eigenen Puffern (Haare müssen wieder da sein).
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
