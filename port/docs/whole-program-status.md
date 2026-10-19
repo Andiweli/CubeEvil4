@@ -4377,6 +4377,11 @@ der Grafikchip 237 s lang zu mindestens 96 % ausgelastet, 4,4 W im Mittel. Auf d
   dann in der Reihenfolge Nutzen/Risiko umsetzen und jeden Schritt mit `gx_chunk_render`
   Pixel für Pixel prüfen.
 
+**Grafik-Schritte a–e im eigenen Branch `claude/re4-gpu-efficiency`** (Wunsch des Projektinhabers,
+19.10.2026); Schritt (a) liegt außerdem schon im M12-Branch (Commit `715d577`, nur Messung, ohne
+Wirkung auf das Bild; bleibt dort, Entscheidung des Projektinhabers, 19.10.2026: kein Umschreiben
+des Verlaufs). Der Messlauf auf dem Retroid folgt später.
+
 **GPU-Schritt (a): Messlauf gebaut (19.10.2026, Cloud).** `test-core-app.ps1 -GpuBench` startet in
 r100 (Leon steht) und setzt `RE4_GPU_BENCH=1`; die App (`core_mode.cpp`, `benchTick`) schaltet nach
 60 s sieben Einstellungen durch (3/2/8/an wie beim Tester, dann Tiefenschärfe aus, MSAA aus,
@@ -4449,6 +4454,63 @@ der große Posten; braucht `EXT_multisampled_render_to_texture2`, damit die Tief
 erhalten bleibt: welche Erweiterungen der Retroid hat, schreibt der nächste Lauf ins Protokoll),
 **e** (Tiefenschärfe in halber Auflösung), **c** (60 Hz, hilft nur auf 120-Hz-Handys).
 
+**GPU-Schritt (b): Wegwerfen erlauben (19.10.2026, Cloud, Branch `claude/re4-gpu-efficiency`).**
+Vor jedem Zeichnen, das ein Ziel ganz übermalt, darf die GPU den alten Inhalt vergessen
+(`glInvalidateFramebuffer`, `gx_gl.cpp ForgetColor`): das Ziel jeder EFB-Kopie und der Kopie ins
+XFB (der Bildausschnitt ist die ganze Textur), der Fokus-Texel und das Unschärfe-Bild des Autofokus
+(nur der Bildbereich wird gezeichnet und nur er zurückkopiert). Kachel-GPUs laden den alten Inhalt
+sonst vor dem Zeichnen in ihre Kacheln. Nicht angefasst: das EFB selbst (das Spiel zeichnet nach
+einer Kopie weiter, das Löschen nach einer Kopie betrifft nur den kopierten Bereich) und der
+MSAA-Puffer (das ist Schritt d). Schalter: `GxOptions::invalidate` (an), `RE4_GX_INVALIDATE=0`
+schaltet es aus. **Prüfmodus „magenta“** (`GxOptions::poison`, im PC-Werkzeug
+`RE4_GX_INVALIDATE_POISON=1`): statt zu vergessen wird das Ziel magenta gefüllt; ein Bild, das den
+alten Inhalt noch braucht, ändert sich dann. `gx_gl_check` läuft jetzt zweimal (normal und
+magenta), die PC-Prüfung (`whole_r100_check.sh`, Abschnitt 5) zeichnet alle GX-Bilder ein zweites
+Mal magenta und vergleicht sie Pixel für Pixel („Wegwerfen (GPU-Schritt b) …“). Der Renderer
+schreibt einmal je Lauf den Grafikchip und die für Schritt d nötigen Erweiterungen ins Protokoll
+(„GPU: …“, im Gerätebericht „Grafikchip“). Messreihe des GPU-Branch: 3/1/1/0 und 3/2/8/1, jeweils
+ohne und mit Wegwerfen, alles zweimal (8 Schritte; `S/M/A/D/I`). Getestet: `gx_gl_check` 0 Fehler
+in beiden Durchläufen; Gegenprobe: ein absichtlich falsches Vergessen des EFB nach einer Kopie gibt
+im Magenta-Durchlauf 4 Fehler; `gx_chunk_render` und `re4decomp_link_check` gebaut; der neue
+Abschnitt der PC-Prüfung mit einem Ersatz-Werkzeug (gleiche Bilder: „2 von 2 Bildern gleich“,
+abweichende: FEHLER). Nicht getestet: die PC-Prüfung mit echten Spielbildern, der Messlauf auf dem
+Gerät.
+
+**GPU-Schritt (b): Ergebnis (19.10.2026, Projektinhaber).** PC-Prüfung (Stand `eb0d192e`): ALLES OK,
+„Wegwerfen (GPU-Schritt b), das Vergessene magenta: 19 von 19 Bildern gleich“. Messlauf auf dem
+Retroid (je zweimal, Arbeit = Last mal Takt): 3-fach ohne Extras ohne Wegwerfen 260 / 246 (der zweite
+bei 305 MHz), mit 275 / 280; mit den Optionen des Testers ohne 593 / 588, mit 576 / 584. Bei gleichem
+Takt (400 MHz) ohne Extras mit Wegwerfen etwa 7 % mehr (Arbeit 260 → 275/280, Zeitabfrage 18,5 →
+19,6/20,0 ms), mit den Optionen des Testers 2 % weniger (innerhalb der Streuung). Der Adreno 650
+zeichnet die Kopien offenbar ohnehin direkt in den Speicher. **Wegwerfen ist darum aus**
+(`GxOptions::invalidate = false`, `RE4_GX_INVALIDATE=1` schaltet es ein); Code und Magenta-Prüfung
+bleiben (für andere GPUs, und Schritt d braucht dieselbe Art Prüfung). **Der Retroid hat die
+Erweiterungen für Schritt d:** „Adreno (TM) 650, OpenGL ES 3.2 V@0746.0;
+EXT_multisampled_render_to_texture yes, ..._texture2 yes, EXT_shader_framebuffer_fetch yes,
+QCOM_tiled_rendering yes“.
+
+**GPU-Schritt (d): MSAA auf den Kacheln (19.10.2026, Cloud, Branch `claude/re4-gpu-efficiency`).**
+Mit `EXT_multisampled_render_to_texture` und `..._texture2` nehmen die eigenen Texturen des EFB
+(Farbe und Tiefe) die Proben selbst (`glFramebufferTexture2DMultisampleEXT`, `gx_gl.cpp TiledMsaa`):
+die GPU hält die Proben im Kachelspeicher und schreibt am Ende eines Durchgangs (EFB-Kopie,
+Autofokus, Bildende) nur Farbe und Tiefe aufgelöst hinaus; der nächste Durchgang liest sie in alle
+Proben zurück, `Resolve` hat nichts mehr zu tun. Bisher schrieb jede Kopie die eigenen
+Mehrfach-Puffer hinaus, löste sie per Blit auf und las sie wieder ein. Unterschied im Bild: was vor
+einer Kopie gezeichnet wurde, behält danach seine aufgelöste Farbe und Tiefe statt der Proben (Kanten,
+über die später noch gezeichnet wird). Ohne die Erweiterungen oder mit `GxOptions::tiledMsaa = false`
+(`RE4_GX_MSAA_TILES=0`) der alte Weg. Die App schreibt ins Protokoll „... 2 samples (of 4) on the
+tiles“ bzw. „in own buffers“, die Messzeilen ebenso. Messreihe des GPU-Branch: 3/1/1/0, dann
+3/2/8/1 und 3/2/1/0 je in eigenen Puffern und auf den Kacheln, zweimal, am Ende wieder 3/1/1/0
+(`S/M/A/D/I/T`). **Prüfen ohne Gerät:** Mesa `zink` auf `lavapipe` (`LIBGL_ALWAYS_SOFTWARE=1
+GALLIUM_DRIVER=zink`, Paket `mesa-vulkan-drivers`, neu in `whole_setup_linux.sh`) hat beide
+Erweiterungen. `gx_gl_check` prüft MSAA jetzt auf den Kacheln (wo die GPU es kann) und in eigenen
+Puffern; die PC-Prüfung (Abschnitt 5) zeichnet alle GX-Bilder mit 2 Proben auf zink in beiden Arten
+und vergleicht sie Pixel für Pixel (Unterschiede nur an Kanten erwartet; `gx_chunk_render`:
+`RE4_GX_SAMPLES`). Getestet: `gx_gl_check` 0 Fehler mit llvmpipe (dort ohne die Erweiterungen: alter
+Weg) und mit zink (Kacheln: „MSAA on the tiles where asked for and the GPU can“, Kante geglättet,
+Kopie und Palette, Autofokus mit MSAA); `gx_chunk_render`, `re4decomp_link_check` gebaut. Nicht
+getestet: die PC-Prüfung mit echten Spielbildern, das Gerät.
+
 **Leons Haare fehlen / Flackern (Projektinhaber, 19.10.2026, Retroid, 64 bit).** Beim GPU-Messlauf
 „stellenweise“, beim Spielen von Hand **dauernd, bei jeder MSAA-Einstellung**. Die Bildschirmfotos
 des Messlaufs (Leon steht) zeigen die Haare. Ohne MSAA ist der Renderer des GPU-Branch gleichwertig
@@ -4482,6 +4544,45 @@ Testers in eigenen Puffern 590 / 596, auf den Kacheln 331 / 329 (−44 %); MSAA 
 PC-Prüfung (zink, 2 Proben) findet aber in 16 von 19 Bildern Unterschiede zu den eigenen Puffern,
 in den Ereignisbildern 8000–14700 Pixel (höchstens 66 von 255), bei Leon in r100 83 Pixel
 (höchstens 94). Ob das nur Kanten sind, ist ohne die Bilder offen; Schritt d bleibt im GPU-Branch.
+
+**Leons Haare / Flackern: Ursache gefunden – Schritt d (19.10.2026, R3-Aufnahme des Projektinhabers,
+32 bit, 4× MSAA auf den Kacheln).** Der Projektinhaber bestätigt: Haare fehlen und Texturen flackern
+in 32 wie in 64 bit, bei 2× und 4× MSAA (im GPU-Branch beides auf den Kacheln). Die 12 Bilder der
+Aufnahme:
+- **Die Daten des Kerns sind richtig:** in der Cloud nachgezeichnet (llvmpipe ohne MSAA, zink 4× in
+  eigenen Puffern und auf den Kacheln) hat Leon seine blonden Strähnen; die Geräte-Bilder zeigen
+  eine dunkle Kappe (die Innenschicht), das Haus im Hintergrund ohne Nebel.
+- **Flackern gemessen:** von Bild zu Bild ändern sich auf dem Gerät sonst 137–275 Pixel (über 24
+  von 255), in Bild 2 aber 59.886 (Leon samt Waffe fehlt) und in Bild 5 154.672 von 229.376 (fast
+  alles graubraun, nur die Anzeige); in der Cloud 132–255 in jedem Bild.
+- **Haar-Aufträge gefunden** (jeden der 521 Aufträge einzeln weggelassen): Nr. 464 u. a., 1252
+  Punkte, Textur 64×128 CMPR, Licht, 4 TEV-Stufen, Rückseiten weg (`GX_CULL_FRONT`).
+- **Beleg:** `EXT_multisampled_render_to_texture` lässt die Proben nach dem Ende eines Durchgangs
+  undefiniert; zink lädt sie zurück, der Adreno offenbar nicht verlässlich. Im Versuch (Renderer mit
+  nachgebildetem Verlust bei jedem erneuten Binden des EFB nach einer Kopie, zink, 4× auf den Kacheln)
+  weichen vom Gerätebild ab: ohne Verlust 22.254 Pixel, **Tiefe verloren (0) 14.957** (mittlerer
+  Unterschied 6,4 statt 8,7; dunkle Kappe und Haus ohne Nebel wie auf dem Gerät), Tiefe 1,0 33.713,
+  Farbe verloren 168.944. Der Adreno 650 behält also die Farbe und verliert die Tiefe; was das Spiel
+  nach einer EFB-Kopie mit Tiefenprüfung zeichnet (Haar, Nebel, ganze Figuren), fällt aus.
+- **Behoben:** Schritt d ist aus (`GxOptions::tiledMsaa = false`); `RE4_GX_MSAA_TILES=1` schaltet
+  ihn für Versuche ein (die PC-Prüfung tut das für ihren Vergleich, der Messlauf je Schritt). Der
+  M12-Branch hatte Schritt d nie. Ein späteres „d2“ müsste die Tiefe nach jeder Kopie selbst
+  zurückschreiben (oder `QCOM_tiled_rendering` mit Erhalt der Tiefe) und das mit nachgebildetem
+  Verlust prüfen. Getestet: `gx_gl_check` 0 Fehler (llvmpipe und zink), `gx_chunk_render` zeichnet
+  4× ohne Schalter in eigenen Puffern, mit `RE4_GX_MSAA_TILES=1` auf den Kacheln. Nicht getestet:
+  das Gerät mit MSAA in eigenen Puffern (Haare müssen wieder da sein).
+
+**Gerätetest danach (19.10.2026, Projektinhaber, Stand `c698b263`, Kern neu gebaut mit dem
+FMA-Fix, 64 bit, von Hand in r100).** PC-Prüfung vorher ALLES OK (Magenta 19/19). **Haare und Nebel
+wieder richtig:** das Foto nach 70 s fällt in die Phase mit 2× MSAA in eigenen Puffern (blonde
+Strähnen, Haus im Nebel), das nach 147 s ohne MSAA ebenso. Bilder je Sekunde laut Projektinhaber
+und Protokoll: ohne MSAA und mit 2× 30 (der Kern 33,3 ms je Bild); **mit 4× sichtbar ruckelig,
+20–25** (Kern 49,1 bzw. 62,3 ms je Bild, davon 10 ms Warten auf den Renderer; 22,0 bzw. 25,2
+gezeigte Bilder/s). 4× in eigenen Puffern ist bei Auflösung 3 zu viel für den Retroid; der
+schnelle Weg (d) braucht dafür eine Fassung, die die Tiefe nach jeder Kopie selbst zurückschreibt
+(„d2“). Die Standard-Messreihe misst jetzt 2× und 4× allein, die Tiefenschärfe, die Optionen des
+Testers und 4× bei Auflösung 2, alles in eigenen Puffern. Danach: der GPU-Branch in den M12-Stand
+übernommen (alle Schritte dort aus, nur die Messung und die Prüfwerkzeuge).
 
 ## Aufbau
 

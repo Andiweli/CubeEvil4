@@ -13,6 +13,13 @@
 // in the app: EFB, copies and textures stay, a held picture (RE4_GX_CHUNK_HOLD)
 // leaves the picture before on screen. Any other chunk must start over
 // (RE4_GX_CHUNK_RESET) and gets a fresh renderer.
+//
+// RE4_GX_INVALIDATE_POISON=1: what the renderer lets the GPU forget (copy targets, the blur and
+// the focus of the autofocus; GPU step b) is painted magenta instead: the pictures must not
+// change (whole_r100_check.sh compares them).
+//
+// RE4_GX_SAMPLES=2 (or 4): with MSAA, on the tiles where the GPU can (GPU step d;
+// RE4_GX_MSAA_TILES=0: in own buffers); a line on stderr says which.
 #include "gx_gl.h"
 #include "re4_gx_frame_io.h"
 
@@ -20,6 +27,7 @@
 #include <EGL/eglext.h>
 #include <GLES3/gl3.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -97,6 +105,13 @@ int main(int argc, char **argv) {
       if (renderer)
         renderer->Release();
       renderer = std::make_unique<re4gx::GxRenderer>();
+      const char *poison = std::getenv("RE4_GX_INVALIDATE_POISON");
+      re4gx::GxOptions options;
+      options.poison = poison && *poison == '1';
+      options.invalidate = options.poison;
+      const char *samples = std::getenv("RE4_GX_SAMPLES");
+      options.samples = samples ? std::max(1, std::min(4, std::atoi(samples))) : 1;
+      renderer->SetOptions(options);
       std::string error;
       if (!renderer->Init(scale, &error)) {
         std::printf("%s: Renderer: %s\n", Stem(path).c_str(), error.c_str());
@@ -104,6 +119,9 @@ int main(int argc, char **argv) {
         failures++;
         continue;
       }
+      if (options.samples > 1)
+        std::fprintf(stderr, "MSAA: %d samples %s\n", renderer->Samples(),
+                     renderer->TiledMsaa() ? "on the tiles" : "in own buffers");
     }
     lastSequence = chunk.sequence;
     lastFrame = loaded.frame;

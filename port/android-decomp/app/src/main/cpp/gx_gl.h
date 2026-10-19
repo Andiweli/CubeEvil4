@@ -66,6 +66,18 @@ struct GxStats {
 struct GxOptions {
   int samples = 1;          // 1 (off), 2, 4
   float anisotropy = 1.0f;  // 1 (off) .. 16
+  // the GPU may forget what a copy's target, the blur and the focus of the autofocus held before
+  // they are drawn over completely (glInvalidateFramebuffer, GPU step b, 19.10.2026); poison
+  // (tests, RE4_GX_INVALIDATE_POISON=1 in gx_chunk_render): they are painted magenta instead, so
+  // a picture that still needed the old content shows it
+  bool invalidate = false;  // on the Retroid it saved nothing, at scale 3 alone it cost about 7 %
+  bool poison = false;
+  // MSAA on the tiles (GPU step d, 19.10.2026): the EFB's own textures take the samples
+  // (EXT_multisampled_render_to_texture2); off, or without the extension: separate multisampled
+  // buffers, resolved with a blit before every copy. Off: the Retroid's Adreno 650 keeps the
+  // colour but not the depth after a pass ends (the extension leaves the samples undefined
+  // then), and the game draws on after its EFB copies (Leon's hair, fog, whole objects missing)
+  bool tiledMsaa = false;
 };
 
 class GxRenderer {
@@ -83,6 +95,10 @@ public:
   // After Init: the multisampling and the filtering in use.
   int Samples() const;
   float Anisotropy() const;
+  // the copy targets are forgotten before they are drawn over (GxOptions::invalidate)
+  bool Invalidates() const;
+  // the samples live in the GPU's tile memory (GxOptions::tiledMsaa and the device can)
+  bool TiledMsaa() const;
   // What the device can do (a GLES 3.0 context is current): the most EFB
   // samples and the strongest anisotropic filtering (1: none).
   static void Limits(int *maxSamples, float *maxAnisotropy);

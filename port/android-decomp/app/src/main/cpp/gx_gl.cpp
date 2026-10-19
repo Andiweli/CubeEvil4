@@ -23,6 +23,12 @@
 #ifndef GL_TIME_ELAPSED_EXT
 #define GL_TIME_ELAPSED_EXT 0x88BF
 #endif
+#ifndef GL_MAX_SAMPLES_EXT
+#define GL_MAX_SAMPLES_EXT 0x8D57
+#endif
+#ifndef GL_TEXTURE_SAMPLES_EXT
+#define GL_TEXTURE_SAMPLES_EXT 0x8D6C
+#endif
 #ifndef GL_GPU_DISJOINT_EXT
 #define GL_GPU_DISJOINT_EXT 0x8FBB
 #endif
@@ -35,7 +41,30 @@
 #endif
 
 namespace re4gx {
+
 namespace {
+
+// `name` in the extension string `ext` as a whole word
+bool HasExtension(const char *ext, const char *name) {
+  if (!ext)
+    return false;
+  const std::size_t n = std::strlen(name);
+  for (const char *at = std::strstr(ext, name); at; at = std::strstr(at + n, name))
+    if ((at == ext || at[-1] == ' ') && (at[n] == ' ' || at[n] == '\0'))
+      return true;
+  return false;
+}
+
+// A function of a GLES extension: not exported by every GLES library, then through EGL (loaded
+// with the context)
+void *GlExtension(const char *name) {
+  void *f = dlsym(RTLD_DEFAULT, name);
+  using GetProc = void *(*)(const char *);
+  if (!f)
+    if (auto get = reinterpret_cast<GetProc>(dlsym(RTLD_DEFAULT, "eglGetProcAddress")))
+      f = get(name);
+  return f;
+}
 
 constexpr int kEfbWidth = 640;
 constexpr int kEfbHeight = 528;
@@ -217,6 +246,8 @@ struct GxRenderer::Impl {
   // multisampled EFB (GxOptions.samples > 1): the game draws into it; before
   // a copy out of the EFB the region is resolved into efbColor / efbDepth
   GLuint msaaFbo = 0, msaaColor = 0, msaaDepth = 0;
+  // or the samples in the GPU's tile memory, on efbColor / efbDepth themselves (TiledMsaa)
+  bool tiledMsaa = false;
   GxOptions options;
   int samples = 1;
   float anisotropy = 1.0f;
@@ -366,14 +397,8 @@ struct GxRenderer::Impl {
     const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
     using BufferStorage = void (*)(GLenum, GLsizeiptr, const void *, GLbitfield);
     BufferStorage storage = nullptr;
-    if (ext && std::strstr(ext, "GL_EXT_buffer_storage")) {
-      storage = reinterpret_cast<BufferStorage>(dlsym(RTLD_DEFAULT, "glBufferStorageEXT"));
-      // not exported by every GLES library: then through EGL (loaded with the context)
-      using GetProc = void *(*)(const char *);
-      if (!storage)
-        if (auto get = reinterpret_cast<GetProc>(dlsym(RTLD_DEFAULT, "eglGetProcAddress")))
-          storage = reinterpret_cast<BufferStorage>(get("glBufferStorageEXT"));
-    }
+    if (ext && std::strstr(ext, "GL_EXT_buffer_storage"))
+      storage = reinterpret_cast<BufferStorage>(GlExtension("glBufferStorageEXT"));
     const char *persistent = std::getenv("RE4_GX_PERSISTENT");
     if (storage && !(persistent && *persistent == '0')) {
       const GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT_EXT | GL_MAP_COHERENT_BIT_EXT;
@@ -681,6 +706,48 @@ struct GxRenderer::Impl {
   // the frame buffer the game draws into
   GLuint DrawFbo() const { return msaaFbo ? msaaFbo : efbFbo; }
 
+  // GPU step d (19.10.2026): MSAA on the tiles (EXT_multisampled_render_to_texture2). The EFB's
+  // own textures take `want` samples: the GPU keeps them in its tile memory and writes only the
+  // resolved colour and depth out when a pass ends (an EFB copy, the autofocus, the picture's end);
+  // the next pass reads them back into every sample, and Resolve has nothing to do. Separate
+  // multisampled buffers instead were written out, resolved with a blit and read in again at every
+  // copy (the Retroid, 19.10.2026: MSAA +74 % work, with the depth of field +114 %). What was
+  // drawn before a copy keeps its resolved colour and depth, not its samples, after it. False:
+  // the device cannot (efbFbo has its plain textures again). Not used unless asked for
+  // (GxOptions::tiledMsaa): the extension leaves the samples undefined after a pass, and the
+  // Adreno 650 then has the colour but not the depth (R3 capture, 19.10.2026).
+  bool TiledMsaa(int want) {
+    const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+    if (!HasExtension(ext, "GL_EXT_multisampled_render_to_texture") ||
+        !HasExtension(ext, "GL_EXT_multisampled_render_to_texture2"))
+      return false;
+    using Attach = void (*)(GLenum, GLenum, GLenum, GLuint, GLint, GLsizei);
+    const auto attach = reinterpret_cast<Attach>(GlExtension("glFramebufferTexture2DMultisampleEXT"));
+    GLint most = 1;
+    glGetIntegerv(GL_MAX_SAMPLES_EXT, &most);
+    want = std::min(want, static_cast<int>(most));
+    if (!attach || want < 2)
+      return false;
+    while (glGetError() != GL_NO_ERROR) {
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
+    attach(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, efbColor, 0, want);
+    attach(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, efbDepth, 0, want);
+    GLint got = 0;
+    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_SAMPLES_EXT, &got);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE && glGetError() == GL_NO_ERROR &&
+        got > 1) {
+      samples = got;
+      tiledMsaa = true;
+      return true;
+    }
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, efbColor, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, efbDepth, 0);
+    while (glGetError() != GL_NO_ERROR) {
+    }
+    return false;
+  }
+
   // a multisampled EFB: the region (EFB pixels times the scale, with a pixel
   // around it for the copy filter) into the single-sample textures the
   // copies read
@@ -916,6 +983,23 @@ struct GxRenderer::Impl {
     glDisable(GL_SCISSOR_TEST);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glDepthMask(GL_TRUE);
+  }
+
+  // The colour of the bound framebuffer is about to be drawn over completely (or only that part
+  // is read later): the GPU may forget what it held. A tile-based GPU (Adreno, Mali) otherwise
+  // reads it into its tiles before drawing (GxOptions::invalidate). Poisoned: magenta instead.
+  void ForgetColor() {
+    if (!options.invalidate)
+      return;
+    if (options.poison) {
+      glDisable(GL_SCISSOR_TEST);
+      glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+      glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
+      glClear(GL_COLOR_BUFFER_BIT);
+      return;
+    }
+    const GLenum color = GL_COLOR_ATTACHMENT0;
+    glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &color);
   }
 
   void ApplyState(unsigned primitive) {
@@ -1436,6 +1520,8 @@ struct GxRenderer::Impl {
     glBindFramebuffer(GL_FRAMEBUFFER, xfbFbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target, 0);
     SaveAndPlainState();
+    // the copy draws over all of its target (the viewport is the texture)
+    ForgetColor();
     const int tw = toXfb ? w : ow, th = toXfb ? h : oh;
     glViewport(0, 0, tw * scale, th * scale);
     glUseProgram(copyProgram);
@@ -1512,6 +1598,7 @@ struct GxRenderer::Impl {
       glBindSampler(i, 0);
     // the focus into one texel: distance (16 bits in r, g), strength (b)
     glBindFramebuffer(GL_FRAMEBUFFER, focusFbo);
+    ForgetColor();  // its one texel is drawn over
     glViewport(0, 0, 1, 1);
     glUseProgram(focusProgram);
     glActiveTexture(GL_TEXTURE0);
@@ -1523,6 +1610,7 @@ struct GxRenderer::Impl {
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     // the blurred picture into blurTex
     glBindFramebuffer(GL_FRAMEBUFFER, blurFbo);
+    ForgetColor();  // only the picture's region is drawn, and only it is copied back
     glViewport(x0 * scale, y0 * scale, (x1 - x0) * scale, (y1 - y0) * scale);
     glUseProgram(blurProgram);
     glActiveTexture(GL_TEXTURE0);
@@ -1826,6 +1914,20 @@ bool GxRenderer::Init(int scale, std::string *error) {
     }
     m.drawBaseVertex = reinterpret_cast<Impl::DrawBaseVertex>(f);
   }
+  // once per process: the GPU and what step d (MSAA on the tiles) needs of it
+  static bool described = false;
+  if (!described) {
+    described = true;
+    const char *renderer = reinterpret_cast<const char *>(glGetString(GL_RENDERER));
+    const char *version = reinterpret_cast<const char *>(glGetString(GL_VERSION));
+    const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+    auto has = [ext](const char *name) { return HasExtension(ext, name) ? "yes" : "no"; };
+    GXLOG("GPU: %s, %s; EXT_multisampled_render_to_texture %s, ..._texture2 %s, "
+          "EXT_shader_framebuffer_fetch %s, QCOM_tiled_rendering %s",
+          renderer ? renderer : "?", version ? version : "?", has("GL_EXT_multisampled_render_to_texture"),
+          has("GL_EXT_multisampled_render_to_texture2"), has("GL_EXT_shader_framebuffer_fetch"),
+          has("GL_QCOM_tiled_rendering"));
+  }
   const int w = kEfbWidth * m.scale, h = kEfbHeight * m.scale;
   glGenTextures(1, &m.efbColor);
   glBindTexture(GL_TEXTURE_2D, m.efbColor);
@@ -1856,7 +1958,12 @@ bool GxRenderer::Init(int scale, std::string *error) {
     Limits(&maxSamples, &maxAnisotropy);
     m.anisotropy = std::max(1.0f, std::min(m.options.anisotropy, maxAnisotropy));
     const int want = std::min(m.options.samples, maxSamples);
-    if (want > 1) {
+    // RE4_GX_MSAA_TILES=1 / 0: on the tiles or not, whatever the options say (experiments)
+    const char *tiles = std::getenv("RE4_GX_MSAA_TILES");
+    const bool tiled = tiles && (*tiles == '0' || *tiles == '1') ? *tiles == '1' : m.options.tiledMsaa;
+    if (want > 1 && tiled)
+      m.TiledMsaa(want);
+    if (want > 1 && !m.tiledMsaa) {
       while (glGetError() != GL_NO_ERROR) {
       }
       glGenRenderbuffers(1, &m.msaaColor);
@@ -2074,6 +2181,10 @@ void GxRenderer::SetOptions(const GxOptions &options) { impl_->options = options
 int GxRenderer::Samples() const { return impl_->samples; }
 
 float GxRenderer::Anisotropy() const { return impl_->anisotropy; }
+
+bool GxRenderer::Invalidates() const { return impl_->options.invalidate; }
+
+bool GxRenderer::TiledMsaa() const { return impl_->tiledMsaa; }
 
 void GxRenderer::Limits(int *maxSamples, float *maxAnisotropy) {
   GLint samples = 1;
