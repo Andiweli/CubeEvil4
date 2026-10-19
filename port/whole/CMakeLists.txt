@@ -52,6 +52,13 @@ if(RE4_ARCH STREQUAL "i686")
     # results (and the bit-exact math tests) would differ from the device.
     add_compile_options(-msse2 -mfpmath=sse)
 endif()
+# No fused multiply-add anywhere (the game's own flags below have it too): aarch64 has FMA
+# instructions, and clang fuses a*b+c into one rounding where the flag is missing. On the
+# arm64-v8a core that were the parts without the game's flags: the SDK's matrix and vector math
+# (C_MTXConcat 24, C_MTXInverse 20, C_MTX44Concat 48 fused instructions ...), the sound
+# effects, a few runtime functions; armhf (VFPv3) and x86 have none, so the 32/64-bit compare
+# on the PC could not see it (19.10.2026). whole_build.sh counts them in the aarch64 build.
+add_compile_options(-ffp-contract=off)
 
 # --- prepared original sources -------------------------------------------------
 set(RE4_PREPARED "${CMAKE_CURRENT_BINARY_DIR}/prepared")
