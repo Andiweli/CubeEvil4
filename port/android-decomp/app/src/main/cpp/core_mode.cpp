@@ -67,6 +67,7 @@ struct CoreApi {
   int (*pause)(int, int){};
   void (*debugMenu)(void){};
   void (*setDof)(int){};
+  void (*gyro)(float, float){};  // optional (cores since 19.10.2026): gyro aiming
   int (*cardList)(Re4CardFile *, int){};
   int (*cardFree)(void){};
   int (*cardName)(int, char *, int){};
@@ -345,6 +346,7 @@ void loadCore(JNIEnv *env) {
   api.pause = reinterpret_cast<int (*)(int, int)>(dlsym(api.main, "re4_core_pause"));
   api.debugMenu = reinterpret_cast<void (*)(void)>(dlsym(api.main, "re4_core_debug_menu"));
   api.setDof = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_set_dof"));
+  api.gyro = reinterpret_cast<void (*)(float, float)>(dlsym(api.main, "re4_core_gyro"));
   api.cardList = reinterpret_cast<int (*)(Re4CardFile *, int)>(dlsym(api.main, "re4_core_card_list"));
   api.cardFree = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_card_free_blocks"));
   api.cardName = reinterpret_cast<int (*)(int, char *, int)>(dlsym(api.main, "re4_core_card_file_name"));
@@ -387,7 +389,8 @@ int width = 1, height = 1;
 std::chrono::steady_clock::time_point lastDraw;
 
 // GX view (GL thread): on unless RE4_VIEW=bridge; EFB scale from the menu
-// (CoreBridge.setGraphics; automatic: from the screen's height, at most 3),
+// (CoreBridge.setGraphics; automatic: from the screen's height, one level below the closest, at
+// most 2),
 // else RE4_GX_SCALE
 std::unique_ptr<re4gx::GxRenderer> gx;
 int gxMode = -1;  // -1 undecided, 0 bridge, 1 GX
@@ -777,9 +780,11 @@ bool drawGx() {
       scale = scaleText ? std::atoi(scaleText) : 0;
     }
     if (scale < 1 || scale > 4) {
-      // automatic: the 336 rows of the picture to about the screen's rows
+      // automatic: one level below the one whose 336 picture rows come closest to the screen's
+      // rows (wish of the project owner, 19.10.2026: the Retroid's 1080 rows take 2, not 3;
+      // CoreMenu.autoScale is the same)
       const int rows = std::min(height, width * 9 / 16);
-      scale = std::max(1, std::min(3, (rows + 168) / 336));
+      scale = std::max(1, std::min(3, (rows + 168) / 336) - 1);
     }
     gx = std::make_unique<re4gx::GxRenderer>();
     re4gx::GxOptions options;
@@ -1349,6 +1354,11 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_debugMenu(JN
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setDof(JNIEnv *, jclass, jboolean on) {
   optDof = on ? 1 : 0;
   if (api.setDof) api.setDof(on ? 1 : 0);
+}
+
+// Gyro aiming (GyroAim.java): the turn rates to the core (cores since 19.10.2026; older ones: none).
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_gyro(JNIEnv *, jclass, jfloat yaw, jfloat pitch) {
+  if (api.gyro) api.gyro(yaw, pitch);
 }
 
 std::mutex cardLock;

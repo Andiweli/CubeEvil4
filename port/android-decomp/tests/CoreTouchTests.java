@@ -167,6 +167,13 @@ public final class CoreTouchTests {
   /** The default layout with RetroTouch's rules and geometry (RetroTouchView.contains, drawButton). */
   static void layout() {
     check(CoreTouch.ACTIONS.length == CoreTouch.LABELS.length && CoreTouch.ACTIONS.length == CoreTouch.COLOURS.length);
+    // the GameCube's colours: A green, B red, Z purple, every other button grey
+    for (int i = 0; i < CoreTouch.ACTIONS.length; i++) {
+      String a = CoreTouch.ACTIONS[i];
+      int want = a.equals(CoreTouch.A) ? 0xFF109B61 : a.equals(CoreTouch.B) ? 0xFFF6392C
+          : a.equals(CoreTouch.Z) ? 0xFF6B5CB1 : 0xFFDDDDDD;
+      check(CoreTouch.COLOURS[i] == want);
+    }
     Set<String> registered = new HashSet<>();
     for (int i = 0; i < CoreTouch.ACTIONS.length; i++) {
       String a = CoreTouch.ACTIONS[i];

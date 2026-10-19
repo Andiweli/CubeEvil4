@@ -80,9 +80,11 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   static final String INPUT_PREFS = "core_input", SWAP_FACE = "swapFace", R3_CAPTURE = "r3Capture";
   /** The menu's switch "Use Touch Controls": shown even with a controller (off: only without one). */
   static final String TOUCH_ALWAYS = "touchControls";
+  // the menu's switch "Use Gyro-Aiming" (GyroAim)
+  static final String GYRO_AIM = "gyroAiming";
   /** The menu's picture options: scale (0 auto, 1-4), samples, anisotropy, aspect (0 16:9, 1 4:3). */
   static final String GRAPHICS_PREFS = "core_graphics";
-  private static final int REQUEST_EXPORT = 1, REQUEST_EXPORT_ALL = 2, REQUEST_IMPORT = 3, REQUEST_REPORT = 4;
+  private static final int REQUEST_EXPORT_ALL = 2, REQUEST_IMPORT = 3, REQUEST_REPORT = 4;
   /** SELECT held this long: the game's debug menu. */
   private static final long SELECT_HOLD_MS = 1000;
 
@@ -94,6 +96,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private GLSurfaceView surface;
   // the touch controls (RetroTouch) and its editor, during which the game stands
   private TouchControls touchControls;
+  private GyroAim gyroAim;
   private boolean touchEditing;
   private String startProblem = "";
   private String settings = "";
@@ -101,7 +104,6 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   // the menu (SELECT) and the debug menu (SELECT held)
   private CoreMenu menu;
   private boolean menuSupported, tools, selectDown, selectHeld;
-  private int exportIndex = -1;
   private final List<byte[]> pendingImports = new ArrayList<>();
   private boolean resumed;
   // GPU step c: the picture drawn at each vsync or, on a faster screen, at every n-th
@@ -186,6 +188,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     showFps(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("fps", false));
     // the touch controls above everything
     touchControls = new TouchControls(this, input, inputPrefs.getBoolean(TOUCH_ALWAYS, false), touchHost);
+    gyroAim = new GyroAim(this, main);
+    gyroAim.setEnabled(inputPrefs.getBoolean(GYRO_AIM, false));
     root.addView(touchControls.view(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
         FrameLayout.LayoutParams.MATCH_PARENT));
     if (startProblem.isEmpty()) CoreBridge.setDof(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("dof", true));
@@ -384,13 +388,6 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private final CoreMenu.Host menuHost = new CoreMenu.Host() {
     @Override public void graphicsChanged() { applyGraphics(); }
 
-    @Override public void exportFile(int index, String fileName) {
-      exportIndex = index;
-      Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-          .setType("application/octet-stream").putExtra(Intent.EXTRA_TITLE, fileName);
-      startForResult(i, REQUEST_EXPORT);
-    }
-
     @Override public void exportAll() {
       startForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQUEST_EXPORT_ALL);
     }
@@ -421,6 +418,11 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     @Override public void touchChanged(boolean on) {
       getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(TOUCH_ALWAYS, on).apply();
       touchControls.setAlways(on);
+    }
+
+    @Override public void gyroChanged(boolean on) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(GYRO_AIM, on).apply();
+      gyroAim.setEnabled(on);
     }
   };
 
@@ -477,18 +479,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     super.onActivityResult(request, result, data);
     if (result != RESULT_OK || data == null) return;
     try {
-      if (request == REQUEST_EXPORT && data.getData() != null) {
-        byte[] gci = CoreBridge.cardExport(exportIndex);
-        if (gci == null) {
-          message("Export failed: " + CoreBridge.cardNote());
-          return;
-        }
-        try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
-          if (out == null) throw new IOException("no stream");
-          out.write(gci);
-        }
-        Toast.makeText(this, "Exported", Toast.LENGTH_SHORT).show();
-      } else if (request == REQUEST_EXPORT_ALL && data.getData() != null) {
+      if (request == REQUEST_EXPORT_ALL && data.getData() != null) {
         exportAllInto(data.getData());
       } else if (request == REQUEST_IMPORT) {
         pendingImports.clear();
@@ -940,6 +931,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     if (menuSupported && menu == null && !touchEditing) CoreBridge.pause(false, 0);
     Choreographer.getInstance().removeFrameCallback(vsyncTick);
     Choreographer.getInstance().postFrameCallback(vsyncTick);
+    if (gyroAim != null) gyroAim.resume();
     InputManager im = (InputManager) getSystemService(Context.INPUT_SERVICE);
     if (im != null) im.registerInputDeviceListener(this, main);
     if (menu == null && !touchEditing) {
@@ -958,6 +950,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     main.removeCallbacks(selectHold);
     Choreographer.getInstance().removeFrameCallback(vsyncTick);
     pacing.restart();
+    if (gyroAim != null) gyroAim.pause();
     // the sound pauses with the app (the core skips what it played meanwhile)
     audio.stop();
     main.removeCallbacks(rumbleTick);

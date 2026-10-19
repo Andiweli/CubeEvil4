@@ -72,6 +72,11 @@ public final class CoreBridge {
    *  gameplay autofocus of the first Android port; on unless switched off. */
   public static native void setDof(boolean on);
   /**
+   * Gyro aiming (GyroAim): the device's turn rates in rad/s about the screen's axes (yaw, pitch);
+   * the core turns the aim by them while Leon aims a gun. 0, 0: still.
+   */
+  public static native void gyro(float yaw, float pitch);
+  /**
    * The memory card's files, one tab-separated row each (index, name,
    * blocks, save, intact, room, chapter, times saved, play time, year,
    * month, day, hour, minute, comment 1, comment 2); null when the game

@@ -23,8 +23,8 @@ import java.util.Locale;
 /**
  * The core mode's menu (M11; SELECT pressed, decision of the project owner,
  * 17.10.2026): picture options with the resolution they give, the FPS
- * display, the touch controls' switch (19.10.2026), the memory card's files as .gci (export for Dolphin or a
- * GameCube, import from there) and the error log; centred headings in small
+ * display, the touch controls' and gyro aiming's switches (19.10.2026), the memory card as .gci
+ * (export for Dolphin or a GameCube, import from there) and the error log; centred headings in small
  * capitals between lines (wishes of the project owner, 17.10.2026). The game
  * stands while it is open (CoreActivity pauses the core).
  * Run with the controller: D-pad between the entries, A chooses, B / START /
@@ -35,7 +35,6 @@ final class CoreMenu extends Dialog {
   interface Host {
     /** Picture options changed (the preferences hold them). */
     void graphicsChanged();
-    void exportFile(int index, String fileName);
     void exportAll();
     void importFiles();
     void shareReport();
@@ -45,6 +44,8 @@ final class CoreMenu extends Dialog {
     void fpsChanged(boolean on);
     /** The switch "Use Touch Controls" (the preferences hold it). */
     void touchChanged(boolean on);
+    /** The switch "Use Gyro-Aiming" (the preferences hold it). */
+    void gyroChanged(boolean on);
   }
 
   private final Host host;
@@ -54,7 +55,6 @@ final class CoreMenu extends Dialog {
   private final LinearLayout body;
   private RadioGroup firstChoice;
   private TextView graphicsLine, cardLine;
-  private LinearLayout cardFiles;
   private Button exportAll;
 
   /** screenWidth/Height: the game's picture on the screen (Auto chooses the resolution from it). */
@@ -126,14 +126,20 @@ final class CoreMenu extends Dialog {
     body.addView(row, lp);
   }
 
-  private CheckBox checkBox(ViewGroup parent, String label, boolean checked,
+  /** A check box taking `weight` shares of its row. */
+  private CheckBox checkBox(ViewGroup parent, String label, boolean checked, float weight,
                             android.widget.CompoundButton.OnCheckedChangeListener changed) {
     CheckBox c = new CheckBox(getContext());
     c.setText(label);
     c.setChecked(checked);
     c.setOnCheckedChangeListener(changed);
-    parent.addView(c, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+    parent.addView(c, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weight));
     return c;
+  }
+
+  private CheckBox checkBox(ViewGroup parent, String label, boolean checked,
+                            android.widget.CompoundButton.OnCheckedChangeListener changed) {
+    return checkBox(parent, label, checked, 1, changed);
   }
 
   private Button button(ViewGroup parent, String label, View.OnClickListener click) {
@@ -143,6 +149,33 @@ final class CoreMenu extends Dialog {
     b.setOnClickListener(click);
     parent.addView(b);
     return b;
+  }
+
+  /** A button taking `weight` shares of its row. */
+  private Button button(ViewGroup parent, String label, float weight, View.OnClickListener click) {
+    Button b = new Button(getContext());
+    b.setText(label);
+    b.setAllCaps(false);
+    b.setOnClickListener(click);
+    parent.addView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weight));
+    return b;
+  }
+
+  /**
+   * A row like the choices' rows: `title` in the label column, then the returned box, whose
+   * children share the width as the five columns of the choices do (weight 1 each: a child of
+   * weight 2 at the start spans the first two columns, the next one starts under the third).
+   */
+  private LinearLayout labelledRow(String title) {
+    LinearLayout row = new LinearLayout(getContext());
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    row.addView(text(title, 14, false), new LinearLayout.LayoutParams(dp(170), ViewGroup.LayoutParams.WRAP_CONTENT));
+    LinearLayout box = new LinearLayout(getContext());
+    box.setGravity(Gravity.CENTER_VERTICAL);
+    box.setWeightSum(5);
+    row.addView(box, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+    body.addView(row);
+    return box;
   }
 
   /** A row of choices for preference `key` (values in `values`), applied at once. */
@@ -182,8 +215,8 @@ final class CoreMenu extends Dialog {
     title.setGravity(Gravity.CENTER_HORIZONTAL);
     body.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.WRAP_CONTENT));
-    TextView intro = text("SELECT (touch: MENU): this menu  ·  hold it for a second: the game's debug menu  ·  "
-        + "B: back to the game", 13, false);
+    TextView intro = text("SELECT (short-press) = this Menu  ·  SELECT (long-press) = the Game's Debug Menu", 13,
+        false);
     intro.setGravity(Gravity.CENTER_HORIZONTAL);
     body.addView(intro, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -204,98 +237,95 @@ final class CoreMenu extends Dialog {
         new int[] {1, 2, 4, 8, 16}, 1, maxAnisotropy);
     choices("Picture", "aspect", new String[] {"16:9", "4:3 (original)"},
         new int[] {0, 1}, 0, 0);
-    LinearLayout fpsRow = new LinearLayout(getContext());
-    checkBox(fpsRow, "FPS display bottom left", graphics.getBoolean("fps", false),
-        (b, on) -> {
-          graphics.edit().putBoolean("fps", on).apply();
-          host.fpsChanged(on);
-        });
-    checkBox(fpsRow, "Depth of field", graphics.getBoolean("dof", true),
+    // the check boxes in the choices' columns: the first under "16:9", the second under the third
+    LinearLayout other = labelledRow("Other options");
+    checkBox(other, "Depth of field", graphics.getBoolean("dof", true), 2,
         (b, on) -> {
           graphics.edit().putBoolean("dof", on).apply();
           CoreBridge.setDof(on);
         });
-    body.addView(fpsRow);
+    checkBox(other, "FPS display bottom left", graphics.getBoolean("fps", false), 3,
+        (b, on) -> {
+          graphics.edit().putBoolean("fps", on).apply();
+          host.fpsChanged(on);
+        });
     graphicsLine = text("", 12, false);
     body.addView(graphicsLine);
     showGraphics();
 
     heading("Controls");
-    LinearLayout touchRow = new LinearLayout(getContext());
-    checkBox(touchRow, "Use Touch Controls", getContext().getSharedPreferences(CoreActivity.INPUT_PREFS,
-        Context.MODE_PRIVATE).getBoolean(CoreActivity.TOUCH_ALWAYS, false), (b, on) -> host.touchChanged(on));
-    body.addView(touchRow);
-    body.addView(text("Off: the touch controls appear only while no controller is connected ("
-        + (TouchControls.controllerConnected() ? "one is connected now" : "none is connected now")
-        + "). The gear at the top right moves and resizes them. MENU is SELECT; L and R stay pressed until "
-        + "tapped again.", 12, false));
+    // in the columns of the check boxes above
+    SharedPreferences input = getContext().getSharedPreferences(CoreActivity.INPUT_PREFS, Context.MODE_PRIVATE);
+    LinearLayout methods = labelledRow("Select methods");
+    checkBox(methods, "Use Touch Controls", input.getBoolean(CoreActivity.TOUCH_ALWAYS, false), 2,
+        (b, on) -> host.touchChanged(on));
+    boolean gyro = GyroAim.available(getContext());
+    CheckBox gyroBox = checkBox(methods, gyro ? "Use Gyro-Aiming" : "Use Gyro-Aiming (no gyroscope)",
+        gyro && input.getBoolean(CoreActivity.GYRO_AIM, false), 3, (b, on) -> host.gyroChanged(on));
+    gyroBox.setEnabled(gyro);
+    body.addView(text("Touch Controls: They appear when no controller is detected, use checkbox to manually enable "
+        + "it. The menu-icon opens the configuration (MENU = SELECT, L and R stay pressed until tapped again).",
+        12, false));
 
     heading("Memory card (slot A)");
-    cardLine = text("", 13, false);
+    body.addView(text("Export and Import Savegames as .gci (for Dolphin or GameCube).", 12, false));
+    // only when the card cannot be read now (in use, still loading, none)
+    cardLine = text("", 12, false);
     body.addView(cardLine);
-    body.addView(text("Saves as .gci – for Dolphin and (with a copy tool such as GCMM) for the GameCube.", 12, false));
-    cardFiles = new LinearLayout(getContext());
-    cardFiles.setOrientation(LinearLayout.VERTICAL);
-    body.addView(cardFiles);
     LinearLayout cardButtons = new LinearLayout(getContext());
-    exportAll = button(cardButtons, "Export all …", v -> host.exportAll());
-    button(cardButtons, "Import (.gci) …", v -> host.importFiles());
+    exportAll = button(cardButtons, "Export Savegames (.gci)", 1, v -> host.exportAll());
+    button(cardButtons, "Import Savegames (.gci)", 1, v -> host.importFiles());
     body.addView(cardButtons);
     refreshCard();
 
     heading("Error log");
-    body.addView(text("Records what the app reports (also when it crashes or hangs). The report holds the log of this "
-        + "run and the one before and the device's data, no saves.", 12, false));
-    LinearLayout checks = new LinearLayout(getContext());
-    checkBox(checks, "Record the error log", CoreLog.enabled(getContext()),
+    body.addView(text("Records an app report (also when crashed or it hangs). The report holds log of this run and the "
+        + "one before.", 12, false));
+    // four equal parts: the two check boxes, then the two buttons
+    LinearLayout log = new LinearLayout(getContext());
+    log.setGravity(Gravity.CENTER_VERTICAL);
+    checkBox(log, "Record the error log", CoreLog.enabled(getContext()),
         (b, on) -> host.logChanged(on));
-    checkBox(checks, "R3: graphics capture (diagnosis)", tools,
+    checkBox(log, "R3: graphics capture (diagnosis)", tools,
         (b, on) -> host.toolsChanged(on));
-    body.addView(checks);
-    LinearLayout reportButtons = new LinearLayout(getContext());
-    button(reportButtons, "Send report …", v -> host.shareReport());
-    button(reportButtons, "Save report …", v -> host.saveReport());
-    body.addView(reportButtons);
+    button(log, "Send report …", 1, v -> host.shareReport());
+    button(log, "Save report …", 1, v -> host.saveReport());
+    body.addView(log);
   }
 
-  /** The resolution the chosen level gives (Auto: as core_mode.cpp chooses it from the screen). */
+  /**
+   * Auto (as core_mode.cpp chooses it): one level below the one whose 336 picture rows come
+   * closest to the screen's rows (wish of the project owner, 19.10.2026: 1080 rows take 2).
+   */
+  static int autoScale(int screenWidth, int screenHeight) {
+    int rows = Math.min(screenHeight, screenWidth * 9 / 16);
+    return Math.max(1, Math.min(3, (rows + 168) / 336) - 1);
+  }
+
+  /** The resolution the chosen level gives. */
   private void showGraphics() {
     int chosen = graphics.getInt("scale", 0), scale = chosen;
-    if (scale < 1 || scale > 4) {
-      int rows = Math.min(screenHeight, screenWidth * 9 / 16);
-      scale = Math.max(1, Math.min(3, (rows + 168) / 336));
-    }
+    if (scale < 1 || scale > 4) scale = autoScale(screenWidth, screenHeight);
     boolean original = graphics.getInt("aspect", 0) == 1;
     graphicsLine.setText(String.format(Locale.ROOT, "Resolution: %d × %d pixels (level %d%s) · screen %d × %d · "
         + "applies when the menu closes. Higher levels need more power.", 640 * scale, (original ? 448 : 336) * scale, scale, chosen == 0 ? ", Auto" : "",
         screenWidth, screenHeight));
   }
 
-  /** The card's files (the game stands, so the card can be read). */
+  /** Whether the card can be read now (the game stands): the export only then, else why not. */
   void refreshCard() {
-    cardFiles.removeAllViews();
     String[] rows = CoreBridge.cardList();
     if (rows == null) {
       boolean busy = "busy".equals(CoreBridge.cardNote());
       cardLine.setText(busy ? "The card is in use (the game saves or loads) or the game is still loading – close the "
           + "menu and open it again in a moment."
           : "No memory card.");
+      cardLine.setVisibility(View.VISIBLE);
       exportAll.setEnabled(false);
       return;
     }
-    int free = CoreBridge.cardFreeBlocks();
-    cardLine.setText(String.format(Locale.ROOT, "%d files, %d of 251 blocks free.",
-        rows.length, Math.max(0, free)));
+    cardLine.setVisibility(View.GONE);
     exportAll.setEnabled(rows.length > 0);
-    for (String row : rows) {
-      final String[] f = row.split("\t", -1);
-      if (f.length < 16) continue;
-      final int index = Integer.parseInt(f[0]);
-      button(cardFiles, describe(f) + "  –  " + "export", v -> {
-        String name = CoreBridge.cardFileName(index);
-        host.exportFile(index, name != null ? name : f[1] + ".gci");
-      });
-    }
   }
 
   /** "Datei 01 · r100 · Spielzeit 0:12:34 · 17.10.2026 00:48" for a save, the system file by name. */

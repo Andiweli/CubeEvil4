@@ -36,9 +36,11 @@ final class CoreTouch {
   /** The buttons in the editor's order: action, label (short: it has to fit the button), colour (0: RetroTouch's grey). */
   static final String[] ACTIONS = {A, B, X, Y, Z, L, R, START, MENU};
   static final String[] LABELS = {"A", "B", "X", "Y", "Z", "L", "R", "START", "MENU"};
-  // the GameCube's colours: A green, B red, X and Y light grey, Z purple
-  static final int[] COLOURS = {rgb(31, 166, 74), rgb(217, 43, 43), rgb(180, 180, 180), rgb(180, 180, 180),
-      rgb(106, 79, 193), 0, 0, 0, 0};
+  // the GameCube's official colours (the project owner's palette, 19.10.2026): A green, B red,
+  // Z purple, the others grey (RetroTouch writes dark labels on the light grey)
+  static final int GC_GREEN = rgb(0x10, 0x9B, 0x61), GC_RED = rgb(0xF6, 0x39, 0x2C), GC_PURPLE = rgb(0x6B, 0x5C, 0xB1),
+      GC_GREY = rgb(0xDD, 0xDD, 0xDD);
+  static final int[] COLOURS = {GC_GREEN, GC_RED, GC_GREY, GC_GREY, GC_PURPLE, GC_GREY, GC_GREY, GC_GREY, GC_GREY};
 
   // the kinds of RetroTouchControl
   static final int BUTTON = 0, STICK = 1, LOOK = 2, DPAD = 3;
