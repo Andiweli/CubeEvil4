@@ -767,6 +767,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         Say "GPU-Messung:                      $(if ($bench.Count) { "$($bench.Count) Zeilen" } else { 'KEINE (lief das Spiel bis r100?)' })"
         foreach ($line in $bench) { Say "  $(($line -split 'RE4Core\s*:\s*')[-1])" }
     }
+    # the screen's rate and how often the picture is drawn (GPU step c, CoreActivity / FramePacing)
+    $display = @($keep | Where-Object { $_ -match 'RE4Input\s*: display at ' })
+    foreach ($line in @($display | Select-Object -First 4)) { Say "Bildschirm:                       $(($line -split 'RE4Input\s*:\s*')[-1])" }
     # the GPU and the extensions step d (MSAA on the tiles) needs (gx_gl.cpp, once per run)
     $gpuInfo = $keep | Where-Object { $_ -match 'RE4GX\s*: GPU: ' } | Select-Object -First 1
     if ($gpuInfo) { Say "Grafikchip:                       $(($gpuInfo -split 'RE4GX\s*:\s*GPU:\s*')[-1])" }

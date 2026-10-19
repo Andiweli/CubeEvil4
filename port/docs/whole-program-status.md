@@ -4620,6 +4620,29 @@ Bild zurückkopiert.
   Hinweis zur Messung: an der Messstelle schaut Leon in die Ferne, gemessen wird also vor allem der
   Aufwand der Durchgänge selbst, nicht die Unschärfe.
 
+**GPU-Schritt (c): 60 Hz auf schnellen Bildschirmen (19.10.2026, Cloud, Branch
+`claude/re4-gpu-efficiency`).** Das Spiel liefert höchstens 60 Bilder/s (59,94 Halbbilder); auf
+einem 120-Hz-Handy (POCO X7 Pro des Testers) zeichnete die App das Bild 120-mal je Sekunde neu.
+- **Bitte um 60 Hz** (`CoreActivity.preferSixtyHz`): kann der Bildschirm schneller als 60 Hz,
+  wählt die App seine 60-Hz-Betriebsart gleicher Größe (`preferredDisplayModeId`, ab Android 6)
+  und gibt ab Android 11 der Zeichenfläche 60 Bilder/s an (`Surface.setFrameRate`). Ein
+  Bildschirm nur mit 60 Hz (Retroid) bleibt, wie er ist.
+- **Falls er doch schneller bleibt** (`FramePacing.java`, neu): die App misst den Takt des
+  Bildschirms an seinen Vsyncs (Median aus 32 Abständen; verspätete Rückrufe zählen nicht) und
+  lässt dann nur bei jedem n-ten Vsync zeichnen (120 Hz und 144 Hz: jeder zweite, 240 Hz: jeder
+  vierte; 90 Hz: jeder, sonst wären es nur 45/s). Gewechselt wird erst, wenn zwei Messungen
+  übereinstimmen. Technisch: `GLSurfaceView` auf `RENDERMODE_WHEN_DIRTY`, `requestRender` aus
+  dem Choreographer. (Die naheliegende Wartezahl `eglSwapInterval(2)` begrenzt Android auf 1.)
+  Der Kern bekommt weiter jeden Vsync (`runtime/vi.cpp` kennt 120 Hz mit zwei Vsyncs je Halbbild).
+- Protokoll: „display at … Hz (modes: …)“ beim Start und „display at … Hz: the picture drawn …“
+  nach der ersten Messung und bei jedem Wechsel; der Bericht von `test-core-app.ps1` zeigt sie als
+  „Bildschirm:“. Im Messlauf zeigt „presents/s“ die Wirkung.
+- **Getestet (Cloud):** `FramePacingTests` (420 Prüfungen: 60, 90, 120, 144, 165, 180, 240 Hz,
+  verspätete Rückrufe, Wechsel 120 → 60 Hz, einzelne Ausreißer, Pause), in `tools/test_host.sh`;
+  alle Java-Dateien der App gegen Android 15 (android-all) übersetzt, keine Warnung aus dem
+  eigenen Code. **Nicht getestet:** ein Gerät mit mehr als 60 Hz (der Retroid hat 60 Hz: dort
+  muss alles bleiben wie bisher, das zeigt der nächste Gerätelauf), Android-Lint.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |

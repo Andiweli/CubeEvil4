@@ -26,10 +26,13 @@ import android.os.VibratorManager;
 import android.provider.DocumentsContract;
 import android.util.Log;
 import android.view.Choreographer;
+import android.view.Display;
 import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.Surface;
+import android.view.SurfaceHolder;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
@@ -101,6 +104,12 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private int exportIndex = -1;
   private final List<byte[]> pendingImports = new ArrayList<>();
   private boolean resumed;
+  // GPU step c: the picture drawn at each vsync or, on a faster screen, at every n-th
+  private final FramePacing pacing = new FramePacing();
+  private int vsyncs;
+  private boolean paceLogged;
+  // the screen was asked for 60 Hz (preferSixtyHz): the surface too, once it exists
+  private boolean askSixty;
   // rumble: the game's motor (CoreBridge.rumble) on the device's vibrator
   private Vibrator vibrator;
   private boolean amplitudeControl, vibrating;
@@ -158,6 +167,11 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       @Override public void onDrawFrame(GL10 gl) { CoreBridge.draw(); }
     });
     root.addView(surface);
+    surface.getHolder().addCallback(new SurfaceHolder.Callback() {
+      @Override public void surfaceCreated(SurfaceHolder holder) { surfaceSixtyHz(holder.getSurface()); }
+      @Override public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {}
+      @Override public void surfaceDestroyed(SurfaceHolder holder) {}
+    });
     // the surface takes the fingers beside the touch controls: Android gives the further fingers
     // of a touch only to views that took one, so a thumb beside the buttons would block them
     surface.setOnTouchListener((v, e) -> true);
@@ -176,6 +190,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
         FrameLayout.LayoutParams.MATCH_PARENT));
     if (startProblem.isEmpty()) CoreBridge.setDof(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("dof", true));
     setContentView(root);
+    preferSixtyHz();
     surface.setFocusable(true);
     surface.requestFocus();
     if (Build.VERSION.SDK_INT >= 33)
@@ -849,14 +864,71 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   }
 
   // every vsync of the display while the game is shown: the core's retraces
-  // follow it (runtime/vi.cpp), so the pictures do not drift against 60 Hz
+  // follow it (runtime/vi.cpp), so the pictures do not drift against 60 Hz.
+  // A screen faster than 60 Hz has the picture drawn at every n-th vsync only
+  // (FramePacing, GPU step c)
   private final Choreographer.FrameCallback vsyncTick = new Choreographer.FrameCallback() {
     @Override public void doFrame(long frameTimeNanos) {
       if (!resumed) return;
       CoreBridge.vsync(frameTimeNanos);
+      if (pacing.vsync(frameTimeNanos) || (!paceLogged && pacing.hz() > 0)) pace();
+      if (pacing.every() > 1 && ++vsyncs % pacing.every() == 0) surface.requestRender();
       Choreographer.getInstance().postFrameCallback(this);
     }
   };
+
+  /** The screen's rate measured anew (FramePacing): the picture drawn at each vsync or at every n-th. */
+  private void pace() {
+    paceLogged = true;
+    int every = pacing.every();
+    surface.setRenderMode(every > 1 ? GLSurfaceView.RENDERMODE_WHEN_DIRTY : GLSurfaceView.RENDERMODE_CONTINUOUSLY);
+    Log.i(TAG, String.format(Locale.ROOT, "display at %.1f Hz: the picture drawn %s", pacing.hz(),
+        every > 1 ? "at every " + every + " vsyncs (the screen stayed faster than 60 Hz)" : "at each vsync"));
+  }
+
+  /**
+   * GPU step c (19.10.2026): the game makes at most 60 pictures a second; a screen that can run
+   * faster than 60 Hz (the tester's POCO X7 Pro: 120 Hz, the picture drawn 120 times a second) is
+   * asked for 60 Hz: its display mode of the same size with 60 Hz where it has one, and from
+   * Android 11 the surface's frame rate. A screen of 60 Hz only (the Retroid) is left as it is.
+   * What the screen then does, FramePacing measures.
+   */
+  private void preferSixtyHz() {
+    if (Build.VERSION.SDK_INT < 23) return;
+    Display display = getWindowManager().getDefaultDisplay();
+    Display.Mode current = display.getMode();
+    Display.Mode sixty = null;
+    float fastest = 0;
+    StringBuilder modes = new StringBuilder();
+    for (Display.Mode m : display.getSupportedModes()) {
+      modes.append(String.format(Locale.ROOT, " %dx%d@%.1f", m.getPhysicalWidth(), m.getPhysicalHeight(),
+          m.getRefreshRate()));
+      if (m.getPhysicalWidth() != current.getPhysicalWidth() || m.getPhysicalHeight() != current.getPhysicalHeight())
+        continue;
+      fastest = Math.max(fastest, m.getRefreshRate());
+      if (Math.abs(m.getRefreshRate() - 60f) < 1.5f) sixty = m;
+    }
+    askSixty = fastest > 65f;
+    if (askSixty && sixty != null) {
+      WindowManager.LayoutParams attributes = getWindow().getAttributes();
+      attributes.preferredDisplayModeId = sixty.getModeId();
+      getWindow().setAttributes(attributes);
+    }
+    Log.i(TAG, String.format(Locale.ROOT, "display at %.1f Hz (modes:%s)%s", current.getRefreshRate(), modes,
+        !askSixty ? ": left as it is"
+        : sixty != null ? ": asked for its 60 Hz mode" + (Build.VERSION.SDK_INT >= 30 ? " and 60 pictures a second" : "")
+        : Build.VERSION.SDK_INT >= 30 ? ": no 60 Hz mode, asked for 60 pictures a second" : ": no 60 Hz mode"));
+  }
+
+  /** The surface's frame rate (Android 11 and later) when the screen was asked for 60 Hz. */
+  private void surfaceSixtyHz(Surface s) {
+    if (!askSixty || Build.VERSION.SDK_INT < 30) return;
+    try {
+      s.setFrameRate(60f, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
+    } catch (RuntimeException e) {
+      Log.w(TAG, "surface frame rate: " + e);
+    }
+  }
 
   @Override
   protected void onResume() {
@@ -885,6 +957,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     selectDown = false;
     main.removeCallbacks(selectHold);
     Choreographer.getInstance().removeFrameCallback(vsyncTick);
+    pacing.restart();
     // the sound pauses with the app (the core skips what it played meanwhile)
     audio.stop();
     main.removeCallbacks(rumbleTick);
