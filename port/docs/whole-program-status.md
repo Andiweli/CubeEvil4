@@ -4511,6 +4511,39 @@ Weg) und mit zink (Kacheln: „MSAA on the tiles where asked for and the GPU can
 Kopie und Palette, Autofokus mit MSAA); `gx_chunk_render`, `re4decomp_link_check` gebaut. Nicht
 getestet: die PC-Prüfung mit echten Spielbildern, das Gerät.
 
+**Leons Haare fehlen / Flackern (Projektinhaber, 19.10.2026, Retroid, 64 bit).** Beim GPU-Messlauf
+„stellenweise“, beim Spielen von Hand **dauernd, bei jeder MSAA-Einstellung**. Die Bildschirmfotos
+des Messlaufs (Leon steht) zeigen die Haare. Ohne MSAA ist der Renderer des GPU-Branch gleichwertig
+zu M12 (Schritt b aus, Schritt d nur mit MSAA); der Shader-Zwischenspeicher erkennt geänderte
+Quelltexte (Hash beider Shader im Dateinamen und im Kopf). Ursache **offen**. Gefunden und behoben
+dabei, ohne dass es als Ursache belegt ist:
+- **Fused multiply-add nur im arm64-Kern:** Teile ohne die Spiel-Flags wurden ohne
+  `-ffp-contract=off` gebaut; clang fasste dort auf aarch64 `a*b+c` zu einem Befehl mit einer
+  Rundung zusammen (gezählt mit `llvm-objdump`: `C_MTX44Concat` 48, `C_MTXConcat` 24,
+  `C_MTXInverse` 20, `C_QUATMultiply` 12, `C_VECNormalize` 2, `C_VECDotProduct` 2, Hall-Effekte des
+  Tons …). armhf (VFPv3) und x86 haben keine solchen Befehle, darum konnte der 32/64-Vergleich am PC
+  es nicht sehen. Jetzt `add_compile_options(-ffp-contract=off)` für den ganzen Kern
+  (`port/whole/CMakeLists.txt`); `whole_build.sh` zählt die Befehle im aarch64-Build (muss 0 sein;
+  ausgenommen `Sk1Loop` und `PsSeries`, die `fmaf` absichtlich wie das `ps_madd` des Originals
+  rufen). Versuch dazu (qemu-aarch64, 2 Mio. fast parallele Vektorpaare, die SDK-Ausdrücke):
+  `acosf(Skalarprodukt)` wird NaN in 20,8 % mit und 18,3 % ohne Zusammenfassen, x86_64 und armhf
+  gleich 18,3 %. Die Haar-Simulation (`pendulum.cpp`) überspringt NaN-Winkel
+  (`ang > spdRate && …` ist dann falsch) – als Ursache der fehlenden Haare also nicht belegt.
+- Getestet (`whole_build.sh`): aarch64 (qemu) alle Kern-Prüfungen bestanden, gezählt 0; i686,
+  armhf (qemu) und x86_64 alle Prüfungen bestanden (0 Bauschritte fehlgeschlagen, Selbsttest,
+  Module, Laufzeit- und Kerntest, Formatvergleich, Filmvergleich i686/x86_64 250 von 250 Bildern
+  gleich, M12-Selbsttest 19/19, libc++ 162/162). Nicht getestet: der neue Kern auf dem Gerät.
+- **Nächster Schritt:** Grafik-Aufnahme (R3) beim Spielen, während die Haare fehlen: in der Cloud
+  zeigt das Nachzeichnen, ob die Haare in den Daten des Kerns fehlen (Spiel/Kern) oder erst auf dem
+  Gerät (Renderer/Treiber); dazu ein Lauf in 32 bit zum Vergleich.
+
+**GPU-Schritt (d): erster Gerätelauf (19.10.2026).** Arbeit (Last mal Takt), je zweimal: Optionen des
+Testers in eigenen Puffern 590 / 596, auf den Kacheln 331 / 329 (−44 %); MSAA allein 453 → 284
+(−37 %); ohne Extras 259 / 273. Die Zeitabfrage ist auf den Kacheln wieder plausibel (21 ms). Die
+PC-Prüfung (zink, 2 Proben) findet aber in 16 von 19 Bildern Unterschiede zu den eigenen Puffern,
+in den Ereignisbildern 8000–14700 Pixel (höchstens 66 von 255), bei Leon in r100 83 Pixel
+(höchstens 94). Ob das nur Kanten sind, ist ohne die Bilder offen; Schritt d bleibt im GPU-Branch.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |

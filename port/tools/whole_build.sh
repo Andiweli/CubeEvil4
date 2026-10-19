@@ -77,6 +77,22 @@ for t in "${targets[@]}"; do
         echo "  FEHLER: game-flag code in libre4_platform calls $fortified(Android fortify: use runtime/host_file.cpp)"
         status=1
     fi
+    # aarch64: no fused multiply-add in the core (CMakeLists.txt -ffp-contract=off): float results
+    # as on armhf and x86, where the instructions do not exist. Left out: the two functions that
+    # call fmaf on purpose (the original's paired-single ps_madd, game/trans.cpp Sk1Loop and
+    # game/math_sub.cpp PsSeries; fmaf rounds alike everywhere)
+    if [ "$t" = aarch64 ]; then
+        if command -v llvm-objdump > /dev/null; then
+            fused=$(for so in "$build"/libre4_*.so "$build"/modules/*.so; do
+                llvm-objdump -d --no-show-raw-insn "$so" 2> /dev/null; done |
+                awk '/^[0-9a-f]+ <.*>:$/ {fn = $2} /\tf(n)?m(add|sub)\t/ && fn !~ /Sk1Loop|PsSeries/ {n++; print fn > "/dev/stderr"} END {print n + 0}' \
+                2> "$build/fused-functions.txt")
+            echo "  fused multiply-add in the core's libraries: $fused (must be 0; functions: $(basename "$build")/fused-functions.txt)"
+            [ "$fused" -ne 0 ] && status=1
+        else
+            echo "  (llvm-objdump missing: fused multiply-add not counted)"
+        fi
+    fi
     run=()
     if [ "$t" = armhf ]; then
         if ! command -v qemu-arm > /dev/null; then
