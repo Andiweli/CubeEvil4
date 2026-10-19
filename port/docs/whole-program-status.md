@@ -4273,6 +4273,7 @@ des Testers `cubeevil4-report-20261019-010055.zip`, POCO X7 Pro):
 - Getestet (Cloud): `whole_build.sh i686 armhf x86_64 aarch64`: 0 Baufehler, alle Prüfungen
   bestanden; alle 20 M12-Prüfungen auf den echten Builds (`run_all.py`, 29 min): 0 neue Funde.
   **Nicht getestet:** das Rätsel selbst (braucht das Spiel bis r117 auf einem 64-bit-Gerät).
+  **Nachtrag 20.10.2026: auf dem Gerät bestätigt** (0.38.2, Projektinhaber).
 
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
@@ -4873,8 +4874,9 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   die GX-Daten der letzten Bilder im Speicher, R3 sichert sie).
 - **Kirche, Tester-Berichte 19.10.2026 17:42 und 17:49:** beide noch mit **0.38.0-core** (Alpha 01)
   gemacht, ohne die Berichtigung von Patch 0077 (erst in 0.38.2). Im übersetzten aarch64-Kern
-  liest `r117_espEnd` jetzt Byte 0x111 (`ldrb w8, [x8, #273]`). Offen bis zu einem Bericht mit
-  0.38.2.
+  liest `r117_espEnd` jetzt Byte 0x111 (`ldrb w8, [x8, #273]`). **Bestätigt (Projektinhaber,
+  20.10.2026): mit 0.38.2 (Alpha 3) klappt das Lichterrätsel der Kirche** (64 bit; ohne
+  Bericht).
 - **Version im Menü (Wunsch des Projektinhabers, 20.10.2026):** nach „CubeEvil4 Options“ etwas
   kleiner „(v0.38.2-Alpha3)“, aus `versionName` ohne den Anhang „-core“. `versionName` trägt dafür
   den Namen des Releases (`'0.38.2-Alpha3'`; Bericht und Startbildschirm: „0.38.2-Alpha3-core“);
