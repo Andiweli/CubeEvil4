@@ -4302,7 +4302,8 @@ der Grafikchip 237 s lang zu mindestens 96 % ausgelastet, 4,4 W im Mittel. Auf d
 
 **Grafik-Schritte a–e im eigenen Branch `claude/re4-gpu-efficiency`** (Wunsch des Projektinhabers,
 19.10.2026); Schritt (a) liegt außerdem schon im M12-Branch (Commit `715d577`, nur Messung, ohne
-Wirkung auf das Bild; Zurücknehmen dort hieße den Verlauf umschreiben).
+Wirkung auf das Bild; bleibt dort, Entscheidung des Projektinhabers, 19.10.2026: kein Umschreiben
+des Verlaufs). Der Messlauf auf dem Retroid folgt später.
 
 **GPU-Schritt (a): Messlauf gebaut (19.10.2026, Cloud).** `test-core-app.ps1 -GpuBench` startet in
 r100 (Leon steht) und setzt `RE4_GPU_BENCH=1`; die App (`core_mode.cpp`, `benchTick`) schaltet nach
