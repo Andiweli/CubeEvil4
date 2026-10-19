@@ -1,3 +1,5 @@
+<img width="1000" height="333" alt="image" src="https://github.com/user-attachments/assets/e73dfdba-2372-4a4e-9c7e-b84dc76e619d" />
+
 # CubeEvil4
 
 ![Work in progress](https://img.shields.io/badge/Status-Work%20in%20progress-E67E22)
@@ -17,7 +19,9 @@ the original game code, compiled from the complete decompilation in this reposit
 not affiliated with or endorsed by Capcom, Nintendo or CRI Middleware, and it contains no game
 data: you need your own images of both debug discs.
 
+<!--
 <p align="center"><img src="port/android-decomp/app/src/main/res/drawable-nodpi/icon_cubeevil4.png" width="160" alt="CubeEvil4 icon"></p>
+-->
 
 ## What the app does
 
