@@ -4253,6 +4253,39 @@ erst, wenn Disc 1 und Disc 2 vollständig importiert sind
 Import sichtbar. `test-core-app.ps1` wartet entsprechend auf beide Discs. Die
 Variante `classic` braucht weiter nur Disc 1.
 
+### Grafik-Auslastung: Analyse (19.10.2026, Cloud, nur Code und Berichte, noch nichts gemessen)
+
+Anlass: beim Tester (POCO X7 Pro, Mali-GPU, 3-fach, 2× MSAA, 8× anisotrop, Tiefenschärfe) war
+der Grafikchip 237 s lang zu mindestens 96 % ausgelastet, 4,4 W im Mittel. Auf dem Retroid
+(Adreno, Zeitabfrage vorhanden) maß die App 8–15,6 ms GPU je Spielbild (16.10., 3-fach) und
+17,7–19,7 ms nach M11 (17.10., mit den neuen Grafikoptionen). Gefunden im Renderer
+(`port/android-decomp/app/src/main/cpp/gx_gl.cpp`, `core_mode.cpp`):
+- **MSAA über eigene Mehrfach-Puffer und Blit-Auflösung:** jede EFB-Kopie (im Bericht des
+  Testers 5,45 Kopien je Bild, dazu die Kopie ins XFB) und der Autofokus (in 49 % der Bilder,
+  Farbe und Tiefe über das ganze EFB) lösen den MSAA-Puffer mit `glBlitFramebuffer` auf und
+  wechseln den Framebuffer. Auf Kachel-GPUs (Mali, Adreno) schreibt jeder Wechsel den ganzen
+  Puffer in den Speicher und lädt ihn danach wieder: bei 3-fach (EFB 1920×1584) mit 2 Proben
+  Farbe und Tiefe zusammen etwa 46 MB, je Wechsel also bis etwa 90 MB hin und zurück
+  (Schätzung ohne die Kompression der Treiber). Üblich auf Mobilgeräten:
+  `EXT_multisampled_render_to_texture` (die Proben bleiben im Kachelspeicher, aufgelöst wird
+  beim Zurückschreiben).
+- **Kein `glInvalidateFramebuffer`:** auch Inhalte, die nicht mehr gebraucht werden (Tiefe am
+  Ende des Bilds, Puffer vor einem vollständigen Löschen), werden gespeichert bzw. geladen.
+- **Tiefenschärfe in voller Auflösung:** zwei volle Auflösungen (Farbe, Tiefe), ein voller
+  Unschärfe-Durchgang und ein volles Zurückkopieren je Bild; die Unschärfe ginge in halber
+  Auflösung.
+- **Darstellung mit der Bildwiederholrate des Bildschirms:** `drawGx` löscht und zeichnet das
+  XFB bei jedem Vsync auf den Bildschirm (POCO: 120/s), das Spiel liefert 30 neue Bilder/s. Mit
+  `Surface.setFrameRate(60)` (ab Android 11) liefen Bildschirm und Choreographer mit 60 Hz;
+  der VI-Takt folgt dem Choreographer (wie auf dem Retroid mit 60 Hz).
+- Weitere Posten: 8× anisotrope Filterung (4× sieht fast gleich aus), Fragment-Shader ohne
+  `mediump`, das EFB wird mit 528 Zeilen angelegt, das Spiel nutzt 448 (der Autofokus löst
+  alle auf).
+- Nächster Schritt (vorgeschlagen): GPU-Zeit je Durchgang (Szene, Kopien, Autofokus,
+  Darstellung) mit der Zeitabfrage messen, auf dem Retroid mit einer Reihe von Einstellungen;
+  dann in der Reihenfolge Nutzen/Risiko umsetzen und jeden Schritt mit `gx_chunk_render`
+  Pixel für Pixel prüfen.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
