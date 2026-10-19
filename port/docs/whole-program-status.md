@@ -4467,9 +4467,10 @@ dabei, ohne dass es als Ursache belegt ist:
   `acosf(Skalarprodukt)` wird NaN in 20,8 % mit und 18,3 % ohne Zusammenfassen, x86_64 und armhf
   gleich 18,3 %. Die Haar-Simulation (`pendulum.cpp`) überspringt NaN-Winkel
   (`ang > spdRate && …` ist dann falsch) – als Ursache der fehlenden Haare also nicht belegt.
-- Getestet: aarch64 (qemu) alle Kern-Prüfungen bestanden, gezählt 0; i686 alle Prüfungen
-  bestanden; armhf und x86_64 laufen noch (Nachtrag folgt). Nicht getestet: der neue Kern auf dem
-  Gerät.
+- Getestet (`whole_build.sh`): aarch64 (qemu) alle Kern-Prüfungen bestanden, gezählt 0; i686,
+  armhf (qemu) und x86_64 alle Prüfungen bestanden (0 Bauschritte fehlgeschlagen, Selbsttest,
+  Module, Laufzeit- und Kerntest, Formatvergleich, Filmvergleich i686/x86_64 250 von 250 Bildern
+  gleich, M12-Selbsttest 19/19, libc++ 162/162). Nicht getestet: der neue Kern auf dem Gerät.
 - **Nächster Schritt:** Grafik-Aufnahme (R3) beim Spielen, während die Haare fehlen: in der Cloud
   zeigt das Nachzeichnen, ob die Haare in den Daten des Kerns fehlen (Spiel/Kern) oder erst auf dem
   Gerät (Renderer/Treiber); dazu ein Lauf in 32 bit zum Vergleich.
