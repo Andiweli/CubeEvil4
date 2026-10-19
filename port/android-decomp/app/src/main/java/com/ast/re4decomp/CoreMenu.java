@@ -85,6 +85,17 @@ final class CoreMenu extends Dialog {
     setCanceledOnTouchOutside(false);
   }
 
+  /** The app's version without the flavour's suffix ("0.38.2-Alpha3"), null when unknown. */
+  private String version() {
+    try {
+      String v = getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0).versionName;
+      if (v == null) return null;
+      return v.endsWith("-core") ? v.substring(0, v.length() - "-core".length()) : v;
+    } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+      return null;
+    }
+  }
+
   private int dp(int value) {
     return Math.round(value * getContext().getResources().getDisplayMetrics().density);
   }
@@ -224,7 +235,12 @@ final class CoreMenu extends Dialog {
     top.setGravity(Gravity.CENTER_VERTICAL);
     LinearLayout titles = new LinearLayout(getContext());
     titles.setOrientation(LinearLayout.VERTICAL);
-    titles.addView(text("CubeEvil4 Options", 22, true));
+    // the app's version after the title, smaller (testers and screenshots show which one runs)
+    LinearLayout titleRow = new LinearLayout(getContext());
+    titleRow.addView(text("CubeEvil4 Options", 22, true));
+    String version = version();
+    if (version != null) titleRow.addView(text("  (v" + version + ")", 15, false));
+    titles.addView(titleRow);
     titles.addView(text("SELECT (short-press) = this Menu  ·  SELECT (long-press) = the Game's Debug Menu", 13, false));
     top.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
     button(top, "Back to the game", v -> dismiss());

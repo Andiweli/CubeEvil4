@@ -4871,6 +4871,15 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   springende Bildpunkte). Das Flackern kommt nur ab und zu; in diesen 1,2 s war es nicht. Für
   das nächste Mal nötig: eine Aufnahme, die das Ereignis sicher enthält (Vorschlag: die App hält
   die GX-Daten der letzten Bilder im Speicher, R3 sichert sie).
+- **Kirche, Tester-Berichte 19.10.2026 17:42 und 17:49:** beide noch mit **0.38.0-core** (Alpha 01)
+  gemacht, ohne die Berichtigung von Patch 0077 (erst in 0.38.2). Im übersetzten aarch64-Kern
+  liest `r117_espEnd` jetzt Byte 0x111 (`ldrb w8, [x8, #273]`). Offen bis zu einem Bericht mit
+  0.38.2.
+- **Version im Menü (Wunsch des Projektinhabers, 20.10.2026):** nach „CubeEvil4 Options“ etwas
+  kleiner „(v0.38.2-Alpha3)“, aus `versionName` ohne den Anhang „-core“. `versionName` trägt dafür
+  den Namen des Releases (`'0.38.2-Alpha3'`; Bericht und Startbildschirm: „0.38.2-Alpha3-core“);
+  bei jedem Release mit `versionCode` anpassen. Alle Java-Dateien übersetzt; auf dem Gerät nicht
+  gesehen.
 - **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter
   linksbündig, „Back to the game“ in derselben Zeile rechts.
 - **Release 0.38.2 Alpha 03** (Entscheidung des Projektinhabers, 19.10.2026: auf GitHub liegt
