@@ -4768,7 +4768,15 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   Leon läuft mit Panzersteuerung: vorwärts/rückwärts, Drehen mit fester Geschwindigkeit
   (`pl_R1_Walk`: `Key.on & 1/2/4/8`, `SPEED_WALK_TURN`); Rennen über B. Analog wirkt der Stick nur
   beim Zielen (`PlWepLockCtrl`, `CameraScope::move`) und in Menüs. Eine freie 360°-Steuerung gäbe es
-  nur mit einem Eingriff in die Spiellogik (offen, Entscheidung des Projektinhabers).
+  nur mit einem Eingriff in die Spiellogik. **Entscheidung des Projektinhabers (19.10.2026): bleibt
+  wie im Original.**
+- **Gerätelauf von Hand (Projektinhaber, 19.10.2026 22:39, Stand `fdeda59b`, Kern neu gebaut,
+  64 bit):** Leon hat seine Haare (Auflösung 2, 4× MSAA in eigenen Puffern, 30 Bilder/s angezeigt);
+  Touch-Knöpfe in den GameCube-Farben, die Buchstaben groß und mittig (Bildschirmfotos), der Editor
+  von RetroTouch dreimal geöffnet und der Aufbau verschoben; das Menü wie gewünscht (noch mit der
+  alten R3-Beschriftung); Gyro-Zielen eingeschaltet, der Kern meldet „the aim turned by the
+  gyroscope“ (also beim Zielen mit einer Schusswaffe gedreht). Wie es sich anfühlt (Stärke, Richtung),
+  sagt der Bericht nicht. Nicht getestet: der SOURCE-Link.
 
 - **Gyro-Zielen:** `GyroAim.java` liest den Gyrosensor wie der erste Port (Achsen je nach
   Bildschirmdrehung, 35 % Glättung, unter 0,006 rad/s nichts, älter als 150 ms nichts), nur bei
