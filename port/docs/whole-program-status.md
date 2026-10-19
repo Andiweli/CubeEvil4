@@ -4237,6 +4237,14 @@ Anforderung ohne Platz. Heap 4 auf x86_64 jetzt mindestens 0x1C6B80 frei von 0xE
 64 bit. Der Bericht bat um den Ordner `bilder-vergleich` auch, wenn alle Bilder gleich waren;
 jetzt nur noch bei Unterschieden (`whole_r100_check.sh`).
 
+**Falsche Variante gebaut (Projektinhaber, 19.10.2026):** beim Bauen von 0.38.1 zeigte die
+installierte App „RE4 Android Decomp · 0.37.0“. Das ist der Startbildschirm der Variante `classic`
+(eigene Spielmodule, Paket `com.ast.re4decomp.classic`, Name „RE4 Decomp“); Android Studio nimmt
+ohne Auswahl die erste Variante (`classicDebug` / `classicRelease`). Für CubeEvil4 ist es
+`coreRelease`. Die feste Versionsangabe „0.37.0“ im Titel von `classic` stammte noch aus M11: der
+Titel lautet jetzt „RE4 Android Decomp (classic, not CubeEvil4)“ mit der echten Version
+(`MainActivity.versionName()`); ungeprüft, da in der Cloud kein Android-SDK.
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
