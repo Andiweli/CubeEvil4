@@ -51,6 +51,12 @@ struct GxStats {
   unsigned presents = 0;
   unsigned long long presentMicros = 0;
   unsigned presentTimed = 0;
+  // how far the GPU is behind, without its timer: a fence after every chunk; after the next
+  // chunk the fences it has not reached are chunks it still works on. Summed over the checks,
+  // and how many checks found 0, 1, ... 8 behind (8: kFences of gx_gl.cpp, or more)
+  unsigned long long behindSum = 0;
+  unsigned behindChecks = 0;
+  unsigned behindCount[9] = {};
 };
 
 // Picture options of the app's menu (M11), applied by Init: multisampling of

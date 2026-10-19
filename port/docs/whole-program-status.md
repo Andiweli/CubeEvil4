@@ -4393,6 +4393,35 @@ nach der Abfrage), die je Spielbild nicht (die EFB-Kopien schließen jeden Durch
 GPU time measured“: 0,3 ms je Darstellung mit llvmpipe, „the chunks' GPU time measured“;
 `re4decomp_link_check` mit `core_mode.cpp` gebaut). Nicht getestet: der Messlauf auf dem Gerät.
 
+**GPU-Schritt (a): erster Messlauf auf dem Retroid (19.10.2026, Projektinhaber), Auswertung.**
+- Alle sieben Einstellungen hielten 30 Bilder/s und 58–60 Darstellungen/s; die Darstellung kostete
+  0,3–0,6 ms (Retroid mit 60 Hz).
+- **Zu früh begonnen:** Leon war erst um 16:44:37 frei („run: player free“, Beginn von Schritt 4),
+  der Autofokus lief erst ab 16:44:27. Die Schritte 1–3 lagen in Ankunft und Funkspruch (135–290
+  Zeichenbefehle je Bild statt etwa 490); vergleichbar sind nur die Schritte 4–7.
+- **Zeitabfrage nicht plausibel** in den Schritten 4, 5 und 7 (2× MSAA mit laufendem Autofokus):
+  493, 113 und 452 ms je Bild bei 30 Bildern/s; mit 1 Probe oder ohne Autofokus 20–24 ms. Die
+  Ursache zeigt das Protokoll nicht (offen).
+- **Last mal Takt** (unabhängig von der Zeitabfrage), Schritte 4–7 an derselben Stelle: 3×, 2× MSAA,
+  anisotrop aus, Tiefenschärfe an: 87 % bei 670 MHz (≈ 583 MHz Arbeit); 3×, 2×, 8×, an: 88 % bei
+  670 MHz (≈ 590); 2×, 2×, 8×, an: 68 % bei 400 MHz (≈ 272); 3×, alles aus: 72 % bei 400 MHz
+  (≈ 288). Also verdoppeln MSAA und Tiefenschärfe zusammen bei 3× etwa die Arbeit (der Retroid
+  braucht dann den höchsten Takt und ist zu 88 % ausgelastet); 8× anisotrop kostet nichts
+  Messbares; Auflösung 2 statt 3 gut die Hälfte.
+- **Folgerung für b–e:** Die Darstellung ist auf dem Retroid klein, c (60 Hz) hilft nur auf
+  120-Hz-Handys. Der große Posten ist MSAA zusammen mit dem Autofokus (d, e). Wie er sich auf beide
+  verteilt, zeigt der zweite Lauf. Der Posten „anisotrop 4× statt 8×“ entfällt.
+- **Messlauf verbessert (Cloud):** Der erste Schritt kommt 10 s, nachdem der Kern „Leon frei“
+  meldet (`re4_trace_free_at`, schon exportiert, kein Kern-Neubau; ohne die Funktion wie bisher nach
+  60 s). Neue Schritte: 3/1/1/0, 3/2/1/0, 3/1/1/1, 3/2/1/1, 3/2/8/1, 2/2/8/1, 3/1/1/0 (MSAA und
+  Tiefenschärfe einzeln). Jede Zeile hat zusätzlich Last mal Takt, Zeichenbefehle je Bild (gleiche
+  Stelle?), eine Markierung für Zeitwerte über dem Bildabstand und, wie weit die GPU hinterherhinkt:
+  ein Fence nach jedem Spielbild, nach dem nächsten werden die noch nicht erreichten gezählt
+  (`GxStats::behind*`, `gx_gl.cpp FenceAfterChunk`). Das zeigt ohne die Zeitabfrage, ob die GPU
+  mitkommt. `test-core-app.ps1 -GpuBench` beobachtet jetzt 330 s. Getestet: `gx_gl_check` 0 Fehler
+  (neu: jedes Spielbild geprüft, nach `glFinish` 0 hinterher), `re4decomp_link_check` gebaut,
+  `core_mode.cpp` ohne neue Warnungen. Nicht getestet: der zweite Lauf auf dem Gerät.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |

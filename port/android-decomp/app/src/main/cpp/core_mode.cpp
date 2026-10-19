@@ -74,6 +74,7 @@ struct CoreApi {
   int (*cardImport)(const unsigned char *, unsigned, int, char *, int){};
   unsigned (*frameCount)(void){};
   int (*gameThread)(void){};
+  long (*freeAt)(void){};  // optional: the frame the player became free in the room (state_trace.cpp), -1 not yet
 } api;
 
 template <class F> bool bind(F &slot, const char *name) {
@@ -353,6 +354,7 @@ void loadCore(JNIEnv *env) {
       dlsym(api.main, "re4_core_card_import"));
   api.frameCount = reinterpret_cast<unsigned (*)(void)>(dlsym(api.main, "re4_core_frame_count"));
   api.gameThread = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_game_thread"));
+  api.freeAt = reinterpret_cast<long (*)(void)>(dlsym(api.main, "re4_trace_free_at"));
   if (!ok) {
     LOG("%s", api.error.c_str());
     api.main = nullptr;
@@ -439,9 +441,18 @@ unsigned gxShotW = 0, gxShotH = 0;
 // Leon standing) and logs for each the GPU time of a picture and of a present on the screen
 // ("GPU bench N/M: ..."): what resolution, multisampling, anisotropic filtering and depth of field
 // cost on this device. RE4_GPU_BENCH=1 takes the steps below, "S/M/A/D,..." (scale, samples,
-// anisotropy, depth of field 0/1) names them; RE4_GPU_BENCH_DELAY: seconds from the first picture
-// to the first step (default 60, past the arrival in r100). Each step: 5 s to settle (the renderer
-// starts over), then 10 s measured. Afterwards the options from before the run come back.
+// anisotropy, depth of field 0/1) names them. The first step comes RE4_GPU_BENCH_DELAY seconds
+// (default 10) after the player is free in the room (the core's re4_trace_free_at: the arrival's
+// event and the radio call are over); a core without it: that many seconds (default 60) after the
+// first picture. Each step: 5 s to settle (the renderer starts over), then 10 s measured.
+// Afterwards the options from before the run come back.
+//
+// Each step's line also has what lies in the picture (draws per picture: the same place for every
+// step?), the GPU's load times its clock (the work, independent of the GPU timer) and how many
+// pictures the GPU was behind (fences, GxStats::behind*). The first run on the Retroid
+// (19.10.2026) began 60 s after the first picture, during the arrival, and its timer read 110 to
+// 490 ms per picture with 2x MSAA and the autofocus while 30 pictures/s came: the timer alone does
+// not tell there.
 struct BenchStep {
   int scale, samples, anisotropy, dof;
 };
@@ -454,8 +465,10 @@ struct Bench {
   re4gx::GxStats at;  // the renderer's counters when the step's measurement began
   double runMs = 0;   // the renderer's CPU time of the step's pictures
   unsigned runCount = 0;
-  double clockSum = 0, busySum = 0;
-  unsigned clockCount = 0, busyCount = 0;
+  double clockSum = 0, busySum = 0, workSum = 0;
+  unsigned clockCount = 0, busyCount = 0, workCount = 0;
+  bool waitFree = false;  // waiting for the player to be free (api.freeAt)
+  int delay = 0;          // seconds from then to the first step
   int keepScale = 0, keepSamples = 1, keepAnisotropy = 1;
 };
 Bench bench;
@@ -507,10 +520,12 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     const char *spec = getenv("RE4_GPU_BENCH");
     if (!spec || !*spec || std::string(spec) == "0") return;
     if (std::string(spec) == "1") {
-      // the tester's options (POCO X7 Pro, 18.10.2026), then one of them off at a time, scale 2,
-      // all extras off, and the first again (does the device get slower when warm?)
-      bench.steps = {{3, 2, 8, 1}, {3, 2, 8, 0}, {3, 1, 8, 1}, {3, 2, 1, 1},
-                     {2, 2, 8, 1}, {3, 1, 1, 0}, {3, 2, 8, 1}};
+      // at scale 3: nothing extra, MSAA alone, the depth of field alone, both, both with 8x
+      // anisotropy (the tester's options, POCO X7 Pro, 18.10.2026), the same at scale 2, and
+      // nothing extra again (does the device get slower when warm?). Anisotropic filtering cost
+      // nothing measurable in the first run (8x and off, Retroid, 19.10.2026)
+      bench.steps = {{3, 1, 1, 0}, {3, 2, 1, 0}, {3, 1, 1, 1}, {3, 2, 1, 1},
+                     {3, 2, 8, 1}, {2, 2, 8, 1}, {3, 1, 1, 0}};
     } else {
       for (const char *at = spec; *at;) {
         BenchStep step{};
@@ -527,15 +542,29 @@ void benchTick(std::chrono::steady_clock::time_point now) {
       return;
     }
     const char *delay = getenv("RE4_GPU_BENCH_DELAY");
-    const int wait = delay ? std::max(5, std::atoi(delay)) : 60;
-    bench.next = now + seconds(wait);
+    bench.waitFree = api.freeAt != nullptr;
+    bench.delay = delay ? std::max(1, std::atoi(delay)) : bench.waitFree ? 10 : 60;
+    // waiting for the player: at most 5 minutes, then measured anyway
+    bench.next = now + seconds(bench.waitFree ? 300 : bench.delay);
     bench.index = -1;
     const double clock = gpuClockMhz(), busy = gpuBusyPercent();
-    LOG("GPU bench: %zu steps, the first in %d s (5 s to settle, 10 s measured each); GPU clock %s, load %s",
-        bench.steps.size(), wait, clock > 0 ? "readable" : "not readable", busy >= 0 ? "readable" : "not readable");
+    LOG("GPU bench: %zu steps, the first %d s after %s (5 s to settle, 10 s measured each); GPU clock %s, load %s",
+        bench.steps.size(), bench.delay, bench.waitFree ? "the player is free" : "the first picture",
+        clock > 0 ? "readable" : "not readable", busy >= 0 ? "readable" : "not readable");
     return;
   }
   if (bench.index < -1 || !gx) return;
+  if (bench.index == -1 && bench.waitFree) {
+    const long freeAt = api.freeAt();
+    if (freeAt >= 0) {
+      bench.waitFree = false;
+      bench.next = now + seconds(bench.delay);
+      LOG("GPU bench: the player is free (frame %ld), the first step in %d s", freeAt, bench.delay);
+    } else if (now >= bench.next) {
+      bench.waitFree = false;
+      LOG("GPU bench: the player did not get free in 300 s; measured anyway");
+    }
+  }
   if (bench.measuring && now >= bench.nextSample) {
     bench.nextSample = now + seconds(1);
     const double clock = gpuClockMhz(), busy = gpuBusyPercent();
@@ -547,8 +576,13 @@ void benchTick(std::chrono::steady_clock::time_point now) {
       bench.busySum += busy;
       bench.busyCount++;
     }
+    // the work: load times clock of the same moment (MHz the GPU was busy)
+    if (clock > 0 && busy >= 0) {
+      bench.workSum += clock * busy / 100.0;
+      bench.workCount++;
+    }
   }
-  if (now < bench.next) return;
+  if (bench.waitFree || now < bench.next) return;
   if (bench.index == -1) {
     bench.keepScale = optScale.load();
     bench.keepSamples = optSamples.load();
@@ -563,8 +597,8 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     bench.since = now;
     bench.runMs = 0;
     bench.runCount = 0;
-    bench.clockSum = bench.busySum = 0;
-    bench.clockCount = bench.busyCount = 0;
+    bench.clockSum = bench.busySum = bench.workSum = 0;
+    bench.clockCount = bench.busyCount = bench.workCount = 0;
     bench.nextSample = now;
     bench.measuring = true;
     bench.next = now + seconds(10);
@@ -574,20 +608,37 @@ void benchTick(std::chrono::steady_clock::time_point now) {
   const BenchStep &step = bench.steps[static_cast<size_t>(bench.index)];
   const double secs = std::chrono::duration<double>(now - bench.since).count();
   const unsigned timed = s.gpuTimed - bench.at.gpuTimed, presentTimed = s.presentTimed - bench.at.presentTimed;
-  char gpu[48] = "not measured", present[48] = "not measured", clock[24] = "-", busy[24] = "-";
-  if (timed)
-    std::snprintf(gpu, sizeof(gpu), "%.1f ms (%u timed)", (s.gpuMicros - bench.at.gpuMicros) / 1000.0 / timed, timed);
+  const unsigned chunks = s.chunks - bench.at.chunks, checks = s.behindChecks - bench.at.behindChecks;
+  const double pictures = secs > 0 ? chunks / secs : 0.0;
+  char gpu[96] = "not measured", present[48] = "not measured", clock[24] = "-", busy[24] = "-", work[24] = "-";
+  char behind[64] = "not checked";
+  if (timed) {
+    const double ms = (s.gpuMicros - bench.at.gpuMicros) / 1000.0 / timed;
+    // longer than a picture's interval while the pictures keep coming: not the GPU's real time
+    const bool plausible = pictures <= 0 || ms <= 1000.0 / pictures * 1.05;
+    std::snprintf(gpu, sizeof(gpu), "%.1f ms (%u timed%s)", ms, timed,
+                  plausible ? "" : ", NOT plausible: longer than a picture's interval");
+  }
   if (presentTimed)
     std::snprintf(present, sizeof(present), "%.2f ms (%u timed)",
                   (s.presentMicros - bench.at.presentMicros) / 1000.0 / presentTimed, presentTimed);
   if (bench.clockCount) std::snprintf(clock, sizeof(clock), "%.0f MHz", bench.clockSum / bench.clockCount);
   if (bench.busyCount) std::snprintf(busy, sizeof(busy), "%.0f %%", bench.busySum / bench.busyCount);
+  if (bench.workCount) std::snprintf(work, sizeof(work), "%.0f MHz", bench.workSum / bench.workCount);
+  if (checks) {
+    unsigned most = 0;
+    for (unsigned n = 0; n < 9; n++)
+      if (s.behindCount[n] != bench.at.behindCount[n]) most = n;
+    std::snprintf(behind, sizeof(behind), "%.2f pictures on average, at most %u%s",
+                  static_cast<double>(s.behindSum - bench.at.behindSum) / checks, most, most == 8 ? " or more" : "");
+  }
   LOG("GPU bench %d/%zu: scale %d, %d samples, anisotropy %.0f, depth of field %s: GPU %s per picture, "
-      "present %s, %.1f pictures/s, %.1f presents/s, renderer CPU %.1f ms, GPU clock %s, load %s",
+      "present %s, %.1f pictures/s, %.1f presents/s, renderer CPU %.1f ms, GPU clock %s, load %s, "
+      "work (load x clock) %s, GPU behind %s, %.0f draws per picture",
       bench.index + 1, bench.steps.size(), infoScale.load(), gx->Samples(), gx->Anisotropy(), step.dof ? "on" : "off",
-      gpu, present, secs > 0 ? (s.chunks - bench.at.chunks) / secs : 0.0,
-      secs > 0 ? (s.presents - bench.at.presents) / secs : 0.0, bench.runCount ? bench.runMs / bench.runCount : 0.0,
-      clock, busy);
+      gpu, present, pictures, secs > 0 ? (s.presents - bench.at.presents) / secs : 0.0,
+      bench.runCount ? bench.runMs / bench.runCount : 0.0, clock, busy, work, behind,
+      chunks ? static_cast<double>(s.draws - bench.at.draws) / chunks : 0.0);
   bench.measuring = false;
   bench.index++;
   if (bench.index >= static_cast<int>(bench.steps.size())) {

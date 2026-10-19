@@ -42,11 +42,12 @@ mit Bild und Ton; START ueberspringt ihn (laut Originalcode entfaellt dann auch 
 Autofahrt). Fuer Film, Autofahrt und Ankunft in r100 reichen etwa -Seconds 480.
 -WeaponTrace schreibt beim Nachladen jedes Bild eine Zeile ins Protokoll (Zustand
 und Bewegung von Leon und Waffe, Munition, R-Taste; fuer die Nachlade-Suche).
--GpuBench misst die Grafik (GPU-Schritt a, 19.10.2026): Start in r100, Leon steht, die App
-schaltet nacheinander sieben Grafik-Einstellungen durch (Aufloesung, Kantenglaettung,
-anisotrope Filterung, Tiefenschaerfe) und misst je 10 s die GPU-Zeit eines Bilds und der
-Darstellung (Zeilen "GPU bench" im Bericht); danach gelten wieder deine Einstellungen.
-Etwa 4 Minuten, waehrend der Messung den Controller nicht anfassen.
+-GpuBench misst die Grafik (GPU-Schritt a, 19.10.2026): Start in r100; sobald Leon frei steht
+(Ankunft und Funkspruch vorbei, der Kern meldet es), schaltet die App nach 10 s nacheinander
+sieben Grafik-Einstellungen durch (Aufloesung, Kantenglaettung, anisotrope Filterung,
+Tiefenschaerfe) und misst je 10 s GPU-Zeit, Last mal Takt, wie weit die GPU hinterherhinkt und
+was im Bild liegt (Zeilen "GPU bench" im Bericht); danach gelten wieder deine Einstellungen.
+Etwa 5 Minuten, waehrend der Messung den Controller nicht anfassen.
 -StartRoom 100 springt direkt nach r100 (nur die kurze Ankunft). -Manual
 startet ohne Tastenfolge (Titelbild, du spielst selbst); dann beobachtet das
 Skript 30 Minuten statt 240 s (Taste Q beendet frueher, -Seconds legt die Zeit
@@ -178,11 +179,12 @@ $ErrorActionPreference = 'Stop'
 # -Manual: you play yourself, 30 minutes unless -Seconds is given (Q ends earlier)
 if ($Manual -and -not $PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 1800 }
 # -GpuBench: the GPU measurement of the app (core_mode.cpp RE4_GPU_BENCH) at a calm place: the
-# start in r100 with the test keys, Leon standing; 60 s to get there, then 7 steps of 15 s
+# start in r100 with the test keys, Leon standing; the first step 10 s after the player is free
+# (about 110 s after the start on the Retroid, 19.10.2026), then 7 steps of 15 s
 if ($GpuBench) {
     if ($Manual) { throw '-GpuBench braucht den automatischen Start (ohne -Manual).' }
     if (-not $PSBoundParameters.ContainsKey('StartRoom')) { $StartRoom = '100' }
-    if (-not $PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 240 }
+    if (-not $PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 330 }
 }
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $app = Join-Path $repo 'port\android-decomp'
