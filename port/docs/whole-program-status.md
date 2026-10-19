@@ -4422,6 +4422,33 @@ GPU time measured“: 0,3 ms je Darstellung mit llvmpipe, „the chunks' GPU tim
   (neu: jedes Spielbild geprüft, nach `glFinish` 0 hinterher), `re4decomp_link_check` gebaut,
   `core_mode.cpp` ohne neue Warnungen. Nicht getestet: der zweite Lauf auf dem Gerät.
 
+**GPU-Schritt (a): zweiter Messlauf auf dem Retroid (19.10.2026, Projektinhaber), Ergebnis.** Alle
+Schritte an derselben Stelle (Leon frei, 487–498 Zeichenbefehle je Bild), 30 Bilder/s,
+60 Darstellungen/s, Darstellung 0,26–0,37 ms. **Die GPU hinkte nie hinterher** (Fences: 0 Bilder
+im Mittel und höchstens 0 in allen Schritten): die Zeitabfrage-Werte von 199–438 ms mit 2× MSAA
+und Autofokus sind ein Fehler der Zeitabfrage, keine echte Verzögerung. Mit MSAA allein zeigte
+sie sogar weniger als ohne (17,7 statt 18,5 ms): mit MSAA taugt die Zeitabfrage des Retroid nicht.
+Last mal Takt (Arbeit), 3-fach:
+
+| Schritt | MSAA | anisotrop | Tiefenschärfe | Takt | Last | Arbeit | gegenüber nichts |
+|---|---|---|---|---|---|---|---|
+| 1 | aus | aus | aus | 400 MHz | 65 % | 260 | |
+| 7 (Wiederholung) | aus | aus | aus | 400 MHz | 68 % | 272 | (Mittel 266) |
+| 3 | aus | aus | an | 400 MHz | 79 % | 316 | +19 % |
+| 2 | 2× | aus | aus | 587 MHz | 79 % | 462 | +74 % |
+| 4 | 2× | aus | an | 670 MHz | 85 % | 568 | +114 % |
+| 5 | 2× | 8× | an | 670 MHz | 85 % | 572 | +115 % |
+| 6 (2-fach) | 2× | 8× | an | 400 MHz | 72 % | 286 | +8 % |
+
+Folgerungen: **MSAA ist der große Posten** (+74 %), mit der Tiefenschärfe zusammen mehr als die
+Summe (+114 % statt +93 %: der Autofokus löst bei MSAA Farbe und Tiefe des ganzen EFB auf und
+zeichnet in den Mehrfach-Puffer zurück). Die Tiefenschärfe allein kostet +19 %, 8× anisotrop
+nichts Messbares, die Wiederholung (Schritt 7) liegt 5 % neben Schritt 1 (Streuung der Messung).
+Reihenfolge der Schritte danach: **b** (Wegwerfen erlauben, klein), **d** (MSAA auf Handy-Art,
+der große Posten; braucht `EXT_multisampled_render_to_texture2`, damit die Tiefe als Textur
+erhalten bleibt: welche Erweiterungen der Retroid hat, schreibt der nächste Lauf ins Protokoll),
+**e** (Tiefenschärfe in halber Auflösung), **c** (60 Hz, hilft nur auf 120-Hz-Handys).
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
