@@ -115,7 +115,7 @@ void forms(Holder* h, Wide* w, s32 n, u8* pool, int i)
     Wide* a3 = (Wide*) (pool + i * 0xC);             // expect: alloc_size_check
     memset(&w->a, 0, 8);                             // expect: span_check
     g_value = h->free[0x14];                         // expect: array_view_check
-    Wide* o1 = (Wide*) h->free;                      // expect: overlay_check
+    Wide* o1 = (Wide*) h->free;                      // expect: overlay_check overlay_areas
     CLEAR_WIDE(w);                                   // expect: alloc_size_check
     Wide* a7 = (Wide*) myAlloc2(0xC);                // expect: alloc_size_check
     Wide* a8 = (Wide*) new u8[0xC];                  // expect: alloc_size_check

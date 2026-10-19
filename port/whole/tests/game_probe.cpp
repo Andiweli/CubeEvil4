@@ -13,6 +13,7 @@
 #include "at_sub.h"
 #include "cam_extra.h"
 #include "obj.h"
+#include "light.h"
 
 #include <new>
 #include <stdlib.h>
@@ -135,6 +136,40 @@ extern "C" void re4probe_stale_list(int set)
         ObjMgr.pAlive = alive;
         pG->Rno0 = step;
     }
+}
+
+// Light type 5 (light05.cpp) over the work bytes of a room light record, which keep the GameCube
+// form: the path number Id at 0xC and Flag at 0xD, the path follower cLightPath before them (fixed
+// form since 19.10.2026; on LP64 its two pointers had moved Id to 0x18, compare run r107). A light
+// path file in MEM1 with two paths, 0: 200 and 1: 50, 100; the light asks for path 1. Returns
+// DispCol.r after two frames with Col.r 200: 100 (0.5 * 200) when path 1 plays, 200 for path 0.
+extern "C" int re4probe_light05(void)
+{
+    static_assert(__builtin_offsetof(LIT05_MOVE_FREE, Id) == 0xC, "LIT05 path number at its GameCube offset");
+    static u8 buf[sizeof(cLight)] __attribute__((aligned(16)));
+    u8* file = (u8*) (unsigned long) 0x82E00000ul;
+    memset(file, 0, 0x20);
+    file[0] = 2;
+    *(u32*) (file + 4) = 0x10;
+    *(u32*) (file + 8) = 0x14;
+    file[0x10] = 200;
+    file[0x11] = 0xFF;
+    file[0x14] = 50;
+    file[0x15] = 100;
+    file[0x16] = 0xFF;
+    if (!LightMgr.initPath((LightPathHeader*) file)) {
+        return -1;
+    }
+    cLight* l = new (buf) cLight;
+    l->Rno0 = 0;
+    l->Col.r = l->Col.g = l->Col.b = 200;
+    l->Col.a = 255;
+    memset(l->work, 0, sizeof(l->work));
+    l->work[0xC] = 1;
+    l->work[0xD] = 0;
+    Light05_Move(l);
+    Light05_Move(l);
+    return l->DispCol.r;
 }
 
 extern "C" int re4probe_byte_views(void)

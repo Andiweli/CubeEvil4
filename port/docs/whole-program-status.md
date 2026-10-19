@@ -4177,6 +4177,50 @@ Auswertung:**
   getestet:** Disc-Daten (PC-Prüfung), Gerät; dass der Absturz in r104 weg ist, zeigt erst ein
   Lauf an derselben Stelle.
 
+**PC-Prüfung 09:25 (Stand `2b260e2`, -O2, Disc-Daten), Vergleichslauf 32/64 bit mit Start r107,
+3000 Bilder: NICHT BESTANDEN, Auswertung:**
+- **Speicher in r107 bestätigt:** beide Läufe ohne Absturz, `em12` auf beiden Seiten geladen
+  (Brücke: Gegner 0x12 mit Teilen aus `em/em12.drs`), keine Anforderung ohne Platz (i686 0,
+  x86_64 0). Heap 4, wenigster freier Platz: i686 0x62BC0 von 0xD220C0, x86_64 0xE0EE0 von
+  0xE1E820. Belegt sind auf x86_64 0xD3D940 statt 0xCBF500, 0x7E440 (505 KB) mehr. Ohne das
+  zusätzliche MB wäre Heap 4 0xD1E820 groß (genau die Größe auf dem POCO X7 Pro), es fehlten
+  0x1F120 Bytes; der Tester-Bericht nannte 0x1F0E0 (64 Bytes Unterschied: ein anderer Weg in den
+  Raum). **Ursache und Regel damit bestätigt.** Reserve auf 64 bit jetzt 0xE0EE0 (900 KB) gegen
+  0x62BC0 (395 KB) auf 32 bit. Heap 12 (Untermenü) hat auf 64 bit 0x14580 frei gegen 0x25D20:
+  reicht, im Blick behalten (Raum-Rundgang 10b).
+- **Erste Abweichung Bild 626** (r107, Schritt 3): GX-Kennzahlen (Befehle 29314 / 29416, XF 6418 /
+  6520), in 35 von 3622 Bildern; 10 von 17 Bildern Pixel für Pixel gleich, die übrigen höchstens
+  1–3 von 255 in kleinen Bereichen. Die GX-Daten zeigen den Grund: XF 0x0613 (die Farbe von Licht 1;
+  `gx_chunk_inspect` zeigt das Wort als Gleitkommazahl) wechselt auf i686 (0x918C82, 0x858974,
+  0x8C9079, 0x91957E, 0x8F927C: dieselbe Grundfarbe mal 0,83 bis 0,91) und steht auf x86_64 ab Bild
+  653 fest auf 0xA0A48B (der Grundfarbe selbst): das Licht schwankt auf 64 bit nicht.
+- **Ursache (Compiler und Gegenprobe):** Lichtart 5 (`Light05_Move`, Helligkeit nach einem
+  Lichtpfad) legt `LIT05_MOVE_FREE` über `cLight::work`, das die Lichtsätze des Raums in
+  GameCube-Form füllen (`cLight::operator=`: `sub = w.sub`). Pfadnummer `Id` bei 0xC, `Flag` bei
+  0xD, davor `cLightPath` mit zwei Zeigern; auf LP64 ist `cLightPath` 0x18 Bytes groß und `Id`
+  liegt bei 0x18 (gemessen mit den Bau-Flaggen: `offsetof(LIT05_MOVE_FREE, Id)` armhf 0xC,
+  x86_64 0x18). Gelesen wurde so Pfad 0 statt des Pfads aus den Raumdaten. Gegenprobe mit dem
+  neuen Laufzeittest `light` (eine Lichtart 5 mit Arbeitsbytes in GameCube-Form, Pfad 0: 200,
+  Pfad 1: 50, 100): ohne Korrektur auf x86_64 „DispCol.r 200“ (Pfad 0), mit Korrektur 100 auf allen
+  vier Zielen.
+- **Behoben** (Regel `fixed_form_structs`): `cLightPath` (`include/lightPath.h`) in GameCube-Form,
+  Zeiger 4 Bytes. Ebenso `TSceAtHide` (Debug-Werkzeug `t_sce_at`: seine Sicht auf
+  `SCE_AT_DATA_HIDE` in den Bereichsdaten des Raums, Rückruf-Zeiger bei 0x30).
+- **Lücke im Werkzeug:** `overlay_check.py` prüfte nur, ob eine Struktur in ihren Byte-Bereich
+  passt, nicht, ob ihre Form zu den Daten passt, die dort liegen. Neu `--areas` (in `run_all.py`
+  als `overlay_areas`, im Selbsttest): jeder Byte-Bereich, über den das Spiel eine Struktur legt,
+  die auf LP64 eine andere Form hat. 76 Bereiche: 71 eigene Arbeitsflächen der Vorratsklassen
+  (`free` der Abkömmlinge von cEm, cObj, cEsp; ihr Code füllt sie Feld für Feld, Kopien prüft
+  `copy_view_check`) werden nur gezählt. Von den 5 übrigen bekamen 2 Daten von der Disc
+  (`cLight::work`, `SCE_AT_DATA::data` im Debug-Werkzeug), beide behoben; 3 sind reine
+  Laufzeit-Arbeit und in `reviewed.json` begründet (`cCtrl::work`, `cSceSys::SceTaskOt`,
+  `tagESPGEN_FREE::buff`).
+- Getestet (Cloud): `whole_build.sh i686 armhf x86_64 aarch64`: 0 Baufehler, alle Prüfungen
+  bestanden, Laufzeittest `light` auf allen vier Zielen; M12-Selbsttest 18 von 18; alle 19
+  M12-Prüfungen auf den echten Builds (`run_all.py`, 28 min): 0 neue Funde. **Nicht
+  getestet:** der Vergleichslauf r107 nach der Korrektur (zeigt, ob Bild 626 jetzt gleich ist),
+  Gerät.
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
@@ -4254,7 +4298,7 @@ sie ersetzt.
 | Alias-Namen, die von der Breite von `u32`/`size_t` abhängen: `{u32}` in `GCC295_SYMBOLS` → `"…" RE4_ASM_U32` (`m` auf ILP32, `j` auf LP64), `_Znwj/_Znaj` → `RE4_ASM_NEW(_ARRAY)` (Prelude, M12) | `FlgOnStatus__5EventUl` und `__builtin_new` passen sonst auf LP64 nicht zur Funktion; `whole_asm_check.py` kennt die `RE4_ASM_*`-Makros als Teil eines Namens |
 | `operator new(unsigned …)`, eigene `extern "C"`-Deklarationen von `memcpy/strlen …` mit `unsigned int` → `__SIZE_TYPE__` (`OPERATOR_SIZE`, `LIBC_DECL`, M12) | auf LP64 ist `size_t` 8 Bytes; sonst Widerspruch zu den System-Headern |
 | Füllfelder `[A - sizeof(X)]` → `[((A) > sizeof(X) ? (A) - sizeof(X) : 0)]` (`PAD_TO_SIZE`, M12) | auf LP64 ist `X` größer als der feste Platz `A`: sonst negative Feldgröße. Die festen Plätze selbst werden in M12-A3 angepasst |
-| Strukturen mit fester Form (`port/whole/fixed_form.json`): Zeiger-Glieder → `RE4_P32(T)` (`re4_ptr32.h`; ILP32: `T*`, LP64: 4 Bytes `Re4Ptr32<T>`), Datei bekommt `#include "re4_ptr32.h"` (`fixed_form_structs`, M12) | Daten, die das Spiel von der Disc liest und an Ort und Stelle umbiegt (Texturen, Kollision, Kamerabereiche, Modelle, Szenen-Treffer, Raumtabelle), der Kopf des Spielstands und die Modul-Verkettung: ihre Form ist durch die Disc bzw. die Speicherkarte festgelegt. Dazu `GxWork`, `SaveDataPtrs` (Sichten solcher Daten) und `OtData`/`OtPrim` (Zeichenreihenfolge: aus dem Bildpuffer des Raums, dessen Größe für die GameCube-Form gemacht ist). Bricht ab, wenn ein Glied nicht umschreibbar ist |
+| Strukturen mit fester Form (`port/whole/fixed_form.json`): Zeiger-Glieder → `RE4_P32(T)` (`re4_ptr32.h`; ILP32: `T*`, LP64: 4 Bytes `Re4Ptr32<T>`), Datei bekommt `#include "re4_ptr32.h"` (`fixed_form_structs`, M12) | Daten, die das Spiel von der Disc liest und an Ort und Stelle umbiegt (Texturen, Kollision, Kamerabereiche, Modelle, Szenen-Treffer, Raumtabelle), der Kopf des Spielstands und die Modul-Verkettung: ihre Form ist durch die Disc bzw. die Speicherkarte festgelegt. Dazu `GxWork`, `SaveDataPtrs` (Sichten solcher Daten) und `OtData`/`OtPrim` (Zeichenreihenfolge: aus dem Bildpuffer des Raums, dessen Größe für die GameCube-Form gemacht ist). Dazu `cLightPath` (am Anfang von `LIT05_MOVE_FREE` über den Arbeitsbytes der Lichtsätze des Raums; Vergleichslauf r107, 19.10.2026) und `TSceAtHide` (Debug-Werkzeug, Sicht auf `SCE_AT_DATA_HIDE`). Bricht ab, wenn ein Glied nicht umschreibbar ist |
 | `TaskFunc`: Klasse statt `void*` (`re4_task_func.h`, gleiche Größe; auf LP64 4 Bytes wie auf der GameCube, M12) | GCC 2.95 wandelte Funktionszeiger still in `void*` um, modernes C++ nicht |
 | Feste Plätze und Arbeitsflächen (`port/whole/lp64_sizes.json`, `lp64_sizes`, nach den Patches, M12): die Größe in `EM_WORK_SIZE`, `OBJ_WORK_SIZE`, den 57 `u8 free[0xDE0 - 0x3E0]` der Gegner, den 25 `u8 free[OBJ_WORK_SIZE - 0x328]` der Objekte und `cEspgen::Free` → `RE4_LP64_SIZE(gc, lp64)` (Prelude; ILP32 der GameCube-Wert; auf beiden Breiten mit `+ re4_lp64_size`, einem Aufzählungswert 0, an dem die Prüfwerkzeuge eine geprüfte Größe im Syntaxbaum erkennen) | auf LP64 wird `cEm` 0xC0 Bytes größer, `cObj` 0x98; die eigenen Arbeitsbereiche mit Zeigern wachsen über ihre Fläche (bis 0xAB8 statt 0xA00). LP64: Gegner-Platz 0xF60, Fläche 0xAC0; Objekt-Platz 0x4B0, Fläche 0xF0; Effekt-Fläche 0xD0; Effekt-Pool-Platz 0x1A8. Dazu Speicher mit fester GameCube-Größe und Löschen mit fester Länge (`ATTACH_CAMERA`, `MOTION_INFO`, Bewegungstabellen des Spielers, Zeigertabellen der Puzzle-Teile und der Schatten-Objekte, Debug-Listen; `alloc_size_check.py`) und das Speicherbudget des Speicherbildschirms (`cCard::getUseMemSize`, + 8 KB für die 256 Bild-Bausteine). Geprüft mit `overlay_check.py`; eine andere Anzahl Fundstellen bricht den Build ab Dazu das Ende der Heaps (`SystemMemInit`, `Heap_end_addr`): auf LP64 1 MB höher (0x818F4000), die Laufzeit legt die FST darüber (`RE4_MEM1_LP64_HEAP_EXTRA`; Laufzeittest `tasks`); Anlass: `em12` fand in r107 auf dem POCO X7 Pro keinen Platz (19.10.2026) |
 | `(u16*) &pG->stage_no` → `(u16*) &pG->room_id`, `stage_prev` → `room_id_prev` (`ROOM_ID_ADDR`) | `G_ROOM_ID` und `RsfCheck(*(u16*) &pG->stage_no, …)` lesen die Raumnummer über die Adresse ihres ersten Bytes; auf little-endian liegt `stage_no` nach Patch 0016 am anderen Ende (auf der GameCube dieselbe Adresse) |

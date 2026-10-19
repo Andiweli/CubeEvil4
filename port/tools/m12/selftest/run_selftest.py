@@ -41,6 +41,8 @@ CHECKS = {
     "span_check": ["span_check.py", "--ref", "REF", "--lp64", "LP64", "--pattern", "PAT", "--jobs", "1"],
     "array_view_check": ["array_view_check.py", "--ref", "REF", "--lp64", "LP64", "--pattern", "PAT", "--jobs", "1"],
     "overlay_check": ["overlay_check.py", "--ref", "REF", "--lp64", "LP64", "--pattern", "PAT", "--jobs", "1"],
+    "overlay_areas": ["overlay_check.py", "--areas", "--ref", "REF", "--lp64", "LP64", "--pattern", "PAT", "--jobs",
+                      "1"],
     "view_check": ["view_check.py", "--ref", "REF", "--lp64", "LP64", "--pattern", "PAT", "--jobs", "1"],
     "proto_check": ["proto_check.py", "--ref", "REF", "--lp64", "LP64", "--pattern", "PAT", "--jobs", "1"],
     "decl_size_check": ["decl_size_check.py", "LP64", "--jobs", "1"],

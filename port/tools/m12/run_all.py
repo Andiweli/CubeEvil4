@@ -37,6 +37,7 @@ CHECKS = {
     "raw_offset_check": ["raw_offset_check.py", "--ref", "REF", "--lp64", "LP64", "--jobs", "JOBS"],
     "raw_offset_words": ["raw_offset_check.py", "--words", "--ref", "REF", "--lp64", "LP64", "--jobs", "JOBS"],
     "overlay_check": ["overlay_check.py", "--ref", "REF", "--lp64", "LP64", "--jobs", "JOBS"],
+    "overlay_areas": ["overlay_check.py", "--areas", "--ref", "REF", "--lp64", "LP64", "--jobs", "JOBS"],
     "int_cast_check": ["int_cast_check.py", "--lp64", "LP64", "--jobs", "JOBS"],
     "ptr_slot_check": ["ptr_slot_check.py", "--lp64", "LP64", "--jobs", "JOBS"],
     "ptr_word_check": ["ptr_word_check.py", "--lp64", "LP64", "--jobs", "JOBS"],

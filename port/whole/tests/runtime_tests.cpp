@@ -914,6 +914,7 @@ unsigned re4probe_cast_u8(float f);
 int re4probe_cast_s16(float f);
 int re4probe_debug_mode(int set);
 void re4probe_stale_list(int set);
+int re4probe_light05(void);
 }
 
 static unsigned bitsOf(float f)
@@ -1373,6 +1374,19 @@ static void testWatch()
     report("watch", ok);
 }
 
+// Light type 5 over a room light record's work bytes in GameCube form (game_probe.cpp): plays the
+// path the record names (needs MEM1, mapped since the tasks test)
+static void testLight()
+{
+    bool ok = true;
+    int r = re4probe_light05();
+    CHECK(r == 100);
+    if (r != 100) {
+        re4_log("  light05: DispCol.r %d (path 1: 100, path 0: 200, -1: no path data)", r);
+    }
+    report("light", ok);
+}
+
 int re4_runtime_tests()
 {
     gFailures = 0;
@@ -1385,6 +1399,7 @@ int re4_runtime_tests()
     testMath();
     testTrace();
     testTasks();
+    testLight();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);

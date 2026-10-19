@@ -14,7 +14,16 @@ build (armhf) and reports
   slot on LP64 (slot sizes from --slot NAME=SIZE, default the LP64 sizes of
   EM_WORK_SIZE and OBJ_WORK_SIZE in port/whole/lp64_sizes.json).
 
-    port/tools/m12/overlay_check.py [--ref BUILD] [--lp64 BUILD] [--pattern REGEX]
+--areas instead lists every byte area (class::member) the game lays a structure over
+whose form differs on LP64 (another size: pointers inside), one line per area with
+those structures. Such a structure is right only while nothing but the program's own
+code fills the area; an area filled from the disc or a save in GameCube form needs the
+structure in GameCube form (port/whole/fixed_form.json). cLight::work is one: the room's
+light records copy their work bytes there, LIT05_MOVE_FREE reads its path number at
+0xC, on LP64 at 0x18 behind the two pointers of cLightPath (PC check 19.10.2026, r107).
+Each area is either fixed or reviewed (port/tools/m12/reviewed.json).
+
+    port/tools/m12/overlay_check.py [--ref BUILD] [--lp64 BUILD] [--pattern REGEX] [--areas]
 
 Needs the libclang Python bindings (pip install libclang==18.1.1).
 """
@@ -102,8 +111,17 @@ def scan(job):
                             src.type.get_canonical().kind == ci.TypeKind.CONSTANTARRAY:
                         rec = t.get_pointee().get_canonical()
                         loc = k.location
+                        ref = src.referenced
+                        owner = ref.semantic_parent if ref is not None else None
+                        # the area by its class (an anonymous union: the class around it)
+                        while owner is not None and owner.semantic_parent is not None and \
+                                owner.kind in (ci.CursorKind.UNION_DECL, ci.CursorKind.STRUCT_DECL) and \
+                                (owner.is_anonymous() or not owner.spelling):
+                            owner = owner.semantic_parent
+                        area = f"{owner.spelling if owner is not None else '?'}::{src.spelling}"
+                        owner_bases = sorted(bases(owner, set())) if owner is not None else []
                         casts.append((rec.spelling, rec.get_size(), src.spelling, src.type.get_size(),
-                                      f"{loc.file.name if loc.file else '?'}:{loc.line}"))
+                                      f"{loc.file.name if loc.file else '?'}:{loc.line}", area, owner_bases))
             walk(k)
 
     walk(tu.cursor)
@@ -115,6 +133,33 @@ def run(build_entries, names, resource_dir, jobs):
         return dict(zip(names, pool.map(scan, [(build_entries[n], resource_dir) for n in names], chunksize=2)))
 
 
+def areas(names, ra, rb, pool_bases):
+    """--areas: per byte area, the structures laid over it whose size differs between ILP32 and LP64.
+    The own work of the pool classes (`free` of a class derived from cEm, cObj ...) is only counted:
+    their code fills it member by member (copies between structures: copy_view_check)"""
+    ref = {}
+    for n in names:
+        for rec, rsize, member, msize, where, area, _ in ra[n][0]:
+            ref.setdefault(rec, rsize)
+    found, pool = {}, set()
+    for n in names:
+        for rec, rsize, member, msize, where, area, owner_bases in rb[n][0]:
+            if rec in ref and ref[rec] != rsize:
+                if member == "free" and set(owner_bases) & pool_bases:
+                    pool.add(area)
+                    continue
+                found.setdefault(area, {}).setdefault(rec, (ref[rec], rsize, where.split("/prepared/tree/")[-1]))
+    total = sum(len(rb[n][0]) for n in names)
+    print(f"overlay_check --areas: {len(names)} units, {total} casts of byte areas, {len(pool)} own works of "
+          f"pool classes ({', '.join(sorted(pool_bases))}) and {len(found)} other areas under structures whose "
+          f"form differs on LP64")
+    for area in sorted(found):
+        recs = ", ".join(f"{rec} ({a:#x} -> {b:#x})" for rec, (a, b, _) in sorted(found[area].items()))
+        first = min(w for _, _, w in found[area].values())
+        print(f"  {first}: {area}: {recs}")
+    return 1 if found else 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ref", default=str(ROOT / "port/build/whole-armhf"))
@@ -124,18 +169,21 @@ def main():
     ap.add_argument("--slot", action="append",
                     default=[f"{e['slot']}={e['lp64']}" for e in spec["sizes"] if "slot" in e])
     ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--areas", action="store_true", help="list the byte areas under structures whose form differs")
     args = ap.parse_args()
     resource_dir = subprocess.run(["clang", "-print-resource-dir"], capture_output=True, text=True).stdout.strip()
     ea, eb = entries(args.ref, args.pattern), entries(args.lp64, args.pattern)
     names = sorted(set(ea) & set(eb))
     ra, rb = run(ea, names, resource_dir, args.jobs), run(eb, names, resource_dir, args.jobs)
+    if args.areas:
+        return areas(names, ra, rb, {sl.split("=")[0] for sl in args.slot})
     bad = set()
     ref_sizes = {}
     for n in names:
-        for rec, rsize, member, msize, where in ra[n][0]:
+        for rec, rsize, member, msize, where, *_ in ra[n][0]:
             ref_sizes[(rec, member, where.split("/prepared/tree/")[-1])] = (rsize, msize)
     for n in names:
-        for rec, rsize, member, msize, where in rb[n][0]:
+        for rec, rsize, member, msize, where, *_ in rb[n][0]:
             w = where.split("/prepared/tree/")[-1]
             ref = ref_sizes.get((rec, member, w))
             if rsize > msize and (ref is None or ref[0] <= ref[1]):

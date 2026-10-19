@@ -168,6 +168,20 @@
     "why": "st ist immer 0 (COMPILER-DIFF #12 in r20d.cpp); gelesen wird mot[1], ein void*-Glied."
    }
   ],
+  "overlay_areas": [
+   {
+    "finding": "src/game/ctrl12.cpp: cCtrl::work: CTRL12_FREE (0x34 -> 0x40), CTRL14_FREE (0x2c -> 0x50), LightCtrlWork (0xc -> 0x18)",
+    "why": "Nur Laufzeit-Arbeit: cCtrlMgr::construct legt die Steuer-Einheiten mit placement new an, ihr Code füllt work Feld für Feld (Zeiger auf Texturverwalter, Drachen-Objekte, Lichtpfade); keine Kopie von der Disc oder aus dem Spielstand hinein (überprüft 19.10.2026)."
+   },
+   {
+    "finding": "src/game/sce_sys.cpp: cSceSys::SceTaskOt: SCE_TASK (0xc -> 0x10)",
+    "why": "SceTaskOt ist die Ordnungstabelle (16 OTags zu 4 Bytes); über den Kopf SceTaskOt[15] als SCE_TASK wird nur tag gelesen (scenarioGetOtAddr, Abstand 0, auf beiden Breiten gleich); die echten SCE_TASK liegen in SceSys.prim."
+   },
+   {
+    "finding": "src/game/Espgen42.cpp: tagESPGEN_FREE::buff: tagESPGEN00_WK (0x88 -> 0x98), tagESPGEN01_WK (0x5c -> 0x68), tagESPGEN02_WK (0xa0 -> 0xb0), tagESPGEN10_WK (0x80 -> 0x90), tagESPGEN43_WK (0x88 -> 0x98), tagESPGEN45_WK (0xb4 -> 0xd0)",
+    "why": "Nur Laufzeit-Arbeit der Effekt-Erzeuger: EstSet und die espgen-Funktionen füllen buff Feld für Feld (Kopf, Modell, Zähler), der Vorrat wird nur mit memclr_asm geleert; die Fläche hat auf LP64 die nötige Größe (lp64_sizes.json, cEspgen::Free 0xD0)."
+   }
+  ],
   "ptr_word_check": [
    {
     "finding": "src/game/pl_npc.cpp: write of `struct EmiEntry *` as a 32-bit word",
