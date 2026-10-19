@@ -4756,6 +4756,20 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   (aus dem Bytecode von `drawButton` gelesen), längere wie bisher; öffentliche Schnittstelle
   gegenüber beta.5 unverändert (`javap -public` verglichen), alle Java-Dateien der App damit
   übersetzt. Nicht auf dem Gerät gesehen.
+- **PC-Prüfung (Projektinhaber, Stand `fdeda59b`): ALLES OK** (Kern mit `gyro.cpp`, i686, r100
+  10.000 Bilder, Bildvergleiche wie zuvor, Filme, Speicherkarte).
+- **Nachträge (19.10.2026):** ERROR LOG: „R3 = Graphics capture“ (kein Zeilenumbruch mehr). Ganz
+  unten Überschrift SOURCE und „More on this port at https://github.com/Andiweli/CubeEvil4-Android“,
+  unterstrichen in der Linkfarbe, mit dem Controller anwählbar (A) oder antippbar: öffnet den
+  Browser (`Intent.ACTION_VIEW`; ohne Browser ein Hinweis).
+- **Frage des Projektinhabers: der linke Stick kennt nur 8 Richtungen.** So ist das Original:
+  `PadRead` (`src/game/pad.cpp`) macht aus dem Hauptstick jenseits von 30 Einheiten nur
+  Richtungs-Bits (vorwärts/rückwärts in einem Sektor von ±60°, links/rechts außerhalb davon), und
+  Leon läuft mit Panzersteuerung: vorwärts/rückwärts, Drehen mit fester Geschwindigkeit
+  (`pl_R1_Walk`: `Key.on & 1/2/4/8`, `SPEED_WALK_TURN`); Rennen über B. Analog wirkt der Stick nur
+  beim Zielen (`PlWepLockCtrl`, `CameraScope::move`) und in Menüs. Eine freie 360°-Steuerung gäbe es
+  nur mit einem Eingriff in die Spiellogik (offen, Entscheidung des Projektinhabers).
+
 - **Gyro-Zielen:** `GyroAim.java` liest den Gyrosensor wie der erste Port (Achsen je nach
   Bildschirmdrehung, 35 % Glättung, unter 0,006 rad/s nichts, älter als 150 ms nichts), nur bei
   eingeschaltetem Kästchen und App im Vordergrund; `CoreBridge.gyro` → `re4_core_gyro` →

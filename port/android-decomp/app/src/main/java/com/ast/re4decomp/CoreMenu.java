@@ -1,12 +1,18 @@
 package com.ast.re4decomp;
 
 import android.app.Dialog;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
+import android.text.style.UnderlineSpan;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -286,11 +292,43 @@ final class CoreMenu extends Dialog {
     log.setGravity(Gravity.CENTER_VERTICAL);
     checkBox(log, "Record the error log", CoreLog.enabled(getContext()),
         (b, on) -> host.logChanged(on));
-    checkBox(log, "R3: graphics capture (diagnosis)", tools,
+    checkBox(log, "R3 = Graphics capture", tools,
         (b, on) -> host.toolsChanged(on));
     button(log, "Send report …", 1, v -> host.shareReport());
     button(log, "Save report …", 1, v -> host.saveReport());
     body.addView(log);
+
+    heading("Source");
+    // the address opens in the browser (A on it, or a tap)
+    TextView source = text("", 12, false);
+    SpannableStringBuilder link = new SpannableStringBuilder("More on this port at ");
+    int at = link.length();
+    link.append(SOURCE_URL);
+    link.setSpan(new UnderlineSpan(), at, link.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    link.setSpan(new ForegroundColorSpan(source.getLinkTextColors().getDefaultColor()), at, link.length(),
+        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    source.setText(link);
+    source.setGravity(Gravity.CENTER_HORIZONTAL);
+    source.setFocusable(true);
+    source.setClickable(true);
+    TypedValue ripple = new TypedValue();
+    getContext().getTheme().resolveAttribute(android.R.attr.selectableItemBackground, ripple, true);
+    source.setBackgroundResource(ripple.resourceId);
+    source.setPadding(dp(8), dp(6), dp(8), dp(6));
+    source.setOnClickListener(v -> openSource());
+    body.addView(source, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT));
+  }
+
+  /** The port's page (wish of the project owner, 19.10.2026). */
+  static final String SOURCE_URL = "https://github.com/Andiweli/CubeEvil4-Android";
+
+  private void openSource() {
+    try {
+      getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(SOURCE_URL)));
+    } catch (ActivityNotFoundException e) {
+      android.widget.Toast.makeText(getContext(), "No browser on this device", android.widget.Toast.LENGTH_SHORT).show();
+    }
   }
 
   /**
