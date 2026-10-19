@@ -44,9 +44,10 @@ Autofahrt). Fuer Film, Autofahrt und Ankunft in r100 reichen etwa -Seconds 480.
 und Bewegung von Leon und Waffe, Munition, R-Taste; fuer die Nachlade-Suche).
 -GpuBench misst die Grafik (GPU-Schritt a, 19.10.2026): Start in r100; sobald Leon frei steht
 (Ankunft und Funkspruch vorbei, der Kern meldet es), schaltet die App nach 10 s nacheinander
-sieben Grafik-Einstellungen durch (Aufloesung, Kantenglaettung, anisotrope Filterung,
-Tiefenschaerfe) und misst je 10 s GPU-Zeit, Last mal Takt, wie weit die GPU hinterherhinkt und
-was im Bild liegt (Zeilen "GPU bench" im Bericht); danach gelten wieder deine Einstellungen.
+die Einstellungen ihrer Messreihe durch (core_mode.cpp; im GPU-Branch: Wegwerfen aus/an im
+Wechsel, GPU-Schritt b) und misst je 10 s GPU-Zeit, Last mal Takt, wie weit die GPU
+hinterherhinkt und was im Bild liegt (Zeilen "GPU bench" im Bericht, dazu eine Zeile "GPU:" mit
+den Erweiterungen des Grafikchips); danach gelten wieder deine Einstellungen.
 Etwa 5 Minuten, waehrend der Messung den Controller nicht anfassen.
 -StartRoom 100 springt direkt nach r100 (nur die kurze Ankunft). -Manual
 startet ohne Tastenfolge (Titelbild, du spielst selbst); dann beobachtet das
@@ -180,7 +181,7 @@ $ErrorActionPreference = 'Stop'
 if ($Manual -and -not $PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 1800 }
 # -GpuBench: the GPU measurement of the app (core_mode.cpp RE4_GPU_BENCH) at a calm place: the
 # start in r100 with the test keys, Leon standing; the first step 10 s after the player is free
-# (about 110 s after the start on the Retroid, 19.10.2026), then 7 steps of 15 s
+# (about 110 s after the start on the Retroid, 19.10.2026), then 7 or 8 steps of 15 s
 if ($GpuBench) {
     if ($Manual) { throw '-GpuBench braucht den automatischen Start (ohne -Manual).' }
     if (-not $PSBoundParameters.ContainsKey('StartRoom')) { $StartRoom = '100' }
@@ -766,6 +767,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         Say "GPU-Messung:                      $(if ($bench.Count) { "$($bench.Count) Zeilen" } else { 'KEINE (lief das Spiel bis r100?)' })"
         foreach ($line in $bench) { Say "  $(($line -split 'RE4Core\s*:\s*')[-1])" }
     }
+    # the GPU and the extensions step d (MSAA on the tiles) needs (gx_gl.cpp, once per run)
+    $gpuInfo = $keep | Where-Object { $_ -match 'RE4GX\s*: GPU: ' } | Select-Object -First 1
+    if ($gpuInfo) { Say "Grafikchip:                       $(($gpuInfo -split 'RE4GX\s*:\s*GPU:\s*')[-1])" }
     $gxStream = $keep | Where-Object { $_ -match 'GX uniform stream: ' } | Select-Object -First 1
     if ($gxStream) { Say "GX-Uniform-Puffer:                $(($gxStream -split 'GX uniform stream: ')[-1])" }
     $shaderFail = @($keep | Where-Object { $_ -match 'RE4GX.*shader failed' })

@@ -66,6 +66,12 @@ struct GxStats {
 struct GxOptions {
   int samples = 1;          // 1 (off), 2, 4
   float anisotropy = 1.0f;  // 1 (off) .. 16
+  // the GPU may forget what a copy's target, the blur and the focus of the autofocus held before
+  // they are drawn over completely (glInvalidateFramebuffer, GPU step b, 19.10.2026); poison
+  // (tests, RE4_GX_INVALIDATE_POISON=1 in gx_chunk_render): they are painted magenta instead, so
+  // a picture that still needed the old content shows it
+  bool invalidate = true;
+  bool poison = false;
 };
 
 class GxRenderer {
@@ -83,6 +89,8 @@ public:
   // After Init: the multisampling and the filtering in use.
   int Samples() const;
   float Anisotropy() const;
+  // the copy targets are forgotten before they are drawn over (GxOptions::invalidate)
+  bool Invalidates() const;
   // What the device can do (a GLES 3.0 context is current): the most EFB
   // samples and the strongest anisotropic filtering (1: none).
   static void Limits(int *maxSamples, float *maxAnisotropy);

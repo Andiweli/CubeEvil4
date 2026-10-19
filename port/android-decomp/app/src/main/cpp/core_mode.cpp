@@ -395,6 +395,8 @@ int gxMode = -1;  // -1 undecided, 0 bridge, 1 GX
 // the renderer anew at the next picture while the game runs (the core then
 // starts over with the full state); 0 scale: automatic
 std::atomic<int> optScale{0}, optSamples{1}, optAnisotropy{1}, optAspect{-1};
+// GPU step b (GxOptions::invalidate): on unless RE4_GX_INVALIDATE=0; the GPU measurement switches it
+std::atomic<int> optInvalidate{1};
 std::atomic<unsigned> optSerial{0};
 unsigned optApplied = ~0u;
 std::atomic<bool> corePaused{false};
@@ -455,6 +457,7 @@ unsigned gxShotW = 0, gxShotH = 0;
 // not tell there.
 struct BenchStep {
   int scale, samples, anisotropy, dof;
+  int invalidate = 1;  // GPU step b: copy targets forgotten before they are drawn over
 };
 struct Bench {
   std::vector<BenchStep> steps;
@@ -469,7 +472,7 @@ struct Bench {
   unsigned clockCount = 0, busyCount = 0, workCount = 0;
   bool waitFree = false;  // waiting for the player to be free (api.freeAt)
   int delay = 0;          // seconds from then to the first step
-  int keepScale = 0, keepSamples = 1, keepAnisotropy = 1;
+  int keepScale = 0, keepSamples = 1, keepAnisotropy = 1, keepInvalidate = 1;
 };
 Bench bench;
 std::atomic<int> optDof{-1};  // the menu's depth of field (CoreBridge.setDof); -1 not set yet
@@ -508,6 +511,7 @@ void benchApply(const BenchStep &step) {
   optScale = step.scale;
   optSamples = step.samples;
   optAnisotropy = step.anisotropy;
+  optInvalidate = step.invalidate;
   optSerial++;
   if (api.setDof) api.setDof(step.dof);
 }
@@ -520,18 +524,21 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     const char *spec = getenv("RE4_GPU_BENCH");
     if (!spec || !*spec || std::string(spec) == "0") return;
     if (std::string(spec) == "1") {
-      // at scale 3: nothing extra, MSAA alone, the depth of field alone, both, both with 8x
-      // anisotropy (the tester's options, POCO X7 Pro, 18.10.2026), the same at scale 2, and
-      // nothing extra again (does the device get slower when warm?). Anisotropic filtering cost
-      // nothing measurable in the first run (8x and off, Retroid, 19.10.2026)
-      bench.steps = {{3, 1, 1, 0}, {3, 2, 1, 0}, {3, 1, 1, 1}, {3, 2, 1, 1},
-                     {3, 2, 8, 1}, {2, 2, 8, 1}, {3, 1, 1, 0}};
+      // GPU step b: the copy targets not forgotten, then forgotten, twice each, at scale 3 with
+      // nothing extra and with the tester's options (2x MSAA, 8x anisotropy, depth of field;
+      // POCO X7 Pro, 18.10.2026). The runs of step a (Retroid, 19.10.2026): MSAA +74 % work, the
+      // depth of field +19 %, both +114 %, 8x anisotropy nothing measurable; the same setting
+      // twice 5 % apart (hence each twice). "S/M/A/D/I,..." names other steps (I: forgotten, 1)
+      bench.steps = {{3, 1, 1, 0, 0}, {3, 1, 1, 0, 1}, {3, 2, 8, 1, 0}, {3, 2, 8, 1, 1},
+                     {3, 1, 1, 0, 0}, {3, 1, 1, 0, 1}, {3, 2, 8, 1, 0}, {3, 2, 8, 1, 1}};
     } else {
       for (const char *at = spec; *at;) {
         BenchStep step{};
         int used = 0;
         if (std::sscanf(at, "%d/%d/%d/%d%n", &step.scale, &step.samples, &step.anisotropy, &step.dof, &used) != 4)
           break;
+        int more = 0;
+        if (at[used] == '/' && std::sscanf(at + used, "/%d%n", &step.invalidate, &more) == 1) used += more;
         bench.steps.push_back(step);
         at += used;
         if (*at == ',') at++;
@@ -587,6 +594,7 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     bench.keepScale = optScale.load();
     bench.keepSamples = optSamples.load();
     bench.keepAnisotropy = optAnisotropy.load();
+    bench.keepInvalidate = optInvalidate.load();
     bench.index = 0;
     benchApply(bench.steps[0]);
     bench.next = now + seconds(5);
@@ -632,11 +640,12 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     std::snprintf(behind, sizeof(behind), "%.2f pictures on average, at most %u%s",
                   static_cast<double>(s.behindSum - bench.at.behindSum) / checks, most, most == 8 ? " or more" : "");
   }
-  LOG("GPU bench %d/%zu: scale %d, %d samples, anisotropy %.0f, depth of field %s: GPU %s per picture, "
+  LOG("GPU bench %d/%zu: scale %d, %d samples, anisotropy %.0f, depth of field %s, copy targets forgotten %s: "
+      "GPU %s per picture, "
       "present %s, %.1f pictures/s, %.1f presents/s, renderer CPU %.1f ms, GPU clock %s, load %s, "
       "work (load x clock) %s, GPU behind %s, %.0f draws per picture",
       bench.index + 1, bench.steps.size(), infoScale.load(), gx->Samples(), gx->Anisotropy(), step.dof ? "on" : "off",
-      gpu, present, pictures, secs > 0 ? (s.presents - bench.at.presents) / secs : 0.0,
+      gx->Invalidates() ? "yes" : "no", gpu, present, pictures, secs > 0 ? (s.presents - bench.at.presents) / secs : 0.0,
       bench.runCount ? bench.runMs / bench.runCount : 0.0, clock, busy, work, behind,
       chunks ? static_cast<double>(s.draws - bench.at.draws) / chunks : 0.0);
   bench.measuring = false;
@@ -645,6 +654,7 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     optScale = bench.keepScale;
     optSamples = bench.keepSamples;
     optAnisotropy = bench.keepAnisotropy;
+    optInvalidate = bench.keepInvalidate;
     optSerial++;
     if (optDof.load() >= 0 && api.setDof) api.setDof(optDof.load());
     LOG("GPU bench done; the options from before the run are back");
@@ -749,6 +759,8 @@ bool drawGx() {
     re4gx::GxOptions options;
     options.samples = std::max(1, optSamples.load());
     options.anisotropy = static_cast<float>(std::max(1, optAnisotropy.load()));
+    const char *invalidate = getenv("RE4_GX_INVALIDATE");
+    options.invalidate = optInvalidate.load() != 0 && !(invalidate && *invalidate == '0');
     gx->SetOptions(options);
     std::string error;
     if (!gx->Init(scale, &error)) {

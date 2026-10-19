@@ -13,6 +13,10 @@
 // in the app: EFB, copies and textures stay, a held picture (RE4_GX_CHUNK_HOLD)
 // leaves the picture before on screen. Any other chunk must start over
 // (RE4_GX_CHUNK_RESET) and gets a fresh renderer.
+//
+// RE4_GX_INVALIDATE_POISON=1: what the renderer lets the GPU forget (copy targets, the blur and
+// the focus of the autofocus; GPU step b) is painted magenta instead: the pictures must not
+// change (whole_r100_check.sh compares them).
 #include "gx_gl.h"
 #include "re4_gx_frame_io.h"
 
@@ -97,6 +101,10 @@ int main(int argc, char **argv) {
       if (renderer)
         renderer->Release();
       renderer = std::make_unique<re4gx::GxRenderer>();
+      const char *poison = std::getenv("RE4_GX_INVALIDATE_POISON");
+      re4gx::GxOptions options;
+      options.poison = poison && *poison == '1';
+      renderer->SetOptions(options);
       std::string error;
       if (!renderer->Init(scale, &error)) {
         std::printf("%s: Renderer: %s\n", Stem(path).c_str(), error.c_str());

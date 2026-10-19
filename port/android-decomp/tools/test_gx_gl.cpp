@@ -943,7 +943,7 @@ void TestAutofocus(re4gx::GxRenderer &r, bool multisampled = false) {
 // every copy out of it (display copy, texture copy); a slanted edge comes out
 // between the two colours; anisotropic filtering does not change a picture
 // without mipmaps.
-void TestOptions() {
+void TestOptions(bool poison) {
   int maxSamples = 1;
   float maxAnisotropy = 1.0f;
   re4gx::GxRenderer::Limits(&maxSamples, &maxAnisotropy);
@@ -952,6 +952,7 @@ void TestOptions() {
   re4gx::GxOptions o;
   o.samples = 4;
   o.anisotropy = 8.0f;
+  o.poison = poison;
   r.SetOptions(o);
   std::string error;
   Require(r.Init(1, &error), error.c_str());
@@ -993,21 +994,30 @@ int main() {
   Context();
   glGenFramebuffers(1, &gReadFbo);
   TestDecoder();
-  re4gx::GxRenderer renderer;
-  std::string error;
-  Require(renderer.Init(1, &error), error.c_str());
-  TestBasics(renderer);
-  TestTexture(renderer);
-  TestTev(renderer);
-  TestLighting(renderer);
-  TestCopyAndPalette(renderer);
-  TestFog(renderer);
-  TestShaderVariety(renderer);
-  TestCopyFilter(renderer);
-  TestAutofocus(renderer);
-  Check(glGetError() == GL_NO_ERROR, "no GL error");
-  renderer.Release();
-  TestOptions();
+  // twice: as the app runs it, and with the copy targets, the blur and the focus painted magenta
+  // where the GPU may forget them (GPU step b): every picture must stay the same
+  for (int poison = 0; poison < 2; poison++) {
+    if (poison)
+      std::fprintf(stderr, "again with forgotten contents painted magenta:\n");
+    re4gx::GxRenderer renderer;
+    re4gx::GxOptions o;
+    o.poison = poison != 0;
+    renderer.SetOptions(o);
+    std::string error;
+    Require(renderer.Init(1, &error), error.c_str());
+    TestBasics(renderer);
+    TestTexture(renderer);
+    TestTev(renderer);
+    TestLighting(renderer);
+    TestCopyAndPalette(renderer);
+    TestFog(renderer);
+    TestShaderVariety(renderer);
+    TestCopyFilter(renderer);
+    TestAutofocus(renderer);
+    Check(glGetError() == GL_NO_ERROR, "no GL error");
+    renderer.Release();
+    TestOptions(poison != 0);
+  }
   std::fprintf(stderr, "gx_gl_check: %d failed\n", gFailures);
   return gFailures ? 1 : 0;
 }

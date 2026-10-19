@@ -800,6 +800,23 @@ render_gx_pictures() {
     fi
     grep -i "shader failed" -A 3 "$run/gx-werkzeug-lauf.log" 2> /dev/null | head -20 | sed 's/^/  /' | tee -a "$report"
     ppm_to_png "$pics"
+    # GPU step b (19.10.2026): the same frames with what the renderer lets the GPU forget painted
+    # magenta (RE4_GX_INVALIDATE_POISON): a picture that changes still needed the old content
+    local poisoned="$run/bilder-gx-magenta"
+    rm -rf "$poisoned"
+    mkdir -p "$poisoned"
+    RE4_GX_INVALIDATE_POISON=1 "$tool_build/gx_chunk_render" "$poisoned" "$dump"/*.bin > /dev/null \
+        2>> "$run/gx-werkzeug-lauf.log"
+    ppm_to_png "$poisoned"
+    if python3 "$src/port/tools/picture_compare.py" "$pics" "$poisoned" --names normal,magenta \
+        > "$run/bilder-gx-magenta.txt" 2>&1; then
+        say "Wegwerfen (GPU-Schritt b), das Vergessene magenta$(grep 'Bildvergleich' "$run/bilder-gx-magenta.txt" | sed 's/^ *Bildvergleich normal \/ magenta//')"
+        rm -rf "$poisoned" "$run/bilder-gx-magenta.txt"
+    else
+        say "FEHLER Wegwerfen (GPU-Schritt b): Bilder ändern sich, wenn das Vergessene magenta ist (bilder-gx-magenta.txt, Ordner bilder-gx-magenta; bitte mitschicken)"
+        head -n 12 "$run/bilder-gx-magenta.txt" | sed 's/^/  /' | tee -a "$report"
+        overall=1
+    fi
     # a few frames as data for the renderer work in the cloud (gx_chunk_render
     # draws them there; game data: never into the repository): the first
     # three and the first in the room

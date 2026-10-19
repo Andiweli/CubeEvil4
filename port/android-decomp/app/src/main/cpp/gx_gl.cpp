@@ -918,6 +918,23 @@ struct GxRenderer::Impl {
     glDepthMask(GL_TRUE);
   }
 
+  // The colour of the bound framebuffer is about to be drawn over completely (or only that part
+  // is read later): the GPU may forget what it held. A tile-based GPU (Adreno, Mali) otherwise
+  // reads it into its tiles before drawing (GxOptions::invalidate). Poisoned: magenta instead.
+  void ForgetColor() {
+    if (!options.invalidate)
+      return;
+    if (options.poison) {
+      glDisable(GL_SCISSOR_TEST);
+      glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+      glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
+      glClear(GL_COLOR_BUFFER_BIT);
+      return;
+    }
+    const GLenum color = GL_COLOR_ATTACHMENT0;
+    glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &color);
+  }
+
   void ApplyState(unsigned primitive) {
     // the registers below, as last applied: nothing to do while they hold
     const std::uint32_t sig[10] = {bp[0x20],     bp[0x21],     bp[0x59],       bp[0x40] & 0x1F, bp[0x41] & 0xFFFF,
@@ -1436,6 +1453,8 @@ struct GxRenderer::Impl {
     glBindFramebuffer(GL_FRAMEBUFFER, xfbFbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target, 0);
     SaveAndPlainState();
+    // the copy draws over all of its target (the viewport is the texture)
+    ForgetColor();
     const int tw = toXfb ? w : ow, th = toXfb ? h : oh;
     glViewport(0, 0, tw * scale, th * scale);
     glUseProgram(copyProgram);
@@ -1512,6 +1531,7 @@ struct GxRenderer::Impl {
       glBindSampler(i, 0);
     // the focus into one texel: distance (16 bits in r, g), strength (b)
     glBindFramebuffer(GL_FRAMEBUFFER, focusFbo);
+    ForgetColor();  // its one texel is drawn over
     glViewport(0, 0, 1, 1);
     glUseProgram(focusProgram);
     glActiveTexture(GL_TEXTURE0);
@@ -1523,6 +1543,7 @@ struct GxRenderer::Impl {
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     // the blurred picture into blurTex
     glBindFramebuffer(GL_FRAMEBUFFER, blurFbo);
+    ForgetColor();  // only the picture's region is drawn, and only it is copied back
     glViewport(x0 * scale, y0 * scale, (x1 - x0) * scale, (y1 - y0) * scale);
     glUseProgram(blurProgram);
     glActiveTexture(GL_TEXTURE0);
@@ -1826,6 +1847,28 @@ bool GxRenderer::Init(int scale, std::string *error) {
     }
     m.drawBaseVertex = reinterpret_cast<Impl::DrawBaseVertex>(f);
   }
+  // once per process: the GPU and what step d (MSAA on the tiles) needs of it
+  static bool described = false;
+  if (!described) {
+    described = true;
+    const char *renderer = reinterpret_cast<const char *>(glGetString(GL_RENDERER));
+    const char *version = reinterpret_cast<const char *>(glGetString(GL_VERSION));
+    const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+    auto has = [ext](const char *name) {
+      if (!ext)
+        return "no";
+      const std::size_t n = std::strlen(name);
+      for (const char *at = std::strstr(ext, name); at; at = std::strstr(at + n, name))
+        if ((at == ext || at[-1] == ' ') && (at[n] == ' ' || at[n] == '\0'))
+          return "yes";
+      return "no";
+    };
+    GXLOG("GPU: %s, %s; EXT_multisampled_render_to_texture %s, ..._texture2 %s, "
+          "EXT_shader_framebuffer_fetch %s, QCOM_tiled_rendering %s",
+          renderer ? renderer : "?", version ? version : "?", has("GL_EXT_multisampled_render_to_texture"),
+          has("GL_EXT_multisampled_render_to_texture2"), has("GL_EXT_shader_framebuffer_fetch"),
+          has("GL_QCOM_tiled_rendering"));
+  }
   const int w = kEfbWidth * m.scale, h = kEfbHeight * m.scale;
   glGenTextures(1, &m.efbColor);
   glBindTexture(GL_TEXTURE_2D, m.efbColor);
@@ -2074,6 +2117,8 @@ void GxRenderer::SetOptions(const GxOptions &options) { impl_->options = options
 int GxRenderer::Samples() const { return impl_->samples; }
 
 float GxRenderer::Anisotropy() const { return impl_->anisotropy; }
+
+bool GxRenderer::Invalidates() const { return impl_->options.invalidate; }
 
 void GxRenderer::Limits(int *maxSamples, float *maxAnisotropy) {
   GLint samples = 1;

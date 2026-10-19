@@ -4454,6 +4454,28 @@ der große Posten; braucht `EXT_multisampled_render_to_texture2`, damit die Tief
 erhalten bleibt: welche Erweiterungen der Retroid hat, schreibt der nächste Lauf ins Protokoll),
 **e** (Tiefenschärfe in halber Auflösung), **c** (60 Hz, hilft nur auf 120-Hz-Handys).
 
+**GPU-Schritt (b): Wegwerfen erlauben (19.10.2026, Cloud, Branch `claude/re4-gpu-efficiency`).**
+Vor jedem Zeichnen, das ein Ziel ganz übermalt, darf die GPU den alten Inhalt vergessen
+(`glInvalidateFramebuffer`, `gx_gl.cpp ForgetColor`): das Ziel jeder EFB-Kopie und der Kopie ins
+XFB (der Bildausschnitt ist die ganze Textur), der Fokus-Texel und das Unschärfe-Bild des Autofokus
+(nur der Bildbereich wird gezeichnet und nur er zurückkopiert). Kachel-GPUs laden den alten Inhalt
+sonst vor dem Zeichnen in ihre Kacheln. Nicht angefasst: das EFB selbst (das Spiel zeichnet nach
+einer Kopie weiter, das Löschen nach einer Kopie betrifft nur den kopierten Bereich) und der
+MSAA-Puffer (das ist Schritt d). Schalter: `GxOptions::invalidate` (an), `RE4_GX_INVALIDATE=0`
+schaltet es aus. **Prüfmodus „magenta“** (`GxOptions::poison`, im PC-Werkzeug
+`RE4_GX_INVALIDATE_POISON=1`): statt zu vergessen wird das Ziel magenta gefüllt; ein Bild, das den
+alten Inhalt noch braucht, ändert sich dann. `gx_gl_check` läuft jetzt zweimal (normal und
+magenta), die PC-Prüfung (`whole_r100_check.sh`, Abschnitt 5) zeichnet alle GX-Bilder ein zweites
+Mal magenta und vergleicht sie Pixel für Pixel („Wegwerfen (GPU-Schritt b) …“). Der Renderer
+schreibt einmal je Lauf den Grafikchip und die für Schritt d nötigen Erweiterungen ins Protokoll
+(„GPU: …“, im Gerätebericht „Grafikchip“). Messreihe des GPU-Branch: 3/1/1/0 und 3/2/8/1, jeweils
+ohne und mit Wegwerfen, alles zweimal (8 Schritte; `S/M/A/D/I`). Getestet: `gx_gl_check` 0 Fehler
+in beiden Durchläufen; Gegenprobe: ein absichtlich falsches Vergessen des EFB nach einer Kopie gibt
+im Magenta-Durchlauf 4 Fehler; `gx_chunk_render` und `re4decomp_link_check` gebaut; der neue
+Abschnitt der PC-Prüfung mit einem Ersatz-Werkzeug (gleiche Bilder: „2 von 2 Bildern gleich“,
+abweichende: FEHLER). Nicht getestet: die PC-Prüfung mit echten Spielbildern, der Messlauf auf dem
+Gerät.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
