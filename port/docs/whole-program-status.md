@@ -4858,7 +4858,12 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   neu mit der Messung. `gx_gl_check`: neue Prüfung (ein Bild „fern“ ändert nichts, nach drei
   Bildern scharf, nach einer Pause sofort neu), alle Fälle bestanden; mit dem alten springenden
   Fokus schlägt sie in allen 10 Varianten fehl. Die R3-Aufnahmen mit dem neuen Code: alle
-  36 Bilder bitgleich zu vorher (1 und 4 Proben). **Nicht getestet:** auf dem Gerät.
+  36 Bilder bitgleich zu vorher (1 und 4 Proben). **Gerätelauf (Projektinhaber, 20.10.2026
+  00:15, Stand `120fd4a8`): das Flackern ist weiter da, auch mit ausgeschalteter
+  Tiefenschärfe.** Der Autofokus war also nicht (allein) die Ursache; der ruhigere Fokus bleibt
+  drin. Neue R3-Aufnahmen (64 bit, 2× MSAA, `gx-geraet-geteilt.zip`) liegen beim Projektinhaber;
+  **Entscheidung des Projektinhabers: das Flackern ein andermal beheben**, im Release als
+  bekannter Fehler genannt.
 - **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter
   linksbündig, „Back to the game“ in derselben Zeile rechts.
 - **Release 0.38.2 Alpha 03** (Entscheidung des Projektinhabers, 19.10.2026: auf GitHub liegt
