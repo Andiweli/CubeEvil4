@@ -1371,7 +1371,11 @@ PY
         say "  GX-Daten der verschiedenen Bilder: gx-vergleich-daten.zip ($(du -h "$run/gx-vergleich-daten.zip" | cut -f1); bitte mitschicken)"
     fi
     rm -rf "$run/gx-i686" "$run/gx-x86_64"  # large; the pictures and the zip stay
-    say "Bilder: Ordner bilder-vergleich (i686/ und x86_64/, bitte mitschicken)"
+    if [ -s "$diffs" ]; then
+        say "Bilder: Ordner bilder-vergleich (i686/ und x86_64/, bitte mitschicken)"
+    else
+        say "Bilder: Ordner bilder-vergleich (i686/ und x86_64/; alle gleich, nicht nötig mitzuschicken)"
+    fi
 }
 
 if [ "$game_ok" -eq 1 ] && [ "$compare" -eq 1 ]; then

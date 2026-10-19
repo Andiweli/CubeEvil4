@@ -4228,6 +4228,15 @@ r107 Schritt 3 „keine Abweichung“); Bilder 16 von 16 Pixel für Pixel gleich
 **Lichtart 5 in GameCube-Form damit bestätigt.** Nur `bericht.txt` im Ausgabeordner: Bilder und
 GX-Daten legt der Vergleichslauf nur bei Unterschieden ab.
 
+**PC-Prüfung 10:38 (Stand `2b9a60d`, -O2, Disc-Daten), Vergleichslauf 32/64 bit ab r120,
+30000 Bilder: ALLES OK.** Trace: alle 30.619 Bilder gleich (r120, r100, Soft-Reset, Titel mit den
+Filmen; jeder Abschnitt „keine Abweichung“); Bilder 24 von 24 Pixel für Pixel gleich; keine
+Anforderung ohne Platz. Heap 4 auf x86_64 jetzt mindestens 0x1C6B80 frei von 0xE32F00 (vorher
+0xC6B80 von 0xD32F00: genau das zusätzliche MB), i686 unverändert 0x115AC0 von 0xD367A0. Damit
+ändern weder die Regel für das Heap-Ende noch die Lichtart 5 etwas am Ablauf von r120/r100 auf
+64 bit. Der Bericht bat um den Ordner `bilder-vergleich` auch, wenn alle Bilder gleich waren;
+jetzt nur noch bei Unterschieden (`whole_r100_check.sh`).
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
