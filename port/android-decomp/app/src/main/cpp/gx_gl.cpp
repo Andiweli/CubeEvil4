@@ -281,7 +281,13 @@ struct GxRenderer::Impl {
   GLuint focusProgram = 0, blurProgram = 0;
   GLint focusRegion = -1, focusSize = -1, focusZ = -1, focusPlayer = -1;
   GLint blurRegion = -1, blurSize = -1, blurZ = -1, blurRadius = -1;
-  GLuint blurTex = 0, focusTex = 0, blurFbo = 0, focusFbo = 0;
+  GLuint blurTex = 0, blurFbo = 0;
+  // the focus (3 x 1 texels: the focus in use, the last two measurements), two in turn: each
+  // autofocus reads the one before and writes the other (focusCur: the one in use)
+  GLuint focusTex[2] = {}, focusFbo[2] = {};
+  int focusCur = 0;
+  unsigned focusChunk = ~0u;  // the chunk of the last autofocus (stats.chunks)
+  GLint focusRestart = -1;
   // GPU step e: the blur at half the resolution into halfTex, mixed into the EFB at the full one
   // (colorFbo: the EFB's colour without its depth, which the mix reads)
   GLuint halfProgram = 0, mixProgram = 0, halfTex = 0, halfFbo = 0, colorFbo = 0;
@@ -1874,18 +1880,27 @@ struct GxRenderer::Impl {
     glBindVertexArray(quadVao);
     for (int i = 0; i < 3; i++)
       glBindSampler(i, 0);
-    // the focus into one texel: distance (16 bits in r, g), strength (b)
-    BindFbo(focusFbo);
-    ForgetColor();  // its one texel is drawn over
-    glViewport(0, 0, 1, 1);
+    // the focus: distance (16 bits in r, g), strength (b) in the first texel, the last two
+    // measurements behind it. It follows the measurements step by step from the one before when
+    // the autofocus ran in the chunk before, else (the first, after a pause) it starts anew
+    const bool restart = focusChunk + 1 != stats.chunks;
+    focusChunk = stats.chunks;
+    const int next = focusCur ^ 1;
+    BindFbo(focusFbo[next]);
+    ForgetColor();  // its texels are drawn over
+    glViewport(0, 0, 3, 1);
     glUseProgram(focusProgram);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, efbDepth);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, focusTex[focusCur]);
     glUniform4f(focusRegion, rx, ry, rw, rh);
     glUniform2f(focusSize, static_cast<float>(fw), static_cast<float>(fh));
     glUniform4f(focusZ, perspA, perspB, zRange, zFar);
     glUniform1f(focusPlayer, static_cast<float>(player));
+    glUniform1f(focusRestart, restart ? 1.0f : 0.0f);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    focusCur = next;
     // the first port's tap distance: 1.5 pixels of a 480-line picture
     const float radius = std::min(4.0f, std::max(1.0f, rh / 480.0f * 1.5f));
     if (options.halfDof && halfProgram) {
@@ -1902,7 +1917,7 @@ struct GxRenderer::Impl {
       glActiveTexture(GL_TEXTURE1);
       glBindTexture(GL_TEXTURE_2D, efbDepth);
       glActiveTexture(GL_TEXTURE2);
-      glBindTexture(GL_TEXTURE_2D, focusTex);
+      glBindTexture(GL_TEXTURE_2D, focusTex[focusCur]);
       glUniform4f(halfRegion, rx, ry, rw, rh);
       glUniform2f(halfSize, static_cast<float>(fw), static_cast<float>(fh));
       glUniform4f(halfZ, perspA, perspB, zRange, zFar);
@@ -1945,7 +1960,7 @@ struct GxRenderer::Impl {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, efbDepth);
     glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, focusTex);
+    glBindTexture(GL_TEXTURE_2D, focusTex[focusCur]);
     glUniform4f(blurRegion, rx, ry, rw, rh);
     glUniform2f(blurSize, static_cast<float>(fw), static_cast<float>(fh));
     glUniform4f(blurZ, perspA, perspB, zRange, zFar);
@@ -1986,10 +2001,17 @@ struct GxRenderer::Impl {
         "  float q = (texture(depths, t / size).r * 16777215.0 - zmap.w) / zmap.z + zmap.x;\n"
         "  return q < 0.0 ? zmap.y / q : 1.0e9;\n"
         "}\n";
+    // The measurement: the median of nine depths at the centre (the first port's), or of 35 around
+    // it when fewer than five lie behind the player; 65535 (far: no blur) when none does. The
+    // focus in use (texel 0) follows the median of the last three measurements by a quarter of the
+    // way each picture: one picture measured wrong (a twig or the gun at the centre for a moment,
+    // a GPU's depth of an edge; the Retroid with MSAA, 19.10.2026: thin branches went soft for
+    // one picture) changes nothing, a new distance is taken over in about a quarter of a second.
+    // Texels 1 and 2: the last two measurements. restart: no picture before (all three anew).
     const std::string focusFs =
         std::string("#version 300 es\nprecision highp float;\nprecision highp int;\n") + kDistance +
-        "uniform float player;\nout vec4 o;\n"
-        "void main() {\n"
+        "uniform float player;\nuniform highp sampler2D history;\nuniform float restart;\nout vec4 o;\n"
+        "float measure() {\n"
         "  float z[35];\n"
         "  for (int i = 0; i < 35; ++i) z[i] = 0.0;\n"
         "  int n = 0;\n"
@@ -2007,14 +2029,29 @@ struct GxRenderer::Impl {
         "        if (d > player) z[n++] = d;\n"
         "      }\n"
         "  }\n"
-        "  if (n == 0) { o = vec4(0.0); return; }\n"
+        "  if (n == 0) return 65535.0;\n"
         "  for (int i = 0; i < 34; ++i)\n"
         "    for (int j = i + 1; j < 35; ++j)\n"
         "      if (j < n && z[j] < z[i]) { float t = z[i]; z[i] = z[j]; z[j] = t; }\n"
-        "  float f = z[n / 2];\n"
+        "  return clamp(round(z[n / 2]), 0.0, 65535.0);\n"
+        "}\n"
+        "float stored(int i) {\n"
+        "  vec4 t = texelFetch(history, ivec2(i, 0), 0);\n"
+        "  return round(t.r * 255.0) * 256.0 + round(t.g * 255.0);\n"
+        "}\n"
+        "vec4 focus(float f) {\n"
         "  uint d = uint(clamp(round(f), 0.0, 65535.0));\n"
-        "  float amount = 1.0 - smoothstep(3000.0, 6000.0, f);\n"
-        "  o = vec4(float(d >> 8u) / 255.0, float(d & 255u) / 255.0, amount, 1.0);\n"
+        "  return vec4(float(d >> 8u) / 255.0, float(d & 255u) / 255.0, 1.0 - smoothstep(3000.0, 6000.0, f), 1.0);\n"
+        "}\n"
+        "void main() {\n"
+        "  int i = int(gl_FragCoord.x);\n"
+        "  if (i == 2 && restart < 0.5) { o = texelFetch(history, ivec2(1, 0), 0); return; }\n"
+        "  float m = measure();\n"
+        "  if (i != 0 || restart > 0.5) { o = focus(m); return; }\n"
+        "  float b = stored(1), c = stored(2);\n"
+        "  float target = max(min(m, b), min(max(m, b), c));\n"
+        "  float before = stored(0);\n"
+        "  o = focus(abs(target - before) < 4.0 ? target : before + (target - before) * 0.25);\n"
         "}\n";
     const std::string blurFs =
         std::string("#version 300 es\nprecision highp float;\nprecision highp int;\n") + kDistance +
@@ -2113,6 +2150,8 @@ struct GxRenderer::Impl {
     mixZ = glGetUniformLocation(mixProgram, "zmap");
     glUseProgram(focusProgram);
     glUniform1i(glGetUniformLocation(focusProgram, "depths"), 0);
+    glUniform1i(glGetUniformLocation(focusProgram, "history"), 1);
+    focusRestart = glGetUniformLocation(focusProgram, "restart");
     focusRegion = glGetUniformLocation(focusProgram, "region");
     focusSize = glGetUniformLocation(focusProgram, "size");
     focusZ = glGetUniformLocation(focusProgram, "zmap");
@@ -2132,19 +2171,21 @@ struct GxRenderer::Impl {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glGenTextures(1, &focusTex);
-    glBindTexture(GL_TEXTURE_2D, focusTex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glGenFramebuffers(1, &blurFbo);
     BindFbo(blurFbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, blurTex, 0);
     bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
-    glGenFramebuffers(1, &focusFbo);
-    BindFbo(focusFbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, focusTex, 0);
-    ok = ok && glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    glGenTextures(2, focusTex);
+    glGenFramebuffers(2, focusFbo);
+    for (int i = 0; i < 2; i++) {
+      glBindTexture(GL_TEXTURE_2D, focusTex[i]);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 3, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+      BindFbo(focusFbo[i]);
+      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, focusTex[i], 0);
+      ok = ok && glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    }
     // GPU step e: the half-resolution blur (linear: the mix reads between its texels) and the EFB's
     // colour without its depth
     glGenTextures(1, &halfTex);
@@ -2689,10 +2730,10 @@ void GxRenderer::Release() {
   glDeleteTextures(1, halfTextures);
   const GLuint halfFbos[] = {m.halfFbo, m.colorFbo};
   glDeleteFramebuffers(2, halfFbos);
-  const GLuint autofocusTextures[] = {m.blurTex, m.focusTex};
-  glDeleteTextures(2, autofocusTextures);
-  const GLuint autofocusFbos[] = {m.blurFbo, m.focusFbo};
-  glDeleteFramebuffers(2, autofocusFbos);
+  const GLuint autofocusTextures[] = {m.blurTex, m.focusTex[0], m.focusTex[1]};
+  glDeleteTextures(3, autofocusTextures);
+  const GLuint autofocusFbos[] = {m.blurFbo, m.focusFbo[0], m.focusFbo[1]};
+  glDeleteFramebuffers(3, autofocusFbos);
   impl_.reset(new Impl);
 }
 

@@ -219,19 +219,16 @@ final class CoreMenu extends Dialog {
   }
 
   private void build() {
-    TextView title = text("CubeEvil4 Options", 22, true);
-    title.setGravity(Gravity.CENTER_HORIZONTAL);
-    body.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-        ViewGroup.LayoutParams.WRAP_CONTENT));
-    TextView intro = text("SELECT (short-press) = this Menu  ·  SELECT (long-press) = the Game's Debug Menu", 13,
-        false);
-    intro.setGravity(Gravity.CENTER_HORIZONTAL);
-    body.addView(intro, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-        ViewGroup.LayoutParams.WRAP_CONTENT));
-    LinearLayout back = new LinearLayout(getContext());
-    back.setGravity(Gravity.CENTER_HORIZONTAL);
-    button(back, "Back to the game", v -> dismiss());
-    body.addView(back, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+    // the title and the line under it on the left, "Back to the game" on the right of the same row
+    LinearLayout top = new LinearLayout(getContext());
+    top.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout titles = new LinearLayout(getContext());
+    titles.setOrientation(LinearLayout.VERTICAL);
+    titles.addView(text("CubeEvil4 Options", 22, true));
+    titles.addView(text("SELECT (short-press) = this Menu  ·  SELECT (long-press) = the Game's Debug Menu", 13, false));
+    top.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+    button(top, "Back to the game", v -> dismiss());
+    body.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.WRAP_CONTENT));
 
     heading("Graphics");

@@ -79,6 +79,9 @@ final class GyroAim implements SensorEventListener {
 
   @Override public void onAccuracyChanged(Sensor sensor, int accuracy) {}
 
+  // Float.isFinite needs Android 7.0; the app runs from 6.0
+  private static boolean finite(float v) { return !Float.isNaN(v) && !Float.isInfinite(v); }
+
   @Override public void onSensorChanged(SensorEvent event) {
     if (!activity.hasWindowFocus()) {
       still();
@@ -90,7 +93,7 @@ final class GyroAim implements SensorEventListener {
         : rotation == Surface.ROTATION_270 ? event.values[1]
         : rotation == Surface.ROTATION_180 ? -event.values[0] : event.values[0];
     float y = event.values[2];
-    if (SystemClock.elapsedRealtimeNanos() - event.timestamp > 150_000_000L || !Float.isFinite(y) || !Float.isFinite(p)) {
+    if (SystemClock.elapsedRealtimeNanos() - event.timestamp > 150_000_000L || !finite(y) || !finite(p)) {
       still();
       return;
     }

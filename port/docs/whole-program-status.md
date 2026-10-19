@@ -4833,6 +4833,45 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   **Nicht getestet:** Start mit Disc-Daten (PC-Prüfung, Gerät), die neue Belegung auf dem Gerät,
   der Bericht auf dem Gerät des Testers.
 
+### Gerätelauf 19.10.2026 23:42, MSAA-Flackern der Äste, Release 0.38.2 Alpha 03 (Branch `claude/re4-start-controls`)
+
+- **PC-Prüfung (Projektinhaber, Stand `c69dce33`): ALLES OK** (mit Patch 0085).
+- **Gerätelauf (Retroid, 64 bit von Hand und 32 bit automatisch, Stand `c69dce33`):** vom
+  Laden des Kerns bis `title.dat` gelesen **2,1 s** (vorher 5,8 s; 32 bit 4,6 s), „start reads
+  done: 111 steps without a frame's wait, 1 with“. 32 bit: MEM1 mit dem neuen Platzhalter
+  reserviert, Spiel läuft. „Alternate Controls“ im Spiel eingeschaltet, die Tasten kommen wie
+  gewollt an (L2 → R, R2 → A, L1 → L, R1 → Y, Y → Z, X → X).
+- **Flackern dünner Dinge mit MSAA (Projektinhaber: Äste vor einem Haus, 2× und 4×, 32 und
+  64 bit):** R3-Aufnahme 32 bit (`gx-geraet-00..02`, je 12 Bilder, Leon steht, 2× MSAA). Auf dem
+  Gerät weicht nur Bild 00-01 ab: 400 Bildpunkte im Bereich der Äste, dort heller (die dünnen
+  Äste weich ins Hintergrundbild verwischt), alle anderen 33 Bilder ruhig. Nachgespielt mit
+  `gx_chunk_render` (llvmpipe, 1 und 4 Proben) ist dasselbe Bild ruhig; der Autofokus misst dort
+  in allen 12 Bildern 10,4 m, jenseits von 6 m zeichnet er keine Unschärfe. Auf dem Gerät hat er
+  in Bild 00-01 also einmal näher gemessen: die Bildmitte (Waffe, Zweige, Haus) liegt dicht
+  beieinander, mit MSAA kommt die Tiefe jedes Punktes aus einer Probe (die Auflösung der Tiefe
+  wählt eine, die Farbe mischt alle), und was der Adreno dort liefert, sieht man nur auf ihm.
+  **Behebung (`gx_gl.cpp` Autofocus):** der Fokus springt nicht mehr. Drei Werte stehen in zwei
+  abwechselnden 3×1-Texturen: der benutzte Fokus und die letzten beiden Messungen; der Fokus
+  folgt dem Median der letzten drei Messungen um ein Viertel des Weges je Bild (eine einzelne
+  falsche Messung ändert nichts, ein neuer Abstand ist nach etwa einer Viertelsekunde da). Ohne
+  Autofokus im Bild davor (erstes Mal, nach Zwischensequenz, Menü, Tiefenschärfe aus) beginnt er
+  neu mit der Messung. `gx_gl_check`: neue Prüfung (ein Bild „fern“ ändert nichts, nach drei
+  Bildern scharf, nach einer Pause sofort neu), alle Fälle bestanden; mit dem alten springenden
+  Fokus schlägt sie in allen 10 Varianten fehl. Die R3-Aufnahmen mit dem neuen Code: alle
+  36 Bilder bitgleich zu vorher (1 und 4 Proben). **Nicht getestet:** auf dem Gerät.
+- **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter
+  linksbündig, „Back to the game“ in derselben Zeile rechts.
+- **Release 0.38.2 Alpha 03** (Entscheidung des Projektinhabers, 19.10.2026: auf GitHub liegt
+  „v0.38.1 Alpha Release 02“, Tag `alpha02`): Text `port/android-decomp/docs/releases/
+  v0.38.2-alpha3.md`, APK `CubeEvil4-v0.38.2-alpha3.apk` (Version 0.38.2, versionCode 58,
+  `coreRelease`, signiert mit demselben Schlüssel). Vor dem Release-Bau geprüft: neue App-Aufrufe
+  über Android 6.0 hinaus; nur `Float.isFinite` (ab Android 7.0) in `GyroAim` war ungeschützt,
+  jetzt `isNaN`/`isInfinite`.
+- **Getestet (Cloud):** alle Java-Dateien gegen Android 15 übersetzt; Java-Tests der App bestanden
+  (`CoreInputTests` 116, `CoreTouchTests` 241, `FramePacingTests` 420 …; die beiden alten
+  Fehlschläge der Variante `classic`, `enemy_feedback_tests` und `inventory_case_tests`, wie
+  zuvor); `gx_gl_check` 0 Fehler.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |

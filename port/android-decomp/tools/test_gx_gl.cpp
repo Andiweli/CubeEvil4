@@ -889,17 +889,39 @@ void TestAutofocus(re4gx::GxRenderer &r, bool multisampled = false) {
     std::snprintf(what, sizeof(what), "%s: the EFB alpha stays", tag);
     Check(EfbPixel(r, 159, 100)[3] == 128, what);
   }
+  // the focus follows its measurements step by step (the Retroid with MSAA, 19.10.2026: thin
+  // branches went soft for one picture): one picture without the card at the centre (measured
+  // far) changes nothing, the far edge stays soft; after three the focus is far, the picture sharp
   xfb = run(false, true);
   l = TexPixel(xfb, 159, 100);
   rr = TexPixel(xfb, 160, 100);
-  std::snprintf(what, sizeof(what), "%s: looking into the distance leaves the picture sharp", tag);
+  std::snprintf(what, sizeof(what), "%s: one picture measured far leaves the focus (the far edge stays soft)", tag);
+  Check(l[2] > 20 && l[0] < 240 && rr[0] > 20 && rr[2] < 240, what);
+  run(false, true);
+  xfb = run(false, true);
+  l = TexPixel(xfb, 159, 100);
+  rr = TexPixel(xfb, 160, 100);
+  std::snprintf(what, sizeof(what), "%s: looking into the distance for three pictures leaves the picture sharp", tag);
   Check(Near(l, 255, 0, 0) && Near(rr, 0, 0, 255), what);
+  if (!(Near(l, 255, 0, 0) && Near(rr, 0, 0, 255))) {
+    Print("left of the edge", l);
+    Print("right of the edge", rr);
+  }
+  // a picture without the marker in between: the next autofocus starts anew, at once
+  xfb = run(false, true);
+  run(true, false);
+  xfb = run(true, true);
+  l = TexPixel(xfb, 159, 100);
+  rr = TexPixel(xfb, 160, 100);
+  std::snprintf(what, sizeof(what), "%s: after a picture without the autofocus the focus is measured anew", tag);
+  Check(l[2] > 20 && l[0] < 240 && rr[0] > 20 && rr[2] < 240, what);
   // standing (Retroid, 17.10.2026): Leon (a card 1 m away) covers the centre,
   // behind him a green / white wall 3 m away, the far edge at 20 m. Without
   // his depth in the marker he is the focus and the wall goes soft; with it
   // (1.5 m) the focus is the wall around him: the wall stays sharp, the far
   // edge gets soft, Leon stays as he is
   auto standing = [&](std::uint32_t player) {
+    run(true, false);  // each case on its own: the autofocus starts anew
     Builder b;
     Baseline(b);
     DisplayCopy(b, true, kBlack);
