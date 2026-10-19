@@ -4253,6 +4253,20 @@ erst, wenn Disc 1 und Disc 2 vollständig importiert sind
 Import sichtbar. `test-core-app.ps1` wartet entsprechend auf beide Discs. Die
 Variante `classic` braucht weiter nur Disc 1.
 
+### Touch-Steuerung und 60 FPS (Prüfung und Entscheidungen des Projektinhabers, 19.10.2026)
+
+- **Touch-Steuerung mit RetroTouch** (`Andiweli/RetroTouch`, 1.0.0-beta.4, MIT, eigene Bibliothek
+  des Projektinhabers): machbar als Ebene über der Spielansicht, eingespeist als weiteres Gerät
+  in `CoreInput`; automatisch nur ohne Controller (`RetroTouchControllers`), im App-Menü
+  „Use Touch Controls“. Belegung: linker Stick, Steuerkreuz (Spielmenüs), `A` `B` `X` `Y` `Z`
+  `L` `R` `START`, `MENU` (wie SELECT). **C-Stick über die rechte Touchfläche** (Look-Zone,
+  Entscheidung des Projektinhabers): RetroTouch meldet zwei Sticks ohne Kennung
+  (`onMove(x, y)`), die Look-Zone dagegen getrennt (`onLook`). Noch nicht umgesetzt.
+- **60 FPS: vorerst nicht** (Entscheidung des Projektinhabers). Befund: `SetSystemVcnt(1)`
+  (60 Hz) ließe das Spiel doppelt so schnell laufen; die Spiellogik rechnet in Bildern, die
+  Einstellung wird nur an 7 Stellen gelesen (Tasten-Wiederholung, DVD, Filme, Ausnahme,
+  Debug-Balken). Echte 60 FPS bräuchten berechnete Zwischenbilder im Renderer.
+
 ### Grafik-Auslastung: Analyse (19.10.2026, Cloud, nur Code und Berichte, noch nichts gemessen)
 
 Anlass: beim Tester (POCO X7 Pro, Mali-GPU, 3-fach, 2× MSAA, 8× anisotrop, Tiefenschärfe) war
