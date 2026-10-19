@@ -4863,7 +4863,14 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   Tiefenschärfe.** Der Autofokus war also nicht (allein) die Ursache; der ruhigere Fokus bleibt
   drin. Neue R3-Aufnahmen (64 bit, 2× MSAA, `gx-geraet-geteilt.zip`) liegen beim Projektinhaber;
   **Entscheidung des Projektinhabers: das Flackern ein andermal beheben**, im Release als
-  bekannter Fehler genannt.
+  bekannter Fehler genannt. Ausgewertet (20.10.2026): drei Reihen zu 12 Bildern (64 bit, 2× MSAA,
+  Tiefenschärfe aus, Leon steht). Kein Bild fällt heraus (vorher 400 Bildpunkte in Bild 00-01,
+  jetzt höchstens 4–16 Bildpunkte, die hin und zurück springen); die Gerätebilder gleichen dem
+  Nachspielen mit 4 Proben bis auf etwa 60 Bildpunkte je Bild in allen Bildern gleich (2 statt 4
+  Proben). MSAA verringert im Nachspielen das Springen (1 Probe 71/83/355, 4 Proben 39/71/187
+  springende Bildpunkte). Das Flackern kommt nur ab und zu; in diesen 1,2 s war es nicht. Für
+  das nächste Mal nötig: eine Aufnahme, die das Ereignis sicher enthält (Vorschlag: die App hält
+  die GX-Daten der letzten Bilder im Speicher, R3 sichert sie).
 - **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter
   linksbündig, „Back to the game“ in derselben Zeile rechts.
 - **Release 0.38.2 Alpha 03** (Entscheidung des Projektinhabers, 19.10.2026: auf GitHub liegt
