@@ -461,6 +461,46 @@ struct GxRenderer::Impl {
   TimerPool chunkTimer, presentTimer;
   bool timerOn = false;
 
+  // --- how far the GPU is behind (fences, GxStats::behind*) ------------------------
+  // The timer of a chunk can read far more than a picture's interval while the pictures keep
+  // coming (Retroid, 2x MSAA with the autofocus, 19.10.2026: 450 ms at 30 pictures/s); a fence
+  // after every chunk tells, independent of the timer, whether the GPU keeps up: after the next
+  // chunk the fences not reached yet are chunks it has not finished.
+  static constexpr int kFences = 8;
+  GLsync fence[kFences] = {};
+  int fenceNext = 0;
+
+  void FenceAfterChunk() {
+    unsigned behind = 0;
+    for (GLsync &f : fence) {
+      if (!f)
+        continue;
+      const GLenum r = glClientWaitSync(f, 0, 0);
+      if (r == GL_TIMEOUT_EXPIRED) {
+        behind++;
+      } else {
+        glDeleteSync(f);
+        f = nullptr;
+      }
+    }
+    stats.behindSum += behind;
+    stats.behindChecks++;
+    stats.behindCount[std::min(behind, 8u)]++;
+    // kFences chunks behind: the oldest is no longer looked at (counted above)
+    if (fence[fenceNext])
+      glDeleteSync(fence[fenceNext]);
+    fence[fenceNext] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    fenceNext = (fenceNext + 1) % kFences;
+  }
+
+  void FenceRelease() {
+    for (GLsync &f : fence) {
+      if (f)
+        glDeleteSync(f);
+      f = nullptr;
+    }
+  }
+
   void TimerInit() {
     const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
     timerOn = ext && std::strstr(ext, "GL_EXT_disjoint_timer_query");
@@ -1970,6 +2010,7 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
     at += 1 + n;
   }
   m.TimerEnd();
+  m.FenceAfterChunk();
   // leave GL as the app's other renderers expect it
   glBindVertexArray(0);
   for (GLuint unit = 0; unit < 8; unit++)
@@ -2089,6 +2130,7 @@ void GxRenderer::Release() {
   const GLuint buffers[] = {m.vbo, m.ibo, m.xfUbo, m.pxUbo};
   glDeleteBuffers(4, buffers);
   m.StreamRelease();
+  m.FenceRelease();
   if (m.timerOn) {
     glDeleteQueries(Impl::TimerPool::kQueries, m.chunkTimer.query);
     glDeleteQueries(Impl::TimerPool::kQueries, m.presentTimer.query);

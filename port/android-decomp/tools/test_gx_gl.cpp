@@ -441,6 +441,20 @@ void TestBasics(re4gx::GxRenderer &r) {
       } else {
         std::fprintf(stderr, "  present: no timer extension here, GPU time not measured\n");
       }
+      // every chunk is checked against the GPU (fences); after glFinish it has caught up
+      unsigned counted = 0;
+      for (unsigned n : r.Stats().behindCount)
+        counted += n;
+      Check(r.Stats().behindChecks == r.Stats().chunks && counted == r.Stats().behindChecks,
+            "every chunk checked against the GPU");
+      Builder b;
+      Baseline(b);
+      Quad(b, 0, 0, 640, 448, 0, kGreen);
+      const unsigned long long sum = r.Stats().behindSum;
+      const unsigned zero = r.Stats().behindCount[0];
+      r.Run(b.Chunk());
+      Check(r.Stats().behindSum == sum && r.Stats().behindCount[0] == zero + 1,
+            "after glFinish the GPU is behind by no picture");
     }
     glDeleteFramebuffers(1, &fbo);
     glDeleteTextures(1, &tex);

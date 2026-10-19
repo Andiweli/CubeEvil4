@@ -41,8 +41,8 @@ android {
         applicationId 'com.ast.re4decomp'
         minSdk 21
         targetSdk 35
-        versionCode 57
-        versionName '0.38.1'
+        versionCode 58
+        versionName '0.38.2'
         externalNativeBuild { cmake { cppFlags '-std=c++17 -Wall -Wextra' } }
     }
     // classic: the app's own game modules (arm64-v8a), as before; since
@@ -78,4 +78,10 @@ android {
     buildTypes { release { minifyEnabled false } }
     packaging { jniLibs { useLegacyPackaging = false } }
     lint { abortOnError true }
+}
+
+dependencies {
+    // RetroTouch (MIT, github.com/Andiweli/RetroTouch): the touch controls of the core mode
+    // (TouchControls). An update replaces libs/retrotouch.aar; the file name carries no version.
+    implementation files('libs/retrotouch.aar')
 }

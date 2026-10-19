@@ -4245,6 +4245,35 @@ ohne Auswahl die erste Variante (`classicDebug` / `classicRelease`). Für CubeEv
 Titel lautet jetzt „RE4 Android Decomp (classic, not CubeEvil4)“ mit der echten Version
 (`MainActivity.versionName()`); ungeprüft, da in der Cloud kein Android-SDK.
 
+**Hänger im Lichterrätsel der Kirche (r117), 64 bit** (Frage des Projektinhabers, 19.10.2026; Bericht
+des Testers `cubeevil4-report-20261019-010055.zip`, POCO X7 Pro):
+- **Protokoll:** r117 ab 00:50:48; nach dreieinhalb Minuten öffnet der Tester das Debug-Menü
+  (00:54:29) und verlässt den Raum, ab 00:58:31 ist er wieder dort. Ab 00:58:35 läuft das Spiel
+  weiter (30 Spielbilder je Sekunde, „GX core“ mit 26 ms Leerlauf), aber Bild und Ton stehen: ab
+  01:00:02 alle 10 s genau 222 Zeichenaufträge und 260 Uniform-Uploads je Bild, 0 Stimmen; um
+  01:00:47 SELECT und der Fehlerbericht.
+- **Ursache (Code und Compiler):** `r117_LightMechanismMove` (Modus 2, „Muster prüfen“) wartet mit
+  `SceSleep(1)`, bis `r117_espEnd(W->esp[0])` Bit 2 im Byte 0xF9 des Lichtstrahls sieht. Das setzt
+  nur esp06 (der Effekt auf einem Pfad; `ESP06_WK.Flg`, Bit 2: am Pfadende angehalten): von allen
+  45 Klassen, die von `cEsp` erben, setzt sonst keine Bit 2 im Byte 1 ihrer eigenen Arbeit.
+  `ESP06_WK` enthält einen Zeiger (`pPath`) und beginnt auf LP64 8-ausgerichtet bei 0x110, nicht
+  am Datenende von `cEsp` (0x10C). Patch 0077 las `RE4_OWN(cEsp, u8, 0xF8) + 1` = 0x10D. Gemessen
+  mit den Bau-Flaggen: `Flg` bei 0xF9 (armhf), 0x111 (x86_64, aarch64); Patch 0077 jetzt
+  `RE4_OWN(cEsp, void*, 0xF8) + 1` = 0x111 (vorher 0x10D), auf ILP32 weiter 0xF9. Von 36 Klassen
+  mit `m_Free` beginnen 9 auf LP64 bei 0x110 (esp03, 06, 0d, 0e, 11, 12, 16, 3f, 4e).
+- **Lücke im Werkzeug:** `RE4_OWN` galt den Prüfungen als geprüfter Abstand, gleich mit welchem
+  `T`. Neu `port/tools/m12/own_start_check.py` (in `run_all.py`, Selbsttest 19 von 19): jede
+  `RE4_OWN(B, T, gc)`-Stelle, bei der die Klassen, die von `B` erben, ihre eigene Arbeit an mehr
+  als einem Abstand beginnen (cEsp: 36 bei 0x10C, 9 bei 0x110; cEm: 54 bei 0x49C, 2 bei 0x4A0).
+  5 Stellen, alle mit Begründung in `reviewed.json`: r117 (esp06, jetzt richtig), r300/r318
+  (Laser-Endpunkt als Vec 8 Bytes in die Arbeit: nur esp01, esp14, esp41 haben dort einen Vec,
+  alle ab 0x10C), `esp_sub.cpp` (esp1b, echter Typ der Arbeit, 0x10C), `em3e.h` (nur cEmMark,
+  0x49C).
+- App-Version 0.38.2 (versionCode 58).
+- Getestet (Cloud): `whole_build.sh i686 armhf x86_64 aarch64`: 0 Baufehler, alle Prüfungen
+  bestanden; alle 20 M12-Prüfungen auf den echten Builds (`run_all.py`, 29 min): 0 neue Funde.
+  **Nicht getestet:** das Rätsel selbst (braucht das Spiel bis r117 auf einem 64-bit-Gerät).
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
@@ -4261,11 +4290,59 @@ Variante `classic` braucht weiter nur Disc 1.
   „Use Touch Controls“. Belegung: linker Stick, Steuerkreuz (Spielmenüs), `A` `B` `X` `Y` `Z`
   `L` `R` `START`, `MENU` (wie SELECT). **C-Stick über die rechte Touchfläche** (Look-Zone,
   Entscheidung des Projektinhabers): RetroTouch meldet zwei Sticks ohne Kennung
-  (`onMove(x, y)`), die Look-Zone dagegen getrennt (`onLook`). Noch nicht umgesetzt.
+  (`onMove(x, y)`), die Look-Zone dagegen getrennt (`onLook`). Umgesetzt mit 1.0.0-beta.5
+  (nächster Abschnitt).
 - **60 FPS: vorerst nicht** (Entscheidung des Projektinhabers). Befund: `SetSystemVcnt(1)`
   (60 Hz) ließe das Spiel doppelt so schnell laufen; die Spiellogik rechnet in Bildern, die
   Einstellung wird nur an 7 Stellen gelesen (Tasten-Wiederholung, DVD, Filme, Ausnahme,
   Debug-Balken). Echte 60 FPS bräuchten berechnete Zwischenbilder im Renderer.
+
+### Touch-Steuerung eingebaut (RetroTouch 1.0.0-beta.5, 19.10.2026, Cloud, Branch `claude/re4-touch-controls`)
+
+- **Bibliothek:** `port/android-decomp/app/libs/retrotouch.aar` ohne Versionsnummer im Namen
+  (Wunsch des Projektinhabers: ein Update ersetzt nur die Datei), eingebunden in
+  `app/build.gradle` (`implementation files('libs/retrotouch.aar')`). beta.5 bringt Farben
+  (`RetroTouchColors`), sonst die API von beta.4.
+- **Aufteilung:** `CoreTouch.java` (ohne Android, Host-Test) übersetzt RetroTouchs Meldungen in den
+  GameCube-Controller und hält das Standard-Layout; `TouchControls.java` legt `RetroTouchView` über
+  das Bild, `CoreActivity` reicht Berührungen durch (`dispatchTouchEvent`) und teilt die
+  SELECT-Logik (`select()`), `CoreInput` hat ein eigenes Gerät `TOUCH` (`touchButton`, `touchStick`,
+  `touchClear`).
+- **Wann sichtbar:** automatisch, solange kein Controller angeschlossen ist
+  (`RetroTouchControllers.isControllerConnected()`: eingebaute, USB- und Bluetooth-Controller;
+  geprüft zweimal pro Sekunde und bei jeder Geräteänderung); mit dem Schalter **„Use Touch
+  Controls“** im App-Menü (neuer Abschnitt „Controls“, gespeichert in `core_input/touchControls`)
+  immer. Auf dem Retroid (eingebaute Tasten) also nur mit dem Schalter.
+- **Belegung:** Knöpfe `A` (grün) `B` (rot) `X` `Y` (hellgrau) `Z` (lila) `L` `R` `START` `MENU`
+  (grau), Steuerkreuz (auch für die Spielmenüs), linker Stick = Control-Stick, rechte
+  Bildschirmhälfte = C-Stick. `MENU` = SELECT: kurz das App-Menü, 1 s halten das Debug-Menü.
+  **`L` und `R` rasten ein** (Tippen hält, nächstes Tippen lässt los, RetroTouch zeigt sie dann
+  kräftiger): mit zwei Daumen lässt sich R (zielen) sonst nicht halten, während A (feuern)
+  getippt wird. Eigene Entscheidung, auf Wunsch leicht umstellbar.
+- **C-Stick aus der Look-Zone:** RetroTouch meldet dort nur Bewegungen, kein Aufsetzen oder
+  Abheben. Der C-Stick ist darum der Weg des Fingers seit dem Aufsetzen (0,15 der kürzeren
+  Bildschirmseite = voll, längere Wege schieben die Mitte mit) und springt beim Abheben zurück.
+  Welcher Finger schaut, bestimmt `TouchControls`: ein Finger, der in der Look-Zone aufsetzt und
+  keinen Knopf/Stick/Steuerkreuz auslöst. Ein Daumen außerhalb aller Knöpfe nimmt die
+  Spielfläche selbst (`setOnTouchListener`), sonst gäbe Android die weiteren Finger dieser
+  Berührung an keine Ansicht mehr. Bekommt RetroTouch später „Finger berührt/abgehoben“ für die
+  Look-Zone, ersetzt das diese Bestimmung.
+- **Editor:** RetroTouchs Zahnrad oben rechts (verschieben, Größe, Deckkraft, speichern); das
+  Spiel steht währenddessen wie im App-Menü. Das App-Menü hat zusätzlich „Back to the game“ zum
+  Schließen per Touch.
+- **Geprüft (Cloud):** `tests/CoreTouchTests.java` (232 Prüfungen, in `tools/test_host.sh`):
+  Knöpfe, einrastendes L/R, MENU, Sticks, C-Stick-Weg und Zurückspringen, Finger, die nicht
+  schauen, Abbruch, zusammen mit einem echten Controller; das Layout nach RetroTouchs Geometrie:
+  keine Touch-Flächen überlappen, alles bei 4:3, 16:9 und 20:9 im Bild, Beschriftungen höchstens
+  5 Zeichen (Gegenprobe: ein verschobenes B schlägt an). Alle App-Quellen kompilieren ohne
+  Fehler und Warnungen gegen die Android-15-Klassen (`org.robolectric:android-all`, nur zum
+  Prüfen, nicht im Repository) und die Klassen der AAR. `CoreInputTests` weiter 69 Prüfungen.
+  Die übrigen Host-Tests wie bisher; weiterhin rot nur die bekannten `enemy_feedback_tests` und
+  `inventory_case_contracts` (siehe oben).
+- **Gerätetest (Retroid, Projektinhaber, 19.10.2026):** Build mit der AAR gelungen, die
+  Touch-Steuerung „scheint alles zu klappen“. Danach in den M12-Branch übernommen.
+- **Noch nicht getestet:** Lint (läuft erst beim `coreRelease`-Build), ein Handy ohne Controller
+  (automatisches Einblenden), An- und Abstecken eines Controllers während des Spiels.
 
 ### Grafik-Auslastung: Analyse (19.10.2026, Cloud, nur Code und Berichte, noch nichts gemessen)
 
@@ -4320,6 +4397,62 @@ nach der Abfrage), die je Spielbild nicht (die EFB-Kopien schließen jeden Durch
 `Run` ab). Getestet: Host-Bau (`gx_gl_check` 0 Fehler, neu „every present counted“, „the presents'
 GPU time measured“: 0,3 ms je Darstellung mit llvmpipe, „the chunks' GPU time measured“;
 `re4decomp_link_check` mit `core_mode.cpp` gebaut). Nicht getestet: der Messlauf auf dem Gerät.
+
+**GPU-Schritt (a): erster Messlauf auf dem Retroid (19.10.2026, Projektinhaber), Auswertung.**
+- Alle sieben Einstellungen hielten 30 Bilder/s und 58–60 Darstellungen/s; die Darstellung kostete
+  0,3–0,6 ms (Retroid mit 60 Hz).
+- **Zu früh begonnen:** Leon war erst um 16:44:37 frei („run: player free“, Beginn von Schritt 4),
+  der Autofokus lief erst ab 16:44:27. Die Schritte 1–3 lagen in Ankunft und Funkspruch (135–290
+  Zeichenbefehle je Bild statt etwa 490); vergleichbar sind nur die Schritte 4–7.
+- **Zeitabfrage nicht plausibel** in den Schritten 4, 5 und 7 (2× MSAA mit laufendem Autofokus):
+  493, 113 und 452 ms je Bild bei 30 Bildern/s; mit 1 Probe oder ohne Autofokus 20–24 ms. Die
+  Ursache zeigt das Protokoll nicht (offen).
+- **Last mal Takt** (unabhängig von der Zeitabfrage), Schritte 4–7 an derselben Stelle: 3×, 2× MSAA,
+  anisotrop aus, Tiefenschärfe an: 87 % bei 670 MHz (≈ 583 MHz Arbeit); 3×, 2×, 8×, an: 88 % bei
+  670 MHz (≈ 590); 2×, 2×, 8×, an: 68 % bei 400 MHz (≈ 272); 3×, alles aus: 72 % bei 400 MHz
+  (≈ 288). Also verdoppeln MSAA und Tiefenschärfe zusammen bei 3× etwa die Arbeit (der Retroid
+  braucht dann den höchsten Takt und ist zu 88 % ausgelastet); 8× anisotrop kostet nichts
+  Messbares; Auflösung 2 statt 3 gut die Hälfte.
+- **Folgerung für b–e:** Die Darstellung ist auf dem Retroid klein, c (60 Hz) hilft nur auf
+  120-Hz-Handys. Der große Posten ist MSAA zusammen mit dem Autofokus (d, e). Wie er sich auf beide
+  verteilt, zeigt der zweite Lauf. Der Posten „anisotrop 4× statt 8×“ entfällt.
+- **Messlauf verbessert (Cloud):** Der erste Schritt kommt 10 s, nachdem der Kern „Leon frei“
+  meldet (`re4_trace_free_at`, schon exportiert, kein Kern-Neubau; ohne die Funktion wie bisher nach
+  60 s). Neue Schritte: 3/1/1/0, 3/2/1/0, 3/1/1/1, 3/2/1/1, 3/2/8/1, 2/2/8/1, 3/1/1/0 (MSAA und
+  Tiefenschärfe einzeln). Jede Zeile hat zusätzlich Last mal Takt, Zeichenbefehle je Bild (gleiche
+  Stelle?), eine Markierung für Zeitwerte über dem Bildabstand und, wie weit die GPU hinterherhinkt:
+  ein Fence nach jedem Spielbild, nach dem nächsten werden die noch nicht erreichten gezählt
+  (`GxStats::behind*`, `gx_gl.cpp FenceAfterChunk`). Das zeigt ohne die Zeitabfrage, ob die GPU
+  mitkommt. `test-core-app.ps1 -GpuBench` beobachtet jetzt 330 s. Getestet: `gx_gl_check` 0 Fehler
+  (neu: jedes Spielbild geprüft, nach `glFinish` 0 hinterher), `re4decomp_link_check` gebaut,
+  `core_mode.cpp` ohne neue Warnungen. Nicht getestet: der zweite Lauf auf dem Gerät.
+
+**GPU-Schritt (a): zweiter Messlauf auf dem Retroid (19.10.2026, Projektinhaber), Ergebnis.** Alle
+Schritte an derselben Stelle (Leon frei, 487–498 Zeichenbefehle je Bild), 30 Bilder/s,
+60 Darstellungen/s, Darstellung 0,26–0,37 ms. **Die GPU hinkte nie hinterher** (Fences: 0 Bilder
+im Mittel und höchstens 0 in allen Schritten): die Zeitabfrage-Werte von 199–438 ms mit 2× MSAA
+und Autofokus sind ein Fehler der Zeitabfrage, keine echte Verzögerung. Mit MSAA allein zeigte
+sie sogar weniger als ohne (17,7 statt 18,5 ms): mit MSAA taugt die Zeitabfrage des Retroid nicht.
+Last mal Takt (Arbeit), 3-fach:
+
+| Schritt | MSAA | anisotrop | Tiefenschärfe | Takt | Last | Arbeit | gegenüber nichts |
+|---|---|---|---|---|---|---|---|
+| 1 | aus | aus | aus | 400 MHz | 65 % | 260 | |
+| 7 (Wiederholung) | aus | aus | aus | 400 MHz | 68 % | 272 | (Mittel 266) |
+| 3 | aus | aus | an | 400 MHz | 79 % | 316 | +19 % |
+| 2 | 2× | aus | aus | 587 MHz | 79 % | 462 | +74 % |
+| 4 | 2× | aus | an | 670 MHz | 85 % | 568 | +114 % |
+| 5 | 2× | 8× | an | 670 MHz | 85 % | 572 | +115 % |
+| 6 (2-fach) | 2× | 8× | an | 400 MHz | 72 % | 286 | +8 % |
+
+Folgerungen: **MSAA ist der große Posten** (+74 %), mit der Tiefenschärfe zusammen mehr als die
+Summe (+114 % statt +93 %: der Autofokus löst bei MSAA Farbe und Tiefe des ganzen EFB auf und
+zeichnet in den Mehrfach-Puffer zurück). Die Tiefenschärfe allein kostet +19 %, 8× anisotrop
+nichts Messbares, die Wiederholung (Schritt 7) liegt 5 % neben Schritt 1 (Streuung der Messung).
+Reihenfolge der Schritte danach: **b** (Wegwerfen erlauben, klein), **d** (MSAA auf Handy-Art,
+der große Posten; braucht `EXT_multisampled_render_to_texture2`, damit die Tiefe als Textur
+erhalten bleibt: welche Erweiterungen der Retroid hat, schreibt der nächste Lauf ins Protokoll),
+**e** (Tiefenschärfe in halber Auflösung), **c** (60 Hz, hilft nur auf 120-Hz-Handys).
 
 ## Aufbau
 
@@ -4497,7 +4630,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0074 `trans.cpp`, `emwindow.h`, `em3e.h`, `TexRender.cpp`, `light_area.cpp`, `objTrolley.cpp`, `r300.cpp`, `r30c.cpp`, `r310.cpp`, `r316.cpp`, `r317.cpp`, `r318.cpp`, `db_work.cpp` | 64 bit (M12): Sichten mit GameCube-Abständen (ein Füllfeld bis zu dem Glied, das sie benennen) über ein Objekt, dessen Grundklassen auf LP64 wachsen, erreichen das Glied jetzt über `RE4_OFS(T, glied, gc)` oder `sizeof` der Grundklasse (auf ILP32 der GameCube-Wert): Skelett (`cPartsWk` → `cParts::pList`), Fenster (`EmObjWork::eff`), `EmMarkView`, Lore (`FREE_EM10::Target_dir`), Ereignis-Kamera (`Event`-Glieder statt `TexRenderEvt`), Raketenwerfer (`cObjLauncher::pRocket`), r300/r30c/r310/r316/r317/r318, Objekt-Betrachter. `GxWork` und `SaveDataPtrs` stattdessen in `fixed_form.json`. Neu im Prelude: `RE4_OWN(B, T, gc)`, der Anfang der eigenen Arbeitsfläche hinter einer Grundklasse (auf LP64 in deren Füllbytes). Gefunden mit `cast_check.py` (jetzt auch C++) |
 | 0075 `event.cpp`, `ss_pzzl.cpp`, `ss_shop.cpp`, `eprintf.cpp`, `r332.cpp`, `r20d.cpp` | 64 bit (M12): Zeiger in 4-Byte-Plätzen. `EventMgr::GetRead` (Absturz beim Laden des Autofahrt-Ereignisses r120) und `Event::PFuncTbl` über eine Zeiger-Variable; die bin/tpl-Wörter von `ITEM_PIECE_INFO::model` als u32 geschrieben und gelesen; Debug-Textzeiger in 4-Byte-Plätzen (`RE4_P32`); r332-Makros und r20d mit Index statt GameCube-Byteabstand. Gefunden mit `ptr_slot_check.py` |
 | 0076 `db_log.cpp` | Die Spielmeldungen (`pLog->err/warn/mes`, auf dem GameCube Bildschirm und `printf`-Konsole) gehen über `re4_game_log` ins Protokoll des Ports: jede Meldung (nach ihrem Format) die ersten 3 Male, dann jedes 1000. Mal mit Zählung. Auf Android gab es keine Konsole, Meldungen wie „GetPrimBuff() : OVERFLOW“ gingen verloren |
-| 0077 `r117.cpp` | 64 bit (M12): Byte 0xF9 der Lichtstrahlen (Byte 1 der eigenen Arbeitsfläche hinter `cEsp`) über `RE4_OWN(cEsp, u8, 0xF8) + 1`; auf LP64 beginnt die Fläche bei 0x10C. Gefunden mit `raw_offset_check.py` (Abstände hinter dem Ende einer Struktur) |
+| 0077 `r117.cpp` | 64 bit (M12): Byte 0xF9 der Lichtstrahlen (Byte 1 der eigenen Arbeitsfläche hinter `cEsp`) über `RE4_OWN(cEsp, u8, 0xF8) + 1`; auf LP64 beginnt die Fläche bei 0x10C. Gefunden mit `raw_offset_check.py` (Abstände hinter dem Ende einer Struktur) **Berichtigt 19.10.2026:** der Lichtstrahl ist esp06, dessen Arbeit (mit Zeiger) auf LP64 bei 0x110 beginnt; gelesen wird jetzt `RE4_OWN(cEsp, void*, 0xF8) + 1` = 0x111 statt 0x10D (das Rätsel wartete sonst beim Prüfen des Musters ewig; Tester, POCO X7 Pro). Nachgezogen: `own_start_check.py` |
 | 0078 `motion.cpp`, `r320.cpp` | 64 bit (M12): GameCube-Abstände in Summen mit Variablen. `MOT_HIST` (Schlüssel-Verlauf der Wurzel für `MotionGetSpeed` und `MotionGetPosition`) über `RE4_OFS(MOTION_INFO, Key_hist, 8)`: vorher schrieb `HermiteInterpolation` auf LP64 in die obere Hälfte von `pHermite_data` (Absturz des ersten Ganados in r100, Gerät und PC-Prüfung; gefunden mit einem Hardware-Haltepunkt, `runtime/watch.cpp`). `R320_EM_OFS` über `RE4_OFS(R320Work, em, 0xC)` |
 | 0079 `cam_extra.cpp` | 64 bit (M12): die Kamera beim Öffnen einer Tür liest die z-Spalte von `FREE_EMDOOR::base_mat` über den Namen statt als `((f32*) em)[0x784 / 4]`. Gefunden mit `raw_offset_check.py --words` |
 | 0080 `include/trans.h` | 64 bit (M12): `ModelTexInfo`, die Sicht des Zeichners auf `cModelInfo` ab `flagsDC` (`MODEL_TEX`), legt jedes Glied dorthin, wo `cModelInfo` es hat: auf LP64 4-Byte-Packung und eine Lücke aus den Abständen von `cModelInfo` (auf dem GameCube 2 Bytes, auf LP64 6), `static_assert` je Glied. Vorher las `RefractShaderSetup` auf LP64 `blendTbl` 4 Bytes zu früh (Absturz im ersten Bild von r100, PC-Prüfung 18.10.2026). Gefunden mit `cast_check.py`, seit es den Operator `&` bei libclang abfragt (vorher im Makro übersehen) |
