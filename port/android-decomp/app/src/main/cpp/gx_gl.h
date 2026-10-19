@@ -80,9 +80,11 @@ struct GxOptions {
   // Leon's hair, fog, whole objects missing), so d2 draws the EFB back itself at the start of
   // every new pass, from a second set of textures. Off until the device test of d2
   bool tiledMsaa = false;
-  // tests (RE4_GX_LOSE_TILES=1 in gx_chunk_render): every new pass on the tiles starts with
-  // magenta and depth 0 before the EFB is drawn back, as a GPU that loses everything would
-  bool loseTiles = false;
+  // tests (RE4_GX_LOSE_TILES in gx_chunk_render): 1, every new pass on the tiles starts with
+  // magenta and depth 0 before the EFB is drawn back, as a GPU that loses everything would; 2,
+  // besides, the resolved depth never reaches the texture (0 there), as the Adreno 650 seems to do:
+  // the self-test at Init finds it and takes own buffers
+  int loseTiles = 0;
   // the depth of field's blur at half the resolution, mixed into the picture at the full one
   // (GPU step e, 19.10.2026); off: the blur and the copy back at the full resolution
   bool halfDof = true;

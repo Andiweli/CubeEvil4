@@ -1003,13 +1003,15 @@ void TestPassBreak(re4gx::GxRenderer &r, const char *tag) {
 // every copy out of it (display copy, texture copy); a slanted edge comes out
 // between the two colours; anisotropic filtering does not change a picture
 // without mipmaps.
-void TestOptions(bool poison, bool tiled, bool halfDof = true, bool lose = false) {
+void TestOptions(bool poison, bool tiled, bool halfDof = true, int lose = 0) {
   int maxSamples = 1;
   float maxAnisotropy = 1.0f;
   re4gx::GxRenderer::Limits(&maxSamples, &maxAnisotropy);
   std::fprintf(stderr, "  options: up to %d samples, anisotropy up to %.0f, MSAA %s%s\n", maxSamples, maxAnisotropy,
                tiled ? "on the tiles where the GPU can" : "in own buffers",
-               lose ? ", everything lost at a pass's end" : "");
+               lose == 2   ? ", everything lost at a pass's end, the depth never stored"
+               : lose == 1 ? ", everything lost at a pass's end"
+                           : "");
   re4gx::GxRenderer r;
   re4gx::GxOptions o;
   o.samples = 4;
@@ -1025,7 +1027,10 @@ void TestOptions(bool poison, bool tiled, bool halfDof = true, bool lose = false
   // MSAA on the tiles exactly where the GPU has both extensions (GPU step d)
   const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
   const bool can = ext && std::strstr(ext, "GL_EXT_multisampled_render_to_texture2") && maxSamples > 1;
-  Check(r.TiledMsaa() == (tiled && can), "options: MSAA on the tiles where asked for and the GPU can");
+  // (d2: not when the device never stores the resolved depth; the self-test at Init finds it)
+  Check(r.TiledMsaa() == (tiled && can && lose < 2), "options: MSAA on the tiles where asked for and the GPU can");
+  if (tiled && can && lose == 2)
+    Check(r.Samples() > 1, "options: the depth never stored on the tiles: own buffers instead");
   Check(r.Samples() == (maxSamples >= 4 ? 4 : 1) || (r.Samples() > 1 && r.Samples() <= maxSamples),
         "options: the samples asked for, as far as the device goes");
   Check(r.Anisotropy() == std::min(8.0f, maxAnisotropy), "options: the anisotropy, as far as the device goes");
@@ -1109,8 +1114,11 @@ int main() {
   // MSAA on the tiles on a GPU that loses colour and depth at every pass's end (the Adreno 650
   // lost the depth): the EFB drawn back (GPU step d2) keeps every picture; both resolutions of
   // the depth of field (its full one draws back into the EFB on the tiles)
-  TestOptions(false, true, true, true);
-  TestOptions(true, true, false, true);
+  TestOptions(false, true, true, 1);
+  TestOptions(true, true, false, 1);
+  // ... and one that never stores the resolved depth either (the Adreno 650, it seems): the
+  // self-test at Init takes own buffers, every picture right
+  TestOptions(false, true, true, 2);
   std::fprintf(stderr, "gx_gl_check: %d failed\n", gFailures);
   return gFailures ? 1 : 0;
 }

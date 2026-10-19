@@ -778,6 +778,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # the screen's rate and how often the picture is drawn (GPU step c, CoreActivity / FramePacing)
     $display = @($keep | Where-Object { $_ -match 'RE4Input\s*: display at ' })
     foreach ($line in @($display | Select-Object -First 4)) { Say "Bildschirm:                       $(($line -split 'RE4Input\s*:\s*')[-1])" }
+    # MSAA on the tiles (GPU step d2): what the device keeps over a pass's end (gx_gl.cpp TilesSelfTest)
+    $tilesTest = $keep | Where-Object { $_ -match 'RE4GX\s*: MSAA on the tiles, self-test' } | Select-Object -First 1
+    if ($tilesTest) { Say "Kacheln-Selbsttest:               $(($tilesTest -split 'self-test:\s*')[-1])" }
     # the GPU and the extensions step d (MSAA on the tiles) needs (gx_gl.cpp, once per run)
     $gpuInfo = $keep | Where-Object { $_ -match 'RE4GX\s*: GPU: ' } | Select-Object -First 1
     if ($gpuInfo) { Say "Grafikchip:                       $(($gpuInfo -split 'RE4GX\s*:\s*GPU:\s*')[-1])" }

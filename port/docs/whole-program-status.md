@@ -4683,6 +4683,37 @@ Treiber nach dem Ende eines Durchgangs behält:
   **Nicht getestet:** das Gerät (Haare/Nebel mit d2, Arbeit im Messlauf), die PC-Prüfung mit
   Disc-Daten.
 
+**GPU-Schritte e, c, d2: PC-Prüfung und Messlauf (19.10.2026, Projektinhaber, Stand `308019fc`).**
+- **PC-Prüfung: ALLES OK.** Tiefenschärfe halb gegen voll: 2 Bilder mit Autofokus, 19 von 19 gleich
+  (an diesen Stellen ohne Unschärfe). d2 gegen eigene Puffer (zink, 4 Proben): 3 von 19 gleich, sonst
+  Kanten (2145–14712 Pixel, höchstens 94 von 255); d2 mit nachgebildetem Verlust gegen d2: 19 von 19
+  gleich.
+- **Messlauf (Retroid, Last mal Takt, 3-fach, Leon steht, 490 Zeichenbefehle je Bild):** nichts 259 /
+  271; Tiefenschärfe voll 312, halb 314 (**e bringt auf dem Retroid nichts**: an der Messstelle ohne
+  Unschärfe kostet vor allem die Unterbrechung des Bilds durch den Autofokus, nicht das Weichzeichnen);
+  Optionen des Testers in eigenen Puffern 574, auf den Kacheln (d2) 450 (−22 %, 12-mal je Bild
+  zurückgemalt; d ohne Zurückmalen war 331); 4× auf den Kacheln 654 (98 % Last, 30 Bilder/s, aber
+  nur 34 Darstellungen/s), 4× in eigenen Puffern 663 (99 %, **24 Bilder/s**). Zeitabfrage auf den
+  Kacheln plausibel (18,1 / 21,5 ms), in eigenen Puffern wie bekannt nicht.
+- **c:** „display at 60.0 Hz (modes: 1080x1920@60.0): left as it is“, „drawn at each vsync“: auf dem
+  Retroid wie gewünscht ohne Wirkung.
+- **d2 auf dem Gerät: Haare fehlen wieder, Flackern** (Projektinhaber; Bild nach 190 s, Schritt 6,
+  4× auf den Kacheln: dunkle Kappe, kein Nebel; nach 310 s ohne MSAA richtig). Das Zurückmalen aus
+  den Texturen hilft also nicht. Wahrscheinlichste Ursache: der Adreno 650 schreibt bei
+  `EXT_multisampled_render_to_texture2` die aufgelöste Tiefe gar nicht in die Tiefentextur (die
+  Farbe schon); dann malt d2 eine falsche Tiefe zurück. Belegt ist das noch nicht.
+- **Selbsttest beim Start (neu, `TilesSelfTest`):** Mit MSAA auf den Kacheln zeichnet der Renderer
+  einmal beim Anlegen in eine 8×8-Ecke Rot mit Tiefe 0,25, beendet den Durchgang, liest zurück, was
+  das Gerät in den Texturen behalten hat, malt zurück und zeichnet Grün dahinter (`LESS`) und Blau
+  auf derselben Tiefe (`EQUAL`). Protokoll: „MSAA on the tiles, self-test: the device keeps the
+  colour …, the depth … (read N of 255, 64 expected); the EFB drawn back: …“ (im Bericht
+  „Kacheln-Selbsttest:“). Scheitert er, nimmt der Renderer **von selbst eigene Puffer** (`DropTiles`,
+  `OwnMsaa`). Dazu einmal je Lauf die ganze Erweiterungsliste des Grafikchips („GPU extensions“).
+  Prüfung: `GxOptions::loseTiles = 2` (`RE4_GX_LOSE_TILES=2`) bildet ein Gerät nach, das die
+  aufgelöste Tiefe nie speichert: der Selbsttest scheitert („the same depth FAILS EQUAL -> own
+  buffers instead“), alle Bildprüfungen bestehen. `gx_gl_check` 0 Fehler mit llvmpipe und zink.
+  **Nicht getestet:** der Selbsttest auf dem Retroid.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |

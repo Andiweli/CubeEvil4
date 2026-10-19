@@ -253,6 +253,7 @@ struct GxRenderer::Impl {
   GLuint spareFbo = 0, spareColor = 0, spareDepth = 0;
   GLuint restoreProgram = 0;
   bool efbLeft = false;         // another framebuffer was bound since the EFB's
+  int wantSamples = 1;          // the samples asked for (own buffers when the tiles fail their self-test)
   bool restorePending = false;  // the EFB is to be drawn back before it is drawn into
 
   GxOptions options;
@@ -829,10 +830,21 @@ struct GxRenderer::Impl {
     SaveAndPlainState();
     const GLenum both[2] = {GL_COLOR_ATTACHMENT0, GL_DEPTH_ATTACHMENT};
     glInvalidateFramebuffer(GL_FRAMEBUFFER, 2, both);
-    if (options.loseTiles) {
+    if (options.loseTiles >= 1) {
       glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
       glClearDepthf(0.0f);
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
+    if (options.loseTiles >= 2) {
+      // a device that never writes the resolved depth into the texture: 0 there
+      GLuint fbo = 0;
+      glGenFramebuffers(1, &fbo);
+      glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, spareDepth, 0);
+      glClearDepthf(0.0f);
+      glClear(GL_DEPTH_BUFFER_BIT);
+      glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
+      glDeleteFramebuffers(1, &fbo);
     }
     glViewport(0, 0, kEfbWidth * scale, kEfbHeight * scale);
     glEnable(GL_DEPTH_TEST);
@@ -849,6 +861,167 @@ struct GxRenderer::Impl {
     glDisable(GL_DEPTH_TEST);
     Touched();
     stats.efbRestores++;
+  }
+
+  // MSAA in separate multisampled buffers (msaaFbo), resolved into efbColor / efbDepth before
+  // every copy; false when the device cannot (single-sampled then).
+  bool OwnMsaa(int want) {
+    const int w = kEfbWidth * scale, h = kEfbHeight * scale;
+    while (glGetError() != GL_NO_ERROR) {
+    }
+    glGenRenderbuffers(1, &msaaColor);
+    glBindRenderbuffer(GL_RENDERBUFFER, msaaColor);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, want, GL_RGBA8, w, h);
+    glGenRenderbuffers(1, &msaaDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, msaaDepth);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, want, GL_DEPTH_COMPONENT24, w, h);
+    GLint got = 0;
+    glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_SAMPLES, &got);
+    glGenFramebuffers(1, &msaaFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, msaaFbo);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, msaaColor);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, msaaDepth);
+    const bool ok =
+        glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE && glGetError() == GL_NO_ERROR && got > 1;
+    if (ok) {
+      samples = got;
+      glViewport(0, 0, w, h);
+      glClearColor(0, 0, 0, 0);
+      glClearDepthf(1.0f);
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    } else {
+      glDeleteFramebuffers(1, &msaaFbo);
+      glDeleteRenderbuffers(1, &msaaColor);
+      glDeleteRenderbuffers(1, &msaaDepth);
+      msaaFbo = msaaColor = msaaDepth = 0;
+    }
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
+    return ok;
+  }
+
+  // MSAA on the tiles given up: the EFB's textures plain again, the second set gone.
+  void DropTiles() {
+    glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, efbColor, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, efbDepth, 0);
+    const GLuint spareTextures[] = {spareColor, spareDepth};
+    glDeleteTextures(2, spareTextures);
+    glDeleteFramebuffers(1, &spareFbo);
+    spareFbo = spareColor = spareDepth = 0;
+    tiledMsaa = false;
+    samples = 1;
+    efbLeft = restorePending = false;
+  }
+
+  // GPU step d2 on this device (once, at Init): a pass on the tiles draws red at depth 0.25 into
+  // an 8x8 corner and ends; what the device kept of it is read back (the resolved colour and
+  // depth in the EFB's textures); the next pass draws the EFB back (UseEfb), then green at depth
+  // 0.5 with LESS (must stay red: the depth came back) and blue at depth 0.25 with EQUAL (must
+  // pass: the same depth exactly). False (logged): MSAA on the tiles does not keep the EFB here.
+  // The Retroid's Adreno 650 showed Leon without hair with d and d2 (19.10.2026).
+  bool TilesSelfTest() {
+    static const char kVs[] = "#version 300 es\n"
+                              "void main() {\n"
+                              "  vec2 p = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));\n"
+                              "  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);\n"
+                              "}\n";
+    static const char kDrawFs[] = "#version 300 es\nprecision highp float;\n"
+                                  "uniform vec4 color;\nuniform float depth;\nout vec4 o;\n"
+                                  "void main() { o = color; gl_FragDepth = depth; }\n";
+    static const char kProbeFs[] = "#version 300 es\nprecision highp float;\n"
+                                   "uniform sampler2D color;\nuniform highp sampler2D depth;\nout vec4 o;\n"
+                                   "void main() {\n"
+                                   "  ivec2 p = ivec2(gl_FragCoord.xy);\n"
+                                   "  o = vec4(texelFetch(color, p, 0).rgb, texelFetch(depth, p, 0).r);\n"
+                                   "}\n";
+    constexpr int n = 8;
+    std::string log;
+    const GLuint draw = Link(kVs, kDrawFs, &log), probe = Link(kVs, kProbeFs, &log);
+    GLuint probeTex = 0, probeFbo = 0;
+    glGenTextures(1, &probeTex);
+    glBindTexture(GL_TEXTURE_2D, probeTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, n, n, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glGenFramebuffers(1, &probeFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, probeFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, probeTex, 0);
+    if (!draw || !probe || glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+      GXLOG("MSAA on the tiles, self-test not possible (%s); own buffers", log.c_str());
+      glDeleteProgram(draw);
+      glDeleteProgram(probe);
+      glDeleteTextures(1, &probeTex);
+      glDeleteFramebuffers(1, &probeFbo);
+      return false;
+    }
+    SaveAndPlainState();
+    glBindVertexArray(quadVao);
+    for (int i = 0; i < 2; i++)
+      glBindSampler(static_cast<GLuint>(i), 0);
+    glUseProgram(probe);
+    glUniform1i(glGetUniformLocation(probe, "color"), 0);
+    glUniform1i(glGetUniformLocation(probe, "depth"), 1);
+    glUseProgram(draw);
+    const GLint color = glGetUniformLocation(draw, "color"), depth = glGetUniformLocation(draw, "depth");
+    auto quad = [&](int x, int w, float r, float g, float b, float z, GLenum func) {
+      glViewport(x, 0, w, n);
+      glDepthFunc(func);
+      glUniform4f(color, r, g, b, 1.0f);
+      glUniform1f(depth, z);
+      glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    };
+    // the corner's pixels as the EFB's textures hold them now (rgb, depth in a)
+    std::uint8_t px[n * n * 4];
+    auto read = [&]() {
+      BindFbo(probeFbo);
+      glDisable(GL_DEPTH_TEST);
+      glViewport(0, 0, n, n);
+      glUseProgram(probe);
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, efbColor);
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, efbDepth);
+      glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+      glReadPixels(0, 0, n, n, GL_RGBA, GL_UNSIGNED_BYTE, px);
+      glUseProgram(draw);
+    };
+    auto at = [&](int x, int c) { return static_cast<int>(px[(4 * n + x) * 4 + c]); };
+    // the first pass: red at depth 0.25
+    efbLeft = false;
+    BindFbo(efbFbo);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    quad(0, n, 1.0f, 0.0f, 0.0f, 0.25f, GL_ALWAYS);
+    read();
+    const bool colorKept = at(2, 0) > 240 && at(2, 1) < 16;
+    const int storedDepth = at(2, 3);  // 0.25: 64
+    const bool depthKept = std::abs(storedDepth - 64) <= 2;
+    // the next pass: drawn back, then green behind (LESS) and blue at the same depth (EQUAL)
+    BindFbo(efbFbo);
+    UseEfb();
+    glUseProgram(draw);
+    glBindVertexArray(quadVao);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    quad(0, n / 2, 0.0f, 1.0f, 0.0f, 0.5f, GL_LESS);
+    quad(n / 2, n / 2, 0.0f, 0.0f, 1.0f, 0.25f, GL_EQUAL);
+    read();
+    const bool behindHidden = at(1, 0) > 240 && at(1, 1) < 16;
+    const bool equalPassed = at(6, 2) > 240 && at(6, 0) < 16;
+    const bool ok = behindHidden && equalPassed;
+    GXLOG("MSAA on the tiles, self-test: the device keeps the colour %s, the depth %s (read %d of 255, 64 "
+          "expected); the EFB drawn back: what lies behind %s, the same depth %s -> %s",
+          colorKept ? "yes" : "NO", depthKept ? "yes" : "NO", storedDepth,
+          behindHidden ? "hidden" : "NOT hidden (the depth lost)", equalPassed ? "passes EQUAL" : "FAILS EQUAL",
+          ok ? "MSAA on the tiles" : "own buffers instead");
+    glDeleteProgram(draw);
+    glDeleteProgram(probe);
+    glDeleteTextures(1, &probeTex);
+    glDeleteFramebuffers(1, &probeFbo);
+    glDisable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    Touched();
+    stats.efbRestores = 0;
+    return ok;
   }
 
   // a multisampled EFB: the region (EFB pixels times the scale, with a pixel
@@ -2183,6 +2356,11 @@ bool GxRenderer::Init(int scale, std::string *error) {
           renderer ? renderer : "?", version ? version : "?", has("GL_EXT_multisampled_render_to_texture"),
           has("GL_EXT_multisampled_render_to_texture2"), has("GL_EXT_shader_framebuffer_fetch"),
           has("GL_QCOM_tiled_rendering"));
+    // all of them, in pieces a log line holds
+    const std::string all = ext ? ext : "";
+    const std::size_t piece = 800, pieces = (all.size() + piece - 1) / piece;
+    for (std::size_t i = 0; i < pieces; i++)
+      GXLOG("GPU extensions (%zu/%zu): %s", i + 1, pieces, all.substr(i * piece, piece).c_str());
   }
   const int w = kEfbWidth * m.scale, h = kEfbHeight * m.scale;
   Impl::MakeEfbTextures(w, h, &m.efbColor, &m.efbDepth);
@@ -2208,39 +2386,11 @@ bool GxRenderer::Init(int scale, std::string *error) {
     // RE4_GX_MSAA_TILES=1 / 0: on the tiles or not, whatever the options say (experiments)
     const char *tiles = std::getenv("RE4_GX_MSAA_TILES");
     const bool tiled = tiles && (*tiles == '0' || *tiles == '1') ? *tiles == '1' : m.options.tiledMsaa;
+    m.wantSamples = want;
     if (want > 1 && tiled)
       m.TiledMsaa(want);
-    if (want > 1 && !m.tiledMsaa) {
-      while (glGetError() != GL_NO_ERROR) {
-      }
-      glGenRenderbuffers(1, &m.msaaColor);
-      glBindRenderbuffer(GL_RENDERBUFFER, m.msaaColor);
-      glRenderbufferStorageMultisample(GL_RENDERBUFFER, want, GL_RGBA8, w, h);
-      glGenRenderbuffers(1, &m.msaaDepth);
-      glBindRenderbuffer(GL_RENDERBUFFER, m.msaaDepth);
-      glRenderbufferStorageMultisample(GL_RENDERBUFFER, want, GL_DEPTH_COMPONENT24, w, h);
-      GLint got = 0;
-      glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_SAMPLES, &got);
-      glGenFramebuffers(1, &m.msaaFbo);
-      glBindFramebuffer(GL_FRAMEBUFFER, m.msaaFbo);
-      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, m.msaaColor);
-      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m.msaaDepth);
-      if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE && glGetError() == GL_NO_ERROR &&
-          got > 1) {
-        m.samples = got;
-        glViewport(0, 0, w, h);
-        glClearColor(0, 0, 0, 0);
-        glClearDepthf(1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-      } else {
-        glDeleteFramebuffers(1, &m.msaaFbo);
-        glDeleteRenderbuffers(1, &m.msaaColor);
-        glDeleteRenderbuffers(1, &m.msaaDepth);
-        m.msaaFbo = m.msaaColor = m.msaaDepth = 0;
-      }
-      glBindRenderbuffer(GL_RENDERBUFFER, 0);
-      glBindFramebuffer(GL_FRAMEBUFFER, m.efbFbo);
-    }
+    if (want > 1 && !m.tiledMsaa)
+      m.OwnMsaa(want);
   }
   glViewport(0, 0, w, h);
   // the EFB as every display copy of the game leaves it: cleared to the copy
@@ -2281,7 +2431,26 @@ bool GxRenderer::Init(int scale, std::string *error) {
     b.id = m.whiteTex;
   m.StreamInit();
   m.TimerInit();
-  return m.MakeUtilityPrograms(error);
+  if (!m.MakeUtilityPrograms(error))
+    return false;
+  // d2: does this device keep the EFB over a pass's end, drawn back? Else own buffers
+  if (m.tiledMsaa && !m.TilesSelfTest()) {
+    m.DropTiles();
+    m.OwnMsaa(m.wantSamples);
+  }
+  // both sets (or the plain EFB) as the game's display copies leave them
+  for (GLuint fbo : {m.efbFbo, m.spareFbo}) {
+    if (!fbo)
+      continue;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glViewport(0, 0, w, h);
+    glClearColor(0, 0, 0, 0);
+    glClearDepthf(1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, m.DrawFbo());
+  m.efbLeft = m.restorePending = false;
+  return true;
 }
 
 void GxRenderer::Run(const Re4GxChunk &chunk) {

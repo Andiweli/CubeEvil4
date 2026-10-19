@@ -112,9 +112,10 @@ int main(int argc, char **argv) {
       const char *samples = std::getenv("RE4_GX_SAMPLES");
       options.samples = samples ? std::max(1, std::min(4, std::atoi(samples))) : 1;
       // RE4_GX_LOSE_TILES=1: MSAA on the tiles as on a GPU that loses everything at a pass's end
-      // (magenta, depth 0) before the EFB is drawn back (GPU step d2)
+      // (magenta, depth 0) before the EFB is drawn back (GPU step d2); 2: besides, the resolved
+      // depth never stored (the self-test takes own buffers then)
       const char *lose = std::getenv("RE4_GX_LOSE_TILES");
-      options.loseTiles = lose && *lose == '1';
+      options.loseTiles = lose ? std::max(0, std::min(2, std::atoi(lose))) : 0;
       renderer->SetOptions(options);
       std::string error;
       if (!renderer->Init(scale, &error)) {
