@@ -397,9 +397,10 @@ int gxMode = -1;  // -1 undecided, 0 bridge, 1 GX
 std::atomic<int> optScale{0}, optSamples{1}, optAnisotropy{1}, optAspect{-1};
 // GPU step b (GxOptions::invalidate): off (it saved nothing on the Retroid) unless
 // RE4_GX_INVALIDATE=1; GPU step d (GxOptions::tiledMsaa): off (the Adreno 650 loses the depth
-// after every EFB copy) unless RE4_GX_MSAA_TILES=1 in the renderer; the GPU measurement
-// switches both
-std::atomic<int> optInvalidate{-1}, optTiled{0};
+// after every EFB copy) unless RE4_GX_MSAA_TILES=1 in the renderer; GPU step e
+// (GxOptions::halfDof): the depth of field's blur at half the resolution, on unless
+// RE4_GX_DOF_HALF=0 in the renderer; the GPU measurement switches all three
+std::atomic<int> optInvalidate{-1}, optTiled{0}, optHalfDof{1};
 std::atomic<unsigned> optSerial{0};
 unsigned optApplied = ~0u;
 std::atomic<bool> corePaused{false};
@@ -462,6 +463,7 @@ struct BenchStep {
   int scale, samples, anisotropy, dof;
   int invalidate = 0;  // GPU step b: copy targets forgotten before they are drawn over
   int tiled = 0;       // GPU step d: MSAA on the tiles
+  int halfDof = 1;     // GPU step e: the depth of field's blur at half the resolution
 };
 struct Bench {
   std::vector<BenchStep> steps;
@@ -476,7 +478,7 @@ struct Bench {
   unsigned clockCount = 0, busyCount = 0, workCount = 0;
   bool waitFree = false;  // waiting for the player to be free (api.freeAt)
   int delay = 0;          // seconds from then to the first step
-  int keepScale = 0, keepSamples = 1, keepAnisotropy = 1, keepInvalidate = 0, keepTiled = 0;
+  int keepScale = 0, keepSamples = 1, keepAnisotropy = 1, keepInvalidate = 0, keepTiled = 0, keepHalfDof = 1;
 };
 Bench bench;
 std::atomic<int> optDof{-1};  // the menu's depth of field (CoreBridge.setDof); -1 not set yet
@@ -517,6 +519,7 @@ void benchApply(const BenchStep &step) {
   optAnisotropy = step.anisotropy;
   optInvalidate = step.invalidate;
   optTiled = step.tiled;
+  optHalfDof = step.halfDof;
   optSerial++;
   if (api.setDof) api.setDof(step.dof);
 }
@@ -529,16 +532,17 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     const char *spec = getenv("RE4_GPU_BENCH");
     if (!spec || !*spec || std::string(spec) == "0") return;
     if (std::string(spec) == "1") {
-      // at scale 3: nothing extra, 2x and 4x MSAA alone, the depth of field alone, the tester's
-      // options (2x MSAA, 8x anisotropy, depth of field; POCO X7 Pro, 18.10.2026), 4x MSAA with
-      // them at scale 2, and nothing extra again. MSAA in own buffers: on the tiles (step d) the
-      // Adreno 650 loses the depth (19.10.2026). The runs before (Retroid, 19.10.2026): MSAA
-      // +74 % work, the depth of field +19 %, both +114 %, 8x anisotropy and step b nothing
-      // measurable, the same setting twice up to 5 % apart; 4x MSAA at scale 3 by hand: 20-25
-      // pictures/s. "S/M/A/D/I/T,..." names other steps (I: copy targets forgotten, T: MSAA on
-      // the tiles)
-      bench.steps = {{3, 1, 1, 0}, {3, 2, 1, 0}, {3, 4, 1, 0}, {3, 1, 1, 1},
-                     {3, 2, 8, 1}, {2, 4, 8, 1}, {3, 1, 1, 0}};
+      // GPU step e at scale 3: nothing extra, the depth of field at the full resolution (as
+      // before step e) and at the half one, the same with the tester's options (2x MSAA, 8x
+      // anisotropy, depth of field; POCO X7 Pro, 18.10.2026), the half one again and nothing
+      // extra again. MSAA in own buffers: on the tiles (step d) the Adreno 650 loses the depth
+      // (19.10.2026). The runs before (Retroid, 19.10.2026): MSAA +74 % work, the depth of field
+      // +19 %, both +114 %, 8x anisotropy and step b nothing measurable, the same setting twice
+      // up to 5 % apart; 4x MSAA at scale 3 by hand: 20-25 pictures/s.
+      // "S/M/A/D/I/T/H,..." names other steps (I: copy targets forgotten, T: MSAA on the tiles,
+      // H: the depth of field at half the resolution, 1 when left out)
+      bench.steps = {{3, 1, 1, 0}, {3, 1, 1, 1, 0, 0, 0}, {3, 1, 1, 1, 0, 0, 1}, {3, 2, 8, 1, 0, 0, 0},
+                     {3, 2, 8, 1, 0, 0, 1}, {3, 1, 1, 1, 0, 0, 1}, {3, 1, 1, 0}};
     } else {
       for (const char *at = spec; *at;) {
         BenchStep step{};
@@ -548,6 +552,7 @@ void benchTick(std::chrono::steady_clock::time_point now) {
         int more = 0;
         if (at[used] == '/' && std::sscanf(at + used, "/%d%n", &step.invalidate, &more) == 1) used += more;
         if (at[used] == '/' && std::sscanf(at + used, "/%d%n", &step.tiled, &more) == 1) used += more;
+        if (at[used] == '/' && std::sscanf(at + used, "/%d%n", &step.halfDof, &more) == 1) used += more;
         bench.steps.push_back(step);
         at += used;
         if (*at == ',') at++;
@@ -605,6 +610,7 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     bench.keepAnisotropy = optAnisotropy.load();
     bench.keepInvalidate = optInvalidate.load();
     bench.keepTiled = optTiled.load();
+    bench.keepHalfDof = optHalfDof.load();
     bench.index = 0;
     benchApply(bench.steps[0]);
     bench.next = now + seconds(5);
@@ -650,13 +656,14 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     std::snprintf(behind, sizeof(behind), "%.2f pictures on average, at most %u%s",
                   static_cast<double>(s.behindSum - bench.at.behindSum) / checks, most, most == 8 ? " or more" : "");
   }
-  LOG("GPU bench %d/%zu: scale %d, %d samples%s, anisotropy %.0f, depth of field %s, copy targets forgotten %s: "
+  LOG("GPU bench %d/%zu: scale %d, %d samples%s, anisotropy %.0f, depth of field %s%s, copy targets forgotten %s: "
       "GPU %s per picture, "
       "present %s, %.1f pictures/s, %.1f presents/s, renderer CPU %.1f ms, GPU clock %s, load %s, "
       "work (load x clock) %s, GPU behind %s, %.0f draws per picture",
       bench.index + 1, bench.steps.size(), infoScale.load(), gx->Samples(),
       gx->Samples() > 1 ? (gx->TiledMsaa() ? " on the tiles" : " in own buffers") : "", gx->Anisotropy(),
       step.dof ? "on" : "off",
+      step.dof ? (gx->HalfDof() ? " (blur at half resolution)" : " (blur at full resolution)") : "",
       gx->Invalidates() ? "yes" : "no", gpu, present, pictures, secs > 0 ? (s.presents - bench.at.presents) / secs : 0.0,
       bench.runCount ? bench.runMs / bench.runCount : 0.0, clock, busy, work, behind,
       chunks ? static_cast<double>(s.draws - bench.at.draws) / chunks : 0.0);
@@ -668,6 +675,7 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     optAnisotropy = bench.keepAnisotropy;
     optInvalidate = bench.keepInvalidate;
     optTiled = bench.keepTiled;
+    optHalfDof = bench.keepHalfDof;
     optSerial++;
     if (optDof.load() >= 0 && api.setDof) api.setDof(optDof.load());
     LOG("GPU bench done; the options from before the run are back");
@@ -778,6 +786,7 @@ bool drawGx() {
     }
     options.invalidate = optInvalidate.load() != 0;
     options.tiledMsaa = optTiled.load() != 0;
+    options.halfDof = optHalfDof.load() != 0;
     gx->SetOptions(options);
     std::string error;
     if (!gx->Init(scale, &error)) {
@@ -801,9 +810,11 @@ bool drawGx() {
     infoScale = scale;
     infoSamples = gx->Samples();
     infoAnisotropy = static_cast<int>(gx->Anisotropy());
-    LOG("GX renderer ready, EFB scale %d, %d samples (of %d)%s, anisotropy %.0f (of %.0f), program cache %s", scale,
-        gx->Samples(), maxSamples, gx->Samples() > 1 ? (gx->TiledMsaa() ? " on the tiles" : " in own buffers") : "",
-        gx->Anisotropy(), maxAnisotropy, cached ? cache : "off");
+    LOG("GX renderer ready, EFB scale %d, %d samples (of %d)%s, anisotropy %.0f (of %.0f), depth of field's blur "
+        "at %s resolution, program cache %s",
+        scale, gx->Samples(), maxSamples,
+        gx->Samples() > 1 ? (gx->TiledMsaa() ? " on the tiles" : " in own buffers") : "", gx->Anisotropy(),
+        maxAnisotropy, gx->HalfDof() ? "half" : "full", cached ? cache : "off");
   }
   // one chunk per displayed frame: every picture the game makes is shown (a
   // renderer slower than the game slows the game down, the core waits for it,

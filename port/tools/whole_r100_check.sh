@@ -841,6 +841,24 @@ render_gx_pictures() {
         say "MSAA auf den Kacheln (GPU-Schritt d): nicht geprüft (zink fehlt: sudo $src/port/tools/whole_setup_linux.sh; Log: gx-msaa-kacheln.log)"
         rm -rf "$msaa_own" "$msaa_tiles"
     fi
+    # GPU step e (19.10.2026): the same frames with the depth of field's blur at the full resolution
+    # as before step e (RE4_GX_DOF_HALF=0) against the half one of the pictures above. Only the
+    # blurred background may differ, by a few steps (the cloud with a fixed focus on the Retroid's
+    # pictures: on average under 1 of 255, 0.1 % of the pixels more than 8, at most 25); more than
+    # 40 somewhere: the pictures stay for a look
+    local dof_full="$run/bilder-gx-tiefe-voll" worst
+    rm -rf "$dof_full"
+    mkdir -p "$dof_full"
+    RE4_GX_DOF_HALF=0 "$tool_build/gx_chunk_render" "$dof_full" "$dump"/*.bin > "$run/gx-tiefe-voll.log" 2>&1
+    ppm_to_png "$dof_full"
+    python3 "$src/port/tools/picture_compare.py" "$dof_full" "$pics" --names voll,halb > "$run/bilder-gx-tiefe.txt" 2>&1
+    worst=$(sed -n 's/.*höchstens \([0-9]*\) von 255.*/\1/p' "$run/bilder-gx-tiefe.txt" | sort -n | tail -n 1)
+    say "Tiefenschärfe in halber Auflösung (GPU-Schritt e) gegenüber voller: $(grep -c 'Autofokus' "$run/gx-tiefe-voll.log") Bilder mit Autofokus,$(grep 'Bildvergleich' "$run/bilder-gx-tiefe.txt" | sed 's/^ *Bildvergleich voll \/ halb://'), größte Abweichung ${worst:-0} von 255"
+    if [ "${worst:-0}" -gt 40 ]; then
+        say "  auffällig (mehr als 40): Ordner bilder-gx-tiefe-voll und bilder-gx-tiefe.txt bitte mitschicken"
+    else
+        rm -rf "$dof_full"
+    fi
     # a few frames as data for the renderer work in the cloud (gx_chunk_render
     # draws them there; game data: never into the repository): the first
     # three and the first in the room

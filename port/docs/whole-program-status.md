@@ -4584,6 +4584,42 @@ schnelle Weg (d) braucht dafür eine Fassung, die die Tiefe nach jeder Kopie sel
 Testers und 4× bei Auflösung 2, alles in eigenen Puffern. Danach: der GPU-Branch in den M12-Stand
 übernommen (alle Schritte dort aus, nur die Messung und die Prüfwerkzeuge).
 
+**Reihenfolge danach (Entscheidung des Projektinhabers, 19.10.2026):** erst e, dann c, dann d2.
+
+**GPU-Schritt (e): Tiefenschärfe in halber Auflösung (19.10.2026, Cloud, Branch
+`claude/re4-gpu-efficiency`).** Der Autofokus (`gx_gl.cpp Autofocus`) zeichnet die Unschärfe jetzt in
+ein Bild mit halber Breite und Höhe (ein Viertel der Pixel, `halfTex`) und mischt sie in voller
+Auflösung über das EFB (`mixProgram`, Mischen per Alpha, nur Farbe; Pixel vor dem Fokus werden gar
+nicht gezeichnet). Bisher: Unschärfe in voller Auflösung in ein eigenes Bild und danach das ganze
+Bild zurückkopiert.
+- **Kein Abfärben an scharfen Kanten:** jeder grobe Bildpunkt nimmt nur Teile hinter dem Fokus
+  (auch seine vier Mittelpunkte); hat er keine, bleibt er leer (Alpha 0), und das Mischen lässt ihn
+  aus. Neue Prüfung in `gx_gl_check` („the background next to the sharp near edge keeps its
+  colour“): neben einer scharfen weißen Kante weicht der weiche Hintergrund um 0 (voll), 8 (halb)
+  bzw. 20 von 255 ab (halb, wenn die vorderen Mittelpunkte mitzählen; Grenze 12, Gegenprobe
+  gemacht).
+- **Nur das Bild aufgelöst:** mit MSAA löst der Autofokus nur noch den Bildausschnitt des Spiels
+  auf (448 statt 528 Zeilen), für beide Wege; gelesen wird nur dort.
+- **Ohne Fokus (Blick in die Ferne):** beide neuen Durchgänge brechen sofort ab.
+- Schalter: `GxOptions::halfDof` (Standard an), `RE4_GX_DOF_HALF=0/1` im Renderer für Versuche;
+  der Messlauf hat ein siebtes Feld H (`S/M/A/D/I/T/H`, ohne H: an). Standard-Messreihe jetzt:
+  nichts, Tiefenschärfe voll, halb, Optionen des Testers voll, halb, halb noch einmal, nichts
+  (alles Auflösung 3, MSAA in eigenen Puffern). Die Zeile „GPU bench“ sagt „blur at half/full
+  resolution“, „GX renderer ready“ ebenso.
+- **PC-Prüfung:** Abschnitt 5 zeichnet die aufgezeichneten Bilder zusätzlich mit voller Auflösung
+  der Unschärfe und vergleicht (Zeile „Tiefenschärfe in halber Auflösung (GPU-Schritt e) gegenüber
+  voller“; über 40 von 255 bleiben die Bilder zum Mitschicken).
+- **Getestet (Cloud):** `gx_gl_check` 0 Fehler mit llvmpipe und zink (alle Autofokus-Prüfungen mit
+  halber und voller Auflösung, mit und ohne MSAA, mit Magenta für Vergessenes);
+  `re4decomp_link_check` mit `core_mode.cpp` gebaut. Die 11 Retroid-Bilder der Haar-Aufnahme
+  (r100, Leon steht, Auflösung 3) haben alle den Autofokus, aber keine Unschärfe (Fokus über 6 m);
+  dort sind alt und neu gleich. Mit fest auf 2 m gestelltem Fokus (nur im Versuch) wird 41 % des
+  Bilds weich; alt gegen neu: im Mittel unter 1 von 255, 0,1 % der Pixel mehr als 8, höchstens 25
+  (ohne und mit 4× MSAA); im Bild nicht zu unterscheiden.
+- **Nicht getestet:** die Ersparnis auf dem Gerät (Messlauf) und die PC-Prüfung mit Disc-Daten.
+  Hinweis zur Messung: an der Messstelle schaut Leon in die Ferne, gemessen wird also vor allem der
+  Aufwand der Durchgänge selbst, nicht die Unschärfe.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |

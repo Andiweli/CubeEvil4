@@ -138,10 +138,11 @@ int main(int argc, char **argv) {
     unsigned w = 0, h = 0;
     const GLuint xfb = renderer->Xfb(&w, &h);
     const re4gx::GxStats &s = renderer->Stats();
-    std::printf("%s (Bild %u%s): %ux%u, %u Zeichenaufträge, %u Dreiecke, %u Texturen, %u Kopien, %u Shader%s%s\n",
+    std::printf("%s (Bild %u%s): %ux%u, %u Zeichenaufträge, %u Dreiecke, %u Texturen, %u Kopien, %u Shader%s%s%s\n",
                 Stem(path).c_str(), loaded.frame, follows ? ", Folgebild" : "", w, h, s.draws - before.draws,
                 s.triangles - before.triangles, s.textures - before.textures, s.textureCopies - before.textureCopies,
-                s.programs, s.missingTextures > before.missingTextures ? ", fehlende Texturen" : "",
+                s.programs, s.autofocus > before.autofocus ? ", Autofokus" : "",
+                s.missingTextures > before.missingTextures ? ", fehlende Texturen" : "",
                 s.shaderErrors > before.shaderErrors ? ", FEHLER: Shader" : "");
     if (std::getenv("RE4_GX_WORK"))
       std::printf("  GL-Arbeit: %u Uniform-Uploads (%u KB), %u Programmwechsel, %u Textur-/Sampler-Bindungen, "

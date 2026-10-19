@@ -274,6 +274,11 @@ struct GxRenderer::Impl {
   GLint focusRegion = -1, focusSize = -1, focusZ = -1, focusPlayer = -1;
   GLint blurRegion = -1, blurSize = -1, blurZ = -1, blurRadius = -1;
   GLuint blurTex = 0, focusTex = 0, blurFbo = 0, focusFbo = 0;
+  // GPU step e: the blur at half the resolution into halfTex, mixed into the EFB at the full one
+  // (colorFbo: the EFB's colour without its depth, which the mix reads)
+  GLuint halfProgram = 0, mixProgram = 0, halfTex = 0, halfFbo = 0, colorFbo = 0;
+  GLint halfRegion = -1, halfSize = -1, halfZ = -1, halfRadius = -1;
+  GLint mixRegion = -1, mixSize = -1, mixZ = -1;
   bool autofocusFailed = false;
   // the last perspective projection (XF 0x1024/0x1025, type 0 at 0x1026):
   // the scene's, for the distances behind the depths
@@ -1589,8 +1594,9 @@ struct GxRenderer::Impl {
     if (!(std::fabs(zRange) > 1.0f))
       zRange = 16777215.0f;
     const float zFar = AsFloat(xfReg[0x1F]);
-    Resolve(0, 0, fw, fh, false);
-    Resolve(0, 0, fw, fh, true);
+    // only the picture is read (the focus, the blur's taps stay inside it)
+    Resolve(x0 * scale, y0 * scale, (x1 - x0) * scale, (y1 - y0) * scale, false);
+    Resolve(x0 * scale, y0 * scale, (x1 - x0) * scale, (y1 - y0) * scale, true);
     SaveAndPlainState();
     glDepthMask(GL_FALSE);
     glBindVertexArray(quadVao);
@@ -1608,6 +1614,52 @@ struct GxRenderer::Impl {
     glUniform4f(focusZ, perspA, perspB, zRange, zFar);
     glUniform1f(focusPlayer, static_cast<float>(player));
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    // the first port's tap distance: 1.5 pixels of a 480-line picture
+    const float radius = std::min(4.0f, std::max(1.0f, rh / 480.0f * 1.5f));
+    if (options.halfDof && halfProgram) {
+      // GPU step e: the blur at half the resolution (a quarter of the pixels, each of them the
+      // four EFB texels around its centre and the taps behind the focus)
+      const int hx0 = x0 * scale / 2, hy0 = y0 * scale / 2;
+      const int hx1 = (x1 * scale + 1) / 2, hy1 = (y1 * scale + 1) / 2;
+      glBindFramebuffer(GL_FRAMEBUFFER, halfFbo);
+      ForgetColor();  // only the picture's region is drawn, and the mix reads only it
+      glViewport(hx0, hy0, hx1 - hx0, hy1 - hy0);
+      glUseProgram(halfProgram);
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, efbColor);
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, efbDepth);
+      glActiveTexture(GL_TEXTURE2);
+      glBindTexture(GL_TEXTURE_2D, focusTex);
+      glUniform4f(halfRegion, rx, ry, rw, rh);
+      glUniform2f(halfSize, static_cast<float>(fw), static_cast<float>(fh));
+      glUniform4f(halfZ, perspA, perspB, zRange, zFar);
+      glUniform1f(halfRadius, radius);
+      glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+      // mixed into the EFB at the full resolution: each pixel's own distance says how much of the
+      // blur (sharp in front of the focus: nothing drawn), blended over the picture; colour only,
+      // alpha and depth stay. The mix reads the depth texture, so not through efbFbo, whose depth
+      // it is (the multisampled EFB has its own)
+      glBindFramebuffer(GL_FRAMEBUFFER, msaaFbo ? msaaFbo : colorFbo);
+      glViewport(x0 * scale, y0 * scale, (x1 - x0) * scale, (y1 - y0) * scale);
+      glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+      glEnable(GL_BLEND);
+      glBlendEquation(GL_FUNC_ADD);
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+      glUseProgram(mixProgram);
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, halfTex);
+      glUniform4f(mixRegion, rx, ry, rw, rh);
+      glUniform2f(mixSize, static_cast<float>(fw), static_cast<float>(fh));
+      glUniform4f(mixZ, perspA, perspB, zRange, zFar);
+      glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+      glDisable(GL_BLEND);
+      glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+      glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
+      current = nullptr;
+      stats.autofocus++;
+      return;
+    }
     // the blurred picture into blurTex
     glBindFramebuffer(GL_FRAMEBUFFER, blurFbo);
     ForgetColor();  // only the picture's region is drawn, and only it is copied back
@@ -1622,8 +1674,7 @@ struct GxRenderer::Impl {
     glUniform4f(blurRegion, rx, ry, rw, rh);
     glUniform2f(blurSize, static_cast<float>(fw), static_cast<float>(fh));
     glUniform4f(blurZ, perspA, perspB, zRange, zFar);
-    // the first port's tap distance: 1.5 pixels of a 480-line picture
-    glUniform1f(blurRadius, std::min(4.0f, std::max(1.0f, rh / 480.0f * 1.5f)));
+    glUniform1f(blurRadius, radius);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     // back into the EFB: colour only, alpha and depth stay
     glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
@@ -1711,13 +1762,79 @@ struct GxRenderer::Impl {
         "  }\n"
         "  o = vec4(mix(original.rgb, sum / weight, amount), original.a);\n"
         "}\n";
+    // GPU step e: the blur above at half the resolution, without the mix. Its centre is the four
+    // EFB texels under the texel (together weighted as the one above), the taps as above, and only
+    // what lies behind the focus counts, the centre too: the sharp foreground does not bleed into
+    // the background through the coarser texels. Alpha: something behind the focus was there
+    // (1, the colour as it is) or not (0, black), so the mix can leave the latter out.
+    const std::string halfFs =
+        std::string("#version 300 es\nprecision highp float;\nprecision highp int;\n") + kDistance +
+        "uniform sampler2D frame;\nuniform sampler2D focus;\nuniform float radius;\nout vec4 o;\n"
+        "void main() {\n"
+        "  vec2 t = gl_FragCoord.xy * 2.0;\n"
+        "  vec4 f = texelFetch(focus, ivec2(0), 0);\n"
+        "  if (f.b <= 0.0) { o = vec4(0.0); return; }\n"
+        "  float focal = round(f.r * 255.0) * 256.0 + round(f.g * 255.0);\n"
+        "  float start = focal + max(800.0, focal * 0.25);\n"
+        "  vec2 lo = region.xy + 0.5, hi = region.xy + region.zw - 0.5;\n"
+        "  vec3 sum = vec3(0.0);\n"
+        "  float weight = 0.0;\n"
+        "  for (int i = 0; i < 4; ++i) {\n"
+        "    vec2 p = clamp(t + vec2(float(i & 1) - 0.5, float(i >> 1) - 0.5), lo, hi);\n"
+        "    if (distanceAt(p) >= start) { sum += texture(frame, p / size).rgb * 0.5; weight += 0.5; }\n"
+        "  }\n"
+        "  const vec2 taps[8] = vec2[8](vec2(-1, 0), vec2(1, 0), vec2(0, -1), vec2(0, 1), vec2(-0.707, -0.707),\n"
+        "                               vec2(0.707, 0.707), vec2(-0.707, 0.707), vec2(0.707, -0.707));\n"
+        "  for (int i = 0; i < 8; ++i) {\n"
+        "    vec2 p = clamp(t + taps[i] * radius, lo, hi);\n"
+        "    if (distanceAt(p) >= start) { sum += texture(frame, p / size).rgb; weight += 1.0; }\n"
+        "  }\n"
+        "  o = weight > 0.0 ? vec4(sum / weight, 1.0) : vec4(0.0);\n"
+        "}\n";
+    // ... and the mix at the full resolution: each pixel's strength from its own distance, the
+    // blur from halfTex (linear, inside the region; its colour divided by its alpha leaves the
+    // texels without a background out), blended over the picture by the strength, less where
+    // the texels around are mostly foreground
+    const std::string mixFs =
+        std::string("#version 300 es\nprecision highp float;\nprecision highp int;\n") + kDistance +
+        "uniform sampler2D blurred;\nuniform sampler2D focus;\nout vec4 o;\n"
+        "void main() {\n"
+        "  vec2 t = gl_FragCoord.xy;\n"
+        "  vec4 f = texelFetch(focus, ivec2(0), 0);\n"
+        "  if (f.b <= 0.0) discard;\n"
+        "  float focal = round(f.r * 255.0) * 256.0 + round(f.g * 255.0);\n"
+        "  float start = focal + max(800.0, focal * 0.25), end = focal + max(2500.0, focal);\n"
+        "  float amount = 0.6 * f.b * smoothstep(start, end, distanceAt(t));\n"
+        "  if (amount <= 0.0) discard;\n"
+        "  vec2 lo = region.xy + 1.0, hi = region.xy + region.zw - 1.0;\n"
+        "  vec4 b = texture(blurred, clamp(t, lo, hi) / size);\n"
+        "  if (b.a <= 0.0) discard;\n"
+        "  o = vec4(b.rgb / b.a, amount * min(1.0, b.a * 4.0));\n"
+        "}\n";
     std::string log;
     focusProgram = Link(kQuadVs, focusFs, &log);
     blurProgram = focusProgram ? Link(kQuadVs, blurFs, &log) : 0;
-    if (!blurProgram) {
+    halfProgram = blurProgram ? Link(kQuadVs, halfFs, &log) : 0;
+    mixProgram = halfProgram ? Link(kQuadVs, mixFs, &log) : 0;
+    if (!mixProgram) {
       GXLOG("autofocus shader: %s", log.c_str());
       return false;
     }
+    glUseProgram(halfProgram);
+    glUniform1i(glGetUniformLocation(halfProgram, "frame"), 0);
+    glUniform1i(glGetUniformLocation(halfProgram, "depths"), 1);
+    glUniform1i(glGetUniformLocation(halfProgram, "focus"), 2);
+    halfRegion = glGetUniformLocation(halfProgram, "region");
+    halfSize = glGetUniformLocation(halfProgram, "size");
+    halfZ = glGetUniformLocation(halfProgram, "zmap");
+    halfRadius = glGetUniformLocation(halfProgram, "radius");
+    glUseProgram(mixProgram);
+    glUniform1i(glGetUniformLocation(mixProgram, "blurred"), 0);
+    glUniform1i(glGetUniformLocation(mixProgram, "depths"), 1);
+    glUniform1i(glGetUniformLocation(mixProgram, "focus"), 2);
+    mixRegion = glGetUniformLocation(mixProgram, "region");
+    mixSize = glGetUniformLocation(mixProgram, "size");
+    mixZ = glGetUniformLocation(mixProgram, "zmap");
     glUseProgram(focusProgram);
     glUniform1i(glGetUniformLocation(focusProgram, "depths"), 0);
     focusRegion = glGetUniformLocation(focusProgram, "region");
@@ -1751,6 +1868,23 @@ struct GxRenderer::Impl {
     glGenFramebuffers(1, &focusFbo);
     glBindFramebuffer(GL_FRAMEBUFFER, focusFbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, focusTex, 0);
+    ok = ok && glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    // GPU step e: the half-resolution blur (linear: the mix reads between its texels) and the EFB's
+    // colour without its depth
+    glGenTextures(1, &halfTex);
+    glBindTexture(GL_TEXTURE_2D, halfTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, fw / 2, fh / 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glGenFramebuffers(1, &halfFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, halfFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, halfTex, 0);
+    ok = ok && glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    glGenFramebuffers(1, &colorFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, colorFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, efbColor, 0);
     ok = ok && glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
     if (!ok)
       GXLOG("autofocus framebuffers incomplete");
@@ -1958,6 +2092,10 @@ bool GxRenderer::Init(int scale, std::string *error) {
     Limits(&maxSamples, &maxAnisotropy);
     m.anisotropy = std::max(1.0f, std::min(m.options.anisotropy, maxAnisotropy));
     const int want = std::min(m.options.samples, maxSamples);
+    // RE4_GX_DOF_HALF=0 / 1: the depth of field's blur at the full or half resolution (experiments)
+    const char *halfDof = std::getenv("RE4_GX_DOF_HALF");
+    if (halfDof && (*halfDof == '0' || *halfDof == '1'))
+      m.options.halfDof = *halfDof == '1';
     // RE4_GX_MSAA_TILES=1 / 0: on the tiles or not, whatever the options say (experiments)
     const char *tiles = std::getenv("RE4_GX_MSAA_TILES");
     const bool tiled = tiles && (*tiles == '0' || *tiles == '1') ? *tiles == '1' : m.options.tiledMsaa;
@@ -2186,6 +2324,8 @@ bool GxRenderer::Invalidates() const { return impl_->options.invalidate; }
 
 bool GxRenderer::TiledMsaa() const { return impl_->tiledMsaa; }
 
+bool GxRenderer::HalfDof() const { return impl_->options.halfDof; }
+
 void GxRenderer::Limits(int *maxSamples, float *maxAnisotropy) {
   GLint samples = 1;
   glGetIntegerv(GL_MAX_SAMPLES, &samples);
@@ -2253,6 +2393,12 @@ void GxRenderer::Release() {
   glDeleteProgram(m.presentProgram);
   glDeleteProgram(m.focusProgram);
   glDeleteProgram(m.blurProgram);
+  glDeleteProgram(m.halfProgram);
+  glDeleteProgram(m.mixProgram);
+  const GLuint halfTextures[] = {m.halfTex};
+  glDeleteTextures(1, halfTextures);
+  const GLuint halfFbos[] = {m.halfFbo, m.colorFbo};
+  glDeleteFramebuffers(2, halfFbos);
   const GLuint autofocusTextures[] = {m.blurTex, m.focusTex};
   glDeleteTextures(2, autofocusTextures);
   const GLuint autofocusFbos[] = {m.blurFbo, m.focusFbo};

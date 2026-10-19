@@ -844,7 +844,9 @@ void AutofocusScene(Builder &b, bool nearCentre, bool mark) {
 }
 
 void TestAutofocus(re4gx::GxRenderer &r, bool multisampled = false) {
-  const char *tag = multisampled ? "autofocus (multisampled)" : "autofocus";
+  char tag[64];
+  std::snprintf(tag, sizeof(tag), "autofocus%s%s", multisampled ? " (multisampled)" : "",
+                r.HalfDof() ? "" : " (full resolution)");
   auto run = [&](bool nearCentre, bool mark) {
     Builder b;
     AutofocusScene(b, nearCentre, mark);
@@ -874,6 +876,15 @@ void TestAutofocus(re4gx::GxRenderer &r, bool multisampled = false) {
   auto g = TexPixel(xfb, 479, 440), w = TexPixel(xfb, 480, 440);
   std::snprintf(what, sizeof(what), "%s: the near edge in front of the focus stays sharp", tag);
   Check(Near(g, 0, 255, 0) && Near(w, 255, 255, 255), what);
+  // the blurred background right next to it hardly takes its colour (llvmpipe: 0 at the full
+  // resolution, 8 at the half one, 20 when the half one's centre texels in front counted too)
+  auto beside = TexPixel(xfb, 520, 440), below = TexPixel(xfb, 500, 480);
+  std::snprintf(what, sizeof(what), "%s: the background next to the sharp near edge keeps its colour", tag);
+  Check(Near(beside, 0, 0, 255, 12) && Near(below, 0, 0, 255, 12), what);
+  if (!(Near(beside, 0, 0, 255, 12) && Near(below, 0, 0, 255, 12))) {
+    Print("beside the white card", beside);
+    Print("below the white card", below);
+  }
   if (!multisampled) {
     std::snprintf(what, sizeof(what), "%s: the EFB alpha stays", tag);
     Check(EfbPixel(r, 159, 100)[3] == 128, what);
@@ -943,7 +954,7 @@ void TestAutofocus(re4gx::GxRenderer &r, bool multisampled = false) {
 // every copy out of it (display copy, texture copy); a slanted edge comes out
 // between the two colours; anisotropic filtering does not change a picture
 // without mipmaps.
-void TestOptions(bool poison, bool tiled) {
+void TestOptions(bool poison, bool tiled, bool halfDof = true) {
   int maxSamples = 1;
   float maxAnisotropy = 1.0f;
   re4gx::GxRenderer::Limits(&maxSamples, &maxAnisotropy);
@@ -956,6 +967,7 @@ void TestOptions(bool poison, bool tiled) {
   o.invalidate = poison;
   o.poison = poison;
   o.tiledMsaa = tiled;
+  o.halfDof = halfDof;
   r.SetOptions(o);
   std::string error;
   Require(r.Init(1, &error), error.c_str());
@@ -992,6 +1004,7 @@ void TestOptions(bool poison, bool tiled) {
     Check(between > 20, "multisampled: the slanted edge is smoothed");
   }
   TestCopyAndPalette(r, true);  // EFB copy to a texture (resolved first), palette
+  Check(r.HalfDof() == halfDof, "options: the depth of field's resolution as asked for");
   TestAutofocus(r, r.Samples() > 1);
   Check(glGetError() == GL_NO_ERROR, "options: no GL error");
   r.Release();
@@ -1024,10 +1037,22 @@ int main() {
     TestAutofocus(renderer);
     Check(glGetError() == GL_NO_ERROR, "no GL error");
     renderer.Release();
+    {
+      // the depth of field as before GPU step e: the blur at the full resolution
+      re4gx::GxRenderer full;
+      o.halfDof = false;
+      full.SetOptions(o);
+      Require(full.Init(1, &error), error.c_str());
+      TestAutofocus(full);
+      Check(glGetError() == GL_NO_ERROR, "full-resolution depth of field: no GL error");
+      full.Release();
+    }
     TestOptions(poison != 0, true);
   }
   // MSAA in its own buffers (the devices without the extensions, RE4_GX_MSAA_TILES=0)
   TestOptions(false, false);
+  // the depth of field's blur at the full resolution as before GPU step e (GxOptions::halfDof)
+  TestOptions(false, false, false);
   std::fprintf(stderr, "gx_gl_check: %d failed\n", gFailures);
   return gFailures ? 1 : 0;
 }

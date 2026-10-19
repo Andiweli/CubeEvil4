@@ -78,6 +78,9 @@ struct GxOptions {
   // colour but not the depth after a pass ends (the extension leaves the samples undefined
   // then), and the game draws on after its EFB copies (Leon's hair, fog, whole objects missing)
   bool tiledMsaa = false;
+  // the depth of field's blur at half the resolution, mixed into the picture at the full one
+  // (GPU step e, 19.10.2026); off: the blur and the copy back at the full resolution
+  bool halfDof = true;
 };
 
 class GxRenderer {
@@ -99,6 +102,8 @@ public:
   bool Invalidates() const;
   // the samples live in the GPU's tile memory (GxOptions::tiledMsaa and the device can)
   bool TiledMsaa() const;
+  // the depth of field's blur at half the resolution (GxOptions::halfDof)
+  bool HalfDof() const;
   // What the device can do (a GLES 3.0 context is current): the most EFB
   // samples and the strongest anisotropic filtering (1: none).
   static void Limits(int *maxSamples, float *maxAnisotropy);
