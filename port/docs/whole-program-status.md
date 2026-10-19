@@ -4879,7 +4879,10 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   kleiner „(v0.38.2-Alpha3)“, aus `versionName` ohne den Anhang „-core“. `versionName` trägt dafür
   den Namen des Releases (`'0.38.2-Alpha3'`; Bericht und Startbildschirm: „0.38.2-Alpha3-core“);
   bei jedem Release mit `versionCode` anpassen. Alle Java-Dateien übersetzt; auf dem Gerät nicht
-  gesehen.
+  gesehen. **Entscheidung des Projektinhabers (20.10.2026): die Versionsnummer immer aus
+  `build.gradle` nehmen**, nie fest in den Code schreiben. Geprüft: Menü (`CoreMenu.version`),
+  Startbildschirm (`MainActivity.versionName`) und Fehlerbericht (`CoreLog`) lesen sie aus der
+  App; sonst steht keine Versionsnummer im Code der App.
 - **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter
   linksbündig, „Back to the game“ in derselben Zeile rechts.
 - **Release 0.38.2 Alpha 03** (Entscheidung des Projektinhabers, 19.10.2026: auf GitHub liegt
