@@ -4714,6 +4714,23 @@ Treiber nach dem Ende eines Durchgangs behält:
   buffers instead“), alle Bildprüfungen bestehen. `gx_gl_check` 0 Fehler mit llvmpipe und zink.
   **Nicht getestet:** der Selbsttest auf dem Retroid.
 
+**GPU-Schritt d2 auf dem Retroid, von Hand (19.10.2026, Projektinhaber, Stand `9cb28d4a`,
+`-MsaaTiles`, 2× im Menü):** Der Selbsttest **besteht** („the device keeps the colour yes, the depth
+yes (read 64 of 255, 64 expected); … hidden, … passes EQUAL -> MSAA on the tiles“), im Spiel
+**flackert es trotzdem und Teile der Texturen fehlen**, 12 Rückmalungen je Bild. Der Adreno behält
+die Tiefe also im einfachen Fall; was im Spielbild verloren geht, zeigt der Selbsttest nicht
+(Ursache nicht gefunden; die R3-Aufnahme, 30 MB, blieb auf dem PC). Die Erweiterungsliste des
+Retroid enthält u. a. `GL_ARM_shader_framebuffer_fetch`, `GL_QCOM_shader_framebuffer_fetch_noncoherent`,
+`GL_QCOM_tiled_rendering`.
+
+**Entscheidung des Projektinhabers (19.10.2026): MSAA bleibt in eigenen Puffern** („2× läuft,
+4× schafft nur 20–25 Bilder/s, besser als nichts“). d/d2 bleiben aus (`GxOptions::tiledMsaa`), der
+Code mit Selbsttest bleibt für Versuche (`-MsaaTiles`). Die Messreihe hat keine Schritte auf den
+Kacheln mehr: nichts, Tiefenschärfe, Optionen des Testers mit 2× und 4×, 4× bei Auflösung 2,
+nichts. Stand der GPU-Schritte: (a) Messung ✅, (b) aus (nichts gespart), (c) an (Retroid
+unverändert, 120 Hz nicht getestet), (d)/(d2) aus, (e) an (gleiche Bilder, auf dem Retroid ohne
+Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |

@@ -44,14 +44,13 @@ Autofahrt). Fuer Film, Autofahrt und Ankunft in r100 reichen etwa -Seconds 480.
 und Bewegung von Leon und Waffe, Munition, R-Taste; fuer die Nachlade-Suche).
 -GpuBench misst die Grafik (GPU-Schritt a, 19.10.2026): Start in r100; sobald Leon frei steht
 (Ankunft und Funkspruch vorbei, der Kern meldet es), schaltet die App nach 10 s nacheinander
-die Einstellungen ihrer Messreihe durch (core_mode.cpp, GPU-Schritte e und d2: Tiefenschaerfe in
-voller und halber Aufloesung, die Einstellung des Testers und 4x Kantenglaettung je in eigenen
-Puffern und auf den Kacheln) und misst je 10 s GPU-Zeit, Last mal Takt, wie weit die GPU
+die Einstellungen ihrer Messreihe durch (core_mode.cpp: Tiefenschaerfe, die Einstellung des
+Testers mit 2x und 4x Kantenglaettung, 4x bei Aufloesung 2) und misst je 10 s GPU-Zeit, Last mal Takt, wie weit die GPU
 hinterherhinkt und was im Bild liegt (Zeilen "GPU bench" im Bericht, dazu eine Zeile "GPU:" mit
 den Erweiterungen des Grafikchips); danach gelten wieder deine Einstellungen.
 Etwa 5 Minuten, waehrend der Messung den Controller nicht anfassen.
--MsaaTiles schaltet die Kantenglaettung auf den Kacheln ein (GPU-Schritt d2, sonst eigene
-Puffer; die Staerke stellst du im Menue der App ein), z. B. mit -Manual zum Anschauen.
+-MsaaTiles schaltet die Kantenglaettung auf den Kacheln ein (GPU-Schritt d2, nur fuer Versuche:
+auf dem Retroid fehlen damit Haare und Texturen; sonst eigene Puffer).
 -StartRoom 100 springt direkt nach r100 (nur die kurze Ankunft). -Manual
 startet ohne Tastenfolge (Titelbild, du spielst selbst); dann beobachtet das
 Skript 30 Minuten statt 240 s (Taste Q beendet frueher, -Seconds legt die Zeit

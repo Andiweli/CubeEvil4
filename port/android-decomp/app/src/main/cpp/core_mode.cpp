@@ -397,8 +397,9 @@ int gxMode = -1;  // -1 undecided, 0 bridge, 1 GX
 std::atomic<int> optScale{0}, optSamples{1}, optAnisotropy{1}, optAspect{-1};
 // GPU step b (GxOptions::invalidate): off (it saved nothing on the Retroid) unless
 // RE4_GX_INVALIDATE=1; GPU step d2 (GxOptions::tiledMsaa, MSAA on the tiles with the EFB drawn
-// back after every pass): off until its device test, unless RE4_GX_MSAA_TILES=1 in the renderer
-// (test-core-app.ps1 -MsaaTiles); GPU step e
+// back after every pass): off (the Retroid lost Leon's hair and textures with it; decision of the
+// project owner, 19.10.2026: MSAA in own buffers), unless RE4_GX_MSAA_TILES=1 in the renderer
+// (test-core-app.ps1 -MsaaTiles, experiments); GPU step e
 // (GxOptions::halfDof): the depth of field's blur at half the resolution, on unless
 // RE4_GX_DOF_HALF=0 in the renderer; the GPU measurement switches all three
 std::atomic<int> optInvalidate{-1}, optTiled{0}, optHalfDof{1};
@@ -533,18 +534,16 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     const char *spec = getenv("RE4_GPU_BENCH");
     if (!spec || !*spec || std::string(spec) == "0") return;
     if (std::string(spec) == "1") {
-      // GPU steps e and d2 at scale 3: nothing extra; the depth of field at the full resolution
-      // (as before step e) and at the half one; the tester's options (2x MSAA, 8x anisotropy,
-      // depth of field; POCO X7 Pro, 18.10.2026) in own buffers and on the tiles (d2); 4x MSAA
-      // on the tiles and in own buffers; nothing extra again. The runs before (Retroid,
-      // 19.10.2026): MSAA +74 % work, the depth of field +19 %, both +114 %, 8x anisotropy and
-      // step b nothing measurable, the same setting twice up to 5 % apart; MSAA on the tiles
-      // without the EFB drawn back (step d) -44 %, but the depth lost; 4x MSAA in own buffers at
-      // scale 3 by hand: 20-25 pictures/s.
+      // at scale 3: nothing extra; the depth of field; the tester's options (2x MSAA, 8x
+      // anisotropy, depth of field; POCO X7 Pro, 18.10.2026); the same with 4x MSAA; 4x at
+      // scale 2; nothing extra again. MSAA in own buffers (decision of the project owner,
+      // 19.10.2026: on the Retroid MSAA on the tiles, d and d2, lost Leon's hair and textures).
+      // The runs before (Retroid, 19.10.2026): MSAA 2x +74 % work, the depth of field +19 %
+      // (at the half resolution the same), 8x anisotropy and step b nothing measurable, the same
+      // setting twice up to 5 % apart; 4x at scale 3: 24 pictures/s.
       // "S/M/A/D/I/T/H,..." names other steps (I: copy targets forgotten, T: MSAA on the tiles,
       // H: the depth of field at half the resolution, 1 when left out)
-      bench.steps = {{3, 1, 1, 0},          {3, 1, 1, 1, 0, 0, 0}, {3, 1, 1, 1, 0, 0, 1}, {3, 2, 8, 1, 0, 0, 1},
-                     {3, 2, 8, 1, 0, 1, 1}, {3, 4, 8, 1, 0, 1, 1}, {3, 4, 8, 1, 0, 0, 1}, {3, 1, 1, 0}};
+      bench.steps = {{3, 1, 1, 0}, {3, 1, 1, 1}, {3, 2, 8, 1}, {3, 4, 8, 1}, {2, 4, 8, 1}, {3, 1, 1, 0}};
     } else {
       for (const char *at = spec; *at;) {
         BenchStep step{};

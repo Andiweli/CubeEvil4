@@ -78,7 +78,9 @@ struct GxOptions {
   // multisampled buffers, resolved with a blit before every copy. The extension leaves the
   // samples undefined after a pass ends (the Retroid's Adreno 650 kept the colour, lost the depth:
   // Leon's hair, fog, whole objects missing), so d2 draws the EFB back itself at the start of
-  // every new pass, from a second set of textures. Off until the device test of d2
+  // every new pass, from a second set of textures. Off: with d2 too the Retroid lost Leon's hair
+  // and parts of textures although its self-test passed (decision of the project owner,
+  // 19.10.2026: MSAA in own buffers)
   bool tiledMsaa = false;
   // tests (RE4_GX_LOSE_TILES in gx_chunk_render): 1, every new pass on the tiles starts with
   // magenta and depth 0 before the EFB is drawn back, as a GPU that loses everything would; 2,
