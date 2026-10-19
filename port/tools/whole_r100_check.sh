@@ -817,6 +817,29 @@ render_gx_pictures() {
         head -n 12 "$run/bilder-gx-magenta.txt" | sed 's/^/  /' | tee -a "$report"
         overall=1
     fi
+    # GPU step d (19.10.2026): the same frames with 2x MSAA on zink (lavapipe, mesa-vulkan-drivers:
+    # EXT_multisampled_render_to_texture2), in own buffers and on the tiles. They may differ only
+    # at edges drawn before a copy (the tiles keep their resolved colour there, not the samples);
+    # whole areas that differ are a fault
+    local msaa_own="$run/bilder-gx-msaa-puffer" msaa_tiles="$run/bilder-gx-msaa-kacheln"
+    local zink=(env LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=zink RE4_GX_SAMPLES=2)
+    rm -rf "$msaa_own" "$msaa_tiles"
+    mkdir -p "$msaa_own" "$msaa_tiles"
+    "${zink[@]}" RE4_GX_MSAA_TILES=0 "$tool_build/gx_chunk_render" "$msaa_own" "$dump"/*.bin > /dev/null \
+        2> "$run/gx-msaa-puffer.log"
+    "${zink[@]}" "$tool_build/gx_chunk_render" "$msaa_tiles" "$dump"/*.bin > /dev/null 2> "$run/gx-msaa-kacheln.log"
+    if grep -q "MSAA: .* in own buffers" "$run/gx-msaa-puffer.log" && grep -q "MSAA: .* on the tiles" "$run/gx-msaa-kacheln.log"; then
+        ppm_to_png "$msaa_own"
+        ppm_to_png "$msaa_tiles"
+        python3 "$src/port/tools/picture_compare.py" "$msaa_own" "$msaa_tiles" --names puffer,kacheln \
+            > "$run/bilder-gx-msaa.txt" 2>&1
+        say "MSAA auf den Kacheln (GPU-Schritt d) gegenüber eigenen Puffern, 2 Proben, je Bild (zink):"
+        sed 's/^/  /' "$run/bilder-gx-msaa.txt" | tee -a "$report"
+        say "  (Bilder: Ordner bilder-gx-msaa-puffer und bilder-gx-msaa-kacheln)"
+    else
+        say "MSAA auf den Kacheln (GPU-Schritt d): nicht geprüft (zink fehlt: sudo $src/port/tools/whole_setup_linux.sh; Log: gx-msaa-kacheln.log)"
+        rm -rf "$msaa_own" "$msaa_tiles"
+    fi
     # a few frames as data for the renderer work in the cloud (gx_chunk_render
     # draws them there; game data: never into the repository): the first
     # three and the first in the room

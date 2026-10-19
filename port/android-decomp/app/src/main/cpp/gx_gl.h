@@ -70,8 +70,12 @@ struct GxOptions {
   // they are drawn over completely (glInvalidateFramebuffer, GPU step b, 19.10.2026); poison
   // (tests, RE4_GX_INVALIDATE_POISON=1 in gx_chunk_render): they are painted magenta instead, so
   // a picture that still needed the old content shows it
-  bool invalidate = true;
+  bool invalidate = false;  // on the Retroid it saved nothing, at scale 3 alone it cost about 7 %
   bool poison = false;
+  // MSAA on the tiles (GPU step d, 19.10.2026): the EFB's own textures take the samples
+  // (EXT_multisampled_render_to_texture2); off, or without the extension: separate multisampled
+  // buffers, resolved with a blit before every copy
+  bool tiledMsaa = true;
 };
 
 class GxRenderer {
@@ -91,6 +95,8 @@ public:
   float Anisotropy() const;
   // the copy targets are forgotten before they are drawn over (GxOptions::invalidate)
   bool Invalidates() const;
+  // the samples live in the GPU's tile memory (GxOptions::tiledMsaa and the device can)
+  bool TiledMsaa() const;
   // What the device can do (a GLES 3.0 context is current): the most EFB
   // samples and the strongest anisotropic filtering (1: none).
   static void Limits(int *maxSamples, float *maxAnisotropy);

@@ -943,19 +943,26 @@ void TestAutofocus(re4gx::GxRenderer &r, bool multisampled = false) {
 // every copy out of it (display copy, texture copy); a slanted edge comes out
 // between the two colours; anisotropic filtering does not change a picture
 // without mipmaps.
-void TestOptions(bool poison) {
+void TestOptions(bool poison, bool tiled) {
   int maxSamples = 1;
   float maxAnisotropy = 1.0f;
   re4gx::GxRenderer::Limits(&maxSamples, &maxAnisotropy);
-  std::fprintf(stderr, "  options: up to %d samples, anisotropy up to %.0f\n", maxSamples, maxAnisotropy);
+  std::fprintf(stderr, "  options: up to %d samples, anisotropy up to %.0f, MSAA %s\n", maxSamples, maxAnisotropy,
+               tiled ? "on the tiles where the GPU can" : "in own buffers");
   re4gx::GxRenderer r;
   re4gx::GxOptions o;
   o.samples = 4;
   o.anisotropy = 8.0f;
+  o.invalidate = poison;
   o.poison = poison;
+  o.tiledMsaa = tiled;
   r.SetOptions(o);
   std::string error;
   Require(r.Init(1, &error), error.c_str());
+  // MSAA on the tiles exactly where the GPU has both extensions (GPU step d)
+  const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+  const bool can = ext && std::strstr(ext, "GL_EXT_multisampled_render_to_texture2") && maxSamples > 1;
+  Check(r.TiledMsaa() == (tiled && can), "options: MSAA on the tiles where asked for and the GPU can");
   Check(r.Samples() == (maxSamples >= 4 ? 4 : 1) || (r.Samples() > 1 && r.Samples() <= maxSamples),
         "options: the samples asked for, as far as the device goes");
   Check(r.Anisotropy() == std::min(8.0f, maxAnisotropy), "options: the anisotropy, as far as the device goes");
@@ -1001,6 +1008,7 @@ int main() {
       std::fprintf(stderr, "again with forgotten contents painted magenta:\n");
     re4gx::GxRenderer renderer;
     re4gx::GxOptions o;
+    o.invalidate = poison != 0;
     o.poison = poison != 0;
     renderer.SetOptions(o);
     std::string error;
@@ -1016,8 +1024,10 @@ int main() {
     TestAutofocus(renderer);
     Check(glGetError() == GL_NO_ERROR, "no GL error");
     renderer.Release();
-    TestOptions(poison != 0);
+    TestOptions(poison != 0, true);
   }
+  // MSAA in its own buffers (the devices without the extensions, RE4_GX_MSAA_TILES=0)
+  TestOptions(false, false);
   std::fprintf(stderr, "gx_gl_check: %d failed\n", gFailures);
   return gFailures ? 1 : 0;
 }

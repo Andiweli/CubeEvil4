@@ -4476,6 +4476,41 @@ Abschnitt der PC-Prüfung mit einem Ersatz-Werkzeug (gleiche Bilder: „2 von 2 
 abweichende: FEHLER). Nicht getestet: die PC-Prüfung mit echten Spielbildern, der Messlauf auf dem
 Gerät.
 
+**GPU-Schritt (b): Ergebnis (19.10.2026, Projektinhaber).** PC-Prüfung (Stand `eb0d192e`): ALLES OK,
+„Wegwerfen (GPU-Schritt b), das Vergessene magenta: 19 von 19 Bildern gleich“. Messlauf auf dem
+Retroid (je zweimal, Arbeit = Last mal Takt): 3-fach ohne Extras ohne Wegwerfen 260 / 246 (der zweite
+bei 305 MHz), mit 275 / 280; mit den Optionen des Testers ohne 593 / 588, mit 576 / 584. Bei gleichem
+Takt (400 MHz) ohne Extras mit Wegwerfen etwa 7 % mehr (Arbeit 260 → 275/280, Zeitabfrage 18,5 →
+19,6/20,0 ms), mit den Optionen des Testers 2 % weniger (innerhalb der Streuung). Der Adreno 650
+zeichnet die Kopien offenbar ohnehin direkt in den Speicher. **Wegwerfen ist darum aus**
+(`GxOptions::invalidate = false`, `RE4_GX_INVALIDATE=1` schaltet es ein); Code und Magenta-Prüfung
+bleiben (für andere GPUs, und Schritt d braucht dieselbe Art Prüfung). **Der Retroid hat die
+Erweiterungen für Schritt d:** „Adreno (TM) 650, OpenGL ES 3.2 V@0746.0;
+EXT_multisampled_render_to_texture yes, ..._texture2 yes, EXT_shader_framebuffer_fetch yes,
+QCOM_tiled_rendering yes“.
+
+**GPU-Schritt (d): MSAA auf den Kacheln (19.10.2026, Cloud, Branch `claude/re4-gpu-efficiency`).**
+Mit `EXT_multisampled_render_to_texture` und `..._texture2` nehmen die eigenen Texturen des EFB
+(Farbe und Tiefe) die Proben selbst (`glFramebufferTexture2DMultisampleEXT`, `gx_gl.cpp TiledMsaa`):
+die GPU hält die Proben im Kachelspeicher und schreibt am Ende eines Durchgangs (EFB-Kopie,
+Autofokus, Bildende) nur Farbe und Tiefe aufgelöst hinaus; der nächste Durchgang liest sie in alle
+Proben zurück, `Resolve` hat nichts mehr zu tun. Bisher schrieb jede Kopie die eigenen
+Mehrfach-Puffer hinaus, löste sie per Blit auf und las sie wieder ein. Unterschied im Bild: was vor
+einer Kopie gezeichnet wurde, behält danach seine aufgelöste Farbe und Tiefe statt der Proben (Kanten,
+über die später noch gezeichnet wird). Ohne die Erweiterungen oder mit `GxOptions::tiledMsaa = false`
+(`RE4_GX_MSAA_TILES=0`) der alte Weg. Die App schreibt ins Protokoll „... 2 samples (of 4) on the
+tiles“ bzw. „in own buffers“, die Messzeilen ebenso. Messreihe des GPU-Branch: 3/1/1/0, dann
+3/2/8/1 und 3/2/1/0 je in eigenen Puffern und auf den Kacheln, zweimal, am Ende wieder 3/1/1/0
+(`S/M/A/D/I/T`). **Prüfen ohne Gerät:** Mesa `zink` auf `lavapipe` (`LIBGL_ALWAYS_SOFTWARE=1
+GALLIUM_DRIVER=zink`, Paket `mesa-vulkan-drivers`, neu in `whole_setup_linux.sh`) hat beide
+Erweiterungen. `gx_gl_check` prüft MSAA jetzt auf den Kacheln (wo die GPU es kann) und in eigenen
+Puffern; die PC-Prüfung (Abschnitt 5) zeichnet alle GX-Bilder mit 2 Proben auf zink in beiden Arten
+und vergleicht sie Pixel für Pixel (Unterschiede nur an Kanten erwartet; `gx_chunk_render`:
+`RE4_GX_SAMPLES`). Getestet: `gx_gl_check` 0 Fehler mit llvmpipe (dort ohne die Erweiterungen: alter
+Weg) und mit zink (Kacheln: „MSAA on the tiles where asked for and the GPU can“, Kante geglättet,
+Kopie und Palette, Autofokus mit MSAA); `gx_chunk_render`, `re4decomp_link_check` gebaut. Nicht
+getestet: die PC-Prüfung mit echten Spielbildern, das Gerät.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
