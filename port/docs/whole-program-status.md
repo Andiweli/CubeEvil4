@@ -4339,8 +4339,10 @@ Variante `classic` braucht weiter nur Disc 1.
   Prüfen, nicht im Repository) und die Klassen der AAR. `CoreInputTests` weiter 69 Prüfungen.
   Die übrigen Host-Tests wie bisher; weiterhin rot nur die bekannten `enemy_feedback_tests` und
   `inventory_case_contracts` (siehe oben).
-- **Nicht getestet:** Gradle-Build mit der AAR, Lint, das Gerät (Darstellung, Mehrfinger,
-  Größen auf dem Handy, Ein-/Ausblenden beim An- und Abstecken eines Controllers).
+- **Gerätetest (Retroid, Projektinhaber, 19.10.2026):** Build mit der AAR gelungen, die
+  Touch-Steuerung „scheint alles zu klappen“. Danach in den M12-Branch übernommen.
+- **Noch nicht getestet:** Lint (läuft erst beim `coreRelease`-Build), ein Handy ohne Controller
+  (automatisches Einblenden), An- und Abstecken eines Controllers während des Spiels.
 
 ### Grafik-Auslastung: Analyse (19.10.2026, Cloud, nur Code und Berichte, noch nichts gemessen)
 
