@@ -4168,7 +4168,8 @@ Auswertung:**
 - Getestet (Cloud): `whole_build.sh i686 armhf x86_64 aarch64` mit Patch 0084 und der neuen
   Regel: 0 Baufehler, alle Prüfungen bestanden (Laufzeittest mit `tasks` samt Heap-Ende, Kern-
   test, Speicherkarte, Formatvergleich, Filmtest, Filmvergleich 32/64 bit 250/250,
-  M12-Selbsttest 17/17); `ptr_word_check` auf dem ganzen Spielcode wie oben. **Nicht
+  M12-Selbsttest 17/17); `ptr_word_check` auf dem ganzen Spielcode wie oben; alle 18
+  M12-Prüfungen auf den echten Builds (`run_all.py`, 26 min): 0 neue Funde. **Nicht
   getestet:** Disc-Daten (PC-Prüfung), Gerät; dass der Absturz in r104 weg ist, zeigt erst ein
   Lauf an derselben Stelle.
 
