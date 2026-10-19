@@ -4471,9 +4471,10 @@ dabei, ohne dass es als Ursache belegt ist:
   armhf (qemu) und x86_64 alle Prüfungen bestanden (0 Bauschritte fehlgeschlagen, Selbsttest,
   Module, Laufzeit- und Kerntest, Formatvergleich, Filmvergleich i686/x86_64 250 von 250 Bildern
   gleich, M12-Selbsttest 19/19, libc++ 162/162). Nicht getestet: der neue Kern auf dem Gerät.
-- **Nächster Schritt:** Grafik-Aufnahme (R3) beim Spielen, während die Haare fehlen: in der Cloud
-  zeigt das Nachzeichnen, ob die Haare in den Daten des Kerns fehlen (Spiel/Kern) oder erst auf dem
-  Gerät (Renderer/Treiber); dazu ein Lauf in 32 bit zum Vergleich.
+- **Ursache gefunden (19.10.2026, R3-Aufnahme):** GPU-Schritt d im Branch
+  `claude/re4-gpu-efficiency` (MSAA auf den Kacheln: der Adreno 650 verliert nach jeder EFB-Kopie
+  die Tiefe); dort ist Schritt d jetzt aus, Einzelheiten im Status jenes Branch. Der M12-Branch
+  hatte Schritt d nie und ist nicht betroffen.
 
 **GPU-Schritt (d): erster Gerätelauf (19.10.2026).** Arbeit (Last mal Takt), je zweimal: Optionen des
 Testers in eigenen Puffern 590 / 596, auf den Kacheln 331 / 329 (−44 %); MSAA allein 453 → 284
