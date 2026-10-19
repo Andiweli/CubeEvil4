@@ -4643,6 +4643,46 @@ einem 120-Hz-Handy (POCO X7 Pro des Testers) zeichnete die App das Bild 120-mal 
   eigenen Code. **Nicht getestet:** ein Gerät mit mehr als 60 Hz (der Retroid hat 60 Hz: dort
   muss alles bleiben wie bisher, das zeigt der nächste Gerätelauf), Android-Lint.
 
+**GPU-Schritt (d2): MSAA auf den Kacheln, das EFB selbst zurückgemalt (19.10.2026, Cloud, Branch
+`claude/re4-gpu-efficiency`).** Schritt d sparte auf dem Retroid 44 % Arbeit, aber der Adreno 650
+verlor nach jeder EFB-Kopie die Tiefe (Haare, Nebel). d2 verlässt sich nicht mehr darauf, was der
+Treiber nach dem Ende eines Durchgangs behält:
+- **Zwei Sätze EFB-Texturen** (Farbe und Tiefe, beide auf den Kacheln, `spareFbo`): jeder neue
+  Durchgang zeichnet in den anderen Satz und malt zuerst Farbe und Tiefe aus dem vorigen zurück
+  (`UseEfb`, ein bildschirmfüllendes Dreieckspaar, Tiefe per `gl_FragDepth` ohne Rechnung, in jede
+  Probe derselbe Wert). Vorher darf der Grafikchip den alten Inhalt vergessen
+  (`glInvalidateFramebuffer`), er muss nichts laden. Weil der vorige Satz dabei nur gelesen
+  wird, ist das nach GL-Regeln eindeutig (keine Rückkopplung). Kanten, die vor einer Kopie
+  gezeichnet wurden, behalten danach ihre aufgelöste Farbe und Tiefe, nicht ihre Proben.
+- **Wann:** jedes Binden eines anderen Framebuffers (`BindFbo`, alle Bindungen des Renderers
+  laufen jetzt hindurch) und jeder neue Spielbild-Abschnitt beenden den Durchgang; zurückgemalt
+  wird erst vor dem nächsten Zeichnen oder Löschen ins EFB (`Draw`, `ClearAfterCopy`, das alte
+  Zurückkopieren der Tiefenschärfe). Kopien und Autofokus lesen bis dahin den vorigen Satz.
+- **Prüfung mit einem „vergesslichen“ Grafikchip:** `GxOptions::loseTiles` (`RE4_GX_LOSE_TILES=1`
+  in `gx_chunk_render`) färbt jeden neuen Durchgang magenta mit Tiefe 0, bevor zurückgemalt wird.
+  Neuer Test `TestPassBreak` in `gx_gl_check`: nach einer Kopie verdeckt der Vordergrund noch,
+  was dahinter gezeichnet wird, ein Auftrag mit genau derselben Tiefe besteht `EQUAL`, die Farben
+  von vorher bleiben (ohne MSAA, eigene Puffer, Kacheln, Kacheln mit Verlust, beide Auflösungen der
+  Tiefenschärfe). Gegenprobe: ohne das Zurückmalen 16 Fehler.
+- **Echte Bilder** (11 Retroid-Bilder der Haar-Aufnahme, r100, zink, 4 Proben): Kacheln mit
+  Verlust gegen Kacheln ohne: **11 von 11 gleich**. Kacheln gegen eigene Puffer, Auflösung 3: 0,4 %
+  der Pixel mehr als 8 von 255 (dünne Äste, die vor einer Kopie gezeichnet wurden; 12-mal
+  zurückgemalt je Bild); ohne MSAA gegen eigene Puffer sind es 2 % – d2 behält den größten Teil
+  der Kantenglättung.
+- Schalter: `GxOptions::tiledMsaa` bleibt **aus**, bis der Gerätetest zeigt, dass Haare und Nebel
+  da sind; `test-core-app.ps1 -MsaaTiles` schaltet d2 für einen Lauf ein (`RE4_GX_MSAA_TILES=1`).
+  Messreihe (8 Schritte): nichts, Tiefenschärfe voll, halb, Optionen des Testers in eigenen Puffern
+  und auf den Kacheln, 4× auf den Kacheln und in eigenen Puffern, nichts. Die Zeile „GPU bench“
+  sagt bei d2, wie oft je Bild zurückgemalt wurde; die Zeile „GX:“ zählt es auch.
+- **PC-Prüfung:** Abschnitt 5 vergleicht jetzt mit 4 Proben (lavapipe hat keine eigenen 2×-Puffer,
+  bisher stand 2 gegen 4) eigene Puffer gegen d2 und d2 gegen d2 mit Verlust (muss gleich sein,
+  sonst FEHLER).
+- **Getestet (Cloud):** `gx_gl_check` 0 Fehler mit llvmpipe und zink; `re4decomp_link_check`
+  gebaut; `tools/test_host.sh`: wie vorher 40 von 42 (die zwei Fehlschläge `enemy_feedback_tests`
+  und `inventory_case_contracts` gehören zum Klassik-Modus und waren schon vor e, c und d2 da).
+  **Nicht getestet:** das Gerät (Haare/Nebel mit d2, Arbeit im Messlauf), die PC-Prüfung mit
+  Disc-Daten.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |

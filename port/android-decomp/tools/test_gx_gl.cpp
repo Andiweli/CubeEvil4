@@ -950,16 +950,66 @@ void TestAutofocus(re4gx::GxRenderer &r, bool multisampled = false) {
   r.Run(b.Chunk());
 }
 
+// The game draws on after an EFB copy (GPU step d2: on the tiles the copy ends the GPU's pass,
+// the EFB is drawn back after it): what lies in front before the copy still hides what is drawn
+// behind it after, a draw at exactly the same depth with EQUAL still passes, and the colours
+// drawn before stay.
+void TestPassBreak(re4gx::GxRenderer &r, const char *tag) {
+  char what[160];
+  Builder b;
+  Baseline(b);
+  DisplayCopy(b, false, kBlack);
+  const unsigned restores = r.Stats().efbRestores;
+  Quad(b, 0, 0, 640, 528, -1.0f, kBlue);     // background, depth 1
+  Quad(b, 100, 100, 300, 300, -0.5f, kGreen);  // in front, depth 0.5
+  // a copy of 32x32 at (0, 0) to a texture: the pass ends
+  b.Bp(0x49, 0);
+  b.Bp(0x4A, 31 | 31u << 10);
+  b.Bp(0x4D, 32);
+  b.Bp(0x4B, 0x200000 >> 5);
+  b.Bp(0x52, 6u << 4 | 2u << 15);
+  b.Bp(0x4A, 639 | 527u << 10);
+  Quad(b, 200, 200, 400, 400, -0.75f, kRed);  // behind the green one, depth 0.75
+  b.Bp(0x40, 1 | 2 << 1 | 1 << 4);            // EQUAL
+  Quad(b, 100, 100, 150, 150, -0.5f, kWhite);  // the green one's depth exactly
+  b.Bp(0x40, 1 | 3 << 1 | 1 << 4);
+  DisplayCopy(b, false, kBlack);
+  r.Run(b.Chunk());
+  GLuint xfb = r.Xfb(nullptr, nullptr);
+  auto front = TexPixel(xfb, 250, 250), behind = TexPixel(xfb, 350, 350), equal = TexPixel(xfb, 120, 120),
+       before = TexPixel(xfb, 50, 450);
+  std::snprintf(what, sizeof(what), "%s: after a copy, the depth drawn before still hides what lies behind", tag);
+  Check(Near(front, 0, 255, 0), what);
+  std::snprintf(what, sizeof(what), "%s: after a copy, what lies in front of the background is drawn", tag);
+  Check(Near(behind, 255, 0, 0), what);
+  std::snprintf(what, sizeof(what), "%s: after a copy, a draw at exactly the same depth passes EQUAL", tag);
+  Check(Near(equal, 255, 255, 255), what);
+  std::snprintf(what, sizeof(what), "%s: after a copy, the colour drawn before stays", tag);
+  Check(Near(before, 0, 0, 255), what);
+  if (!(Near(front, 0, 255, 0) && Near(behind, 255, 0, 0) && Near(equal, 255, 255, 255) && Near(before, 0, 0, 255))) {
+    Print("green in front", front);
+    Print("red behind", behind);
+    Print("white EQUAL", equal);
+    Print("blue before", before);
+  }
+  if (r.TiledMsaa()) {
+    // the copy (and the display copy) end passes: drawn back before the draws after them
+    std::snprintf(what, sizeof(what), "%s: the EFB drawn back after the copy", tag);
+    Check(r.Stats().efbRestores >= restores + 1, what);
+  }
+}
+
 // The menu's picture options (M11): a multisampled EFB is resolved before
 // every copy out of it (display copy, texture copy); a slanted edge comes out
 // between the two colours; anisotropic filtering does not change a picture
 // without mipmaps.
-void TestOptions(bool poison, bool tiled, bool halfDof = true) {
+void TestOptions(bool poison, bool tiled, bool halfDof = true, bool lose = false) {
   int maxSamples = 1;
   float maxAnisotropy = 1.0f;
   re4gx::GxRenderer::Limits(&maxSamples, &maxAnisotropy);
-  std::fprintf(stderr, "  options: up to %d samples, anisotropy up to %.0f, MSAA %s\n", maxSamples, maxAnisotropy,
-               tiled ? "on the tiles where the GPU can" : "in own buffers");
+  std::fprintf(stderr, "  options: up to %d samples, anisotropy up to %.0f, MSAA %s%s\n", maxSamples, maxAnisotropy,
+               tiled ? "on the tiles where the GPU can" : "in own buffers",
+               lose ? ", everything lost at a pass's end" : "");
   re4gx::GxRenderer r;
   re4gx::GxOptions o;
   o.samples = 4;
@@ -968,6 +1018,7 @@ void TestOptions(bool poison, bool tiled, bool halfDof = true) {
   o.poison = poison;
   o.tiledMsaa = tiled;
   o.halfDof = halfDof;
+  o.loseTiles = lose;
   r.SetOptions(o);
   std::string error;
   Require(r.Init(1, &error), error.c_str());
@@ -1006,6 +1057,7 @@ void TestOptions(bool poison, bool tiled, bool halfDof = true) {
   TestCopyAndPalette(r, true);  // EFB copy to a texture (resolved first), palette
   Check(r.HalfDof() == halfDof, "options: the depth of field's resolution as asked for");
   TestAutofocus(r, r.Samples() > 1);
+  TestPassBreak(r, r.TiledMsaa() ? (lose ? "on the tiles, everything lost" : "on the tiles") : "multisampled");
   Check(glGetError() == GL_NO_ERROR, "options: no GL error");
   r.Release();
 }
@@ -1035,6 +1087,7 @@ int main() {
     TestShaderVariety(renderer);
     TestCopyFilter(renderer);
     TestAutofocus(renderer);
+    TestPassBreak(renderer, "single-sampled");
     Check(glGetError() == GL_NO_ERROR, "no GL error");
     renderer.Release();
     {
@@ -1053,6 +1106,11 @@ int main() {
   TestOptions(false, false);
   // the depth of field's blur at the full resolution as before GPU step e (GxOptions::halfDof)
   TestOptions(false, false, false);
+  // MSAA on the tiles on a GPU that loses colour and depth at every pass's end (the Adreno 650
+  // lost the depth): the EFB drawn back (GPU step d2) keeps every picture; both resolutions of
+  // the depth of field (its full one draws back into the EFB on the tiles)
+  TestOptions(false, true, true, true);
+  TestOptions(true, true, false, true);
   std::fprintf(stderr, "gx_gl_check: %d failed\n", gFailures);
   return gFailures ? 1 : 0;
 }

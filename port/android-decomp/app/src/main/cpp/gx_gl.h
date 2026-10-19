@@ -38,6 +38,7 @@ struct GxStats {
   unsigned shaderErrors = 0;
   unsigned dstAlphaApprox = 0;   // draws whose constant destination alpha is not 0 and not exact
   unsigned autofocus = 0;        // blur passes of the gameplay autofocus (BP 0x5A, the core's marker)
+  unsigned efbRestores = 0;      // MSAA on the tiles: the EFB drawn back after a pass ended (GPU step d2)
   // GL work per draw (what costs driver time): uniform block uploads and their
   // bytes, program switches, texture and sampler binds, render state changes,
   // vertex attribute setups
@@ -72,12 +73,16 @@ struct GxOptions {
   // a picture that still needed the old content shows it
   bool invalidate = false;  // on the Retroid it saved nothing, at scale 3 alone it cost about 7 %
   bool poison = false;
-  // MSAA on the tiles (GPU step d, 19.10.2026): the EFB's own textures take the samples
-  // (EXT_multisampled_render_to_texture2); off, or without the extension: separate multisampled
-  // buffers, resolved with a blit before every copy. Off: the Retroid's Adreno 650 keeps the
-  // colour but not the depth after a pass ends (the extension leaves the samples undefined
-  // then), and the game draws on after its EFB copies (Leon's hair, fog, whole objects missing)
+  // MSAA on the tiles (GPU step d, 19.10.2026; d2 since 19.10.2026): the EFB's own textures take
+  // the samples (EXT_multisampled_render_to_texture2); off, or without the extension: separate
+  // multisampled buffers, resolved with a blit before every copy. The extension leaves the
+  // samples undefined after a pass ends (the Retroid's Adreno 650 kept the colour, lost the depth:
+  // Leon's hair, fog, whole objects missing), so d2 draws the EFB back itself at the start of
+  // every new pass, from a second set of textures. Off until the device test of d2
   bool tiledMsaa = false;
+  // tests (RE4_GX_LOSE_TILES=1 in gx_chunk_render): every new pass on the tiles starts with
+  // magenta and depth 0 before the EFB is drawn back, as a GPU that loses everything would
+  bool loseTiles = false;
   // the depth of field's blur at half the resolution, mixed into the picture at the full one
   // (GPU step e, 19.10.2026); off: the blur and the copy back at the full resolution
   bool halfDof = true;

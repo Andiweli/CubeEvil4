@@ -44,11 +44,14 @@ Autofahrt). Fuer Film, Autofahrt und Ankunft in r100 reichen etwa -Seconds 480.
 und Bewegung von Leon und Waffe, Munition, R-Taste; fuer die Nachlade-Suche).
 -GpuBench misst die Grafik (GPU-Schritt a, 19.10.2026): Start in r100; sobald Leon frei steht
 (Ankunft und Funkspruch vorbei, der Kern meldet es), schaltet die App nach 10 s nacheinander
-die Einstellungen ihrer Messreihe durch (core_mode.cpp, GPU-Schritt e: Tiefenschaerfe in voller
-und halber Aufloesung, allein und mit der Einstellung des Testers) und misst je 10 s GPU-Zeit, Last mal Takt, wie weit die GPU
+die Einstellungen ihrer Messreihe durch (core_mode.cpp, GPU-Schritte e und d2: Tiefenschaerfe in
+voller und halber Aufloesung, die Einstellung des Testers und 4x Kantenglaettung je in eigenen
+Puffern und auf den Kacheln) und misst je 10 s GPU-Zeit, Last mal Takt, wie weit die GPU
 hinterherhinkt und was im Bild liegt (Zeilen "GPU bench" im Bericht, dazu eine Zeile "GPU:" mit
 den Erweiterungen des Grafikchips); danach gelten wieder deine Einstellungen.
 Etwa 5 Minuten, waehrend der Messung den Controller nicht anfassen.
+-MsaaTiles schaltet die Kantenglaettung auf den Kacheln ein (GPU-Schritt d2, sonst eigene
+Puffer; die Staerke stellst du im Menue der App ein), z. B. mit -Manual zum Anschauen.
 -StartRoom 100 springt direkt nach r100 (nur die kurze Ankunft). -Manual
 startet ohne Tastenfolge (Titelbild, du spielst selbst); dann beobachtet das
 Skript 30 Minuten statt 240 s (Taste Q beendet frueher, -Seconds legt die Zeit
@@ -173,6 +176,7 @@ param(
     [switch]$SaveTest,
     [switch]$WeaponTrace,
     [switch]$GpuBench,
+    [switch]$MsaaTiles,
     [switch]$NoCopy,
     [ValidateSet('auto', 'armeabi-v7a', 'arm64-v8a')][string]$Abi = 'auto'
 )
@@ -404,6 +408,10 @@ if ($AudioWav -gt 0) {
 if ($GpuBench) {
     # the GPU measurement (see above): the app steps through the picture options itself
     $settings = if ($settings) { "$settings;RE4_GPU_BENCH=1" } else { 'RE4_GPU_BENCH=1' }
+}
+if ($MsaaTiles) {
+    # MSAA on the tiles with the EFB drawn back after every pass (GPU step d2, gx_gl.cpp)
+    $settings = if ($settings) { "$settings;RE4_GX_MSAA_TILES=1" } else { 'RE4_GX_MSAA_TILES=1' }
 }
 # the app's tools for the test: R3 saves graphics data (otherwise only with the menu's switch)
 if ($WeaponTrace) {

@@ -396,8 +396,9 @@ int gxMode = -1;  // -1 undecided, 0 bridge, 1 GX
 // starts over with the full state); 0 scale: automatic
 std::atomic<int> optScale{0}, optSamples{1}, optAnisotropy{1}, optAspect{-1};
 // GPU step b (GxOptions::invalidate): off (it saved nothing on the Retroid) unless
-// RE4_GX_INVALIDATE=1; GPU step d (GxOptions::tiledMsaa): off (the Adreno 650 loses the depth
-// after every EFB copy) unless RE4_GX_MSAA_TILES=1 in the renderer; GPU step e
+// RE4_GX_INVALIDATE=1; GPU step d2 (GxOptions::tiledMsaa, MSAA on the tiles with the EFB drawn
+// back after every pass): off until its device test, unless RE4_GX_MSAA_TILES=1 in the renderer
+// (test-core-app.ps1 -MsaaTiles); GPU step e
 // (GxOptions::halfDof): the depth of field's blur at half the resolution, on unless
 // RE4_GX_DOF_HALF=0 in the renderer; the GPU measurement switches all three
 std::atomic<int> optInvalidate{-1}, optTiled{0}, optHalfDof{1};
@@ -532,17 +533,18 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     const char *spec = getenv("RE4_GPU_BENCH");
     if (!spec || !*spec || std::string(spec) == "0") return;
     if (std::string(spec) == "1") {
-      // GPU step e at scale 3: nothing extra, the depth of field at the full resolution (as
-      // before step e) and at the half one, the same with the tester's options (2x MSAA, 8x
-      // anisotropy, depth of field; POCO X7 Pro, 18.10.2026), the half one again and nothing
-      // extra again. MSAA in own buffers: on the tiles (step d) the Adreno 650 loses the depth
-      // (19.10.2026). The runs before (Retroid, 19.10.2026): MSAA +74 % work, the depth of field
-      // +19 %, both +114 %, 8x anisotropy and step b nothing measurable, the same setting twice
-      // up to 5 % apart; 4x MSAA at scale 3 by hand: 20-25 pictures/s.
+      // GPU steps e and d2 at scale 3: nothing extra; the depth of field at the full resolution
+      // (as before step e) and at the half one; the tester's options (2x MSAA, 8x anisotropy,
+      // depth of field; POCO X7 Pro, 18.10.2026) in own buffers and on the tiles (d2); 4x MSAA
+      // on the tiles and in own buffers; nothing extra again. The runs before (Retroid,
+      // 19.10.2026): MSAA +74 % work, the depth of field +19 %, both +114 %, 8x anisotropy and
+      // step b nothing measurable, the same setting twice up to 5 % apart; MSAA on the tiles
+      // without the EFB drawn back (step d) -44 %, but the depth lost; 4x MSAA in own buffers at
+      // scale 3 by hand: 20-25 pictures/s.
       // "S/M/A/D/I/T/H,..." names other steps (I: copy targets forgotten, T: MSAA on the tiles,
       // H: the depth of field at half the resolution, 1 when left out)
-      bench.steps = {{3, 1, 1, 0}, {3, 1, 1, 1, 0, 0, 0}, {3, 1, 1, 1, 0, 0, 1}, {3, 2, 8, 1, 0, 0, 0},
-                     {3, 2, 8, 1, 0, 0, 1}, {3, 1, 1, 1, 0, 0, 1}, {3, 1, 1, 0}};
+      bench.steps = {{3, 1, 1, 0},          {3, 1, 1, 1, 0, 0, 0}, {3, 1, 1, 1, 0, 0, 1}, {3, 2, 8, 1, 0, 0, 1},
+                     {3, 2, 8, 1, 0, 1, 1}, {3, 4, 8, 1, 0, 1, 1}, {3, 4, 8, 1, 0, 0, 1}, {3, 1, 1, 0}};
     } else {
       for (const char *at = spec; *at;) {
         BenchStep step{};
@@ -656,12 +658,16 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     std::snprintf(behind, sizeof(behind), "%.2f pictures on average, at most %u%s",
                   static_cast<double>(s.behindSum - bench.at.behindSum) / checks, most, most == 8 ? " or more" : "");
   }
+  char tiles[64] = "";
+  if (gx->TiledMsaa())
+    std::snprintf(tiles, sizeof(tiles), " on the tiles (EFB drawn back %.1fx per picture)",
+                  chunks ? static_cast<double>(s.efbRestores - bench.at.efbRestores) / chunks : 0.0);
   LOG("GPU bench %d/%zu: scale %d, %d samples%s, anisotropy %.0f, depth of field %s%s, copy targets forgotten %s: "
       "GPU %s per picture, "
       "present %s, %.1f pictures/s, %.1f presents/s, renderer CPU %.1f ms, GPU clock %s, load %s, "
       "work (load x clock) %s, GPU behind %s, %.0f draws per picture",
       bench.index + 1, bench.steps.size(), infoScale.load(), gx->Samples(),
-      gx->Samples() > 1 ? (gx->TiledMsaa() ? " on the tiles" : " in own buffers") : "", gx->Anisotropy(),
+      gx->Samples() > 1 ? (gx->TiledMsaa() ? tiles : " in own buffers") : "", gx->Anisotropy(),
       step.dof ? "on" : "off",
       step.dof ? (gx->HalfDof() ? " (blur at half resolution)" : " (blur at full resolution)") : "",
       gx->Invalidates() ? "yes" : "no", gpu, present, pictures, secs > 0 ? (s.presents - bench.at.presents) / secs : 0.0,
@@ -960,11 +966,11 @@ bool drawGx() {
       const double seconds = std::chrono::duration<double>(now - gxSince).count();
       LOG("GX: %u chunks, %u draws (%u per chunk), run %.1f ms (max %.1f), shown %.1f/s, %u programs, %u textures, "
           "%u copies, %u held pictures, %u missing, %u shader errors, %u inexact dst alpha, %u programs from the cache, "
-          "base vertex %s, %u autofocus passes",
+          "base vertex %s, %u autofocus passes, %u EFB restores (MSAA on the tiles)",
           s.chunks, s.draws, gxRunCount ? (s.draws - gxDraws) / gxRunCount : 0, gxRunCount ? gxRunMs / gxRunCount : 0.0,
           gxRunMax, seconds > 0 ? gxFrames / seconds : 0.0, s.programs, s.textures, s.textureCopies, s.heldCopies,
           s.missingTextures, s.shaderErrors, s.dstAlphaApprox, s.programsLoaded, gx->BaseVertex() ? "yes" : "no",
-          s.autofocus);
+          s.autofocus, s.efbRestores);
       // the GL work per chunk since the last line, and the GPU time when the driver measures it
       if (gxRunCount) {
         const double n = gxRunCount;

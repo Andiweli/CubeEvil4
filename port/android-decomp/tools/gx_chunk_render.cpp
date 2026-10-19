@@ -111,6 +111,10 @@ int main(int argc, char **argv) {
       options.invalidate = options.poison;
       const char *samples = std::getenv("RE4_GX_SAMPLES");
       options.samples = samples ? std::max(1, std::min(4, std::atoi(samples))) : 1;
+      // RE4_GX_LOSE_TILES=1: MSAA on the tiles as on a GPU that loses everything at a pass's end
+      // (magenta, depth 0) before the EFB is drawn back (GPU step d2)
+      const char *lose = std::getenv("RE4_GX_LOSE_TILES");
+      options.loseTiles = lose && *lose == '1';
       renderer->SetOptions(options);
       std::string error;
       if (!renderer->Init(scale, &error)) {
@@ -138,10 +142,12 @@ int main(int argc, char **argv) {
     unsigned w = 0, h = 0;
     const GLuint xfb = renderer->Xfb(&w, &h);
     const re4gx::GxStats &s = renderer->Stats();
-    std::printf("%s (Bild %u%s): %ux%u, %u Zeichenaufträge, %u Dreiecke, %u Texturen, %u Kopien, %u Shader%s%s%s\n",
+    std::printf("%s (Bild %u%s): %ux%u, %u Zeichenaufträge, %u Dreiecke, %u Texturen, %u Kopien, %u Shader%s%s%s%s\n",
                 Stem(path).c_str(), loaded.frame, follows ? ", Folgebild" : "", w, h, s.draws - before.draws,
                 s.triangles - before.triangles, s.textures - before.textures, s.textureCopies - before.textureCopies,
                 s.programs, s.autofocus > before.autofocus ? ", Autofokus" : "",
+                s.efbRestores > before.efbRestores ? (", EFB " + std::to_string(s.efbRestores - before.efbRestores) +
+                                                      "x zurückgemalt").c_str() : "",
                 s.missingTextures > before.missingTextures ? ", fehlende Texturen" : "",
                 s.shaderErrors > before.shaderErrors ? ", FEHLER: Shader" : "");
     if (std::getenv("RE4_GX_WORK"))

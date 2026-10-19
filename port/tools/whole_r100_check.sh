@@ -817,29 +817,46 @@ render_gx_pictures() {
         head -n 12 "$run/bilder-gx-magenta.txt" | sed 's/^/  /' | tee -a "$report"
         overall=1
     fi
-    # GPU step d (19.10.2026): the same frames with 2x MSAA on zink (lavapipe, mesa-vulkan-drivers:
-    # EXT_multisampled_render_to_texture2), in own buffers and on the tiles. They may differ only
-    # at edges drawn before a copy (the tiles keep their resolved colour there, not the samples);
-    # whole areas that differ are a fault
+    # GPU step d2 (19.10.2026): the same frames with 4x MSAA on zink (lavapipe, mesa-vulkan-drivers:
+    # EXT_multisampled_render_to_texture2), in own buffers and on the tiles, where the EFB is drawn
+    # back after every pass. They may differ only at edges drawn before a copy (drawn back with
+    # their resolved colour and depth, not the samples; the Retroid's pictures at scale 3, 4x:
+    # 0.4 % of the pixels more than 8). Then on the tiles again as on a GPU that loses everything
+    # at a pass's end (RE4_GX_LOSE_TILES=1, magenta and depth 0; the Adreno 650 lost the depth):
+    # the pictures must not change at all
     local msaa_own="$run/bilder-gx-msaa-puffer" msaa_tiles="$run/bilder-gx-msaa-kacheln"
-    local zink=(env LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=zink RE4_GX_SAMPLES=2)
-    rm -rf "$msaa_own" "$msaa_tiles"
-    mkdir -p "$msaa_own" "$msaa_tiles"
+    local msaa_lost="$run/bilder-gx-msaa-verlust"
+    # (4: lavapipe has no 2x buffers of its own, the comparison was 2 against 4 samples)
+    local zink=(env LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=zink RE4_GX_SAMPLES=4)
+    rm -rf "$msaa_own" "$msaa_tiles" "$msaa_lost"
+    mkdir -p "$msaa_own" "$msaa_tiles" "$msaa_lost"
     "${zink[@]}" RE4_GX_MSAA_TILES=0 "$tool_build/gx_chunk_render" "$msaa_own" "$dump"/*.bin > /dev/null \
         2> "$run/gx-msaa-puffer.log"
     "${zink[@]}" RE4_GX_MSAA_TILES=1 "$tool_build/gx_chunk_render" "$msaa_tiles" "$dump"/*.bin > /dev/null \
         2> "$run/gx-msaa-kacheln.log"
+    "${zink[@]}" RE4_GX_MSAA_TILES=1 RE4_GX_LOSE_TILES=1 "$tool_build/gx_chunk_render" "$msaa_lost" "$dump"/*.bin \
+        > /dev/null 2> "$run/gx-msaa-verlust.log"
     if grep -q "MSAA: .* in own buffers" "$run/gx-msaa-puffer.log" && grep -q "MSAA: .* on the tiles" "$run/gx-msaa-kacheln.log"; then
         ppm_to_png "$msaa_own"
         ppm_to_png "$msaa_tiles"
+        ppm_to_png "$msaa_lost"
         python3 "$src/port/tools/picture_compare.py" "$msaa_own" "$msaa_tiles" --names puffer,kacheln \
             > "$run/bilder-gx-msaa.txt" 2>&1
-        say "MSAA auf den Kacheln (GPU-Schritt d) gegenüber eigenen Puffern, 2 Proben, je Bild (zink):"
+        say "MSAA auf den Kacheln (GPU-Schritt d2) gegenüber eigenen Puffern, 4 Proben, je Bild (zink):"
         sed 's/^/  /' "$run/bilder-gx-msaa.txt" | tee -a "$report"
         say "  (Bilder: Ordner bilder-gx-msaa-puffer und bilder-gx-msaa-kacheln)"
+        if python3 "$src/port/tools/picture_compare.py" "$msaa_tiles" "$msaa_lost" --names kacheln,verlust \
+            > "$run/bilder-gx-msaa-verlust.txt" 2>&1; then
+            say "MSAA auf den Kacheln, alles verloren am Ende jedes Durchgangs (GPU-Schritt d2):$(grep 'Bildvergleich' "$run/bilder-gx-msaa-verlust.txt" | sed 's/^ *Bildvergleich kacheln \/ verlust://')"
+            rm -rf "$msaa_lost" "$run/bilder-gx-msaa-verlust.txt"
+        else
+            say "FEHLER MSAA auf den Kacheln (GPU-Schritt d2): Bilder ändern sich, wenn am Ende eines Durchgangs alles verloren geht (bilder-gx-msaa-verlust.txt, Ordner bilder-gx-msaa-verlust; bitte mitschicken)"
+            head -n 12 "$run/bilder-gx-msaa-verlust.txt" | sed 's/^/  /' | tee -a "$report"
+            overall=1
+        fi
     else
-        say "MSAA auf den Kacheln (GPU-Schritt d): nicht geprüft (zink fehlt: sudo $src/port/tools/whole_setup_linux.sh; Log: gx-msaa-kacheln.log)"
-        rm -rf "$msaa_own" "$msaa_tiles"
+        say "MSAA auf den Kacheln (GPU-Schritt d2): nicht geprüft (zink fehlt: sudo $src/port/tools/whole_setup_linux.sh; Log: gx-msaa-kacheln.log)"
+        rm -rf "$msaa_own" "$msaa_tiles" "$msaa_lost"
     fi
     # GPU step e (19.10.2026): the same frames with the depth of field's blur at the full resolution
     # as before step e (RE4_GX_DOF_HALF=0) against the half one of the pictures above. Only the

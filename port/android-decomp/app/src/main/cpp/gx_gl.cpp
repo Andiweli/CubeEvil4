@@ -248,6 +248,13 @@ struct GxRenderer::Impl {
   GLuint msaaFbo = 0, msaaColor = 0, msaaDepth = 0;
   // or the samples in the GPU's tile memory, on efbColor / efbDepth themselves (TiledMsaa)
   bool tiledMsaa = false;
+  // GPU step d2: the second set of EFB textures on the tiles; each new pass draws into the other
+  // set and first draws the EFB back from the one before (UseEfb)
+  GLuint spareFbo = 0, spareColor = 0, spareDepth = 0;
+  GLuint restoreProgram = 0;
+  bool efbLeft = false;         // another framebuffer was bound since the EFB's
+  bool restorePending = false;  // the EFB is to be drawn back before it is drawn into
+
   GxOptions options;
   int samples = 1;
   float anisotropy = 1.0f;
@@ -720,7 +727,8 @@ struct GxRenderer::Impl {
   // drawn before a copy keeps its resolved colour and depth, not its samples, after it. False:
   // the device cannot (efbFbo has its plain textures again). Not used unless asked for
   // (GxOptions::tiledMsaa): the extension leaves the samples undefined after a pass, and the
-  // Adreno 650 then has the colour but not the depth (R3 capture, 19.10.2026).
+  // Adreno 650 then had the colour but not the depth (R3 capture, 19.10.2026). Since d2 a second
+  // set of textures (spareFbo) and UseEfb draw the EFB back at the start of every new pass.
   bool TiledMsaa(int want) {
     const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
     if (!HasExtension(ext, "GL_EXT_multisampled_render_to_texture") ||
@@ -740,17 +748,107 @@ struct GxRenderer::Impl {
     attach(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, efbDepth, 0, want);
     GLint got = 0;
     glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_SAMPLES_EXT, &got);
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE && glGetError() == GL_NO_ERROR &&
-        got > 1) {
+    bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE && glGetError() == GL_NO_ERROR &&
+              got > 1;
+    // d2: the second set, the same samples
+    if (ok) {
+      const int w = kEfbWidth * scale, h = kEfbHeight * scale;
+      MakeEfbTextures(w, h, &spareColor, &spareDepth);
+      glGenFramebuffers(1, &spareFbo);
+      glBindFramebuffer(GL_FRAMEBUFFER, spareFbo);
+      attach(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, spareColor, 0, want);
+      attach(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, spareDepth, 0, want);
+      GLint spare = 0;
+      glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_SAMPLES_EXT, &spare);
+      ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE && glGetError() == GL_NO_ERROR &&
+           spare == got;
+      glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
+    }
+    if (ok) {
       samples = got;
       tiledMsaa = true;
       return true;
     }
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, efbColor, 0);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, efbDepth, 0);
+    const GLuint spareTextures[] = {spareColor, spareDepth};
+    glDeleteTextures(2, spareTextures);
+    glDeleteFramebuffers(1, &spareFbo);
+    spareFbo = spareColor = spareDepth = 0;
     while (glGetError() != GL_NO_ERROR) {
     }
     return false;
+  }
+
+  // The EFB's colour (RGBA8, linear) and depth (24 bits, nearest) textures.
+  static void MakeEfbTextures(int w, int h, GLuint *color, GLuint *depth) {
+    glGenTextures(1, color);
+    glBindTexture(GL_TEXTURE_2D, *color);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glGenTextures(1, depth);
+    glBindTexture(GL_TEXTURE_2D, *depth);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, w, h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  }
+
+  // Every binding of a framebuffer to draw into (GL_FRAMEBUFFER) goes through here. MSAA on the
+  // tiles (d2): the EFB bound again after another framebuffer starts a new pass, and the
+  // extension left its samples undefined; it is drawn back before it is next drawn into
+  // (UseEfb). Until then it stays as it is, and copies, the autofocus and the tests read it.
+  void BindFbo(GLuint fbo) {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    if (fbo != efbFbo) {
+      efbLeft = true;
+      return;
+    }
+    if (efbLeft && tiledMsaa)
+      restorePending = true;
+    efbLeft = false;
+  }
+
+  // Before the EFB is drawn into or partly cleared (bound): with MSAA on the tiles after a pass
+  // ended (d2), the new pass draws into the other set of textures and first draws the EFB back
+  // into it from the set before (colour and depth, the same into every sample; what was drawn
+  // before keeps its resolved colour and depth at the edges, not its samples). The GPU need not
+  // load anything for the new pass (glInvalidateFramebuffer): the restore draws over all of it.
+  void UseEfb() {
+    if (!restorePending)
+      return;
+    restorePending = false;
+    std::swap(efbFbo, spareFbo);
+    std::swap(efbColor, spareColor);
+    std::swap(efbDepth, spareDepth);
+    glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
+    SaveAndPlainState();
+    const GLenum both[2] = {GL_COLOR_ATTACHMENT0, GL_DEPTH_ATTACHMENT};
+    glInvalidateFramebuffer(GL_FRAMEBUFFER, 2, both);
+    if (options.loseTiles) {
+      glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
+      glClearDepthf(0.0f);
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
+    glViewport(0, 0, kEfbWidth * scale, kEfbHeight * scale);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_ALWAYS);
+    glUseProgram(restoreProgram);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, spareColor);
+    glBindSampler(0, 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, spareDepth);
+    glBindSampler(1, 0);
+    glBindVertexArray(quadVao);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glDisable(GL_DEPTH_TEST);
+    Touched();
+    stats.efbRestores++;
   }
 
   // a multisampled EFB: the region (EFB pixels times the scale, with a pixel
@@ -896,7 +994,7 @@ struct GxRenderer::Impl {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
     GLuint fbo = 0;
     glGenFramebuffers(1, &fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    BindFbo(fbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, out.id, 0);
     SaveAndPlainState();
     glViewport(0, 0, static_cast<GLsizei>(copy.width), static_cast<GLsizei>(copy.height));
@@ -914,7 +1012,7 @@ struct GxRenderer::Impl {
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glDeleteFramebuffers(1, &fbo);
     glDeleteTextures(1, &pal);
-    glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
+    BindFbo(DrawFbo());
     current = nullptr;
     paletted[key] = out;
     return out.id;
@@ -1016,7 +1114,7 @@ struct GxRenderer::Impl {
     std::memcpy(stateSig, sig, sizeof(sig));
     stateValid = true;
     stats.stateChanges++;
-    glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
+    BindFbo(DrawFbo());
     glViewport(0, 0, kEfbWidth * scale, kEfbHeight * scale);
     // scissor: registers in EFB pixels + 342, minus the scissor offset (BP 0x59, in 2 pixels)
     const int xoff = static_cast<int>(bp[0x59] & 0x3FF) * 2, yoff = static_cast<int>((bp[0x59] >> 10) & 0x3FF) * 2;
@@ -1327,6 +1425,7 @@ struct GxRenderer::Impl {
       return;
     const ShaderKey &k = key;
     const unsigned primitive = d.primitive & 0xFF;
+    UseEfb();
     ApplyState(primitive);
     const float pointSize = static_cast<float>((bp[0x22] >> 8) & 0xFF) / 6.0f * static_cast<float>(scale);
     if (xf.proj[1][3] != pointSize) {
@@ -1476,7 +1575,7 @@ struct GxRenderer::Impl {
       // nothing to show, only the clear of the EFB
       stats.heldCopies++;
       SaveAndPlainState();
-      glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
+      BindFbo(DrawFbo());
       ClearAfterCopy(control, x, y, w, h);
       return;
     }
@@ -1522,7 +1621,7 @@ struct GxRenderer::Impl {
     }
     // render the EFB region into the target
     Resolve(x * scale, y * scale, w * scale, h * scale, depth);
-    glBindFramebuffer(GL_FRAMEBUFFER, xfbFbo);
+    BindFbo(xfbFbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target, 0);
     SaveAndPlainState();
     // the copy draws over all of its target (the viewport is the texture)
@@ -1542,7 +1641,7 @@ struct GxRenderer::Impl {
     glBindVertexArray(quadVao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     current = nullptr;
-    glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
+    BindFbo(DrawFbo());
     ClearAfterCopy(control, x, y, w, h);
   }
 
@@ -1571,7 +1670,7 @@ struct GxRenderer::Impl {
     if (!blurProgram && !MakeAutofocus(fw, fh)) {
       autofocusFailed = true;
       GXLOG("gameplay autofocus could not be set up; left out");
-      glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
+      BindFbo(DrawFbo());
       return;
     }
     // the picture: the XF viewport, in EFB pixels
@@ -1603,7 +1702,7 @@ struct GxRenderer::Impl {
     for (int i = 0; i < 3; i++)
       glBindSampler(i, 0);
     // the focus into one texel: distance (16 bits in r, g), strength (b)
-    glBindFramebuffer(GL_FRAMEBUFFER, focusFbo);
+    BindFbo(focusFbo);
     ForgetColor();  // its one texel is drawn over
     glViewport(0, 0, 1, 1);
     glUseProgram(focusProgram);
@@ -1621,7 +1720,7 @@ struct GxRenderer::Impl {
       // four EFB texels around its centre and the taps behind the focus)
       const int hx0 = x0 * scale / 2, hy0 = y0 * scale / 2;
       const int hx1 = (x1 * scale + 1) / 2, hy1 = (y1 * scale + 1) / 2;
-      glBindFramebuffer(GL_FRAMEBUFFER, halfFbo);
+      BindFbo(halfFbo);
       ForgetColor();  // only the picture's region is drawn, and the mix reads only it
       glViewport(hx0, hy0, hx1 - hx0, hy1 - hy0);
       glUseProgram(halfProgram);
@@ -1639,8 +1738,11 @@ struct GxRenderer::Impl {
       // mixed into the EFB at the full resolution: each pixel's own distance says how much of the
       // blur (sharp in front of the focus: nothing drawn), blended over the picture; colour only,
       // alpha and depth stay. The mix reads the depth texture, so not through efbFbo, whose depth
-      // it is (the multisampled EFB has its own)
-      glBindFramebuffer(GL_FRAMEBUFFER, msaaFbo ? msaaFbo : colorFbo);
+      // it is (the multisampled EFB has its own). On the tiles (d2) the EFB's textures alternate:
+      // colorFbo takes the current one, which the next pass draws back
+      BindFbo(msaaFbo ? msaaFbo : colorFbo);
+      if (!msaaFbo)
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, efbColor, 0);
       glViewport(x0 * scale, y0 * scale, (x1 - x0) * scale, (y1 - y0) * scale);
       glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
       glEnable(GL_BLEND);
@@ -1655,13 +1757,13 @@ struct GxRenderer::Impl {
       glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
       glDisable(GL_BLEND);
       glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-      glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
+      BindFbo(DrawFbo());
       current = nullptr;
       stats.autofocus++;
       return;
     }
     // the blurred picture into blurTex
-    glBindFramebuffer(GL_FRAMEBUFFER, blurFbo);
+    BindFbo(blurFbo);
     ForgetColor();  // only the picture's region is drawn, and only it is copied back
     glViewport(x0 * scale, y0 * scale, (x1 - x0) * scale, (y1 - y0) * scale);
     glUseProgram(blurProgram);
@@ -1677,7 +1779,8 @@ struct GxRenderer::Impl {
     glUniform1f(blurRadius, radius);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     // back into the EFB: colour only, alpha and depth stay
-    glBindFramebuffer(GL_FRAMEBUFFER, DrawFbo());
+    BindFbo(DrawFbo());
+    UseEfb();
     glViewport(x0 * scale, y0 * scale, (x1 - x0) * scale, (y1 - y0) * scale);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
     glUseProgram(copyProgram);
@@ -1862,11 +1965,11 @@ struct GxRenderer::Impl {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glGenFramebuffers(1, &blurFbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, blurFbo);
+    BindFbo(blurFbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, blurTex, 0);
     bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
     glGenFramebuffers(1, &focusFbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, focusFbo);
+    BindFbo(focusFbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, focusTex, 0);
     ok = ok && glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
     // GPU step e: the half-resolution blur (linear: the mix reads between its texels) and the EFB's
@@ -1879,11 +1982,11 @@ struct GxRenderer::Impl {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glGenFramebuffers(1, &halfFbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, halfFbo);
+    BindFbo(halfFbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, halfTex, 0);
     ok = ok && glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
     glGenFramebuffers(1, &colorFbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, colorFbo);
+    BindFbo(colorFbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, efbColor, 0);
     ok = ok && glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
     if (!ok)
@@ -1897,6 +2000,8 @@ struct GxRenderer::Impl {
     if ((control >> 11) & 1) {
       const std::uint32_t c = bp[0x41];
       const bool color = (c >> 3) & 1, alpha = (c >> 4) & 1, zupdate = (bp[0x40] >> 4) & 1;
+      if (color || alpha || zupdate)
+        UseEfb();  // MSAA on the tiles: the EFB back first, the clear is only the copy's region
       glEnable(GL_SCISSOR_TEST);
       glScissor(x * scale, y * scale, w * scale, h * scale);
       glColorMask(color, color, color, alpha);
@@ -2014,6 +2119,23 @@ struct GxRenderer::Impl {
     glUseProgram(presentProgram);
     glUniform1i(glGetUniformLocation(presentProgram, "src"), 0);
     presentRows = glGetUniformLocation(presentProgram, "rows");
+    // d2: the EFB drawn back from the other set of textures, colour and depth texel for texel
+    // (the depth as sampled, no arithmetic: the 24 bits come back as they were)
+    static const char kRestoreFs[] = "#version 300 es\nprecision highp float;\n"
+                                     "uniform sampler2D color;\nuniform highp sampler2D depth;\nout vec4 o;\n"
+                                     "void main() {\n"
+                                     "  ivec2 p = ivec2(gl_FragCoord.xy);\n"
+                                     "  o = texelFetch(color, p, 0);\n"
+                                     "  gl_FragDepth = texelFetch(depth, p, 0).r;\n"
+                                     "}\n";
+    restoreProgram = Link(kQuadVs, kRestoreFs, &log);
+    if (!restoreProgram) {
+      *error = "EFB restore shader: " + log;
+      return false;
+    }
+    glUseProgram(restoreProgram);
+    glUniform1i(glGetUniformLocation(restoreProgram, "color"), 0);
+    glUniform1i(glGetUniformLocation(restoreProgram, "depth"), 1);
     return true;
   }
 };
@@ -2063,20 +2185,7 @@ bool GxRenderer::Init(int scale, std::string *error) {
           has("GL_QCOM_tiled_rendering"));
   }
   const int w = kEfbWidth * m.scale, h = kEfbHeight * m.scale;
-  glGenTextures(1, &m.efbColor);
-  glBindTexture(GL_TEXTURE_2D, m.efbColor);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glGenTextures(1, &m.efbDepth);
-  glBindTexture(GL_TEXTURE_2D, m.efbDepth);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, w, h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, nullptr);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  Impl::MakeEfbTextures(w, h, &m.efbColor, &m.efbDepth);
   glGenFramebuffers(1, &m.efbFbo);
   glBindFramebuffer(GL_FRAMEBUFFER, m.efbFbo);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m.efbColor, 0);
@@ -2141,6 +2250,12 @@ bool GxRenderer::Init(int scale, std::string *error) {
   glClearColor(0, 0, 0, 0);
   glClearDepthf(1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  if (m.spareFbo) {
+    // d2: the other set the same, the first pass draws the EFB back from one of them
+    glBindFramebuffer(GL_FRAMEBUFFER, m.spareFbo);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glBindFramebuffer(GL_FRAMEBUFFER, m.efbFbo);
+  }
   glGenFramebuffers(1, &m.xfbFbo);
   glGenVertexArrays(1, &m.vao);
   glGenVertexArrays(1, &m.quadVao);
@@ -2188,7 +2303,9 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
   glBufferData(GL_ARRAY_BUFFER, chunk.vertexBytes ? chunk.vertexBytes : 4, chunk.vertices, GL_STREAM_DRAW);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.ibo);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, chunk.indexCount ? chunk.indexCount * 2 : 4, chunk.indices, GL_STREAM_DRAW);
-  glBindFramebuffer(GL_FRAMEBUFFER, m.DrawFbo());
+  // the app drew the screen since the last chunk: a new pass
+  m.efbLeft = true;
+  m.BindFbo(m.DrawFbo());
   // state other GL code of the app may have left
   glDisable(GL_POLYGON_OFFSET_FILL);
   glDisable(GL_STENCIL_TEST);
@@ -2264,7 +2381,7 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
   glUseProgram(0);
   m.Touched();
   m.SaveAndPlainState();
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  m.BindFbo(0);
 }
 
 GLuint GxRenderer::Xfb(unsigned *width, unsigned *height) const {
@@ -2372,6 +2489,10 @@ void GxRenderer::Release() {
   for (auto &s : m.samplers)
     glDeleteSamplers(1, &s.second);
   m.samplers.clear();
+  glDeleteProgram(m.restoreProgram);
+  const GLuint spareTextures[] = {m.spareColor, m.spareDepth};
+  glDeleteTextures(2, spareTextures);
+  glDeleteFramebuffers(1, &m.spareFbo);
   const GLuint textures[] = {m.efbColor, m.efbDepth, m.xfbTex, m.whiteTex};
   glDeleteTextures(4, textures);
   const GLuint fbos[] = {m.efbFbo, m.xfbFbo, m.msaaFbo};
