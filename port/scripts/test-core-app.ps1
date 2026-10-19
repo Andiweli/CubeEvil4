@@ -777,6 +777,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # the screen's rate and how often the picture is drawn (GPU step c, CoreActivity / FramePacing)
     $display = @($keep | Where-Object { $_ -match 'RE4Input\s*: display at ' })
     foreach ($line in @($display | Select-Object -First 4)) { Say "Bildschirm:                       $(($line -split 'RE4Input\s*:\s*')[-1])" }
+    # gyro aiming (GyroAim.java, runtime/gyro.cpp): the switch and whether the aim turned
+    $gyro = @($keep | Where-Object { $_ -match 'RE4Input\s*: gyro aiming |re4\s*: gyro: ' })
+    foreach ($line in @($gyro | Select-Object -Last 3)) { Say "Gyro-Zielen:                      $(($line -split '(?:RE4Input|re4)\s*:\s*', 2)[-1])" }
     # MSAA on the tiles (GPU step d2): what the device keeps over a pass's end (gx_gl.cpp TilesSelfTest)
     $tilesTest = $keep | Where-Object { $_ -match 'RE4GX\s*: MSAA on the tiles, self-test' } | Select-Object -First 1
     if ($tilesTest) { Say "Kacheln-Selbsttest:               $(($tilesTest -split 'self-test:\s*')[-1])" }

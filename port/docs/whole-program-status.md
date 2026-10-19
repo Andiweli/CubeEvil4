@@ -4731,6 +4731,36 @@ nichts. Stand der GPU-Schritte: (a) Messung ✅, (b) aus (nichts gespart), (c) a
 unverändert, 120 Hz nicht getestet), (d)/(d2) aus, (e) an (gleiche Bilder, auf dem Retroid ohne
 Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
 
+### Menü, Touch-Farben, Auto-Auflösung, Gyro-Zielen (Wünsche des Projektinhabers, 19.10.2026, Branch `claude/re4-menu-gyro`)
+
+- **Auto-Auflösung eine Stufe kleiner:** die Stufe, deren 336 Bildzeilen den Bildschirmzeilen am
+  nächsten kommen, minus 1, mindestens 1 (`core_mode.cpp`, `CoreMenu.autoScale`): der Retroid
+  (1080 Zeilen) bekommt 2 statt 3, ebenso der POCO X7 Pro; 720 Zeilen: 1.
+- **Menü:** Zeile unter dem Titel „SELECT (short-press) = this Menu · SELECT (long-press) = the
+  Game's Debug Menu“. GRAPHICS: Zeile „Other options“ in den Spalten der Auswahlzeilen, „Depth of
+  field“ unter „16:9“, „FPS display bottom left“ ab der dritten Spalte (getauscht). CONTROLS: Zeile
+  „Select methods“ mit „Use Touch Controls“ und „Use Gyro-Aiming“ in derselben Flucht (ohne
+  Gyrosensor ausgegraut), darunter der neue Text des Projektinhabers. MEMORY CARD: nur der Satz
+  „Export and Import Savegames as .gci (for Dolphin or GameCube).“ und zwei gleich große Knöpfe
+  „Export Savegames (.gci)“ (wie bisher „alle exportieren“: Spielstände und Systemdatei mit den
+  Freischaltungen) / „Import Savegames (.gci)“; der Export einzelner Dateien ist weg; eine Zeile
+  erscheint nur, wenn die Karte gerade nicht lesbar ist. ERROR LOG: neuer Text, darunter die
+  beiden Kästchen und die beiden Knöpfe in vier gleich breiten Teilen. Texte englisch, wie vom
+  Projektinhaber vorgegeben.
+- **Touch-Farben:** die offiziellen GameCube-Farben (Bild des Projektinhabers): A #109B61 grün,
+  B #F6392C rot, Z #6B5CB1 lila, alle anderen Knöpfe #DDDDDD grau (RetroTouch schreibt auf hellem
+  Grund dunkel). `CoreTouchTests` prüft sie (241 Prüfungen).
+- **Größere Ein-Zeichen-Beschriftung:** geht nur in RetroTouch (Textgröße dort höchstens 16 dp,
+  Radius × 0,34); Anfrage an den RetroTouch-Chat formuliert, neue AAR folgt.
+- **Gyro-Zielen:** `GyroAim.java` liest den Gyrosensor wie der erste Port (Achsen je nach
+  Bildschirmdrehung, 35 % Glättung, unter 0,006 rad/s nichts, älter als 150 ms nichts), nur bei
+  eingeschaltetem Kästchen und App im Vordergrund; `CoreBridge.gyro` → `re4_core_gyro` →
+  `runtime/gyro.cpp` (siehe Tabelle der Laufzeit-Dateien): dreht das Ziel nur, solange Leon mit
+  einer Schusswaffe zielt (nicht vorher, nicht mit dem Messer). Kern neu zu bauen.
+- **Getestet (Cloud):** alle Java-Dateien gegen Android 15 übersetzt; `CoreTouchTests` und
+  `FramePacingTests` bestanden; Kern-Build siehe unten. **Nicht getestet:** das Menü auf dem Gerät,
+  das Gyro-Zielen im Spiel.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -5043,6 +5073,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `memcard.cpp` (M10) | die Karte in Schacht A: Memory Card 251 (2 MB, 8-KB-Blöcke) als Datei mit den Befehlen der echten Karte (Lesen 0x52, Seite schreiben 0xF2, Block löschen 0xF1, alles löschen 0xF4, Status, Hersteller); Status „entsperrt“ (kein DSP-Handshake); jede Änderung sofort in die Datei, 1 s danach `fsync`; SRAM (`__OSLockSram*`, Flash-ID aus dem Kartenkopf abgeleitet); `RE4_MEMCARD` (siehe „M10“); Log der Dateien auf der Karte und der Schritte des Kartenbildschirms (Patch 0058) |
 | `host_file.cpp` (M10) | Dateizugriffe für Code mit den Schaltern des Spiels (Kartendatei): Öffnen samt Ordnern, Lesen/Schreiben an einer Stelle, `fsync`, Schließen; dort wirken die Umbenennungen der C-Bibliothek (64-bit-Dateistellen, Android-Fortify) |
 | `card_files.cpp` (M11) | Dateien auf dem Kartenabbild für das Menü der App: Liste, Lesen, Schreiben/Ersetzen wie die Bibliothek (zwei Kopien von Verzeichnis und FAT, Blöcke wie `__CARDAllocBlock`) |
+| `gyro.cpp` (19.10.2026) | Gyro-Zielen (Wunsch des Projektinhabers, wie im ersten Android-Port): `re4_core_gyro` (Drehraten der App, rad/s) und ein Bild-Haken in `PADRead`, der nur beim Zielen mit einer Schusswaffe (Hauptschleife, kein Untermenü/Ereignis, Routine `pl_R1_Weapon`, nicht das Messer) Körperdrehung `pPL->ang.y` und Neigung `m3r` samt Mitte des Wackelns (`cPlWep::pitch`) dreht, mit Zielfernrohr `CameraScope::angle_x`; 35 % der Gerätedrehung, Zoom wie der Stick. Als Spielcode übersetzt (`re4_gamehooks_obj`), kein Patch |
 | `gci.cpp` (M11) | `.gci` für Dolphin/GameCube: Spielstände und Systemdatei Feld für Feld in GameCube-Reihenfolge und zurück (`save_layout.inc` aus den Headern, `port/tools/save_layout.py`), CRCs neu |
 | `alarm.cpp` (M10) | `OSAlarm` (Zeitüberwachung der CARD-Befehle: 100 ms je Seite, 2 s je Block), fällig an den Interrupt-Punkten |
 | `pad.cpp` (M4 B) | Controller: Kanal 0 angeschlossen, Kanäle 1–3 leer (ein zweiter Controller ließe den Titel die Logos überspringen). Tasten aus der Testfolge `RE4_PAD_SCRIPT` (`TASTEN@BILD` drückt 3 Bilder lang, `TASTEN@VON-BIS/ALLE` wiederholt; Tasten `A B X Y Z L R START UP DOWN LEFT RIGHT`, mit `+` verbunden; Bild = Zahl der `PADRead`-Aufrufe). Seit K2 zusätzlich `re4_pad_live` (Controller der App, sobald kein Testskript läuft) und Bildhaken `re4_add_frame_hook` (bis 4, je `PADRead`). Seit M7: Rohwerte wie die Hardware (das eigene No-op-`PADClamp` ist entfernt, siehe SDK `Padclamp.c`), `PADControlMotor` merkt den Rüttelmotor je Bild (`re4_core_rumble`) |
