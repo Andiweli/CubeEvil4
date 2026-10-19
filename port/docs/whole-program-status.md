@@ -4758,8 +4758,10 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   `runtime/gyro.cpp` (siehe Tabelle der Laufzeit-Dateien): dreht das Ziel nur, solange Leon mit
   einer Schusswaffe zielt (nicht vorher, nicht mit dem Messer). Kern neu zu bauen.
 - **Getestet (Cloud):** alle Java-Dateien gegen Android 15 übersetzt; `CoreTouchTests` und
-  `FramePacingTests` bestanden; Kern-Build siehe unten. **Nicht getestet:** das Menü auf dem Gerät,
-  das Gyro-Zielen im Spiel.
+  `FramePacingTests` bestanden; `whole_build.sh i686 armhf x86_64 aarch64`: 0 Baufehler, alle
+  Prüfungen bestanden (FMA 0, libc++ 163 von 163), `re4_core_gyro` exportiert. **Nicht getestet:**
+  das Menü auf dem Gerät, das Gyro-Zielen im Spiel (die Kernprüfungen laufen ohne Spieler), die
+  M12-Prüfungen (`run_all.py`; `gyro.cpp` greift nur über Feldnamen zu).
 
 ## Aufbau
 
