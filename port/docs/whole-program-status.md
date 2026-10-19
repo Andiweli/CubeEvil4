@@ -4165,6 +4165,10 @@ Auswertung:**
   von 979 Programmen der zweiten Sitzung kamen aus ihm). Sonst zeigt die App im Mittel
   119–120 Bilder je Sekunde, der Kern 30 Spielbilder je Sekunde ohne Warten auf die Grafik.
 - App-Version 0.38.1 (versionCode 57), damit Berichte des neuen Stands erkennbar sind.
+- Zweites Alpha-Release (Wunsch des Projektinhabers, 19.10.2026: auf GitHub liegt noch 0.38.0):
+  Text `port/android-decomp/docs/releases/v0.38.1-alpha2.md`, APK
+  `CubeEvil4-v0.38.1-alpha2.apk`, signiert mit demselben Schlüssel wie 0.38.0 (sonst lässt
+  Android das Update nicht über die alte App installieren).
 - Getestet (Cloud): `whole_build.sh i686 armhf x86_64 aarch64` mit Patch 0084 und der neuen
   Regel: 0 Baufehler, alle Prüfungen bestanden (Laufzeittest mit `tasks` samt Heap-Ende, Kern-
   test, Speicherkarte, Formatvergleich, Filmtest, Filmvergleich 32/64 bit 250/250,
