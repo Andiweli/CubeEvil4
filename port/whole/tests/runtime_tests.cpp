@@ -591,6 +591,7 @@ struct DVD_READINFO {  // include/dvd.h; the name is part of the C++ symbols
 };
 struct cDvd {  // the members used here (include/dvd.h); the object is the game's
     void Init();
+    void Watcher();
     int ReadCheck(int id, DVD_READINFO* info);
 };
 extern cDvd Dvd;
@@ -600,6 +601,27 @@ namespace {
 
 std::string gQueueDir;
 bool gQueueOk;
+int gFastFrames, gTitleFrames, gPacedFrames;
+
+// An asynchronous read through the queue as the game's frame runs it (the
+// watcher starts the read task, the scheduler runs it): the frames until it is in.
+int readFrames(const char* name)
+{
+    int req = DvdReadN(name, 0, 0, 0, 0, 0x8000 | 0x4, __FILE__, __LINE__);
+    if (req < 0) {
+        return -1;
+    }
+    DVD_READINFO info;
+    for (int frame = 1; frame <= 100; frame++) {
+        Dvd.Watcher();
+        TaskScheduler();
+        iTaskScheduler();
+        if (Dvd.ReadCheck(req, &info) == 1) {
+            return frame;
+        }
+    }
+    return 1000;
+}
 
 int dvdQueueMain()
 {
@@ -625,6 +647,14 @@ int dvdQueueMain()
         data = b[i] == (unsigned char) (0x10 + i);
     }
     CHECK(data);
+    // the start without the frame pace (patch 0085, runtime/dvd.cpp): a read
+    // at the start is in within the frame, the first title.dat ends the
+    // start, after it one step a frame as in the original
+    TaskSchedulerInit();
+    gFastFrames = readFrames("hdr.dat");
+    gTitleFrames = readFrames("ss/eng/title.dat");
+    gPacedFrames = readFrames("hdr.dat");
+    CHECK(gFastFrames == 1 && gTitleFrames == 1 && gPacedFrames >= 8 && gPacedFrames < 100);
     gQueueOk = ok;
     return 0;
 }
@@ -659,13 +689,17 @@ static void testDvdQueue()
     for (int i = 0; i < 0x20; i++) {
         file[0x440 + i] = (unsigned char) (0x10 + i);
     }
-    std::vector<FstEntry> fst = {{false, "hdr.dat", 0x1000, (unsigned) file.size()}};
+    std::vector<FstEntry> fst = {{true, "ss", 0, 4}, {true, "eng", 1, 4},
+                                 {false, "title.dat", 0x2000, (unsigned) file.size()},
+                                 {false, "hdr.dat", 0x1000, (unsigned) file.size()}};
     std::vector<unsigned char> f = buildFst(fst);
     unsigned char boot[0x40] = "G4BE08";
     CHECK(makeDirs(gQueueDir + "/disc0/sys") && makeDirs(gQueueDir + "/disc0/files"));
     CHECK(writeFile(gQueueDir + "/disc0/sys/fst.bin", f.data(), f.size()));
     CHECK(writeFile(gQueueDir + "/disc0/sys/boot.bin", boot, sizeof(boot)));
     CHECK(writeFile(gQueueDir + "/disc0/files/hdr.dat", file.data(), file.size()));
+    CHECK(makeDirs(gQueueDir + "/disc0/files/ss/eng"));
+    CHECK(writeFile(gQueueDir + "/disc0/files/ss/eng/title.dat", file.data(), file.size()));
     char saved[1024];
     snprintf(saved, sizeof(saved), "%s", re4_data_dir());
     re4_set_data_dir(root);
@@ -673,6 +707,10 @@ static void testDvdQueue()
     re4_set_data_dir(saved);
     std::string cmd = "rm -rf '" + gQueueDir + "'";
     CHECK(system(cmd.c_str()) == 0);
+    if (gFastFrames != 1 || gTitleFrames != 1 || gPacedFrames < 8) {
+        re4_log("  reads at the start: %d and %d frames (title.dat), after it: %d", gFastFrames, gTitleFrames,
+                gPacedFrames);
+    }
     report("dvdq", ok && gQueueOk);
 }
 

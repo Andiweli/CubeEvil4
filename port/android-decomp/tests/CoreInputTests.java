@@ -72,6 +72,68 @@ public final class CoreInputTests {
     in.setSwapFace(false);  // releases everything
     check(in.pad()[0] == 0 && in.gcButton(A) == CoreInput.GC_A);
 
+    // the alternate controls: L1 = L at its end stop (knife), L2 = R (aim,
+    // analog), R1 = Y (inventory), R2 = A past half way (fire), Y = Z (map);
+    // A, B, X (Ashley), START, D-pad as before
+    in.key(1, A, true);
+    in.setAlternate(true);  // releases everything
+    check(in.alternate() && in.pad()[0] == 0);
+    int[][] alt = {{A, CoreInput.GC_A}, {B, CoreInput.GC_B}, {X, CoreInput.GC_X},
+        {Y, CoreInput.GC_Z}, {R1, CoreInput.GC_Y}, {START, CoreInput.GC_START},
+        {UP, CoreInput.GC_UP}, {LEFT, CoreInput.GC_LEFT}};
+    for (int[] k : alt) {
+      check(in.key(1, k[0], true) && in.gcButton(k[0]) == k[1]);
+      check(in.pad()[0] == k[1]);
+      check(in.key(1, k[0], false));
+      check(in.pad()[0] == 0);
+    }
+    check(in.key(1, L1, true) && in.gcButton(L1) == CoreInput.GC_L);
+    int[] a = in.pad();
+    check(a[0] == CoreInput.GC_L && a[5] == 255 && a[6] == 0);
+    check(in.key(1, L1, false) && in.pad()[0] == 0 && in.pad()[5] == 0);
+    // L2: the R trigger, analog (a light press aims, the click at the end stop)
+    in.motion(1, 0, 0, 0, 0, 0.4f, 0, 0, 0);
+    a = in.pad();
+    check(a[0] == 0 && a[5] == 0 && clampTrigger(a[6]) > 0 && in.gcButton(L2) == CoreInput.GC_R);
+    in.motion(1, 0, 0, 0, 0, 1f, 0, 0, 0);
+    check(in.pad()[0] == CoreInput.GC_R && in.pad()[6] == 255);
+    // R2: A from half way, no trigger value
+    in.motion(1, 0, 0, 0, 0, 0, 0.4f, 0, 0);
+    check(in.pad()[0] == 0 && in.pad()[6] == 0 && in.pad()[5] == 0);
+    in.motion(1, 0, 0, 0, 0, 0, 0.6f, 0, 0);
+    check(in.pad()[0] == CoreInput.GC_A && in.pad()[5] == 0 && in.gcButton(R2) == CoreInput.GC_A);
+    in.motion(1, 0, 0, 0, 0, 0, 0, 0, 0);
+    // L2/R2 as keys
+    in.key(1, L2, true);
+    in.key(1, R2, true);
+    a = in.pad();
+    check(a[0] == (CoreInput.GC_R | CoreInput.GC_A) && a[6] == 255 && a[5] == 0);
+    in.key(1, L2, false);
+    in.key(1, R2, false);
+    check(in.pad()[0] == 0);
+    // aim and fire together, the knife: L2 + R2, L1 + R2
+    in.motion(1, 0, 0, 0, 0, 1f, 1f, 0, 0);
+    check(in.pad()[0] == (CoreInput.GC_R | CoreInput.GC_A));
+    in.motion(1, 0, 0, 0, 0, 0, 1f, 0, 0);
+    in.key(1, L1, true);
+    check(in.pad()[0] == (CoreInput.GC_L | CoreInput.GC_A) && in.pad()[5] == 255);
+    in.key(1, L1, false);
+    in.motion(1, 0, 0, 0, 0, 0, 0, 0, 0);
+    // with the swap: the labels first (the button labelled Y sends X's code)
+    in.setSwapFace(true);
+    check(in.gcButton(X) == CoreInput.GC_Z && in.gcButton(Y) == CoreInput.GC_X
+        && in.gcButton(A) == CoreInput.GC_B && in.gcButton(B) == CoreInput.GC_A);
+    in.setSwapFace(false);
+    // the touch controls keep their GameCube buttons (L and R the triggers)
+    in.touchButton(CoreInput.GC_L | CoreInput.GC_R, true);
+    a = in.pad();
+    check(a[0] == (CoreInput.GC_L | CoreInput.GC_R) && a[5] == 255 && a[6] == 255);
+    in.touchClear();
+    in.setAlternate(false);
+    check(!in.alternate() && in.pad()[0] == 0 && in.gcButton(Y) == CoreInput.GC_Y
+        && in.gcButton(R1) == CoreInput.GC_Z && !in.key(1, L1, true));
+    in.clear();
+
     // sticks: full deflection reaches the GameCube's range after PADClamp, up is positive
     int[] p = stick(1, 0);
     check(p[1] == 101 && p[2] == 0 && mainStick(p)[0] == 72);
@@ -142,7 +204,7 @@ public final class CoreInputTests {
     check(CoreInput.names(CoreInput.GC_A | CoreInput.GC_B | CoreInput.GC_START).equals("A+B+START")
         && CoreInput.names(0).equals("-"));
 
-    System.out.println("Core controller: layout, swap, sticks and triggers through PADClamp, "
+    System.out.println("Core controller: layout, swap, alternate controls, sticks and triggers through PADClamp, "
         + "devices: " + checks + " checks PASS");
   }
 }

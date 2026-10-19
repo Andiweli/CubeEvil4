@@ -4789,6 +4789,50 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   das Menü auf dem Gerät, das Gyro-Zielen im Spiel (die Kernprüfungen laufen ohne Spieler), die
   M12-Prüfungen (`run_all.py`; `gyro.cpp` greift nur über Feldnamen zu).
 
+### Kürzerer schwarzer Start, „Alternate Controls“, 32-bit-Startfehler (19.10.2026, Branch `claude/re4-start-controls`)
+
+- **Schwarzer Bildschirm beim Start (Frage des Projektinhabers):** etwa 5,5 s bis zum ersten
+  Logo (Gerätelog): `SS/cmn/title.snd` 0,87 s, `ss/cmn/save_e.dat` 0,6 s, Kartenprüfung 1,3 s,
+  `SS/eng/title.dat` 2,2 s. Die drei Dateien kosten nur Bilder: die Lese-Warteschlange des Spiels
+  macht pro Bild einen Schritt (`cDvd::readProcMain`: `TaskSleep(1)` nach jedem Schritt, ein
+  Stück von höchstens 128 KB braucht drei), das Laufwerk des Ports ist sofort fertig. **Patch
+  0085:** bis die erste `title.dat` da ist, folgt der nächste Schritt sofort, solange nichts
+  unterwegs ist (DVD-Lesen 0x02000000, ARAM-Übertragung 0x01000000), nach je 64 Schritten ein
+  Bild Pause (`runtime/dvd.cpp re4_dvd_boot_fast`, `re4_dvd_read_done`); danach und mit
+  `RE4_DVD_BOOT_FAST=0` das Tempo des Originals (Laden im Spiel unverändert). Die Kartenprüfung
+  (1,3 s, eigene Schritte der CARD-Bibliothek) bleibt. Log: „DVD: start reads done (…): N steps
+  without a frame's wait“.
+- **„Alternate Controls“ (Wunsch des Projektinhabers):** dritter Schalter unter CONTROLS, eigene
+  Zeile „Button layout“ unter „Use Touch Controls“ (drei Kästchen passen nicht nebeneinander),
+  darunter die Belegung. `CoreInput.setAlternate`: L1 = L (Messer, Abzug am Anschlag), L2 = R
+  (Zielen, analog), R1 = Y (Inventar „Weapons/Recovery“), R2 = A ab halbem Weg (Schießen, mit
+  Messer zustechen), Y = Z (Karte); A, B, X (Ashley: Warten/Folgen), START, Kreuz und Sticks wie
+  bisher; die Touch-Steuerung behält ihre GameCube-Knöpfe. „Keys/Treasures“ direkt auf Y
+  (Wunsch zuerst) gibt es im Original nicht (nur Y = Inventar, Z = Karte; der Reiter liegt in der
+  Reihe oben) und hätte einen Eingriff ins Untermenü gebraucht; X als Karte hätte Ashleys Befehl
+  verdrängt. **Entscheidung des Projektinhabers (19.10.2026): Keys/Treasures weglassen, X bleibt
+  Ashley, Y öffnet die Karte.** Einstellung `alternateControls` in `core_input`.
+- **Tester: 32-bit-Fassung startet nicht** („core not started: MEM1 0x80000000..0x83000000 is
+  taken in this process“, Gerät unbekannt). Die App reserviert MEM1 schon in `JNI_OnLoad` (aus
+  `Re4Application.onCreate`), auf 32 bit aber erst nach dem Laden der Kern-Bibliotheken, und der
+  Fehlerbericht hatte auf 32 bit keine `address-map.txt`. Jetzt auch auf 32 bit: der Platzhalter
+  für MEM1 vor dem Laden der Bibliotheken (wie auf 64 bit, `RE4_MEM1_PLACEHOLDER`), die
+  Speicherkarte des Prozesses im Bericht (Kopfzeile mit Prozessbreite und Kernel, alle Bereiche,
+  der höchste belegte, „libre4_main.so at …“), und die Meldung nennt den Bereich in MEM1 („by …“)
+  oder, wenn dort nichts liegt, dass das System die Adresse verweigert (ein 32-bit-Kernel, dessen
+  App-Adressraum unter 0x80000000 endet: dann geht die 32-bit-Fassung auf dem Gerät nicht). Die
+  Ursache beim Tester ist **noch offen**: dafür den Bericht („Send report“ im Fehlerdialog).
+- **Getestet (Cloud):** `whole_build.sh i686 armhf x86_64 aarch64` mit Patch 0085: 0 Baufehler,
+  alle Prüfungen bestanden. Neu in `runtime-test dvdq`: drei Lesungen über die Warteschlange, wie
+  der Bildablauf des Spiels sie treibt: beim Start 1 Bild, `ss/eng/title.dat` 1 Bild, danach
+  14 Bilder (Original); mit `RE4_DVD_BOOT_FAST=0` alle drei 14 Bilder (die Prüfung schlägt dann
+  fehl, wie sie soll). `CoreInputTests` 116 Prüfungen bestanden (neue Belegung, Tausch A/B–X/Y,
+  Touch unberührt); alle Java-Dateien gegen Android 15 übersetzt; `core_mode.cpp` für ARM32 und
+  ARM64 ohne Fehler und Warnungen geprüft (Ersatz-Header für Android); die Speicherkarte in einem
+  32- und einem 64-bit-Linux-Prozess erzeugt (belegtes MEM1 erkannt, Platzhalter scheitert dann).
+  **Nicht getestet:** Start mit Disc-Daten (PC-Prüfung, Gerät), die neue Belegung auf dem Gerät,
+  der Bericht auf dem Gerät des Testers.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -4973,6 +5017,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0082 `sce_sys.cpp`, `sce_at.cpp`, `r20d.cpp`, `r20e.cpp`, `r21d.cpp` | 64 bit (M12): GameCube-Abstände an einer Adresse als Zahl oder in einer Summe mit Index (`(u32) em + 0x320`, `i * sizeof(T) + (u32) w + 0x2C`, `base += 0x30C`) über `RE4_OFS(T, glied, gc)`: Szenen-Bedingung „Gegner tot“ (`cEm::hp`, LP64 0x3B8), Kamera-Ecken (`SceAtSysWork::pCamAt`, LP64 0x1B0, jetzt zeigerbreit geschrieben: `RAW_CAM_AT`), Schiebepuzzle r20e (Teile LP64 0x18, Felder 0x1C8), Zäune r20d (`fence[i].t`), Fallen r21d (`trap[]`, LP64 0x380). Gefunden mit `raw_offset_check.py` (Adressen als Zahl, Summen) und `sizeof_ptr_check.py` (18.10.2026) |
 | 0083 `id_sys.cpp` | Nicht initialisierter Lesezugriff in `IdShimmerTrans` (Flimmer-Effekt der Bildschirm-Elemente, z. B. die WARNING-Schrift): die Tiefe `dot`, die die Stärke der indirekten Verzerrung bestimmt, kam aus `indMtx`, bevor es beschrieben war (so schon im Original), also aus Resten auf dem Stapel, die je Build andere sind (Vergleichslauf 18.10.2026: Bild 301 an den Schriftkanten verschieden, alles andere gleich). `indMtx` beginnt jetzt mit Nullen: `dot` 0 → 1500 (Untergrenze), auf jedem Build gleich; was der GameCube dort las, ist nicht bekannt. Bestätigung: der nächste Vergleichslauf (Bild 301 gleich) |
 | 0084 `esp_efm.cpp` | `EfmSetObj04` schrieb Eltern-Modell und `guid` über einen Wortzeiger (`u32* link = (u32*) &w->pMod; link[0] = (u32) parent; link[1] = parent->guid;`): auf LP64 landete die `guid` in der oberen Hälfte von `pMod` (8 Bytes), `Guid_pMod` blieb alt; `cObj04::move` las das Eltern-Modell dann über `guid << 32 | parent` (Tester, POCO X7 Pro, 64 bit, r104, 18.10.2026: SIGSEGV an `0xf81017988`, `x8 = 0xf81017980`). Jetzt über die Felder selbst, auf ILP32 gleich. Gefunden vom erweiterten `ptr_word_check.py` (Wortzeiger in einer Hilfsvariablen). Bestätigung: Lauf an derselben Stelle auf 64 bit |
+| 0085 `dvd.cpp` | Der Start ohne Bild-Takt (Wunsch des Projektinhabers, 19.10.2026: kürzerer schwarzer Bildschirm): `cDvd::readProcMain` wartet nach jedem Schritt einer Lesung ein Bild (`TaskSleep(1)`); bis die erste `title.dat` gelesen ist, folgt der nächste Schritt sofort, solange nichts unterwegs ist (0x02000000 DVD, 0x01000000 ARAM), nach je 64 Schritten ein Bild (`runtime/dvd.cpp re4_dvd_boot_fast`); das Ende meldet `re4_dvd_read_done` (Name der Lesung). Danach und mit `RE4_DVD_BOOT_FAST=0` wie im Original. Prüfung: `runtime-test dvdq` (1 / 1 / 14 Bilder) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -5089,7 +5134,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `gx_fifo.cpp` (G1) | GX-FIFO und Register-Blöcke CP/PE/PI/MEM: Display-Listen aufnehmen, PE-Token/fertig als Unterbrechung (`re4_gx_deliver_interrupts`), Speicher wie ihn der Grafikprozessor sieht (MEM1 und Fenster für Port-Speicher, `re4_gx_physical`), EFB-Lesen antwortet „leer“ |
 | `gx_decode.cpp` (G2) | Befehlsdecoder: Zustand CP/XF/BP/TLUT, Punkte, Indizes, Texturen mit Inhalts-Schlüssel, Bildpuffer-Kopien, Bildstücke mit Warteschlange für den Renderer (`re4_gx_frame.h`, `re4_core_gx_acquire/release/detach`) |
 | SDK `GX*.c` (G1) | unverändert aus `src/lib` bis auf Patch 0030: die gesamte GX-Bibliothek |
-| `dvd.cpp` | `DVD*` über einen Ordner mit entpackten Disc-Dateien (siehe unten); Lesen sofort, Rückruf vor der Rückkehr; aus einem Interrupt heraus (Audio-Rahmen: Nachladen der Sprach-/Musik-Streams) bleibt der Auftrag „beschäftigt“, bis der Interrupt-Rückruf zurückgekehrt ist (`os_thread.cpp re4_os_defer`), Abbruch liefert dann −3; FST der eingelegten Disc oben in MEM1, Disc-ID bei `0x80000000`; Disc-Wechsel lädt den anderen Ordner; seit M9 `DVDCancel` (Abbruch über den verzögerten Rückruf, Ergebnis „abgebrochen“) |
+| `dvd.cpp` | `DVD*` über einen Ordner mit entpackten Disc-Dateien (siehe unten); Lesen sofort, Rückruf vor der Rückkehr; aus einem Interrupt heraus (Audio-Rahmen: Nachladen der Sprach-/Musik-Streams) bleibt der Auftrag „beschäftigt“, bis der Interrupt-Rückruf zurückgekehrt ist (`os_thread.cpp re4_os_defer`), Abbruch liefert dann −3; FST der eingelegten Disc oben in MEM1, Disc-ID bei `0x80000000`; Disc-Wechsel lädt den anderen Ordner; seit M9 `DVDCancel` (Abbruch über den verzögerten Rückruf, Ergebnis „abgebrochen“); seit 19.10.2026 `re4_dvd_boot_fast` / `re4_dvd_read_done` für Patch 0085 (der Start ohne Bild-Takt) |
 | `aram.cpp` | ARAM (16 MB) als Host-Puffer, `ARInit`/`ARAlloc` (Stapel ab `0x4000`), ARQ kopiert sofort und ruft den Rückruf (aus einem Interrupt heraus erst nach dessen Ende, wie `dvd.cpp`) |
 | `os_link.cpp` | `OSLink`/`OSUnlink` (siehe unten) |
 | `yz2_decode.cpp` + `port/src/yz2_kernel.cpp` | `yz2Decode_Decode`: der geprüfte Kern des alten Ports unverändert, ein Adapter verbindet ihn mit `yz2code.cpp` des Spiels |

@@ -52,6 +52,8 @@ final class CoreMenu extends Dialog {
     void touchChanged(boolean on);
     /** The switch "Use Gyro-Aiming" (the preferences hold it). */
     void gyroChanged(boolean on);
+    /** The switch "Alternate Controls" (the preferences hold it). */
+    void alternateChanged(boolean on);
   }
 
   private final Host host;
@@ -272,6 +274,12 @@ final class CoreMenu extends Dialog {
     body.addView(text("Touch Controls: They appear when no controller is detected, use checkbox to manually enable "
         + "it. The menu-icon opens the configuration (MENU = SELECT, L and R stay pressed until tapped again).",
         12, false));
+    // the third switch: a row of its own (three do not fit side by side), under "Use Touch Controls"
+    LinearLayout layout = labelledRow("Button layout");
+    checkBox(layout, "Alternate Controls", input.getBoolean(CoreActivity.ALT_CONTROLS, false), 5,
+        (b, on) -> host.alternateChanged(on));
+    body.addView(text("Alternate Controls: L1 = Knife, L2 = Aim, R1 = Inventory (Weapons/Recovery), "
+        + "R2 = Fire / use the knife, Y = Map. A, B, X (Ashley) and START as before.", 12, false));
 
     heading("Memory card (slot A)");
     body.addView(text("Export and Import Savegames as .gci (for Dolphin or GameCube).", 12, false));

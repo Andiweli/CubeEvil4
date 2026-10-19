@@ -21,6 +21,7 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
+#include <sys/utsname.h>
 #include <ucontext.h>
 #include <unistd.h>
 #include <jni.h>
@@ -31,6 +32,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdarg>
+#include <cstdint>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -84,19 +86,16 @@ template <class F> bool bind(F &slot, const char *name) {
   return slot != nullptr;
 }
 
-#if defined(__aarch64__)
-// 64 bit (milestone 12): the game keeps its addresses in 32 bits and tells
-// its own from others by bit 31, so everything it reaches lies in the window
-// 0x80000000..0xFFFFFFFF. MEM1 (0x80000000..0x83000000) is held with an
-// inaccessible placeholder before anything is loaded (re4_mem1_init maps over
-// it, RE4_MEM1_PLACEHOLDER), and the linker loads the two core libraries into
-// ranges reserved at the top of the window. The core puts its module
-// libraries and stacks there itself (module_loader.cpp, game_window.cpp).
+// MEM1 (0x80000000..0x83000000) is held with an inaccessible placeholder
+// before the core's libraries load (re4_mem1_init maps over it,
+// RE4_MEM1_PLACEHOLDER): on 32 bit as well, since a tester's device (19.10.2026)
+// found MEM1 taken when the core reserved it after loading its libraries.
 #ifndef MAP_FIXED_NOREPLACE
 #define MAP_FIXED_NOREPLACE 0x100000
 #endif
-constexpr unsigned long kWindowStart = 0x83000000ul;
-constexpr unsigned long kWindowEnd = 0x100000000ul;
+constexpr unsigned long kMem1Start = 0x80000000ul, kMem1Size = 0x3000000ul;
+// the top of the 32-bit address space (the window's end on 64 bit)
+constexpr uint64_t kTop32 = 0x100000000ull;
 
 void *reserveFixed(unsigned long at, unsigned long size) {
   void *want = reinterpret_cast<void *>(at);
@@ -106,17 +105,8 @@ void *reserveFixed(unsigned long at, unsigned long size) {
   return nullptr;
 }
 
-// from the top of the window down, in 16 MB steps (ART and the drivers may
-// hold parts of it)
-void *reserveInWindow(unsigned long size) {
-  for (unsigned long at = kWindowEnd - size; at >= kWindowStart; at -= 16ul << 20) {
-    if (void *p = reserveFixed(at, size)) return p;
-  }
-  return nullptr;
-}
-
 // What lies below 4 GB when the core loads, for the error report (address-map.txt):
-// MEM1 and the window above it have to be free, and on 64 bit ART, the zygote and
+// MEM1 (and on 64 bit the window above it) has to be free; ART, the zygote and
 // the drivers decide what is there before the app runs
 std::string gAddressMap;
 std::string gMem1Owner;  // the first mapping in MEM1 (the reason when it is taken)
@@ -133,7 +123,13 @@ std::string shortMapping(const char *line) {
 }
 
 void recordLowMappings(const char *when) {
-  gAddressMap += std::string("--- ") + when + " (mappings below 4 GB; MEM1 0x80000000..0x83000000, window up to 4 GB)\n";
+  const uint64_t mem1End = kMem1Start + kMem1Size;
+  struct utsname u;
+  if (uname(&u) != 0) std::memset(&u, 0, sizeof(u));
+  char head[320];
+  snprintf(head, sizeof(head), "--- %s (%d-bit process, kernel %s %s; mappings below 4 GB; MEM1 0x80000000..0x83000000%s)\n",
+           when, (int)(sizeof(void *) * 8), u.machine, u.release, sizeof(void *) == 8 ? ", window up to 4 GB" : "");
+  gAddressMap += head;
   FILE *f = fopen("/proc/self/maps", "re");
   if (!f) {
     gAddressMap += "(cannot read /proc/self/maps)\n";
@@ -141,31 +137,54 @@ void recordLowMappings(const char *when) {
   }
   char line[512];
   int lines = 0;
-  unsigned long at = 0x80000000ul, largest = 0;
+  uint64_t at = kMem1Start, largest = 0, top = 0;
   while (fgets(line, sizeof(line), f)) {
-    unsigned long a, b;
-    if (sscanf(line, "%lx-%lx", &a, &b) != 2 || a >= kWindowEnd) continue;
+    unsigned long long a, b;
+    if (sscanf(line, "%llx-%llx", &a, &b) != 2 || a >= kTop32) continue;
     std::string text = shortMapping(line);
-    if (a < kWindowStart && b > 0x80000000ul) {
+    bool mem1 = a < mem1End && b > kMem1Start;
+    if (mem1) {
       text += "   <- MEM1";
       if (gMem1Owner.empty()) gMem1Owner = shortMapping(line);
-    } else if (b > kWindowStart) {
+    } else if (sizeof(void *) == 8 && b > mem1End) {
       text += "   <- window";
     }
-    if (b > at) {
+    // the vector pages lie in the kernel's part on a 32-bit kernel: no end of a free range
+    bool vectors = text.find("[vectors]") != std::string::npos || text.find("[sigpage]") != std::string::npos;
+    if (b > at && !vectors) {
       if (a > at && a - at > largest) largest = a - at;
       at = b;
     }
+    if (!vectors && b > top) top = b;  // the highest mapping: about where the address space ends
     if (++lines <= 2000) gAddressMap += text + '\n';
-    if (b > 0x80000000ul) LOG("below 4 GB: %s", text.c_str());
+    if (mem1 || (sizeof(void *) == 8 && b > kMem1Start)) LOG("below 4 GB: %s", text.c_str());
   }
   fclose(f);
-  if (kWindowEnd > at && kWindowEnd - at > largest) largest = kWindowEnd - at;
-  char sum[160];
-  snprintf(sum, sizeof(sum), "%d mappings below 4 GB; largest free range in 0x80000000..4 GB: %lu MB\n", lines,
-           largest >> 20);
+  // above the highest mapping: free on 64 bit; on 32 bit the kernel's part may begin there
+  if (sizeof(void *) == 8 && kTop32 > at && kTop32 - at > largest) largest = kTop32 - at;
+  char sum[224];
+  snprintf(sum, sizeof(sum), "%d mappings below 4 GB; highest ends at 0x%llx; largest free range from 0x80000000 on: %llu MB\n",
+           lines, (unsigned long long)top, (unsigned long long)(largest >> 20));
   gAddressMap += sum;
   LOG("%s", sum);
+}
+
+#if defined(__aarch64__)
+// 64 bit (milestone 12): the game keeps its addresses in 32 bits and tells
+// its own from others by bit 31, so everything it reaches lies in the window
+// 0x80000000..0xFFFFFFFF. The linker loads the two core libraries into
+// ranges reserved at the top of the window. The core puts its module
+// libraries and stacks there itself (module_loader.cpp, game_window.cpp).
+constexpr unsigned long kWindowStart = 0x83000000ul;
+constexpr unsigned long kWindowEnd = 0x100000000ul;
+
+// from the top of the window down, in 16 MB steps (ART and the drivers may
+// hold parts of it)
+void *reserveInWindow(unsigned long size) {
+  for (unsigned long at = kWindowEnd - size; at >= kWindowStart; at -= 16ul << 20) {
+    if (void *p = reserveFixed(at, size)) return p;
+  }
+  return nullptr;
 }
 
 // The mapping that holds `addr` (start, end, name), false when none does.
@@ -318,6 +337,14 @@ void loadCore(JNIEnv *env) {
   }
 #else
   (void)env;
+  recordLowMappings("when the core loads");
+  // the core's libraries load above it (the game tells its own addresses by bit 31, re4_check_game_address)
+  if (reserveFixed(kMem1Start, kMem1Size)) {
+    setenv("RE4_MEM1_PLACEHOLDER", "1", 1);
+    gAddressMap += "MEM1 placeholder: reserved\n";
+  } else {
+    gAddressMap += "MEM1 placeholder: NOT reserved\n";
+  }
   api.main = dlopen("libre4_main.so", RTLD_NOW | RTLD_LOCAL);
 #endif
   if (!api.main) {
@@ -362,12 +389,22 @@ void loadCore(JNIEnv *env) {
     api.main = nullptr;
     return;
   }
+#if !defined(__aarch64__)
+  {
+    Dl_info info;
+    char note[160];
+    snprintf(note, sizeof(note), "libre4_main.so at %p\n",
+             dladdr(reinterpret_cast<void *>(api.mem1Init), &info) ? info.dli_fbase : nullptr);
+    gAddressMap += note;
+  }
+#endif
   // MEM1 before anything else maps memory there (GL drivers, ART growth)
   if (!api.mem1Init()) {
     api.error = "MEM1 0x80000000..0x83000000 is taken in this process";
-#if defined(__aarch64__)
-    if (!gMem1Owner.empty()) api.error += " (by " + gMem1Owner + ")";
-#endif
+    // nothing mapped there: the kernel does not give the address to apps (a 32-bit kernel whose
+    // apps' part of the address space ends below 0x80000000)
+    api.error += gMem1Owner.empty() ? std::string(" (no mapping there: the system refused the address)")
+                                    : " (by " + gMem1Owner + ")";
     LOG("%s", api.error.c_str());
   } else {
     LOG("core loaded, MEM1 reserved");
@@ -1147,13 +1184,9 @@ void installCrashHandler() {
 
 }  // namespace
 
-// The mappings below 4 GB when the core loaded (64 bit; "" on 32 bit)
+// The mappings below 4 GB when the core loaded
 extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_addressMap(JNIEnv *env, jclass) {
-#if defined(__aarch64__)
   return env->NewStringUTF(gAddressMap.c_str());
-#else
-  return env->NewStringUTF("");
-#endif
 }
 
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {

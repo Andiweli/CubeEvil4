@@ -101,6 +101,10 @@ void re4_host_file_close(int fd);
 const char* re4_host_file_error(void);
 /* Disc number in the virtual drive (0/1), -1 when no disc folder was found. */
 int re4_dvd_inserted_disc(void);
+/* The start's reads without the frame pace (patch 0085): 1 while the next
+   step of a read may follow at once, the end at the first title.dat. */
+int re4_dvd_boot_fast(void);
+void re4_dvd_read_done(const char* name);
 
 /* Byte order (byte_order.cpp): in-place swaps of big-endian disc data. */
 void re4_swap32_words(void* p, unsigned bytes);

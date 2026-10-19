@@ -19,6 +19,13 @@ import java.util.Map;
  * card, error log), held for a second the game's debug menu; R3 saves
  * graphics data for the diagnosis when the tools are on. The touch controls
  * (CoreTouch, TouchControls) are a device of their own (TOUCH).
+ *
+ * Alternate controls (the menu's "Alternate Controls", wish of the project
+ * owner, 19.10.2026): L1 = L (ready the knife, the trigger at its end stop),
+ * L2 = R (ready the weapon, analog), R1 = Y (the inventory: weapons and
+ * recovery), R2 = A past half way (fire, or slash with the knife ready),
+ * Y = Z (map); A, B, X (Ashley: wait / follow), D-pad, START and the sticks
+ * as above. The touch controls keep their GameCube buttons.
  */
 public final class CoreInput {
   // GameCube pad bits (PAD_BUTTON_*)
@@ -45,18 +52,21 @@ public final class CoreInput {
   static final float MAIN_RAW = 101f, C_RAW = 92f;
   /** Where an analog trigger also presses the digital L/R (the click of a GameCube trigger). */
   static final float TRIGGER_CLICK = 0.85f;
+  /** Alternate controls: where R2 presses A (fire). */
+  static final float FIRE_PRESS = 0.5f;
 
   /** One input device (the built-in controller may report keys and axes separately). */
   private static final class Device {
     int buttons;            // GameCube bits held through keys
     boolean l2Key, r2Key;   // L2/R2 as keys (triggers without an axis)
+    boolean l1Key;          // L1 (the alternate controls' knife)
     int hats;               // D-pad from the hat axes
     float lx, ly, rx, ry;   // sticks -1..1, y down as Android reports it
     float lt, rt;           // analog triggers 0..1
   }
 
   private final Map<Integer, Device> devices = new HashMap<>();
-  private boolean swapFace;
+  private boolean swapFace, alternate;
 
   /** Swaps A/B and X/Y (controllers that send the codes of the other layout). */
   public void setSwapFace(boolean swap) {
@@ -66,16 +76,38 @@ public final class CoreInput {
 
   public boolean swapFace() { return swapFace; }
 
-  /** The GameCube button of an Android key, 0 for none (L2/R2: the triggers). */
+  /** The alternate controls (see above) or the agreed layout. */
+  public void setAlternate(boolean on) {
+    if (on != alternate) clear();
+    alternate = on;
+  }
+
+  public boolean alternate() { return alternate; }
+
+  /**
+   * The GameCube button of an Android key, 0 for none (the triggers: L2 and
+   * R2, with the alternate controls L1 and L2, the one they drive).
+   */
   public int gcButton(int keyCode) {
-    switch (keyCode) {
-      case KEYCODE_BUTTON_A: return swapFace ? GC_B : GC_A;
-      case KEYCODE_BUTTON_B: return swapFace ? GC_A : GC_B;
-      case KEYCODE_BUTTON_X: return swapFace ? GC_Y : GC_X;
-      case KEYCODE_BUTTON_Y: return swapFace ? GC_X : GC_Y;
-      case KEYCODE_BUTTON_R1: return GC_Z;
-      case KEYCODE_BUTTON_L2: return GC_L;
-      case KEYCODE_BUTTON_R2: return GC_R;
+    int label = keyCode;
+    if (swapFace) {
+      switch (keyCode) {
+        case KEYCODE_BUTTON_A: label = KEYCODE_BUTTON_B; break;
+        case KEYCODE_BUTTON_B: label = KEYCODE_BUTTON_A; break;
+        case KEYCODE_BUTTON_X: label = KEYCODE_BUTTON_Y; break;
+        case KEYCODE_BUTTON_Y: label = KEYCODE_BUTTON_X; break;
+        default: break;
+      }
+    }
+    switch (label) {
+      case KEYCODE_BUTTON_A: return GC_A;
+      case KEYCODE_BUTTON_B: return GC_B;
+      case KEYCODE_BUTTON_X: return GC_X;
+      case KEYCODE_BUTTON_Y: return alternate ? GC_Z : GC_Y;
+      case KEYCODE_BUTTON_L1: return alternate ? GC_L : 0;
+      case KEYCODE_BUTTON_R1: return alternate ? GC_Y : GC_Z;
+      case KEYCODE_BUTTON_L2: return alternate ? GC_R : GC_L;
+      case KEYCODE_BUTTON_R2: return alternate ? GC_A : GC_R;
       case KEYCODE_BUTTON_START: return GC_START;
       case KEYCODE_DPAD_UP: return GC_UP;
       case KEYCODE_DPAD_DOWN: return GC_DOWN;
@@ -95,8 +127,8 @@ public final class CoreInput {
   }
 
   /**
-   * Keys the game controller takes without a function (L1, L3): consumed so
-   * Android does not act on them.
+   * Keys the game controller takes without a function (L1 but with the
+   * alternate controls, L3): consumed so Android does not act on them.
    */
   public static boolean unused(int keyCode) {
     return keyCode == KEYCODE_BUTTON_L1 || keyCode == KEYCODE_BUTTON_THUMBL;
@@ -114,6 +146,10 @@ public final class CoreInput {
   /** A key of `device` went down or up; false when it is no game button. */
   public boolean key(int device, int keyCode, boolean down) {
     Device d = device(device);
+    if (keyCode == KEYCODE_BUTTON_L1) {
+      d.l1Key = down;
+      return alternate;
+    }
     if (keyCode == KEYCODE_BUTTON_L2) {
       d.l2Key = down;
       return true;
@@ -186,7 +222,8 @@ public final class CoreInput {
   public int[] pad() {
     int buttons = 0;
     float lx = 0, ly = 0, rx = 0, ry = 0, lt = 0, rt = 0;
-    for (Device d : devices.values()) {
+    for (Map.Entry<Integer, Device> e : devices.entrySet()) {
+      Device d = e.getValue();
       buttons |= d.buttons | d.hats;
       if (d.lx * d.lx + d.ly * d.ly > lx * lx + ly * ly) {
         lx = d.lx;
@@ -196,8 +233,16 @@ public final class CoreInput {
         rx = d.rx;
         ry = d.ry;
       }
-      lt = Math.max(lt, d.l2Key ? 1f : d.lt);
-      rt = Math.max(rt, d.r2Key ? 1f : d.rt);
+      float l2 = d.l2Key ? 1f : d.lt, r2 = d.r2Key ? 1f : d.rt;
+      if (alternate && e.getKey() != TOUCH) {
+        // L1 = L at its end stop, L2 = R, R2 = A
+        lt = Math.max(lt, d.l1Key ? 1f : 0f);
+        rt = Math.max(rt, l2);
+        if (r2 >= FIRE_PRESS) buttons |= GC_A;
+      } else {
+        lt = Math.max(lt, l2);
+        rt = Math.max(rt, r2);
+      }
     }
     // the triggers' digital L/R: only at the end stop, the game reads the analog
     // value (PadRead: any value past the dead zone counts as L/R)

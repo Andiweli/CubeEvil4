@@ -82,6 +82,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   static final String TOUCH_ALWAYS = "touchControls";
   // the menu's switch "Use Gyro-Aiming" (GyroAim)
   static final String GYRO_AIM = "gyroAiming";
+  // the menu's switch "Alternate Controls" (CoreInput.setAlternate)
+  static final String ALT_CONTROLS = "alternateControls";
   /** The menu's picture options: scale (0 auto, 1-4), samples, anisotropy, aspect (0 16:9, 1 4:3). */
   static final String GRAPHICS_PREFS = "core_graphics";
   private static final int REQUEST_EXPORT_ALL = 2, REQUEST_IMPORT = 3, REQUEST_REPORT = 4;
@@ -150,11 +152,10 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     menuSupported = startProblem.isEmpty() && CoreBridge.hasMenu();
     SharedPreferences inputPrefs = getSharedPreferences(INPUT_PREFS, MODE_PRIVATE);
     input.setSwapFace(inputPrefs.getBoolean(SWAP_FACE, false));
+    input.setAlternate(inputPrefs.getBoolean(ALT_CONTROLS, false));
     // R3 saves graphics data with the test scripts (RE4_APP_TOOLS=1) or when the menu switched it on
     tools = settings.contains("RE4_APP_TOOLS=1") || inputPrefs.getBoolean(R3_CAPTURE, false);
-    Log.i(TAG, "layout: A B X Y by label" + (input.swapFace() ? ", A/B and X/Y swapped" : "")
-        + ", R2 = R, L2 = L, R1 = Z, SELECT menu (held: debug menu), R3 " + (tools ? "graphics capture" : "unused")
-        + (menuSupported ? "" : "; this core has no menu functions"));
+    logLayout();
     setUpVibrator();
     // the volume buttons set the game's volume
     setVolumeControlStream(AudioManager.STREAM_MUSIC);
@@ -424,7 +425,22 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(GYRO_AIM, on).apply();
       gyroAim.setEnabled(on);
     }
+
+    @Override public void alternateChanged(boolean on) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(ALT_CONTROLS, on).apply();
+      input.setAlternate(on);
+      send();
+      logLayout();
+    }
   };
+
+  private void logLayout() {
+    Log.i(TAG, "layout: A B X Y by label" + (input.swapFace() ? ", A/B and X/Y swapped" : "")
+        + (input.alternate() ? ", alternate controls: L1 = L, L2 = R, R1 = Y, R2 = A, Y = Z"
+            : ", R2 = R, L2 = L, R1 = Z")
+        + ", SELECT menu (held: debug menu), R3 " + (tools ? "graphics capture" : "unused")
+        + (menuSupported ? "" : "; this core has no menu functions"));
+  }
 
   private final TouchControls.Host touchHost = new TouchControls.Host() {
     @Override public void select(boolean down, boolean finger) {

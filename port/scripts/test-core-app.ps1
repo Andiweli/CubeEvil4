@@ -747,6 +747,22 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     function Has([string]$Pattern) { return [bool]($text -match $Pattern) }
     Say ("Kern geladen, Speicher reserviert: {0}" -f $(if (Has 'core loaded, MEM1 reserved') { 'ja' } else { 'NEIN' }))
     Say ("Spiel gestartet:                  {0}" -f $(if (Has 'core: running') { 'ja' } else { 'NEIN' }))
+    # the black screen at the start (patch 0085): from the core's load to title.dat read (before
+    # the first logo; 19.10.2026 without the patch 5.8 s on the Retroid)
+    $loadedAt = $keep | Where-Object { $_ -match 'core loaded, MEM1 reserved' } | Select-Object -First 1
+    $titleAt = [Array]::FindIndex([string[]]$keep, [Predicate[string]]{ param($l) $l -match 'Read File: [Ss][Ss]/[a-z]+/title\.dat' })
+    $titleOk = $null
+    if ($titleAt -ge 0) { $titleOk = $keep[$titleAt..($keep.Count - 1)] | Where-Object { $_ -match 'DVD: Read Ok' } | Select-Object -First 1 }
+    $bootLine = $keep | Where-Object { $_ -match 'DVD: start reads done' } | Select-Object -First 1
+    $startTime = '?'
+    try {
+        if ($loadedAt -and $titleOk) {
+            $t0 = [datetime]::ParseExact($loadedAt.Substring(0, 18), 'MM-dd HH:mm:ss.fff', $null)
+            $t1 = [datetime]::ParseExact($titleOk.Substring(0, 18), 'MM-dd HH:mm:ss.fff', $null)
+            $startTime = '{0:N1} s' -f ($t1 - $t0).TotalSeconds
+        }
+    } catch { }
+    Say "Start bis title.dat gelesen:      $startTime$(if ($bootLine) { ' (' + ($bootLine -split 'DVD: ')[-1] + ')' } else { ' (ohne den schnellen Start)' })"
     $rooms = $keep | Where-Object { $_ -match 'RE4Core.*room [0-9a-f]{3}: ' }
     Say "Raeume aufgebaut:                 $(if ($rooms) { ($rooms | ForEach-Object { ($_ -split 'RE4Core\s*:\s*')[-1] }) -join ' | ' } else { 'keiner' })"
     $models = @($keep | Where-Object { $_ -match 'RE4Core.*model ' })

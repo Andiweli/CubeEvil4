@@ -1,0 +1,39 @@
+# The black screen at the start shorter (wish of the project owner,
+# 19.10.2026): the game's read queue does one step of a read per game frame
+# (cDvd::readProcMain: TaskSleep(1) after each step of cDvdQueue::Read, a
+# piece of at most 128 KB takes three steps), which paces the GameCube's
+# drive. The port's drive is done at once (runtime/dvd.cpp), so the files of
+# the start (SS/cmn/title.snd, ss/cmn/save_e.dat, SS/<lang>/title.dat:
+# about 3.5 s of the black screen before the first logo at 30 frames a
+# second) only wait for the frames. Until the first title.dat is in, the next
+# step now follows at once while nothing is in flight (0x02000000 the DVD
+# read, 0x01000000 the ARAM transfer), with one frame's wait after every 64
+# steps (runtime/dvd.cpp re4_dvd_boot_fast); after it, and with
+# RE4_DVD_BOOT_FAST=0, the game's pace as in the original.
+--- a/src/game/dvd.cpp
++++ b/src/game/dvd.cpp
+@@ -1200,18 +1200,23 @@
+     }
+ }
+ 
++extern "C" int re4_dvd_boot_fast(void); /* port: runtime/dvd.cpp */
++extern "C" void re4_dvd_read_done(const char* name); /* port: runtime/dvd.cpp */
++
+ // Steps request `q` until it is done, running the disc error check when the read fails.
+ void cDvd::readProcMain(cDvdQueue* pQueue)
+ {
+     while (pQueue->Read() == 1) {
+         if (!pQueue->CkFlag(0x40000000)) {
+-            if (!pQueue->CkFlag(0x100)) {
++            /* port: at the start (until title.dat) the next step at once while nothing is in flight */
++            if (!pQueue->CkFlag(0x100) && !(!pQueue->CkFlag(0x03000000) && re4_dvd_boot_fast())) {
+                 TaskSleep(1);
+             }
+         } else {
+             ErrCheck(-1, 0);
+         }
+     }
++    re4_dvd_read_done(pQueue->getName());
+ }
+ 
+ // Turns pending request `no` into a blocking read: pulls it from the current / pending list and
