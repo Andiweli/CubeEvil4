@@ -4221,6 +4221,13 @@ Auswertung:**
   getestet:** der Vergleichslauf r107 nach der Korrektur (zeigt, ob Bild 626 jetzt gleich ist),
   Gerät.
 
+**PC-Prüfung 10:34 (Stand `2b9a60d`, -O2, Disc-Daten), Vergleichslauf 32/64 bit mit Start r107,
+3000 Bilder: ALLES OK.** Trace: alle 3622 Bilder gleich (jeder Abschnitt von r120 Schritt 0 bis
+r107 Schritt 3 „keine Abweichung“); Bilder 16 von 16 Pixel für Pixel gleich (auch 653, 773, 901,
+1373, 1501, 2401, vorher verschieden); keine Anforderung ohne Platz; Heaps wie im Lauf 09:25.
+**Lichtart 5 in GameCube-Form damit bestätigt.** Nur `bericht.txt` im Ausgabeordner: Bilder und
+GX-Daten legt der Vergleichslauf nur bei Unterschieden ab.
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
