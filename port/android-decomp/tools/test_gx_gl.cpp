@@ -423,6 +423,25 @@ void TestBasics(re4gx::GxRenderer &r) {
       if ((black && (px[0] || px[1] || px[2])) || (!black && px[1] <= 200))
         std::fprintf(stderr, "  shown: %d %d %d\n", px[0], px[1], px[2]);
     }
+    // every present counts (the GPU measurement, RE4_GPU_BENCH); with the timer extension its
+    // GPU time arrives some presents later
+    {
+      const unsigned before = r.Stats().presents;
+      for (int i = 0; i < 3; i++) {
+        shown(r);
+        glFinish();
+      }
+      Check(r.Stats().presents == before + 3, "every present counted");
+      const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+      if (ext && std::strstr(ext, "GL_EXT_disjoint_timer_query")) {
+        Check(r.Stats().presentTimed > 0, "the presents' GPU time measured");
+        Check(r.Stats().gpuTimed > 0, "the chunks' GPU time measured");
+        std::fprintf(stderr, "  present: %u timed, %.3f ms each\n", r.Stats().presentTimed,
+                     r.Stats().presentTimed ? r.Stats().presentMicros / 1000.0 / r.Stats().presentTimed : 0.0);
+      } else {
+        std::fprintf(stderr, "  present: no timer extension here, GPU time not measured\n");
+      }
+    }
     glDeleteFramebuffers(1, &fbo);
     glDeleteTextures(1, &tex);
   }

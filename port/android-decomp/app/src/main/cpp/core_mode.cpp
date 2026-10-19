@@ -434,6 +434,176 @@ bool gxHitSeriesPending = false;  // the chunk after a marked one starts over: a
 GLuint gxShotFbo = 0, gxShotColor = 0;
 unsigned gxShotW = 0, gxShotH = 0;
 
+// The GPU measurement (RE4_GPU_BENCH, test-core-app.ps1 -GpuBench; GPU step (a), 19.10.2026):
+// one run steps through picture options at the same place of the game (the test's start in r100,
+// Leon standing) and logs for each the GPU time of a picture and of a present on the screen
+// ("GPU bench N/M: ..."): what resolution, multisampling, anisotropic filtering and depth of field
+// cost on this device. RE4_GPU_BENCH=1 takes the steps below, "S/M/A/D,..." (scale, samples,
+// anisotropy, depth of field 0/1) names them; RE4_GPU_BENCH_DELAY: seconds from the first picture
+// to the first step (default 60, past the arrival in r100). Each step: 5 s to settle (the renderer
+// starts over), then 10 s measured. Afterwards the options from before the run come back.
+struct BenchStep {
+  int scale, samples, anisotropy, dof;
+};
+struct Bench {
+  std::vector<BenchStep> steps;
+  int index = -2;  // -2 settings not read, -3 off or done, -1 waiting for the start, else the step
+  bool measuring = false;
+  std::chrono::steady_clock::time_point next;  // the next change of phase
+  std::chrono::steady_clock::time_point since, nextSample;
+  re4gx::GxStats at;  // the renderer's counters when the step's measurement began
+  double runMs = 0;   // the renderer's CPU time of the step's pictures
+  unsigned runCount = 0;
+  double clockSum = 0, busySum = 0;
+  unsigned clockCount = 0, busyCount = 0;
+  int keepScale = 0, keepSamples = 1, keepAnisotropy = 1;
+};
+Bench bench;
+std::atomic<int> optDof{-1};  // the menu's depth of field (CoreBridge.setDof); -1 not set yet
+
+// A number from a file of the kernel (the GPU's clock and load, where the device lets an app read
+// them); -1 when it cannot.
+double readNumber(const char *path) {
+  FILE *f = std::fopen(path, "r");
+  if (!f) return -1;
+  double v = -1;
+  if (std::fscanf(f, "%lf", &v) != 1) v = -1;
+  std::fclose(f);
+  return v;
+}
+
+// The GPU clock in MHz (Adreno: kgsl in Hz; others in MHz), -1 when no file can be read.
+double gpuClockMhz() {
+  for (const char *path : {"/sys/class/kgsl/kgsl-3d0/gpuclk", "/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq",
+                           "/sys/kernel/gpu/gpu_clock"}) {
+    const double v = readNumber(path);
+    if (v > 0) return v > 100000 ? v / 1e6 : v;
+  }
+  return -1;
+}
+
+// The GPU's load in percent as the kernel reports it, -1 when no file can be read.
+double gpuBusyPercent() {
+  for (const char *path : {"/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage", "/sys/kernel/gpu/gpu_busy"}) {
+    const double v = readNumber(path);
+    if (v >= 0) return v;
+  }
+  return -1;
+}
+
+void benchApply(const BenchStep &step) {
+  optScale = step.scale;
+  optSamples = step.samples;
+  optAnisotropy = step.anisotropy;
+  optSerial++;
+  if (api.setDof) api.setDof(step.dof);
+}
+
+// Once per displayed frame (GL thread), after the chunk.
+void benchTick(std::chrono::steady_clock::time_point now) {
+  using std::chrono::seconds;
+  if (bench.index == -2) {
+    bench.index = -3;
+    const char *spec = getenv("RE4_GPU_BENCH");
+    if (!spec || !*spec || std::string(spec) == "0") return;
+    if (std::string(spec) == "1") {
+      // the tester's options (POCO X7 Pro, 18.10.2026), then one of them off at a time, scale 2,
+      // all extras off, and the first again (does the device get slower when warm?)
+      bench.steps = {{3, 2, 8, 1}, {3, 2, 8, 0}, {3, 1, 8, 1}, {3, 2, 1, 1},
+                     {2, 2, 8, 1}, {3, 1, 1, 0}, {3, 2, 8, 1}};
+    } else {
+      for (const char *at = spec; *at;) {
+        BenchStep step{};
+        int used = 0;
+        if (std::sscanf(at, "%d/%d/%d/%d%n", &step.scale, &step.samples, &step.anisotropy, &step.dof, &used) != 4)
+          break;
+        bench.steps.push_back(step);
+        at += used;
+        if (*at == ',') at++;
+      }
+    }
+    if (bench.steps.empty()) {
+      LOG("GPU bench: no steps in RE4_GPU_BENCH=%s", spec);
+      return;
+    }
+    const char *delay = getenv("RE4_GPU_BENCH_DELAY");
+    const int wait = delay ? std::max(5, std::atoi(delay)) : 60;
+    bench.next = now + seconds(wait);
+    bench.index = -1;
+    const double clock = gpuClockMhz(), busy = gpuBusyPercent();
+    LOG("GPU bench: %zu steps, the first in %d s (5 s to settle, 10 s measured each); GPU clock %s, load %s",
+        bench.steps.size(), wait, clock > 0 ? "readable" : "not readable", busy >= 0 ? "readable" : "not readable");
+    return;
+  }
+  if (bench.index < -1 || !gx) return;
+  if (bench.measuring && now >= bench.nextSample) {
+    bench.nextSample = now + seconds(1);
+    const double clock = gpuClockMhz(), busy = gpuBusyPercent();
+    if (clock > 0) {
+      bench.clockSum += clock;
+      bench.clockCount++;
+    }
+    if (busy >= 0) {
+      bench.busySum += busy;
+      bench.busyCount++;
+    }
+  }
+  if (now < bench.next) return;
+  if (bench.index == -1) {
+    bench.keepScale = optScale.load();
+    bench.keepSamples = optSamples.load();
+    bench.keepAnisotropy = optAnisotropy.load();
+    bench.index = 0;
+    benchApply(bench.steps[0]);
+    bench.next = now + seconds(5);
+    return;
+  }
+  if (!bench.measuring) {
+    bench.at = gx->Stats();
+    bench.since = now;
+    bench.runMs = 0;
+    bench.runCount = 0;
+    bench.clockSum = bench.busySum = 0;
+    bench.clockCount = bench.busyCount = 0;
+    bench.nextSample = now;
+    bench.measuring = true;
+    bench.next = now + seconds(10);
+    return;
+  }
+  const re4gx::GxStats &s = gx->Stats();
+  const BenchStep &step = bench.steps[static_cast<size_t>(bench.index)];
+  const double secs = std::chrono::duration<double>(now - bench.since).count();
+  const unsigned timed = s.gpuTimed - bench.at.gpuTimed, presentTimed = s.presentTimed - bench.at.presentTimed;
+  char gpu[48] = "not measured", present[48] = "not measured", clock[24] = "-", busy[24] = "-";
+  if (timed)
+    std::snprintf(gpu, sizeof(gpu), "%.1f ms (%u timed)", (s.gpuMicros - bench.at.gpuMicros) / 1000.0 / timed, timed);
+  if (presentTimed)
+    std::snprintf(present, sizeof(present), "%.2f ms (%u timed)",
+                  (s.presentMicros - bench.at.presentMicros) / 1000.0 / presentTimed, presentTimed);
+  if (bench.clockCount) std::snprintf(clock, sizeof(clock), "%.0f MHz", bench.clockSum / bench.clockCount);
+  if (bench.busyCount) std::snprintf(busy, sizeof(busy), "%.0f %%", bench.busySum / bench.busyCount);
+  LOG("GPU bench %d/%zu: scale %d, %d samples, anisotropy %.0f, depth of field %s: GPU %s per picture, "
+      "present %s, %.1f pictures/s, %.1f presents/s, renderer CPU %.1f ms, GPU clock %s, load %s",
+      bench.index + 1, bench.steps.size(), infoScale.load(), gx->Samples(), gx->Anisotropy(), step.dof ? "on" : "off",
+      gpu, present, secs > 0 ? (s.chunks - bench.at.chunks) / secs : 0.0,
+      secs > 0 ? (s.presents - bench.at.presents) / secs : 0.0, bench.runCount ? bench.runMs / bench.runCount : 0.0,
+      clock, busy);
+  bench.measuring = false;
+  bench.index++;
+  if (bench.index >= static_cast<int>(bench.steps.size())) {
+    optScale = bench.keepScale;
+    optSamples = bench.keepSamples;
+    optAnisotropy = bench.keepAnisotropy;
+    optSerial++;
+    if (optDof.load() >= 0 && api.setDof) api.setDof(optDof.load());
+    LOG("GPU bench done; the options from before the run are back");
+    bench.index = -3;
+    return;
+  }
+  benchApply(bench.steps[static_cast<size_t>(bench.index)]);
+  bench.next = now + seconds(5);
+}
+
 // The picture as the screen shows it (the XFB, the game's own size) into a 24-bit BMP.
 void SaveShot(const char *path) {
   unsigned w = 0, h = 0;
@@ -689,6 +859,10 @@ bool drawGx() {
     gxRunMs += ms;
     gxRunMax = std::max(gxRunMax, ms);
     gxRunCount++;
+    if (bench.measuring) {
+      bench.runMs += ms;
+      bench.runCount++;
+    }
     if ((++gxChunks % 300) == 1) {
       const auto &s = gx->Stats();
       const double seconds = std::chrono::duration<double>(now - gxSince).count();
@@ -719,6 +893,7 @@ bool drawGx() {
       gxSince = now;
     }
   }
+  benchTick(now);
   unsigned xw = 0, xh = 0;
   if (!gx->Xfb(&xw, &xh)) return false;
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1075,6 +1250,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_debugMenu(JN
 
 // The depth of field switch of the menu (cores since 17.10.2026; older ones keep it on).
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setDof(JNIEnv *, jclass, jboolean on) {
+  optDof = on ? 1 : 0;
   if (api.setDof) api.setDof(on ? 1 : 0);
 }
 

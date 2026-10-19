@@ -407,60 +407,92 @@ struct GxRenderer::Impl {
     streamMap = nullptr;
   }
 
-  // --- GPU time of each chunk (EXT_disjoint_timer_query) -----------------------
-  static constexpr int kTimerQueries = 4;
-  GLuint timerQuery[kTimerQueries] = {};
-  bool timerPending[kTimerQueries] = {};
-  int timerNext = 0;
+  // --- GPU time (EXT_disjoint_timer_query): the chunks and the presents -----------
+  // A few queries in turn for each kind; a result is read when it is ready (frames later), and a
+  // chunk or present whose queries are all still running is not timed. The two kinds never nest:
+  // Present runs after Run.
+  struct TimerPool {
+    static constexpr int kQueries = 4;
+    GLuint query[kQueries] = {};
+    bool pending[kQueries] = {};
+    int next = 0;
+
+    // Results that are ready go to micros / timed (left out when the GPU's clock was disjoint).
+    void Collect(unsigned long long *micros, unsigned *timed) {
+      GLint disjoint = 0;
+      glGetIntegerv(GL_GPU_DISJOINT_EXT, &disjoint);
+      for (int i = 0; i < kQueries; i++) {
+        if (!pending[i])
+          continue;
+        GLuint ready = 0;
+        glGetQueryObjectuiv(query[i], GL_QUERY_RESULT_AVAILABLE, &ready);
+        if (!ready)
+          continue;
+        GLuint ns = 0;
+        glGetQueryObjectuiv(query[i], GL_QUERY_RESULT, &ns);
+        pending[i] = false;
+        if (!disjoint) {
+          *micros += ns / 1000;
+          (*timed)++;
+        }
+      }
+    }
+
+    void Begin() {
+      if (pending[next]) {
+        next = -1; // all still running: this one is not timed
+        return;
+      }
+      glBeginQuery(GL_TIME_ELAPSED_EXT, query[next]);
+    }
+
+    void End() {
+      if (next >= 0) {
+        glEndQuery(GL_TIME_ELAPSED_EXT);
+        pending[next] = true;
+      }
+      next = 0;
+      while (next < kQueries && pending[next])
+        next++;
+      if (next == kQueries)
+        next = 0;
+    }
+  };
+  TimerPool chunkTimer, presentTimer;
   bool timerOn = false;
 
   void TimerInit() {
     const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
     timerOn = ext && std::strstr(ext, "GL_EXT_disjoint_timer_query");
-    if (timerOn)
-      glGenQueries(kTimerQueries, timerQuery);
+    if (timerOn) {
+      glGenQueries(TimerPool::kQueries, chunkTimer.query);
+      glGenQueries(TimerPool::kQueries, presentTimer.query);
+    }
   }
 
   // Results that are ready go to the stats; then the query of this chunk starts.
   void TimerBegin() {
     if (!timerOn)
       return;
-    GLint disjoint = 0;
-    glGetIntegerv(GL_GPU_DISJOINT_EXT, &disjoint);
-    for (int i = 0; i < kTimerQueries; i++) {
-      if (!timerPending[i])
-        continue;
-      GLuint ready = 0;
-      glGetQueryObjectuiv(timerQuery[i], GL_QUERY_RESULT_AVAILABLE, &ready);
-      if (!ready)
-        continue;
-      GLuint ns = 0;
-      glGetQueryObjectuiv(timerQuery[i], GL_QUERY_RESULT, &ns);
-      timerPending[i] = false;
-      if (!disjoint) {
-        stats.gpuMicros += ns / 1000;
-        stats.gpuTimed++;
-      }
-    }
-    if (timerPending[timerNext]) {
-      timerNext = -1; // all still running: this chunk is not timed
-      return;
-    }
-    glBeginQuery(GL_TIME_ELAPSED_EXT, timerQuery[timerNext]);
+    chunkTimer.Collect(&stats.gpuMicros, &stats.gpuTimed);
+    chunkTimer.Begin();
   }
 
   void TimerEnd() {
+    if (timerOn)
+      chunkTimer.End();
+  }
+
+  void PresentTimerBegin() {
     if (!timerOn)
       return;
-    if (timerNext >= 0) {
-      glEndQuery(GL_TIME_ELAPSED_EXT);
-      timerPending[timerNext] = true;
-    }
-    timerNext = 0;
-    while (timerNext < kTimerQueries && timerPending[timerNext])
-      timerNext++;
-    if (timerNext == kTimerQueries)
-      timerNext = 0;
+    presentTimer.Collect(&stats.presentMicros, &stats.presentTimed);
+    presentTimer.Begin();
+  }
+
+  void PresentTimerEnd() {
+    if (timerOn)
+      presentTimer.End();
   }
 
   // per-draw caches
@@ -1961,6 +1993,8 @@ bool GxRenderer::Present(int x, int y, int w, int h, unsigned top, unsigned rows
   Impl &m = *impl_;
   if (!m.haveXfb)
     return false;
+  m.stats.presents++;
+  m.PresentTimerBegin();
   m.SaveAndPlainState();
   if (m.viBlack) {
     // VISetBlack: the GameCube's video output is black, whatever the XFB holds
@@ -1970,6 +2004,7 @@ bool GxRenderer::Present(int x, int y, int w, int h, unsigned top, unsigned rows
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_SCISSOR_TEST);
     m.Touched();
+    m.PresentTimerEnd();
     return true;
   }
   glViewport(x, y, w, h);
@@ -1987,6 +2022,7 @@ bool GxRenderer::Present(int x, int y, int w, int h, unsigned top, unsigned rows
   glBindVertexArray(0);
   glUseProgram(0);
   m.Touched();
+  m.PresentTimerEnd();
   return true;
 }
 
@@ -2053,8 +2089,10 @@ void GxRenderer::Release() {
   const GLuint buffers[] = {m.vbo, m.ibo, m.xfUbo, m.pxUbo};
   glDeleteBuffers(4, buffers);
   m.StreamRelease();
-  if (m.timerOn)
-    glDeleteQueries(Impl::kTimerQueries, m.timerQuery);
+  if (m.timerOn) {
+    glDeleteQueries(Impl::TimerPool::kQueries, m.chunkTimer.query);
+    glDeleteQueries(Impl::TimerPool::kQueries, m.presentTimer.query);
+  }
   const GLuint vaos[] = {m.vao, m.quadVao};
   glDeleteVertexArrays(2, vaos);
   glDeleteProgram(m.copyProgram);

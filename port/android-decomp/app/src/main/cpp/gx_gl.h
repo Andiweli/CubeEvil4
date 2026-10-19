@@ -47,6 +47,10 @@ struct GxStats {
   // GPU time of the chunks (EXT_disjoint_timer_query; 0 when the driver has none)
   unsigned long long gpuMicros = 0;
   unsigned gpuTimed = 0;
+  // the pictures put on the screen (Present, once per display refresh) and their GPU time
+  unsigned presents = 0;
+  unsigned long long presentMicros = 0;
+  unsigned presentTimed = 0;
 };
 
 // Picture options of the app's menu (M11), applied by Init: multisampling of

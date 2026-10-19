@@ -42,6 +42,11 @@ mit Bild und Ton; START ueberspringt ihn (laut Originalcode entfaellt dann auch 
 Autofahrt). Fuer Film, Autofahrt und Ankunft in r100 reichen etwa -Seconds 480.
 -WeaponTrace schreibt beim Nachladen jedes Bild eine Zeile ins Protokoll (Zustand
 und Bewegung von Leon und Waffe, Munition, R-Taste; fuer die Nachlade-Suche).
+-GpuBench misst die Grafik (GPU-Schritt a, 19.10.2026): Start in r100, Leon steht, die App
+schaltet nacheinander sieben Grafik-Einstellungen durch (Aufloesung, Kantenglaettung,
+anisotrope Filterung, Tiefenschaerfe) und misst je 10 s die GPU-Zeit eines Bilds und der
+Darstellung (Zeilen "GPU bench" im Bericht); danach gelten wieder deine Einstellungen.
+Etwa 4 Minuten, waehrend der Messung den Controller nicht anfassen.
 -StartRoom 100 springt direkt nach r100 (nur die kurze Ankunft). -Manual
 startet ohne Tastenfolge (Titelbild, du spielst selbst); dann beobachtet das
 Skript 30 Minuten statt 240 s (Taste Q beendet frueher, -Seconds legt die Zeit
@@ -165,12 +170,20 @@ param(
     [switch]$BlankCard,
     [switch]$SaveTest,
     [switch]$WeaponTrace,
+    [switch]$GpuBench,
     [switch]$NoCopy,
     [ValidateSet('auto', 'armeabi-v7a', 'arm64-v8a')][string]$Abi = 'auto'
 )
 $ErrorActionPreference = 'Stop'
 # -Manual: you play yourself, 30 minutes unless -Seconds is given (Q ends earlier)
 if ($Manual -and -not $PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 1800 }
+# -GpuBench: the GPU measurement of the app (core_mode.cpp RE4_GPU_BENCH) at a calm place: the
+# start in r100 with the test keys, Leon standing; 60 s to get there, then 7 steps of 15 s
+if ($GpuBench) {
+    if ($Manual) { throw '-GpuBench braucht den automatischen Start (ohne -Manual).' }
+    if (-not $PSBoundParameters.ContainsKey('StartRoom')) { $StartRoom = '100' }
+    if (-not $PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 240 }
+}
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $app = Join-Path $repo 'port\android-decomp'
 $package = 'com.ast.cubeevil4'
@@ -384,6 +397,10 @@ $wavRemote = "/sdcard/Android/data/$package/files/ton.wav"
 if ($AudioWav -gt 0) {
     $wavSetting = "RE4_AUDIO_WAV=$wavRemote;RE4_AUDIO_WAV_SECONDS=$AudioWav"
     $settings = if ($settings) { "$settings;$wavSetting" } else { $wavSetting }
+}
+if ($GpuBench) {
+    # the GPU measurement (see above): the app steps through the picture options itself
+    $settings = if ($settings) { "$settings;RE4_GPU_BENCH=1" } else { 'RE4_GPU_BENCH=1' }
 }
 # the app's tools for the test: R3 saves graphics data (otherwise only with the menu's switch)
 if ($WeaponTrace) {
@@ -741,6 +758,12 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # the GL work per picture and the GPU time (the renderer's own measurement)
     $gxWork = $keep | Where-Object { $_ -match 'GX work per chunk: ' } | Select-Object -Last 1
     if ($gxWork) { Say "GX-Arbeit je Bild zuletzt:        $(($gxWork -split 'GX work per chunk: ')[-1])" }
+    # the GPU measurement (-GpuBench): one line per picture option
+    $bench = @($keep | Where-Object { $_ -match 'RE4Core\s*: GPU bench' })
+    if ($GpuBench -or $bench.Count) {
+        Say "GPU-Messung:                      $(if ($bench.Count) { "$($bench.Count) Zeilen" } else { 'KEINE (lief das Spiel bis r100?)' })"
+        foreach ($line in $bench) { Say "  $(($line -split 'RE4Core\s*:\s*')[-1])" }
+    }
     $gxStream = $keep | Where-Object { $_ -match 'GX uniform stream: ' } | Select-Object -First 1
     if ($gxStream) { Say "GX-Uniform-Puffer:                $(($gxStream -split 'GX uniform stream: ')[-1])" }
     $shaderFail = @($keep | Where-Object { $_ -match 'RE4GX.*shader failed' })

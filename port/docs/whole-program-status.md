@@ -4300,6 +4300,22 @@ der Grafikchip 237 s lang zu mindestens 96 % ausgelastet, 4,4 W im Mittel. Auf d
   dann in der Reihenfolge Nutzen/Risiko umsetzen und jeden Schritt mit `gx_chunk_render`
   Pixel für Pixel prüfen.
 
+**GPU-Schritt (a): Messlauf gebaut (19.10.2026, Cloud).** `test-core-app.ps1 -GpuBench` startet in
+r100 (Leon steht) und setzt `RE4_GPU_BENCH=1`; die App (`core_mode.cpp`, `benchTick`) schaltet nach
+60 s sieben Einstellungen durch (3/2/8/an wie beim Tester, dann Tiefenschärfe aus, MSAA aus,
+Anisotropie aus, Auflösung 2, alles aus bei 3, wieder 3/2/8/an), je 5 s Einschwingen und 10 s
+Messung, und schreibt je Schritt eine Zeile „GPU bench N/7“: GPU-Zeit je Spielbild (Zeitabfrage
+um `Run`), GPU-Zeit je Darstellung (neu: eigene Zeitabfrage um `Present`), Bilder und
+Darstellungen je Sekunde, CPU-Zeit des Renderers, GPU-Takt und -Last, wo das Gerät sie lesen
+lässt (Adreno: `/sys/class/kgsl/kgsl-3d0`). Danach gelten wieder die Einstellungen von vorher.
+Eigene Schritte: `RE4_GPU_BENCH=S/M/A/D,...`, Wartezeit `RE4_GPU_BENCH_DELAY`. Grenzen: ohne
+`EXT_disjoint_timer_query` (Mali beim POCO) keine GPU-Zeit; auf Kachel-GPUs kann die Zeit der
+Darstellung zu klein ausfallen (der Grafikchip zeichnet den Bildschirm erst beim Bildwechsel,
+nach der Abfrage), die je Spielbild nicht (die EFB-Kopien schließen jeden Durchgang innerhalb von
+`Run` ab). Getestet: Host-Bau (`gx_gl_check` 0 Fehler, neu „every present counted“, „the presents'
+GPU time measured“: 0,3 ms je Darstellung mit llvmpipe, „the chunks' GPU time measured“;
+`re4decomp_link_check` mit `core_mode.cpp` gebaut). Nicht getestet: der Messlauf auf dem Gerät.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
