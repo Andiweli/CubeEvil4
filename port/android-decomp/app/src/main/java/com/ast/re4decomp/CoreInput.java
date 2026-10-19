@@ -24,8 +24,12 @@ import java.util.Map;
  * owner, 19.10.2026): L1 = L (ready the knife, the trigger at its end stop),
  * L2 = R (ready the weapon, analog), R1 = Y (the inventory: weapons and
  * recovery), R2 = A past half way (fire, or slash with the knife ready),
- * Y = Z (map); A, B, X (Ashley: wait / follow), D-pad, START and the sticks
- * as above. The touch controls keep their GameCube buttons.
+ * Y = Z (map); A, B, X (Ashley: wait / follow), D-pad and START as above.
+ * While L1 or L2 holds a weapon ready the right stick aims (the control stick
+ * for the game) and the left one rests (wish of the project owner,
+ * 20.10.2026: the game aims with the control stick and leaves the C stick
+ * unused then, CameraQuasiFPS::calcDepressionRatio); otherwise the sticks as
+ * above. The touch controls keep their GameCube buttons and sticks.
  */
 public final class CoreInput {
   // GameCube pad bits (PAD_BUTTON_*)
@@ -54,6 +58,8 @@ public final class CoreInput {
   static final float TRIGGER_CLICK = 0.85f;
   /** Alternate controls: where R2 presses A (fire). */
   static final float FIRE_PRESS = 0.5f;
+  /** A trigger value the game takes as pressed (PADClamp: past 30 of 255). */
+  static final int TRIGGER_PRESSED = 31;
 
   /** One input device (the built-in controller may report keys and axes separately). */
   private static final class Device {
@@ -220,18 +226,36 @@ public final class CoreInput {
    * count; of each stick and trigger the device that moves it furthest.
    */
   public int[] pad() {
+    // the alternate controls aim with the right stick while L1 or L2 holds a weapon ready (on any
+    // device: the built-in controller may report the trigger and the sticks apart)
+    boolean aiming = false;
+    if (alternate) {
+      for (Map.Entry<Integer, Device> e : devices.entrySet()) {
+        Device d = e.getValue();
+        if (e.getKey() != TOUCH
+            && (d.l1Key || Math.round((d.l2Key ? 1f : d.lt) * 255f) >= TRIGGER_PRESSED)) {
+          aiming = true;
+        }
+      }
+    }
     int buttons = 0;
     float lx = 0, ly = 0, rx = 0, ry = 0, lt = 0, rt = 0;
     for (Map.Entry<Integer, Device> e : devices.entrySet()) {
       Device d = e.getValue();
       buttons |= d.buttons | d.hats;
-      if (d.lx * d.lx + d.ly * d.ly > lx * lx + ly * ly) {
-        lx = d.lx;
-        ly = d.ly;
+      float mainX = d.lx, mainY = d.ly, cX = d.rx, cY = d.ry;
+      if (aiming && e.getKey() != TOUCH) {
+        mainX = d.rx;
+        mainY = d.ry;
+        cX = cY = 0;
       }
-      if (d.rx * d.rx + d.ry * d.ry > rx * rx + ry * ry) {
-        rx = d.rx;
-        ry = d.ry;
+      if (mainX * mainX + mainY * mainY > lx * lx + ly * ly) {
+        lx = mainX;
+        ly = mainY;
+      }
+      if (cX * cX + cY * cY > rx * rx + ry * ry) {
+        rx = cX;
+        ry = cY;
       }
       float l2 = d.l2Key ? 1f : d.lt, r2 = d.r2Key ? 1f : d.rt;
       if (alternate && e.getKey() != TOUCH) {

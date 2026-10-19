@@ -291,8 +291,8 @@ final class CoreMenu extends Dialog {
     LinearLayout layout = labelledRow("Button layout");
     checkBox(layout, "Alternate Controls", input.getBoolean(CoreActivity.ALT_CONTROLS, false), 5,
         (b, on) -> host.alternateChanged(on));
-    body.addView(text("Alternate Controls: L1 = Knife, L2 = Aim, R1 = Inventory (Weapons/Recovery), "
-        + "R2 = Fire / use the knife, Y = Map. A, B, X (Ashley) and START as before.", 12, false));
+    body.addView(text("Alternate Controls: L1 = Knife, L2 = Aim (aim with the right stick), R1 = Inventory "
+        + "(Weapons/Recovery), R2 = Fire / use the knife, Y = Map. A, B, X (Ashley) and START as before.", 12, false));
 
     heading("Memory card (slot A)");
     body.addView(text("Export and Import Savegames as .gci (for Dolphin or GameCube).", 12, false));

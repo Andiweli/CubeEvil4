@@ -449,7 +449,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
 
   private void logLayout() {
     Log.i(TAG, "layout: A B X Y by label" + (input.swapFace() ? ", A/B and X/Y swapped" : "")
-        + (input.alternate() ? ", alternate controls: L1 = L, L2 = R, R1 = Y, R2 = A, Y = Z"
+        + (input.alternate() ? ", alternate controls: L1 = L, L2 = R, R1 = Y, R2 = A, Y = Z, aiming with the right stick"
             : ", R2 = R, L2 = L, R1 = Z")
         + ", SELECT menu (held: debug menu), R3 " + (tools ? "graphics capture" : "unused")
         + (menuSupported ? "" : "; this core has no menu functions"));

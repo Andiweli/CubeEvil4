@@ -119,6 +119,40 @@ public final class CoreInputTests {
     check(in.pad()[0] == (CoreInput.GC_L | CoreInput.GC_A) && in.pad()[5] == 255);
     in.key(1, L1, false);
     in.motion(1, 0, 0, 0, 0, 0, 0, 0, 0);
+    // aiming with the right stick: while L2 (or L1) holds a weapon ready the right stick is the
+    // control stick, the left one rests, the C stick stays at rest; a light L2 the game does not
+    // take as pressed (30 of 255) changes nothing
+    in.motion(1, 0, -1, 0.5f, 0, 0, 0, 0, 0);  // running forward, looking right
+    a = in.pad();
+    check(a[2] == 101 && a[1] == 0 && a[3] == Math.round(0.5f * 92) && a[4] == 0);
+    in.motion(1, 0, -1, 0.5f, 0, 0.1f, 0, 0, 0);  // L2 light: 26 of 255
+    a = in.pad();
+    check(a[6] == 26 && a[2] == 101 && a[3] == Math.round(0.5f * 92));
+    in.motion(1, 0, -1, 0.5f, 0, 0.4f, 0, 0, 0);  // L2 held: the right stick aims
+    a = in.pad();
+    check(a[1] == Math.round(0.5f * 101) && a[2] == 0 && a[3] == 0 && a[4] == 0);
+    in.motion(1, 0.3f, -1, 0, 0.8f, 1f, 0, 0, 0);  // aiming down, the left stick ignored
+    a = in.pad();
+    check(a[1] == 0 && a[2] == Math.round(-0.8f * 101) && a[3] == 0 && a[0] == CoreInput.GC_R);
+    in.motion(1, 0.3f, -1, 0, 0.8f, 0, 0, 0, 0);
+    in.key(2, L2, true);  // L2 as a key of another device (the built-in controller)
+    a = in.pad();
+    check(a[2] == Math.round(-0.8f * 101) && a[1] == 0 && a[3] == 0);
+    in.key(2, L2, false);
+    in.key(2, L1, true);  // the knife: the right stick aims as well
+    a = in.pad();
+    check(a[2] == Math.round(-0.8f * 101) && a[1] == 0 && a[0] == CoreInput.GC_L);
+    in.key(2, L1, false);
+    a = in.pad();  // nothing held: the sticks as they are
+    check(a[1] == Math.round(0.3f * 101) && a[2] == 101 && a[4] == Math.round(-0.8f * 92));
+    // the touch controls' sticks stay as they are while aiming
+    in.motion(1, 0, 0, 0, 0, 1f, 0, 0, 0);
+    in.touchStick(false, 0, -1);
+    in.touchStick(true, 1, 0);
+    a = in.pad();
+    check(a[2] == 101 && a[3] == 92);
+    in.touchClear();
+    in.motion(1, 0, 0, 0, 0, 0, 0, 0, 0);
     // with the swap: the labels first (the button labelled Y sends X's code)
     in.setSwapFace(true);
     check(in.gcButton(X) == CoreInput.GC_Z && in.gcButton(Y) == CoreInput.GC_X
@@ -132,6 +166,10 @@ public final class CoreInputTests {
     in.setAlternate(false);
     check(!in.alternate() && in.pad()[0] == 0 && in.gcButton(Y) == CoreInput.GC_Y
         && in.gcButton(R1) == CoreInput.GC_Z && !in.key(1, L1, true));
+    // the agreed layout keeps the left stick while L2 (the knife there) is held
+    in.motion(1, 0, -1, 0.5f, 0, 1f, 0, 0, 0);
+    a = in.pad();
+    check(a[2] == 101 && a[3] == Math.round(0.5f * 92));
     in.clear();
 
     // sticks: full deflection reaches the GameCube's range after PADClamp, up is positive

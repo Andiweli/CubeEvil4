@@ -4890,6 +4890,16 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   GPU-Schritt c auf 60 Hz gebeten, jedes Spielbild zweimal gezeigt). Die Anzeige lautet jetzt
   „30 FPS (Game) · 60 Hz“: die Rate gemessen (`FramePacing.hz`), bis dahin die von Android
   gemeldete. Alle Java-Dateien übersetzt; auf dem Gerät nicht gesehen.
+- **„Alternate Controls“: Zielen mit dem rechten Stick (Wunsch des Projektinhabers, 20.10.2026):**
+  solange L2 (Waffe; ab 31 von 255, wie das Spiel R zählt) oder L1 (Messer) gehalten wird, gibt
+  der rechte Stick den Steuerstick des Spiels, der linke ruht, der C-Stick steht (das Spiel
+  nutzt ihn beim Zielen nicht: `CameraQuasiFPS::calcDepressionRatio` nimmt dann die Neigung der
+  Waffe). Sonst links laufen, rechts umsehen wie bisher. Gezählt über alle Geräte (der
+  eingebaute Controller meldet Abzug und Sticks getrennt), die Touch-Steuerung ausgenommen;
+  die Standardbelegung unverändert. `CoreInputTests` 125 Prüfungen bestanden; Menütext
+  ergänzt; auf dem Gerät nicht gesehen.
+- **Für die nächste Alpha (nach v0.38.2 Alpha 3) bisher:** Version im Menü „(v…)“, FPS-Anzeige
+  „30 FPS (Game) · 60 Hz“, Zielen mit dem rechten Stick in „Alternate Controls“.
 - **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter
   linksbündig, „Back to the game“ in derselben Zeile rechts.
 - **Release 0.38.2 Alpha 03** (Entscheidung des Projektinhabers, 19.10.2026: auf GitHub liegt
