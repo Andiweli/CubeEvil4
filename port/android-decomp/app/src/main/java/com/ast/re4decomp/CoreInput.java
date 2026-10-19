@@ -17,7 +17,8 @@ import java.util.Map;
  * SELECT and R3 belong to the app (decision of the project owner,
  * 17.10.2026): SELECT pressed opens the app's menu (picture options, memory
  * card, error log), held for a second the game's debug menu; R3 saves
- * graphics data for the diagnosis when the tools are on.
+ * graphics data for the diagnosis when the tools are on. The touch controls
+ * (CoreTouch, TouchControls) are a device of their own (TOUCH).
  */
 public final class CoreInput {
   // GameCube pad bits (PAD_BUTTON_*)
@@ -143,6 +144,33 @@ public final class CoreInput {
     d.hats = (hatY < -0.5f ? GC_UP : 0) | (hatY > 0.5f ? GC_DOWN : 0)
         | (hatX < -0.5f ? GC_LEFT : 0) | (hatX > 0.5f ? GC_RIGHT : 0);
   }
+
+  /** The touch controls' device (CoreTouch): no Android device has this id. */
+  static final int TOUCH = Integer.MIN_VALUE;
+
+  /** Buttons of the touch controls (GameCube bits); L and R are the triggers at their end stop. */
+  public void touchButton(int bits, boolean down) {
+    Device d = device(TOUCH);
+    if ((bits & GC_L) != 0) d.l2Key = down;
+    if ((bits & GC_R) != 0) d.r2Key = down;
+    bits &= ~(GC_L | GC_R);
+    d.buttons = down ? d.buttons | bits : d.buttons & ~bits;
+  }
+
+  /** A stick of the touch controls (the C stick or the control stick), -1..1 with y down. */
+  public void touchStick(boolean cStick, float x, float y) {
+    Device d = device(TOUCH);
+    if (cStick) {
+      d.rx = clamp(x, -1, 1);
+      d.ry = clamp(y, -1, 1);
+    } else {
+      d.lx = clamp(x, -1, 1);
+      d.ly = clamp(y, -1, 1);
+    }
+  }
+
+  /** The touch controls hold nothing any more. */
+  public void touchClear() { devices.remove(TOUCH); }
 
   /** A device went away: its keys count as released. */
   public void remove(int device) { devices.remove(device); }

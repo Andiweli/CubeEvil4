@@ -23,12 +23,13 @@ import java.util.Locale;
 /**
  * The core mode's menu (M11; SELECT pressed, decision of the project owner,
  * 17.10.2026): picture options with the resolution they give, the FPS
- * display, the memory card's files as .gci (export for Dolphin or a
+ * display, the touch controls' switch (19.10.2026), the memory card's files as .gci (export for Dolphin or a
  * GameCube, import from there) and the error log; centred headings in small
  * capitals between lines (wishes of the project owner, 17.10.2026). The game
  * stands while it is open (CoreActivity pauses the core).
  * Run with the controller: D-pad between the entries, A chooses, B / START /
- * SELECT close it. German on a German device, English otherwise.
+ * SELECT close it; by touch like any Android dialog ("Back to the game"
+ * closes it). English (decision of the project owner, 17.10.2026).
  */
 final class CoreMenu extends Dialog {
   interface Host {
@@ -42,6 +43,8 @@ final class CoreMenu extends Dialog {
     void logChanged(boolean on);
     void toolsChanged(boolean on);
     void fpsChanged(boolean on);
+    /** The switch "Use Touch Controls" (the preferences hold it). */
+    void touchChanged(boolean on);
   }
 
   private final Host host;
@@ -179,10 +182,15 @@ final class CoreMenu extends Dialog {
     title.setGravity(Gravity.CENTER_HORIZONTAL);
     body.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.WRAP_CONTENT));
-    TextView intro = text("SELECT: this menu  ·  hold SELECT for a second: the game's debug menu  ·  B: back to the game",
-        13, false);
+    TextView intro = text("SELECT (touch: MENU): this menu  ·  hold it for a second: the game's debug menu  ·  "
+        + "B: back to the game", 13, false);
     intro.setGravity(Gravity.CENTER_HORIZONTAL);
     body.addView(intro, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT));
+    LinearLayout back = new LinearLayout(getContext());
+    back.setGravity(Gravity.CENTER_HORIZONTAL);
+    button(back, "Back to the game", v -> dismiss());
+    body.addView(back, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.WRAP_CONTENT));
 
     heading("Graphics");
@@ -211,6 +219,16 @@ final class CoreMenu extends Dialog {
     graphicsLine = text("", 12, false);
     body.addView(graphicsLine);
     showGraphics();
+
+    heading("Controls");
+    LinearLayout touchRow = new LinearLayout(getContext());
+    checkBox(touchRow, "Use Touch Controls", getContext().getSharedPreferences(CoreActivity.INPUT_PREFS,
+        Context.MODE_PRIVATE).getBoolean(CoreActivity.TOUCH_ALWAYS, false), (b, on) -> host.touchChanged(on));
+    body.addView(touchRow);
+    body.addView(text("Off: the touch controls appear only while no controller is connected ("
+        + (TouchControls.controllerConnected() ? "one is connected now" : "none is connected now")
+        + "). The gear at the top right moves and resizes them. MENU is SELECT; L and R stay pressed until "
+        + "tapped again.", 12, false));
 
     heading("Memory card (slot A)");
     cardLine = text("", 13, false);

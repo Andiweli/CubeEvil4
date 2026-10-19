@@ -4290,11 +4290,57 @@ Variante `classic` braucht weiter nur Disc 1.
   „Use Touch Controls“. Belegung: linker Stick, Steuerkreuz (Spielmenüs), `A` `B` `X` `Y` `Z`
   `L` `R` `START`, `MENU` (wie SELECT). **C-Stick über die rechte Touchfläche** (Look-Zone,
   Entscheidung des Projektinhabers): RetroTouch meldet zwei Sticks ohne Kennung
-  (`onMove(x, y)`), die Look-Zone dagegen getrennt (`onLook`). Noch nicht umgesetzt.
+  (`onMove(x, y)`), die Look-Zone dagegen getrennt (`onLook`). Umgesetzt mit 1.0.0-beta.5
+  (nächster Abschnitt).
 - **60 FPS: vorerst nicht** (Entscheidung des Projektinhabers). Befund: `SetSystemVcnt(1)`
   (60 Hz) ließe das Spiel doppelt so schnell laufen; die Spiellogik rechnet in Bildern, die
   Einstellung wird nur an 7 Stellen gelesen (Tasten-Wiederholung, DVD, Filme, Ausnahme,
   Debug-Balken). Echte 60 FPS bräuchten berechnete Zwischenbilder im Renderer.
+
+### Touch-Steuerung eingebaut (RetroTouch 1.0.0-beta.5, 19.10.2026, Cloud, Branch `claude/re4-touch-controls`)
+
+- **Bibliothek:** `port/android-decomp/app/libs/retrotouch.aar` ohne Versionsnummer im Namen
+  (Wunsch des Projektinhabers: ein Update ersetzt nur die Datei), eingebunden in
+  `app/build.gradle` (`implementation files('libs/retrotouch.aar')`). beta.5 bringt Farben
+  (`RetroTouchColors`), sonst die API von beta.4.
+- **Aufteilung:** `CoreTouch.java` (ohne Android, Host-Test) übersetzt RetroTouchs Meldungen in den
+  GameCube-Controller und hält das Standard-Layout; `TouchControls.java` legt `RetroTouchView` über
+  das Bild, `CoreActivity` reicht Berührungen durch (`dispatchTouchEvent`) und teilt die
+  SELECT-Logik (`select()`), `CoreInput` hat ein eigenes Gerät `TOUCH` (`touchButton`, `touchStick`,
+  `touchClear`).
+- **Wann sichtbar:** automatisch, solange kein Controller angeschlossen ist
+  (`RetroTouchControllers.isControllerConnected()`: eingebaute, USB- und Bluetooth-Controller;
+  geprüft zweimal pro Sekunde und bei jeder Geräteänderung); mit dem Schalter **„Use Touch
+  Controls“** im App-Menü (neuer Abschnitt „Controls“, gespeichert in `core_input/touchControls`)
+  immer. Auf dem Retroid (eingebaute Tasten) also nur mit dem Schalter.
+- **Belegung:** Knöpfe `A` (grün) `B` (rot) `X` `Y` (hellgrau) `Z` (lila) `L` `R` `START` `MENU`
+  (grau), Steuerkreuz (auch für die Spielmenüs), linker Stick = Control-Stick, rechte
+  Bildschirmhälfte = C-Stick. `MENU` = SELECT: kurz das App-Menü, 1 s halten das Debug-Menü.
+  **`L` und `R` rasten ein** (Tippen hält, nächstes Tippen lässt los, RetroTouch zeigt sie dann
+  kräftiger): mit zwei Daumen lässt sich R (zielen) sonst nicht halten, während A (feuern)
+  getippt wird. Eigene Entscheidung, auf Wunsch leicht umstellbar.
+- **C-Stick aus der Look-Zone:** RetroTouch meldet dort nur Bewegungen, kein Aufsetzen oder
+  Abheben. Der C-Stick ist darum der Weg des Fingers seit dem Aufsetzen (0,15 der kürzeren
+  Bildschirmseite = voll, längere Wege schieben die Mitte mit) und springt beim Abheben zurück.
+  Welcher Finger schaut, bestimmt `TouchControls`: ein Finger, der in der Look-Zone aufsetzt und
+  keinen Knopf/Stick/Steuerkreuz auslöst. Ein Daumen außerhalb aller Knöpfe nimmt die
+  Spielfläche selbst (`setOnTouchListener`), sonst gäbe Android die weiteren Finger dieser
+  Berührung an keine Ansicht mehr. Bekommt RetroTouch später „Finger berührt/abgehoben“ für die
+  Look-Zone, ersetzt das diese Bestimmung.
+- **Editor:** RetroTouchs Zahnrad oben rechts (verschieben, Größe, Deckkraft, speichern); das
+  Spiel steht währenddessen wie im App-Menü. Das App-Menü hat zusätzlich „Back to the game“ zum
+  Schließen per Touch.
+- **Geprüft (Cloud):** `tests/CoreTouchTests.java` (232 Prüfungen, in `tools/test_host.sh`):
+  Knöpfe, einrastendes L/R, MENU, Sticks, C-Stick-Weg und Zurückspringen, Finger, die nicht
+  schauen, Abbruch, zusammen mit einem echten Controller; das Layout nach RetroTouchs Geometrie:
+  keine Touch-Flächen überlappen, alles bei 4:3, 16:9 und 20:9 im Bild, Beschriftungen höchstens
+  5 Zeichen (Gegenprobe: ein verschobenes B schlägt an). Alle App-Quellen kompilieren ohne
+  Fehler und Warnungen gegen die Android-15-Klassen (`org.robolectric:android-all`, nur zum
+  Prüfen, nicht im Repository) und die Klassen der AAR. `CoreInputTests` weiter 69 Prüfungen.
+  Die übrigen Host-Tests wie bisher; weiterhin rot nur die bekannten `enemy_feedback_tests` und
+  `inventory_case_contracts` (siehe oben).
+- **Nicht getestet:** Gradle-Build mit der AAR, Lint, das Gerät (Darstellung, Mehrfinger,
+  Größen auf dem Handy, Ein-/Ausblenden beim An- und Abstecken eines Controllers).
 
 ### Grafik-Auslastung: Analyse (19.10.2026, Cloud, nur Code und Berichte, noch nichts gemessen)
 

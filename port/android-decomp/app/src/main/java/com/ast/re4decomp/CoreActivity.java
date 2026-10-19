@@ -1,5 +1,6 @@
 package com.ast.re4decomp;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
@@ -63,14 +64,19 @@ import javax.microedition.khronos.opengles.GL10;
  * memory card as .gci, error log; the game stands meanwhile), SELECT held
  * for a second the game's debug menu (decision of the project owner,
  * 17.10.2026); R3 saves graphics data for the diagnosis when the tools are
- * on (the test scripts, or the menu's switch). The game also stands while
- * the app is not in front. Back ends the game (the core cannot be restarted
+ * on (the test scripts, or the menu's switch). The touch controls
+ * (TouchControls: RetroTouch above the picture) appear while no controller is
+ * connected or when the menu's switch is on; their MENU is SELECT. The game
+ * also stands while the app is not in front and while RetroTouch's editor is
+ * open. Back ends the game (the core cannot be restarted
  * inside the same process). The error log records from the start (CoreLog).
  */
 public final class CoreActivity extends Activity implements InputManager.InputDeviceListener {
   static final String TAG = "RE4Input";
   /** Preferences of the core mode's controller (MainActivity sets the swap). */
   static final String INPUT_PREFS = "core_input", SWAP_FACE = "swapFace", R3_CAPTURE = "r3Capture";
+  /** The menu's switch "Use Touch Controls": shown even with a controller (off: only without one). */
+  static final String TOUCH_ALWAYS = "touchControls";
   /** The menu's picture options: scale (0 auto, 1-4), samples, anisotropy, aspect (0 16:9, 1 4:3). */
   static final String GRAPHICS_PREFS = "core_graphics";
   private static final int REQUEST_EXPORT = 1, REQUEST_EXPORT_ALL = 2, REQUEST_IMPORT = 3, REQUEST_REPORT = 4;
@@ -83,6 +89,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private final CoreAudio audio = new CoreAudio();
   private final Set<Integer> seenDevices = new HashSet<>();
   private GLSurfaceView surface;
+  // the touch controls (RetroTouch) and its editor, during which the game stands
+  private TouchControls touchControls;
+  private boolean touchEditing;
   private String startProblem = "";
   private String settings = "";
   private volatile boolean destroyed;
@@ -108,6 +117,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private static final long HANG_MS = 8000;
 
   @Override
+  @SuppressLint("ClickableViewAccessibility")
   public void onCreate(Bundle state) {
     super.onCreate(state);
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -148,6 +158,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       @Override public void onDrawFrame(GL10 gl) { CoreBridge.draw(); }
     });
     root.addView(surface);
+    // the surface takes the fingers beside the touch controls: Android gives the further fingers
+    // of a touch only to views that took one, so a thumb beside the buttons would block them
+    surface.setOnTouchListener((v, e) -> true);
     fpsView = new TextView(this);
     fpsView.setTypeface(Typeface.MONOSPACE);
     fpsView.setTextSize(11);
@@ -157,6 +170,10 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     root.addView(fpsView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,
         FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START));
     showFps(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("fps", false));
+    // the touch controls above everything
+    touchControls = new TouchControls(this, input, inputPrefs.getBoolean(TOUCH_ALWAYS, false), touchHost);
+    root.addView(touchControls.view(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
+        FrameLayout.LayoutParams.MATCH_PARENT));
     if (startProblem.isEmpty()) CoreBridge.setDof(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("dof", true));
     setContentView(root);
     surface.setFocusable(true);
@@ -193,9 +210,14 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
         | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
   }
 
-  /** Twice a second: the room the game wants; the FPS display; a game that stands without a pause. */
+  /**
+   * Twice a second: the room the game wants; the FPS display; a game that
+   * stands without a pause; the touch controls shown or hidden by the
+   * controllers present.
+   */
   private void tick() {
     if (destroyed) return;
+    touchControls.update();
     updateFps();
     checkHang();
     int room = CoreBridge.wantedRoom();
@@ -213,7 +235,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private void updateFps() {
     if (fpsView.getVisibility() != View.VISIBLE) return;
     long now = SystemClock.uptimeMillis(), frames = CoreBridge.gameFrames();
-    if (frames < 0 || !resumed || menu != null) {
+    if (frames < 0 || !resumed || menu != null || touchEditing) {
       fpsFrames = -1;  // the game stands: count anew afterwards
       return;
     }
@@ -237,7 +259,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     long now = SystemClock.uptimeMillis();
     long frames = CoreBridge.gameFrames();
     if (frames < 0) return;
-    if (frames != lastFrames || !resumed || menu != null) {
+    if (frames != lastFrames || !resumed || menu != null || touchEditing) {
       if (frames != lastFrames) hangReported = false;  // the game moves (again)
       lastFrames = frames;
       framesSince = now;
@@ -301,6 +323,21 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     Log.i(TAG, "SELECT held: debug menu");
   };
 
+  /** SELECT (a controller's key or the touch controls' MENU) went down or up. */
+  private void select(boolean down) {
+    if (down) {
+      selectDown = true;
+      selectHeld = false;
+      main.removeCallbacks(selectHold);
+      main.postDelayed(selectHold, SELECT_HOLD_MS);
+    } else if (selectDown) {
+      // let go before the second: the menu
+      selectDown = false;
+      main.removeCallbacks(selectHold);
+      if (!selectHeld) openMenu();
+    }
+  }
+
   private void openMenu() {
     if (menu != null || destroyed) return;
     if (!menuSupported) {
@@ -317,7 +354,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     menu.setOnDismissListener(d -> {
       menu = null;
       releaseAll();
-      if (resumed) {
+      if (resumed && !touchEditing) {
         CoreBridge.pause(false, 0);
         audio.start();
         main.removeCallbacks(rumbleTick);
@@ -365,7 +402,47 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     }
 
     @Override public void fpsChanged(boolean on) { showFps(on); }
+
+    @Override public void touchChanged(boolean on) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(TOUCH_ALWAYS, on).apply();
+      touchControls.setAlways(on);
+    }
   };
+
+  private final TouchControls.Host touchHost = new TouchControls.Host() {
+    @Override public void select(boolean down, boolean finger) {
+      if (down || finger) {
+        CoreActivity.this.select(down);
+      } else {
+        // RetroTouch let MENU go itself (hidden, reset): no menu
+        selectDown = false;
+        main.removeCallbacks(selectHold);
+      }
+    }
+
+    @Override public void editing(boolean on) { touchEditing(on); }
+
+    @Override public void send() { CoreActivity.this.send(); }
+  };
+
+  /** RetroTouch's editor (its gear) opened or closed: the game stands while the player arranges the controls. */
+  private void touchEditing(boolean on) {
+    touchEditing = on;
+    input.clear();
+    send();
+    if (!menuSupported) return;
+    if (on) {
+      boolean paused = CoreBridge.pause(true, 800);
+      audio.stop();
+      stopVibrator();
+      Log.i(TAG, "touch editor: " + (paused ? "the game stands" : "the game did not stop yet (loading?)"));
+    } else if (resumed && menu == null) {
+      CoreBridge.pause(false, 0);
+      audio.start();
+      main.removeCallbacks(rumbleTick);
+      main.post(rumbleTick);
+    }
+  }
 
   private void startForResult(Intent intent, int request) {
     try {
@@ -591,14 +668,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       case CoreInput.APP_MENU:
         // pressed: the menu when let go; held for a second: the game's debug menu
         if (first) {
-          selectDown = true;
-          selectHeld = false;
-          main.removeCallbacks(selectHold);
-          main.postDelayed(selectHold, SELECT_HOLD_MS);
-        } else if (e.getAction() == KeyEvent.ACTION_UP && selectDown) {
-          selectDown = false;
-          main.removeCallbacks(selectHold);
-          if (!selectHeld) openMenu();
+          select(true);
+        } else if (e.getAction() == KeyEvent.ACTION_UP) {
+          select(false);
         }
         return true;
       case CoreInput.APP_GX_DUMP:
@@ -668,20 +740,36 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     return super.onGenericMotionEvent(e);
   }
 
-  @Override public void onInputDeviceAdded(int id) {}
+  /**
+   * A touch of the window: through the views (RetroTouch) with the touch
+   * controls watching which finger looks (TouchControls).
+   */
+  @Override
+  public boolean dispatchTouchEvent(MotionEvent e) {
+    if (touchControls == null) return super.dispatchTouchEvent(e);
+    touchControls.before(e);
+    boolean taken = super.dispatchTouchEvent(e);
+    touchControls.after(e);
+    return taken;
+  }
+
+  @Override public void onInputDeviceAdded(int id) { touchControls.update(); }
   @Override public void onInputDeviceChanged(int id) {
     input.remove(id);
     seenDevices.remove(id);
     send();
+    touchControls.update();
   }
   @Override public void onInputDeviceRemoved(int id) {
     input.remove(id);
     send();
+    touchControls.update();
   }
 
   /** Nothing held while the game is not in front (no stuck keys after a dialog or the home screen). */
   private void releaseAll() {
     input.clear();
+    if (touchControls != null) touchControls.reset();
     send();
   }
 
@@ -776,13 +864,13 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     hideSystemUi();
     surface.onResume();
     resumed = true;
-    // the game runs again unless the menu is open (a file picker of the menu came back)
-    if (menuSupported && menu == null) CoreBridge.pause(false, 0);
+    // the game runs again unless the menu or the touch editor is open (a file picker of the menu came back)
+    if (menuSupported && menu == null && !touchEditing) CoreBridge.pause(false, 0);
     Choreographer.getInstance().removeFrameCallback(vsyncTick);
     Choreographer.getInstance().postFrameCallback(vsyncTick);
     InputManager im = (InputManager) getSystemService(Context.INPUT_SERVICE);
     if (im != null) im.registerInputDeviceListener(this, main);
-    if (menu == null) {
+    if (menu == null && !touchEditing) {
       main.removeCallbacks(rumbleTick);
       main.post(rumbleTick);
       audio.start();

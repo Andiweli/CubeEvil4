@@ -79,3 +79,9 @@ android {
     packaging { jniLibs { useLegacyPackaging = false } }
     lint { abortOnError true }
 }
+
+dependencies {
+    // RetroTouch (MIT, github.com/Andiweli/RetroTouch): the touch controls of the core mode
+    // (TouchControls). An update replaces libs/retrotouch.aar; the file name carries no version.
+    implementation files('libs/retrotouch.aar')
+}
