@@ -5,6 +5,8 @@
 ![ARM 32/64-bit](https://img.shields.io/badge/ARM-32%2F64--bit-0091BD?logo=arm&logoColor=white)
 ![OpenGL ES 3.0+](https://img.shields.io/badge/OpenGL%20ES-3.0%2B-5586A4?logo=opengl&logoColor=white)
 ![Controller only](https://img.shields.io/badge/Input-Controller%20only-9A1B1C)
+
+[![Join The Lair on Discord](https://img.shields.io/badge/Discord-The%20Lair-5865F2?logo=discord&logoColor=white)](https://discord.gg/AB3WVBqD5G)
 [![Support via PayPal](https://img.shields.io/badge/Support%20via-PayPal-0070BA?logo=paypal&logoColor=white)](https://paypal.me/andiweli)
 
 **[STATUS](#status) | [HOW TO USE](#how-to-use) | [DISCORD](https://discord.gg/AB3WVBqD5G) | [ALPHA RELEASE](https://github.com/Andiweli/CubeEvil4-Android/releases)**
@@ -218,13 +220,13 @@ is that the output bytes never change.
 
 ## Support
 
-Further support is available on [Discord](https://discord.gg/AB3WVBqD5G).
-
 If you enjoy this project and would like to support my work, you can make a small contribution via PayPal.
 
 Your support helps me spend more time maintaining existing projects, fixing bugs, improving compatibility, and working on new features.
 
 [![Support via PayPal](https://img.shields.io/badge/Support%20via-PayPal-0070BA?logo=paypal&logoColor=white)](https://paypal.me/andiweli)
+
+[![Join The Lair on Discord](https://img.shields.io/badge/Discord-The%20Lair-5865F2?logo=discord&logoColor=white)](https://discord.gg/AB3WVBqD5G)
 
 Thank you for your support!
 
