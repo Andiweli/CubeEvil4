@@ -92,6 +92,12 @@ void forms(Holder* h, Wide* w, s32 n, u8* pool, int i)
     s32 slot;
     getPtr((void**) &slot);                          // expect: ptr_slot_check
     *(u32*) &w->p = 0;                               // expect: ptr_word_check
+    {
+        u32* link = (u32*) &w->p;                    // the word view in a variable (EfmSetObj04)
+        link[0] = 0;                                 // expect: ptr_word_check
+        link[1] = 7;                                 // expect: ptr_word_check
+        *((u32*) &w->p + 1) = 0;                     // expect: ptr_word_check
+    }
     Narrow* v1 = (Narrow*) w;                        // expect: cast_check
     Narrow* v2 = VIEW(h);                            // expect: cast_check
     g_value = FIELD_B(w);                            // expect: raw_offset_check raw_offset_words
@@ -136,6 +142,8 @@ void reviewed(Holder* h, Wide* w, s32 n, u8* pool, int i, Derived* d)
     g_value = *(s32*) ((u8*) w + WIDE_B);
     g_value = *(s32*) ((u8*) w + (n * 12 + WIDE_B));
     char* c2 = (char*) ADDR32(n);
+    u32* own = (u32*) &w->a;                         // a word view of a word: no pointer behind it
+    own[0] = 1;
     (void) a6; (void) c2;
     (void) c1; (void) a1; (void) a2; (void) a3; (void) a4; (void) a5; (void) h;
 }

@@ -4111,6 +4111,67 @@ wegen der Marke „Resident Evil“.
   solchen Lauf (GX-Werte alle 10 s), Einstellungen, Spielstelle, ein zweiter Lauf derselben
   Stelle und ein Lauf mit 2-facher Auflösung und ohne Tiefenschärfe/Kantenglättung.
 
+**Tester-Bericht 19.10.2026 01:00 (POCO X7 Pro, Android 16, 64 bit, CubeEvil4 0.38.0-core,
+`cubeevil4-report-20261019-010055.zip`; 3-fache Auflösung, 2× MSAA, 8× anisotrop, Tiefenschärfe),
+Auswertung:**
+- **Absturz (64 bit) am 18.10. 22:58 in r104**, gleich nach einem Schuss (R+A): SIGSEGV an
+  `0xf81017988` in `cObj04::move` (+52), gerufen aus `EfmSetObj04` (Effekt-Modelle, die bei
+  einem Treffer wegfliegen: Splitter, Trümmer); Register `x8 = 0x0000000f81017980`, gelesen
+  wird `be_flag` des Eltern-Modells (`pMod->isAlive()`, Abstand 8 auf LP64).
+- **Ursache (Absturzbericht und Code):** `EfmSetObj04` (esp_efm.cpp) schreibt Eltern-Modell
+  und dessen `guid` über einen Wortzeiger: `u32* link = (u32*) &w->pMod; link[0] = (u32) parent;
+  link[1] = parent->guid;`. Auf ILP32 sind das `pMod` und `Guid_pMod`; auf LP64 hat `pMod`
+  8 Bytes, `link[1]` ist seine obere Hälfte. So wurde `pMod = guid << 32 | parent`
+  (`0xF` und `0x81017980`, genau der Registerwert) und `Guid_pMod` blieb alt.
+  **Patch 0084:** die beiden Werte über die Felder selbst, auf ILP32 gleich.
+- **Lücke im Werkzeug:** `port/tools/m12/ptr_word_check.py` kannte nur den direkt
+  dereferenzierten Wortzeiger (`*(u32*) &p = x`), nicht den in einer Hilfsvariablen
+  gehaltenen. Es verfolgt jetzt lokale Variablen, denen ein Wortzeiger auf einen Zeiger
+  zugewiesen wird, und verschobene Wortzeiger (`*((u32*) &p + 1)`); „Schreiben“ heißt nur noch
+  linke Seite von `=` oder `+=` … (vorher zählte auch die linke Seite von `==` oder `+`).
+  Auf dem ganzen Spielcode findet es genau die zwei Zeilen von `EfmSetObj04` neu (nach Patch
+  0084: nur noch die geprüfte Stelle in pl_npc.cpp). Selbsttest um drei Beispiele und ein
+  Gegenbeispiel erweitert (17 von 17).
+- **Gegner nicht geladen (64 bit) am 18.10. 23:12 in r107:** „alloc[3d2080]:free[3b2fa0]
+  read.cpp(725)“, „DVD: Memory allocate failed“, „readEmData(): error! em/em12.drs“,
+  „EmSetFromList() Em set failed, Id = 12“: `em12.drs` braucht 0x3D2080 Bytes in Heap 4, frei
+  waren 0x3B2FA0, es fehlten 0x1F0E0 (124 KB); der Raum lief ohne diesen Gegner weiter.
+  Auf 64 bit belegen Werke und Vorräte mit Zeigern mehr Platz in den Heaps (Gegner-Platz
+  0xF60 statt 0xDE0, Objekt-Platz 0x4B0 statt 0x3D8, Effekt-Platz 0x1A8 statt 0x150 …): im
+  Vergleichslauf 16:48 hatte Heap 4 in r100 auf i686 mindestens 0x115AC0 frei, auf x86_64
+  0xC6B80, 0x4EF40 (316 KB) weniger. Ob `em12` in r107 auf 32 bit passt, ist noch nicht
+  gemessen (Vergleichslauf mit Start r107, siehe unten).
+  **Regel `lp64_sizes` (neuer Eintrag):** das Ende der Heaps (`SystemMemInit`,
+  `Heap_end_addr`) liegt auf LP64 1 MB höher, 0x818F4000 statt 0x817F4000, in der Hälfte von
+  MEM1, die nur eine Entwicklungskonsole hat (die Reservierung des Ports umfasst 48 MB). Heap 0
+  und über `MemReplaceHeap` der Raum-Heap 4 enden dort. Die Laufzeit legt die Dateitabelle
+  der Disc (FST) entsprechend höher (`RE4_MEM1_LP64_HEAP_EXTRA`, `re4_runtime.h`); der
+  Laufzeittest `tasks` prüft, dass Heap-Ende des Spiels und FST-Platz der Laufzeit
+  übereinstimmen (ILP32 0x817F4000, LP64 0x818F4000). Auf 32 bit bleibt alles wie beim GameCube.
+- Weitere Meldungen ohne Fehler: `cDataSwap.cpp(64)` und `datactrl.cpp(452)` ohne Platz
+  (Merkmal 0): das Spiel weicht dann wie vorgesehen auf das ARAM aus bzw. lädt neu;
+  `Debug_alloc` ohne Platz beim Öffnen des Debug-Menüs (`rel/tools.rel`); „ESP : num max.
+  retry“ (Effekt-Vorrat voll, eine Meldung des Spiels). Ob eine davon auf 32 bit seltener ist,
+  zeigt erst ein Vergleichslauf derselben Stelle.
+- **Speichern und Laden auf 64 bit auf dem Gerät des Testers bestätigt** (Protokoll):
+  Laden von Spielstand 6 (22:40), Speichern (22:47, „card-a.bin saved“), insgesamt 14 Mal
+  gespeichert; die Karte zeigt sieben Spielstände bis r10e (2:40 Spielzeit).
+- **Ruckler und Shader (Frage vom 18.10.):** die App schreibt alle 10 s eine Zeile mit dem
+  längsten Bild und der Zahl der Programme (übersetzt und aus dem Zwischenspeicher). Über alle
+  834 Abschnitte des Berichts: in Abschnitten mit **neu übersetzten** Shader-Programmen hatte
+  **99 %** ein Bild über 25 ms (Mittelwert des längsten Bildes 66 ms, schlimmster Fall 1057 ms);
+  mit Programmen **nur aus dem Zwischenspeicher** 9 % (höchstens 37 ms), ohne neue Programme
+  6 %. Die Ruckler kommen also vom erstmaligen Übersetzen; der Zwischenspeicher wirkt (230
+  von 979 Programmen der zweiten Sitzung kamen aus ihm). Sonst zeigt die App im Mittel
+  119–120 Bilder je Sekunde, der Kern 30 Spielbilder je Sekunde ohne Warten auf die Grafik.
+- App-Version 0.38.1 (versionCode 57), damit Berichte des neuen Stands erkennbar sind.
+- Getestet (Cloud): `whole_build.sh i686 armhf x86_64 aarch64` mit Patch 0084 und der neuen
+  Regel: 0 Baufehler, alle Prüfungen bestanden (Laufzeittest mit `tasks` samt Heap-Ende, Kern-
+  test, Speicherkarte, Formatvergleich, Filmtest, Filmvergleich 32/64 bit 250/250,
+  M12-Selbsttest 17/17); `ptr_word_check` auf dem ganzen Spielcode wie oben. **Nicht
+  getestet:** Disc-Daten (PC-Prüfung), Gerät; dass der Absturz in r104 weg ist, zeigt erst ein
+  Lauf an derselben Stelle.
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
@@ -4190,7 +4251,7 @@ sie ersetzt.
 | Füllfelder `[A - sizeof(X)]` → `[((A) > sizeof(X) ? (A) - sizeof(X) : 0)]` (`PAD_TO_SIZE`, M12) | auf LP64 ist `X` größer als der feste Platz `A`: sonst negative Feldgröße. Die festen Plätze selbst werden in M12-A3 angepasst |
 | Strukturen mit fester Form (`port/whole/fixed_form.json`): Zeiger-Glieder → `RE4_P32(T)` (`re4_ptr32.h`; ILP32: `T*`, LP64: 4 Bytes `Re4Ptr32<T>`), Datei bekommt `#include "re4_ptr32.h"` (`fixed_form_structs`, M12) | Daten, die das Spiel von der Disc liest und an Ort und Stelle umbiegt (Texturen, Kollision, Kamerabereiche, Modelle, Szenen-Treffer, Raumtabelle), der Kopf des Spielstands und die Modul-Verkettung: ihre Form ist durch die Disc bzw. die Speicherkarte festgelegt. Dazu `GxWork`, `SaveDataPtrs` (Sichten solcher Daten) und `OtData`/`OtPrim` (Zeichenreihenfolge: aus dem Bildpuffer des Raums, dessen Größe für die GameCube-Form gemacht ist). Bricht ab, wenn ein Glied nicht umschreibbar ist |
 | `TaskFunc`: Klasse statt `void*` (`re4_task_func.h`, gleiche Größe; auf LP64 4 Bytes wie auf der GameCube, M12) | GCC 2.95 wandelte Funktionszeiger still in `void*` um, modernes C++ nicht |
-| Feste Plätze und Arbeitsflächen (`port/whole/lp64_sizes.json`, `lp64_sizes`, nach den Patches, M12): die Größe in `EM_WORK_SIZE`, `OBJ_WORK_SIZE`, den 57 `u8 free[0xDE0 - 0x3E0]` der Gegner, den 25 `u8 free[OBJ_WORK_SIZE - 0x328]` der Objekte und `cEspgen::Free` → `RE4_LP64_SIZE(gc, lp64)` (Prelude; ILP32 der GameCube-Wert; auf beiden Breiten mit `+ re4_lp64_size`, einem Aufzählungswert 0, an dem die Prüfwerkzeuge eine geprüfte Größe im Syntaxbaum erkennen) | auf LP64 wird `cEm` 0xC0 Bytes größer, `cObj` 0x98; die eigenen Arbeitsbereiche mit Zeigern wachsen über ihre Fläche (bis 0xAB8 statt 0xA00). LP64: Gegner-Platz 0xF60, Fläche 0xAC0; Objekt-Platz 0x4B0, Fläche 0xF0; Effekt-Fläche 0xD0; Effekt-Pool-Platz 0x1A8. Dazu Speicher mit fester GameCube-Größe und Löschen mit fester Länge (`ATTACH_CAMERA`, `MOTION_INFO`, Bewegungstabellen des Spielers, Zeigertabellen der Puzzle-Teile und der Schatten-Objekte, Debug-Listen; `alloc_size_check.py`) und das Speicherbudget des Speicherbildschirms (`cCard::getUseMemSize`, + 8 KB für die 256 Bild-Bausteine). Geprüft mit `overlay_check.py`; eine andere Anzahl Fundstellen bricht den Build ab |
+| Feste Plätze und Arbeitsflächen (`port/whole/lp64_sizes.json`, `lp64_sizes`, nach den Patches, M12): die Größe in `EM_WORK_SIZE`, `OBJ_WORK_SIZE`, den 57 `u8 free[0xDE0 - 0x3E0]` der Gegner, den 25 `u8 free[OBJ_WORK_SIZE - 0x328]` der Objekte und `cEspgen::Free` → `RE4_LP64_SIZE(gc, lp64)` (Prelude; ILP32 der GameCube-Wert; auf beiden Breiten mit `+ re4_lp64_size`, einem Aufzählungswert 0, an dem die Prüfwerkzeuge eine geprüfte Größe im Syntaxbaum erkennen) | auf LP64 wird `cEm` 0xC0 Bytes größer, `cObj` 0x98; die eigenen Arbeitsbereiche mit Zeigern wachsen über ihre Fläche (bis 0xAB8 statt 0xA00). LP64: Gegner-Platz 0xF60, Fläche 0xAC0; Objekt-Platz 0x4B0, Fläche 0xF0; Effekt-Fläche 0xD0; Effekt-Pool-Platz 0x1A8. Dazu Speicher mit fester GameCube-Größe und Löschen mit fester Länge (`ATTACH_CAMERA`, `MOTION_INFO`, Bewegungstabellen des Spielers, Zeigertabellen der Puzzle-Teile und der Schatten-Objekte, Debug-Listen; `alloc_size_check.py`) und das Speicherbudget des Speicherbildschirms (`cCard::getUseMemSize`, + 8 KB für die 256 Bild-Bausteine). Geprüft mit `overlay_check.py`; eine andere Anzahl Fundstellen bricht den Build ab Dazu das Ende der Heaps (`SystemMemInit`, `Heap_end_addr`): auf LP64 1 MB höher (0x818F4000), die Laufzeit legt die FST darüber (`RE4_MEM1_LP64_HEAP_EXTRA`; Laufzeittest `tasks`); Anlass: `em12` fand in r107 auf dem POCO X7 Pro keinen Platz (19.10.2026) |
 | `(u16*) &pG->stage_no` → `(u16*) &pG->room_id`, `stage_prev` → `room_id_prev` (`ROOM_ID_ADDR`) | `G_ROOM_ID` und `RsfCheck(*(u16*) &pG->stage_no, …)` lesen die Raumnummer über die Adresse ihres ersten Bytes; auf little-endian liegt `stage_no` nach Patch 0016 am anderen Ende (auf der GameCube dieselbe Adresse) |
 | `new (p) T()` → `new (p) T` (`PLACEMENT_VALUE_INIT`) | C++11 füllt eine Klasse ohne eigenen Konstruktor bei `T()` erst mit Nullen; der GameCube-Compiler nicht. `em.cpp` setzt `subArc` vor `new (em) cEm10()` (Absturz in `Em12Set`, 14.10.2026). Prüfung: `port/tools/whole_value_init.py` |
 | Prelude: `#define _ctype_ re4_newlib_ctype_` (nach den System-Headern) | Bionic exportiert `_ctype_` als Zeiger, newlib (das Spiel, `t_movie`) als Feld; die Tabelle heißt jetzt `re4_newlib_ctype_` (`runtime/newlib_ctype.c`), Bionics Zeiger bleibt unberührt (K2) |
@@ -4302,6 +4363,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0081 `main_mem.cpp`, `rnd.cpp` | Diagnose (M12), ändert das Verhalten des Spiels nicht: jede Speicheranforderung ohne Platz (`mem_alloc` mit jedem `flag`, `Debug_alloc`) ruft `re4_heap_failed` (runtime/log.cpp: „heap: no room for … in heap N (datei(zeile), flag F)“, Zähler für den Zustands-Trace); `re4_rnd_state` gibt den Zustand des Zufallsgenerators für den Trace. Anlass: der Absturz im Speicherbildschirm auf LP64 (PC-Prüfung 18.10.2026), ein zu kleines Speicherbudget (bestätigt durch das Protokoll; seit der Regel speichert und lädt die PC-Prüfung auf 64 bit); Speicherbudgets aus GameCube-Größen sind statisch kaum zu finden, der Vergleichslauf 32/64 bit zeigt jetzt jede Anforderung, die nur auf 64 bit scheitert |
 | 0082 `sce_sys.cpp`, `sce_at.cpp`, `r20d.cpp`, `r20e.cpp`, `r21d.cpp` | 64 bit (M12): GameCube-Abstände an einer Adresse als Zahl oder in einer Summe mit Index (`(u32) em + 0x320`, `i * sizeof(T) + (u32) w + 0x2C`, `base += 0x30C`) über `RE4_OFS(T, glied, gc)`: Szenen-Bedingung „Gegner tot“ (`cEm::hp`, LP64 0x3B8), Kamera-Ecken (`SceAtSysWork::pCamAt`, LP64 0x1B0, jetzt zeigerbreit geschrieben: `RAW_CAM_AT`), Schiebepuzzle r20e (Teile LP64 0x18, Felder 0x1C8), Zäune r20d (`fence[i].t`), Fallen r21d (`trap[]`, LP64 0x380). Gefunden mit `raw_offset_check.py` (Adressen als Zahl, Summen) und `sizeof_ptr_check.py` (18.10.2026) |
 | 0083 `id_sys.cpp` | Nicht initialisierter Lesezugriff in `IdShimmerTrans` (Flimmer-Effekt der Bildschirm-Elemente, z. B. die WARNING-Schrift): die Tiefe `dot`, die die Stärke der indirekten Verzerrung bestimmt, kam aus `indMtx`, bevor es beschrieben war (so schon im Original), also aus Resten auf dem Stapel, die je Build andere sind (Vergleichslauf 18.10.2026: Bild 301 an den Schriftkanten verschieden, alles andere gleich). `indMtx` beginnt jetzt mit Nullen: `dot` 0 → 1500 (Untergrenze), auf jedem Build gleich; was der GameCube dort las, ist nicht bekannt. Bestätigung: der nächste Vergleichslauf (Bild 301 gleich) |
+| 0084 `esp_efm.cpp` | `EfmSetObj04` schrieb Eltern-Modell und `guid` über einen Wortzeiger (`u32* link = (u32*) &w->pMod; link[0] = (u32) parent; link[1] = parent->guid;`): auf LP64 landete die `guid` in der oberen Hälfte von `pMod` (8 Bytes), `Guid_pMod` blieb alt; `cObj04::move` las das Eltern-Modell dann über `guid << 32 | parent` (Tester, POCO X7 Pro, 64 bit, r104, 18.10.2026: SIGSEGV an `0xf81017988`, `x8 = 0xf81017980`). Jetzt über die Felder selbst, auf ILP32 gleich. Gefunden vom erweiterten `ptr_word_check.py` (Wortzeiger in einer Hilfsvariablen). Bestätigung: Lauf an derselben Stelle auf 64 bit |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

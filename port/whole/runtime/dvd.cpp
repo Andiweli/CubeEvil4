@@ -254,7 +254,8 @@ bool insertDisc(int no)
         return true;
     }
     memcpy((void*) (unsigned long) RE4_MEM1_BASE, d.id, sizeof(d.id));
-    u32 top = RE4_MEM1_BASE + RE4_MEM1_RETAIL_SIZE;
+    // the top of retail memory (ILP32), on LP64 above the higher heap end
+    u32 top = RE4_MEM1_FST_ADDR + RE4_MEM1_FST_MAX;
     u32 fstAddr = (top - d.fstSize) & ~31u;
     if (d.fstSize > RE4_MEM1_FST_MAX) {
         re4_log("DVD: FST of disc %d is %u bytes, overlaps the game heap", no, d.fstSize);

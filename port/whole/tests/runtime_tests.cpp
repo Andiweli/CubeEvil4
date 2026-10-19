@@ -429,6 +429,14 @@ struct TaskFunc {  // port/whole/include/re4_task_func.h: one pointer
 struct TASK;
 void SystemMemInit();
 void TaskSchedulerInit();
+struct HEAP_TBL {  // include/main_mem.h
+    int handle;
+    void* start;
+    void* end;
+    unsigned char status;
+    unsigned char pad_D[3];
+};
+extern HEAP_TBL Heap[13];
 TASK* TaskExec(int level, TaskFunc func, void* arg);
 TASK* iTaskExec(TaskFunc func);
 void TaskScheduler();
@@ -492,12 +500,14 @@ void onRetrace(unsigned count)
 }
 
 int gValidPtrOnThread = -1;
+unsigned long gHeapEnd;
 
 int taskTestMain()
 {
     gValidPtrOnThread = re4probe_valid_ptr(1);
     OSInit();
     SystemMemInit();
+    gHeapEnd = (unsigned long) Heap[0].end;
     TaskSchedulerInit();
     TaskExec(1, TaskFunc{(void*) taskA}, 0);
     TaskExec(3, TaskFunc{(void*) taskB}, 0);
@@ -532,6 +542,12 @@ static void testTasks()
         re4_log("  trace: %s", gTrace);
     }
     CHECK(TaskStatus(3) == 0 && TaskStatus(1) != 0);
+    // the game's heaps end where the runtime puts the FST (lp64_sizes.json Heap_end_addr and
+    // RE4_MEM1_LP64_HEAP_EXTRA: 0x817F4000 on ILP32, 1 MB higher on LP64)
+    CHECK(gHeapEnd == RE4_MEM1_FST_ADDR);
+    if (gHeapEnd != RE4_MEM1_FST_ADDR) {
+        re4_log("  heap end 0x%lx, FST at 0x%x", gHeapEnd, RE4_MEM1_FST_ADDR);
+    }
     // VALID_PTR (patch 0037) on an OS thread's stack and outside one
     CHECK(gValidPtrOnThread == 0);
     CHECK(re4probe_valid_ptr(0) == 0);

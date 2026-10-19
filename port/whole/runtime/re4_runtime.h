@@ -50,9 +50,21 @@ int re4_game_main(void);
 /* OSGetArenaLo at boot: end of main.dol in the original (SystemMemInit halts
  * above 0x8034FFFF). The DOL itself lives in libre4_main.so. */
 #define RE4_MEM1_ARENA_LO 0x80300000u
+/* LP64 (milestone 12): the game's heaps end this much higher, in the half of
+ * MEM1 only a development console has (lp64_sizes.json: SystemMemInit's
+ * Heap_end_addr, the same value). The works with pointers need more room in
+ * them on 64 bit: the compare run of 18.10.2026 had 0x4EF40 bytes less free in
+ * heap 4 (r100), and on a POCO X7 Pro em12 found no room in r107 (0x1F0E0 short).
+ * 0 on ILP32: the GameCube map. */
+#if __SIZEOF_POINTER__ == 4
+#define RE4_MEM1_LP64_HEAP_EXTRA 0u
+#else
+#define RE4_MEM1_LP64_HEAP_EXTRA 0x00100000u
+#endif
 /* The disc's file system table sits at the top of retail memory, above the
- * game's last heap (0x817F4000), as the IPL places it. */
-#define RE4_MEM1_FST_ADDR 0x817F4000u
+ * game's last heap (0x817F4000), as the IPL places it; on LP64 above the
+ * higher heap end. */
+#define RE4_MEM1_FST_ADDR (0x817F4000u + RE4_MEM1_LP64_HEAP_EXTRA)
 #define RE4_MEM1_FST_MAX 0x0000C000u
 /* Retail console: the development paths (SN host file I/O) stay off. */
 #define RE4_CONSOLE_TYPE 0x00000003u
