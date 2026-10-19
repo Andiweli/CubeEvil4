@@ -529,14 +529,16 @@ void benchTick(std::chrono::steady_clock::time_point now) {
     const char *spec = getenv("RE4_GPU_BENCH");
     if (!spec || !*spec || std::string(spec) == "0") return;
     if (std::string(spec) == "1") {
-      // GPU step d: 2x MSAA in separate buffers, then on the tiles, with the tester's options
-      // (8x anisotropy, depth of field; POCO X7 Pro, 18.10.2026) and with MSAA alone, each twice,
-      // between nothing extra at the start and the end. The runs before (Retroid, 19.10.2026): MSAA
-      // +74 % work, the depth of field +19 %, both +114 %, 8x anisotropy and step b (forgetting the
-      // copy targets) nothing measurable; the same setting twice up to 5 % apart.
-      // "S/M/A/D/I/T,..." names other steps (I: copy targets forgotten, T: MSAA on the tiles)
-      bench.steps = {{3, 1, 1, 0, 0, 1}, {3, 2, 8, 1, 0, 0}, {3, 2, 8, 1, 0, 1}, {3, 2, 1, 0, 0, 0},
-                     {3, 2, 1, 0, 0, 1}, {3, 2, 8, 1, 0, 0}, {3, 2, 8, 1, 0, 1}, {3, 1, 1, 0, 0, 1}};
+      // at scale 3: nothing extra, 2x and 4x MSAA alone, the depth of field alone, the tester's
+      // options (2x MSAA, 8x anisotropy, depth of field; POCO X7 Pro, 18.10.2026), 4x MSAA with
+      // them at scale 2, and nothing extra again. MSAA in own buffers: on the tiles (step d) the
+      // Adreno 650 loses the depth (19.10.2026). The runs before (Retroid, 19.10.2026): MSAA
+      // +74 % work, the depth of field +19 %, both +114 %, 8x anisotropy and step b nothing
+      // measurable, the same setting twice up to 5 % apart; 4x MSAA at scale 3 by hand: 20-25
+      // pictures/s. "S/M/A/D/I/T,..." names other steps (I: copy targets forgotten, T: MSAA on
+      // the tiles)
+      bench.steps = {{3, 1, 1, 0}, {3, 2, 1, 0}, {3, 4, 1, 0}, {3, 1, 1, 1},
+                     {3, 2, 8, 1}, {2, 4, 8, 1}, {3, 1, 1, 0}};
     } else {
       for (const char *at = spec; *at;) {
         BenchStep step{};

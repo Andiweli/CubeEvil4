@@ -4571,6 +4571,18 @@ Aufnahme:
   4× ohne Schalter in eigenen Puffern, mit `RE4_GX_MSAA_TILES=1` auf den Kacheln. Nicht getestet:
   das Gerät mit MSAA in eigenen Puffern (Haare müssen wieder da sein).
 
+**Gerätetest danach (19.10.2026, Projektinhaber, Stand `c698b263`, Kern neu gebaut mit dem
+FMA-Fix, 64 bit, von Hand in r100).** PC-Prüfung vorher ALLES OK (Magenta 19/19). **Haare und Nebel
+wieder richtig:** das Foto nach 70 s fällt in die Phase mit 2× MSAA in eigenen Puffern (blonde
+Strähnen, Haus im Nebel), das nach 147 s ohne MSAA ebenso. Bilder je Sekunde laut Projektinhaber
+und Protokoll: ohne MSAA und mit 2× 30 (der Kern 33,3 ms je Bild); **mit 4× sichtbar ruckelig,
+20–25** (Kern 49,1 bzw. 62,3 ms je Bild, davon 10 ms Warten auf den Renderer; 22,0 bzw. 25,2
+gezeigte Bilder/s). 4× in eigenen Puffern ist bei Auflösung 3 zu viel für den Retroid; der
+schnelle Weg (d) braucht dafür eine Fassung, die die Tiefe nach jeder Kopie selbst zurückschreibt
+(„d2“). Die Standard-Messreihe misst jetzt 2× und 4× allein, die Tiefenschärfe, die Optionen des
+Testers und 4× bei Auflösung 2, alles in eigenen Puffern. Danach: der GPU-Branch in den M12-Stand
+übernommen (alle Schritte dort aus, nur die Messung und die Prüfwerkzeuge).
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
