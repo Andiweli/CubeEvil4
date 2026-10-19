@@ -4245,6 +4245,35 @@ ohne Auswahl die erste Variante (`classicDebug` / `classicRelease`). Für CubeEv
 Titel lautet jetzt „RE4 Android Decomp (classic, not CubeEvil4)“ mit der echten Version
 (`MainActivity.versionName()`); ungeprüft, da in der Cloud kein Android-SDK.
 
+**Hänger im Lichterrätsel der Kirche (r117), 64 bit** (Frage des Projektinhabers, 19.10.2026; Bericht
+des Testers `cubeevil4-report-20261019-010055.zip`, POCO X7 Pro):
+- **Protokoll:** r117 ab 00:50:48; nach dreieinhalb Minuten öffnet der Tester das Debug-Menü
+  (00:54:29) und verlässt den Raum, ab 00:58:31 ist er wieder dort. Ab 00:58:35 läuft das Spiel
+  weiter (30 Spielbilder je Sekunde, „GX core“ mit 26 ms Leerlauf), aber Bild und Ton stehen: ab
+  01:00:02 alle 10 s genau 222 Zeichenaufträge und 260 Uniform-Uploads je Bild, 0 Stimmen; um
+  01:00:47 SELECT und der Fehlerbericht.
+- **Ursache (Code und Compiler):** `r117_LightMechanismMove` (Modus 2, „Muster prüfen“) wartet mit
+  `SceSleep(1)`, bis `r117_espEnd(W->esp[0])` Bit 2 im Byte 0xF9 des Lichtstrahls sieht. Das setzt
+  nur esp06 (der Effekt auf einem Pfad; `ESP06_WK.Flg`, Bit 2: am Pfadende angehalten): von allen
+  45 Klassen, die von `cEsp` erben, setzt sonst keine Bit 2 im Byte 1 ihrer eigenen Arbeit.
+  `ESP06_WK` enthält einen Zeiger (`pPath`) und beginnt auf LP64 8-ausgerichtet bei 0x110, nicht
+  am Datenende von `cEsp` (0x10C). Patch 0077 las `RE4_OWN(cEsp, u8, 0xF8) + 1` = 0x10D. Gemessen
+  mit den Bau-Flaggen: `Flg` bei 0xF9 (armhf), 0x111 (x86_64, aarch64); Patch 0077 jetzt
+  `RE4_OWN(cEsp, void*, 0xF8) + 1` = 0x111 (vorher 0x10D), auf ILP32 weiter 0xF9. Von 36 Klassen
+  mit `m_Free` beginnen 9 auf LP64 bei 0x110 (esp03, 06, 0d, 0e, 11, 12, 16, 3f, 4e).
+- **Lücke im Werkzeug:** `RE4_OWN` galt den Prüfungen als geprüfter Abstand, gleich mit welchem
+  `T`. Neu `port/tools/m12/own_start_check.py` (in `run_all.py`, Selbsttest 19 von 19): jede
+  `RE4_OWN(B, T, gc)`-Stelle, bei der die Klassen, die von `B` erben, ihre eigene Arbeit an mehr
+  als einem Abstand beginnen (cEsp: 36 bei 0x10C, 9 bei 0x110; cEm: 54 bei 0x49C, 2 bei 0x4A0).
+  5 Stellen, alle mit Begründung in `reviewed.json`: r117 (esp06, jetzt richtig), r300/r318
+  (Laser-Endpunkt als Vec 8 Bytes in die Arbeit: nur esp01, esp14, esp41 haben dort einen Vec,
+  alle ab 0x10C), `esp_sub.cpp` (esp1b, echter Typ der Arbeit, 0x10C), `em3e.h` (nur cEmMark,
+  0x49C).
+- App-Version 0.38.2 (versionCode 58).
+- Getestet (Cloud): `whole_build.sh i686 armhf x86_64 aarch64`: 0 Baufehler, alle Prüfungen
+  bestanden; alle 20 M12-Prüfungen auf den echten Builds (`run_all.py`, 29 min): 0 neue Funde.
+  **Nicht getestet:** das Rätsel selbst (braucht das Spiel bis r117 auf einem 64-bit-Gerät).
+
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
 Im Kernmodus startet das Spiel (Knopf „Start game“ und der automatische Start)
@@ -4492,7 +4521,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0074 `trans.cpp`, `emwindow.h`, `em3e.h`, `TexRender.cpp`, `light_area.cpp`, `objTrolley.cpp`, `r300.cpp`, `r30c.cpp`, `r310.cpp`, `r316.cpp`, `r317.cpp`, `r318.cpp`, `db_work.cpp` | 64 bit (M12): Sichten mit GameCube-Abständen (ein Füllfeld bis zu dem Glied, das sie benennen) über ein Objekt, dessen Grundklassen auf LP64 wachsen, erreichen das Glied jetzt über `RE4_OFS(T, glied, gc)` oder `sizeof` der Grundklasse (auf ILP32 der GameCube-Wert): Skelett (`cPartsWk` → `cParts::pList`), Fenster (`EmObjWork::eff`), `EmMarkView`, Lore (`FREE_EM10::Target_dir`), Ereignis-Kamera (`Event`-Glieder statt `TexRenderEvt`), Raketenwerfer (`cObjLauncher::pRocket`), r300/r30c/r310/r316/r317/r318, Objekt-Betrachter. `GxWork` und `SaveDataPtrs` stattdessen in `fixed_form.json`. Neu im Prelude: `RE4_OWN(B, T, gc)`, der Anfang der eigenen Arbeitsfläche hinter einer Grundklasse (auf LP64 in deren Füllbytes). Gefunden mit `cast_check.py` (jetzt auch C++) |
 | 0075 `event.cpp`, `ss_pzzl.cpp`, `ss_shop.cpp`, `eprintf.cpp`, `r332.cpp`, `r20d.cpp` | 64 bit (M12): Zeiger in 4-Byte-Plätzen. `EventMgr::GetRead` (Absturz beim Laden des Autofahrt-Ereignisses r120) und `Event::PFuncTbl` über eine Zeiger-Variable; die bin/tpl-Wörter von `ITEM_PIECE_INFO::model` als u32 geschrieben und gelesen; Debug-Textzeiger in 4-Byte-Plätzen (`RE4_P32`); r332-Makros und r20d mit Index statt GameCube-Byteabstand. Gefunden mit `ptr_slot_check.py` |
 | 0076 `db_log.cpp` | Die Spielmeldungen (`pLog->err/warn/mes`, auf dem GameCube Bildschirm und `printf`-Konsole) gehen über `re4_game_log` ins Protokoll des Ports: jede Meldung (nach ihrem Format) die ersten 3 Male, dann jedes 1000. Mal mit Zählung. Auf Android gab es keine Konsole, Meldungen wie „GetPrimBuff() : OVERFLOW“ gingen verloren |
-| 0077 `r117.cpp` | 64 bit (M12): Byte 0xF9 der Lichtstrahlen (Byte 1 der eigenen Arbeitsfläche hinter `cEsp`) über `RE4_OWN(cEsp, u8, 0xF8) + 1`; auf LP64 beginnt die Fläche bei 0x10C. Gefunden mit `raw_offset_check.py` (Abstände hinter dem Ende einer Struktur) |
+| 0077 `r117.cpp` | 64 bit (M12): Byte 0xF9 der Lichtstrahlen (Byte 1 der eigenen Arbeitsfläche hinter `cEsp`) über `RE4_OWN(cEsp, u8, 0xF8) + 1`; auf LP64 beginnt die Fläche bei 0x10C. Gefunden mit `raw_offset_check.py` (Abstände hinter dem Ende einer Struktur) **Berichtigt 19.10.2026:** der Lichtstrahl ist esp06, dessen Arbeit (mit Zeiger) auf LP64 bei 0x110 beginnt; gelesen wird jetzt `RE4_OWN(cEsp, void*, 0xF8) + 1` = 0x111 statt 0x10D (das Rätsel wartete sonst beim Prüfen des Musters ewig; Tester, POCO X7 Pro). Nachgezogen: `own_start_check.py` |
 | 0078 `motion.cpp`, `r320.cpp` | 64 bit (M12): GameCube-Abstände in Summen mit Variablen. `MOT_HIST` (Schlüssel-Verlauf der Wurzel für `MotionGetSpeed` und `MotionGetPosition`) über `RE4_OFS(MOTION_INFO, Key_hist, 8)`: vorher schrieb `HermiteInterpolation` auf LP64 in die obere Hälfte von `pHermite_data` (Absturz des ersten Ganados in r100, Gerät und PC-Prüfung; gefunden mit einem Hardware-Haltepunkt, `runtime/watch.cpp`). `R320_EM_OFS` über `RE4_OFS(R320Work, em, 0xC)` |
 | 0079 `cam_extra.cpp` | 64 bit (M12): die Kamera beim Öffnen einer Tür liest die z-Spalte von `FREE_EMDOOR::base_mat` über den Namen statt als `((f32*) em)[0x784 / 4]`. Gefunden mit `raw_offset_check.py --words` |
 | 0080 `include/trans.h` | 64 bit (M12): `ModelTexInfo`, die Sicht des Zeichners auf `cModelInfo` ab `flagsDC` (`MODEL_TEX`), legt jedes Glied dorthin, wo `cModelInfo` es hat: auf LP64 4-Byte-Packung und eine Lücke aus den Abständen von `cModelInfo` (auf dem GameCube 2 Bytes, auf LP64 6), `static_assert` je Glied. Vorher las `RefractShaderSetup` auf LP64 `blendTbl` 4 Bytes zu früh (Absturz im ersten Bild von r100, PC-Prüfung 18.10.2026). Gefunden mit `cast_check.py`, seit es den Operator `&` bei libclang abfragt (vorher im Makro übersehen) |

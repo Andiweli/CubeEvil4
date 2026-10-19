@@ -41,8 +41,8 @@ android {
         applicationId 'com.ast.re4decomp'
         minSdk 21
         targetSdk 35
-        versionCode 57
-        versionName '0.38.1'
+        versionCode 58
+        versionName '0.38.2'
         externalNativeBuild { cmake { cppFlags '-std=c++17 -Wall -Wextra' } }
     }
     // classic: the app's own game modules (arm64-v8a), as before; since

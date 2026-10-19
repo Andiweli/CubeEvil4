@@ -49,6 +49,13 @@ struct EspBase {  // 0x10 bytes on ILP32; on LP64 its data ends at 0x1C, sizeof 
     void* p;
     s32 y;
 };
+struct EspNear : EspBase {  // own work at 0x1C on LP64 (in EspBase's tail padding)
+    s32 flags;
+};
+struct EspFar : EspBase {   // own work at 0x20 on LP64 (it holds a pointer: 8-aligned)
+    void* path;
+    s32 flags;
+};
 
 #define VIEW(h) ((Narrow*) &(h)->w)          // a view over a member, in a macro (MODEL_TEX)
 #define FIELD_B(p) (*(s32*) ((u8*) (p) + 8))  // a GameCube byte offset in a macro
@@ -83,7 +90,7 @@ void forms2(EspBase* e, u8* buf, Owner* o)
     dh->table = (Wide*) ((u8*) dh->table + (u32) (unsigned long) dh);  // expect: reloc_check
     g_value = *(s32*) ((u8*) e + sizeof(EspBase));   // expect: sizeof_ptr_check
     g_value = *(s32*) (buf + sizeof(Wide));          // expect: sizeof_ptr_check
-    g_value = *(s32*) ((u8*) e + RE4_OWN(EspBase, s32, 0x10));
+    g_value = *(s32*) ((u8*) e + RE4_OWN(EspBase, s32, 0x10));  // expect: own_start_check
 }
 
 void forms(Holder* h, Wide* w, s32 n, u8* pool, int i)

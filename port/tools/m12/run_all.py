@@ -48,6 +48,7 @@ CHECKS = {
     "work_view_check": ["work_view_check.py", "--ref", "REF", "--lp64", "LP64", "--jobs", "JOBS"],
     "copy_view_check": ["copy_view_check.py", "--ref", "REF", "--lp64", "LP64", "--jobs", "JOBS"],
     "reloc_check": ["reloc_check.py", "--lp64", "LP64", "--jobs", "JOBS"],
+    "own_start_check": ["own_start_check.py", "--lp64", "LP64", "--jobs", "JOBS"],
 }
 
 
