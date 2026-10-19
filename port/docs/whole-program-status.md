@@ -4751,7 +4751,11 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   B #F6392C rot, Z #6B5CB1 lila, alle anderen Knöpfe #DDDDDD grau (RetroTouch schreibt auf hellem
   Grund dunkel). `CoreTouchTests` prüft sie (241 Prüfungen).
 - **Größere Ein-Zeichen-Beschriftung:** geht nur in RetroTouch (Textgröße dort höchstens 16 dp,
-  Radius × 0,34); Anfrage an den RetroTouch-Chat formuliert, neue AAR folgt.
+  Radius × 0,34). **RetroTouch 1.0.0-beta.6** (vom Projektinhaber, 19.10.2026) als
+  `app/libs/retrotouch.aar`: Beschriftungen aus einem Zeichen mit Radius × 0,68 ohne Obergrenze
+  (aus dem Bytecode von `drawButton` gelesen), längere wie bisher; öffentliche Schnittstelle
+  gegenüber beta.5 unverändert (`javap -public` verglichen), alle Java-Dateien der App damit
+  übersetzt. Nicht auf dem Gerät gesehen.
 - **Gyro-Zielen:** `GyroAim.java` liest den Gyrosensor wie der erste Port (Achsen je nach
   Bildschirmdrehung, 35 % Glättung, unter 0,006 rad/s nichts, älter als 150 ms nichts), nur bei
   eingeschaltetem Kästchen und App im Vordergrund; `CoreBridge.gyro` → `re4_core_gyro` →
