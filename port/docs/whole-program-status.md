@@ -4933,9 +4933,44 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   `s2old` (wie aufgenommen, ohne centroid, dreimal), `s2cen` (zweimal), `s2full`, `s1`, `s4cen`
   (96 Bilder). `gx_gl_check` 0 Fehler; beide ABIs ohne Fehler und Warnungen. **Nicht
   getestet:** auf dem Gerät.
+- **MSAA-Flackern: Ursache gefunden (20.10.2026).** Wiedergabe auf dem Retroid (32-bit-Reihe 00,
+  12 Bilder, `gx-replay.zip` des Projektinhabers) mit `centroid`: das Flackern ist weiter da.
+  Ausgewertet je Bild der Abstand jeder MSAA-Variante zum Bild ohne MSAA (`s1`): in der
+  Wiedergabe springt nur **Bild 06**, und zwar in **allen** MSAA-Varianten (`s2old` 320k statt
+  272k, 567 statt ~270 stark abweichende Punkte; `s2cen` 355k statt 306k; `s4cen` 441k statt
+  363k); live springt nur Bild 01 (307k, 500 Punkte), dazu Bild 04 schwach. Nachgerechnet mit
+  `gx_chunk_render` (Ausrichtung 32 wie auf dem Adreno): ein frischer Renderer wechselt den
+  Uniform-Ring (16 MB, 4 Viertel zu 4 MB, etwa 1,3 MB je Bild) in Bild 03 (beim 68.
+  Zeichenauftrag), **06 (beim 135.)** und 09 (beim 242.). Live läuft der Ring schon länger, seine
+  Wechsel liegen um gut 3 Bilder versetzt (01, 04, 07, 10). Dort, wo der Wechsel mitten in die
+  Zeichenaufträge der Bäume fällt, zeichnet der Adreno die Äste in diesem einen Bild anders
+  (heller); ohne MSAA ändert der Wechsel nichts. Beim ersten Umlauf eines frischen Renderers
+  setzt der Wechsel nur einen Fence (`glFenceSync`), gewartet wird nicht: schon der Fence mitten
+  im Bild genügt (vermutlich teilt der Treiber dort den Durchgang, und die MSAA-Proben überstehen
+  das nicht ganz). Das erklärt alles Bekannte: nur mit MSAA, nur dünne Dinge, „ab und zu“ (etwa
+  jedes dritte Bild, nur wenn der Wechsel bei den Bäumen liegt), unabhängig von Tiefenschärfe und
+  `centroid`, und in der Wiedergabe in anderen Bildern als live.
+  **Behoben:** der Ring wechselt sein Viertel jetzt vor einem Bild, nie während eines Bildes
+  (`gx_gl.cpp StreamChunkBegin`): vor jedem Bild muss das Viertel noch Platz für das größte
+  bisherige Bild und die Hälfte dazu haben (mindestens 2 MB), sonst geht es gleich zum nächsten.
+  Nur ein Bild, das mehr als ein Viertel braucht, wechselt noch mittendrin (einmal im Protokoll:
+  „GX uniform stream: a chunk needs more than a quarter's rest …“; Zähler
+  `GxStats::streamSwitches`/`streamSplits`, in der Zeile „GX work per chunk“ als „stream
+  switches (… inside a chunk)“; Bericht `test-core-app.ps1`: Zeile „Uniform-Ring“). Im Dorf
+  wechselt der Ring damit alle 2 Bilder; ein Umlauf sind 8 Bilder, gewartet wird erst, wenn die
+  GPU 6 Bilder zurückliegt (vorher etwa 9). **Geprüft (Cloud):** `gx_gl_check` neuer Test
+  `TestUniformStream` (Bilder zu 700 Zeichenaufträgen mit je eigener Matrix, etwa 2,3 MB:
+  Wechsel nur zwischen den Bildern; ein Bild zu 1400 wechselt mittendrin; alle Quadrate an
+  ihrem Platz; ohne MSAA, 4×, MSAA auf den Kacheln): 0 Fehler; ohne die Korrektur 8 Fehler.
+  Die 32-bit-Reihe 00 mit `gx_chunk_render` (2×, Auflösung 2): Wechsel in Bild 02, 04, 06, 08,
+  10 jeweils vor dem Bild, keiner im Bild, alle 12 Bilder bitgleich zu vorher (llvmpipe hat den
+  Fehler nicht). Syntaxprüfung 64 und 32 bit ohne neue Warnungen. **Nicht getestet:** auf dem Gerät
+  (Wiedergabe derselben Reihe: Bild 06 darf in keiner MSAA-Variante mehr springen; im Spiel
+  mit 2× die Äste vor den Häusern).
 - **Für die nächste Alpha (nach v0.38.2 Alpha 3) bisher:** Version im Menü „(v…)“, FPS-Anzeige
-  „30 FPS (Game) · 60 Hz“, Zielen mit dem rechten Stick in „Alternate Controls“; MSAA mit
-  `centroid` (wenn der Gerätetest das Flackern als behoben zeigt).
+  „30 FPS (Game) · 60 Hz“, Zielen mit dem rechten Stick in „Alternate Controls“; MSAA-Flackern
+  dünner Dinge behoben (Uniform-Ring wechselt nur zwischen Bildern; wenn der Gerätetest es
+  bestätigt), MSAA mit `centroid`.
 - **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter
   linksbündig, „Back to the game“ in derselben Zeile rechts.
 - **Release 0.38.2 Alpha 03** (Entscheidung des Projektinhabers, 19.10.2026: auf GitHub liegt

@@ -842,6 +842,10 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # the GL work per picture and the GPU time (the renderer's own measurement)
     $gxWork = $keep | Where-Object { $_ -match 'GX work per chunk: ' } | Select-Object -Last 1
     if ($gxWork) { Say "GX-Arbeit je Bild zuletzt:        $(($gxWork -split 'GX work per chunk: ')[-1])" }
+    # the uniform stream (gx_gl.cpp) moves on between pictures only (MSAA flicker on the Adreno,
+    # 20.10.2026); a picture larger than a quarter's rest still switches while drawing
+    $split = $keep | Where-Object { $_ -match 'RE4GX\s*: GX uniform stream: a chunk needs' } | Select-Object -First 1
+    if ($gxReady) { Say "Uniform-Ring:                     $(if ($split) { 'Wechsel MITTEN IM BILD: ' + (($split -split 'stream: ')[-1]) } else { 'Wechsel nur zwischen Bildern' })" }
     # the GPU measurement (-GpuBench): one line per picture option
     $bench = @($keep | Where-Object { $_ -match 'RE4Core\s*: GPU bench' })
     if ($GpuBench -or $bench.Count) {

@@ -343,31 +343,67 @@ struct GxRenderer::Impl {
   // (EXT_buffer_storage) when the driver has it, else an unsynchronised map per
   // block; a fence guards each quarter of the ring before it is written again.
   // RE4_GX_UNIFORM_STREAM=0: the two small buffers as before.
+  //
+  // The ring moves on to the next quarter between chunks, never while a picture is drawn: a
+  // fence set in the middle of a picture changed the multisampled pixels of what was drawn
+  // around it on the Retroid's Adreno 650 (thin branches in front of a house paler for one
+  // picture, about every third picture, with 2x and 4x MSAA only; the replay on the device drew
+  // the one picture of a series with the switch differently in every MSAA variant, 20.10.2026).
+  // Before a chunk the quarter must have room for the largest chunk so far and half again (at
+  // least kStreamReserve); only a chunk larger than that still switches inside
+  // (GxStats::streamSplits).
   static constexpr unsigned kStreamParts = 4;
   static constexpr std::size_t kStreamPart = std::size_t(4) << 20;
+  static constexpr std::size_t kStreamReserve = std::size_t(2) << 20;
   GLuint stream = 0;
   std::uint8_t *streamMap = nullptr; // persistent mapping (null: a map per block)
   std::size_t streamPos = 0, streamAlign = 256;
   unsigned streamPart = 0;
   GLsync streamFence[kStreamParts] = {};
+  std::size_t streamChunkBytes = 0;  // what the running chunk took of the stream so far
+  std::size_t streamChunkMost = 0;   // the most a chunk took
+
+  // The next quarter, once the GPU is done with what used it last.
+  void StreamNextPart() {
+    streamFence[streamPart] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    streamPart = (streamPart + 1) % kStreamParts;
+    if (GLsync fence = streamFence[streamPart]) {
+      if (glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, 0) == GL_TIMEOUT_EXPIRED) {
+        stats.streamWaits++;
+        glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, 2000000000ull);
+      }
+      glDeleteSync(fence);
+      streamFence[streamPart] = nullptr;
+    }
+    streamPos = streamPart * kStreamPart;
+    stats.streamSwitches++;
+  }
+
+  // Before a chunk's first draw: the next quarter when this one may not hold the chunk. The
+  // largest chunk is forgotten slowly (halved in about 45 chunks): one large scene does not
+  // keep every later chunk in a quarter of its own.
+  void StreamChunkBegin() {
+    streamChunkMost = std::max(streamChunkBytes, streamChunkMost - streamChunkMost / 64);
+    streamChunkBytes = 0;
+    const std::size_t want = std::max(kStreamReserve, streamChunkMost + streamChunkMost / 2);
+    if (streamPos + std::min(want, kStreamPart) > (streamPart + 1) * kStreamPart)
+      StreamNextPart();
+  }
 
   // Room for `bytes` in the stream: its offset.
   std::size_t StreamAlloc(std::size_t bytes) {
     std::size_t at = (streamPos + streamAlign - 1) / streamAlign * streamAlign;
     if (at + bytes > (streamPart + 1) * kStreamPart) {
-      // the next quarter, once the GPU is done with what used it last
-      streamFence[streamPart] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-      streamPart = (streamPart + 1) % kStreamParts;
-      if (GLsync fence = streamFence[streamPart]) {
-        if (glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, 0) == GL_TIMEOUT_EXPIRED) {
-          stats.streamWaits++;
-          glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, 2000000000ull);
-        }
-        glDeleteSync(fence);
-        streamFence[streamPart] = nullptr;
-      }
-      at = streamPart * kStreamPart;
+      // a chunk larger than the room StreamChunkBegin left
+      if (!stats.streamSplits)
+        GXLOG("GX uniform stream: a chunk needs more than a quarter's rest (%zu KB in it so far, the most %zu KB): "
+              "switched while drawing",
+              streamChunkBytes >> 10, streamChunkMost >> 10);
+      stats.streamSplits++;
+      StreamNextPart();
+      at = streamPos;
     }
+    streamChunkBytes += at + bytes - streamPos;
     streamPos = at + bytes;
     return at;
   }
@@ -2506,6 +2542,8 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
     return;
   m.stats.chunks++;
   m.Touched();
+  if (m.stream)
+    m.StreamChunkBegin();
   m.holdXfb = (chunk.flags & RE4_GX_CHUNK_HOLD) != 0;
   if (chunk.flags & RE4_GX_CHUNK_XFB)
     m.viBlack = (chunk.flags & RE4_GX_CHUNK_BLACK) != 0;

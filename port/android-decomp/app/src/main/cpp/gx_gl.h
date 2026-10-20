@@ -45,6 +45,9 @@ struct GxStats {
   unsigned uniformUploads = 0, uniformBytes = 0, programSwitches = 0, textureBinds = 0, stateChanges = 0,
            attributeSetups = 0;
   unsigned streamWaits = 0;  // the uniform stream waited for the GPU before reusing a quarter
+  // the uniform stream moved on to its next quarter: in all, and inside a chunk (a chunk larger
+  // than the room left; between chunks otherwise, gx_gl.cpp)
+  unsigned streamSwitches = 0, streamSplits = 0;
   // GPU time of the chunks (EXT_disjoint_timer_query; 0 when the driver has none)
   unsigned long long gpuMicros = 0;
   unsigned gpuTimed = 0;

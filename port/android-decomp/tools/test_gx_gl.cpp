@@ -1021,6 +1021,66 @@ void TestPassBreak(re4gx::GxRenderer &r, const char *tag) {
   }
 }
 
+// The uniform stream moves on to its next quarter only between chunks: a fence set while a
+// picture was drawn changed the multisampled pixels around it on the Adreno 650 (thin branches
+// paler for one picture, 20.10.2026). Chunks of 700 draws, each with its own position matrix
+// (one XF block in the stream per draw, about 2.3 MB a chunk), switch before they start; one of
+// 1400 draws (more than a quarter) has to switch inside. Every draw lands where its matrix says.
+void TestUniformStream(re4gx::GxRenderer &r, const char *tag) {
+  char what[160];
+  auto chunk = [&](unsigned draws, bool reset) {
+    Builder b;
+    if (reset)
+      Baseline(b);
+    else
+      b.flags = 0;
+    DisplayCopy(b, true, kBlack);
+    for (unsigned i = 0; i < draws; i++) {
+      // a 4x4 square on a grid of 40 x 33 places, the matrix moves it there
+      const float x = static_cast<float>(i % 40) * 16.0f, y = static_cast<float>(i / 40 % 33) * 16.0f;
+      b.XfF(0, {1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, 0});
+      Quad(b, 4, 4, 8, 8, 0, (i & 1) ? kGreen : kRed);
+    }
+    b.XfF(0, {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0});
+    DisplayCopy(b, false, kBlack);
+    const re4gx::GxStats before = r.Stats();
+    r.Run(b.Chunk());
+    const re4gx::GxStats &s = r.Stats();
+    // the first and the last square of the chunk, and the black between
+    const GLuint xfb = r.Xfb(nullptr, nullptr);
+    const unsigned last = draws - 1;
+    const int lx = static_cast<int>(last % 40) * 16 + 6, ly = static_cast<int>(last / 40 % 33) * 16 + 6;
+    const bool ok = xfb && Near(TexPixel(xfb, 6, 6), 255, 0, 0) && Near(TexPixel(xfb, 2, 2), 0, 0, 0) &&
+                    Near(TexPixel(xfb, lx, ly), (last & 1) ? 0 : 255, (last & 1) ? 255 : 0, 0);
+    return std::make_pair(ok, std::make_pair(s.streamSwitches - before.streamSwitches,
+                                             s.streamSplits - before.streamSplits));
+  };
+  unsigned switches = 0, splits = 0;
+  bool right = true;
+  for (int i = 0; i < 10; i++) {
+    const auto res = chunk(700, i == 0);
+    right = right && res.first;
+    switches += res.second.first;
+    splits += res.second.second;
+  }
+  std::snprintf(what, sizeof(what), "%s: uniform stream, chunks of 700 draws drawn right", tag);
+  Check(right, what);
+  std::snprintf(what, sizeof(what), "%s: uniform stream switches between chunks (%u), none inside (%u)", tag,
+                switches, splits);
+  Check(switches >= 8 && splits == 0, what);
+  const auto big = chunk(1400, false);
+  std::snprintf(what, sizeof(what), "%s: uniform stream, a chunk larger than a quarter drawn right", tag);
+  Check(big.first, what);
+  std::snprintf(what, sizeof(what), "%s: uniform stream, a chunk larger than a quarter switches inside (%u)", tag,
+                big.second.second);
+  Check(big.second.second >= 1, what);
+  // and back to chunks that fit: from a quarter's start again, none inside
+  const auto after = chunk(700, false);
+  std::snprintf(what, sizeof(what), "%s: uniform stream, after the large chunk one of 700 draws right, none inside",
+                tag);
+  Check(after.first && after.second.first == 1 && after.second.second == 0, what);
+}
+
 // The menu's picture options (M11): a multisampled EFB is resolved before
 // every copy out of it (display copy, texture copy); a slanted edge comes out
 // between the two colours; anisotropic filtering does not change a picture
@@ -1085,6 +1145,8 @@ void TestOptions(bool poison, bool tiled, bool halfDof = true, int lose = 0) {
   Check(r.HalfDof() == halfDof, "options: the depth of field's resolution as asked for");
   TestAutofocus(r, r.Samples() > 1);
   TestPassBreak(r, r.TiledMsaa() ? (lose ? "on the tiles, everything lost" : "on the tiles") : "multisampled");
+  if (!poison && !lose)
+    TestUniformStream(r, r.TiledMsaa() ? "on the tiles" : "multisampled");
   Check(glGetError() == GL_NO_ERROR, "options: no GL error");
   r.Release();
 }
@@ -1115,6 +1177,8 @@ int main() {
     TestCopyFilter(renderer);
     TestAutofocus(renderer);
     TestPassBreak(renderer, "single-sampled");
+    if (!poison)
+      TestUniformStream(renderer, "single-sampled");
     Check(glGetError() == GL_NO_ERROR, "no GL error");
     renderer.Release();
     {
