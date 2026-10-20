@@ -5005,6 +5005,21 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   positiv; Nicken wie vorher; Kippen um die Achse durch den Bildschirm tut nichts), in
   `tools/test_host.sh` aufgenommen; alle Java-Dateien der App gegen Android übersetzt.
   **Nicht getestet:** auf dem Gerät.
+- **32 bit startet nicht, Tester-Bericht 20.10.2026 (`cubeevil4-report-20261020-100743.zip`,
+  App 0.38.2 Alpha 3):** Mobicel P11 Plus, Android 14, nur 32 bit (`armeabi-v7a`), PowerVR
+  GE8322, 2 GB. Meldung „core not started: MEM1 0x80000000..0x83000000 is taken in this process
+  (by 80000000-90000000 rw-p [anon:dalvik-main space])“; Adresskarte: „MEM1 placeholder: NOT
+  reserved“. Dort liegt **der Java-Speicher von ART** (die Hauptfläche, 256 MB, genau ab
+  0x80000000), darunter die Puffer des Müllsammlers „Concurrent mark-compact“ (der neue Sammler
+  von ART, ab Android 14; der Retroid mit Android 13 hat den alten, dort ist 0x80000000 frei).
+  Der Java-Speicher entsteht schon im Zygote, bevor die App einen Befehl ausführt; jede App
+  dieses Geräts erbt ihn an derselben Stelle. Aus der App heraus nicht zu ändern. Wege: (A) den
+  Kern in einem eigenen Prozess ohne Java laufen lassen (ein Programm aus dem Bibliotheksordner
+  der App, Bilder, Ton und Eingaben über geteilten Speicher), (B) MEM1 auf 32 bit an eine andere
+  Adresse legen (jede Stelle in Spiel und Plattform, die 0x80000000 annimmt, müsste umrechnen),
+  (C) vorerst nicht unterstützt. Beides (A, B) ist eine Grundsatzentscheidung; offen. Im
+  Releasetext der Alpha 4 als bekannter Fehler genannt. Nebenbei im Protokoll: der Startfehler-
+  Dialog (`CoreActivity.showStartProblem`) bleibt beim Beenden offen („WindowLeaked“), harmlos.
 - **Release 0.38.3 Alpha 4** (Projektinhaber, 20.10.2026: „Alpha4 fertig für heute“): Text
   `port/android-decomp/docs/releases/v0.38.3-alpha4.md`, APK `CubeEvil4-v0.38.3-alpha4.apk`,
   `versionName '0.38.3-Alpha4'`, `versionCode` 59 (`app/build.gradle`; das Menü zeigt
