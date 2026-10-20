@@ -116,6 +116,12 @@ int main(int argc, char **argv) {
       // depth never stored (the self-test takes own buffers then)
       const char *lose = std::getenv("RE4_GX_LOSE_TILES");
       options.loseTiles = lose ? std::max(0, std::min(2, std::atoi(lose))) : 0;
+      // RE4_GX_CENTROID=0: MSAA without centroid (before 20.10.2026); RE4_GX_FULL_RESOLVE=1: the whole
+      // EFB resolved each time
+      const char *centroid = std::getenv("RE4_GX_CENTROID");
+      options.centroid = !(centroid && *centroid == '0');
+      const char *full = std::getenv("RE4_GX_FULL_RESOLVE");
+      options.fullResolve = full && *full == '1';
       renderer->SetOptions(options);
       std::string error;
       if (!renderer->Init(scale, &error)) {

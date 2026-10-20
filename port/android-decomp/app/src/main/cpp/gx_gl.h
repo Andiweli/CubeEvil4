@@ -90,6 +90,15 @@ struct GxOptions {
   // the depth of field's blur at half the resolution, mixed into the picture at the full one
   // (GPU step e, 19.10.2026); off: the blur and the copy back at the full resolution
   bool halfDof = true;
+  // MSAA: the shaders' texture coordinates and colours at a sample the triangle covers
+  // (centroid), not at the pixel's centre. At the edge of a thin cut-out (branches: an alpha
+  // test) the centre can lie outside the triangle; its coordinate then points past the cut-out
+  // and the alpha test drops or keeps the edge from picture to picture (the Retroid, 20.10.2026:
+  // thin branches flickered with 2x and 4x MSAA only). Without MSAA it changes nothing
+  bool centroid = true;
+  // MSAA in own buffers: every resolve of the whole EFB, not only of the region a copy reads
+  // (a test of the device replay)
+  bool fullResolve = false;
 };
 
 class GxRenderer {

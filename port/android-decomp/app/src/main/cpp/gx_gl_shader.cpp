@@ -131,9 +131,10 @@ std::string GxVertexShader(const ShaderKey &k) {
       Add(out, "layout(location = %d) in vec2 aTex%d;\n", 6 + i, i);
   if (Has(k, 1u << 12))
     out += "layout(location = 14) in uvec3 aMtx;\n";
-  out += "out vec4 vColor0;\nout vec4 vColor1;\n";
+  const char *outQ = k.centroid ? "centroid out" : "out";
+  Add(out, "%s vec4 vColor0;\n%s vec4 vColor1;\n", outQ, outQ);
   for (unsigned i = 0; i < k.numTexGens; i++)
-    Add(out, "out vec3 vTex%u;\n", i);
+    Add(out, "%s vec3 vTex%u;\n", outQ, i);
   out += "int mtxByte(uvec3 m, int n) {\n"
          "  uint w = n < 4 ? m.x : n < 8 ? m.y : m.z;\n"
          "  return int((w >> uint(8 * (n & 3))) & 63u);\n"
@@ -325,9 +326,10 @@ std::string GxFragmentShader(const ShaderKey &k) {
   for (int m = 0; m < 8; m++)
     if (k.texMaps & (1u << m))
       Add(out, "uniform sampler2D s%d;\n", m);
-  out += "in vec4 vColor0;\nin vec4 vColor1;\n";
+  const char *inQ = k.centroid ? "centroid in" : "in";
+  Add(out, "%s vec4 vColor0;\n%s vec4 vColor1;\n", inQ, inQ);
   for (unsigned i = 0; i < k.numTexGens; i++)
-    Add(out, "in vec3 vTex%u;\n", i);
+    Add(out, "%s vec3 vTex%u;\n", inQ, i);
   out += "out vec4 oColor;\n";
   out += "int idot(ivec3 a, ivec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }\n";
   for (int m = 0; m < 8; m++)

@@ -1037,8 +1037,13 @@ struct GxRenderer::Impl {
     if (!msaaFbo)
       return;
     const int fw = kEfbWidth * scale, fh = kEfbHeight * scale;
-    const int x0 = std::max(0, x - scale), y0 = std::max(0, y - scale);
-    const int x1 = std::min(fw, x + w + scale), y1 = std::min(fh, y + h + scale);
+    int x0 = std::max(0, x - scale), y0 = std::max(0, y - scale);
+    int x1 = std::min(fw, x + w + scale), y1 = std::min(fh, y + h + scale);
+    if (options.fullResolve) {
+      x0 = y0 = 0;
+      x1 = fw;
+      y1 = fh;
+    }
     if (x1 <= x0 || y1 <= y0)
       return;
     glDisable(GL_SCISSOR_TEST);
@@ -1393,6 +1398,7 @@ struct GxRenderer::Impl {
   ShaderKey MakeKey(const Re4GxDraw &d) {
     ShaderKey k;
     std::memset(&k, 0, sizeof(k));
+    k.centroid = options.centroid && samples > 1 ? 1 : 0;
     k.layout = d.layout;
     k.numChans = xfReg[0x09] & 3;
     k.numTexGens = std::min(8u, xfReg[0x3F] & 15);

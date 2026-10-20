@@ -794,10 +794,10 @@ void SaveShot(const char *path) { SaveShot(*gx, path); }
 // Diagnosis (RE4_GX_REPLAY: a folder with R3 series, gx-geraet-NN-KK.bin; the test script's
 // -GxReplay): the series drawn again on this device before the game's first picture, with the
 // options of each variant, the first one three times, each picture kept as this GPU drew it
-// (replay-VARIANT-ROUND-NN-KK.bmp in that folder). The cloud then sees whether this GPU draws the
-// same chunks the same every time and with which options a picture differs (thin branches went
-// paler for one picture with 2x MSAA on the Retroid only, 20.10.2026). Once per process; the
-// game waits meanwhile.
+// (replay-VARIANT-ROUND-NN-KK.bmp in that folder; the anisotropy of the menu). The cloud then sees
+// whether this GPU draws the same chunks the same every time and with which options a picture
+// differs (thin branches went paler for one picture with 2x MSAA on the Retroid only,
+// 20.10.2026). Once per process; the game waits meanwhile.
 bool gxReplayDone = false;
 
 void replayGx(int scale) {
@@ -831,13 +831,14 @@ void replayGx(int scale) {
   struct Variant {
     const char *name;
     int samples;
-    float anisotropy;
+    bool centroid, fullResolve;
     int rounds;
   };
-  // as the R3 series of the flicker was made (2x MSAA, anisotropy 16), then without MSAA, with 4x,
-  // and without the anisotropic filter
-  static const Variant kVariants[] = {{"s2a16", 2, 16.0f, 3}, {"s1a16", 1, 16.0f, 1}, {"s4a16", 4, 16.0f, 1},
-                                      {"s2a1", 2, 1.0f, 1}};
+  // as the R3 series of the flicker was made (2x MSAA, without centroid: before 20.10.2026), then
+  // with centroid (since), with the whole EFB resolved each time, without MSAA, 4x with centroid
+  static const Variant kVariants[] = {{"s2old", 2, false, false, 3}, {"s2cen", 2, true, false, 2},
+                                      {"s2full", 2, false, true, 1}, {"s1", 1, true, false, 1},
+                                      {"s4cen", 4, true, false, 1}};
   LOG("GX replay: %zu chunks from %s, EFB scale %d", chunks.size(), dir, scale);
   const char *cache = getenv("RE4_GX_PROGRAM_CACHE");
   unsigned pictures = 0;
@@ -858,7 +859,9 @@ void replayGx(int scale) {
           r = std::make_unique<re4gx::GxRenderer>();
           re4gx::GxOptions options;
           options.samples = v.samples;
-          options.anisotropy = v.anisotropy;
+          options.anisotropy = static_cast<float>(std::max(1, optAnisotropy.load()));
+          options.centroid = v.centroid;
+          options.fullResolve = v.fullResolve;
           options.halfDof = optHalfDof.load() != 0;
           r->SetOptions(options);
           std::string error;

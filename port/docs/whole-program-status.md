@@ -4916,8 +4916,26 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   32-bit-Reihe 00: 72 Bilder, die Runden bitgleich, nahe an den Gerätebildern (Mittel 2,7;
   Bild 01 weicht wie bekannt ab). Nicht getestet: auf dem Gerät, das Skript (kein PowerShell in
   der Cloud).
+- **MSAA-Flackern: „centroid“ (20.10.2026).** Projektinhaber: das Flackern einzelner Äste kommt
+  nur mit 2× oder 4× MSAA, ohne MSAA ist es weg, gleich was sonst an ist. Verdacht: die Shader
+  geben Texturkoordinaten und Farben ohne `centroid` weiter; mit MSAA rechnet die GPU ein
+  Randpixel, das ein dünner Ast nur teilweise bedeckt, mit der Koordinate der Pixelmitte, die
+  außerhalb des Dreiecks liegen kann, und der Alpha-Test (Ausschnitt des Astes) verwirft oder
+  behält den Rand von Bild zu Bild anders. **Jetzt:** mit MSAA alle Übergaben des Vertex-Shaders
+  als `centroid` (`GxOptions::centroid`, Standard an; `ShaderKey::centroid`, die Programme mit
+  und ohne getrennt, auch im Programm-Zwischenspeicher, der nach dem Quelltext geht). Ohne MSAA
+  unverändert. Zum Vergleich `GxOptions::fullResolve` (jedes Auflösen über das ganze EFB) und
+  `gx_chunk_render` `RE4_GX_CENTROID=0`, `RE4_GX_FULL_RESOLVE=1`. Nachgespielt (llvmpipe, 4
+  Proben, alle sechs R3-Folgen): mit `centroid` springen weniger Bildpunkte hin und zurück
+  (z. B. 187 → 137, 958 → 935, 39 → 34), geändert werden nur Randpunkte dünner Dinge (0,75 %
+  der Punkte: Äste, Fensterrahmen, Halme), ohne sichtbaren Nachteil. llvmpipe kann nur 4
+  Proben, 2× (Retroid) zeigt nur das Gerät. Die Wiedergabe auf dem Gerät vergleicht jetzt
+  `s2old` (wie aufgenommen, ohne centroid, dreimal), `s2cen` (zweimal), `s2full`, `s1`, `s4cen`
+  (96 Bilder). `gx_gl_check` 0 Fehler; beide ABIs ohne Fehler und Warnungen. **Nicht
+  getestet:** auf dem Gerät.
 - **Für die nächste Alpha (nach v0.38.2 Alpha 3) bisher:** Version im Menü „(v…)“, FPS-Anzeige
-  „30 FPS (Game) · 60 Hz“, Zielen mit dem rechten Stick in „Alternate Controls“.
+  „30 FPS (Game) · 60 Hz“, Zielen mit dem rechten Stick in „Alternate Controls“; MSAA mit
+  `centroid` (wenn der Gerätetest das Flackern als behoben zeigt).
 - **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter
   linksbündig, „Back to the game“ in derselben Zeile rechts.
 - **Release 0.38.2 Alpha 03** (Entscheidung des Projektinhabers, 19.10.2026: auf GitHub liegt
