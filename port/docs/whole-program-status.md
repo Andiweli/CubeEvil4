@@ -5029,20 +5029,30 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   Zeile „Button layout“ neben „Alternate Controls“, Menütext angepasst. **Geprüft (Cloud):**
   `CoreTouchTests` 250 Prüfungen (beide Arten, Umschalten mit gehaltenem und eingerastetem
   Knopf); alle Java-Dateien der App gegen Android übersetzt. **Nicht getestet:** auf dem Gerät.
-- **Absturz 64 bit bei Luis (Tester-Bericht `cubeevil4-report-20261020-083406.zip`, App 0.38.2):**
-  Samsung Galaxy M23 (SM-M236B), Android 14, 64 bit; letzter Spielstand r112 (Bauernhof im
-  Sturm, Kapitel 2-2), Spielzeit 1:28. Signal 6 (`abort`), auf dem Stapel direkt darüber
-  `cRoutine::shot` (`libre4_pl14.so+0xa8fc`) ← `cAnalysis::move` ← `cSubLuis::damageCheck` ←
-  `cSubLuis::move` ← `emMove`: Luis schießt (vermutlich der Kampf in der Hütte, Kapitel 2-3;
-  laut Video des Testers direkt nach einer Zwischensequenz). In einer -O2-Übersetzung mit
-  Stack-Schutz (wie das NDK) liegt `p` (Startpunkt des Schusses) direkt unter dem Wachwert von
-  `shot`: wahrscheinlich hat ein Aufruf über `p`/`t` hinaus geschrieben, oder etwas anderes in
-  den Stapel des Spiels (das ist nicht belegt).
-  Kein Protokoll (Fehlerprotokoll aus). Geprüft: Luis passt auf 64 bit in seinen Gegner-Platz
-  (0x918 von 0xF60 Bytes); `shot` selbst hat keine Umschreibung; `__stack_chk_fail` ist es
-  wohl nicht (dessen 1-KB-Puffer läge zwischen `abort` und `shot`, der Abstand ist nur 0xD8).
-  Offen: welcher Aufruf vor `+0xa8fc` liegt (die arm64-`libre4_pl14.so` der Alpha 3 vom PC des
-  Projektinhabers), Protokoll und Spielstand vom Tester.
+- **Absturz bei Luis' erstem Schuss in der Hütte: behoben mit Patch 0086 (20.10.2026).** Zwei
+  Tester-Berichte (App 0.38.2, 64 bit): Samsung Galaxy M23 (Android 14,
+  `cubeevil4-report-20261020-083406.zip`, ohne Protokoll; laut Video direkt nach einer
+  Zwischensequenz) und POCO X7 Pro (Android 16, `cubeevil4-report-20261020-072230.zip`, mit
+  Protokoll: Ereignis `evd/r11cs00.evd`, also r11c, die Hütte, Kapitel 2-3; „Abort message:
+  'stack corruption detected (-fstack-protector)'“). Beide: Signal 6, auf dem Stapel
+  `libre4_pl14.so+0xa8fc`. In der arm64-`libre4_pl14.so` der Alpha 3 (PC des Projektinhabers,
+  19.10.2026 23:44) ist 0xa8fc der Anfang von `cRoutine::shot`, direkt hinter dem
+  `bl __stack_chk_fail` am Ende von **`isTarget`** (die Rücksprungadresse eines Aufrufs ohne
+  Rückkehr zeigt auf die nächste Funktion); `cAnalysis::move+0x58` liegt hinter `bl isTarget`.
+  Ursache, ein Fehler des Originals: `GetWepTargetList2` erhöht sein `max` um eins für jeden
+  Trefferbereich mit `YAT_FLAG_THROUGH`, den die Linie kreuzt (bis 0x14), und schreibt so viele
+  Einträge; `isTarget` hat `TARGET_WK list[2]` (max 2). Der dritte Eintrag landet auf arm64 (16
+  Byte je Eintrag, Liste ab sp+0x28, Wachwert bei sp+0x48) und auf ARM32 (8 Byte, Liste ab sp+52,
+  Wachwert bei sp+68, -O2 mit Stack-Schutz nachgebaut) genau auf dem Wachwert: beide ABIs
+  betroffen. Auf dem GameCube traf er nur Nachbarvariablen, die nicht mehr gelesen werden. Dasselbe
+  Muster bei der Mine (`emmine.cpp`, ein `TARGET_WK`, max 1) und beim Speer (`obj1b.cpp`, eines,
+  max 1); `PlWepHitCheck2` hat `list[20]`, die übrigen Listen (`GetWepTargetList`,
+  `GetWepTargetListBomb`) halten ihr `max` ein. **Patch 0086:** Platz für 0x14 Einträge an allen
+  drei Stellen; gelesen werden wie vorher Eintrag 0 und 1. Nebenbefunde: Luis passt auf 64 bit in
+  seinen Gegner-Platz (0x918 von 0xF60). **Geprüft (Cloud):** `whole_build.sh i686 aarch64`
+  mit 0086: 0 Fehler, alle Prüfungen bestanden (Module laden, Laufzeit-, Kern- und Filmtest,
+  Formatvergleich, M12-Prüfwerkzeuge); der Patch steht in den vorbereiteten Quellen. **Nicht
+  getestet:** auf dem Gerät (die Hütte mit Luis); der Android-Kern muss dafür neu gebaut werden.
 - **Release 0.38.3 Alpha 4** (Projektinhaber, 20.10.2026: „Alpha4 fertig für heute“): Text
   `port/android-decomp/docs/releases/v0.38.3-alpha4.md`, APK `CubeEvil4-v0.38.3-alpha4.apk`,
   `versionName '0.38.3-Alpha4'`, `versionCode` 59 (`app/build.gradle`; das Menü zeigt
@@ -5248,6 +5258,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0083 `id_sys.cpp` | Nicht initialisierter Lesezugriff in `IdShimmerTrans` (Flimmer-Effekt der Bildschirm-Elemente, z. B. die WARNING-Schrift): die Tiefe `dot`, die die Stärke der indirekten Verzerrung bestimmt, kam aus `indMtx`, bevor es beschrieben war (so schon im Original), also aus Resten auf dem Stapel, die je Build andere sind (Vergleichslauf 18.10.2026: Bild 301 an den Schriftkanten verschieden, alles andere gleich). `indMtx` beginnt jetzt mit Nullen: `dot` 0 → 1500 (Untergrenze), auf jedem Build gleich; was der GameCube dort las, ist nicht bekannt. Bestätigung: der nächste Vergleichslauf (Bild 301 gleich) |
 | 0084 `esp_efm.cpp` | `EfmSetObj04` schrieb Eltern-Modell und `guid` über einen Wortzeiger (`u32* link = (u32*) &w->pMod; link[0] = (u32) parent; link[1] = parent->guid;`): auf LP64 landete die `guid` in der oberen Hälfte von `pMod` (8 Bytes), `Guid_pMod` blieb alt; `cObj04::move` las das Eltern-Modell dann über `guid << 32 | parent` (Tester, POCO X7 Pro, 64 bit, r104, 18.10.2026: SIGSEGV an `0xf81017988`, `x8 = 0xf81017980`). Jetzt über die Felder selbst, auf ILP32 gleich. Gefunden vom erweiterten `ptr_word_check.py` (Wortzeiger in einer Hilfsvariablen). Bestätigung: Lauf an derselben Stelle auf 64 bit |
 | 0085 `dvd.cpp` | Der Start ohne Bild-Takt (Wunsch des Projektinhabers, 19.10.2026: kürzerer schwarzer Bildschirm): `cDvd::readProcMain` wartet nach jedem Schritt einer Lesung ein Bild (`TaskSleep(1)`); bis die erste `title.dat` gelesen ist, folgt der nächste Schritt sofort, solange nichts unterwegs ist (0x02000000 DVD, 0x01000000 ARAM), nach je 64 Schritten ein Bild (`runtime/dvd.cpp re4_dvd_boot_fast`); das Ende meldet `re4_dvd_read_done` (Name der Lesung). Danach und mit `RE4_DVD_BOOT_FAST=0` wie im Original. Prüfung: `runtime-test dvdq` (1 / 1 / 14 Bilder) |
+| 0086 `pl14.cpp`, `emmine.cpp`, `obj1b.cpp` | `GetWepTargetList2` legt für jeden Trefferbereich mit `YAT_FLAG_THROUGH`, den die Schusslinie kreuzt, einen Eintrag mehr an als `max` (bis 0x14). `isTarget` (Luis, `TARGET_WK list[2]`), der Treffer der Mine und der des Speers (je ein `TARGET_WK`) hatten nur Platz für `max`: der Eintrag dahinter überschrieb den Wachwert des Stack-Schutzes (Absturz „stack corruption detected“ bei Luis' erstem Schuss in der Hütte r11c, zwei Tester, 20.10.2026). Jetzt je 0x14 Einträge; die Aufrufer lesen weiter Eintrag 0 und 1 |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

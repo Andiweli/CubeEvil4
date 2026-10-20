@@ -1,0 +1,74 @@
+# GetWepTargetList2 (em_sub.cpp, the enemies a shot line crosses) raises its `max` by one for each
+# hit box with YAT_FLAG_THROUGH the line passes (up to 0x14) and stores that many entries. Three
+# callers give it room for `max` only: Luis' isTarget (pl14.cpp, TARGET_WK list[2], max 2), the
+# mine's hit check (emmine.cpp, one TARGET_WK, max 1) and the spear's (obj1b.cpp, one, max 1). On
+# the GameCube the extra entry went over the locals next to the list, which the callers never read
+# again. The Android compiler guards each such function's stack frame (stack protector): Luis'
+# first shot after the cabin's cutscene ended the app with signal 6 in isTarget (a tester's
+# report, Samsung Galaxy M23, 64 bit, 20.10.2026: abort, __stack_chk_fail, the address after
+# it is cRoutine::shot's start). Room for 0x14 entries in all three; the callers read entries 0
+# and 1 as before, so the game does the same.
+--- a/src/game/emmine.cpp
++++ b/src/game/emmine.cpp
+@@ -1225,7 +1225,9 @@
+     Vec dir;
+     Vec a;
+     Vec b;
+-    TARGET_WK list;
++    // PORT: GetWepTargetList2 takes one entry more for each hit box the line passes through
++    // (up to 0x14 in all); room for every one of them (patch 0086)
++    TARGET_WK list[0x14];
+     u32 attr;
+     cEm* hitEm;
+     YARARE_INFO* part;
+@@ -1237,9 +1239,9 @@
+     if (pEm->type == 2) {
+         type = 0x1C;
+     }
+-    if (GetWepTargetList2(&pEm->pos_old, &pEm->pos, &list, 1, &hit, &nrm, &attr, type, 0) != 0) {
+-        hitEm = list.pEm;
+-        part = list.pAt;
++    if (GetWepTargetList2(&pEm->pos_old, &pEm->pos, list, 1, &hit, &nrm, &attr, type, 0) != 0) {
++        hitEm = list[0].pEm;
++        part = list[0].pAt;
+         hitEm->dmg.set(0, 2, type, &pEm->pos_old, part->len, part);
+         if (part->flag & YAT_FLAG_DMPOS) {
+             partsNo = 0;
+--- a/src/game/obj1b.cpp
++++ b/src/game/obj1b.cpp
+@@ -557,16 +557,18 @@
+     FREE_OBJ1B* w = SPEAR_WK(pObj);
+     Vec hit;
+     Vec nrm;
+-    TARGET_WK target;
++    // PORT: GetWepTargetList2 takes one entry more for each hit box the line passes through
++    // (up to 0x14 in all); room for every one of them (patch 0086)
++    TARGET_WK target[0x14];
+     u32 attr;
+     cEm* em;
+     YARARE_INFO* part;
+     int no;
+     f32 len;
+ 
+-    if (GetWepTargetList2(&pObj->pos_old, &pObj->pos, &target, 1, &hit, &nrm, &attr, 0x15, 0)) {
+-        part = target.pAt;
+-        em = target.pEm;
++    if (GetWepTargetList2(&pObj->pos_old, &pObj->pos, target, 1, &hit, &nrm, &attr, 0x15, 0)) {
++        part = target[0].pAt;
++        em = target[0].pEm;
+         em->dmg.set(0, 10, 0x15, &em->pos_old, part->len, part);
+         if (part->flag & YAT_FLAG_DMPOS) {
+             Mtx inv;
+--- a/src/pl14/pl14.cpp
++++ b/src/pl14/pl14.cpp
+@@ -1682,7 +1682,9 @@
+ // something else in front.
+ int isTarget(cSubLuis* luis, cEm* em)
+ {
+-    TARGET_WK list[2];
++    // PORT: GetWepTargetList2 takes one entry more for each hit box the line passes through
++    // (up to 0x14 in all); room for every one of them (patch 0086)
++    TARGET_WK list[0x14];
+     Vec hit;
+     Vec nrm;
+     u32 attr;
