@@ -78,7 +78,12 @@ android {
     externalNativeBuild { cmake { path file('src/main/cpp/CMakeLists.txt'); version '3.22.1' } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     buildTypes { release { minifyEnabled false } }
-    packaging { jniLibs { useLegacyPackaging = false } }
+    // the libraries extracted at installation (decision of the project owner, 20.10.2026): a 32-bit
+    // device whose Java heap lies on MEM1 runs the core as a program of its own
+    // (libre4_coreproc.so, port/docs/32bit-kernprozess.md), and Android runs programs only from
+    // the extracted library folder. The APK gets smaller (libraries compressed), the installed
+    // size stays about the same (only the device's ABI is extracted).
+    packaging { jniLibs { useLegacyPackaging = true } }
     lint { abortOnError true }
 }
 

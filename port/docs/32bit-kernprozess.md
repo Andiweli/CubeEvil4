@@ -147,7 +147,12 @@ core_mode.cpp ── api (Client) ──┐              ┌── Server ──
 - Start durch die App: `vfork` + `execve` aus `core_mode.cpp` (kein `fork` im Java-Prozess;
   `posix_spawn` gibt es erst ab API 28), Socket als Datei 3, Umgebung der App plus
   `LD_LIBRARY_PATH`. Der Pfad kommt aus `dladdr` der App-Bibliothek (kein Java nötig).
-  **Paketierung: Frage an den Projektinhaber** (unten).
+- **Entscheidung des Projektinhabers (20.10.2026): Bibliotheken entpacken**
+  (`useLegacyPackaging = true`): Android entpackt beim Installieren die Bibliotheken des Geräts
+  (nur eine ABI) in den Bibliotheksordner, aus dem Apps Programme ausführen dürfen; geht auf jeder
+  Android-Version. Die APK-Datei wird kleiner (Bibliotheken gepackt), der Platz nach der
+  Installation bleibt etwa gleich. Verworfen: Start über den Systemlader direkt aus der APK
+  (`/system/bin/linker …apk!/lib/…`, erst ab Android 10, selten benutzt).
 
 ### 3. Geteilter Speicher
 
