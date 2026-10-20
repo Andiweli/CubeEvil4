@@ -314,6 +314,16 @@ void reportHang(int seconds)
 
 std::atomic<bool> gNewFrame{false};
 
+// the sound's counters for the app (after each game frame and each read of the sound)
+void mirrorSound(Control* c)
+{
+    unsigned a[5] = {0, 0, 0, 0, 0};
+    core.audioStats(a);
+    for (int i = 0; i < 5; i++) {
+        c->audioStats[i].store(a[i]);
+    }
+}
+
 // once per game frame, on the game's thread (PADRead, after the core's own hook)
 void frameHook(unsigned)
 {
@@ -386,11 +396,7 @@ void inputThread()
                 }
                 core.release(s);
             }
-            unsigned a[5] = {0, 0, 0, 0, 0};
-            core.audioStats(a);
-            for (int i = 0; i < 5; i++) {
-                c->audioStats[i].store(a[i]);
-            }
+            mirrorSound(c);
         }
         waitBell(c->inputBell, seen, 100);
     }
@@ -617,6 +623,7 @@ void audioThread()
                 c->audioWrite.store(w + n, std::memory_order_release);
                 c->audioForwarded.fetch_add(n);
                 ring(c->audioDone);
+                mirrorSound(c);
             }
         }
         waitBell(c->audioBell, seen, 250);
