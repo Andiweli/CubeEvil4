@@ -121,6 +121,10 @@ final class CoreLog {
     if (Build.VERSION.SDK_INT >= 23) {
       b.append("Process: ").append(android.os.Process.is64Bit() ? "64-bit" : "32-bit").append('\n');
     }
+    // where the core runs (port/docs/32bit-kernprozess.md)
+    String core = CoreBridge.coreProcess();
+    b.append("Core: ").append(core == null || core.isEmpty() ? "in the app's process" : "own process: " + core)
+        .append('\n');
     ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
     if (am != null) {
       ActivityManager.MemoryInfo m = new ActivityManager.MemoryInfo();

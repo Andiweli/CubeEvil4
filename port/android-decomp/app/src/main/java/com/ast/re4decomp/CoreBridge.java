@@ -49,6 +49,13 @@ public final class CoreBridge {
   public static native void roomPrepared(int room, String decodedPath, String error);
   /** The process's mappings below 4 GB when the core loaded (the report's address-map.txt). */
   public static native String addressMap();
+  /**
+   * The core in a process of its own (32 bit with MEM1 taken in the app's process, or
+   * RE4_CORE_PROCESS=1): why and its state; "" when the core runs in the app's process.
+   */
+  public static native String coreProcess();
+  /** Why the core process ended while the app runs (a crash); "" while it runs or without one. */
+  public static native String coreProblem();
   /** Diagnostic text: core state, frame, room, models, last log lines. */
   public static native String status();
   /** Saves the graphics data of the next picture into `folder` (diagnosis; R3). */

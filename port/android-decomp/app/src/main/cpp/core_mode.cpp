@@ -7,9 +7,17 @@
 // with the GX renderer (gx_gl.cpp, port/docs/gx-plan.md step G4), and until
 // the first display copy (or with the setting RE4_VIEW=bridge) the published
 // state frames with CoreScene.
+//
+// On 32 bit with MEM1 taken in this process (ART's Java heap at 0x80000000 on
+// Android 14 devices) the core runs in a process of its own instead
+// (libre4_coreproc.so, port/docs/32bit-kernprozess.md): the table of core
+// calls below then goes to it (runtime/re4_core_client.h), the rest of this
+// file stays the same. RE4_CORE_PROCESS=1 asks for that on any 32-bit device
+// (tests).
 #include "core_scene.h"
 #include "gx_gl.h"
 #include "re4_card_files.h"
+#include "re4_core_client.h"
 #include "re4_gx_frame.h"
 #include "re4_gx_frame_io.h"
 
@@ -80,6 +88,12 @@ struct CoreApi {
   int (*gameThread)(void){};
   long (*freeAt)(void){};  // optional: the frame the player became free in the room (state_trace.cpp), -1 not yet
 } api;
+
+// The core in a process of its own (useCoreProcess): why, for the report; "" in this process.
+std::string coreProcessWhy;
+#if !defined(__aarch64__)
+void useCoreProcess(const std::string &why);
+#endif
 
 template <class F> bool bind(F &slot, const char *name) {
   slot = reinterpret_cast<F>(dlsym(api.main, name));
@@ -343,6 +357,14 @@ void loadCore(JNIEnv *env) {
   if (reserveFixed(kMem1Start, kMem1Size)) {
     setenv("RE4_MEM1_PLACEHOLDER", "1", 1);
     gAddressMap += "MEM1 placeholder: reserved\n";
+  } else if (!gMem1Owner.empty()) {
+    // something of this process lies there (ART's Java heap, "dalvik-main space", on Android 14
+    // devices: it comes from the zygote): the core runs in a process of its own (decision of the
+    // project owner, 20.10.2026: only then). Without a mapping there the system refuses the
+    // address, in any process: then the message below says so.
+    gAddressMap += "MEM1 placeholder: NOT reserved: the core runs in a process of its own\n";
+    useCoreProcess("MEM1 is taken in the app's process (by " + gMem1Owner + ")");
+    return;
   } else {
     gAddressMap += "MEM1 placeholder: NOT reserved\n";
   }
@@ -1275,6 +1297,67 @@ void onHangSample(int, siginfo_t *, void *context) {
   crashContext(context);
 }
 
+#if !defined(__aarch64__)
+// The table's calls to the core process (runtime/re4_core_client.h); it starts with the first
+// re4ipc_reserve (CoreBridge.start). Its program lies in this library's folder: the libraries
+// are extracted at installation (build.gradle useLegacyPackaging, decision of the project owner,
+// 20.10.2026); Android runs programs only from there.
+void useCoreProcess(const std::string &why) {
+  coreProcessWhy = why;
+  re4ipc::Spawn spawn;
+  Dl_info info{};
+  const std::string lib =
+      dladdr(reinterpret_cast<void *>(&useCoreProcess), &info) && info.dli_fname ? info.dli_fname : "";
+  const auto slash = lib.rfind('/');
+  spawn.libraryDir = slash == std::string::npos ? std::string() : lib.substr(0, slash);
+  spawn.program = spawn.libraryDir + "/libre4_coreproc.so";
+  // its name in the process list: this process's (the package) with ":core"
+  if (FILE *f = std::fopen("/proc/self/cmdline", "re")) {
+    char name[160] = "";
+    if (std::fgets(name, sizeof(name), f) && name[0]) spawn.name = std::string(name) + ":core";
+    std::fclose(f);
+  }
+  re4ipc::configure(spawn);
+  if (crashFd >= 0) re4ipc::setCrashFd(crashFd);
+  api.error.clear();
+  if (lib.find("!/") != std::string::npos) {
+    api.error = "the core process needs the app's libraries extracted (this APK keeps them packed)";
+  }
+  api.mem1Init = re4ipc_mem1_init;
+  api.reserve = re4ipc_reserve;
+  api.start = re4ipc_start;
+  api.state = re4ipc_state;
+  api.message = re4ipc_message;
+  api.pad = re4ipc_pad;
+  api.rumble = re4ipc_rumble;
+  api.audio = re4ipc_audio;
+  api.audioStats = re4ipc_audio_stats;
+  api.acquire = re4ipc_acquire;
+  api.release = re4ipc_release;
+  api.logTail = re4ipc_log_tail;
+  api.gxAcquire = re4ipc_gx_acquire;
+  api.gxRelease = re4ipc_gx_release;
+  api.gxDetach = re4ipc_gx_detach;
+  api.vsync = re4ipc_vsync;
+  api.pause = re4ipc_pause;
+  api.debugMenu = re4ipc_debug_menu;
+  api.setDof = re4ipc_set_dof;
+  api.gyro = re4ipc_gyro;
+  api.cardList = re4ipc_card_list;
+  api.cardFree = re4ipc_card_free_blocks;
+  api.cardName = re4ipc_card_file_name;
+  api.cardExport = re4ipc_card_export;
+  api.cardImport = re4ipc_card_import;
+  api.frameCount = re4ipc_frame_count;
+  api.gameThread = re4ipc_game_thread;
+  api.freeAt = re4ipc_free_at;
+  char note[512];
+  snprintf(note, sizeof(note), "core: in a process of its own (%s): %s\n", why.c_str(), spawn.program.c_str());
+  gAddressMap += note;
+  LOG("%s", note);
+}
+#endif
+
 void installCrashHandler() {
   struct sigaction action {};
   action.sa_sigaction = onCrash;
@@ -1292,7 +1375,24 @@ void installCrashHandler() {
 
 // The mappings below 4 GB when the core loaded
 extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_addressMap(JNIEnv *env, jclass) {
-  return env->NewStringUTF(gAddressMap.c_str());
+  std::string map = gAddressMap;
+  if (!coreProcessWhy.empty()) map += "core process: " + re4ipc::describe() + "\n" + re4ipc::addressMap();
+  return env->NewStringUTF(map.c_str());
+}
+
+// The core in a process of its own: why and how it is ("" when the core runs in this process).
+extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_coreProcess(JNIEnv *env, jclass) {
+  std::string text;
+  if (!coreProcessWhy.empty()) {
+    const std::string state = re4ipc::describe();
+    text = coreProcessWhy + (state.empty() ? std::string("; not started yet") : "; " + state);
+  }
+  return env->NewStringUTF(text.c_str());
+}
+
+// Why the core process ended while the app runs ("" while it runs, or the core runs in this process).
+extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_coreProblem(JNIEnv *env, jclass) {
+  return env->NewStringUTF(coreProcessWhy.empty() ? "" : re4ipc::ended().c_str());
 }
 
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
@@ -1328,6 +1428,15 @@ Java_com_ast_re4decomp_CoreBridge_start(JNIEnv *env, jclass, jstring gameRoot, j
         LOG("setting %s", item.c_str());
       }
       pos = end + 1;
+    }
+    // the core in a process of its own also with MEM1 free (tests; test-core-app.ps1 -CoreProcess)
+    const char *own = getenv("RE4_CORE_PROCESS");
+    if (own && std::string(own) == "1" && coreProcessWhy.empty()) {
+#if defined(__aarch64__)
+      LOG("RE4_CORE_PROCESS=1: only for 32 bit; the core runs in the app's process");
+#else
+      useCoreProcess("RE4_CORE_PROCESS=1");
+#endif
     }
   }
   {
@@ -1610,6 +1719,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setCrashFile
   const int fd = file.empty() ? -1 : open(file.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
   const int old = crashFd;
   crashFd = fd;
+  // the core process writes its crashes there as well (it gets its own copy of the file)
+  if (!coreProcessWhy.empty()) re4ipc::setCrashFd(fd);
   if (old >= 0) close(old);
 }
 
@@ -1621,6 +1732,10 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_ast_re4decomp_CoreBridge_gameFrames(
 // The game stands without a pause: three samples of where its thread is, 200 ms apart
 // (a loop shows as places in one function, a wait as the same place).
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_reportHang(JNIEnv *, jclass, jint seconds) {
+  if (!coreProcessWhy.empty()) {
+    re4ipc::reportHang(static_cast<int>(seconds));  // the core process samples its game thread itself
+    return;
+  }
   const int tid = api.gameThread ? api.gameThread() : 0;
   crashLine("hang: no game frame for %d s (frame %u)", static_cast<int>(seconds),
             api.frameCount ? api.frameCount() : 0u);

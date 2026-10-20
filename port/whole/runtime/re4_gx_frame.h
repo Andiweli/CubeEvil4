@@ -176,6 +176,10 @@ const Re4GxChunk* re4_core_gx_acquire(void);
 void re4_core_gx_release(const Re4GxChunk* chunk);
 /* The renderer goes away: queued chunks are dropped, none are built. */
 void re4_core_gx_detach(void);
+/* `notify` is called (on the core's thread, with the queue locked: it may
+ * only wake someone) whenever a chunk is queued; NULL: none. The core
+ * process's server (host/coreproc.cpp) takes chunks at once with it. */
+void re4_core_gx_notify(void (*notify)(void));
 
 #ifdef __cplusplus
 }

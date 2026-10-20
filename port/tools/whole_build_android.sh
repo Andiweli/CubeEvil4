@@ -14,7 +14,8 @@
 #                  the built checkout); port/scripts/test-core-app.ps1 passes
 #                  the Windows checkout's app folder
 #
-#   libre4_platform.so, libre4_main.so, libre4_<module>.so (114), libc++_shared.so
+#   libre4_platform.so, libre4_main.so, libre4_<module>.so (114), libc++_shared.so,
+#   for armeabi-v7a also libre4_coreproc.so (the core process, a program)
 #     -> port/android-decomp/app/src/core/jniLibs/<abi>/   (not in git)
 #
 # The NDK: --ndk, else $ANDROID_NDK_HOME / $ANDROID_NDK_ROOT, else
@@ -138,18 +139,31 @@ readelf=$(ls "$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-readelf 2> /dev/null | h
 strip=$(ls "$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-strip 2> /dev/null | head -1)
 cxxshared=$(ls "$ndk"/toolchains/llvm/prebuilt/*/sysroot/usr/lib/$triple/libc++_shared.so 2> /dev/null | head -1)
 for sym in re4_core_reserve re4_core_start re4_core_state re4_core_message re4_core_pad re4_core_rumble re4_core_audio re4_core_acquire \
-    re4_core_release re4_core_log_tail; do
+    re4_core_release re4_core_log_tail re4_core_gx_notify re4_add_frame_hook; do
     if ! "$readelf" -W --dyn-syms "$build/libre4_main.so" | grep -q " $sym$"; then
         echo "  FEHLER: libre4_main.so exportiert $sym nicht"
         status=1
     fi
 done
 [ -f "$cxxshared" ] || { echo "  FEHLER: libc++_shared.so nicht im NDK gefunden"; status=1; }
+# 32 bit: the core process program (the core runs in it when MEM1 is taken in the app's
+# process, port/docs/32bit-kernprozess.md), an executable named like a library
+coreproc=""
+if [ "$1" = armeabi-v7a ]; then
+    coreproc="$build/libre4_coreproc.so"
+    if [ ! -f "$coreproc" ]; then
+        echo "  FEHLER: libre4_coreproc.so (Kernprozess) fehlt"
+        status=1
+    elif ! "$readelf" -l -W "$coreproc" | grep -q 'INTERP'; then
+        echo "  FEHLER: libre4_coreproc.so ist kein ausfuehrbares Programm"
+        status=1
+    fi
+fi
 [ "$status" -ne 0 ] && return 1
 
 rm -rf "$out"
 mkdir -p "$out" "$assets"
-cp "$build/libre4_platform.so" "$build/libre4_main.so" "$cxxshared" "$out/"
+cp "$build/libre4_platform.so" "$build/libre4_main.so" "$cxxshared" $coreproc "$out/"
 for m in "${modules[@]}"; do
     case "$(basename "$m")" in
         libre4_re4test_*) ;;

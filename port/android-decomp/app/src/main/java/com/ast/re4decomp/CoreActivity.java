@@ -132,6 +132,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private long lastFrames = -1, framesSince;
   private boolean hangReported;
   private static final long HANG_MS = 8000;
+  // the core in a process of its own ended (CoreBridge.coreProblem): shown once
+  private boolean coreEndShown;
 
   @Override
   @SuppressLint("ClickableViewAccessibility")
@@ -222,6 +224,26 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
         .setCancelable(false).show();
   }
 
+  /**
+   * The core in a process of its own (32-bit devices whose Java heap lies where the game's memory
+   * must be): when that process ends (a crash), the app stays and says so, with the error report
+   * to send (the crash is in it).
+   */
+  private void checkCoreProcess() {
+    if (coreEndShown || !startProblem.isEmpty()) return;
+    String ended = CoreBridge.coreProblem();
+    if (ended == null || ended.isEmpty()) return;
+    coreEndShown = true;
+    Log.e(TAG, "core process: " + ended);
+    audio.stop();
+    stopVibrator();
+    new AlertDialog.Builder(this)
+        .setMessage("The game core stopped:\n" + ended)
+        .setPositiveButton("Send report", (d, w) -> shareReport())
+        .setNegativeButton("Quit", (d, w) -> quit())
+        .setCancelable(false).show();
+  }
+
   /** The menu's picture options to the renderer (applied at the next picture while the game runs). */
   private void applyGraphics() {
     SharedPreferences g = getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE);
@@ -245,6 +267,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     touchControls.update();
     updateFps();
     checkHang();
+    checkCoreProcess();
     int room = CoreBridge.wantedRoom();
     if (room >= 0 && room != preparedRoom && !roomBusy) prepareRoom(room);
     main.postDelayed(this::tick, 500);

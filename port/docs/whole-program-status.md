@@ -22,6 +22,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
 | M11 Android-Feinschliff | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/nifty-feynman-jv729h`, Stand `093aa7a`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, „Depth of field“ mit dem Autofokus der ersten App, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester, alles auf Englisch), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Rundgang über alle Räume (PC mit Disc-Daten): 126 von 126 laufen (Patches 0062–0064). Super Magnum: kein Port-Fehler (Nachlade-Stufe Lv.5 aus dem Debug-Menü), mit Lv.1 bestätigt. Debug-Menü Waffenseite stürzte am Listenende ab (Patch 0066). Leistung: 60 Bilder/s, Kern 33,3 ms je Spielbild mit 13–15 ms Leerlauf, GPU um 20 ms („M11 Android-Feinschliff“) |
 | M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`, seit 18.10.2026 `claude/exciting-bohr-6akwfd`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt; A2 ✅ Adressen unter 4 GB; A3 ✅ Strukturen, die auf 64 bit auseinanderlaufen: alle Prüfwerkzeuge 0 (Patches 0070–0073, Regel `lp64_sizes`); A4 ✅ alle Cloud-Tests grün auf i686, armhf, x86_64 und **aarch64 (neu, ARM64 unter qemu)**, auch Filme und Speicherkarte; A5 Android arm64 eingebaut, aber ungeprüft (kein NDK in der Cloud). 18.10.2026: PC-Prüfung `-Lp64` läuft r100 10.000 Bilder ohne Absturz, Speichern stürzte ab (Budget des Speicherbildschirms, behoben, unbestätigt); Neustart mit Bestandsaufnahme aller Prüfwerkzeuge (libclang statt Wörter, Selbsttest, `run_all.py` + `reviewed.json`), vier neue Werkzeuge, Patch 0082 (fünf echte Fehler), Vergleichslauf 32/64 bit (`-Compare`, in der Cloud mit dem synthetischen Film gleich; mit Disc-Daten offen). Offen: `-Compare` und `-Lp64` mit Disc-Daten, Gerätetest beider ABIs. Dabei gefunden: Puzzle-Untermenü las auch auf 32 bit falsche Felder (Patch 0073). Bestandsaufnahme `arm64-bestandsaufnahme.md`. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** |
+| 32-bit-Kernprozess | in Arbeit (Branch `claude/re4-32bit-kernprozess`, 20.10.2026): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Gerätetest offen („32 bit: der Kern als eigener Prozess“) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5084,6 +5085,67 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   Fehlschläge der Variante `classic`, `enemy_feedback_tests` und `inventory_case_tests`, wie
   zuvor); `gx_gl_check` 0 Fehler.
 
+### 32 bit: der Kern als eigener Prozess (20.10.2026, Branch `claude/re4-32bit-kernprozess`)
+
+Übergabe, Plan und Entscheidungen: `port/docs/32bit-kernprozess.md`. **Entscheidungen des
+Projektinhabers (20.10.2026):** Weg A (der Kern in einem eigenen Prozess ohne Java), nur als
+Rückfall, wenn MEM1 im App-Prozess belegt ist, dazu ein Schalter für Tests; die Bibliotheken
+werden bei der Installation entpackt (`app/build.gradle`: `useLegacyPackaging = true`; Android
+führt Programme nur aus dem entpackten Bibliotheksordner aus).
+
+- **Ablauf:** `core_mode.cpp loadCore` (32 bit): scheitert der Platzhalter für MEM1 und liegt dort
+  etwas aus dem App-Prozess (die Meldung „by …“), lädt die App den Kern nicht selbst, sondern ersetzt
+  die Tabelle `CoreApi api` durch die Funktionen `re4ipc_*` (`runtime/re4_core_client.h`,
+  `core_ipc_client.cpp`). Das erste `re4ipc_reserve` (aus `CoreBridge.start`) startet
+  `libre4_coreproc.so` (`vfork` + `execve`, Socket als Datei 3, `LD_LIBRARY_PATH` = der
+  Bibliotheksordner, Name `<Paket>:core`). Liegt in MEM1 nichts (das System verweigert die
+  Adresse), bleibt es bei der alten Meldung: dann ginge es auch im eigenen Prozess nicht.
+  `RE4_CORE_PROCESS=1` (Einstellungen von `CoreBridge.start`, `test-core-app.ps1 -CoreProcess`)
+  erzwingt den eigenen Prozess auf 32 bit (der schon geladene Kern der App bleibt unbenutzt); auf
+  64 bit wird der Schalter nur gemeldet.
+- **Das Kernprogramm** (`host/coreproc.cpp`): Signale frei, MEM1-Platzhalter sofort, fremde
+  Dateien zu, `PR_SET_PDEATHSIG`, lädt `libre4_main.so`, `re4_mem1_init`, legt den geteilten
+  Speicher an und meldet sich („Hallo“ mit Adresskarte). Threads: Befehle (Hauptthread; Socket
+  zu = die App ist weg = Ende), Eingabe (Controller-Warteschlange in Reihenfolge, Vsync, Gyro,
+  Zustandsbilder), GX (Chunks in 3 geteilte Plätze; der Chunk des Kerns wird erst frei, wenn die
+  App ihre Kopie freigibt: so viele Bilder unterwegs wie im App-Prozess), Ton (genau so viel nach,
+  wie die App las, etwa 16 ms Puffer). Ein Rahmen-Haken je Spielbild schreibt Rumble,
+  Bildzähler und `freeAt`. Absturz- und Hänger-Handler wie in der App, in dieselbe `crash.txt`
+  (das Handle kommt über den Socket).
+- **Geteilter Speicher** (`runtime/re4_core_ipc.h`): Steuerblock (Klingeln als Futex,
+  Warteschlangen, Spiegel, drei Zustandsbilder, Ton-Ring mit Kanalzahl im Kopf: für den
+  DPL2-Branch nicht fest 2), je GX-Platz ein Speicherstück (`memfd_create`, sonst
+  `ASharedMemory`), das bei Bedarf wächst (per Socket geschickt). Nach `gxDetach` verwirft die App
+  ältere Plätze und Chunks bis zum nächsten RESET.
+- **Kern:** einzige Änderung `re4_core_gx_notify` (`runtime/gx_decode.cpp`): ein Rückruf, wenn ein
+  Chunk in die Warteschlange kommt (der Server holt ihn sofort); ohne Rückruf wie bisher. Kein Patch.
+  `host/loader.c`: die Reservierung unter 0x83000000 in `host/low_memory.h` (das Linux-Kernprogramm
+  nutzt sie auch).
+- **App:** `CoreBridge.coreProcess()` (Grund und Zustand, Fehlerbericht „Core: …“ in
+  `device*.txt`, Adresskarte des Kindes in `address-map.txt`), `CoreBridge.coreProblem()`: endet
+  der Kernprozess, zeigt `CoreActivity` „The game core stopped: …“ mit „Send report“ / „Quit“.
+  `test-core-app.ps1 -CoreProcess`: Schalter, Bericht „Kern im eigenen Prozess“, ein Ende des
+  Kernprozesses beendet die Beobachtung. `whole_build_android.sh` baut und kopiert
+  `libre4_coreproc.so` für `armeabi-v7a` (prüft: ein Programm mit `INTERP`).
+- **Geprüft (Cloud, 20.10.2026):** `re4_core_remote_test` (in `whole_build.sh`, i686 und armhf
+  unter qemu, Kind über `--wrapper qemu-arm`): die „App“ belegt MEM1 selbst, startet
+  `re4_coreproc` mit dem Testeinstieg (`tests/core_remote_probe.cpp`) und prüft über den Client:
+  Start/Zustand/Meldung, Controller vor dem Start und ein kurzer Tipper während der Pause (genau
+  ein Bild), Rumble an/aus, Bildzähler, etwa 700 GX-Chunks (Prüfsumme jedes Chunks gleich der des
+  Kindes, Reihenfolge, RESET zuerst und nach `gxDetach`, Speicherstücke wachsen ab 4 KB),
+  etwa 700 Zustandsbilder (Prüfsummen), Ton 6386 Bilder genau (1000/-1000), Vsync vollständig, Gyro
+  weitergegeben, Pause (das Spiel steht), Speicherkarte (leer, 251 frei, `.gci`-Import, Export
+  gleich bis auf den Startblock, „exists“, nur während das Spiel steht), Tiefenschärfe aus/an,
+  Debug-Menü einmal, Protokollende, Ende mit „re4_game_main returned 7“, die App endet → das Kind
+  endet mit Code 0. `--crash`: das Kind stürzt ab → „the game core process ended: signal 11“,
+  `crash.txt` mit Stelle. `--missing`: „the core process does not start (…)“. `core_mode.cpp`,
+  `core_ipc*.cpp`, `coreproc.cpp` für ARM32 und ARM64 mit Ersatz-Headern ohne Fehler und
+  Warnungen übersetzt (kein NDK in der Cloud: Download gesperrt).
+- **Nicht getestet:** auf einem Gerät (Retroid mit `-Abi armeabi-v7a -CoreProcess`, das
+  Mobicel-Gerät des Testers), der Android-Build (NDK, Gradle, `useLegacyPackaging`), das Testskript
+  (kein PowerShell in der Cloud), die Leistung (eine Kopie je GX-Bild), `memfd_create` unter
+  SELinux auf Android (sonst `ASharedMemory`).
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -5092,6 +5154,7 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
 | `libre4_main.so` | Spielcode von `main.dol` (295 Dateien), SN-Toolchain-Ersatz, erzeugte Platzhalter |
 | `modules/libre4_<modul>.so` | eine Bibliothek je Original-REL-Modul (114) |
 | `re4_host` + `libre4_host.so` | Linux-Vorlader (`host/loader.c`) und Startprogramm (`host/main.cpp`: `--self-test`, `--check-modules`, `--runtime-test`, sonst Spielstart; `--data DIR`; `kill -USR1 <pid>` gibt einen Backtrace der laufenden Stelle aus) |
+| `re4_coreproc` / `libre4_coreproc.so` | (32 bit) der Kern als eigener Prozess ohne Java (`host/coreproc.cpp`, Android: im Bibliotheksordner der App), mit dem Client `runtime/core_ipc_client.cpp` der App; Linux-Prüfung `re4_core_remote_test` (`port/docs/32bit-kernprozess.md`) |
 
 Warum zwei Bibliotheken: Der Spielcode ersetzt `operator new/delete` durch
 seine Heaps (`main_mem.cpp`). Die Version-Script-Datei

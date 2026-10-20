@@ -144,6 +144,13 @@ Ergebnis in -OutDir (Standard: Desktop\RE4-Kern-App): bericht.txt, logcat.txt,
 bild-*.png, kern-build.log, apk-build.log, nach einem Absturz absturz-system.txt und
 absturz-stapel.txt. Bitte bericht.txt, logcat.txt und die Bilder schicken.
 
+Kernprozess (32 bit, port/docs/32bit-kernprozess.md): Auf 32-bit-Geraeten, bei denen der
+Java-Speicher von Android schon auf dem Speicher des Spiels (0x80000000) liegt (Android 14),
+laeuft der Spielkern in einem eigenen Prozess ohne Java (libre4_coreproc.so). -CoreProcess
+erzwingt das auch auf dem Retroid (zusammen mit -Abi armeabi-v7a): Der Bericht nennt den
+Kernprozess (Prozessnummer, Grund, Ende), und endet der Kernprozess, waehrend die App noch
+laeuft, endet die Beobachtung wie bei einem Absturz.
+
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File .\port\scripts\test-core-app.ps1
 
@@ -185,7 +192,8 @@ param(
     [switch]$NoCopy,
     [string]$GxReplay = '',
     [string]$GxReplaySeries = '00',
-    [ValidateSet('auto', 'armeabi-v7a', 'arm64-v8a')][string]$Abi = 'auto'
+    [ValidateSet('auto', 'armeabi-v7a', 'arm64-v8a')][string]$Abi = 'auto',
+    [switch]$CoreProcess
 )
 $ErrorActionPreference = 'Stop'
 # -Manual: you play yourself, 30 minutes unless -Seconds is given (Q ends earlier)
@@ -444,6 +452,11 @@ if ($WeaponTrace) {
     $settings = if ($settings) { "$settings;RE4_TRACE_WEAPON=1" } else { 'RE4_TRACE_WEAPON=1' }
 }
 $settings = if ($settings) { "$settings;RE4_APP_TOOLS=1" } else { 'RE4_APP_TOOLS=1' }
+if ($CoreProcess) {
+    # the core in a process of its own also with MEM1 free (32 bit only; core_mode.cpp)
+    if ($Abi -ne 'armeabi-v7a') { Say 'Hinweis: -CoreProcess wirkt nur mit 32 bit (-Abi armeabi-v7a).' }
+    $settings = "$settings;RE4_CORE_PROCESS=1"
+}
 . (Join-Path $PSScriptRoot 'Retroid-Adb-Exclusive.ps1')
 Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     if ((& $Adb -s $Serial get-state) -ne 'device' -or $LASTEXITCODE -ne 0) {
@@ -660,6 +673,8 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     }
     $clock = [Diagnostics.Stopwatch]::StartNew()
     $firstPid = ''
+    # the core process (32 bit, MEM1 taken in the app's process or -CoreProcess): "<package>:core"
+    $corePid = ''
     $crashAt = -1
     $nextShot = 0
     # Q (or Strg+C) ends the observation early; the log, the crash report and the
@@ -687,6 +702,20 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         $alive = ((& $Adb -s $Serial shell pidof $package) -join '').Trim()
         if ($alive -and -not $firstPid) { $firstPid = $alive }
         $gone = if ($firstPid) { $alive -ne $firstPid } else { $now -ge 10 }
+        # the core process ended while the app runs (the app shows "The game core stopped")
+        if ($alive -and -not $gone) {
+            $core = ((& $Adb -s $Serial shell pidof "${package}:core") -join '').Trim()
+            if ($core -and -not $corePid) {
+                $corePid = $core
+                Say ("   {0,3} s: Kernprozess laeuft (PID {1})" -f $now, $core)
+            }
+            if ($corePid -and $core -ne $corePid) {
+                $crashAt = $now
+                Save-Shot $now
+                Say ("   {0,3} s: Kernprozess (PID {1}) LAEUFT NICHT MEHR: Beobachtung endet, Bild aufgenommen" -f $now, $corePid)
+                break
+            }
+        }
         if ($gone) {
             $crashAt = $now
             Save-Shot $now
@@ -799,11 +828,23 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     Say '== Auswertung =='
     $text = $keep -join "`n"
     function Has([string]$Pattern) { return [bool]($text -match $Pattern) }
-    Say ("Kern geladen, Speicher reserviert: {0}" -f $(if (Has 'core loaded, MEM1 reserved') { 'ja' } else { 'NEIN' }))
+    Say ("Kern geladen, Speicher reserviert: {0}" -f $(if (Has 'core loaded, MEM1 reserved|core process: ready \(pid \d+, MEM1 placeholder reserved') { 'ja' } else { 'NEIN' }))
+    # the core in a process of its own (core_mode.cpp useCoreProcess, host/coreproc.cpp)
+    $ownLine = $keep | Where-Object { $_ -match 'core: in a process of its own \((.*)\):' } | Select-Object -First 1
+    $ownWhy = if ($ownLine -and $ownLine -match 'core: in a process of its own \((.*)\):') { $Matches[1] } else { '' }
+    $ownPid = $keep | Where-Object { $_ -match 'core process started: pid (\d+)' } | Select-Object -First 1
+    $ownEnd = $keep | Where-Object { $_ -match 'the game core process ended: ' } | Select-Object -First 1
+    $ownState = if (-not $ownWhy) { 'nein (im App-Prozess)' }
+        else { "ja ($ownWhy)$(if ($ownPid -and $ownPid -match 'pid (\d+)') { ', PID ' + $Matches[1] })" +
+               $(if ($ownEnd) { ', ENDE: ' + (($ownEnd -split 'ended: ')[-1]) } else { '' }) }
+    Say "Kern im eigenen Prozess:          $ownState"
+    $ownProblem = $keep | Where-Object { $_ -match 'core process: .*(does not start|did not answer|missing|taken in the core process|no shared memory)' } | Select-Object -First 1
+    if ($ownProblem) { Say "Kernprozess-FEHLER:               $(($ownProblem -split 'core process: ', 2)[-1])" }
     Say ("Spiel gestartet:                  {0}" -f $(if (Has 'core: running') { 'ja' } else { 'NEIN' }))
     # the black screen at the start (patch 0085): from the core's load to title.dat read (before
     # the first logo; 19.10.2026 without the patch 5.8 s on the Retroid)
-    $loadedAt = $keep | Where-Object { $_ -match 'core loaded, MEM1 reserved' } | Select-Object -First 1
+    $loadedAt = $keep | Where-Object { $_ -match 'core process: ready \(pid' } | Select-Object -First 1
+    if (-not $loadedAt) { $loadedAt = $keep | Where-Object { $_ -match 'core loaded, MEM1 reserved' } | Select-Object -First 1 }
     $titleAt = [Array]::FindIndex([string[]]$keep, [Predicate[string]]{ param($l) $l -match 'Read File: [Ss][Ss]/[a-z]+/title\.dat' })
     $titleOk = $null
     if ($titleAt -ge 0) { $titleOk = $keep[$titleAt..($keep.Count - 1)] | Where-Object { $_ -match 'DVD: Read Ok' } | Select-Object -First 1 }
