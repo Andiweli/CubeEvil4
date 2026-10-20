@@ -139,9 +139,17 @@ readelf=$(ls "$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-readelf 2> /dev/null | h
 strip=$(ls "$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-strip 2> /dev/null | head -1)
 cxxshared=$(ls "$ndk"/toolchains/llvm/prebuilt/*/sysroot/usr/lib/$triple/libc++_shared.so 2> /dev/null | head -1)
 for sym in re4_core_reserve re4_core_start re4_core_state re4_core_message re4_core_pad re4_core_rumble re4_core_audio re4_core_acquire \
-    re4_core_release re4_core_log_tail re4_core_gx_notify re4_add_frame_hook; do
+    re4_core_release re4_core_log_tail; do
     if ! "$readelf" -W --dyn-syms "$build/libre4_main.so" | grep -q " $sym$"; then
         echo "  FEHLER: libre4_main.so exportiert $sym nicht"
+        status=1
+    fi
+done
+# what the core process takes from the platform library (dlsym through libre4_main.so finds it
+# there, as the app's re4_core_gx_acquire)
+for sym in re4_core_gx_acquire re4_core_gx_notify re4_add_frame_hook; do
+    if ! "$readelf" -W --dyn-syms "$build/libre4_platform.so" | grep -v ' UND ' | grep -q " $sym$"; then
+        echo "  FEHLER: libre4_platform.so exportiert $sym nicht"
         status=1
     fi
 done
