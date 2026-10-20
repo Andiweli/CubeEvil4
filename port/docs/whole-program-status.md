@@ -22,7 +22,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
 | M11 Android-Feinschliff | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/nifty-feynman-jv729h`, Stand `093aa7a`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, „Depth of field“ mit dem Autofokus der ersten App, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester, alles auf Englisch), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Rundgang über alle Räume (PC mit Disc-Daten): 126 von 126 laufen (Patches 0062–0064). Super Magnum: kein Port-Fehler (Nachlade-Stufe Lv.5 aus dem Debug-Menü), mit Lv.1 bestätigt. Debug-Menü Waffenseite stürzte am Listenende ab (Patch 0066). Leistung: 60 Bilder/s, Kern 33,3 ms je Spielbild mit 13–15 ms Leerlauf, GPU um 20 ms („M11 Android-Feinschliff“) |
 | M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`, seit 18.10.2026 `claude/exciting-bohr-6akwfd`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt; A2 ✅ Adressen unter 4 GB; A3 ✅ Strukturen, die auf 64 bit auseinanderlaufen: alle Prüfwerkzeuge 0 (Patches 0070–0073, Regel `lp64_sizes`); A4 ✅ alle Cloud-Tests grün auf i686, armhf, x86_64 und **aarch64 (neu, ARM64 unter qemu)**, auch Filme und Speicherkarte; A5 Android arm64 eingebaut, aber ungeprüft (kein NDK in der Cloud). 18.10.2026: PC-Prüfung `-Lp64` läuft r100 10.000 Bilder ohne Absturz, Speichern stürzte ab (Budget des Speicherbildschirms, behoben, unbestätigt); Neustart mit Bestandsaufnahme aller Prüfwerkzeuge (libclang statt Wörter, Selbsttest, `run_all.py` + `reviewed.json`), vier neue Werkzeuge, Patch 0082 (fünf echte Fehler), Vergleichslauf 32/64 bit (`-Compare`, in der Cloud mit dem synthetischen Film gleich; mit Disc-Daten offen). Offen: `-Compare` und `-Lp64` mit Disc-Daten, Gerätetest beider ABIs. Dabei gefunden: Puzzle-Untermenü las auch auf 32 bit falsche Felder (Patch 0073). Bestandsaufnahme `arm64-bestandsaufnahme.md`. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** |
-| 32-bit-Kernprozess | in Arbeit (Branch `claude/re4-32bit-kernprozess`, 20.10.2026): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`); Retroid 20.10.2026: läuft, Ton-Aussetzer gefunden und behoben (Nachtest offen), FPS-Einbrüche im Intro zu prüfen („32 bit: der Kern als eigener Prozess“) |
+| 32-bit-Kernprozess | in Arbeit (Branch `claude/re4-32bit-kernprozess`, 20.10.2026): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`); Retroid 20.10.2026 (`-CoreProcess`): Spiel bis r100, Filme, Ton ohne Aussetzer, 30 FPS wie ohne Kernprozess; offen: Menü/Speichern/Debug-Menü auf dem Gerät, das Gerät des Testers („32 bit: der Kern als eigener Prozess“) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5178,6 +5178,27 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   47 Shader neu übersetzt (ein Bild 839 ms), der Kern wartete im Mittel nur 2,6 ms je Bild auf den
   Renderer, 18,7 ms Leerlauf. Das spricht für die GPU und neue Shader, nicht für den Kernprozess;
   **offen:** Gegenprobe derselben Stelle ohne `-CoreProcess`.
+- **Zweiter Gerätelauf (Retroid, 32 bit, Stand `cc5cdb2`, 20.10.2026, drei Läufe):** Projektinhaber:
+  kein Ruckeln mehr im Ton, FPS durchgehend 30, keine Auffälligkeiten.
+
+  | | 1: `-CoreProcess` (automatisch, 240 s) | 2: ohne (automatisch, 240 s) | 3: `-CoreProcess -Manual` (140 s) |
+  |---|---|---|---|
+  | Kern im eigenen Prozess | ja, PID 11726 | nein | ja, PID 15241 |
+  | Ton des Kerns | 46000 Blöcke, 5 ran dry, **0 skips** | 46000 Blöcke, 11 ran dry, 0 skips | 28000 Blöcke, 6 ran dry, **0 skips** |
+  | Ton über den Kernprozess | 66 von 2000 Lesungen warteten, höchstens 1 ms, 0 zu kurz | – | 197 von 2000 warteten, höchstens 1 ms, 0 zu kurz |
+  | GX-Kopie im Kernprozess | 3901 KB je Bild, 1,14 ms (höchstens 3,2) | – | 3678 KB je Bild, 0,98 ms (höchstens 2,6) |
+  | Kern je Bild | 33,3 ms, 0 ms Warten auf den Renderer, 19,3 ms Leerlauf | 33,3 ms, 0 ms, 12,8 ms | 33,3 ms, 0 ms, 18,3 ms |
+  | Bildschirm | 60,0 gezeigt/s, GPU 17,6 ms | 59,8/s, GPU 14,3 ms | 60,0/s, GPU 17,5 ms |
+  | Filme | Vorfilm ganz (76,0 s, 2278 Bilder, 0 ausgelassen) | Vorfilm (START) | Demo-Film, Vorfilm (beide START) |
+  | sonst | Leon frei in r100, 377 Shader aus dem Zwischenspeicher | Leon frei | Vibration 3×, Leon frei |
+
+  Die 15 FPS im Intro beim ersten Lauf kamen also nicht vom Kernprozess (mit dem Zwischenspeicher
+  der Shader und denselben Einstellungen jetzt durchgehend 30). Die Kopie kostet auf dem Retroid
+  etwa 1 ms je Bild auf einem eigenen Thread (auf dem schwachen Gerät des Testers mehr: dort zu
+  messen). **Auf dem Gerät noch nicht mit dem Kernprozess geprüft:** das Menü der App (Pause,
+  Grafik, Speicherkarte als `.gci`), Speichern/Laden, das Debug-Menü (SELECT halten), ein Absturz des
+  Kernprozesses, und der echte Rückfall (MEM1 vom Java-Speicher belegt: nur auf Geräten wie dem
+  Mobicel des Testers; auf dem Retroid mit Android 13 ist MEM1 frei).
 
 ## Aufbau
 

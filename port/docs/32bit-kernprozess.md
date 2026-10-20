@@ -240,8 +240,11 @@ Prozess“): `host/coreproc.cpp` (Kernprogramm), `runtime/re4_core_ipc.h` + `cor
 (geteilter Speicher, Nachrichten), `runtime/re4_core_client.h` + `core_ipc_client.cpp` (Client der
 App), `core_mode.cpp` (`useCoreProcess`), `CoreActivity`/`CoreBridge`/`CoreLog` (Dialog, Bericht),
 `test-core-app.ps1 -CoreProcess`, `whole_build_android.sh` (Programm für `armeabi-v7a`), Linux-Prüfung
-`re4_core_remote_test` in `whole_build.sh`. Cloud: i686 und armhf bestanden. **Offen: der
-Gerätetest** (Retroid, dann das Mobicel-Gerät des Testers).
+`re4_core_remote_test` in `whole_build.sh`. Cloud: i686 und armhf bestanden. Retroid
+(20.10.2026, `-Abi armeabi-v7a -CoreProcess`): nach der Korrektur des Tonwegs (die AudioTrack nimmt
+stoßweise) Spiel bis r100, Filme, Ton ohne Aussetzer, 30 FPS wie ohne Kernprozess (Tabelle in der
+Status-Datei). **Offen:** Menü, Speichern/Laden und Debug-Menü auf dem Gerät mit dem Kernprozess,
+dann das Mobicel-Gerät des Testers (der echte Rückfall).
 
 Gerätetest (Windows-PC, Retroid per ADB):
 
