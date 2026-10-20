@@ -100,6 +100,16 @@ Kern), Umgebungsvariablen als Einstellungen (`RE4_*`, `coreSettings`), das Fehle
    beenden, SELinux (Ausführen aus `nativeLibraryDir` ist für Apps erlaubt), Leistung
    (Kopien vermeiden), schwache Geräte (das Testgerät hat nur 2 GB und eine PowerVR GE8322).
 
+## Parallel: Raumklang im DPL2-Modus (anderer Branch)
+
+Entscheidung des Projektinhabers (20.10.2026): Weg 1 für „Dolby Pro Logic II“ – im DPL2-Modus
+gibt der Kern die hinteren Kanäle getrennt aus, die App reicht mehrere Kanäle an Android
+weiter (Androids Raumklang für Kopfhörer, wo das Gerät ihn hat). Umgesetzt im Branch
+`claude/re4-dpl2-raumklang` (vom selben Stand). Dabei ändert sich der Tonweg zwischen Kern
+und App (`re4_core_audio`, der Ring in `runtime/ai.cpp`, `CoreAudio.java`): den Ton-Ring im
+geteilten Speicher bitte so anlegen, dass die Zahl der Kanäle nicht fest 2 ist; beim
+Zusammenführen der beiden Branches den Tonweg abgleichen.
+
 ## Testen
 
 - **Cloud:** 32-bit-Linux (`-m32`/i686): das Kernprogramm als Kindprozess, ein Testprogramm

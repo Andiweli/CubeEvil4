@@ -5057,6 +5057,13 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   Formatvergleich, M12-Prüfwerkzeuge); der Patch steht in den vorbereiteten Quellen. **Auf dem
   Gerät bestätigt (Projektinhaber, 20.10.2026):** mit dem neu gebauten Kern läuft die Szene in der
   Hütte weiter, Luis schießt ohne Absturz.
+- **Ton „Dolby Surround Pro Logic II“ (20.10.2026):** Das Spiel schaltet im Menü AUDIO SETUP
+  zwischen MONAURAL, STEREO und DPL2 (`snd_main.cpp`: `AXSetMode` 0/2, `MIXSetSoundMode` 0/1/3);
+  unser DSP-Nachbau mischt DPL2 auf Stereo herunter (`runtime/dsp.cpp`), es klingt daher
+  praktisch wie Stereo. **Entscheidung des Projektinhabers: Weg 1** – im DPL2-Modus die
+  hinteren Kanäle getrennt an Android geben (Androids Raumklang für Kopfhörer, z. B. AirPods,
+  wo das Gerät ihn hat; sonst wie heute), im Branch `claude/re4-dpl2-raumklang`. Weg 2 (eigener
+  Kopfhörer-Raumklang in der App) später vielleicht als Ergänzung.
 - **Release 0.38.3 Alpha 4** (Projektinhaber, 20.10.2026: „Alpha4 fertig für heute“): Text
   `port/android-decomp/docs/releases/v0.38.3-alpha4.md`, APK `CubeEvil4-v0.38.3-alpha4.apk`,
   `versionName '0.38.3-Alpha4'`, `versionCode` 59 (`app/build.gradle`; das Menü zeigt
