@@ -1,0 +1,67 @@
+--- a/src/em10/em10.cpp
++++ b/src/em10/em10.cpp
+@@ -38,6 +38,7 @@
+ #include "cockpit.h"
+ #include "camera.h"
+ #include "cam_ctrl.h"
++#include "pl14.h"   /* PORT: cSubLuis for subem10_NeckHang_Luis (patch 0087) */
+ #include "route_ck.h"
+ #include "foot_shadow.h"
+ #include "dbmodule.h"
+@@ -12292,6 +12293,11 @@
+ {
+     cSubChar* s = SUB_CHAR();
+     PlArc* arc;
++    /* PORT: s is Luis (cSubLuis, not a cSubChar). cSubChar's m_Work0 (0x530) is his
++       routine.pos.y on the GameCube (the routine machine's walk target, used here as the
++       frame counter); LP64 puts cSubChar::m_Work0 on another member of his (routine.dist).
++       The counter stays where the GameCube has it (patch 0087). */
++    int& work0 = *(int*) &((cSubLuis*) pSUB)->routine.pos.y;
+ 
+     StaFlagOn(pG, STA_TAKEAWAY);
+     StaFlagOn(pG, STA_SUB_CATCHED);
+@@ -12317,14 +12323,14 @@
+     case 2:
+         MotionSetCore(s, &s->Motion, PL_ARC_PTR(arc, 0x299), 0, 5, 1, 0);
+         SndCall(8, 0x11, &s->pos, s->id, 0, s);
+-        s->m_Work0 = 0xF;
++        work0 = 0xF;
+         s->r_no_2++;
+     case 3:
+         if (MotionMove(s, 0)) {
+             EndSubDamage();
+             s->dmg.set(0, 0x1E);
+-        } else if (s->m_Work0) {
+-            s->m_Work0--;
++        } else if (work0) {
++            work0--;
+             if (s->pEmCatch->r_no_0 != 1 && s->pEmCatch->r_no_1 != 0x34) {
+                 EndSubDamage();
+                 s->dmg.set(0, 0x1E);
+--- a/src/game/pl_sub.cpp
++++ b/src/game/pl_sub.cpp
+@@ -365,6 +365,24 @@
+         sub->r_no_3 = 0;
+         sub->dmg.set(0, 10);
+         sub->pEmCatch = em;
++    } else if (sub->id == 4) {
++        /* PORT: Luis (cSubLuis, a cEm, not a cSubChar). The original stores ft into cSubChar's
++           m_MotTbl2[0] and 0x40 into the first byte of m_MotBase: on the GameCube these are
++           Luis' m_pFunc (0x584, the function cSubLuis::move runs in routine 4) and his status
++           (0x58C, 0x40 = F_KARAMI, the reaction line after the grab in cSubLuis::endDamage). On
++           LP64 the two classes place other members there: m_pFunc stayed 0 (crash when a Ganado
++           grabs him in the cabin r11c) and his analysis work was overwritten. The same two
++           stores, by Luis' own members (patch 0087). */
++        cSubLuis* luis = (cSubLuis*) pSUB;
++
++        luis->m_pFunc = ft;
++        luis->status.on(cSubLuis::F_KARAMI);
++        sub->r_no_0 = 4;
++        sub->r_no_1 = 0;
++        sub->r_no_2 = 0;
++        sub->r_no_3 = 0;
++        sub->dmg.set(0, 10);
++        sub->pEmCatch = em;
+     } else {
+         sub->m_MotTbl2[0] = (void*)ft;
+         /* port: the original sets 0x40 in the first byte of cMotBase::pMod, the high byte on the

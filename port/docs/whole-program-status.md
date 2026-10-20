@@ -23,6 +23,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M11 Android-Feinschliff | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/nifty-feynman-jv729h`, Stand `093aa7a`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, „Depth of field“ mit dem Autofokus der ersten App, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester, alles auf Englisch), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Rundgang über alle Räume (PC mit Disc-Daten): 126 von 126 laufen (Patches 0062–0064). Super Magnum: kein Port-Fehler (Nachlade-Stufe Lv.5 aus dem Debug-Menü), mit Lv.1 bestätigt. Debug-Menü Waffenseite stürzte am Listenende ab (Patch 0066). Leistung: 60 Bilder/s, Kern 33,3 ms je Spielbild mit 13–15 ms Leerlauf, GPU um 20 ms („M11 Android-Feinschliff“) |
 | M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`, seit 18.10.2026 `claude/exciting-bohr-6akwfd`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt; A2 ✅ Adressen unter 4 GB; A3 ✅ Strukturen, die auf 64 bit auseinanderlaufen: alle Prüfwerkzeuge 0 (Patches 0070–0073, Regel `lp64_sizes`); A4 ✅ alle Cloud-Tests grün auf i686, armhf, x86_64 und **aarch64 (neu, ARM64 unter qemu)**, auch Filme und Speicherkarte; A5 Android arm64 eingebaut, aber ungeprüft (kein NDK in der Cloud). 18.10.2026: PC-Prüfung `-Lp64` läuft r100 10.000 Bilder ohne Absturz, Speichern stürzte ab (Budget des Speicherbildschirms, behoben, unbestätigt); Neustart mit Bestandsaufnahme aller Prüfwerkzeuge (libclang statt Wörter, Selbsttest, `run_all.py` + `reviewed.json`), vier neue Werkzeuge, Patch 0082 (fünf echte Fehler), Vergleichslauf 32/64 bit (`-Compare`, in der Cloud mit dem synthetischen Film gleich; mit Disc-Daten offen). Offen: `-Compare` und `-Lp64` mit Disc-Daten, Gerätetest beider ABIs. Dabei gefunden: Puzzle-Untermenü las auch auf 32 bit falsche Felder (Patch 0073). Bestandsaufnahme `arm64-bestandsaufnahme.md`. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** |
 | 32-bit-Kernprozess | ✅ 20.10.2026 (Branch `claude/re4-32bit-kernprozess`, Release **0.40.0-alpha**): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Retroid ✅ (erzwungen mit `-CoreProcess`: Spiel, Filme, Ton, Laden/Speichern, Debug-Menü, 30 FPS), **Tester-Gerät ✅** (nur 32 bit, Android 14: das Spiel läuft, Projektinhaber 20.10.2026; ohne Bericht). Offen: Leistungszahlen vom Tester-Gerät, Raumklang mit Spatializer („32 bit: der Kern als eigener Prozess“) |
+| Hotfix 0.40.1-alpha | 20.10.2026 (Branch `claude/re4-luis-hotfix`, vom Stand `548b0f24` des Kernprozess-Branches): Patch 0087, Absturz auf 64 bit, wenn ein Ganado Luis in der Hütte packt (Abschnitt „Absturz, wenn ein Ganado Luis in der Hütte packt“). Cloud ✅, **Gerätetest offen** |
 | Hauptbranch `master` | 20.10.2026: alle Branches bis Alpha 4 (`claude/re4-start-controls`) und der 32-bit-Kernprozess bis zum zweiten Retroid-Lauf (`22aac6bf`) zusammengeführt, **ohne den Raumklang** (`claude/re4-dpl2-raumklang`, Wunsch des Projektinhabers: erst nach seinem Test). Das Release **0.40.0-alpha** (mit Raumklang, versionCode 60) und alles danach liegt im Branch `claude/re4-32bit-kernprozess`; dort weiterarbeiten oder ihn später ganz übernehmen |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
@@ -5334,6 +5335,58 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     es dort läuft, was die Kopien kosten und ob der Ton sauber ist, zeigt erst sein Fehlerbericht
     („Core: own process: MEM1 is taken in the app's process …“, Zeilen „core process: GX copies“
     und „core process sound“). **Damit ist der 32-bit-Kernprozess erreicht.**
+- **Absturz, wenn ein Ganado Luis in der Hütte packt (64 bit): behoben mit Patch 0087
+  (20.10.2026, Branch `claude/re4-luis-hotfix`, Hotfix 0.40.1-alpha).** Tester-Bericht
+  `cubeevil4-report-20261020-163954.zip` (POCO X7 Pro, Android 16, App 0.40.0-alpha-core, Kern im
+  App-Prozess): „signal 11, fault address 0x0, pc 0x00000000, lr libre4_pl14.so+0x91e8
+  `_ZN8cSubLuis4moveEv`“, über `emMove` / `cEmMgr::move` / `gameMainLoop`; der Projektinhaber:
+  „Offenbar tritt der Fehler mit dem Absturz etwas später wieder auf“ (nach Patch 0086 kommt die
+  Belagerung weiter).
+  - **Ursache:** `cRoutine::move` (in `cSubLuis::move` eingebettet) ruft in Routine 4
+    `owner->m_pFunc()`; die Funktion war 0. Gesetzt wird sie von `SetSubDamage` (`pl_sub.cpp`),
+    das ein Gegner beim Packen aufruft (em10 `em10CatchSubCk` → für `pSUB->id == 4`
+    `em10_R1_NeckHang_Luis` → `EmCatchSubSet` → `SetSubDamage(em, subem10_NeckHang_Luis)`). Für
+    alle Partner außer Ashley (id 3) schreibt das Original über `cSubChar`:
+    `sub->m_MotTbl2[0] = ft; *(u8*) &sub->m_MotBase |= 0x40;`. Der einzige solche Partner ist Luis
+    (`cSubLuis`, ein `cEm`, **kein** `cSubChar`): auf der GameCube liegen dort sein `m_pFunc`
+    (0x584) und sein `status` (0x58C, 0x40 = `F_KARAMI`). Auf LP64 nicht: `cSubChar::m_MotTbl2` bei
+    0x680, `m_MotBase` bei 0x690, in Luis' `analysis` (0x670..0x698; `time`, `grenadeTimer`,
+    `pEmNearDist`), sein `m_pFunc` bei 0x698 blieb 0.
+  - **Prüfung aller Stellen** (libclang über alle 93 Einheiten mit `SUB_CHAR`/`pSUB`/`cSubChar`,
+    aarch64): 1109 Zugriffe auf Mitglieder von `cSubChar`, ohne `pl_npc.cpp` und `pl11` (Ashleys
+    eigener Code) 32 Funktionen. Luis ist `pSUB` nur während der Belagerung in r11c
+    (`r11c_EventBesiegedStart` zerstört Ashley, am Ende `pSUB = 0`). Davon erreicht Luis:
+    `SetSubDamage` (der Zweig für id ≠ 3) und `subem10_NeckHang_Luis` (`m_Work0` als Zähler,
+    GameCube 0x530 = Luis' `routine.pos.y`, LP64 0x61C = `routine.dist`). Nicht mit Luis: TakeAway
+    (em10 wählt für id 4 NeckHang_Luis), Tür-Tritt (`SubOpenDoorSet`) und Leiter
+    (`SubLadderClimbCk`) nur aus `pl_npc.cpp`, `SubCharCtrl`/`MoveTo`/`CtrlHide`/`SetSubAux` nur
+    aus Räumen mit Ashley, Boot (pl0e/pl0f), Bulldozer, Falle (em2a), El Gigante (em2b), em3c.
+    `pl_R1_Fall` (`registPlAction`) und `sceAtFunc_damage` (`setDamage`) würden auch auf der
+    GameCube Luis' Zeiger überschreiben (`analysis.owner`); im Original also nicht erreicht.
+    Virtuelle Aufrufe über `cSubChar` auf Luis gehen nach Platz in der Tabelle, wie auf der
+    GameCube: `EndSubDamage` ruft für id 4 `modelSet` (Platz 12 bei Itanium, 9 bei CodeWarrior),
+    bei Luis beide Male `cSubLuis::endDamage`.
+  - **Patch 0087:** `SetSubDamage` setzt für id 4 `((cSubLuis*) pSUB)->m_pFunc = ft` und
+    `status.on(F_KARAMI)`; `subem10_NeckHang_Luis` zählt in Luis' `routine.pos.y` wie die
+    GameCube (`em10.cpp` bindet dafür `pl14.h` ein). Auf 32 bit ändert sich am Speicher nichts
+    außer `F_KARAMI`: Patch 0024 hatte das Bit als „ungecachten Spiegel von `cMotBase::pMod`“
+    gestrichen; für Luis ist es aber sein Status, `cSubLuis::endDamage` startet damit seinen
+    Dank-Satz nach dem Packen (`thankCtr = 30`). Der fehlte bisher auf allen Geräten. 0024 bleibt
+    für den (im Port nicht vorhandenen) übrigen Fall.
+  - **Neuer Laufzeittest `partner`** (`runtime_tests.cpp`, `game_probe.cpp`
+    `re4probe_luis_damage`): genullte Luis-Bytes als `pSUB` mit id 4, `SetSubDamage` mit einer
+    Testfunktion; geprüft werden `m_pFunc`, `F_KARAMI`, `r_no_0 == 4`, `pEmCatch` und dass seine
+    `analysis` unberührt bleibt. **Gegenprobe** (aarch64 ohne 0087): „partner: faults 0x13“
+    (`m_pFunc`, `F_KARAMI`, `analysis`), genau das Bild des Berichts.
+  - **Im 64-bit-Kern nachgesehen** (aarch64, `llvm-objdump`): `SetSubDamage` schreibt für id 4
+    nach 0x698 (Luis' `m_pFunc`), der alte Zweig weiter nach 0x680; `subem10_NeckHang_Luis`
+    zählt bei 0x630 (`routine` 0x4C0 + `pos.y` 0x170).
+  - **Version:** `versionName '0.40.1-alpha'`, `versionCode` 61 (Hotfix nach der neuen
+    Nummerierung). Releasetext `port/android-decomp/docs/releases/v0.40.1-alpha.md`.
+  - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle 39 Prüfungen
+    bestanden, `runtime-test partner: ok` auf allen drei. **Nicht getestet:** auf dem Gerät (die
+    Belagerung in r11c, bis ein Ganado Luis würgt; danach muss Luis weiterkämpfen und seinen
+    Dank-Satz sagen), auf 64 bit und auf 32 bit.
 
 ## Aufbau
 
@@ -5522,6 +5575,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0084 `esp_efm.cpp` | `EfmSetObj04` schrieb Eltern-Modell und `guid` über einen Wortzeiger (`u32* link = (u32*) &w->pMod; link[0] = (u32) parent; link[1] = parent->guid;`): auf LP64 landete die `guid` in der oberen Hälfte von `pMod` (8 Bytes), `Guid_pMod` blieb alt; `cObj04::move` las das Eltern-Modell dann über `guid << 32 | parent` (Tester, POCO X7 Pro, 64 bit, r104, 18.10.2026: SIGSEGV an `0xf81017988`, `x8 = 0xf81017980`). Jetzt über die Felder selbst, auf ILP32 gleich. Gefunden vom erweiterten `ptr_word_check.py` (Wortzeiger in einer Hilfsvariablen). Bestätigung: Lauf an derselben Stelle auf 64 bit |
 | 0085 `dvd.cpp` | Der Start ohne Bild-Takt (Wunsch des Projektinhabers, 19.10.2026: kürzerer schwarzer Bildschirm): `cDvd::readProcMain` wartet nach jedem Schritt einer Lesung ein Bild (`TaskSleep(1)`); bis die erste `title.dat` gelesen ist, folgt der nächste Schritt sofort, solange nichts unterwegs ist (0x02000000 DVD, 0x01000000 ARAM), nach je 64 Schritten ein Bild (`runtime/dvd.cpp re4_dvd_boot_fast`); das Ende meldet `re4_dvd_read_done` (Name der Lesung). Danach und mit `RE4_DVD_BOOT_FAST=0` wie im Original. Prüfung: `runtime-test dvdq` (1 / 1 / 14 Bilder) |
 | 0086 `pl14.cpp`, `emmine.cpp`, `obj1b.cpp` | `GetWepTargetList2` legt für jeden Trefferbereich mit `YAT_FLAG_THROUGH`, den die Schusslinie kreuzt, einen Eintrag mehr an als `max` (bis 0x14). `isTarget` (Luis, `TARGET_WK list[2]`), der Treffer der Mine und der des Speers (je ein `TARGET_WK`) hatten nur Platz für `max`: der Eintrag dahinter überschrieb den Wachwert des Stack-Schutzes (Absturz „stack corruption detected“ bei Luis' erstem Schuss in der Hütte r11c, zwei Tester, 20.10.2026). Jetzt je 0x14 Einträge; die Aufrufer lesen weiter Eintrag 0 und 1 |
+| 0087 `pl_sub.cpp`, `em10.cpp` | Luis (`cSubLuis`) ist kein `cSubChar`: `SetSubDamage` schreibt für ihn über `cSubChar::m_MotTbl2[0]` / das erste Byte von `m_MotBase`, auf der GameCube sein `m_pFunc` (0x584) und `status` (0x58C, 0x40 = `F_KARAMI`); auf LP64 andere Stellen, `m_pFunc` blieb 0 (Absturz, wenn ein Ganado Luis in der Hütte r11c packt, Tester 20.10.2026). Jetzt für id 4 über Luis' eigene Mitglieder; `subem10_NeckHang_Luis` zählt `m_Work0` wie die GameCube in Luis' `routine.pos.y`. Das Bit `F_KARAMI` (von 0024 gestrichen) setzt Luis' Dank-Satz nach dem Packen wieder in Gang |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

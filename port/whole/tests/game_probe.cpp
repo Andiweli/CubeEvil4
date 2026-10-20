@@ -1,7 +1,8 @@
 // Compiled with the game's flags and headers (re4_game_flags) for the runtime
 // test "math": checks of what only exists inside game units -- the inline
 // fabsf of math_sub.h, the EmRoutineSetW macro of em.h (patch 0023), the
-// big-endian views of re4_whole_prelude.h and the length of __FILE__.
+// big-endian views of re4_whole_prelude.h and the length of __FILE__; for the
+// test "partner" SetSubDamage on Luis (patch 0087).
 #include "types.h"
 #include "math_sub.h"
 #include "em.h"
@@ -14,6 +15,8 @@
 #include "cam_extra.h"
 #include "obj.h"
 #include "light.h"
+#include "pl14.h"
+#include "pl_sub.h"
 
 #include <new>
 #include <stdlib.h>
@@ -251,4 +254,36 @@ extern "C" int re4probe_valid_ptr(int onThread)
     }
     free(heap);
     return failed;
+}
+
+// The partner damage routine on Luis (pl_sub SetSubDamage, patch 0087): Luis (cSubLuis) is a cEm,
+// not a cSubChar; the original stores the routine 4 function and his F_KARAMI status through
+// cSubChar members that only on the GameCube lie on his m_pFunc and status. On zeroed Luis bytes
+// (no constructor: SetSubDamage touches only plain members) as pSUB, id 4. Returns 0 when his
+// m_pFunc, status, routine and catcher are set and his analysis work is untouched, else a bit
+// for each fault.
+static void probeLuisFunc() {}
+
+extern "C" int re4probe_luis_damage(void)
+{
+    static u8 buf[sizeof(cSubLuis)] __attribute__((aligned(16)));
+    static u8 catcher[sizeof(cEm)] __attribute__((aligned(16)));
+    u8 analysis[sizeof(cAnalysis)];
+    cSubLuis* luis = (cSubLuis*) buf;
+    cEm* keep = pSUB;
+    int bad = 0;
+
+    memset(buf, 0, sizeof(buf));
+    luis->id = 4;
+    memset(&luis->analysis, 0x5A, sizeof(cAnalysis));
+    memcpy(analysis, &luis->analysis, sizeof(cAnalysis));
+    pSUB = (cEm*) luis;
+    SetSubDamage((cEm*) catcher, probeLuisFunc);
+    pSUB = keep;
+    if (luis->m_pFunc != probeLuisFunc) bad |= 1;
+    if (!luis->status.check(cSubLuis::F_KARAMI)) bad |= 2;
+    if (luis->r_no_0 != 4) bad |= 4;
+    if (luis->pEmCatch != (cEm*) catcher) bad |= 8;
+    if (memcmp(analysis, &luis->analysis, sizeof(cAnalysis)) != 0) bad |= 0x10;
+    return bad;
 }

@@ -953,6 +953,7 @@ int re4probe_cast_s16(float f);
 int re4probe_debug_mode(int set);
 void re4probe_stale_list(int set);
 int re4probe_light05(void);
+int re4probe_luis_damage(void);
 }
 
 static unsigned bitsOf(float f)
@@ -1425,6 +1426,19 @@ static void testLight()
     report("light", ok);
 }
 
+// An enemy grabs Luis (pl_sub SetSubDamage, patch 0087, game_probe.cpp): his routine 4 function
+// and F_KARAMI land on his own members (on LP64 the original's cSubChar view missed them)
+static void testPartner()
+{
+    bool ok = true;
+    int r = re4probe_luis_damage();
+    CHECK(r == 0);
+    if (r != 0) {
+        re4_log("  partner: faults 0x%x (1 m_pFunc, 2 F_KARAMI, 4 routine, 8 catcher, 0x10 analysis)", r);
+    }
+    report("partner", ok);
+}
+
 int re4_runtime_tests()
 {
     gFailures = 0;
@@ -1438,6 +1452,7 @@ int re4_runtime_tests()
     testTrace();
     testTasks();
     testLight();
+    testPartner();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);
