@@ -11,7 +11,7 @@
 [![Join The Lair on Discord](https://img.shields.io/badge/Discord-The%20Lair-5865F2?logo=discord&logoColor=white)](https://discord.gg/AB3WVBqD5G)
 [![Support via PayPal](https://img.shields.io/badge/Support%20via-PayPal-0070BA?logo=paypal&logoColor=white)](https://paypal.me/andiweli)
 
-**[STATUS](#status) | [HOW TO USE](#how-to-use) | [DISCORD](https://discord.gg/AB3WVBqD5G) | [ALPHA RELEASE](https://github.com/Andiweli/CubeEvil4-Android/releases)**
+**[REQUIREMENTS](#requirements) | [STATUS](#status) | [HOW TO USE](#how-to-use) | [DISCORD](https://discord.gg/AB3WVBqD5G) | [ALPHA RELEASE](https://github.com/Andiweli/CubeEvil4-Android/releases)**
 
 **CubeEvil4** is an unofficial, native Android port of the GameCube debug build of Resident Evil 4
 (`G4BE08`, the "Nov 25 2004" prototype on two discs). It does not recreate the game: the app runs
@@ -37,6 +37,25 @@ data: you need your own images of both debug discs.
 - Controller like the GameCube pad, with vibration. SELECT opens the app menu (graphics,
   memory card, error report); holding SELECT opens the game's own debug menu.
 - Android 6.0 or later, OpenGL ES 3.0.
+
+## Requirements
+
+| | Minimum | Recommended |
+|---|---|---|
+| Android | 6.0 | – |
+| Processor | ARM, 32- or 64-bit | 64-bit (see the note below) |
+| Graphics | OpenGL ES 3.0 | – |
+| RAM | – | 4 GB or more |
+| Free storage | about 3 GB, to import both discs | – |
+| Input | a game controller (built in, USB or Bluetooth) or the touch screen | a game controller |
+| Gyroscope | – | for gyro aiming (optional) |
+| Game data | your own disc images (ISO or GCM) of **both** discs of the GameCube debug build from November 25, 2004 (`G4BE08`) | – |
+
+> [!NOTE]
+> **32-bit-only devices:** some of them cannot start the game. One with Android 14 showed
+> "core not started: MEM1 … is taken in this process": Android keeps its own memory at the
+> address the game needs. This does not depend on the amount of RAM. A device that runs 64-bit
+> apps is recommended.
 
 ## Status
 
