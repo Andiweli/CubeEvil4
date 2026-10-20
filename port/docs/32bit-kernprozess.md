@@ -100,6 +100,134 @@ Kern), Umgebungsvariablen als Einstellungen (`RE4_*`, `coreSettings`), das Fehle
    beenden, SELinux (Ausführen aus `nativeLibraryDir` ist für Apps erlaubt), Leistung
    (Kopien vermeiden), schwache Geräte (das Testgerät hat nur 2 GB und eine PowerVR GE8322).
 
+## Plan (Sitzung 20.10.2026, Branch `claude/re4-32bit-kernprozess`)
+
+Grundlage: die Übergabe oben und der Code von Alpha 4. Kurz: die App bleibt, wie sie ist; nur
+wenn MEM1 im App-Prozess belegt ist (oder der Schalter es verlangt), ersetzt `core_mode.cpp`
+die Tabelle `CoreApi api` durch einen **Fernaufruf-Ersatz** (Client), der mit einem
+Kernprogramm im eigenen Prozess (Server) spricht. Alles oberhalb der Tabelle (JNI, Renderer,
+Java) merkt davon nichts. Der Kern selbst (`libre4_main.so`, `core_api.cpp`, `gx_decode.cpp`,
+`ai.cpp`) bleibt unverändert: der Server ist nur ein weiterer Benutzer der Kern-Schnittstelle,
+wie die App und `re4_host`.
+
+```
+App-Prozess (Java, GL)                         Kernprozess (ohne Java)
+core_mode.cpp ── api (Client) ──┐              ┌── Server ── libre4_main.so (Spiel)
+   Renderer liest Chunks direkt │ geteilter    │   holt Chunks/Zustand/Ton beim Kern,
+   aus dem geteilten Speicher   │ Speicher     │   gibt Eingaben/Vsync an den Kern
+                                └─ Socket ─────┘   (Befehle, Antworten, neue Speicherstücke)
+```
+
+### 1. Wann der eigene Prozess
+
+- `loadCore` (JNI_OnLoad), nur 32 bit: scheitert der Platzhalter für MEM1, lädt die App den
+  Kern **nicht** in den eigenen Prozess und merkt sich „Kernprozess“. Adresskarte:
+  „MEM1 placeholder: NOT reserved: the core runs in a process of its own“.
+- `CoreBridge.start`: mit `RE4_CORE_PROCESS=1` in den Einstellungen (Testskript `-CoreProcess`)
+  läuft der Kern auch dann im eigenen Prozess, wenn MEM1 frei war (der schon geladene Kern im
+  App-Prozess bleibt unbenutzt liegen; die Einstellungen kommen erst mit `start`, nach
+  JNI_OnLoad). Auf 64 bit wird der Schalter nicht beachtet (Meldung im Protokoll): dort gibt es
+  das Problem nicht, und das Kernprogramm gibt es nur für `armeabi-v7a`.
+- Sonst alles wie bisher (64 bit immer im App-Prozess, 32 bit mit freiem MEM1 auch).
+
+### 2. Das Kernprogramm `libre4_coreproc.so`
+
+- Ein ausführbares Programm (PIE) aus `port/whole/host/coreproc.cpp` (+ `core_server.cpp`), von
+  `whole_build_android.sh` nur für `armeabi-v7a` gebaut und nach `jniLibs/armeabi-v7a` kopiert
+  (Name `lib*.so`, damit Android es mit den Bibliotheken ausliefert).
+- Ablauf im Kind: alle Signale frei, SIGPIPE ignorieren, fremde Dateien schließen (alles außer
+  0–3), **MEM1-Platzhalter sofort** (wie die App), eigene Adresskarte für den Bericht,
+  `PR_SET_PDEATHSIG`, `dlopen("libre4_main.so")` über `LD_LIBRARY_PATH` (der Bibliotheksordner
+  der App), Aufrufe per `dlsym` wie in `loadCore`, `re4_mem1_init`, geteilten Speicher anlegen,
+  „Hallo“ an die App (Prozessnummer, Adresskarte, Fehler). Auf `START`: Einstellungen als
+  Umgebungsvariablen, `re4_core_reserve` + `re4_core_start`.
+- Auf Linux dasselbe Programm (`re4_coreproc` neben `re4_host`), mit der Reservierung des
+  Linux-Laders (`host/loader.c`, Teil in eine gemeinsame Datei), damit die Cloud-Prüfung fast
+  denselben Code prüft wie das Gerät. Nur 32 bit (i686, armhf unter qemu).
+- Start durch die App: `vfork` + `execve` aus `core_mode.cpp` (kein `fork` im Java-Prozess;
+  `posix_spawn` gibt es erst ab API 28), Socket als Datei 3, Umgebung der App plus
+  `LD_LIBRARY_PATH`. Der Pfad kommt aus `dladdr` der App-Bibliothek (kein Java nötig).
+  **Paketierung: Frage an den Projektinhaber** (unten).
+
+### 3. Geteilter Speicher
+
+Vom Kind angelegt (`memfd_create`, sonst `ASharedMemory` über `libandroid.so`), per Socket
+(`SCM_RIGHTS`) an die App gegeben. Seiten werden erst bei Benutzung belegt.
+
+- **Steuerblock** (ein Stück): Kopf mit Version und Größen; Klingeln (Futex im geteilten
+  Speicher) für Eingabe, GX und Ton; Warteschlange der Controller-Zustände (64 Einträge: ein kurzer
+  Tipper zwischen zwei Spielbildern geht nicht verloren, `re4_pad_live` merkt ihn sich), der
+  Vsync-Zeitstempel (16), letzter Gyro-Wert; Spiegel, die ein Rahmen-Haken des Kindes je
+  Spielbild schreibt (Rumble, Bildzähler, `freeAt`), Tonzähler; der **Dreifachpuffer des
+  Zustandsbilds** (3 × `Re4CoreSnapshot`, kopiert werden nur die belegten Teile, ohne Sperre);
+  der **Ton-Ring** (Kanalzahl und Rate im Kopf, nicht fest 2: Abgleich mit dem DPL2-Branch).
+- **GX: 3 Plätze**, je ein eigenes Speicherstück (anfangs 8 MB, wächst bei Bedarf: das Kind legt
+  ein größeres an und schickt es per Socket). Der Server holt jeden Chunk mit
+  `re4_core_gx_acquire`, kopiert ihn in einen freien Platz (Zeiger als Abstände, die App rechnet
+  sie auf ihre Abbildung um) und **gibt den Chunk des Kerns erst frei, wenn die App ihren Platz
+  freigibt**: so sind wie heute höchstens 4 Bilder unterwegs (gleiche Verzögerung der Eingabe),
+  und der Kern bleibt unverändert. Die App fragt wie heute einmal je Bildschirmbild; erst dann
+  holt der Server beim Kern (die „1 s ohne Abholen“-Regel des Kerns wirkt so wie heute).
+  `gxDetach` erhöht eine Nummer; Plätze mit älterer Nummer verwirft die App, der erste Chunk
+  danach beginnt sicher neu (RESET).
+- **Ton**: der Ton-Thread der App liest aus dem Ring; das Kind liest beim Kern genau so viel
+  nach, wie die App verbraucht hat (so bleibt der Gleichlauf des Kerns mit der Uhr des Geräts
+  erhalten), Puffer etwa 16 ms zusätzlich.
+- Eine Kopie der GX-Daten je Bild (im Kind, auf einem eigenen Thread, neben dem Spiel) statt
+  Bau direkt im geteilten Speicher: der Kern bleibt unverändert; messen, ob es reicht
+  (schwaches Gerät).
+
+### 4. Befehle (Socket)
+
+`socketpair(AF_UNIX, SOCK_STREAM)`, Nachrichten mit Kopf (Art, Nummer, Werte, Länge) und
+Inhalt; ein Lese-Thread der App verteilt die Antworten. Befehle: `START`, `STATE`, `PAUSE`
+(wartet bis `waitMs` wie heute), `DEBUG_MENU`, `SET_DOF`, `LOG_TAIL`, `CARD_LIST`,
+`CARD_FREE`, `CARD_NAME`, `CARD_EXPORT`, `CARD_IMPORT`, `HANG` (das Kind tastet seinen
+Spiel-Thread selbst ab, `tgkill` geht nicht über Prozesse), `CRASH_FILE` (die Absturzdatei als
+Datei-Handle). Vom Kind: `HELLO`, `SEGMENT` (neues GX-Speicherstück).
+
+### 5. Ersatz der Tabelle `CoreApi` (core_mode.cpp)
+
+| Aufruf | im eigenen Prozess |
+|---|---|
+| `mem1Init`, `reserve`, `start` | Befehl `START` (das Kind reserviert MEM1 selbst) |
+| `state`, `message` | Befehl; ist das Kind beendet: `FAILED` mit Grund (Signal, Exit-Code) |
+| `pad` | Warteschlange + Klingel (jede Eingabe in Reihenfolge) |
+| `vsync` | Warteschlange der Zeitstempel (dieselbe Uhr in beiden Prozessen) |
+| `gyro` | letzter Wert (das Kind gibt ihn sofort weiter) |
+| `rumble`, `frameCount`, `freeAt` | Spiegel im geteilten Speicher |
+| `audio`, `audioStats` | Ton-Ring / Spiegel |
+| `acquire`, `release` | Dreifachpuffer im geteilten Speicher |
+| `gxAcquire`, `gxRelease`, `gxDetach` | GX-Plätze (oben) |
+| `pause`, `debugMenu`, `setDof`, `card*`, `logTail` | Befehle |
+| `gameThread` | 0; `reportHang` schickt `HANG` |
+
+### 6. Absturz, Protokoll, Ende
+
+- Das Kind hat denselben Absturz-Handler wie die App (`crash.txt` über das geschickte
+  Datei-Handle, Zeilen „RE4Crash“ im Protokoll), danach der des Systems (Tombstone, Puffer
+  `crash`; der Bericht holt ihn schon).
+- Endet das Kind (Socket zu, `waitpid`), wird der Zustand `FAILED` („the game core process
+  ended: signal 11 (Segmentation fault)“). Java zeigt dann einen Dialog wie beim Startfehler:
+  „The game core stopped: …“ mit „Send report“ / „Quit“ (die App stürzt nicht mit ab).
+- Endet die App, endet das Kind (Socket zu, `PR_SET_PDEATHSIG`).
+- Protokoll: das Kind hat dieselbe Benutzerkennung, `logcat` der App sieht seine Zeilen; der
+  Fehlerbericht bekommt „Core process: …“ (Prozessnummer, warum) und die Adresskarte des Kindes.
+
+### 7. Testskript, Cloud-Prüfung, Gerätetest
+
+- `test-core-app.ps1 -CoreProcess` → `RE4_CORE_PROCESS=1`; Bericht: Zeilen zum Kernprozess (Start,
+  MEM1, Ende); ein Ende des Kernprozesses beendet die Beobachtung wie ein Absturz; `P` (Profil)
+  misst den Kernprozess.
+- Cloud: Testprogramm `re4_core_remote_test` als „App“ ohne eigenen Kern, belegt MEM1 vorher
+  selbst (wie ART beim Tester), startet `re4_coreproc` mit einem Testeinstieg und prüft über den
+  Client: Start/Zustand/Meldung, Controller (auch der kurze Tipper), Rumble, Zustandsbilder,
+  GX-Chunks (Prüfsumme je Chunk gegen die des Kindes, Wachsen der Speicherstücke, RESET nach
+  `gxDetach`), Ton (bekanntes Muster), Vsync, Pause, Debug-Menü, Tiefenschärfe, Speicherkarte
+  (Liste, freie Blöcke, Export/Import), Protokollende, Absturz des Kindes (Zustand, `crash.txt`)
+  und Ende der „App“ (das Kind endet). In `whole_build.sh` für i686 und armhf.
+- Gerät: Retroid, `-Abi armeabi-v7a -CoreProcess`: bis r100, Ton, Film, Speichern/Laden, Menü.
+
 ## Parallel: Raumklang im DPL2-Modus (anderer Branch)
 
 Entscheidung des Projektinhabers (20.10.2026): Weg 1 für „Dolby Pro Logic II“ – im DPL2-Modus
