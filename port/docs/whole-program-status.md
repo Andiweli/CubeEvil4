@@ -5094,7 +5094,14 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
     Rückgabe 100/200/300/400 in den vier Kanälen, Stereo 250/400; zurück in Stereo: hinten
     still, nach 0,5 s kein Raumklang mehr. `SurroundPcmTests` 3 Prüfungen; alle Java-Dateien
     gegen Android übersetzt; `core_mode.cpp` 32/64 bit ohne neue Warnungen;
-    `whole_build.sh i686 aarch64`: 0 Fehler, alle Prüfungen bestanden. **Nicht getestet:**
+    `whole_build.sh i686 aarch64`: 0 Fehler, alle Prüfungen bestanden. **Gerätelauf Retroid mit
+    AirPods Pro (20.10.2026, Stand `e3e5e7b3`):** Kern und App gebaut, Spiel läuft (Spielstand
+    r105 geladen), Ausgabe Stereo. Das Protokoll ist abgeschnitten (299 Zeilen, der Anfang
+    fehlt), die erste Zeile „sound: game … spatializer …“ ist nicht darin, nach dem Fortsetzen
+    wird sie nur bei einer Änderung wiederholt: ob der Retroid einen Spatializer hat, ist offen.
+    Jetzt steht der Zustand in jeder Zeile „sound: AudioTrack …“. Auffällig: „45 ran dry“ (Ton
+    ohne Nachschub) in etwa 70 s mit Bluetooth-Kopfhörern (AudioTrack-Puffer 8988 statt 2568
+    Bilder), sonst etwa 5 – zu prüfen, ob man Aussetzer hört. **Nicht getestet:**
     auf einem Gerät mit Raumklang (Spatializer), wie es klingt; ob der Retroid einen hat
     (steht dann im Bericht).
 - **Release 0.38.3 Alpha 4** (Projektinhaber, 20.10.2026: „Alpha4 fertig für heute“): Text

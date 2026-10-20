@@ -112,8 +112,10 @@ final class CoreAudio {
       track.release();
       throw new IllegalStateException("AudioTrack did not start");
     }
+    // with the state of the last check: every report has it, also after a resume
     Log.i(TAG, "sound: AudioTrack 32000 Hz " + (surround ? "5.1 (Dolby Pro Logic II, spatialized)" : "stereo")
-        + ", buffer " + bufferBytes / frameBytes + " frames (minimum " + minimum / frameBytes + ")");
+        + ", buffer " + bufferBytes / frameBytes + " frames (minimum " + minimum / frameBytes + "); "
+        + lastState.replaceFirst("^sound: ", ""));
     return track;
   }
 
