@@ -243,8 +243,11 @@ App), `core_mode.cpp` (`useCoreProcess`), `CoreActivity`/`CoreBridge`/`CoreLog` 
 `re4_core_remote_test` in `whole_build.sh`. Cloud: i686 und armhf bestanden. Retroid
 (20.10.2026, `-Abi armeabi-v7a -CoreProcess`): nach der Korrektur des Tonwegs (die AudioTrack nimmt
 stoßweise) Spiel bis r100, Filme, Ton ohne Aussetzer, 30 FPS wie ohne Kernprozess (Tabelle in der
-Status-Datei). **Offen:** Menü, Speichern/Laden und Debug-Menü auf dem Gerät mit dem Kernprozess,
-dann das Mobicel-Gerät des Testers (der echte Rückfall).
+Status-Datei). DPL2 (`claude/re4-dpl2-raumklang`) ist zusammengeführt; der Kernprozess reicht
+Stereo und die vier Kanäle über einen Leser (`re4_core_audio6`) weiter. Als **0.40.0-alpha**
+vorbereitet (Releasetext `port/android-decomp/docs/releases/v0.40.0-alpha.md`). **Offen:** Menü,
+Speichern/Laden und Debug-Menü auf dem Gerät mit dem Kernprozess, dann das Mobicel-Gerät des
+Testers (der echte Rückfall).
 
 Gerätetest (Windows-PC, Retroid per ADB):
 
@@ -256,6 +259,9 @@ Gerätetest (Windows-PC, Retroid per ADB):
    (SELECT halten), Vibration, Speicherkarten-Export im Menü.
 3. Gegenprobe ohne Schalter (`test-core-app.ps1`, 64 bit): alles wie bisher, „Kern im eigenen
    Prozess: nein“.
+
+Nachtrag Ton (20.10.2026): stimmt die Zahl der Kanäle des Kerns nicht mit dem Ring überein
+(`Control::audioChannels`, 6), gibt die App Stille aus; beide Seiten kommen aus demselben Build.
 
 ## Parallel: Raumklang im DPL2-Modus (anderer Branch)
 

@@ -32,7 +32,7 @@
 namespace re4ipc {
 
 const uint32_t kMagic = 0x43344552;  // "RE4C"
-const uint32_t kVersion = 2;
+const uint32_t kVersion = 3;
 // the socket in the core process: file 3, inherited
 const int kSocketFd = 3;
 
@@ -76,7 +76,7 @@ const int kGxSlots = 3;
 const uint32_t kPadQueue = 64;    // a tap between two game frames is not lost (re4_pad_live)
 const uint32_t kVsyncQueue = 16;
 const uint32_t kAudioFrames = 4096;  // the sound ring (a power of two)
-const uint32_t kAudioMaxChannels = 8;  // room for more than stereo (the DPL2 branch)
+const uint32_t kAudioMaxChannels = 8;  // the ring holds 6: the stereo, then the four channels (DPL2)
 const uint32_t kSnapshotNew = 4;     // Control::snapshotMiddle: the buffer is newer than the reader's
 
 // The GX slot's states. The core process fills a FREE slot (FILLING) and
@@ -112,6 +112,8 @@ struct Control {
     uint32_t pid;
     uint32_t snapshotOffset;  // three Re4CoreSnapshot from here
     uint32_t audioOffset;     // kAudioFrames * audioChannels int16 from here
+    // 6 per frame: the stereo (re4_core_audio), then front left, front right, rear left, rear
+    // right (re4_core_audio4, Dolby Pro Logic II): one read of the core for both, the app plays one
     uint32_t audioChannels, audioRate;
     uint32_t check;           // RE4_CORE_IPC_CHECK in the core process: hashes filled in
 
@@ -129,6 +131,7 @@ struct Control {
     alignas(64) std::atomic<uint32_t> rumble, frames;
     std::atomic<int32_t> freeAt;
     std::atomic<uint32_t> audioStats[5];
+    std::atomic<uint32_t> audioSurround;  // re4_core_audio_surround: the game plays in Dolby Pro Logic II
     // the state frames: the index of the middle buffer | kSnapshotNew
     std::atomic<uint32_t> snapshotMiddle;
     uint32_t snapshotHashLo[3], snapshotHashHi[3];  // RE4_CORE_IPC_CHECK=1

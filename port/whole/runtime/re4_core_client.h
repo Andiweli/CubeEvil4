@@ -59,6 +59,8 @@ const char* re4ipc_message(void);
 void re4ipc_pad(const Re4CorePad* pad);
 unsigned re4ipc_rumble(void);
 int re4ipc_audio(int16_t* out, int frames);
+int re4ipc_audio4(int16_t* out, int frames);
+int re4ipc_audio_surround(void);
 void re4ipc_audio_stats(unsigned* counters);
 const Re4CoreSnapshot* re4ipc_acquire(void);
 void re4ipc_release(const Re4CoreSnapshot* snapshot);

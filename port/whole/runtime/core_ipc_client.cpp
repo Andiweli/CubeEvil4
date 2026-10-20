@@ -650,7 +650,11 @@ void re4ipc_gyro(float yaw, float pitch)
 // the sound's way through the core process, for the log (every 2000 reads)
 unsigned gAudioReads, gAudioWaits, gAudioShort, gAudioWaitMax;
 
-int re4ipc_audio(int16_t* out, int frames)
+namespace {
+
+// `frames` frames of `count` values from value `first` of each ring frame (0, 2: the stereo; 2, 4:
+// the four channels); silence for what does not come
+int readSound(int16_t* out, int frames, uint32_t first, uint32_t count)
 {
     Control* c = control();
     if (frames <= 0) {
@@ -658,7 +662,7 @@ int re4ipc_audio(int16_t* out, int frames)
     }
     int got = 0;
     if (c) {
-        const uint32_t channels = c->audioChannels ? c->audioChannels : 2;
+        const uint32_t channels = c->audioChannels;
         const int16_t* ring16 = (const int16_t*) ((const char*) c + c->audioOffset);
         const uint32_t r = c->audioRead.load(std::memory_order_relaxed);
         uint32_t w = c->audioWrite.load(std::memory_order_acquire);
@@ -692,16 +696,39 @@ int re4ipc_audio(int16_t* out, int frames)
         }
         const uint32_t avail = w - r;
         got = (int) (avail < (uint32_t) frames ? avail : (uint32_t) frames);
-        for (int i = 0; i < got; i++) {
-            const int16_t* f = ring16 + ((r + (uint32_t) i) & (kAudioFrames - 1)) * channels;
-            out[i * 2] = f[0];
-            out[i * 2 + 1] = channels > 1 ? f[1] : f[0];
+        if (first + count <= channels) {
+            for (int i = 0; i < got; i++) {
+                const int16_t* f = ring16 + ((r + (uint32_t) i) & (kAudioFrames - 1)) * channels + first;
+                for (uint32_t k = 0; k < count; k++) {
+                    out[i * (int) count + (int) k] = f[k];
+                }
+            }
+        } else {
+            got = 0;  // a ring without these channels (cannot happen with this program's core process)
         }
         c->audioRead.store(r + (uint32_t) got, std::memory_order_release);
         ring(c->audioBell);
     }
-    memset(out + got * 2, 0, (size_t) (frames - got) * 2 * sizeof(int16_t));
+    memset(out + got * (int) count, 0, (size_t) (frames - got) * count * sizeof(int16_t));
     return got;
+}
+
+}  // namespace
+
+int re4ipc_audio(int16_t* out, int frames)
+{
+    return readSound(out, frames, 0, 2);
+}
+
+int re4ipc_audio4(int16_t* out, int frames)
+{
+    return readSound(out, frames, 2, 4);
+}
+
+int re4ipc_audio_surround(void)
+{
+    Control* c = control();
+    return c ? (int) c->audioSurround.load() : 0;
 }
 
 void re4ipc_audio_stats(unsigned* counters)

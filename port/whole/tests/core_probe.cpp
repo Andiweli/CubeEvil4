@@ -356,6 +356,7 @@ unsigned re4_ai_blocks(void);
 int re4_audio_take(short* out, int frames);
 int re4_audio_read(short* out, int frames);
 int re4_audio_take4(short* out, short* out4, int frames);
+int re4_audio_read6(short* out, int frames);
 unsigned re4_audio_surround_blocks(void);
 int re4_audio_surround_now(void);
 unsigned char* re4_aram(void);
@@ -704,6 +705,15 @@ extern "C" int re4probe_ax_test(void)
         AX_CHECK(four[0] == 1500 && four[1] == 0 && four[2] == 0 && four[3] == 3000);
         AX_CHECK(st[0] == 1500 && st[1] == 3000);
         AX_CHECK(re4_audio_surround_blocks() > surroundBefore && re4_audio_surround_now() == 1);
+        // both at once (re4_audio_read6, for the core in a process of its own): per frame the
+        // stereo, then the four channels, from the same place in the ring
+        for (int i = 0; i < 12; i++) {
+            re4_ai_block();
+        }
+        static short six[6 * 256];
+        AX_CHECK(re4_audio_read6(six, 256) == 256);
+        AX_CHECK(six[0] == 1500 && six[1] == 3000 && six[2] == 1500 && six[3] == 0 && six[4] == 0 && six[5] == 3000);
+        AX_CHECK(six[255 * 6] == 1500 && six[255 * 6 + 1] == 3000 && six[255 * 6 + 5] == 3000);
         // aux A in DPL2: the effect gets Ls from aux A S and Rs from aux B S (MIX's vBS), its
         // returns go to the front and the rear; the stereo takes the effect's rear at half
         gDpl2SeenLs = gDpl2SeenRs = 0;

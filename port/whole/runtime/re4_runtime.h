@@ -183,6 +183,8 @@ int re4_audio_take(short* out, int frames);
  * Dolby Pro Logic II's rear so far, and 1 while such blocks play (the last
  * within 0.5 s). */
 int re4_audio_read4(short* out, int frames);
+/* Both at once: per frame the stereo and then the four channels (6 values; the core process). */
+int re4_audio_read6(short* out, int frames);
 int re4_audio_take4(short* out, short* out4, int frames);
 unsigned re4_audio_surround_blocks(void);
 int re4_audio_surround_now(void);

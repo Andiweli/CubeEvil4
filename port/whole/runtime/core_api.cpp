@@ -526,6 +526,11 @@ int re4_core_audio4(int16_t* out, int frames)
     return re4_audio_read4(out, frames);
 }
 
+int re4_core_audio6(int16_t* out, int frames)
+{
+    return re4_audio_read6(out, frames);
+}
+
 int re4_core_audio_surround(void)
 {
     return re4_audio_surround_now();

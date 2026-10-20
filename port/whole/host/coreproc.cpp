@@ -21,7 +21,9 @@
 //   the sound thread   the core's sound into the shared ring, as much as the
 //                      app took and asks for (the core keeps matching the
 //                      device's clock); 8 ms kept ahead, a read that needs
-//                      more waits for it
+//                      more waits for it; each frame as stereo and as the four
+//                      channels of Dolby Pro Logic II (re4_core_audio6: the app
+//                      plays one of them)
 //   a frame hook       rumble, frame counter and the player's free frame into
 //                      the shared mirrors, once per game frame (PADRead)
 //
@@ -84,7 +86,8 @@ struct Core {
     const char* (*message)(void);
     void (*pad)(const Re4CorePad*);
     unsigned (*rumble)(void);
-    int (*audio)(int16_t*, int);
+    int (*audio6)(int16_t*, int);
+    int (*audioSurround)(void);
     void (*audioStats)(unsigned*);
     const Re4CoreSnapshot* (*acquire)(void);
     void (*release)(const Re4CoreSnapshot*);
@@ -314,6 +317,17 @@ void reportHang(int seconds)
 
 std::atomic<bool> gNewFrame{false};
 
+// the sound's counters and Dolby Pro Logic II for the app (after each game frame and each read of the sound)
+void mirrorSound(Control* c)
+{
+    unsigned a[5] = {0, 0, 0, 0, 0};
+    core.audioStats(a);
+    for (int i = 0; i < 5; i++) {
+        c->audioStats[i].store(a[i]);
+    }
+    c->audioSurround.store(core.audioSurround() ? 1 : 0);
+}
+
 // once per game frame, on the game's thread (PADRead, after the core's own hook)
 void frameHook(unsigned)
 {
@@ -386,11 +400,7 @@ void inputThread()
                 }
                 core.release(s);
             }
-            unsigned a[5] = {0, 0, 0, 0, 0};
-            core.audioStats(a);
-            for (int i = 0; i < 5; i++) {
-                c->audioStats[i].store(a[i]);
-            }
+            mirrorSound(c);
         }
         waitBell(c->inputBell, seen, 100);
     }
@@ -586,7 +596,7 @@ void audioThread()
     const uint32_t channels = c->audioChannels;
     const uint32_t kAhead = 256;  // frames kept ahead for the app's next read (8 ms)
     int16_t* ring16 = (int16_t*) ((char*) c + c->audioOffset);
-    std::vector<int16_t> block(kAudioFrames * 2);
+    std::vector<int16_t> block(kAudioFrames * channels);
     uint32_t taken = c->audioBell.seq.load();
     for (;;) {
         const uint32_t seen = c->audioBell.seq.load(std::memory_order_acquire);
@@ -605,18 +615,18 @@ void audioThread()
                 n = kAudioFrames - fill;
             }
             if (n) {
-                const int got = core.audio(block.data(), (int) n);
+                const int got = core.audio6(block.data(), (int) n);
                 if (got < (int) n) {
                     c->audioCoreSilence.fetch_add(n - (uint32_t) (got > 0 ? got : 0));
                 }
                 for (uint32_t i = 0; i < n; i++) {
-                    int16_t* f = ring16 + ((w + i) & (kAudioFrames - 1)) * channels;
-                    f[0] = block[i * 2];
-                    f[1] = block[i * 2 + 1];
+                    memcpy(ring16 + ((w + i) & (kAudioFrames - 1)) * channels, &block[i * channels],
+                           channels * sizeof(int16_t));
                 }
                 c->audioWrite.store(w + n, std::memory_order_release);
                 c->audioForwarded.fetch_add(n);
                 ring(c->audioDone);
+                mirrorSound(c);
             }
         }
         waitBell(c->audioBell, seen, 250);
@@ -679,7 +689,8 @@ bool loadCore(std::string& problem)
     bind(core.message, "re4_core_message");
     bind(core.pad, "re4_core_pad");
     bind(core.rumble, "re4_core_rumble");
-    bind(core.audio, "re4_core_audio");
+    bind(core.audio6, "re4_core_audio6");
+    bind(core.audioSurround, "re4_core_audio_surround");
     bind(core.audioStats, "re4_core_audio_stats");
     bind(core.acquire, "re4_core_acquire");
     bind(core.release, "re4_core_release");

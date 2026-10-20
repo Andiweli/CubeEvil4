@@ -1336,6 +1336,8 @@ void useCoreProcess(const std::string &why) {
   api.pad = re4ipc_pad;
   api.rumble = re4ipc_rumble;
   api.audio = re4ipc_audio;
+  api.audio4 = re4ipc_audio4;
+  api.audioSurround = re4ipc_audio_surround;
   api.audioStats = re4ipc_audio_stats;
   api.acquire = re4ipc_acquire;
   api.release = re4ipc_release;

@@ -22,7 +22,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
 | M11 Android-Feinschliff | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/nifty-feynman-jv729h`, Stand `093aa7a`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, „Depth of field“ mit dem Autofokus der ersten App, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester, alles auf Englisch), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Rundgang über alle Räume (PC mit Disc-Daten): 126 von 126 laufen (Patches 0062–0064). Super Magnum: kein Port-Fehler (Nachlade-Stufe Lv.5 aus dem Debug-Menü), mit Lv.1 bestätigt. Debug-Menü Waffenseite stürzte am Listenende ab (Patch 0066). Leistung: 60 Bilder/s, Kern 33,3 ms je Spielbild mit 13–15 ms Leerlauf, GPU um 20 ms („M11 Android-Feinschliff“) |
 | M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`, seit 18.10.2026 `claude/exciting-bohr-6akwfd`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt; A2 ✅ Adressen unter 4 GB; A3 ✅ Strukturen, die auf 64 bit auseinanderlaufen: alle Prüfwerkzeuge 0 (Patches 0070–0073, Regel `lp64_sizes`); A4 ✅ alle Cloud-Tests grün auf i686, armhf, x86_64 und **aarch64 (neu, ARM64 unter qemu)**, auch Filme und Speicherkarte; A5 Android arm64 eingebaut, aber ungeprüft (kein NDK in der Cloud). 18.10.2026: PC-Prüfung `-Lp64` läuft r100 10.000 Bilder ohne Absturz, Speichern stürzte ab (Budget des Speicherbildschirms, behoben, unbestätigt); Neustart mit Bestandsaufnahme aller Prüfwerkzeuge (libclang statt Wörter, Selbsttest, `run_all.py` + `reviewed.json`), vier neue Werkzeuge, Patch 0082 (fünf echte Fehler), Vergleichslauf 32/64 bit (`-Compare`, in der Cloud mit dem synthetischen Film gleich; mit Disc-Daten offen). Offen: `-Compare` und `-Lp64` mit Disc-Daten, Gerätetest beider ABIs. Dabei gefunden: Puzzle-Untermenü las auch auf 32 bit falsche Felder (Patch 0073). Bestandsaufnahme `arm64-bestandsaufnahme.md`. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** |
-| 32-bit-Kernprozess | in Arbeit (Branch `claude/re4-32bit-kernprozess`, 20.10.2026): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`); Retroid 20.10.2026 (`-CoreProcess`): Spiel bis r100, Filme, Ton ohne Aussetzer, 30 FPS wie ohne Kernprozess; offen: Menü/Speichern/Debug-Menü auf dem Gerät, das Gerät des Testers („32 bit: der Kern als eigener Prozess“) |
+| 32-bit-Kernprozess | in Arbeit (Branch `claude/re4-32bit-kernprozess`, 20.10.2026): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`); Retroid 20.10.2026 (`-CoreProcess`): Spiel bis r100, Filme, Ton ohne Aussetzer, 30 FPS wie ohne Kernprozess; DPL2 zusammengeführt, **0.40.0-alpha vorbereitet** (versionCode 60, Releasetext); offen: Gerätetest des Stands (Menü/Speichern/Debug-Menü), das Gerät des Testers („32 bit: der Kern als eigener Prozess“) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5272,6 +5272,40 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   Grafik, Speicherkarte als `.gci`), Speichern/Laden, das Debug-Menü (SELECT halten), ein Absturz des
   Kernprozesses, und der echte Rückfall (MEM1 vom Java-Speicher belegt: nur auf Geräten wie dem
   Mobicel des Testers; auf dem Retroid mit Android 13 ist MEM1 frei).
+- **Vorbereitung 0.40.0-alpha (Wunsch des Projektinhabers, 20.10.2026):** „wenn es läuft und alles
+  passt: 0.40.0-alpha, gleich mit DPL2 und allem seit Alpha 4“; danach testen der Projektinhaber
+  (Raumklang) und der Tester mit dem 2-GB-Gerät. Seit Alpha 4 gibt es genau zwei Stränge: DPL2
+  (`claude/re4-dpl2-raumklang`, mit der neuen Nummerierung) und den Kernprozess.
+  - **Zusammengeführt** (`f24a50a4`, ohne Konflikte). Der Tonweg des Kernprozesses kann jetzt
+    beides: der Kern hat einen dritten Leser `re4_audio_read6` / `re4_core_audio6` (je Bild die
+    Stereo-Werte und die vier Kanäle von derselben Stelle, mit derselben Takt-Anpassung; für 2
+    und 4 Kanäle bleibt `readRing` bitgleich). Der Kernprozess liest damit, der Ring im geteilten
+    Speicher hat 6 Werte je Bild (`Control::audioChannels`, Version 3), die App nimmt für
+    `re4ipc_audio` die ersten zwei, für `re4ipc_audio4` die übrigen vier;
+    `re4_core_audio_surround` als Spiegel (`Control::audioSurround`). `useCoreProcess` setzt
+    `api.audio4` und `api.audioSurround`.
+  - **Version:** `versionName '0.40.0-alpha'`, `versionCode` 60 (die 0.39.0 ist nie erschienen;
+    Nummer nach Wunsch des Projektinhabers). Releasetext
+    `port/android-decomp/docs/releases/v0.40.0-alpha.md` (englisch): 32-bit-Geräte mit Android 14
+    (eigener Prozess), Dolby Pro Logic II über Androids Raumklang, weniger Tonverzögerung
+    (`LatencyTuner`), kleinere APK; der bisherige „Known issue“ zu 32 bit ersetzt durch die Bitte
+    um Berichte. Tag `v0.40.0-alpha`, Titel „CubeEvil4 v0.40.0 (Alpha)“, APK
+    `CubeEvil4-v0.40.0-alpha.apk`.
+  - **Geprüft (Cloud):** Kern-Test `ax` neu: `re4_audio_read6` in DPL2 liefert 1500/3000 (Stereo)
+    und 1500/0/0/3000 (vier Kanäle) aus einem Lesen; `re4_core_remote_test` liest jede zweite
+    Folge als vier Kanäle (vorne exakt, hinten still, `audioSurround` 0), weiter 0 Aussetzer;
+    Java-Tests (`CoreInputTests` 125, `CoreTouchTests` 250, `FramePacingTests` 420,
+    `GyroAxesTests` 40, `SurroundPcmTests` 3, `LatencyTunerTests` 14) bestanden; alle Java-Dateien
+    gegen Android 15 übersetzt; `core_mode.cpp`, `core_ipc*.cpp`, `coreproc.cpp` für ARM32 und
+    ARM64 mit Ersatz-Headern ohne Fehler und Warnungen. `whole_build.sh i686 armhf x86_64
+    aarch64`: 0 Baufehler; zwei Ausreißer unter qemu (armhf): `runtime-test vsync` einmal
+    FAILED (ein Zeittest mit echtem 60-Hz-Thread, danach viermal ok; der Code ist unberührt) und
+    `re4_core_remote_test` „AI-Blöcke im Spiegel“: die Tonzähler im geteilten Speicher kamen nur
+    je Spielbild, die letzten Blöcke des Testeinstiegs fehlten noch. Jetzt schreibt der
+    Kernprozess sie auch nach jedem Lesen des Tons (`mirrorSound`). Danach
+    `whole_build.sh i686 armhf` vollständig bestanden, der Kernprozess-Test je dreimal ohne
+    Fehler. **Nicht getestet:** der zusammengeführte Stand auf dem Gerät (Kernprozess mit
+    DPL2-Ton, Menü/Speichern/Debug-Menü), Raumklang auf einem Gerät mit Spatializer.
 
 ## Aufbau
 

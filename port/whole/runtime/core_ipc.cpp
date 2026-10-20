@@ -75,7 +75,7 @@ void controlInit(Control* c, uint32_t pid)
     c->pid = pid;
     c->snapshotOffset = (uint32_t) snapshotOffset();
     c->audioOffset = (uint32_t) audioOffset();
-    c->audioChannels = 2;
+    c->audioChannels = 6;
     c->audioRate = 32000;
     c->snapshotMiddle.store(1);
     c->freeAt.store(-1);

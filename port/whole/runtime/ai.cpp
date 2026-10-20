@@ -223,9 +223,16 @@ unsigned re4_ai_blocks(void)
 // The sound for the device: `frames` frames of `channels` (2: the ring, 4: the four-channel ring)
 // at 32 kHz. Always fills `out` (silence when the ring runs dry); returns the frames that came
 // from the game.
+// channels 6: both at once, the stereo (2) and then the four channels (the core process, which
+// hands both to the app: host/coreproc.cpp)
 static int readRing(short* out, int frames, int channels)
 {
-    const int16_t* ring = channels == 4 ? gRing4 : gRing;
+    struct Source {
+        const int16_t* ring;
+        int channels;
+    };
+    Source sources[2] = {{channels == 4 ? gRing4 : gRing, channels == 4 ? 4 : 2}, {gRing4, 4}};
+    const int nSources = channels == 6 ? 2 : 1;
     std::lock_guard<std::mutex> lock(gReadLock);
     u32 r = gRead.load(std::memory_order_relaxed);
     const u32 w = gWrite.load(std::memory_order_acquire);
@@ -251,9 +258,14 @@ static int readRing(short* out, int frames, int channels)
         }
         const u32 a = r & (kRing - 1), b = (r + 1) & (kRing - 1);
         const int f = (int) (gFrac >> 4);  // 12 bits
-        for (int c = 0; c < channels; c++) {
-            const int16_t va = ring[a * channels + c], vb = ring[b * channels + c];
-            out[i * channels + c] = (int16_t) (va + ((vb - va) * f >> 12));
+        short* o = out + i * channels;
+        for (int s = 0; s < nSources; s++) {
+            const int16_t* ring = sources[s].ring;
+            const int n = sources[s].channels;
+            for (int c = 0; c < n; c++) {
+                const int16_t va = ring[a * n + c], vb = ring[b * n + c];
+                *o++ = (int16_t) (va + ((vb - va) * f >> 12));
+            }
         }
         got++;
         gFrac += step;
@@ -279,6 +291,12 @@ int re4_audio_read(short* out, int frames)
 int re4_audio_read4(short* out, int frames)
 {
     return readRing(out, frames, 4);
+}
+
+// Both in one read: per frame the stereo (left, right), then the four channels.
+int re4_audio_read6(short* out, int frames)
+{
+    return readRing(out, frames, 6);
 }
 
 // Blocks that carried Dolby Pro Logic II's rear so far (the app's choice of output, tests).

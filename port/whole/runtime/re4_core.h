@@ -218,6 +218,10 @@ int re4_core_audio(int16_t* out, int frames);
  * same ring position and clock matching as re4_core_audio: use one of the two.
  * Optional for the app (cores since 20.10.2026). */
 int re4_core_audio4(int16_t* out, int frames);
+/* Both in one read, 6 values per frame: the stereo of re4_core_audio, then the
+ * four channels of re4_core_audio4 (the core in a process of its own hands
+ * both to the app, which plays one of them; host/coreproc.cpp). */
+int re4_core_audio6(int16_t* out, int frames);
 /* 1 while the game plays in Dolby Pro Logic II (the four channels carry a
  * rear), else 0. */
 int re4_core_audio_surround(void);

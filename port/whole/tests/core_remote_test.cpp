@@ -11,7 +11,9 @@
 //   and GX chunks (the hashes of what the core process copied, sequence,
 //   RESET first and after a detach, the memory pieces growing); the sound
 //   (exact samples, read as the app's AudioTrack takes it: bursts of three
-//   reads, without holes, without the core skipping); vsync and gyro passed on; pause, the depth of field,
+//   reads, without holes, without the core skipping; every second burst as the
+//   four channels of Dolby Pro Logic II, whose rear the probe leaves silent);
+//   vsync and gyro passed on; pause, the depth of field,
 //   the debug menu; the memory card (list, free blocks, .gci import and
 //   export); the log tail; the app's end ends the core process.
 //
@@ -95,7 +97,8 @@ struct Receiver {
     unsigned chunks = 0, resets = 0, outOfOrder = 0, firstNotReset = 0, afterDetachNotReset = 0;
     uint32_t lastSequence = 0;
     bool afterDetach = false;
-    unsigned audioFrames = 0, audioWrong = 0, audioHoles = 0, audioSilence = 0, audioReads = 0;
+    unsigned audioFrames = 0, audioWrong = 0, audioHoles = 0, audioSilence = 0, audioReads = 0, audioReads4 = 0;
+    unsigned audioSurround = 0;
     double audioFrom = -1;
     uint64_t audioTaken = 0;
     unsigned snapshots = 0, snapshotBad = 0;
@@ -132,16 +135,25 @@ struct Receiver {
         }
         const uint64_t due = (uint64_t) ((now() - audioFrom) * 32000.0) + 2560;
         while (audioTaken + 768 <= due) {
+            // CoreAudio reads the stereo or, for Android's spatializer, the four channels
+            const bool four = (audioTaken / 768) % 2 == 1;
             for (int k = 0; k < 3; k++) {
-                int16_t pcm[256 * 2];
-                re4ipc_audio(pcm, 256);
+                int16_t pcm[256 * 4];
+                const int n = four ? 4 : 2;
+                if (four) {
+                    re4ipc_audio4(pcm, 256);
+                    audioReads4++;
+                } else {
+                    re4ipc_audio(pcm, 256);
+                }
                 audioReads++;
                 for (int i = 0; i < 256; i++) {
-                    if (pcm[i * 2] || pcm[i * 2 + 1]) {
+                    const int16_t* f = pcm + i * n;
+                    if (f[0] || f[1]) {
                         audioFrames++;
                         audioHoles += audioSilence;  // silence between sound: a dropout
                         audioSilence = 0;
-                        if (pcm[i * 2] != 1000 || pcm[i * 2 + 1] != -1000) {
+                        if (f[0] != 1000 || f[1] != -1000 || (four && (f[2] || f[3]))) {
                             audioWrong++;
                         }
                     } else if (audioFrames) {
@@ -151,6 +163,7 @@ struct Receiver {
             }
             audioTaken += 768;
         }
+        audioSurround += re4ipc_audio_surround() ? 1 : 0;
         if (const Re4CoreSnapshot* s = re4ipc_acquire()) {
             if (s->apiVersion != RE4_CORE_API_VERSION) {
                 snapshotBad++;
@@ -348,7 +361,8 @@ void mainRun(const char* modules, const char* gciPath)
     CHECK(blocks != ~0u && stats[0] == blocks);  // the AI blocks of the probe, all counted
     // every frame the probe played arrived, exactly, without a dropout in between, and the
     // core never had to skip what the app did not take (as in the app's own process)
-    CHECK(r.audioWrong == 0);
+    CHECK(r.audioWrong == 0 && r.audioReads4 > 100);
+    CHECK(r.audioSurround == 0);  // the probe's blocks carry no Dolby Pro Logic II rear
     CHECK(r.audioFrames + 2 * 160 >= blocks * 160 * 9 / 10);
     // a dropout the app hears is silence the core itself filled in (its ring ran dry, as in the
     // app's own process): the way between the processes adds none
