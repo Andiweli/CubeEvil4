@@ -423,6 +423,39 @@ void TestBasics(re4gx::GxRenderer &r) {
       if ((black && (px[0] || px[1] || px[2])) || (!black && px[1] <= 200))
         std::fprintf(stderr, "  shown: %d %d %d\n", px[0], px[1], px[2]);
     }
+    // every present counts (the GPU measurement, RE4_GPU_BENCH); with the timer extension its
+    // GPU time arrives some presents later
+    {
+      const unsigned before = r.Stats().presents;
+      for (int i = 0; i < 3; i++) {
+        shown(r);
+        glFinish();
+      }
+      Check(r.Stats().presents == before + 3, "every present counted");
+      const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+      if (ext && std::strstr(ext, "GL_EXT_disjoint_timer_query")) {
+        Check(r.Stats().presentTimed > 0, "the presents' GPU time measured");
+        Check(r.Stats().gpuTimed > 0, "the chunks' GPU time measured");
+        std::fprintf(stderr, "  present: %u timed, %.3f ms each\n", r.Stats().presentTimed,
+                     r.Stats().presentTimed ? r.Stats().presentMicros / 1000.0 / r.Stats().presentTimed : 0.0);
+      } else {
+        std::fprintf(stderr, "  present: no timer extension here, GPU time not measured\n");
+      }
+      // every chunk is checked against the GPU (fences); after glFinish it has caught up
+      unsigned counted = 0;
+      for (unsigned n : r.Stats().behindCount)
+        counted += n;
+      Check(r.Stats().behindChecks == r.Stats().chunks && counted == r.Stats().behindChecks,
+            "every chunk checked against the GPU");
+      Builder b;
+      Baseline(b);
+      Quad(b, 0, 0, 640, 448, 0, kGreen);
+      const unsigned long long sum = r.Stats().behindSum;
+      const unsigned zero = r.Stats().behindCount[0];
+      r.Run(b.Chunk());
+      Check(r.Stats().behindSum == sum && r.Stats().behindCount[0] == zero + 1,
+            "after glFinish the GPU is behind by no picture");
+    }
     glDeleteFramebuffers(1, &fbo);
     glDeleteTextures(1, &tex);
   }
@@ -811,7 +844,9 @@ void AutofocusScene(Builder &b, bool nearCentre, bool mark) {
 }
 
 void TestAutofocus(re4gx::GxRenderer &r, bool multisampled = false) {
-  const char *tag = multisampled ? "autofocus (multisampled)" : "autofocus";
+  char tag[64];
+  std::snprintf(tag, sizeof(tag), "autofocus%s%s", multisampled ? " (multisampled)" : "",
+                r.HalfDof() ? "" : " (full resolution)");
   auto run = [&](bool nearCentre, bool mark) {
     Builder b;
     AutofocusScene(b, nearCentre, mark);
@@ -841,21 +876,52 @@ void TestAutofocus(re4gx::GxRenderer &r, bool multisampled = false) {
   auto g = TexPixel(xfb, 479, 440), w = TexPixel(xfb, 480, 440);
   std::snprintf(what, sizeof(what), "%s: the near edge in front of the focus stays sharp", tag);
   Check(Near(g, 0, 255, 0) && Near(w, 255, 255, 255), what);
+  // the blurred background right next to it hardly takes its colour (llvmpipe: 0 at the full
+  // resolution, 8 at the half one, 20 when the half one's centre texels in front counted too)
+  auto beside = TexPixel(xfb, 520, 440), below = TexPixel(xfb, 500, 480);
+  std::snprintf(what, sizeof(what), "%s: the background next to the sharp near edge keeps its colour", tag);
+  Check(Near(beside, 0, 0, 255, 12) && Near(below, 0, 0, 255, 12), what);
+  if (!(Near(beside, 0, 0, 255, 12) && Near(below, 0, 0, 255, 12))) {
+    Print("beside the white card", beside);
+    Print("below the white card", below);
+  }
   if (!multisampled) {
     std::snprintf(what, sizeof(what), "%s: the EFB alpha stays", tag);
     Check(EfbPixel(r, 159, 100)[3] == 128, what);
   }
+  // the focus follows its measurements step by step (the Retroid with MSAA, 19.10.2026: thin
+  // branches went soft for one picture): one picture without the card at the centre (measured
+  // far) changes nothing, the far edge stays soft; after three the focus is far, the picture sharp
   xfb = run(false, true);
   l = TexPixel(xfb, 159, 100);
   rr = TexPixel(xfb, 160, 100);
-  std::snprintf(what, sizeof(what), "%s: looking into the distance leaves the picture sharp", tag);
+  std::snprintf(what, sizeof(what), "%s: one picture measured far leaves the focus (the far edge stays soft)", tag);
+  Check(l[2] > 20 && l[0] < 240 && rr[0] > 20 && rr[2] < 240, what);
+  run(false, true);
+  xfb = run(false, true);
+  l = TexPixel(xfb, 159, 100);
+  rr = TexPixel(xfb, 160, 100);
+  std::snprintf(what, sizeof(what), "%s: looking into the distance for three pictures leaves the picture sharp", tag);
   Check(Near(l, 255, 0, 0) && Near(rr, 0, 0, 255), what);
+  if (!(Near(l, 255, 0, 0) && Near(rr, 0, 0, 255))) {
+    Print("left of the edge", l);
+    Print("right of the edge", rr);
+  }
+  // a picture without the marker in between: the next autofocus starts anew, at once
+  xfb = run(false, true);
+  run(true, false);
+  xfb = run(true, true);
+  l = TexPixel(xfb, 159, 100);
+  rr = TexPixel(xfb, 160, 100);
+  std::snprintf(what, sizeof(what), "%s: after a picture without the autofocus the focus is measured anew", tag);
+  Check(l[2] > 20 && l[0] < 240 && rr[0] > 20 && rr[2] < 240, what);
   // standing (Retroid, 17.10.2026): Leon (a card 1 m away) covers the centre,
   // behind him a green / white wall 3 m away, the far edge at 20 m. Without
   // his depth in the marker he is the focus and the wall goes soft; with it
   // (1.5 m) the focus is the wall around him: the wall stays sharp, the far
   // edge gets soft, Leon stays as he is
   auto standing = [&](std::uint32_t player) {
+    run(true, false);  // each case on its own: the autofocus starts anew
     Builder b;
     Baseline(b);
     DisplayCopy(b, true, kBlack);
@@ -906,22 +972,147 @@ void TestAutofocus(re4gx::GxRenderer &r, bool multisampled = false) {
   r.Run(b.Chunk());
 }
 
+// The game draws on after an EFB copy (GPU step d2: on the tiles the copy ends the GPU's pass,
+// the EFB is drawn back after it): what lies in front before the copy still hides what is drawn
+// behind it after, a draw at exactly the same depth with EQUAL still passes, and the colours
+// drawn before stay.
+void TestPassBreak(re4gx::GxRenderer &r, const char *tag) {
+  char what[160];
+  Builder b;
+  Baseline(b);
+  DisplayCopy(b, false, kBlack);
+  const unsigned restores = r.Stats().efbRestores;
+  Quad(b, 0, 0, 640, 528, -1.0f, kBlue);     // background, depth 1
+  Quad(b, 100, 100, 300, 300, -0.5f, kGreen);  // in front, depth 0.5
+  // a copy of 32x32 at (0, 0) to a texture: the pass ends
+  b.Bp(0x49, 0);
+  b.Bp(0x4A, 31 | 31u << 10);
+  b.Bp(0x4D, 32);
+  b.Bp(0x4B, 0x200000 >> 5);
+  b.Bp(0x52, 6u << 4 | 2u << 15);
+  b.Bp(0x4A, 639 | 527u << 10);
+  Quad(b, 200, 200, 400, 400, -0.75f, kRed);  // behind the green one, depth 0.75
+  b.Bp(0x40, 1 | 2 << 1 | 1 << 4);            // EQUAL
+  Quad(b, 100, 100, 150, 150, -0.5f, kWhite);  // the green one's depth exactly
+  b.Bp(0x40, 1 | 3 << 1 | 1 << 4);
+  DisplayCopy(b, false, kBlack);
+  r.Run(b.Chunk());
+  GLuint xfb = r.Xfb(nullptr, nullptr);
+  auto front = TexPixel(xfb, 250, 250), behind = TexPixel(xfb, 350, 350), equal = TexPixel(xfb, 120, 120),
+       before = TexPixel(xfb, 50, 450);
+  std::snprintf(what, sizeof(what), "%s: after a copy, the depth drawn before still hides what lies behind", tag);
+  Check(Near(front, 0, 255, 0), what);
+  std::snprintf(what, sizeof(what), "%s: after a copy, what lies in front of the background is drawn", tag);
+  Check(Near(behind, 255, 0, 0), what);
+  std::snprintf(what, sizeof(what), "%s: after a copy, a draw at exactly the same depth passes EQUAL", tag);
+  Check(Near(equal, 255, 255, 255), what);
+  std::snprintf(what, sizeof(what), "%s: after a copy, the colour drawn before stays", tag);
+  Check(Near(before, 0, 0, 255), what);
+  if (!(Near(front, 0, 255, 0) && Near(behind, 255, 0, 0) && Near(equal, 255, 255, 255) && Near(before, 0, 0, 255))) {
+    Print("green in front", front);
+    Print("red behind", behind);
+    Print("white EQUAL", equal);
+    Print("blue before", before);
+  }
+  if (r.TiledMsaa()) {
+    // the copy (and the display copy) end passes: drawn back before the draws after them
+    std::snprintf(what, sizeof(what), "%s: the EFB drawn back after the copy", tag);
+    Check(r.Stats().efbRestores >= restores + 1, what);
+  }
+}
+
+// The uniform stream moves on to its next quarter only between chunks: a fence set while a
+// picture was drawn changed the multisampled pixels around it on the Adreno 650 (thin branches
+// paler for one picture, 20.10.2026). Chunks of 700 draws, each with its own position matrix
+// (one XF block in the stream per draw, about 2.3 MB a chunk), switch before they start; one of
+// 1400 draws (more than a quarter) has to switch inside. Every draw lands where its matrix says.
+void TestUniformStream(re4gx::GxRenderer &r, const char *tag) {
+  char what[160];
+  auto chunk = [&](unsigned draws, bool reset) {
+    Builder b;
+    if (reset)
+      Baseline(b);
+    else
+      b.flags = 0;
+    DisplayCopy(b, true, kBlack);
+    for (unsigned i = 0; i < draws; i++) {
+      // a 4x4 square on a grid of 40 x 33 places, the matrix moves it there
+      const float x = static_cast<float>(i % 40) * 16.0f, y = static_cast<float>(i / 40 % 33) * 16.0f;
+      b.XfF(0, {1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, 0});
+      Quad(b, 4, 4, 8, 8, 0, (i & 1) ? kGreen : kRed);
+    }
+    b.XfF(0, {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0});
+    DisplayCopy(b, false, kBlack);
+    const re4gx::GxStats before = r.Stats();
+    r.Run(b.Chunk());
+    const re4gx::GxStats &s = r.Stats();
+    // the first and the last square of the chunk, and the black between
+    const GLuint xfb = r.Xfb(nullptr, nullptr);
+    const unsigned last = draws - 1;
+    const int lx = static_cast<int>(last % 40) * 16 + 6, ly = static_cast<int>(last / 40 % 33) * 16 + 6;
+    const bool ok = xfb && Near(TexPixel(xfb, 6, 6), 255, 0, 0) && Near(TexPixel(xfb, 2, 2), 0, 0, 0) &&
+                    Near(TexPixel(xfb, lx, ly), (last & 1) ? 0 : 255, (last & 1) ? 255 : 0, 0);
+    return std::make_pair(ok, std::make_pair(s.streamSwitches - before.streamSwitches,
+                                             s.streamSplits - before.streamSplits));
+  };
+  unsigned switches = 0, splits = 0;
+  bool right = true;
+  for (int i = 0; i < 10; i++) {
+    const auto res = chunk(700, i == 0);
+    right = right && res.first;
+    switches += res.second.first;
+    splits += res.second.second;
+  }
+  std::snprintf(what, sizeof(what), "%s: uniform stream, chunks of 700 draws drawn right", tag);
+  Check(right, what);
+  std::snprintf(what, sizeof(what), "%s: uniform stream switches between chunks (%u), none inside (%u)", tag,
+                switches, splits);
+  Check(switches >= 8 && splits == 0, what);
+  const auto big = chunk(1400, false);
+  std::snprintf(what, sizeof(what), "%s: uniform stream, a chunk larger than a quarter drawn right", tag);
+  Check(big.first, what);
+  std::snprintf(what, sizeof(what), "%s: uniform stream, a chunk larger than a quarter switches inside (%u)", tag,
+                big.second.second);
+  Check(big.second.second >= 1, what);
+  // and back to chunks that fit: from a quarter's start again, none inside
+  const auto after = chunk(700, false);
+  std::snprintf(what, sizeof(what), "%s: uniform stream, after the large chunk one of 700 draws right, none inside",
+                tag);
+  Check(after.first && after.second.first == 1 && after.second.second == 0, what);
+}
+
 // The menu's picture options (M11): a multisampled EFB is resolved before
 // every copy out of it (display copy, texture copy); a slanted edge comes out
 // between the two colours; anisotropic filtering does not change a picture
 // without mipmaps.
-void TestOptions() {
+void TestOptions(bool poison, bool tiled, bool halfDof = true, int lose = 0) {
   int maxSamples = 1;
   float maxAnisotropy = 1.0f;
   re4gx::GxRenderer::Limits(&maxSamples, &maxAnisotropy);
-  std::fprintf(stderr, "  options: up to %d samples, anisotropy up to %.0f\n", maxSamples, maxAnisotropy);
+  std::fprintf(stderr, "  options: up to %d samples, anisotropy up to %.0f, MSAA %s%s\n", maxSamples, maxAnisotropy,
+               tiled ? "on the tiles where the GPU can" : "in own buffers",
+               lose == 2   ? ", everything lost at a pass's end, the depth never stored"
+               : lose == 1 ? ", everything lost at a pass's end"
+                           : "");
   re4gx::GxRenderer r;
   re4gx::GxOptions o;
   o.samples = 4;
   o.anisotropy = 8.0f;
+  o.invalidate = poison;
+  o.poison = poison;
+  o.tiledMsaa = tiled;
+  o.halfDof = halfDof;
+  o.loseTiles = lose;
   r.SetOptions(o);
   std::string error;
   Require(r.Init(1, &error), error.c_str());
+  // MSAA on the tiles exactly where the GPU has both extensions (GPU step d)
+  const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+  const bool can = ext && std::strstr(ext, "GL_EXT_multisampled_render_to_texture2") && maxSamples > 1;
+  // (d2: not when the device never stores the resolved depth; the self-test at Init finds it)
+  Check(r.TiledMsaa() == (tiled && can && lose < 2), "options: MSAA on the tiles where asked for and the GPU can");
+  if (tiled && can && lose == 2)
+    Check(r.Samples() > 1, "options: the depth never stored on the tiles: own buffers instead");
   Check(r.Samples() == (maxSamples >= 4 ? 4 : 1) || (r.Samples() > 1 && r.Samples() <= maxSamples),
         "options: the samples asked for, as far as the device goes");
   Check(r.Anisotropy() == std::min(8.0f, maxAnisotropy), "options: the anisotropy, as far as the device goes");
@@ -951,7 +1142,11 @@ void TestOptions() {
     Check(between > 20, "multisampled: the slanted edge is smoothed");
   }
   TestCopyAndPalette(r, true);  // EFB copy to a texture (resolved first), palette
+  Check(r.HalfDof() == halfDof, "options: the depth of field's resolution as asked for");
   TestAutofocus(r, r.Samples() > 1);
+  TestPassBreak(r, r.TiledMsaa() ? (lose ? "on the tiles, everything lost" : "on the tiles") : "multisampled");
+  if (!poison && !lose)
+    TestUniformStream(r, r.TiledMsaa() ? "on the tiles" : "multisampled");
   Check(glGetError() == GL_NO_ERROR, "options: no GL error");
   r.Release();
 }
@@ -960,21 +1155,56 @@ int main() {
   Context();
   glGenFramebuffers(1, &gReadFbo);
   TestDecoder();
-  re4gx::GxRenderer renderer;
-  std::string error;
-  Require(renderer.Init(1, &error), error.c_str());
-  TestBasics(renderer);
-  TestTexture(renderer);
-  TestTev(renderer);
-  TestLighting(renderer);
-  TestCopyAndPalette(renderer);
-  TestFog(renderer);
-  TestShaderVariety(renderer);
-  TestCopyFilter(renderer);
-  TestAutofocus(renderer);
-  Check(glGetError() == GL_NO_ERROR, "no GL error");
-  renderer.Release();
-  TestOptions();
+  // twice: as the app runs it, and with the copy targets, the blur and the focus painted magenta
+  // where the GPU may forget them (GPU step b): every picture must stay the same
+  for (int poison = 0; poison < 2; poison++) {
+    if (poison)
+      std::fprintf(stderr, "again with forgotten contents painted magenta:\n");
+    re4gx::GxRenderer renderer;
+    re4gx::GxOptions o;
+    o.invalidate = poison != 0;
+    o.poison = poison != 0;
+    renderer.SetOptions(o);
+    std::string error;
+    Require(renderer.Init(1, &error), error.c_str());
+    TestBasics(renderer);
+    TestTexture(renderer);
+    TestTev(renderer);
+    TestLighting(renderer);
+    TestCopyAndPalette(renderer);
+    TestFog(renderer);
+    TestShaderVariety(renderer);
+    TestCopyFilter(renderer);
+    TestAutofocus(renderer);
+    TestPassBreak(renderer, "single-sampled");
+    if (!poison)
+      TestUniformStream(renderer, "single-sampled");
+    Check(glGetError() == GL_NO_ERROR, "no GL error");
+    renderer.Release();
+    {
+      // the depth of field as before GPU step e: the blur at the full resolution
+      re4gx::GxRenderer full;
+      o.halfDof = false;
+      full.SetOptions(o);
+      Require(full.Init(1, &error), error.c_str());
+      TestAutofocus(full);
+      Check(glGetError() == GL_NO_ERROR, "full-resolution depth of field: no GL error");
+      full.Release();
+    }
+    TestOptions(poison != 0, true);
+  }
+  // MSAA in its own buffers (the devices without the extensions, RE4_GX_MSAA_TILES=0)
+  TestOptions(false, false);
+  // the depth of field's blur at the full resolution as before GPU step e (GxOptions::halfDof)
+  TestOptions(false, false, false);
+  // MSAA on the tiles on a GPU that loses colour and depth at every pass's end (the Adreno 650
+  // lost the depth): the EFB drawn back (GPU step d2) keeps every picture; both resolutions of
+  // the depth of field (its full one draws back into the EFB on the tiles)
+  TestOptions(false, true, true, 1);
+  TestOptions(true, true, false, 1);
+  // ... and one that never stores the resolved depth either (the Adreno 650, it seems): the
+  // self-test at Init takes own buffers, every picture right
+  TestOptions(false, true, true, 2);
   std::fprintf(stderr, "gx_gl_check: %d failed\n", gFailures);
   return gFailures ? 1 : 0;
 }

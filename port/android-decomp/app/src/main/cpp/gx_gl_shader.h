@@ -34,6 +34,8 @@ struct ShaderKey {
   std::uint32_t alphaTest;    // BP 0xF3 bits 16-23: comp0, comp1, logic
   std::uint32_t fog;          // BP 0xF1 bits 20-23: projection, function
   std::uint32_t texMaps;      // maps the stages sample (bit per map)
+  // both
+  std::uint32_t centroid;     // 1: the varyings at a covered sample (MSAA, GxOptions::centroid)
 };
 
 std::string GxVertexShader(const ShaderKey &key);

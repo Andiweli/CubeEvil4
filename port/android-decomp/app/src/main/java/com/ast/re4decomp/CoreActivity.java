@@ -1,5 +1,6 @@
 package com.ast.re4decomp;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
@@ -25,10 +26,13 @@ import android.os.VibratorManager;
 import android.provider.DocumentsContract;
 import android.util.Log;
 import android.view.Choreographer;
+import android.view.Display;
 import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.Surface;
+import android.view.SurfaceHolder;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
@@ -63,17 +67,28 @@ import javax.microedition.khronos.opengles.GL10;
  * memory card as .gci, error log; the game stands meanwhile), SELECT held
  * for a second the game's debug menu (decision of the project owner,
  * 17.10.2026); R3 saves graphics data for the diagnosis when the tools are
- * on (the test scripts, or the menu's switch). The game also stands while
- * the app is not in front. Back ends the game (the core cannot be restarted
+ * on (the test scripts, or the menu's switch). The touch controls
+ * (TouchControls: RetroTouch above the picture) appear while no controller is
+ * connected or when the menu's switch is on; their MENU is SELECT. The game
+ * also stands while the app is not in front and while RetroTouch's editor is
+ * open. Back ends the game (the core cannot be restarted
  * inside the same process). The error log records from the start (CoreLog).
  */
 public final class CoreActivity extends Activity implements InputManager.InputDeviceListener {
   static final String TAG = "RE4Input";
   /** Preferences of the core mode's controller (MainActivity sets the swap). */
   static final String INPUT_PREFS = "core_input", SWAP_FACE = "swapFace", R3_CAPTURE = "r3Capture";
+  /** The menu's switch "Use Touch Controls": shown even with a controller (off: only without one). */
+  static final String TOUCH_ALWAYS = "touchControls";
+  // the menu's switch "Use Gyro-Aiming" (GyroAim)
+  static final String GYRO_AIM = "gyroAiming";
+  // the menu's switch "Alternate Controls" (CoreInput.setAlternate)
+  static final String ALT_CONTROLS = "alternateControls";
+  // the menu's switch "Latch L and R" of the touch controls (CoreTouch.setLatch; off: held while touched)
+  static final String TOUCH_LATCH = "touchLatchLR";
   /** The menu's picture options: scale (0 auto, 1-4), samples, anisotropy, aspect (0 16:9, 1 4:3). */
   static final String GRAPHICS_PREFS = "core_graphics";
-  private static final int REQUEST_EXPORT = 1, REQUEST_EXPORT_ALL = 2, REQUEST_IMPORT = 3, REQUEST_REPORT = 4;
+  private static final int REQUEST_EXPORT_ALL = 2, REQUEST_IMPORT = 3, REQUEST_REPORT = 4;
   /** SELECT held this long: the game's debug menu. */
   private static final long SELECT_HOLD_MS = 1000;
 
@@ -83,15 +98,24 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private final CoreAudio audio = new CoreAudio();
   private final Set<Integer> seenDevices = new HashSet<>();
   private GLSurfaceView surface;
+  // the touch controls (RetroTouch) and its editor, during which the game stands
+  private TouchControls touchControls;
+  private GyroAim gyroAim;
+  private boolean touchEditing;
   private String startProblem = "";
   private String settings = "";
   private volatile boolean destroyed;
   // the menu (SELECT) and the debug menu (SELECT held)
   private CoreMenu menu;
   private boolean menuSupported, tools, selectDown, selectHeld;
-  private int exportIndex = -1;
   private final List<byte[]> pendingImports = new ArrayList<>();
   private boolean resumed;
+  // GPU step c: the picture drawn at each vsync or, on a faster screen, at every n-th
+  private final FramePacing pacing = new FramePacing();
+  private int vsyncs;
+  private boolean paceLogged;
+  // the screen was asked for 60 Hz (preferSixtyHz): the surface too, once it exists
+  private boolean askSixty;
   // rumble: the game's motor (CoreBridge.rumble) on the device's vibrator
   private Vibrator vibrator;
   private boolean amplitudeControl, vibrating;
@@ -99,15 +123,20 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private long rumbleSeen, rumbleUntil;
   private volatile int preparedRoom = -1;
   private boolean roomBusy;
-  // the FPS display (menu switch): the game's frames per second, bottom left
+  // the FPS display (menu switch): the game's frames per second and the screen's rate, bottom left
+  // ("30 FPS (Game) · 60 Hz": the game makes 30 pictures a second, as on the GameCube; a phone's
+  // own counter shows the screen's rate, which is not the game's)
   private TextView fpsView;
   private long fpsFrames = -1, fpsSince;
   // a game that stands without a pause (a hang): reported once per stand
   private long lastFrames = -1, framesSince;
   private boolean hangReported;
   private static final long HANG_MS = 8000;
+  // the core in a process of its own ended (CoreBridge.coreProblem): shown once
+  private boolean coreEndShown;
 
   @Override
+  @SuppressLint("ClickableViewAccessibility")
   public void onCreate(Bundle state) {
     super.onCreate(state);
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -129,11 +158,10 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     menuSupported = startProblem.isEmpty() && CoreBridge.hasMenu();
     SharedPreferences inputPrefs = getSharedPreferences(INPUT_PREFS, MODE_PRIVATE);
     input.setSwapFace(inputPrefs.getBoolean(SWAP_FACE, false));
+    input.setAlternate(inputPrefs.getBoolean(ALT_CONTROLS, false));
     // R3 saves graphics data with the test scripts (RE4_APP_TOOLS=1) or when the menu switched it on
     tools = settings.contains("RE4_APP_TOOLS=1") || inputPrefs.getBoolean(R3_CAPTURE, false);
-    Log.i(TAG, "layout: A B X Y by label" + (input.swapFace() ? ", A/B and X/Y swapped" : "")
-        + ", R2 = R, L2 = L, R1 = Z, SELECT menu (held: debug menu), R3 " + (tools ? "graphics capture" : "unused")
-        + (menuSupported ? "" : "; this core has no menu functions"));
+    logLayout();
     setUpVibrator();
     // the volume buttons set the game's volume
     setVolumeControlStream(AudioManager.STREAM_MUSIC);
@@ -148,6 +176,14 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       @Override public void onDrawFrame(GL10 gl) { CoreBridge.draw(); }
     });
     root.addView(surface);
+    surface.getHolder().addCallback(new SurfaceHolder.Callback() {
+      @Override public void surfaceCreated(SurfaceHolder holder) { surfaceSixtyHz(holder.getSurface()); }
+      @Override public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {}
+      @Override public void surfaceDestroyed(SurfaceHolder holder) {}
+    });
+    // the surface takes the fingers beside the touch controls: Android gives the further fingers
+    // of a touch only to views that took one, so a thumb beside the buttons would block them
+    surface.setOnTouchListener((v, e) -> true);
     fpsView = new TextView(this);
     fpsView.setTypeface(Typeface.MONOSPACE);
     fpsView.setTextSize(11);
@@ -157,8 +193,16 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     root.addView(fpsView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,
         FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START));
     showFps(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("fps", false));
+    // the touch controls above everything
+    touchControls = new TouchControls(this, input, inputPrefs.getBoolean(TOUCH_ALWAYS, false), touchHost);
+    touchControls.setLatch(inputPrefs.getBoolean(TOUCH_LATCH, false));
+    gyroAim = new GyroAim(this, main);
+    gyroAim.setEnabled(inputPrefs.getBoolean(GYRO_AIM, false));
+    root.addView(touchControls.view(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
+        FrameLayout.LayoutParams.MATCH_PARENT));
     if (startProblem.isEmpty()) CoreBridge.setDof(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("dof", true));
     setContentView(root);
+    preferSixtyHz();
     surface.setFocusable(true);
     surface.requestFocus();
     if (Build.VERSION.SDK_INT >= 33)
@@ -180,6 +224,26 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
         .setCancelable(false).show();
   }
 
+  /**
+   * The core in a process of its own (32-bit devices whose Java heap lies where the game's memory
+   * must be): when that process ends (a crash), the app stays and says so, with the error report
+   * to send (the crash is in it).
+   */
+  private void checkCoreProcess() {
+    if (coreEndShown || !startProblem.isEmpty()) return;
+    String ended = CoreBridge.coreProblem();
+    if (ended == null || ended.isEmpty()) return;
+    coreEndShown = true;
+    Log.e(TAG, "core process: " + ended);
+    audio.stop();
+    stopVibrator();
+    new AlertDialog.Builder(this)
+        .setMessage("The game core stopped:\n" + ended)
+        .setPositiveButton("Send report", (d, w) -> shareReport())
+        .setNegativeButton("Quit", (d, w) -> quit())
+        .setCancelable(false).show();
+  }
+
   /** The menu's picture options to the renderer (applied at the next picture while the game runs). */
   private void applyGraphics() {
     SharedPreferences g = getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE);
@@ -193,11 +257,17 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
         | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
   }
 
-  /** Twice a second: the room the game wants; the FPS display; a game that stands without a pause. */
+  /**
+   * Twice a second: the room the game wants; the FPS display; a game that
+   * stands without a pause; the touch controls shown or hidden by the
+   * controllers present.
+   */
   private void tick() {
     if (destroyed) return;
+    touchControls.update();
     updateFps();
     checkHang();
+    checkCoreProcess();
     int room = CoreBridge.wantedRoom();
     if (room >= 0 && room != preparedRoom && !roomBusy) prepareRoom(room);
     main.postDelayed(this::tick, 500);
@@ -205,15 +275,25 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
 
   private void showFps(boolean on) {
     fpsView.setVisibility(on && menuSupported ? View.VISIBLE : View.GONE);
-    fpsView.setText("-- FPS");
+    fpsView.setText("-- FPS (Game)" + screenHz());
     fpsFrames = -1;
+  }
+
+  /** " · 60 Hz": the screen's rate as measured (FramePacing), else as Android says; "" unknown. */
+  private String screenHz() {
+    double hz = pacing.hz();
+    if (!(hz > 0)) {
+      Display display = getWindowManager().getDefaultDisplay();
+      hz = display != null ? display.getRefreshRate() : 0;
+    }
+    return hz > 0 ? String.format(Locale.ROOT, " · %d Hz", Math.round(hz)) : "";
   }
 
   /** The game's frames per second (one controller read per frame), counted over a second. */
   private void updateFps() {
     if (fpsView.getVisibility() != View.VISIBLE) return;
     long now = SystemClock.uptimeMillis(), frames = CoreBridge.gameFrames();
-    if (frames < 0 || !resumed || menu != null) {
+    if (frames < 0 || !resumed || menu != null || touchEditing) {
       fpsFrames = -1;  // the game stands: count anew afterwards
       return;
     }
@@ -221,7 +301,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       fpsFrames = frames;
       fpsSince = now;
     } else if (now - fpsSince >= 1000) {
-      fpsView.setText(String.format(Locale.ROOT, "%d FPS", Math.round((frames - fpsFrames) * 1000.0 / (now - fpsSince))));
+      fpsView.setText(String.format(Locale.ROOT, "%d FPS (Game)%s",
+          Math.round((frames - fpsFrames) * 1000.0 / (now - fpsSince)), screenHz()));
       fpsFrames = frames;
       fpsSince = now;
     }
@@ -237,7 +318,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     long now = SystemClock.uptimeMillis();
     long frames = CoreBridge.gameFrames();
     if (frames < 0) return;
-    if (frames != lastFrames || !resumed || menu != null) {
+    if (frames != lastFrames || !resumed || menu != null || touchEditing) {
       if (frames != lastFrames) hangReported = false;  // the game moves (again)
       lastFrames = frames;
       framesSince = now;
@@ -301,6 +382,21 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     Log.i(TAG, "SELECT held: debug menu");
   };
 
+  /** SELECT (a controller's key or the touch controls' MENU) went down or up. */
+  private void select(boolean down) {
+    if (down) {
+      selectDown = true;
+      selectHeld = false;
+      main.removeCallbacks(selectHold);
+      main.postDelayed(selectHold, SELECT_HOLD_MS);
+    } else if (selectDown) {
+      // let go before the second: the menu
+      selectDown = false;
+      main.removeCallbacks(selectHold);
+      if (!selectHeld) openMenu();
+    }
+  }
+
   private void openMenu() {
     if (menu != null || destroyed) return;
     if (!menuSupported) {
@@ -317,7 +413,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     menu.setOnDismissListener(d -> {
       menu = null;
       releaseAll();
-      if (resumed) {
+      if (resumed && !touchEditing) {
         CoreBridge.pause(false, 0);
         audio.start();
         main.removeCallbacks(rumbleTick);
@@ -331,13 +427,6 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
 
   private final CoreMenu.Host menuHost = new CoreMenu.Host() {
     @Override public void graphicsChanged() { applyGraphics(); }
-
-    @Override public void exportFile(int index, String fileName) {
-      exportIndex = index;
-      Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-          .setType("application/octet-stream").putExtra(Intent.EXTRA_TITLE, fileName);
-      startForResult(i, REQUEST_EXPORT);
-    }
 
     @Override public void exportAll() {
       startForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQUEST_EXPORT_ALL);
@@ -365,7 +454,74 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     }
 
     @Override public void fpsChanged(boolean on) { showFps(on); }
+
+    @Override public void touchChanged(boolean on) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(TOUCH_ALWAYS, on).apply();
+      touchControls.setAlways(on);
+    }
+
+    @Override public void gyroChanged(boolean on) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(GYRO_AIM, on).apply();
+      gyroAim.setEnabled(on);
+    }
+
+    @Override public void latchChanged(boolean on) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(TOUCH_LATCH, on).apply();
+      touchControls.setLatch(on);
+      send();
+      Log.i(TAG, "touch controls: L and R " + (on ? "latch on a tap" : "held while touched"));
+    }
+
+    @Override public void alternateChanged(boolean on) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(ALT_CONTROLS, on).apply();
+      input.setAlternate(on);
+      send();
+      logLayout();
+    }
   };
+
+  private void logLayout() {
+    Log.i(TAG, "layout: A B X Y by label" + (input.swapFace() ? ", A/B and X/Y swapped" : "")
+        + (input.alternate() ? ", alternate controls: L1 = L, L2 = R, R1 = Y, R2 = A, Y = Z, aiming with the right stick"
+            : ", R2 = R, L2 = L, R1 = Z")
+        + ", SELECT menu (held: debug menu), R3 " + (tools ? "graphics capture" : "unused")
+        + (menuSupported ? "" : "; this core has no menu functions"));
+  }
+
+  private final TouchControls.Host touchHost = new TouchControls.Host() {
+    @Override public void select(boolean down, boolean finger) {
+      if (down || finger) {
+        CoreActivity.this.select(down);
+      } else {
+        // RetroTouch let MENU go itself (hidden, reset): no menu
+        selectDown = false;
+        main.removeCallbacks(selectHold);
+      }
+    }
+
+    @Override public void editing(boolean on) { touchEditing(on); }
+
+    @Override public void send() { CoreActivity.this.send(); }
+  };
+
+  /** RetroTouch's editor (its gear) opened or closed: the game stands while the player arranges the controls. */
+  private void touchEditing(boolean on) {
+    touchEditing = on;
+    input.clear();
+    send();
+    if (!menuSupported) return;
+    if (on) {
+      boolean paused = CoreBridge.pause(true, 800);
+      audio.stop();
+      stopVibrator();
+      Log.i(TAG, "touch editor: " + (paused ? "the game stands" : "the game did not stop yet (loading?)"));
+    } else if (resumed && menu == null) {
+      CoreBridge.pause(false, 0);
+      audio.start();
+      main.removeCallbacks(rumbleTick);
+      main.post(rumbleTick);
+    }
+  }
 
   private void startForResult(Intent intent, int request) {
     try {
@@ -385,18 +541,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     super.onActivityResult(request, result, data);
     if (result != RESULT_OK || data == null) return;
     try {
-      if (request == REQUEST_EXPORT && data.getData() != null) {
-        byte[] gci = CoreBridge.cardExport(exportIndex);
-        if (gci == null) {
-          message("Export failed: " + CoreBridge.cardNote());
-          return;
-        }
-        try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
-          if (out == null) throw new IOException("no stream");
-          out.write(gci);
-        }
-        Toast.makeText(this, "Exported", Toast.LENGTH_SHORT).show();
-      } else if (request == REQUEST_EXPORT_ALL && data.getData() != null) {
+      if (request == REQUEST_EXPORT_ALL && data.getData() != null) {
         exportAllInto(data.getData());
       } else if (request == REQUEST_IMPORT) {
         pendingImports.clear();
@@ -591,14 +736,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       case CoreInput.APP_MENU:
         // pressed: the menu when let go; held for a second: the game's debug menu
         if (first) {
-          selectDown = true;
-          selectHeld = false;
-          main.removeCallbacks(selectHold);
-          main.postDelayed(selectHold, SELECT_HOLD_MS);
-        } else if (e.getAction() == KeyEvent.ACTION_UP && selectDown) {
-          selectDown = false;
-          main.removeCallbacks(selectHold);
-          if (!selectHeld) openMenu();
+          select(true);
+        } else if (e.getAction() == KeyEvent.ACTION_UP) {
+          select(false);
         }
         return true;
       case CoreInput.APP_GX_DUMP:
@@ -668,20 +808,36 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     return super.onGenericMotionEvent(e);
   }
 
-  @Override public void onInputDeviceAdded(int id) {}
+  /**
+   * A touch of the window: through the views (RetroTouch) with the touch
+   * controls watching which finger looks (TouchControls).
+   */
+  @Override
+  public boolean dispatchTouchEvent(MotionEvent e) {
+    if (touchControls == null) return super.dispatchTouchEvent(e);
+    touchControls.before(e);
+    boolean taken = super.dispatchTouchEvent(e);
+    touchControls.after(e);
+    return taken;
+  }
+
+  @Override public void onInputDeviceAdded(int id) { touchControls.update(); }
   @Override public void onInputDeviceChanged(int id) {
     input.remove(id);
     seenDevices.remove(id);
     send();
+    touchControls.update();
   }
   @Override public void onInputDeviceRemoved(int id) {
     input.remove(id);
     send();
+    touchControls.update();
   }
 
   /** Nothing held while the game is not in front (no stuck keys after a dialog or the home screen). */
   private void releaseAll() {
     input.clear();
+    if (touchControls != null) touchControls.reset();
     send();
   }
 
@@ -761,14 +917,71 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   }
 
   // every vsync of the display while the game is shown: the core's retraces
-  // follow it (runtime/vi.cpp), so the pictures do not drift against 60 Hz
+  // follow it (runtime/vi.cpp), so the pictures do not drift against 60 Hz.
+  // A screen faster than 60 Hz has the picture drawn at every n-th vsync only
+  // (FramePacing, GPU step c)
   private final Choreographer.FrameCallback vsyncTick = new Choreographer.FrameCallback() {
     @Override public void doFrame(long frameTimeNanos) {
       if (!resumed) return;
       CoreBridge.vsync(frameTimeNanos);
+      if (pacing.vsync(frameTimeNanos) || (!paceLogged && pacing.hz() > 0)) pace();
+      if (pacing.every() > 1 && ++vsyncs % pacing.every() == 0) surface.requestRender();
       Choreographer.getInstance().postFrameCallback(this);
     }
   };
+
+  /** The screen's rate measured anew (FramePacing): the picture drawn at each vsync or at every n-th. */
+  private void pace() {
+    paceLogged = true;
+    int every = pacing.every();
+    surface.setRenderMode(every > 1 ? GLSurfaceView.RENDERMODE_WHEN_DIRTY : GLSurfaceView.RENDERMODE_CONTINUOUSLY);
+    Log.i(TAG, String.format(Locale.ROOT, "display at %.1f Hz: the picture drawn %s", pacing.hz(),
+        every > 1 ? "at every " + every + " vsyncs (the screen stayed faster than 60 Hz)" : "at each vsync"));
+  }
+
+  /**
+   * GPU step c (19.10.2026): the game makes at most 60 pictures a second; a screen that can run
+   * faster than 60 Hz (the tester's POCO X7 Pro: 120 Hz, the picture drawn 120 times a second) is
+   * asked for 60 Hz: its display mode of the same size with 60 Hz where it has one, and from
+   * Android 11 the surface's frame rate. A screen of 60 Hz only (the Retroid) is left as it is.
+   * What the screen then does, FramePacing measures.
+   */
+  private void preferSixtyHz() {
+    if (Build.VERSION.SDK_INT < 23) return;
+    Display display = getWindowManager().getDefaultDisplay();
+    Display.Mode current = display.getMode();
+    Display.Mode sixty = null;
+    float fastest = 0;
+    StringBuilder modes = new StringBuilder();
+    for (Display.Mode m : display.getSupportedModes()) {
+      modes.append(String.format(Locale.ROOT, " %dx%d@%.1f", m.getPhysicalWidth(), m.getPhysicalHeight(),
+          m.getRefreshRate()));
+      if (m.getPhysicalWidth() != current.getPhysicalWidth() || m.getPhysicalHeight() != current.getPhysicalHeight())
+        continue;
+      fastest = Math.max(fastest, m.getRefreshRate());
+      if (Math.abs(m.getRefreshRate() - 60f) < 1.5f) sixty = m;
+    }
+    askSixty = fastest > 65f;
+    if (askSixty && sixty != null) {
+      WindowManager.LayoutParams attributes = getWindow().getAttributes();
+      attributes.preferredDisplayModeId = sixty.getModeId();
+      getWindow().setAttributes(attributes);
+    }
+    Log.i(TAG, String.format(Locale.ROOT, "display at %.1f Hz (modes:%s)%s", current.getRefreshRate(), modes,
+        !askSixty ? ": left as it is"
+        : sixty != null ? ": asked for its 60 Hz mode" + (Build.VERSION.SDK_INT >= 30 ? " and 60 pictures a second" : "")
+        : Build.VERSION.SDK_INT >= 30 ? ": no 60 Hz mode, asked for 60 pictures a second" : ": no 60 Hz mode"));
+  }
+
+  /** The surface's frame rate (Android 11 and later) when the screen was asked for 60 Hz. */
+  private void surfaceSixtyHz(Surface s) {
+    if (!askSixty || Build.VERSION.SDK_INT < 30) return;
+    try {
+      s.setFrameRate(60f, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
+    } catch (RuntimeException e) {
+      Log.w(TAG, "surface frame rate: " + e);
+    }
+  }
 
   @Override
   protected void onResume() {
@@ -776,13 +989,14 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     hideSystemUi();
     surface.onResume();
     resumed = true;
-    // the game runs again unless the menu is open (a file picker of the menu came back)
-    if (menuSupported && menu == null) CoreBridge.pause(false, 0);
+    // the game runs again unless the menu or the touch editor is open (a file picker of the menu came back)
+    if (menuSupported && menu == null && !touchEditing) CoreBridge.pause(false, 0);
     Choreographer.getInstance().removeFrameCallback(vsyncTick);
     Choreographer.getInstance().postFrameCallback(vsyncTick);
+    if (gyroAim != null) gyroAim.resume();
     InputManager im = (InputManager) getSystemService(Context.INPUT_SERVICE);
     if (im != null) im.registerInputDeviceListener(this, main);
-    if (menu == null) {
+    if (menu == null && !touchEditing) {
       main.removeCallbacks(rumbleTick);
       main.post(rumbleTick);
       audio.start();
@@ -797,6 +1011,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     selectDown = false;
     main.removeCallbacks(selectHold);
     Choreographer.getInstance().removeFrameCallback(vsyncTick);
+    pacing.restart();
+    if (gyroAim != null) gyroAim.pause();
     // the sound pauses with the app (the core skips what it played meanwhile)
     audio.stop();
     main.removeCallbacks(rumbleTick);

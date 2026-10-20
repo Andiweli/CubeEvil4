@@ -20,13 +20,15 @@
 // very fast drive. A read started inside an interrupt handler (the sound
 // driver's stream refill in the audio frame) completes when the handler has
 // returned (os_thread.cpp re4_os_defer): the stream code marks the read busy
-// only after starting it.
+// only after starting it. At the start the queue does not wait a frame
+// between its steps (patch 0085, re4_dvd_boot_fast below).
 #include "re4_runtime.h"
 
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <dirent.h>
 
 namespace {
@@ -254,7 +256,8 @@ bool insertDisc(int no)
         return true;
     }
     memcpy((void*) (unsigned long) RE4_MEM1_BASE, d.id, sizeof(d.id));
-    u32 top = RE4_MEM1_BASE + RE4_MEM1_RETAIL_SIZE;
+    // the top of retail memory (ILP32), on LP64 above the higher heap end
+    u32 top = RE4_MEM1_FST_ADDR + RE4_MEM1_FST_MAX;
     u32 fstAddr = (top - d.fstSize) & ~31u;
     if (d.fstSize > RE4_MEM1_FST_MAX) {
         re4_log("DVD: FST of disc %d is %u bytes, overlaps the game heap", no, d.fstSize);
@@ -408,6 +411,48 @@ const char* re4_data_dir(void)
 int re4_dvd_inserted_disc(void)
 {
     return current() ? gCurrent : -1;
+}
+
+// The start without the frame pace (patch 0085, cDvd::readProcMain; wish of
+// the project owner, 19.10.2026): until the first SS/<lang>/title.dat is in,
+// the game's read queue takes its next step at once instead of the next
+// frame, with one frame's wait after every 64 steps (the other tasks, and a
+// read that keeps failing). RE4_DVD_BOOT_FAST=0: the game's pace throughout.
+static int gBootFast = -1;  // -1: not asked yet, 1: the start, 0: done or off
+static unsigned gBootSteps, gBootWaits;
+
+int re4_dvd_boot_fast(void)
+{
+    if (gBootFast < 0) {
+        const char* v = getenv("RE4_DVD_BOOT_FAST");
+        gBootFast = v && *v == '0' ? 0 : 1;
+        re4_log(gBootFast ? "DVD: the start's reads without the frame pace (until title.dat)"
+                          : "DVD: RE4_DVD_BOOT_FAST=0, the game's read pace throughout");
+    }
+    if (!gBootFast) {
+        return 0;
+    }
+    if (++gBootSteps % 64 == 0) {
+        gBootWaits++;
+        return 0;
+    }
+    return 1;
+}
+
+// The queue finished a read (patch 0085): the first title.dat ends the start.
+void re4_dvd_read_done(const char* name)
+{
+    static const char kTitle[] = "/title.dat";
+    if (gBootFast != 1 || !name) {
+        return;
+    }
+    size_t n = strlen(name), k = sizeof(kTitle) - 1;
+    if (n < k || strcasecmp(name + n - k, kTitle) != 0) {
+        return;
+    }
+    gBootFast = 0;
+    re4_log("DVD: start reads done (%s): %u steps without a frame's wait, %u with; the game's pace from here",
+            name, gBootSteps - gBootWaits, gBootWaits);
 }
 
 s32 DVDConvertPathToEntrynum(const char* path)

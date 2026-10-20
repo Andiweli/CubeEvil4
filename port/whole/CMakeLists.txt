@@ -52,6 +52,13 @@ if(RE4_ARCH STREQUAL "i686")
     # results (and the bit-exact math tests) would differ from the device.
     add_compile_options(-msse2 -mfpmath=sse)
 endif()
+# No fused multiply-add anywhere (the game's own flags below have it too): aarch64 has FMA
+# instructions, and clang fuses a*b+c into one rounding where the flag is missing. On the
+# arm64-v8a core that were the parts without the game's flags: the SDK's matrix and vector math
+# (C_MTXConcat 24, C_MTXInverse 20, C_MTX44Concat 48 fused instructions ...), the sound
+# effects, a few runtime functions; armhf (VFPv3) and x86 have none, so the 32/64-bit compare
+# on the PC could not see it (19.10.2026). whole_build.sh counts them in the aarch64 build.
+add_compile_options(-ffp-contract=off)
 
 # --- prepared original sources -------------------------------------------------
 set(RE4_PREPARED "${CMAKE_CURRENT_BINARY_DIR}/prepared")
@@ -206,9 +213,10 @@ string(APPEND RE4_LINK_OBJECTS "runtime=$<TARGET_OBJECTS:re4_formats_obj>\n")
 # Port code that reads the game's own state, compiled as game code into
 # libre4_main: the per-frame state trace (RE4_TRACE), the snapshot of the
 # core bridge for the app's renderer (runtime/re4_core.h) and the depth of
-# field notes and gameplay autofocus (runtime/dof.cpp, patch 0065).
+# field notes and gameplay autofocus (runtime/dof.cpp, patch 0065) and the
+# gyro aiming (runtime/gyro.cpp).
 add_library(re4_gamehooks_obj OBJECT runtime/state_trace.cpp runtime/core_bridge.cpp runtime/movie_status.cpp
-    runtime/dof.cpp)
+    runtime/dof.cpp runtime/gyro.cpp)
 target_link_libraries(re4_gamehooks_obj PRIVATE re4_game_flags)
 target_include_directories(re4_gamehooks_obj PRIVATE runtime)
 string(APPEND RE4_LINK_OBJECTS "main=$<TARGET_OBJECTS:re4_gamehooks_obj>\n")
@@ -478,6 +486,18 @@ target_link_libraries(re4test_rel PRIVATE re4_main)
 set_target_properties(re4test_rel PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/modules"
     OUTPUT_NAME re4_re4test_rel)
 
+# --- the core process on Android (armeabi-v7a) -------------------------------------
+# A program in the app's library folder (named lib*.so so that the APK carries it):
+# the core runs in it when MEM1 is taken in the app's process (port/docs/32bit-kernprozess.md).
+if(ANDROID AND CMAKE_SIZEOF_VOID_P EQUAL 4)
+    add_executable(re4_coreproc host/coreproc.cpp runtime/core_ipc.cpp)
+    target_include_directories(re4_coreproc PRIVATE runtime)
+    target_compile_features(re4_coreproc PRIVATE cxx_std_17)
+    target_link_libraries(re4_coreproc PRIVATE ${CMAKE_DL_LIBS} log)
+    target_link_options(re4_coreproc PRIVATE -Wl,-z,max-page-size=16384)
+    set_target_properties(re4_coreproc PROPERTIES OUTPUT_NAME libre4_coreproc.so SUFFIX "")
+endif()
+
 # --- Linux launcher -----------------------------------------------------------------
 # re4_host (host/loader.c) keeps the address range below 0x83000000 free, then
 # loads libre4_host.so (the launcher and the runtime tests) and with it the
@@ -488,6 +508,7 @@ if(NOT ANDROID)
         tests/gx_probe.cpp tests/movie_probe.cpp tests/card_probe.cpp)
     target_link_libraries(re4_probe_obj PRIVATE re4_game_flags)
     add_library(re4_hostlib SHARED host/main.cpp tests/runtime_tests.cpp tests/core_tests.cpp
+        tests/core_remote_probe.cpp
         "${RE4_ROOT}/port/src/sha256.cpp"
         $<TARGET_OBJECTS:re4_probe_obj>)
     target_include_directories(re4_hostlib PRIVATE runtime "${RE4_ROOT}/port/include" "${RE4_ROOT}/port/tests"
@@ -507,6 +528,21 @@ if(NOT ANDROID)
     add_dependencies(re4_host re4_detmath)
     target_link_options(re4_host PRIVATE -fuse-ld=lld)
     target_link_libraries(re4_host PRIVATE ${CMAKE_DL_LIBS} pthread)
+    # the core in a process of its own (port/docs/32bit-kernprozess.md), 32 bit as on
+    # Android: re4_coreproc (host/coreproc.cpp, on Android libre4_coreproc.so) and the
+    # app's side against it (re4_core_remote_test, the client of core_mode.cpp)
+    if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+        add_executable(re4_coreproc host/coreproc.cpp runtime/core_ipc.cpp)
+        add_dependencies(re4_coreproc re4_main re4_hostlib)
+        add_executable(re4_core_remote_test tests/core_remote_test.cpp runtime/core_ipc.cpp
+            runtime/core_ipc_client.cpp)
+        foreach(t re4_coreproc re4_core_remote_test)
+            target_include_directories(${t} PRIVATE runtime)
+            target_compile_features(${t} PRIVATE cxx_std_17)
+            target_link_options(${t} PRIVATE -fuse-ld=lld)
+            target_link_libraries(${t} PRIVATE ${CMAKE_DL_LIBS} pthread)
+        endforeach()
+    endif()
 
     # --- format comparison (re4_format_compare) -----------------------------------------
     # The Formatumwandler against the checked big-endian readers of the app

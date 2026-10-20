@@ -20,8 +20,10 @@ android=0
 
 need=()
 # libc++-dev: whole_libcxx_check.py (the NDK's C++ library, checked in the Linux build)
+# mesa-vulkan-drivers: zink on lavapipe (GALLIUM_DRIVER=zink) has EXT_multisampled_render_to_texture2,
+# which the PC check of GPU step d (MSAA on the tiles) draws with
 for pkg in libc6-dev-i386 lib32gcc-13-dev lib32stdc++-13-dev g++-arm-linux-gnueabihf g++-aarch64-linux-gnu qemu-user python3 \
-    libgles-dev libegl-dev libegl-mesa0 libgl1-mesa-dri libc++-dev libc++abi-dev; do
+    libgles-dev libegl-dev libegl-mesa0 libgl1-mesa-dri mesa-vulkan-drivers libc++-dev libc++abi-dev; do
   dpkg -s "$pkg" >/dev/null 2>&1 || need+=("$pkg")
 done
 command -v git >/dev/null 2>&1 || need+=(git)

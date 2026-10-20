@@ -47,8 +47,15 @@ public final class CoreBridge {
   public static native int wantedRoom();
   /** The decoded room archive for a room (RoomRepository), or the error. */
   public static native void roomPrepared(int room, String decodedPath, String error);
-  /** 64 bit: the process's mappings below 4 GB when the core loaded (the report's address-map.txt); "" on 32 bit. */
+  /** The process's mappings below 4 GB when the core loaded (the report's address-map.txt). */
   public static native String addressMap();
+  /**
+   * The core in a process of its own (32 bit with MEM1 taken in the app's process, or
+   * RE4_CORE_PROCESS=1): why and its state; "" when the core runs in the app's process.
+   */
+  public static native String coreProcess();
+  /** Why the core process ended while the app runs (a crash); "" while it runs or without one. */
+  public static native String coreProblem();
   /** Diagnostic text: core state, frame, room, models, last log lines. */
   public static native String status();
   /** Saves the graphics data of the next picture into `folder` (diagnosis; R3). */
@@ -71,6 +78,11 @@ public final class CoreBridge {
   /** The game's depth of field (patch 0065) and, where the game asks for none while the player is free, the
    *  gameplay autofocus of the first Android port; on unless switched off. */
   public static native void setDof(boolean on);
+  /**
+   * Gyro aiming (GyroAim): the device's turn rates in rad/s about the screen's axes (yaw, pitch);
+   * the core turns the aim by them while Leon aims a gun. 0, 0: still.
+   */
+  public static native void gyro(float yaw, float pitch);
   /**
    * The memory card's files, one tab-separated row each (index, name,
    * blocks, save, intact, room, chapter, times saved, play time, year,

@@ -22,6 +22,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
 | M11 Android-Feinschliff | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/nifty-feynman-jv729h`, Stand `093aa7a`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, „Depth of field“ mit dem Autofokus der ersten App, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester, alles auf Englisch), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Rundgang über alle Räume (PC mit Disc-Daten): 126 von 126 laufen (Patches 0062–0064). Super Magnum: kein Port-Fehler (Nachlade-Stufe Lv.5 aus dem Debug-Menü), mit Lv.1 bestätigt. Debug-Menü Waffenseite stürzte am Listenende ab (Patch 0066). Leistung: 60 Bilder/s, Kern 33,3 ms je Spielbild mit 13–15 ms Leerlauf, GPU um 20 ms („M11 Android-Feinschliff“) |
 | M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`, seit 18.10.2026 `claude/exciting-bohr-6akwfd`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt; A2 ✅ Adressen unter 4 GB; A3 ✅ Strukturen, die auf 64 bit auseinanderlaufen: alle Prüfwerkzeuge 0 (Patches 0070–0073, Regel `lp64_sizes`); A4 ✅ alle Cloud-Tests grün auf i686, armhf, x86_64 und **aarch64 (neu, ARM64 unter qemu)**, auch Filme und Speicherkarte; A5 Android arm64 eingebaut, aber ungeprüft (kein NDK in der Cloud). 18.10.2026: PC-Prüfung `-Lp64` läuft r100 10.000 Bilder ohne Absturz, Speichern stürzte ab (Budget des Speicherbildschirms, behoben, unbestätigt); Neustart mit Bestandsaufnahme aller Prüfwerkzeuge (libclang statt Wörter, Selbsttest, `run_all.py` + `reviewed.json`), vier neue Werkzeuge, Patch 0082 (fünf echte Fehler), Vergleichslauf 32/64 bit (`-Compare`, in der Cloud mit dem synthetischen Film gleich; mit Disc-Daten offen). Offen: `-Compare` und `-Lp64` mit Disc-Daten, Gerätetest beider ABIs. Dabei gefunden: Puzzle-Untermenü las auch auf 32 bit falsche Felder (Patch 0073). Bestandsaufnahme `arm64-bestandsaufnahme.md`. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** |
+| 32-bit-Kernprozess | in Arbeit (Branch `claude/re4-32bit-kernprozess`, 20.10.2026): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`); Retroid 20.10.2026 (`-CoreProcess`): Spiel bis r100, Filme, Ton ohne Aussetzer, 30 FPS wie ohne Kernprozess; offen: Menü/Speichern/Debug-Menü auf dem Gerät, das Gerät des Testers („32 bit: der Kern als eigener Prozess“) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -4098,6 +4099,182 @@ wegen der Marke „Resident Evil“.
   **`Andiweli/CubeEvil4-Android`** (beide alten Namen leiten weiter). README-Link „ALPHA
   RELEASE“ zeigt auf die neue Adresse; Text des ersten Alpha-Releases:
   `port/android-decomp/docs/releases/v0.38.0-alpha1.md`.
+- Tester, FPS-Aufzeichnung mit der App „Scene“ (18.10.2026 22:24, POCO X7 Pro, Dimensity 8400,
+  Android 16, Bildschirm 1080×2400 mit 120 Hz, CubeEvil4 0.38.0-core): Bilder je Sekunde an den
+  Bildschirm im Mittel 105,6, höchstens 121, 5 %-Tief 22, tiefster Wert 16; 86,2 % der Zeit
+  mindestens 45; Grafikchip 237 s lang zu mindestens 96 % ausgelastet (höchstens 100 %);
+  Temperatur höchstens 43,9 °C, Leistung im Mittel 4,4 W. Die tiefen Einbrüche (16–25) häufen
+  sich im ersten Teil der Aufzeichnung, bei noch niedriger Temperatur, später nur einzelne.
+  Gemessen sind die an den Bildschirm gegebenen Bilder (bis 120 je Sekunde, das Spiel selbst
+  liefert 60 Halbbilder); Ursache noch offen: die Aufzeichnung zeigt weder Einstellungen noch
+  Spielstelle. Die App wählt bei „Auto“ auf diesem Bildschirm die 3-fache Auflösung
+  (1920×1344, wie auf dem Retroid). Angefordert: Fehlerbericht der App direkt nach einem
+  solchen Lauf (GX-Werte alle 10 s), Einstellungen, Spielstelle, ein zweiter Lauf derselben
+  Stelle und ein Lauf mit 2-facher Auflösung und ohne Tiefenschärfe/Kantenglättung.
+
+**Tester-Bericht 19.10.2026 01:00 (POCO X7 Pro, Android 16, 64 bit, CubeEvil4 0.38.0-core,
+`cubeevil4-report-20261019-010055.zip`; 3-fache Auflösung, 2× MSAA, 8× anisotrop, Tiefenschärfe),
+Auswertung:**
+- **Absturz (64 bit) am 18.10. 22:58 in r104**, gleich nach einem Schuss (R+A): SIGSEGV an
+  `0xf81017988` in `cObj04::move` (+52), gerufen aus `EfmSetObj04` (Effekt-Modelle, die bei
+  einem Treffer wegfliegen: Splitter, Trümmer); Register `x8 = 0x0000000f81017980`, gelesen
+  wird `be_flag` des Eltern-Modells (`pMod->isAlive()`, Abstand 8 auf LP64).
+- **Ursache (Absturzbericht und Code):** `EfmSetObj04` (esp_efm.cpp) schreibt Eltern-Modell
+  und dessen `guid` über einen Wortzeiger: `u32* link = (u32*) &w->pMod; link[0] = (u32) parent;
+  link[1] = parent->guid;`. Auf ILP32 sind das `pMod` und `Guid_pMod`; auf LP64 hat `pMod`
+  8 Bytes, `link[1]` ist seine obere Hälfte. So wurde `pMod = guid << 32 | parent`
+  (`0xF` und `0x81017980`, genau der Registerwert) und `Guid_pMod` blieb alt.
+  **Patch 0084:** die beiden Werte über die Felder selbst, auf ILP32 gleich.
+- **Lücke im Werkzeug:** `port/tools/m12/ptr_word_check.py` kannte nur den direkt
+  dereferenzierten Wortzeiger (`*(u32*) &p = x`), nicht den in einer Hilfsvariablen
+  gehaltenen. Es verfolgt jetzt lokale Variablen, denen ein Wortzeiger auf einen Zeiger
+  zugewiesen wird, und verschobene Wortzeiger (`*((u32*) &p + 1)`); „Schreiben“ heißt nur noch
+  linke Seite von `=` oder `+=` … (vorher zählte auch die linke Seite von `==` oder `+`).
+  Auf dem ganzen Spielcode findet es genau die zwei Zeilen von `EfmSetObj04` neu (nach Patch
+  0084: nur noch die geprüfte Stelle in pl_npc.cpp). Selbsttest um drei Beispiele und ein
+  Gegenbeispiel erweitert (17 von 17).
+- **Gegner nicht geladen (64 bit) am 18.10. 23:12 in r107:** „alloc[3d2080]:free[3b2fa0]
+  read.cpp(725)“, „DVD: Memory allocate failed“, „readEmData(): error! em/em12.drs“,
+  „EmSetFromList() Em set failed, Id = 12“: `em12.drs` braucht 0x3D2080 Bytes in Heap 4, frei
+  waren 0x3B2FA0, es fehlten 0x1F0E0 (124 KB); der Raum lief ohne diesen Gegner weiter.
+  Auf 64 bit belegen Werke und Vorräte mit Zeigern mehr Platz in den Heaps (Gegner-Platz
+  0xF60 statt 0xDE0, Objekt-Platz 0x4B0 statt 0x3D8, Effekt-Platz 0x1A8 statt 0x150 …): im
+  Vergleichslauf 16:48 hatte Heap 4 in r100 auf i686 mindestens 0x115AC0 frei, auf x86_64
+  0xC6B80, 0x4EF40 (316 KB) weniger. Ob `em12` in r107 auf 32 bit passt, ist noch nicht
+  gemessen (Vergleichslauf mit Start r107, siehe unten).
+  **Regel `lp64_sizes` (neuer Eintrag):** das Ende der Heaps (`SystemMemInit`,
+  `Heap_end_addr`) liegt auf LP64 1 MB höher, 0x818F4000 statt 0x817F4000, in der Hälfte von
+  MEM1, die nur eine Entwicklungskonsole hat (die Reservierung des Ports umfasst 48 MB). Heap 0
+  und über `MemReplaceHeap` der Raum-Heap 4 enden dort. Die Laufzeit legt die Dateitabelle
+  der Disc (FST) entsprechend höher (`RE4_MEM1_LP64_HEAP_EXTRA`, `re4_runtime.h`); der
+  Laufzeittest `tasks` prüft, dass Heap-Ende des Spiels und FST-Platz der Laufzeit
+  übereinstimmen (ILP32 0x817F4000, LP64 0x818F4000). Auf 32 bit bleibt alles wie beim GameCube.
+- Weitere Meldungen ohne Fehler: `cDataSwap.cpp(64)` und `datactrl.cpp(452)` ohne Platz
+  (Merkmal 0): das Spiel weicht dann wie vorgesehen auf das ARAM aus bzw. lädt neu;
+  `Debug_alloc` ohne Platz beim Öffnen des Debug-Menüs (`rel/tools.rel`); „ESP : num max.
+  retry“ (Effekt-Vorrat voll, eine Meldung des Spiels). Ob eine davon auf 32 bit seltener ist,
+  zeigt erst ein Vergleichslauf derselben Stelle.
+- **Speichern und Laden auf 64 bit auf dem Gerät des Testers bestätigt** (Protokoll):
+  Laden von Spielstand 6 (22:40), Speichern (22:47, „card-a.bin saved“), insgesamt 14 Mal
+  gespeichert; die Karte zeigt sieben Spielstände bis r10e (2:40 Spielzeit).
+- **Ruckler und Shader (Frage vom 18.10.):** die App schreibt alle 10 s eine Zeile mit dem
+  längsten Bild und der Zahl der Programme (übersetzt und aus dem Zwischenspeicher). Über alle
+  834 Abschnitte des Berichts: in Abschnitten mit **neu übersetzten** Shader-Programmen hatte
+  **99 %** ein Bild über 25 ms (Mittelwert des längsten Bildes 66 ms, schlimmster Fall 1057 ms);
+  mit Programmen **nur aus dem Zwischenspeicher** 9 % (höchstens 37 ms), ohne neue Programme
+  6 %. Die Ruckler kommen also vom erstmaligen Übersetzen; der Zwischenspeicher wirkt (230
+  von 979 Programmen der zweiten Sitzung kamen aus ihm). Sonst zeigt die App im Mittel
+  119–120 Bilder je Sekunde, der Kern 30 Spielbilder je Sekunde ohne Warten auf die Grafik.
+- App-Version 0.38.1 (versionCode 57), damit Berichte des neuen Stands erkennbar sind.
+- Zweites Alpha-Release (Wunsch des Projektinhabers, 19.10.2026: auf GitHub liegt noch 0.38.0):
+  Text `port/android-decomp/docs/releases/v0.38.1-alpha2.md`, APK
+  `CubeEvil4-v0.38.1-alpha2.apk`, signiert mit demselben Schlüssel wie 0.38.0 (sonst lässt
+  Android das Update nicht über die alte App installieren).
+- Getestet (Cloud): `whole_build.sh i686 armhf x86_64 aarch64` mit Patch 0084 und der neuen
+  Regel: 0 Baufehler, alle Prüfungen bestanden (Laufzeittest mit `tasks` samt Heap-Ende, Kern-
+  test, Speicherkarte, Formatvergleich, Filmtest, Filmvergleich 32/64 bit 250/250,
+  M12-Selbsttest 17/17); `ptr_word_check` auf dem ganzen Spielcode wie oben; alle 18
+  M12-Prüfungen auf den echten Builds (`run_all.py`, 26 min): 0 neue Funde. **Nicht
+  getestet:** Disc-Daten (PC-Prüfung), Gerät; dass der Absturz in r104 weg ist, zeigt erst ein
+  Lauf an derselben Stelle.
+
+**PC-Prüfung 09:25 (Stand `2b260e2`, -O2, Disc-Daten), Vergleichslauf 32/64 bit mit Start r107,
+3000 Bilder: NICHT BESTANDEN, Auswertung:**
+- **Speicher in r107 bestätigt:** beide Läufe ohne Absturz, `em12` auf beiden Seiten geladen
+  (Brücke: Gegner 0x12 mit Teilen aus `em/em12.drs`), keine Anforderung ohne Platz (i686 0,
+  x86_64 0). Heap 4, wenigster freier Platz: i686 0x62BC0 von 0xD220C0, x86_64 0xE0EE0 von
+  0xE1E820. Belegt sind auf x86_64 0xD3D940 statt 0xCBF500, 0x7E440 (505 KB) mehr. Ohne das
+  zusätzliche MB wäre Heap 4 0xD1E820 groß (genau die Größe auf dem POCO X7 Pro), es fehlten
+  0x1F120 Bytes; der Tester-Bericht nannte 0x1F0E0 (64 Bytes Unterschied: ein anderer Weg in den
+  Raum). **Ursache und Regel damit bestätigt.** Reserve auf 64 bit jetzt 0xE0EE0 (900 KB) gegen
+  0x62BC0 (395 KB) auf 32 bit. Heap 12 (Untermenü) hat auf 64 bit 0x14580 frei gegen 0x25D20:
+  reicht, im Blick behalten (Raum-Rundgang 10b).
+- **Erste Abweichung Bild 626** (r107, Schritt 3): GX-Kennzahlen (Befehle 29314 / 29416, XF 6418 /
+  6520), in 35 von 3622 Bildern; 10 von 17 Bildern Pixel für Pixel gleich, die übrigen höchstens
+  1–3 von 255 in kleinen Bereichen. Die GX-Daten zeigen den Grund: XF 0x0613 (die Farbe von Licht 1;
+  `gx_chunk_inspect` zeigt das Wort als Gleitkommazahl) wechselt auf i686 (0x918C82, 0x858974,
+  0x8C9079, 0x91957E, 0x8F927C: dieselbe Grundfarbe mal 0,83 bis 0,91) und steht auf x86_64 ab Bild
+  653 fest auf 0xA0A48B (der Grundfarbe selbst): das Licht schwankt auf 64 bit nicht.
+- **Ursache (Compiler und Gegenprobe):** Lichtart 5 (`Light05_Move`, Helligkeit nach einem
+  Lichtpfad) legt `LIT05_MOVE_FREE` über `cLight::work`, das die Lichtsätze des Raums in
+  GameCube-Form füllen (`cLight::operator=`: `sub = w.sub`). Pfadnummer `Id` bei 0xC, `Flag` bei
+  0xD, davor `cLightPath` mit zwei Zeigern; auf LP64 ist `cLightPath` 0x18 Bytes groß und `Id`
+  liegt bei 0x18 (gemessen mit den Bau-Flaggen: `offsetof(LIT05_MOVE_FREE, Id)` armhf 0xC,
+  x86_64 0x18). Gelesen wurde so Pfad 0 statt des Pfads aus den Raumdaten. Gegenprobe mit dem
+  neuen Laufzeittest `light` (eine Lichtart 5 mit Arbeitsbytes in GameCube-Form, Pfad 0: 200,
+  Pfad 1: 50, 100): ohne Korrektur auf x86_64 „DispCol.r 200“ (Pfad 0), mit Korrektur 100 auf allen
+  vier Zielen.
+- **Behoben** (Regel `fixed_form_structs`): `cLightPath` (`include/lightPath.h`) in GameCube-Form,
+  Zeiger 4 Bytes. Ebenso `TSceAtHide` (Debug-Werkzeug `t_sce_at`: seine Sicht auf
+  `SCE_AT_DATA_HIDE` in den Bereichsdaten des Raums, Rückruf-Zeiger bei 0x30).
+- **Lücke im Werkzeug:** `overlay_check.py` prüfte nur, ob eine Struktur in ihren Byte-Bereich
+  passt, nicht, ob ihre Form zu den Daten passt, die dort liegen. Neu `--areas` (in `run_all.py`
+  als `overlay_areas`, im Selbsttest): jeder Byte-Bereich, über den das Spiel eine Struktur legt,
+  die auf LP64 eine andere Form hat. 76 Bereiche: 71 eigene Arbeitsflächen der Vorratsklassen
+  (`free` der Abkömmlinge von cEm, cObj, cEsp; ihr Code füllt sie Feld für Feld, Kopien prüft
+  `copy_view_check`) werden nur gezählt. Von den 5 übrigen bekamen 2 Daten von der Disc
+  (`cLight::work`, `SCE_AT_DATA::data` im Debug-Werkzeug), beide behoben; 3 sind reine
+  Laufzeit-Arbeit und in `reviewed.json` begründet (`cCtrl::work`, `cSceSys::SceTaskOt`,
+  `tagESPGEN_FREE::buff`).
+- Getestet (Cloud): `whole_build.sh i686 armhf x86_64 aarch64`: 0 Baufehler, alle Prüfungen
+  bestanden, Laufzeittest `light` auf allen vier Zielen; M12-Selbsttest 18 von 18; alle 19
+  M12-Prüfungen auf den echten Builds (`run_all.py`, 28 min): 0 neue Funde. **Nicht
+  getestet:** der Vergleichslauf r107 nach der Korrektur (zeigt, ob Bild 626 jetzt gleich ist),
+  Gerät.
+
+**PC-Prüfung 10:34 (Stand `2b9a60d`, -O2, Disc-Daten), Vergleichslauf 32/64 bit mit Start r107,
+3000 Bilder: ALLES OK.** Trace: alle 3622 Bilder gleich (jeder Abschnitt von r120 Schritt 0 bis
+r107 Schritt 3 „keine Abweichung“); Bilder 16 von 16 Pixel für Pixel gleich (auch 653, 773, 901,
+1373, 1501, 2401, vorher verschieden); keine Anforderung ohne Platz; Heaps wie im Lauf 09:25.
+**Lichtart 5 in GameCube-Form damit bestätigt.** Nur `bericht.txt` im Ausgabeordner: Bilder und
+GX-Daten legt der Vergleichslauf nur bei Unterschieden ab.
+
+**PC-Prüfung 10:38 (Stand `2b9a60d`, -O2, Disc-Daten), Vergleichslauf 32/64 bit ab r120,
+30000 Bilder: ALLES OK.** Trace: alle 30.619 Bilder gleich (r120, r100, Soft-Reset, Titel mit den
+Filmen; jeder Abschnitt „keine Abweichung“); Bilder 24 von 24 Pixel für Pixel gleich; keine
+Anforderung ohne Platz. Heap 4 auf x86_64 jetzt mindestens 0x1C6B80 frei von 0xE32F00 (vorher
+0xC6B80 von 0xD32F00: genau das zusätzliche MB), i686 unverändert 0x115AC0 von 0xD367A0. Damit
+ändern weder die Regel für das Heap-Ende noch die Lichtart 5 etwas am Ablauf von r120/r100 auf
+64 bit. Der Bericht bat um den Ordner `bilder-vergleich` auch, wenn alle Bilder gleich waren;
+jetzt nur noch bei Unterschieden (`whole_r100_check.sh`).
+
+**Falsche Variante gebaut (Projektinhaber, 19.10.2026):** beim Bauen von 0.38.1 zeigte die
+installierte App „RE4 Android Decomp · 0.37.0“. Das ist der Startbildschirm der Variante `classic`
+(eigene Spielmodule, Paket `com.ast.re4decomp.classic`, Name „RE4 Decomp“); Android Studio nimmt
+ohne Auswahl die erste Variante (`classicDebug` / `classicRelease`). Für CubeEvil4 ist es
+`coreRelease`. Die feste Versionsangabe „0.37.0“ im Titel von `classic` stammte noch aus M11: der
+Titel lautet jetzt „RE4 Android Decomp (classic, not CubeEvil4)“ mit der echten Version
+(`MainActivity.versionName()`); ungeprüft, da in der Cloud kein Android-SDK.
+
+**Hänger im Lichterrätsel der Kirche (r117), 64 bit** (Frage des Projektinhabers, 19.10.2026; Bericht
+des Testers `cubeevil4-report-20261019-010055.zip`, POCO X7 Pro):
+- **Protokoll:** r117 ab 00:50:48; nach dreieinhalb Minuten öffnet der Tester das Debug-Menü
+  (00:54:29) und verlässt den Raum, ab 00:58:31 ist er wieder dort. Ab 00:58:35 läuft das Spiel
+  weiter (30 Spielbilder je Sekunde, „GX core“ mit 26 ms Leerlauf), aber Bild und Ton stehen: ab
+  01:00:02 alle 10 s genau 222 Zeichenaufträge und 260 Uniform-Uploads je Bild, 0 Stimmen; um
+  01:00:47 SELECT und der Fehlerbericht.
+- **Ursache (Code und Compiler):** `r117_LightMechanismMove` (Modus 2, „Muster prüfen“) wartet mit
+  `SceSleep(1)`, bis `r117_espEnd(W->esp[0])` Bit 2 im Byte 0xF9 des Lichtstrahls sieht. Das setzt
+  nur esp06 (der Effekt auf einem Pfad; `ESP06_WK.Flg`, Bit 2: am Pfadende angehalten): von allen
+  45 Klassen, die von `cEsp` erben, setzt sonst keine Bit 2 im Byte 1 ihrer eigenen Arbeit.
+  `ESP06_WK` enthält einen Zeiger (`pPath`) und beginnt auf LP64 8-ausgerichtet bei 0x110, nicht
+  am Datenende von `cEsp` (0x10C). Patch 0077 las `RE4_OWN(cEsp, u8, 0xF8) + 1` = 0x10D. Gemessen
+  mit den Bau-Flaggen: `Flg` bei 0xF9 (armhf), 0x111 (x86_64, aarch64); Patch 0077 jetzt
+  `RE4_OWN(cEsp, void*, 0xF8) + 1` = 0x111 (vorher 0x10D), auf ILP32 weiter 0xF9. Von 36 Klassen
+  mit `m_Free` beginnen 9 auf LP64 bei 0x110 (esp03, 06, 0d, 0e, 11, 12, 16, 3f, 4e).
+- **Lücke im Werkzeug:** `RE4_OWN` galt den Prüfungen als geprüfter Abstand, gleich mit welchem
+  `T`. Neu `port/tools/m12/own_start_check.py` (in `run_all.py`, Selbsttest 19 von 19): jede
+  `RE4_OWN(B, T, gc)`-Stelle, bei der die Klassen, die von `B` erben, ihre eigene Arbeit an mehr
+  als einem Abstand beginnen (cEsp: 36 bei 0x10C, 9 bei 0x110; cEm: 54 bei 0x49C, 2 bei 0x4A0).
+  5 Stellen, alle mit Begründung in `reviewed.json`: r117 (esp06, jetzt richtig), r300/r318
+  (Laser-Endpunkt als Vec 8 Bytes in die Arbeit: nur esp01, esp14, esp41 haben dort einen Vec,
+  alle ab 0x10C), `esp_sub.cpp` (esp1b, echter Typ der Arbeit, 0x10C), `em3e.h` (nur cEmMark,
+  0x49C).
+- App-Version 0.38.2 (versionCode 58).
+- Getestet (Cloud): `whole_build.sh i686 armhf x86_64 aarch64`: 0 Baufehler, alle Prüfungen
+  bestanden; alle 20 M12-Prüfungen auf den echten Builds (`run_all.py`, 29 min): 0 neue Funde.
+  **Nicht getestet:** das Rätsel selbst (braucht das Spiel bis r117 auf einem 64-bit-Gerät).
+  **Nachtrag 20.10.2026: auf dem Gerät bestätigt** (0.38.2, Projektinhaber).
 
 ### Start erst mit beiden Discs (Entscheidung des Projektinhabers, 17.10.2026)
 
@@ -4107,6 +4284,922 @@ erst, wenn Disc 1 und Disc 2 vollständig importiert sind
 Import sichtbar. `test-core-app.ps1` wartet entsprechend auf beide Discs. Die
 Variante `classic` braucht weiter nur Disc 1.
 
+### Touch-Steuerung und 60 FPS (Prüfung und Entscheidungen des Projektinhabers, 19.10.2026)
+
+- **Touch-Steuerung mit RetroTouch** (`Andiweli/RetroTouch`, 1.0.0-beta.4, MIT, eigene Bibliothek
+  des Projektinhabers): machbar als Ebene über der Spielansicht, eingespeist als weiteres Gerät
+  in `CoreInput`; automatisch nur ohne Controller (`RetroTouchControllers`), im App-Menü
+  „Use Touch Controls“. Belegung: linker Stick, Steuerkreuz (Spielmenüs), `A` `B` `X` `Y` `Z`
+  `L` `R` `START`, `MENU` (wie SELECT). **C-Stick über die rechte Touchfläche** (Look-Zone,
+  Entscheidung des Projektinhabers): RetroTouch meldet zwei Sticks ohne Kennung
+  (`onMove(x, y)`), die Look-Zone dagegen getrennt (`onLook`). Umgesetzt mit 1.0.0-beta.5
+  (nächster Abschnitt).
+- **60 FPS: vorerst nicht** (Entscheidung des Projektinhabers). Befund: `SetSystemVcnt(1)`
+  (60 Hz) ließe das Spiel doppelt so schnell laufen; die Spiellogik rechnet in Bildern, die
+  Einstellung wird nur an 7 Stellen gelesen (Tasten-Wiederholung, DVD, Filme, Ausnahme,
+  Debug-Balken). Echte 60 FPS bräuchten berechnete Zwischenbilder im Renderer.
+
+### Touch-Steuerung eingebaut (RetroTouch 1.0.0-beta.5, 19.10.2026, Cloud, Branch `claude/re4-touch-controls`)
+
+- **Bibliothek:** `port/android-decomp/app/libs/retrotouch.aar` ohne Versionsnummer im Namen
+  (Wunsch des Projektinhabers: ein Update ersetzt nur die Datei), eingebunden in
+  `app/build.gradle` (`implementation files('libs/retrotouch.aar')`). beta.5 bringt Farben
+  (`RetroTouchColors`), sonst die API von beta.4.
+- **Aufteilung:** `CoreTouch.java` (ohne Android, Host-Test) übersetzt RetroTouchs Meldungen in den
+  GameCube-Controller und hält das Standard-Layout; `TouchControls.java` legt `RetroTouchView` über
+  das Bild, `CoreActivity` reicht Berührungen durch (`dispatchTouchEvent`) und teilt die
+  SELECT-Logik (`select()`), `CoreInput` hat ein eigenes Gerät `TOUCH` (`touchButton`, `touchStick`,
+  `touchClear`).
+- **Wann sichtbar:** automatisch, solange kein Controller angeschlossen ist
+  (`RetroTouchControllers.isControllerConnected()`: eingebaute, USB- und Bluetooth-Controller;
+  geprüft zweimal pro Sekunde und bei jeder Geräteänderung); mit dem Schalter **„Use Touch
+  Controls“** im App-Menü (neuer Abschnitt „Controls“, gespeichert in `core_input/touchControls`)
+  immer. Auf dem Retroid (eingebaute Tasten) also nur mit dem Schalter.
+- **Belegung:** Knöpfe `A` (grün) `B` (rot) `X` `Y` (hellgrau) `Z` (lila) `L` `R` `START` `MENU`
+  (grau), Steuerkreuz (auch für die Spielmenüs), linker Stick = Control-Stick, rechte
+  Bildschirmhälfte = C-Stick. `MENU` = SELECT: kurz das App-Menü, 1 s halten das Debug-Menü.
+  **`L` und `R` rasten ein** (Tippen hält, nächstes Tippen lässt los, RetroTouch zeigt sie dann
+  kräftiger): mit zwei Daumen lässt sich R (zielen) sonst nicht halten, während A (feuern)
+  getippt wird. Eigene Entscheidung, auf Wunsch leicht umstellbar.
+- **C-Stick aus der Look-Zone:** RetroTouch meldet dort nur Bewegungen, kein Aufsetzen oder
+  Abheben. Der C-Stick ist darum der Weg des Fingers seit dem Aufsetzen (0,15 der kürzeren
+  Bildschirmseite = voll, längere Wege schieben die Mitte mit) und springt beim Abheben zurück.
+  Welcher Finger schaut, bestimmt `TouchControls`: ein Finger, der in der Look-Zone aufsetzt und
+  keinen Knopf/Stick/Steuerkreuz auslöst. Ein Daumen außerhalb aller Knöpfe nimmt die
+  Spielfläche selbst (`setOnTouchListener`), sonst gäbe Android die weiteren Finger dieser
+  Berührung an keine Ansicht mehr. Bekommt RetroTouch später „Finger berührt/abgehoben“ für die
+  Look-Zone, ersetzt das diese Bestimmung.
+- **Editor:** RetroTouchs Zahnrad oben rechts (verschieben, Größe, Deckkraft, speichern); das
+  Spiel steht währenddessen wie im App-Menü. Das App-Menü hat zusätzlich „Back to the game“ zum
+  Schließen per Touch.
+- **Geprüft (Cloud):** `tests/CoreTouchTests.java` (232 Prüfungen, in `tools/test_host.sh`):
+  Knöpfe, einrastendes L/R, MENU, Sticks, C-Stick-Weg und Zurückspringen, Finger, die nicht
+  schauen, Abbruch, zusammen mit einem echten Controller; das Layout nach RetroTouchs Geometrie:
+  keine Touch-Flächen überlappen, alles bei 4:3, 16:9 und 20:9 im Bild, Beschriftungen höchstens
+  5 Zeichen (Gegenprobe: ein verschobenes B schlägt an). Alle App-Quellen kompilieren ohne
+  Fehler und Warnungen gegen die Android-15-Klassen (`org.robolectric:android-all`, nur zum
+  Prüfen, nicht im Repository) und die Klassen der AAR. `CoreInputTests` weiter 69 Prüfungen.
+  Die übrigen Host-Tests wie bisher; weiterhin rot nur die bekannten `enemy_feedback_tests` und
+  `inventory_case_contracts` (siehe oben).
+- **Gerätetest (Retroid, Projektinhaber, 19.10.2026):** Build mit der AAR gelungen, die
+  Touch-Steuerung „scheint alles zu klappen“. Danach in den M12-Branch übernommen.
+- **Noch nicht getestet:** Lint (läuft erst beim `coreRelease`-Build), ein Handy ohne Controller
+  (automatisches Einblenden), An- und Abstecken eines Controllers während des Spiels.
+
+### Grafik-Auslastung: Analyse (19.10.2026, Cloud, nur Code und Berichte, noch nichts gemessen)
+
+Anlass: beim Tester (POCO X7 Pro, Mali-GPU, 3-fach, 2× MSAA, 8× anisotrop, Tiefenschärfe) war
+der Grafikchip 237 s lang zu mindestens 96 % ausgelastet, 4,4 W im Mittel. Auf dem Retroid
+(Adreno, Zeitabfrage vorhanden) maß die App 8–15,6 ms GPU je Spielbild (16.10., 3-fach) und
+17,7–19,7 ms nach M11 (17.10., mit den neuen Grafikoptionen). Gefunden im Renderer
+(`port/android-decomp/app/src/main/cpp/gx_gl.cpp`, `core_mode.cpp`):
+- **MSAA über eigene Mehrfach-Puffer und Blit-Auflösung:** jede EFB-Kopie (im Bericht des
+  Testers 5,45 Kopien je Bild, dazu die Kopie ins XFB) und der Autofokus (in 49 % der Bilder,
+  Farbe und Tiefe über das ganze EFB) lösen den MSAA-Puffer mit `glBlitFramebuffer` auf und
+  wechseln den Framebuffer. Auf Kachel-GPUs (Mali, Adreno) schreibt jeder Wechsel den ganzen
+  Puffer in den Speicher und lädt ihn danach wieder: bei 3-fach (EFB 1920×1584) mit 2 Proben
+  Farbe und Tiefe zusammen etwa 46 MB, je Wechsel also bis etwa 90 MB hin und zurück
+  (Schätzung ohne die Kompression der Treiber). Üblich auf Mobilgeräten:
+  `EXT_multisampled_render_to_texture` (die Proben bleiben im Kachelspeicher, aufgelöst wird
+  beim Zurückschreiben).
+- **Kein `glInvalidateFramebuffer`:** auch Inhalte, die nicht mehr gebraucht werden (Tiefe am
+  Ende des Bilds, Puffer vor einem vollständigen Löschen), werden gespeichert bzw. geladen.
+- **Tiefenschärfe in voller Auflösung:** zwei volle Auflösungen (Farbe, Tiefe), ein voller
+  Unschärfe-Durchgang und ein volles Zurückkopieren je Bild; die Unschärfe ginge in halber
+  Auflösung.
+- **Darstellung mit der Bildwiederholrate des Bildschirms:** `drawGx` löscht und zeichnet das
+  XFB bei jedem Vsync auf den Bildschirm (POCO: 120/s), das Spiel liefert 30 neue Bilder/s. Mit
+  `Surface.setFrameRate(60)` (ab Android 11) liefen Bildschirm und Choreographer mit 60 Hz;
+  der VI-Takt folgt dem Choreographer (wie auf dem Retroid mit 60 Hz).
+- Weitere Posten: 8× anisotrope Filterung (4× sieht fast gleich aus), Fragment-Shader ohne
+  `mediump`, das EFB wird mit 528 Zeilen angelegt, das Spiel nutzt 448 (der Autofokus löst
+  alle auf).
+- Nächster Schritt (vorgeschlagen): GPU-Zeit je Durchgang (Szene, Kopien, Autofokus,
+  Darstellung) mit der Zeitabfrage messen, auf dem Retroid mit einer Reihe von Einstellungen;
+  dann in der Reihenfolge Nutzen/Risiko umsetzen und jeden Schritt mit `gx_chunk_render`
+  Pixel für Pixel prüfen.
+
+**Grafik-Schritte a–e im eigenen Branch `claude/re4-gpu-efficiency`** (Wunsch des Projektinhabers,
+19.10.2026); Schritt (a) liegt außerdem schon im M12-Branch (Commit `715d577`, nur Messung, ohne
+Wirkung auf das Bild; bleibt dort, Entscheidung des Projektinhabers, 19.10.2026: kein Umschreiben
+des Verlaufs). Der Messlauf auf dem Retroid folgt später.
+
+**GPU-Schritt (a): Messlauf gebaut (19.10.2026, Cloud).** `test-core-app.ps1 -GpuBench` startet in
+r100 (Leon steht) und setzt `RE4_GPU_BENCH=1`; die App (`core_mode.cpp`, `benchTick`) schaltet nach
+60 s sieben Einstellungen durch (3/2/8/an wie beim Tester, dann Tiefenschärfe aus, MSAA aus,
+Anisotropie aus, Auflösung 2, alles aus bei 3, wieder 3/2/8/an), je 5 s Einschwingen und 10 s
+Messung, und schreibt je Schritt eine Zeile „GPU bench N/7“: GPU-Zeit je Spielbild (Zeitabfrage
+um `Run`), GPU-Zeit je Darstellung (neu: eigene Zeitabfrage um `Present`), Bilder und
+Darstellungen je Sekunde, CPU-Zeit des Renderers, GPU-Takt und -Last, wo das Gerät sie lesen
+lässt (Adreno: `/sys/class/kgsl/kgsl-3d0`). Danach gelten wieder die Einstellungen von vorher.
+Eigene Schritte: `RE4_GPU_BENCH=S/M/A/D,...`, Wartezeit `RE4_GPU_BENCH_DELAY`. Grenzen: ohne
+`EXT_disjoint_timer_query` (Mali beim POCO) keine GPU-Zeit; auf Kachel-GPUs kann die Zeit der
+Darstellung zu klein ausfallen (der Grafikchip zeichnet den Bildschirm erst beim Bildwechsel,
+nach der Abfrage), die je Spielbild nicht (die EFB-Kopien schließen jeden Durchgang innerhalb von
+`Run` ab). Getestet: Host-Bau (`gx_gl_check` 0 Fehler, neu „every present counted“, „the presents'
+GPU time measured“: 0,3 ms je Darstellung mit llvmpipe, „the chunks' GPU time measured“;
+`re4decomp_link_check` mit `core_mode.cpp` gebaut). Nicht getestet: der Messlauf auf dem Gerät.
+
+**GPU-Schritt (a): erster Messlauf auf dem Retroid (19.10.2026, Projektinhaber), Auswertung.**
+- Alle sieben Einstellungen hielten 30 Bilder/s und 58–60 Darstellungen/s; die Darstellung kostete
+  0,3–0,6 ms (Retroid mit 60 Hz).
+- **Zu früh begonnen:** Leon war erst um 16:44:37 frei („run: player free“, Beginn von Schritt 4),
+  der Autofokus lief erst ab 16:44:27. Die Schritte 1–3 lagen in Ankunft und Funkspruch (135–290
+  Zeichenbefehle je Bild statt etwa 490); vergleichbar sind nur die Schritte 4–7.
+- **Zeitabfrage nicht plausibel** in den Schritten 4, 5 und 7 (2× MSAA mit laufendem Autofokus):
+  493, 113 und 452 ms je Bild bei 30 Bildern/s; mit 1 Probe oder ohne Autofokus 20–24 ms. Die
+  Ursache zeigt das Protokoll nicht (offen).
+- **Last mal Takt** (unabhängig von der Zeitabfrage), Schritte 4–7 an derselben Stelle: 3×, 2× MSAA,
+  anisotrop aus, Tiefenschärfe an: 87 % bei 670 MHz (≈ 583 MHz Arbeit); 3×, 2×, 8×, an: 88 % bei
+  670 MHz (≈ 590); 2×, 2×, 8×, an: 68 % bei 400 MHz (≈ 272); 3×, alles aus: 72 % bei 400 MHz
+  (≈ 288). Also verdoppeln MSAA und Tiefenschärfe zusammen bei 3× etwa die Arbeit (der Retroid
+  braucht dann den höchsten Takt und ist zu 88 % ausgelastet); 8× anisotrop kostet nichts
+  Messbares; Auflösung 2 statt 3 gut die Hälfte.
+- **Folgerung für b–e:** Die Darstellung ist auf dem Retroid klein, c (60 Hz) hilft nur auf
+  120-Hz-Handys. Der große Posten ist MSAA zusammen mit dem Autofokus (d, e). Wie er sich auf beide
+  verteilt, zeigt der zweite Lauf. Der Posten „anisotrop 4× statt 8×“ entfällt.
+- **Messlauf verbessert (Cloud):** Der erste Schritt kommt 10 s, nachdem der Kern „Leon frei“
+  meldet (`re4_trace_free_at`, schon exportiert, kein Kern-Neubau; ohne die Funktion wie bisher nach
+  60 s). Neue Schritte: 3/1/1/0, 3/2/1/0, 3/1/1/1, 3/2/1/1, 3/2/8/1, 2/2/8/1, 3/1/1/0 (MSAA und
+  Tiefenschärfe einzeln). Jede Zeile hat zusätzlich Last mal Takt, Zeichenbefehle je Bild (gleiche
+  Stelle?), eine Markierung für Zeitwerte über dem Bildabstand und, wie weit die GPU hinterherhinkt:
+  ein Fence nach jedem Spielbild, nach dem nächsten werden die noch nicht erreichten gezählt
+  (`GxStats::behind*`, `gx_gl.cpp FenceAfterChunk`). Das zeigt ohne die Zeitabfrage, ob die GPU
+  mitkommt. `test-core-app.ps1 -GpuBench` beobachtet jetzt 330 s. Getestet: `gx_gl_check` 0 Fehler
+  (neu: jedes Spielbild geprüft, nach `glFinish` 0 hinterher), `re4decomp_link_check` gebaut,
+  `core_mode.cpp` ohne neue Warnungen. Nicht getestet: der zweite Lauf auf dem Gerät.
+
+**GPU-Schritt (a): zweiter Messlauf auf dem Retroid (19.10.2026, Projektinhaber), Ergebnis.** Alle
+Schritte an derselben Stelle (Leon frei, 487–498 Zeichenbefehle je Bild), 30 Bilder/s,
+60 Darstellungen/s, Darstellung 0,26–0,37 ms. **Die GPU hinkte nie hinterher** (Fences: 0 Bilder
+im Mittel und höchstens 0 in allen Schritten): die Zeitabfrage-Werte von 199–438 ms mit 2× MSAA
+und Autofokus sind ein Fehler der Zeitabfrage, keine echte Verzögerung. Mit MSAA allein zeigte
+sie sogar weniger als ohne (17,7 statt 18,5 ms): mit MSAA taugt die Zeitabfrage des Retroid nicht.
+Last mal Takt (Arbeit), 3-fach:
+
+| Schritt | MSAA | anisotrop | Tiefenschärfe | Takt | Last | Arbeit | gegenüber nichts |
+|---|---|---|---|---|---|---|---|
+| 1 | aus | aus | aus | 400 MHz | 65 % | 260 | |
+| 7 (Wiederholung) | aus | aus | aus | 400 MHz | 68 % | 272 | (Mittel 266) |
+| 3 | aus | aus | an | 400 MHz | 79 % | 316 | +19 % |
+| 2 | 2× | aus | aus | 587 MHz | 79 % | 462 | +74 % |
+| 4 | 2× | aus | an | 670 MHz | 85 % | 568 | +114 % |
+| 5 | 2× | 8× | an | 670 MHz | 85 % | 572 | +115 % |
+| 6 (2-fach) | 2× | 8× | an | 400 MHz | 72 % | 286 | +8 % |
+
+Folgerungen: **MSAA ist der große Posten** (+74 %), mit der Tiefenschärfe zusammen mehr als die
+Summe (+114 % statt +93 %: der Autofokus löst bei MSAA Farbe und Tiefe des ganzen EFB auf und
+zeichnet in den Mehrfach-Puffer zurück). Die Tiefenschärfe allein kostet +19 %, 8× anisotrop
+nichts Messbares, die Wiederholung (Schritt 7) liegt 5 % neben Schritt 1 (Streuung der Messung).
+Reihenfolge der Schritte danach: **b** (Wegwerfen erlauben, klein), **d** (MSAA auf Handy-Art,
+der große Posten; braucht `EXT_multisampled_render_to_texture2`, damit die Tiefe als Textur
+erhalten bleibt: welche Erweiterungen der Retroid hat, schreibt der nächste Lauf ins Protokoll),
+**e** (Tiefenschärfe in halber Auflösung), **c** (60 Hz, hilft nur auf 120-Hz-Handys).
+
+**GPU-Schritt (b): Wegwerfen erlauben (19.10.2026, Cloud, Branch `claude/re4-gpu-efficiency`).**
+Vor jedem Zeichnen, das ein Ziel ganz übermalt, darf die GPU den alten Inhalt vergessen
+(`glInvalidateFramebuffer`, `gx_gl.cpp ForgetColor`): das Ziel jeder EFB-Kopie und der Kopie ins
+XFB (der Bildausschnitt ist die ganze Textur), der Fokus-Texel und das Unschärfe-Bild des Autofokus
+(nur der Bildbereich wird gezeichnet und nur er zurückkopiert). Kachel-GPUs laden den alten Inhalt
+sonst vor dem Zeichnen in ihre Kacheln. Nicht angefasst: das EFB selbst (das Spiel zeichnet nach
+einer Kopie weiter, das Löschen nach einer Kopie betrifft nur den kopierten Bereich) und der
+MSAA-Puffer (das ist Schritt d). Schalter: `GxOptions::invalidate` (an), `RE4_GX_INVALIDATE=0`
+schaltet es aus. **Prüfmodus „magenta“** (`GxOptions::poison`, im PC-Werkzeug
+`RE4_GX_INVALIDATE_POISON=1`): statt zu vergessen wird das Ziel magenta gefüllt; ein Bild, das den
+alten Inhalt noch braucht, ändert sich dann. `gx_gl_check` läuft jetzt zweimal (normal und
+magenta), die PC-Prüfung (`whole_r100_check.sh`, Abschnitt 5) zeichnet alle GX-Bilder ein zweites
+Mal magenta und vergleicht sie Pixel für Pixel („Wegwerfen (GPU-Schritt b) …“). Der Renderer
+schreibt einmal je Lauf den Grafikchip und die für Schritt d nötigen Erweiterungen ins Protokoll
+(„GPU: …“, im Gerätebericht „Grafikchip“). Messreihe des GPU-Branch: 3/1/1/0 und 3/2/8/1, jeweils
+ohne und mit Wegwerfen, alles zweimal (8 Schritte; `S/M/A/D/I`). Getestet: `gx_gl_check` 0 Fehler
+in beiden Durchläufen; Gegenprobe: ein absichtlich falsches Vergessen des EFB nach einer Kopie gibt
+im Magenta-Durchlauf 4 Fehler; `gx_chunk_render` und `re4decomp_link_check` gebaut; der neue
+Abschnitt der PC-Prüfung mit einem Ersatz-Werkzeug (gleiche Bilder: „2 von 2 Bildern gleich“,
+abweichende: FEHLER). Nicht getestet: die PC-Prüfung mit echten Spielbildern, der Messlauf auf dem
+Gerät.
+
+**GPU-Schritt (b): Ergebnis (19.10.2026, Projektinhaber).** PC-Prüfung (Stand `eb0d192e`): ALLES OK,
+„Wegwerfen (GPU-Schritt b), das Vergessene magenta: 19 von 19 Bildern gleich“. Messlauf auf dem
+Retroid (je zweimal, Arbeit = Last mal Takt): 3-fach ohne Extras ohne Wegwerfen 260 / 246 (der zweite
+bei 305 MHz), mit 275 / 280; mit den Optionen des Testers ohne 593 / 588, mit 576 / 584. Bei gleichem
+Takt (400 MHz) ohne Extras mit Wegwerfen etwa 7 % mehr (Arbeit 260 → 275/280, Zeitabfrage 18,5 →
+19,6/20,0 ms), mit den Optionen des Testers 2 % weniger (innerhalb der Streuung). Der Adreno 650
+zeichnet die Kopien offenbar ohnehin direkt in den Speicher. **Wegwerfen ist darum aus**
+(`GxOptions::invalidate = false`, `RE4_GX_INVALIDATE=1` schaltet es ein); Code und Magenta-Prüfung
+bleiben (für andere GPUs, und Schritt d braucht dieselbe Art Prüfung). **Der Retroid hat die
+Erweiterungen für Schritt d:** „Adreno (TM) 650, OpenGL ES 3.2 V@0746.0;
+EXT_multisampled_render_to_texture yes, ..._texture2 yes, EXT_shader_framebuffer_fetch yes,
+QCOM_tiled_rendering yes“.
+
+**GPU-Schritt (d): MSAA auf den Kacheln (19.10.2026, Cloud, Branch `claude/re4-gpu-efficiency`).**
+Mit `EXT_multisampled_render_to_texture` und `..._texture2` nehmen die eigenen Texturen des EFB
+(Farbe und Tiefe) die Proben selbst (`glFramebufferTexture2DMultisampleEXT`, `gx_gl.cpp TiledMsaa`):
+die GPU hält die Proben im Kachelspeicher und schreibt am Ende eines Durchgangs (EFB-Kopie,
+Autofokus, Bildende) nur Farbe und Tiefe aufgelöst hinaus; der nächste Durchgang liest sie in alle
+Proben zurück, `Resolve` hat nichts mehr zu tun. Bisher schrieb jede Kopie die eigenen
+Mehrfach-Puffer hinaus, löste sie per Blit auf und las sie wieder ein. Unterschied im Bild: was vor
+einer Kopie gezeichnet wurde, behält danach seine aufgelöste Farbe und Tiefe statt der Proben (Kanten,
+über die später noch gezeichnet wird). Ohne die Erweiterungen oder mit `GxOptions::tiledMsaa = false`
+(`RE4_GX_MSAA_TILES=0`) der alte Weg. Die App schreibt ins Protokoll „... 2 samples (of 4) on the
+tiles“ bzw. „in own buffers“, die Messzeilen ebenso. Messreihe des GPU-Branch: 3/1/1/0, dann
+3/2/8/1 und 3/2/1/0 je in eigenen Puffern und auf den Kacheln, zweimal, am Ende wieder 3/1/1/0
+(`S/M/A/D/I/T`). **Prüfen ohne Gerät:** Mesa `zink` auf `lavapipe` (`LIBGL_ALWAYS_SOFTWARE=1
+GALLIUM_DRIVER=zink`, Paket `mesa-vulkan-drivers`, neu in `whole_setup_linux.sh`) hat beide
+Erweiterungen. `gx_gl_check` prüft MSAA jetzt auf den Kacheln (wo die GPU es kann) und in eigenen
+Puffern; die PC-Prüfung (Abschnitt 5) zeichnet alle GX-Bilder mit 2 Proben auf zink in beiden Arten
+und vergleicht sie Pixel für Pixel (Unterschiede nur an Kanten erwartet; `gx_chunk_render`:
+`RE4_GX_SAMPLES`). Getestet: `gx_gl_check` 0 Fehler mit llvmpipe (dort ohne die Erweiterungen: alter
+Weg) und mit zink (Kacheln: „MSAA on the tiles where asked for and the GPU can“, Kante geglättet,
+Kopie und Palette, Autofokus mit MSAA); `gx_chunk_render`, `re4decomp_link_check` gebaut. Nicht
+getestet: die PC-Prüfung mit echten Spielbildern, das Gerät.
+
+**Leons Haare fehlen / Flackern (Projektinhaber, 19.10.2026, Retroid, 64 bit).** Beim GPU-Messlauf
+„stellenweise“, beim Spielen von Hand **dauernd, bei jeder MSAA-Einstellung**. Die Bildschirmfotos
+des Messlaufs (Leon steht) zeigen die Haare. Ohne MSAA ist der Renderer des GPU-Branch gleichwertig
+zu M12 (Schritt b aus, Schritt d nur mit MSAA); der Shader-Zwischenspeicher erkennt geänderte
+Quelltexte (Hash beider Shader im Dateinamen und im Kopf). Ursache **offen**. Gefunden und behoben
+dabei, ohne dass es als Ursache belegt ist:
+- **Fused multiply-add nur im arm64-Kern:** Teile ohne die Spiel-Flags wurden ohne
+  `-ffp-contract=off` gebaut; clang fasste dort auf aarch64 `a*b+c` zu einem Befehl mit einer
+  Rundung zusammen (gezählt mit `llvm-objdump`: `C_MTX44Concat` 48, `C_MTXConcat` 24,
+  `C_MTXInverse` 20, `C_QUATMultiply` 12, `C_VECNormalize` 2, `C_VECDotProduct` 2, Hall-Effekte des
+  Tons …). armhf (VFPv3) und x86 haben keine solchen Befehle, darum konnte der 32/64-Vergleich am PC
+  es nicht sehen. Jetzt `add_compile_options(-ffp-contract=off)` für den ganzen Kern
+  (`port/whole/CMakeLists.txt`); `whole_build.sh` zählt die Befehle im aarch64-Build (muss 0 sein;
+  ausgenommen `Sk1Loop` und `PsSeries`, die `fmaf` absichtlich wie das `ps_madd` des Originals
+  rufen). Versuch dazu (qemu-aarch64, 2 Mio. fast parallele Vektorpaare, die SDK-Ausdrücke):
+  `acosf(Skalarprodukt)` wird NaN in 20,8 % mit und 18,3 % ohne Zusammenfassen, x86_64 und armhf
+  gleich 18,3 %. Die Haar-Simulation (`pendulum.cpp`) überspringt NaN-Winkel
+  (`ang > spdRate && …` ist dann falsch) – als Ursache der fehlenden Haare also nicht belegt.
+- Getestet (`whole_build.sh`): aarch64 (qemu) alle Kern-Prüfungen bestanden, gezählt 0; i686,
+  armhf (qemu) und x86_64 alle Prüfungen bestanden (0 Bauschritte fehlgeschlagen, Selbsttest,
+  Module, Laufzeit- und Kerntest, Formatvergleich, Filmvergleich i686/x86_64 250 von 250 Bildern
+  gleich, M12-Selbsttest 19/19, libc++ 162/162). Nicht getestet: der neue Kern auf dem Gerät.
+- **Ursache gefunden (19.10.2026, R3-Aufnahme):** GPU-Schritt d im Branch
+  `claude/re4-gpu-efficiency` (MSAA auf den Kacheln: der Adreno 650 verliert nach jeder EFB-Kopie
+  die Tiefe); dort ist Schritt d jetzt aus, Einzelheiten im Status jenes Branch. Der M12-Branch
+  hatte Schritt d nie und ist nicht betroffen.
+
+**GPU-Schritt (d): erster Gerätelauf (19.10.2026).** Arbeit (Last mal Takt), je zweimal: Optionen des
+Testers in eigenen Puffern 590 / 596, auf den Kacheln 331 / 329 (−44 %); MSAA allein 453 → 284
+(−37 %); ohne Extras 259 / 273. Die Zeitabfrage ist auf den Kacheln wieder plausibel (21 ms). Die
+PC-Prüfung (zink, 2 Proben) findet aber in 16 von 19 Bildern Unterschiede zu den eigenen Puffern,
+in den Ereignisbildern 8000–14700 Pixel (höchstens 66 von 255), bei Leon in r100 83 Pixel
+(höchstens 94). Ob das nur Kanten sind, ist ohne die Bilder offen; Schritt d bleibt im GPU-Branch.
+
+**Leons Haare / Flackern: Ursache gefunden – Schritt d (19.10.2026, R3-Aufnahme des Projektinhabers,
+32 bit, 4× MSAA auf den Kacheln).** Der Projektinhaber bestätigt: Haare fehlen und Texturen flackern
+in 32 wie in 64 bit, bei 2× und 4× MSAA (im GPU-Branch beides auf den Kacheln). Die 12 Bilder der
+Aufnahme:
+- **Die Daten des Kerns sind richtig:** in der Cloud nachgezeichnet (llvmpipe ohne MSAA, zink 4× in
+  eigenen Puffern und auf den Kacheln) hat Leon seine blonden Strähnen; die Geräte-Bilder zeigen
+  eine dunkle Kappe (die Innenschicht), das Haus im Hintergrund ohne Nebel.
+- **Flackern gemessen:** von Bild zu Bild ändern sich auf dem Gerät sonst 137–275 Pixel (über 24
+  von 255), in Bild 2 aber 59.886 (Leon samt Waffe fehlt) und in Bild 5 154.672 von 229.376 (fast
+  alles graubraun, nur die Anzeige); in der Cloud 132–255 in jedem Bild.
+- **Haar-Aufträge gefunden** (jeden der 521 Aufträge einzeln weggelassen): Nr. 464 u. a., 1252
+  Punkte, Textur 64×128 CMPR, Licht, 4 TEV-Stufen, Rückseiten weg (`GX_CULL_FRONT`).
+- **Beleg:** `EXT_multisampled_render_to_texture` lässt die Proben nach dem Ende eines Durchgangs
+  undefiniert; zink lädt sie zurück, der Adreno offenbar nicht verlässlich. Im Versuch (Renderer mit
+  nachgebildetem Verlust bei jedem erneuten Binden des EFB nach einer Kopie, zink, 4× auf den Kacheln)
+  weichen vom Gerätebild ab: ohne Verlust 22.254 Pixel, **Tiefe verloren (0) 14.957** (mittlerer
+  Unterschied 6,4 statt 8,7; dunkle Kappe und Haus ohne Nebel wie auf dem Gerät), Tiefe 1,0 33.713,
+  Farbe verloren 168.944. Der Adreno 650 behält also die Farbe und verliert die Tiefe; was das Spiel
+  nach einer EFB-Kopie mit Tiefenprüfung zeichnet (Haar, Nebel, ganze Figuren), fällt aus.
+- **Behoben:** Schritt d ist aus (`GxOptions::tiledMsaa = false`); `RE4_GX_MSAA_TILES=1` schaltet
+  ihn für Versuche ein (die PC-Prüfung tut das für ihren Vergleich, der Messlauf je Schritt). Der
+  M12-Branch hatte Schritt d nie. Ein späteres „d2“ müsste die Tiefe nach jeder Kopie selbst
+  zurückschreiben (oder `QCOM_tiled_rendering` mit Erhalt der Tiefe) und das mit nachgebildetem
+  Verlust prüfen. Getestet: `gx_gl_check` 0 Fehler (llvmpipe und zink), `gx_chunk_render` zeichnet
+  4× ohne Schalter in eigenen Puffern, mit `RE4_GX_MSAA_TILES=1` auf den Kacheln. Nicht getestet:
+  das Gerät mit MSAA in eigenen Puffern (Haare müssen wieder da sein).
+
+**Gerätetest danach (19.10.2026, Projektinhaber, Stand `c698b263`, Kern neu gebaut mit dem
+FMA-Fix, 64 bit, von Hand in r100).** PC-Prüfung vorher ALLES OK (Magenta 19/19). **Haare und Nebel
+wieder richtig:** das Foto nach 70 s fällt in die Phase mit 2× MSAA in eigenen Puffern (blonde
+Strähnen, Haus im Nebel), das nach 147 s ohne MSAA ebenso. Bilder je Sekunde laut Projektinhaber
+und Protokoll: ohne MSAA und mit 2× 30 (der Kern 33,3 ms je Bild); **mit 4× sichtbar ruckelig,
+20–25** (Kern 49,1 bzw. 62,3 ms je Bild, davon 10 ms Warten auf den Renderer; 22,0 bzw. 25,2
+gezeigte Bilder/s). 4× in eigenen Puffern ist bei Auflösung 3 zu viel für den Retroid; der
+schnelle Weg (d) braucht dafür eine Fassung, die die Tiefe nach jeder Kopie selbst zurückschreibt
+(„d2“). Die Standard-Messreihe misst jetzt 2× und 4× allein, die Tiefenschärfe, die Optionen des
+Testers und 4× bei Auflösung 2, alles in eigenen Puffern. Danach: der GPU-Branch in den M12-Stand
+übernommen (alle Schritte dort aus, nur die Messung und die Prüfwerkzeuge).
+
+**Reihenfolge danach (Entscheidung des Projektinhabers, 19.10.2026):** erst e, dann c, dann d2.
+
+**GPU-Schritt (e): Tiefenschärfe in halber Auflösung (19.10.2026, Cloud, Branch
+`claude/re4-gpu-efficiency`).** Der Autofokus (`gx_gl.cpp Autofocus`) zeichnet die Unschärfe jetzt in
+ein Bild mit halber Breite und Höhe (ein Viertel der Pixel, `halfTex`) und mischt sie in voller
+Auflösung über das EFB (`mixProgram`, Mischen per Alpha, nur Farbe; Pixel vor dem Fokus werden gar
+nicht gezeichnet). Bisher: Unschärfe in voller Auflösung in ein eigenes Bild und danach das ganze
+Bild zurückkopiert.
+- **Kein Abfärben an scharfen Kanten:** jeder grobe Bildpunkt nimmt nur Teile hinter dem Fokus
+  (auch seine vier Mittelpunkte); hat er keine, bleibt er leer (Alpha 0), und das Mischen lässt ihn
+  aus. Neue Prüfung in `gx_gl_check` („the background next to the sharp near edge keeps its
+  colour“): neben einer scharfen weißen Kante weicht der weiche Hintergrund um 0 (voll), 8 (halb)
+  bzw. 20 von 255 ab (halb, wenn die vorderen Mittelpunkte mitzählen; Grenze 12, Gegenprobe
+  gemacht).
+- **Nur das Bild aufgelöst:** mit MSAA löst der Autofokus nur noch den Bildausschnitt des Spiels
+  auf (448 statt 528 Zeilen), für beide Wege; gelesen wird nur dort.
+- **Ohne Fokus (Blick in die Ferne):** beide neuen Durchgänge brechen sofort ab.
+- Schalter: `GxOptions::halfDof` (Standard an), `RE4_GX_DOF_HALF=0/1` im Renderer für Versuche;
+  der Messlauf hat ein siebtes Feld H (`S/M/A/D/I/T/H`, ohne H: an). Standard-Messreihe jetzt:
+  nichts, Tiefenschärfe voll, halb, Optionen des Testers voll, halb, halb noch einmal, nichts
+  (alles Auflösung 3, MSAA in eigenen Puffern). Die Zeile „GPU bench“ sagt „blur at half/full
+  resolution“, „GX renderer ready“ ebenso.
+- **PC-Prüfung:** Abschnitt 5 zeichnet die aufgezeichneten Bilder zusätzlich mit voller Auflösung
+  der Unschärfe und vergleicht (Zeile „Tiefenschärfe in halber Auflösung (GPU-Schritt e) gegenüber
+  voller“; über 40 von 255 bleiben die Bilder zum Mitschicken).
+- **Getestet (Cloud):** `gx_gl_check` 0 Fehler mit llvmpipe und zink (alle Autofokus-Prüfungen mit
+  halber und voller Auflösung, mit und ohne MSAA, mit Magenta für Vergessenes);
+  `re4decomp_link_check` mit `core_mode.cpp` gebaut. Die 11 Retroid-Bilder der Haar-Aufnahme
+  (r100, Leon steht, Auflösung 3) haben alle den Autofokus, aber keine Unschärfe (Fokus über 6 m);
+  dort sind alt und neu gleich. Mit fest auf 2 m gestelltem Fokus (nur im Versuch) wird 41 % des
+  Bilds weich; alt gegen neu: im Mittel unter 1 von 255, 0,1 % der Pixel mehr als 8, höchstens 25
+  (ohne und mit 4× MSAA); im Bild nicht zu unterscheiden.
+- **Nicht getestet:** die Ersparnis auf dem Gerät (Messlauf) und die PC-Prüfung mit Disc-Daten.
+  Hinweis zur Messung: an der Messstelle schaut Leon in die Ferne, gemessen wird also vor allem der
+  Aufwand der Durchgänge selbst, nicht die Unschärfe.
+
+**GPU-Schritt (c): 60 Hz auf schnellen Bildschirmen (19.10.2026, Cloud, Branch
+`claude/re4-gpu-efficiency`).** Das Spiel liefert höchstens 60 Bilder/s (59,94 Halbbilder); auf
+einem 120-Hz-Handy (POCO X7 Pro des Testers) zeichnete die App das Bild 120-mal je Sekunde neu.
+- **Bitte um 60 Hz** (`CoreActivity.preferSixtyHz`): kann der Bildschirm schneller als 60 Hz,
+  wählt die App seine 60-Hz-Betriebsart gleicher Größe (`preferredDisplayModeId`, ab Android 6)
+  und gibt ab Android 11 der Zeichenfläche 60 Bilder/s an (`Surface.setFrameRate`). Ein
+  Bildschirm nur mit 60 Hz (Retroid) bleibt, wie er ist.
+- **Falls er doch schneller bleibt** (`FramePacing.java`, neu): die App misst den Takt des
+  Bildschirms an seinen Vsyncs (Median aus 32 Abständen; verspätete Rückrufe zählen nicht) und
+  lässt dann nur bei jedem n-ten Vsync zeichnen (120 Hz und 144 Hz: jeder zweite, 240 Hz: jeder
+  vierte; 90 Hz: jeder, sonst wären es nur 45/s). Gewechselt wird erst, wenn zwei Messungen
+  übereinstimmen. Technisch: `GLSurfaceView` auf `RENDERMODE_WHEN_DIRTY`, `requestRender` aus
+  dem Choreographer. (Die naheliegende Wartezahl `eglSwapInterval(2)` begrenzt Android auf 1.)
+  Der Kern bekommt weiter jeden Vsync (`runtime/vi.cpp` kennt 120 Hz mit zwei Vsyncs je Halbbild).
+- Protokoll: „display at … Hz (modes: …)“ beim Start und „display at … Hz: the picture drawn …“
+  nach der ersten Messung und bei jedem Wechsel; der Bericht von `test-core-app.ps1` zeigt sie als
+  „Bildschirm:“. Im Messlauf zeigt „presents/s“ die Wirkung.
+- **Getestet (Cloud):** `FramePacingTests` (420 Prüfungen: 60, 90, 120, 144, 165, 180, 240 Hz,
+  verspätete Rückrufe, Wechsel 120 → 60 Hz, einzelne Ausreißer, Pause), in `tools/test_host.sh`;
+  alle Java-Dateien der App gegen Android 15 (android-all) übersetzt, keine Warnung aus dem
+  eigenen Code. **Nicht getestet:** ein Gerät mit mehr als 60 Hz (der Retroid hat 60 Hz: dort
+  muss alles bleiben wie bisher, das zeigt der nächste Gerätelauf), Android-Lint.
+
+**GPU-Schritt (d2): MSAA auf den Kacheln, das EFB selbst zurückgemalt (19.10.2026, Cloud, Branch
+`claude/re4-gpu-efficiency`).** Schritt d sparte auf dem Retroid 44 % Arbeit, aber der Adreno 650
+verlor nach jeder EFB-Kopie die Tiefe (Haare, Nebel). d2 verlässt sich nicht mehr darauf, was der
+Treiber nach dem Ende eines Durchgangs behält:
+- **Zwei Sätze EFB-Texturen** (Farbe und Tiefe, beide auf den Kacheln, `spareFbo`): jeder neue
+  Durchgang zeichnet in den anderen Satz und malt zuerst Farbe und Tiefe aus dem vorigen zurück
+  (`UseEfb`, ein bildschirmfüllendes Dreieckspaar, Tiefe per `gl_FragDepth` ohne Rechnung, in jede
+  Probe derselbe Wert). Vorher darf der Grafikchip den alten Inhalt vergessen
+  (`glInvalidateFramebuffer`), er muss nichts laden. Weil der vorige Satz dabei nur gelesen
+  wird, ist das nach GL-Regeln eindeutig (keine Rückkopplung). Kanten, die vor einer Kopie
+  gezeichnet wurden, behalten danach ihre aufgelöste Farbe und Tiefe, nicht ihre Proben.
+- **Wann:** jedes Binden eines anderen Framebuffers (`BindFbo`, alle Bindungen des Renderers
+  laufen jetzt hindurch) und jeder neue Spielbild-Abschnitt beenden den Durchgang; zurückgemalt
+  wird erst vor dem nächsten Zeichnen oder Löschen ins EFB (`Draw`, `ClearAfterCopy`, das alte
+  Zurückkopieren der Tiefenschärfe). Kopien und Autofokus lesen bis dahin den vorigen Satz.
+- **Prüfung mit einem „vergesslichen“ Grafikchip:** `GxOptions::loseTiles` (`RE4_GX_LOSE_TILES=1`
+  in `gx_chunk_render`) färbt jeden neuen Durchgang magenta mit Tiefe 0, bevor zurückgemalt wird.
+  Neuer Test `TestPassBreak` in `gx_gl_check`: nach einer Kopie verdeckt der Vordergrund noch,
+  was dahinter gezeichnet wird, ein Auftrag mit genau derselben Tiefe besteht `EQUAL`, die Farben
+  von vorher bleiben (ohne MSAA, eigene Puffer, Kacheln, Kacheln mit Verlust, beide Auflösungen der
+  Tiefenschärfe). Gegenprobe: ohne das Zurückmalen 16 Fehler.
+- **Echte Bilder** (11 Retroid-Bilder der Haar-Aufnahme, r100, zink, 4 Proben): Kacheln mit
+  Verlust gegen Kacheln ohne: **11 von 11 gleich**. Kacheln gegen eigene Puffer, Auflösung 3: 0,4 %
+  der Pixel mehr als 8 von 255 (dünne Äste, die vor einer Kopie gezeichnet wurden; 12-mal
+  zurückgemalt je Bild); ohne MSAA gegen eigene Puffer sind es 2 % – d2 behält den größten Teil
+  der Kantenglättung.
+- Schalter: `GxOptions::tiledMsaa` bleibt **aus**, bis der Gerätetest zeigt, dass Haare und Nebel
+  da sind; `test-core-app.ps1 -MsaaTiles` schaltet d2 für einen Lauf ein (`RE4_GX_MSAA_TILES=1`).
+  Messreihe (8 Schritte): nichts, Tiefenschärfe voll, halb, Optionen des Testers in eigenen Puffern
+  und auf den Kacheln, 4× auf den Kacheln und in eigenen Puffern, nichts. Die Zeile „GPU bench“
+  sagt bei d2, wie oft je Bild zurückgemalt wurde; die Zeile „GX:“ zählt es auch.
+- **PC-Prüfung:** Abschnitt 5 vergleicht jetzt mit 4 Proben (lavapipe hat keine eigenen 2×-Puffer,
+  bisher stand 2 gegen 4) eigene Puffer gegen d2 und d2 gegen d2 mit Verlust (muss gleich sein,
+  sonst FEHLER).
+- **Getestet (Cloud):** `gx_gl_check` 0 Fehler mit llvmpipe und zink; `re4decomp_link_check`
+  gebaut; `tools/test_host.sh`: wie vorher 40 von 42 (die zwei Fehlschläge `enemy_feedback_tests`
+  und `inventory_case_contracts` gehören zum Klassik-Modus und waren schon vor e, c und d2 da).
+  **Nicht getestet:** das Gerät (Haare/Nebel mit d2, Arbeit im Messlauf), die PC-Prüfung mit
+  Disc-Daten.
+
+**GPU-Schritte e, c, d2: PC-Prüfung und Messlauf (19.10.2026, Projektinhaber, Stand `308019fc`).**
+- **PC-Prüfung: ALLES OK.** Tiefenschärfe halb gegen voll: 2 Bilder mit Autofokus, 19 von 19 gleich
+  (an diesen Stellen ohne Unschärfe). d2 gegen eigene Puffer (zink, 4 Proben): 3 von 19 gleich, sonst
+  Kanten (2145–14712 Pixel, höchstens 94 von 255); d2 mit nachgebildetem Verlust gegen d2: 19 von 19
+  gleich.
+- **Messlauf (Retroid, Last mal Takt, 3-fach, Leon steht, 490 Zeichenbefehle je Bild):** nichts 259 /
+  271; Tiefenschärfe voll 312, halb 314 (**e bringt auf dem Retroid nichts**: an der Messstelle ohne
+  Unschärfe kostet vor allem die Unterbrechung des Bilds durch den Autofokus, nicht das Weichzeichnen);
+  Optionen des Testers in eigenen Puffern 574, auf den Kacheln (d2) 450 (−22 %, 12-mal je Bild
+  zurückgemalt; d ohne Zurückmalen war 331); 4× auf den Kacheln 654 (98 % Last, 30 Bilder/s, aber
+  nur 34 Darstellungen/s), 4× in eigenen Puffern 663 (99 %, **24 Bilder/s**). Zeitabfrage auf den
+  Kacheln plausibel (18,1 / 21,5 ms), in eigenen Puffern wie bekannt nicht.
+- **c:** „display at 60.0 Hz (modes: 1080x1920@60.0): left as it is“, „drawn at each vsync“: auf dem
+  Retroid wie gewünscht ohne Wirkung.
+- **d2 auf dem Gerät: Haare fehlen wieder, Flackern** (Projektinhaber; Bild nach 190 s, Schritt 6,
+  4× auf den Kacheln: dunkle Kappe, kein Nebel; nach 310 s ohne MSAA richtig). Das Zurückmalen aus
+  den Texturen hilft also nicht. Wahrscheinlichste Ursache: der Adreno 650 schreibt bei
+  `EXT_multisampled_render_to_texture2` die aufgelöste Tiefe gar nicht in die Tiefentextur (die
+  Farbe schon); dann malt d2 eine falsche Tiefe zurück. Belegt ist das noch nicht.
+- **Selbsttest beim Start (neu, `TilesSelfTest`):** Mit MSAA auf den Kacheln zeichnet der Renderer
+  einmal beim Anlegen in eine 8×8-Ecke Rot mit Tiefe 0,25, beendet den Durchgang, liest zurück, was
+  das Gerät in den Texturen behalten hat, malt zurück und zeichnet Grün dahinter (`LESS`) und Blau
+  auf derselben Tiefe (`EQUAL`). Protokoll: „MSAA on the tiles, self-test: the device keeps the
+  colour …, the depth … (read N of 255, 64 expected); the EFB drawn back: …“ (im Bericht
+  „Kacheln-Selbsttest:“). Scheitert er, nimmt der Renderer **von selbst eigene Puffer** (`DropTiles`,
+  `OwnMsaa`). Dazu einmal je Lauf die ganze Erweiterungsliste des Grafikchips („GPU extensions“).
+  Prüfung: `GxOptions::loseTiles = 2` (`RE4_GX_LOSE_TILES=2`) bildet ein Gerät nach, das die
+  aufgelöste Tiefe nie speichert: der Selbsttest scheitert („the same depth FAILS EQUAL -> own
+  buffers instead“), alle Bildprüfungen bestehen. `gx_gl_check` 0 Fehler mit llvmpipe und zink.
+  **Nicht getestet:** der Selbsttest auf dem Retroid.
+
+**GPU-Schritt d2 auf dem Retroid, von Hand (19.10.2026, Projektinhaber, Stand `9cb28d4a`,
+`-MsaaTiles`, 2× im Menü):** Der Selbsttest **besteht** („the device keeps the colour yes, the depth
+yes (read 64 of 255, 64 expected); … hidden, … passes EQUAL -> MSAA on the tiles“), im Spiel
+**flackert es trotzdem und Teile der Texturen fehlen**, 12 Rückmalungen je Bild. Der Adreno behält
+die Tiefe also im einfachen Fall; was im Spielbild verloren geht, zeigt der Selbsttest nicht
+(Ursache nicht gefunden; die R3-Aufnahme, 30 MB, blieb auf dem PC). Die Erweiterungsliste des
+Retroid enthält u. a. `GL_ARM_shader_framebuffer_fetch`, `GL_QCOM_shader_framebuffer_fetch_noncoherent`,
+`GL_QCOM_tiled_rendering`.
+
+**Entscheidung des Projektinhabers (19.10.2026): MSAA bleibt in eigenen Puffern** („2× läuft,
+4× schafft nur 20–25 Bilder/s, besser als nichts“). d/d2 bleiben aus (`GxOptions::tiledMsaa`), der
+Code mit Selbsttest bleibt für Versuche (`-MsaaTiles`). Die Messreihe hat keine Schritte auf den
+Kacheln mehr: nichts, Tiefenschärfe, Optionen des Testers mit 2× und 4×, 4× bei Auflösung 2,
+nichts. Stand der GPU-Schritte: (a) Messung ✅, (b) aus (nichts gespart), (c) an (Retroid
+unverändert, 120 Hz nicht getestet), (d)/(d2) aus, (e) an (gleiche Bilder, auf dem Retroid ohne
+Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
+
+### Menü, Touch-Farben, Auto-Auflösung, Gyro-Zielen (Wünsche des Projektinhabers, 19.10.2026, Branch `claude/re4-menu-gyro`)
+
+- **Auto-Auflösung eine Stufe kleiner:** die Stufe, deren 336 Bildzeilen den Bildschirmzeilen am
+  nächsten kommen, minus 1, mindestens 1 (`core_mode.cpp`, `CoreMenu.autoScale`): der Retroid
+  (1080 Zeilen) bekommt 2 statt 3, ebenso der POCO X7 Pro; 720 Zeilen: 1.
+- **Menü:** Zeile unter dem Titel „SELECT (short-press) = this Menu · SELECT (long-press) = the
+  Game's Debug Menu“. GRAPHICS: Zeile „Other options“ in den Spalten der Auswahlzeilen, „Depth of
+  field“ unter „16:9“, „FPS display bottom left“ ab der dritten Spalte (getauscht). CONTROLS: Zeile
+  „Select methods“ mit „Use Touch Controls“ und „Use Gyro-Aiming“ in derselben Flucht (ohne
+  Gyrosensor ausgegraut), darunter der neue Text des Projektinhabers. MEMORY CARD: nur der Satz
+  „Export and Import Savegames as .gci (for Dolphin or GameCube).“ und zwei gleich große Knöpfe
+  „Export Savegames (.gci)“ (wie bisher „alle exportieren“: Spielstände und Systemdatei mit den
+  Freischaltungen) / „Import Savegames (.gci)“; der Export einzelner Dateien ist weg; eine Zeile
+  erscheint nur, wenn die Karte gerade nicht lesbar ist. ERROR LOG: neuer Text, darunter die
+  beiden Kästchen und die beiden Knöpfe in vier gleich breiten Teilen. Texte englisch, wie vom
+  Projektinhaber vorgegeben.
+- **Touch-Farben:** die offiziellen GameCube-Farben (Bild des Projektinhabers): A #109B61 grün,
+  B #F6392C rot, Z #6B5CB1 lila, alle anderen Knöpfe #DDDDDD grau (RetroTouch schreibt auf hellem
+  Grund dunkel). `CoreTouchTests` prüft sie (241 Prüfungen).
+- **Größere Ein-Zeichen-Beschriftung:** geht nur in RetroTouch (Textgröße dort höchstens 16 dp,
+  Radius × 0,34). **RetroTouch 1.0.0-beta.6** (vom Projektinhaber, 19.10.2026) als
+  `app/libs/retrotouch.aar`: Beschriftungen aus einem Zeichen mit Radius × 0,68 ohne Obergrenze
+  (aus dem Bytecode von `drawButton` gelesen), längere wie bisher; öffentliche Schnittstelle
+  gegenüber beta.5 unverändert (`javap -public` verglichen), alle Java-Dateien der App damit
+  übersetzt. Nicht auf dem Gerät gesehen.
+- **PC-Prüfung (Projektinhaber, Stand `fdeda59b`): ALLES OK** (Kern mit `gyro.cpp`, i686, r100
+  10.000 Bilder, Bildvergleiche wie zuvor, Filme, Speicherkarte).
+- **Nachträge (19.10.2026):** ERROR LOG: „R3 = Graphics capture“ (kein Zeilenumbruch mehr). Ganz
+  unten Überschrift SOURCE und „More on this port at https://github.com/Andiweli/CubeEvil4-Android“,
+  unterstrichen in der Linkfarbe, mit dem Controller anwählbar (A) oder antippbar: öffnet den
+  Browser (`Intent.ACTION_VIEW`; ohne Browser ein Hinweis).
+- **Frage des Projektinhabers: der linke Stick kennt nur 8 Richtungen.** So ist das Original:
+  `PadRead` (`src/game/pad.cpp`) macht aus dem Hauptstick jenseits von 30 Einheiten nur
+  Richtungs-Bits (vorwärts/rückwärts in einem Sektor von ±60°, links/rechts außerhalb davon), und
+  Leon läuft mit Panzersteuerung: vorwärts/rückwärts, Drehen mit fester Geschwindigkeit
+  (`pl_R1_Walk`: `Key.on & 1/2/4/8`, `SPEED_WALK_TURN`); Rennen über B. Analog wirkt der Stick nur
+  beim Zielen (`PlWepLockCtrl`, `CameraScope::move`) und in Menüs. Eine freie 360°-Steuerung gäbe es
+  nur mit einem Eingriff in die Spiellogik. **Entscheidung des Projektinhabers (19.10.2026): bleibt
+  wie im Original.**
+- **Gerätelauf von Hand (Projektinhaber, 19.10.2026 22:39, Stand `fdeda59b`, Kern neu gebaut,
+  64 bit):** Leon hat seine Haare (Auflösung 2, 4× MSAA in eigenen Puffern, 30 Bilder/s angezeigt);
+  Touch-Knöpfe in den GameCube-Farben, die Buchstaben groß und mittig (Bildschirmfotos), der Editor
+  von RetroTouch dreimal geöffnet und der Aufbau verschoben; das Menü wie gewünscht (noch mit der
+  alten R3-Beschriftung); Gyro-Zielen eingeschaltet, der Kern meldet „the aim turned by the
+  gyroscope“ (also beim Zielen mit einer Schusswaffe gedreht). Wie es sich anfühlt (Stärke, Richtung),
+  sagt der Bericht nicht. Nicht getestet: der SOURCE-Link.
+
+- **Gyro-Zielen:** `GyroAim.java` liest den Gyrosensor wie der erste Port (Achsen je nach
+  Bildschirmdrehung, 35 % Glättung, unter 0,006 rad/s nichts, älter als 150 ms nichts), nur bei
+  eingeschaltetem Kästchen und App im Vordergrund; `CoreBridge.gyro` → `re4_core_gyro` →
+  `runtime/gyro.cpp` (siehe Tabelle der Laufzeit-Dateien): dreht das Ziel nur, solange Leon mit
+  einer Schusswaffe zielt (nicht vorher, nicht mit dem Messer). Kern neu zu bauen.
+- **Getestet (Cloud):** alle Java-Dateien gegen Android 15 übersetzt; `CoreTouchTests` und
+  `FramePacingTests` bestanden; `whole_build.sh i686 armhf x86_64 aarch64`: 0 Baufehler, alle
+  Prüfungen bestanden (FMA 0, libc++ 163 von 163), `re4_core_gyro` exportiert. **Nicht getestet:**
+  das Menü auf dem Gerät, das Gyro-Zielen im Spiel (die Kernprüfungen laufen ohne Spieler), die
+  M12-Prüfungen (`run_all.py`; `gyro.cpp` greift nur über Feldnamen zu).
+
+### Kürzerer schwarzer Start, „Alternate Controls“, 32-bit-Startfehler (19.10.2026, Branch `claude/re4-start-controls`)
+
+- **Schwarzer Bildschirm beim Start (Frage des Projektinhabers):** etwa 5,5 s bis zum ersten
+  Logo (Gerätelog): `SS/cmn/title.snd` 0,87 s, `ss/cmn/save_e.dat` 0,6 s, Kartenprüfung 1,3 s,
+  `SS/eng/title.dat` 2,2 s. Die drei Dateien kosten nur Bilder: die Lese-Warteschlange des Spiels
+  macht pro Bild einen Schritt (`cDvd::readProcMain`: `TaskSleep(1)` nach jedem Schritt, ein
+  Stück von höchstens 128 KB braucht drei), das Laufwerk des Ports ist sofort fertig. **Patch
+  0085:** bis die erste `title.dat` da ist, folgt der nächste Schritt sofort, solange nichts
+  unterwegs ist (DVD-Lesen 0x02000000, ARAM-Übertragung 0x01000000), nach je 64 Schritten ein
+  Bild Pause (`runtime/dvd.cpp re4_dvd_boot_fast`, `re4_dvd_read_done`); danach und mit
+  `RE4_DVD_BOOT_FAST=0` das Tempo des Originals (Laden im Spiel unverändert). Die Kartenprüfung
+  (1,3 s, eigene Schritte der CARD-Bibliothek) bleibt. Log: „DVD: start reads done (…): N steps
+  without a frame's wait“.
+- **„Alternate Controls“ (Wunsch des Projektinhabers):** dritter Schalter unter CONTROLS, eigene
+  Zeile „Button layout“ unter „Use Touch Controls“ (drei Kästchen passen nicht nebeneinander),
+  darunter die Belegung. `CoreInput.setAlternate`: L1 = L (Messer, Abzug am Anschlag), L2 = R
+  (Zielen, analog), R1 = Y (Inventar „Weapons/Recovery“), R2 = A ab halbem Weg (Schießen, mit
+  Messer zustechen), Y = Z (Karte); A, B, X (Ashley: Warten/Folgen), START, Kreuz und Sticks wie
+  bisher; die Touch-Steuerung behält ihre GameCube-Knöpfe. „Keys/Treasures“ direkt auf Y
+  (Wunsch zuerst) gibt es im Original nicht (nur Y = Inventar, Z = Karte; der Reiter liegt in der
+  Reihe oben) und hätte einen Eingriff ins Untermenü gebraucht; X als Karte hätte Ashleys Befehl
+  verdrängt. **Entscheidung des Projektinhabers (19.10.2026): Keys/Treasures weglassen, X bleibt
+  Ashley, Y öffnet die Karte.** Einstellung `alternateControls` in `core_input`.
+- **Tester: 32-bit-Fassung startet nicht** („core not started: MEM1 0x80000000..0x83000000 is
+  taken in this process“, Gerät unbekannt). Die App reserviert MEM1 schon in `JNI_OnLoad` (aus
+  `Re4Application.onCreate`), auf 32 bit aber erst nach dem Laden der Kern-Bibliotheken, und der
+  Fehlerbericht hatte auf 32 bit keine `address-map.txt`. Jetzt auch auf 32 bit: der Platzhalter
+  für MEM1 vor dem Laden der Bibliotheken (wie auf 64 bit, `RE4_MEM1_PLACEHOLDER`), die
+  Speicherkarte des Prozesses im Bericht (Kopfzeile mit Prozessbreite und Kernel, alle Bereiche,
+  der höchste belegte, „libre4_main.so at …“), und die Meldung nennt den Bereich in MEM1 („by …“)
+  oder, wenn dort nichts liegt, dass das System die Adresse verweigert (ein 32-bit-Kernel, dessen
+  App-Adressraum unter 0x80000000 endet: dann geht die 32-bit-Fassung auf dem Gerät nicht). Die
+  Ursache beim Tester ist **noch offen**: dafür den Bericht („Send report“ im Fehlerdialog).
+- **Getestet (Cloud):** `whole_build.sh i686 armhf x86_64 aarch64` mit Patch 0085: 0 Baufehler,
+  alle Prüfungen bestanden. Neu in `runtime-test dvdq`: drei Lesungen über die Warteschlange, wie
+  der Bildablauf des Spiels sie treibt: beim Start 1 Bild, `ss/eng/title.dat` 1 Bild, danach
+  14 Bilder (Original); mit `RE4_DVD_BOOT_FAST=0` alle drei 14 Bilder (die Prüfung schlägt dann
+  fehl, wie sie soll). `CoreInputTests` 116 Prüfungen bestanden (neue Belegung, Tausch A/B–X/Y,
+  Touch unberührt); alle Java-Dateien gegen Android 15 übersetzt; `core_mode.cpp` für ARM32 und
+  ARM64 ohne Fehler und Warnungen geprüft (Ersatz-Header für Android); die Speicherkarte in einem
+  32- und einem 64-bit-Linux-Prozess erzeugt (belegtes MEM1 erkannt, Platzhalter scheitert dann).
+  **Nicht getestet:** Start mit Disc-Daten (PC-Prüfung, Gerät), die neue Belegung auf dem Gerät,
+  der Bericht auf dem Gerät des Testers.
+
+### Gerätelauf 19.10.2026 23:42, MSAA-Flackern der Äste, Release 0.38.2 Alpha 03 (Branch `claude/re4-start-controls`)
+
+- **PC-Prüfung (Projektinhaber, Stand `c69dce33`): ALLES OK** (mit Patch 0085).
+- **Gerätelauf (Retroid, 64 bit von Hand und 32 bit automatisch, Stand `c69dce33`):** vom
+  Laden des Kerns bis `title.dat` gelesen **2,1 s** (vorher 5,8 s; 32 bit 4,6 s), „start reads
+  done: 111 steps without a frame's wait, 1 with“. 32 bit: MEM1 mit dem neuen Platzhalter
+  reserviert, Spiel läuft. „Alternate Controls“ im Spiel eingeschaltet, die Tasten kommen wie
+  gewollt an (L2 → R, R2 → A, L1 → L, R1 → Y, Y → Z, X → X).
+- **Flackern dünner Dinge mit MSAA (Projektinhaber: Äste vor einem Haus, 2× und 4×, 32 und
+  64 bit):** R3-Aufnahme 32 bit (`gx-geraet-00..02`, je 12 Bilder, Leon steht, 2× MSAA). Auf dem
+  Gerät weicht nur Bild 00-01 ab: 400 Bildpunkte im Bereich der Äste, dort heller (die dünnen
+  Äste weich ins Hintergrundbild verwischt), alle anderen 33 Bilder ruhig. Nachgespielt mit
+  `gx_chunk_render` (llvmpipe, 1 und 4 Proben) ist dasselbe Bild ruhig; der Autofokus misst dort
+  in allen 12 Bildern 10,4 m, jenseits von 6 m zeichnet er keine Unschärfe. Auf dem Gerät hat er
+  in Bild 00-01 also einmal näher gemessen: die Bildmitte (Waffe, Zweige, Haus) liegt dicht
+  beieinander, mit MSAA kommt die Tiefe jedes Punktes aus einer Probe (die Auflösung der Tiefe
+  wählt eine, die Farbe mischt alle), und was der Adreno dort liefert, sieht man nur auf ihm.
+  **Behebung (`gx_gl.cpp` Autofocus):** der Fokus springt nicht mehr. Drei Werte stehen in zwei
+  abwechselnden 3×1-Texturen: der benutzte Fokus und die letzten beiden Messungen; der Fokus
+  folgt dem Median der letzten drei Messungen um ein Viertel des Weges je Bild (eine einzelne
+  falsche Messung ändert nichts, ein neuer Abstand ist nach etwa einer Viertelsekunde da). Ohne
+  Autofokus im Bild davor (erstes Mal, nach Zwischensequenz, Menü, Tiefenschärfe aus) beginnt er
+  neu mit der Messung. `gx_gl_check`: neue Prüfung (ein Bild „fern“ ändert nichts, nach drei
+  Bildern scharf, nach einer Pause sofort neu), alle Fälle bestanden; mit dem alten springenden
+  Fokus schlägt sie in allen 10 Varianten fehl. Die R3-Aufnahmen mit dem neuen Code: alle
+  36 Bilder bitgleich zu vorher (1 und 4 Proben). **Gerätelauf (Projektinhaber, 20.10.2026
+  00:15, Stand `120fd4a8`): das Flackern ist weiter da, auch mit ausgeschalteter
+  Tiefenschärfe.** Der Autofokus war also nicht (allein) die Ursache; der ruhigere Fokus bleibt
+  drin. Neue R3-Aufnahmen (64 bit, 2× MSAA, `gx-geraet-geteilt.zip`) liegen beim Projektinhaber;
+  **Entscheidung des Projektinhabers: das Flackern ein andermal beheben**, im Release als
+  bekannter Fehler genannt. Ausgewertet (20.10.2026): drei Reihen zu 12 Bildern (64 bit, 2× MSAA,
+  Tiefenschärfe aus, Leon steht). Kein Bild fällt heraus (vorher 400 Bildpunkte in Bild 00-01,
+  jetzt höchstens 4–16 Bildpunkte, die hin und zurück springen); die Gerätebilder gleichen dem
+  Nachspielen mit 4 Proben bis auf etwa 60 Bildpunkte je Bild in allen Bildern gleich (2 statt 4
+  Proben). MSAA verringert im Nachspielen das Springen (1 Probe 71/83/355, 4 Proben 39/71/187
+  springende Bildpunkte). Das Flackern kommt nur ab und zu; in diesen 1,2 s war es nicht. Für
+  das nächste Mal nötig: eine Aufnahme, die das Ereignis sicher enthält (Vorschlag: die App hält
+  die GX-Daten der letzten Bilder im Speicher, R3 sichert sie).
+- **Kirche, Tester-Berichte 19.10.2026 17:42 und 17:49:** beide noch mit **0.38.0-core** (Alpha 01)
+  gemacht, ohne die Berichtigung von Patch 0077 (erst in 0.38.2). Im übersetzten aarch64-Kern
+  liest `r117_espEnd` jetzt Byte 0x111 (`ldrb w8, [x8, #273]`). **Bestätigt (Projektinhaber,
+  20.10.2026): mit 0.38.2 (Alpha 3) klappt das Lichterrätsel der Kirche** (64 bit; ohne
+  Bericht).
+- **Version im Menü (Wunsch des Projektinhabers, 20.10.2026):** nach „CubeEvil4 Options“ etwas
+  kleiner „(v0.38.2-Alpha3)“, aus `versionName` ohne den Anhang „-core“. `versionName` trägt dafür
+  den Namen des Releases (`'0.38.2-Alpha3'`; Bericht und Startbildschirm: „0.38.2-Alpha3-core“);
+  bei jedem Release mit `versionCode` anpassen. Alle Java-Dateien übersetzt; auf dem Gerät nicht
+  gesehen. **Entscheidung des Projektinhabers (20.10.2026): die Versionsnummer immer aus
+  `build.gradle` nehmen**, nie fest in den Code schreiben. Geprüft: Menü (`CoreMenu.version`),
+  Startbildschirm (`MainActivity.versionName`) und Fehlerbericht (`CoreLog`) lesen sie aus der
+  App; sonst steht keine Versionsnummer im Code der App.
+- **FPS-Anzeige mit der Rate des Bildschirms (Wunsch des Projektinhabers, 20.10.2026):** der
+  Tester mit 120-Hz-Bildschirm (POCO X7 Pro) sah im Zähler des Handys 60, in unserem 30: unser
+  Zähler zählt die Spielbilder (ein Controller-Lesen je Bild; das Spiel macht wie auf dem
+  GameCube 30 je Sekunde, `SetSystemVcnt(2)`), das Handy die Wiederholrate des Bildschirms (seit
+  GPU-Schritt c auf 60 Hz gebeten, jedes Spielbild zweimal gezeigt). Die Anzeige lautet jetzt
+  „30 FPS (Game) · 60 Hz“: die Rate gemessen (`FramePacing.hz`), bis dahin die von Android
+  gemeldete. Alle Java-Dateien übersetzt; auf dem Gerät nicht gesehen.
+- **„Alternate Controls“: Zielen mit dem rechten Stick (Wunsch des Projektinhabers, 20.10.2026):**
+  solange L2 (Waffe; ab 31 von 255, wie das Spiel R zählt) oder L1 (Messer) gehalten wird, gibt
+  der rechte Stick den Steuerstick des Spiels, der linke ruht, der C-Stick steht (das Spiel
+  nutzt ihn beim Zielen nicht: `CameraQuasiFPS::calcDepressionRatio` nimmt dann die Neigung der
+  Waffe). Sonst links laufen, rechts umsehen wie bisher. Gezählt über alle Geräte (der
+  eingebaute Controller meldet Abzug und Sticks getrennt), die Touch-Steuerung ausgenommen;
+  die Standardbelegung unverändert. `CoreInputTests` 125 Prüfungen bestanden; Menütext
+  ergänzt; auf dem Gerät nicht gesehen.
+- **MSAA-Flackern, weiter (20.10.2026):** das eine erfasste Ereignis (32 bit, Reihe 00, Bild 01,
+  2× MSAA) ist **keine** Tiefenschärfe: mit erzwungenem Fokus 1,5–4,5 m im Nachspielen wird das
+  ganze Bild weich, auf dem Gerät aber nur die Äste heller (Mittel an den 532 Punkten 65,6
+  statt 55–57, das übrige Bild gleich), also eher Äste, die in diesem Bild teilweise fehlen. Es
+  passt weder zu „ohne MSAA“ noch zu „4 Proben“ im Nachspielen. Für die Ursache nötig: dieselben
+  Daten **auf dem Gerät** noch einmal zeichnen. **Neu: Wiedergabe auf dem Gerät**
+  (`core_mode.cpp replayGx`, `RE4_GX_REPLAY`; `test-core-app.ps1 -GxReplay ORDNER-ODER-ZIP
+  [-GxReplaySeries 00]`): beim Start der App, vor dem ersten Bild des Spiels, zeichnet ein
+  eigener Renderer die R3-Folge so wie damals (2× MSAA, Anisotropie 16) dreimal, dazu ohne MSAA,
+  mit 4× und ohne Anisotropie; jedes Bild so, wie die GPU es zeichnet
+  (`replay-VARIANTE-RUNDE-NN-KK.bmp`, `gx-replay.zip`). Fragen: zeichnet der Adreno dieselben
+  Daten jedes Mal gleich, und kommt Bild 01 auf ihm wieder heller? Geprüft (Cloud): beide ABIs
+  ohne Fehler und Warnungen übersetzt; `replayGx` in einem Linux-Testrahmen mit llvmpipe auf der
+  32-bit-Reihe 00: 72 Bilder, die Runden bitgleich, nahe an den Gerätebildern (Mittel 2,7;
+  Bild 01 weicht wie bekannt ab). Nicht getestet: auf dem Gerät, das Skript (kein PowerShell in
+  der Cloud).
+- **MSAA-Flackern: „centroid“ (20.10.2026).** Projektinhaber: das Flackern einzelner Äste kommt
+  nur mit 2× oder 4× MSAA, ohne MSAA ist es weg, gleich was sonst an ist. Verdacht: die Shader
+  geben Texturkoordinaten und Farben ohne `centroid` weiter; mit MSAA rechnet die GPU ein
+  Randpixel, das ein dünner Ast nur teilweise bedeckt, mit der Koordinate der Pixelmitte, die
+  außerhalb des Dreiecks liegen kann, und der Alpha-Test (Ausschnitt des Astes) verwirft oder
+  behält den Rand von Bild zu Bild anders. **Jetzt:** mit MSAA alle Übergaben des Vertex-Shaders
+  als `centroid` (`GxOptions::centroid`, Standard an; `ShaderKey::centroid`, die Programme mit
+  und ohne getrennt, auch im Programm-Zwischenspeicher, der nach dem Quelltext geht). Ohne MSAA
+  unverändert. Zum Vergleich `GxOptions::fullResolve` (jedes Auflösen über das ganze EFB) und
+  `gx_chunk_render` `RE4_GX_CENTROID=0`, `RE4_GX_FULL_RESOLVE=1`. Nachgespielt (llvmpipe, 4
+  Proben, alle sechs R3-Folgen): mit `centroid` springen weniger Bildpunkte hin und zurück
+  (z. B. 187 → 137, 958 → 935, 39 → 34), geändert werden nur Randpunkte dünner Dinge (0,75 %
+  der Punkte: Äste, Fensterrahmen, Halme), ohne sichtbaren Nachteil. llvmpipe kann nur 4
+  Proben, 2× (Retroid) zeigt nur das Gerät. Die Wiedergabe auf dem Gerät vergleicht jetzt
+  `s2old` (wie aufgenommen, ohne centroid, dreimal), `s2cen` (zweimal), `s2full`, `s1`, `s4cen`
+  (96 Bilder). `gx_gl_check` 0 Fehler; beide ABIs ohne Fehler und Warnungen. **Nicht
+  getestet:** auf dem Gerät.
+- **MSAA-Flackern: Ursache gefunden (20.10.2026).** Wiedergabe auf dem Retroid (32-bit-Reihe 00,
+  12 Bilder, `gx-replay.zip` des Projektinhabers) mit `centroid`: das Flackern ist weiter da.
+  Ausgewertet je Bild der Abstand jeder MSAA-Variante zum Bild ohne MSAA (`s1`): in der
+  Wiedergabe springt nur **Bild 06**, und zwar in **allen** MSAA-Varianten (`s2old` 320k statt
+  272k, 567 statt ~270 stark abweichende Punkte; `s2cen` 355k statt 306k; `s4cen` 441k statt
+  363k); live springt nur Bild 01 (307k, 500 Punkte), dazu Bild 04 schwach. Nachgerechnet mit
+  `gx_chunk_render` (Ausrichtung 32 wie auf dem Adreno): ein frischer Renderer wechselt den
+  Uniform-Ring (16 MB, 4 Viertel zu 4 MB, etwa 1,3 MB je Bild) in Bild 03 (beim 68.
+  Zeichenauftrag), **06 (beim 135.)** und 09 (beim 242.). Live läuft der Ring schon länger, seine
+  Wechsel liegen um gut 3 Bilder versetzt (01, 04, 07, 10). Dort, wo der Wechsel mitten in die
+  Zeichenaufträge der Bäume fällt, zeichnet der Adreno die Äste in diesem einen Bild anders
+  (heller); ohne MSAA ändert der Wechsel nichts. Beim ersten Umlauf eines frischen Renderers
+  setzt der Wechsel nur einen Fence (`glFenceSync`), gewartet wird nicht: schon der Fence mitten
+  im Bild genügt (vermutlich teilt der Treiber dort den Durchgang, und die MSAA-Proben überstehen
+  das nicht ganz). Das erklärt alles Bekannte: nur mit MSAA, nur dünne Dinge, „ab und zu“ (etwa
+  jedes dritte Bild, nur wenn der Wechsel bei den Bäumen liegt), unabhängig von Tiefenschärfe und
+  `centroid`, und in der Wiedergabe in anderen Bildern als live.
+  **Behoben:** der Ring wechselt sein Viertel jetzt vor einem Bild, nie während eines Bildes
+  (`gx_gl.cpp StreamChunkBegin`): vor jedem Bild muss das Viertel noch Platz für das größte
+  bisherige Bild und die Hälfte dazu haben (mindestens 2 MB), sonst geht es gleich zum nächsten.
+  Nur ein Bild, das mehr als ein Viertel braucht, wechselt noch mittendrin (einmal im Protokoll:
+  „GX uniform stream: a chunk needs more than a quarter's rest …“; Zähler
+  `GxStats::streamSwitches`/`streamSplits`, in der Zeile „GX work per chunk“ als „stream
+  switches (… inside a chunk)“; Bericht `test-core-app.ps1`: Zeile „Uniform-Ring“). Im Dorf
+  wechselt der Ring damit alle 2 Bilder; ein Umlauf sind 8 Bilder, gewartet wird erst, wenn die
+  GPU 6 Bilder zurückliegt (vorher etwa 9). **Geprüft (Cloud):** `gx_gl_check` neuer Test
+  `TestUniformStream` (Bilder zu 700 Zeichenaufträgen mit je eigener Matrix, etwa 2,3 MB:
+  Wechsel nur zwischen den Bildern; ein Bild zu 1400 wechselt mittendrin; alle Quadrate an
+  ihrem Platz; ohne MSAA, 4×, MSAA auf den Kacheln): 0 Fehler; ohne die Korrektur 8 Fehler.
+  Die 32-bit-Reihe 00 mit `gx_chunk_render` (2×, Auflösung 2): Wechsel in Bild 02, 04, 06, 08,
+  10 jeweils vor dem Bild, keiner im Bild, alle 12 Bilder bitgleich zu vorher (llvmpipe hat den
+  Fehler nicht). Syntaxprüfung 64 und 32 bit ohne neue Warnungen.
+  **Gerätetest (Retroid, 64 bit, Stand `5e015486`, 20.10.2026): behoben.** Projektinhaber: das
+  Flackern ist weder mit 2× noch mit 4× zu sehen (r100, etwa 2 Minuten von Hand). Wiedergabe
+  derselben 32-bit-Reihe 00 (Anisotropie diesmal 1): Bild 06 springt in keiner MSAA-Variante mehr
+  (`s2old` 268k / 255 stark abweichende Punkte statt 320k / 567, `s2cen` 300k statt 355k,
+  `s4cen` 353k statt 441k), alle 12 Bilder gleichmäßig (`s2old` 268k–269k), die Runden
+  bitgleich. Bericht: „Uniform-Ring: Wechsel nur zwischen Bildern“, 150 Wechsel, 0 im Bild,
+  0 Wartezeiten, GPU 16,2 ms je Bild. Nicht erneut getestet: 32 bit (dort war das Flackern
+  dasselbe; der Renderer ist für beide ABIs derselbe Code).
+- **Rückmeldung eines Testers zum Gyro-Zielen (20.10.2026; erledigt, siehe „Gyro-Zielen: Drehen“):**
+  1. „Links und rechts zielt man durch Kippen wie bei einem Rennspiel (Lenkrad), nicht durch
+     Drehen (Gieren) wie in den meisten Shootern; sehr unintuitiv.“ Im Code: `GyroAim.java`
+     nimmt für links/rechts die Drehung um die Achse durch den Bildschirm (`event.values[2]`),
+     wie der erste Port; Shooter nehmen die Drehung um die senkrechte Achse des Bildschirms (im
+     Querformat je nach Drehung die x-Achse des Geräts, `values[0]`, Vorzeichen nach
+     `getRotation`). Vorhaben: Gieren als Standard; das Lenkrad vielleicht als Wahl im Menü
+     (vorher fragen).
+  2. „Der rechte Stick wirkt beim Zielen nicht gleichzeitig mit dem Gyro; vielleicht geht das
+     beim GameCube-Spiel gar nicht.“ In der Standardbelegung zielt das Spiel mit dem Hauptstick
+     (linker Stick); ob der C-Stick beim Zielen im Spiel selbst etwas tut, prüfen. In „Alternate
+     Controls“ zielt ab Alpha 4 der rechte Stick (`CoreInput`: beim Zielen wird er zum
+     Hauptstick). Prüfen: Stick und Gyro zusammen (`gyro.cpp` dreht `pl->ang.y` und `m3r` dazu;
+     `PlWepLockRand` zieht `m3r` zur Mitte zurück, wenn der Stick ruht): geht der Gyro-Anteil
+     verloren, sobald der Stick sich bewegt? Wenn der C-Stick beim Zielen im Spiel nichts tut:
+     ihn in der Standardbelegung beim Zielen wie in „Alternate Controls“ mitnehmen (vorher
+     fragen).
+- **Gyro-Zielen: Drehen statt Lenkrad (20.10.2026).** Entscheidungen des Projektinhabers: links
+  und rechts nur noch durch Drehen des Geräts (um die senkrechte Achse des Bildschirms, wie eine
+  Kamera), das Kippen wie ein Lenkrad fällt weg, keine Wahl im Menü; die Standardbelegung bleibt
+  wie am GameCube (der rechte Stick zielt nur in „Alternate Controls“). Neu `GyroAxes.java` (ohne
+  Android-Klassen): Gieren und Nicken aus der Messung je Drehung des Bildschirms
+  (`Display.getRotation`); das Nicken wie vorher; `GyroAim` nimmt beide von dort. Rechter Stick
+  und Gyro zusammen, im Spielcode geprüft: `PlWepLockCtrl` verschiebt mit dem Hauptstick `m3r`
+  und `m_Fwork0`/`ang.y` schrittweise, `gyro.cpp` hat vorher (Rahmen-Haken in `PADRead`) auf
+  `ang.y`, `m3r` und `Wep->pitch` addiert, `PlWepLockRand` zentriert bei bewegtem Stick auf das
+  jetzige `m3r`: beide zählen zusammen. Im Original verschiebt der C-Stick beim Zielen das Ziel
+  nicht (`cPlWep::lockMove`: er beendet nur das automatische Anvisieren). **Geprüft (Cloud):**
+  `GyroAxesTests` 40 Prüfungen (je Drehung: Drehen um die Senkrechte ist Gieren, nach links
+  positiv; Nicken wie vorher; Kippen um die Achse durch den Bildschirm tut nichts), in
+  `tools/test_host.sh` aufgenommen; alle Java-Dateien der App gegen Android übersetzt.
+  **Nicht getestet:** auf dem Gerät.
+- **32 bit startet nicht, Tester-Bericht 20.10.2026 (`cubeevil4-report-20261020-100743.zip`,
+  App 0.38.2 Alpha 3):** Mobicel P11 Plus, Android 14, nur 32 bit (`armeabi-v7a`), PowerVR
+  GE8322, 2 GB. Meldung „core not started: MEM1 0x80000000..0x83000000 is taken in this process
+  (by 80000000-90000000 rw-p [anon:dalvik-main space])“; Adresskarte: „MEM1 placeholder: NOT
+  reserved“. Dort liegt **der Java-Speicher von ART** (die Hauptfläche, 256 MB, genau ab
+  0x80000000), darunter die Puffer des Müllsammlers „Concurrent mark-compact“ (der neue Sammler
+  von ART, ab Android 14; der Retroid mit Android 13 hat den alten, dort ist 0x80000000 frei).
+  Der Java-Speicher entsteht schon im Zygote, bevor die App einen Befehl ausführt; jede App
+  dieses Geräts erbt ihn an derselben Stelle. Aus der App heraus nicht zu ändern. Wege: (A) den
+  Kern in einem eigenen Prozess ohne Java laufen lassen (ein Programm aus dem Bibliotheksordner
+  der App, Bilder, Ton und Eingaben über geteilten Speicher), (B) MEM1 auf 32 bit an eine andere
+  Adresse legen (jede Stelle in Spiel und Plattform, die 0x80000000 annimmt, müsste umrechnen),
+  (C) vorerst nicht unterstützt. **Entscheidung des Projektinhabers (20.10.2026): Weg A**, der
+  Kern als eigener Prozess ohne Java, **nur als Rückfall, wenn MEM1 im App-Prozess belegt
+  ist** (Entscheidung ebenfalls 20.10.2026); Übergabe an eine neue Sitzung:
+  `port/docs/32bit-kernprozess.md`. Im
+  Releasetext der Alpha 4 als bekannter Fehler genannt. Nebenbei im Protokoll: der Startfehler-
+  Dialog (`CoreActivity.showStartProblem`) bleibt beim Beenden offen („WindowLeaked“), harmlos.
+- **Touch: L und R wie echte Knöpfe, Einrasten wählbar (20.10.2026).** Bisher rasteten L und R
+  der Touch-Steuerung bei jedem Tippen ein. **Entscheidung des Projektinhabers:** wählbar im Menü,
+  Standard wie ein echter Knopf (gedrückt, solange der Finger darauf liegt). `CoreTouch.setLatch`
+  (aus: L/R wie die übrigen Knöpfe; beim Umschalten wird Gehaltenes und Eingerastetes
+  losgelassen und die Anzeige von RetroTouch zurückgesetzt), `TouchControls.setLatch`,
+  Einstellung `touchLatchLR` (`CoreActivity.TOUCH_LATCH`), Schalter „Latch L and R (Touch)“ in der
+  Zeile „Button layout“ neben „Alternate Controls“, Menütext angepasst. **Geprüft (Cloud):**
+  `CoreTouchTests` 250 Prüfungen (beide Arten, Umschalten mit gehaltenem und eingerastetem
+  Knopf); alle Java-Dateien der App gegen Android übersetzt. **Nicht getestet:** auf dem Gerät.
+- **Absturz bei Luis' erstem Schuss in der Hütte: behoben mit Patch 0086 (20.10.2026).** Zwei
+  Tester-Berichte (App 0.38.2, 64 bit): Samsung Galaxy M23 (Android 14,
+  `cubeevil4-report-20261020-083406.zip`, ohne Protokoll; laut Video direkt nach einer
+  Zwischensequenz) und POCO X7 Pro (Android 16, `cubeevil4-report-20261020-072230.zip`, mit
+  Protokoll: Ereignis `evd/r11cs00.evd`, also r11c, die Hütte, Kapitel 2-3; „Abort message:
+  'stack corruption detected (-fstack-protector)'“). Beide: Signal 6, auf dem Stapel
+  `libre4_pl14.so+0xa8fc`. In der arm64-`libre4_pl14.so` der Alpha 3 (PC des Projektinhabers,
+  19.10.2026 23:44) ist 0xa8fc der Anfang von `cRoutine::shot`, direkt hinter dem
+  `bl __stack_chk_fail` am Ende von **`isTarget`** (die Rücksprungadresse eines Aufrufs ohne
+  Rückkehr zeigt auf die nächste Funktion); `cAnalysis::move+0x58` liegt hinter `bl isTarget`.
+  Ursache, ein Fehler des Originals: `GetWepTargetList2` erhöht sein `max` um eins für jeden
+  Trefferbereich mit `YAT_FLAG_THROUGH`, den die Linie kreuzt (bis 0x14), und schreibt so viele
+  Einträge; `isTarget` hat `TARGET_WK list[2]` (max 2). Der dritte Eintrag landet auf arm64 (16
+  Byte je Eintrag, Liste ab sp+0x28, Wachwert bei sp+0x48) und auf ARM32 (8 Byte, Liste ab sp+52,
+  Wachwert bei sp+68, -O2 mit Stack-Schutz nachgebaut) genau auf dem Wachwert: beide ABIs
+  betroffen. Auf dem GameCube traf er nur Nachbarvariablen, die nicht mehr gelesen werden. Dasselbe
+  Muster bei der Mine (`emmine.cpp`, ein `TARGET_WK`, max 1) und beim Speer (`obj1b.cpp`, eines,
+  max 1); `PlWepHitCheck2` hat `list[20]`, die übrigen Listen (`GetWepTargetList`,
+  `GetWepTargetListBomb`) halten ihr `max` ein. **Patch 0086:** Platz für 0x14 Einträge an allen
+  drei Stellen; gelesen werden wie vorher Eintrag 0 und 1. Nebenbefunde: Luis passt auf 64 bit in
+  seinen Gegner-Platz (0x918 von 0xF60). **Geprüft (Cloud):** `whole_build.sh i686 aarch64`
+  mit 0086: 0 Fehler, alle Prüfungen bestanden (Module laden, Laufzeit-, Kern- und Filmtest,
+  Formatvergleich, M12-Prüfwerkzeuge); der Patch steht in den vorbereiteten Quellen. **Auf dem
+  Gerät bestätigt (Projektinhaber, 20.10.2026):** mit dem neu gebauten Kern läuft die Szene in der
+  Hütte weiter, Luis schießt ohne Absturz.
+- **Ton „Dolby Surround Pro Logic II“ (20.10.2026):** Das Spiel schaltet im Menü AUDIO SETUP
+  zwischen MONAURAL, STEREO und DPL2 (`snd_main.cpp`: `AXSetMode` 0/2, `MIXSetSoundMode` 0/1/3);
+  unser DSP-Nachbau mischt DPL2 auf Stereo herunter (`runtime/dsp.cpp`), es klingt daher
+  praktisch wie Stereo. **Entscheidung des Projektinhabers: Weg 1** – im DPL2-Modus die
+  hinteren Kanäle getrennt an Android geben (Androids Raumklang für Kopfhörer, z. B. AirPods,
+  wo das Gerät ihn hat; sonst wie heute), im Branch `claude/re4-dpl2-raumklang`. Weg 2 (eigener
+  Kopfhörer-Raumklang in der App) später vielleicht als Ergänzung.
+- **Release 0.38.3 Alpha 4** (Projektinhaber, 20.10.2026: „Alpha4 fertig für heute“): Text
+  `port/android-decomp/docs/releases/v0.38.3-alpha4.md`, APK `CubeEvil4-v0.38.3-alpha4.apk`,
+  `versionName '0.38.3-Alpha4'`, `versionCode` 59 (`app/build.gradle`; das Menü zeigt
+  „(v0.38.3-Alpha4)“). Inhalt seit Alpha 3: MSAA-Flackern dünner Dinge behoben (auf dem Retroid
+  bestätigt), Gyro-Zielen durch Drehen (auf dem Gerät nicht getestet), Zielen mit dem rechten
+  Stick in „Alternate Controls“, FPS-Anzeige mit der Bildwiederholrate, Version im Menü; intern
+  MSAA mit `centroid` und die Wiedergabe von R3-Aufnahmen auf dem Gerät (`-GxReplay`).
+- **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter
+  linksbündig, „Back to the game“ in derselben Zeile rechts.
+- **Release 0.38.2 Alpha 03** (Entscheidung des Projektinhabers, 19.10.2026: auf GitHub liegt
+  „v0.38.1 Alpha Release 02“, Tag `alpha02`): Text `port/android-decomp/docs/releases/
+  v0.38.2-alpha3.md`, APK `CubeEvil4-v0.38.2-alpha3.apk` (Version 0.38.2, versionCode 58,
+  `coreRelease`, signiert mit demselben Schlüssel). Vor dem Release-Bau geprüft: neue App-Aufrufe
+  über Android 6.0 hinaus; nur `Float.isFinite` (ab Android 7.0) in `GyroAim` war ungeschützt,
+  jetzt `isNaN`/`isInfinite`.
+- **Getestet (Cloud):** alle Java-Dateien gegen Android 15 übersetzt; Java-Tests der App bestanden
+  (`CoreInputTests` 116, `CoreTouchTests` 241, `FramePacingTests` 420 …; die beiden alten
+  Fehlschläge der Variante `classic`, `enemy_feedback_tests` und `inventory_case_tests`, wie
+  zuvor); `gx_gl_check` 0 Fehler.
+
+### 32 bit: der Kern als eigener Prozess (20.10.2026, Branch `claude/re4-32bit-kernprozess`)
+
+Übergabe, Plan und Entscheidungen: `port/docs/32bit-kernprozess.md`. **Entscheidungen des
+Projektinhabers (20.10.2026):** Weg A (der Kern in einem eigenen Prozess ohne Java), nur als
+Rückfall, wenn MEM1 im App-Prozess belegt ist, dazu ein Schalter für Tests; die Bibliotheken
+werden bei der Installation entpackt (`app/build.gradle`: `useLegacyPackaging = true`; Android
+führt Programme nur aus dem entpackten Bibliotheksordner aus).
+
+- **Ablauf:** `core_mode.cpp loadCore` (32 bit): scheitert der Platzhalter für MEM1 und liegt dort
+  etwas aus dem App-Prozess (die Meldung „by …“), lädt die App den Kern nicht selbst, sondern ersetzt
+  die Tabelle `CoreApi api` durch die Funktionen `re4ipc_*` (`runtime/re4_core_client.h`,
+  `core_ipc_client.cpp`). Das erste `re4ipc_reserve` (aus `CoreBridge.start`) startet
+  `libre4_coreproc.so` (`vfork` + `execve`, Socket als Datei 3, `LD_LIBRARY_PATH` = der
+  Bibliotheksordner, Name `<Paket>:core`). Liegt in MEM1 nichts (das System verweigert die
+  Adresse), bleibt es bei der alten Meldung: dann ginge es auch im eigenen Prozess nicht.
+  `RE4_CORE_PROCESS=1` (Einstellungen von `CoreBridge.start`, `test-core-app.ps1 -CoreProcess`)
+  erzwingt den eigenen Prozess auf 32 bit (der schon geladene Kern der App bleibt unbenutzt); auf
+  64 bit wird der Schalter nur gemeldet.
+- **Das Kernprogramm** (`host/coreproc.cpp`): Signale frei, MEM1-Platzhalter sofort, fremde
+  Dateien zu, `PR_SET_PDEATHSIG`, lädt `libre4_main.so`, `re4_mem1_init`, legt den geteilten
+  Speicher an und meldet sich („Hallo“ mit Adresskarte). Threads: Befehle (Hauptthread; Socket
+  zu = die App ist weg = Ende), Eingabe (Controller-Warteschlange in Reihenfolge, Vsync, Gyro,
+  Zustandsbilder), GX (Chunks in 3 geteilte Plätze; der Chunk des Kerns wird erst frei, wenn die
+  App ihre Kopie freigibt: so viele Bilder unterwegs wie im App-Prozess), Ton (genau so viel nach,
+  wie die App las, etwa 16 ms Puffer). Ein Rahmen-Haken je Spielbild schreibt Rumble,
+  Bildzähler und `freeAt`. Absturz- und Hänger-Handler wie in der App, in dieselbe `crash.txt`
+  (das Handle kommt über den Socket).
+- **Geteilter Speicher** (`runtime/re4_core_ipc.h`): Steuerblock (Klingeln als Futex,
+  Warteschlangen, Spiegel, drei Zustandsbilder, Ton-Ring mit Kanalzahl im Kopf: für den
+  DPL2-Branch nicht fest 2), je GX-Platz ein Speicherstück (`memfd_create`, sonst
+  `ASharedMemory`), das bei Bedarf wächst (per Socket geschickt). Nach `gxDetach` verwirft die App
+  ältere Plätze und Chunks bis zum nächsten RESET.
+- **Kern:** einzige Änderung `re4_core_gx_notify` (`runtime/gx_decode.cpp`): ein Rückruf, wenn ein
+  Chunk in die Warteschlange kommt (der Server holt ihn sofort); ohne Rückruf wie bisher. Kein Patch.
+  `host/loader.c`: die Reservierung unter 0x83000000 in `host/low_memory.h` (das Linux-Kernprogramm
+  nutzt sie auch).
+- **App:** `CoreBridge.coreProcess()` (Grund und Zustand, Fehlerbericht „Core: …“ in
+  `device*.txt`, Adresskarte des Kindes in `address-map.txt`), `CoreBridge.coreProblem()`: endet
+  der Kernprozess, zeigt `CoreActivity` „The game core stopped: …“ mit „Send report“ / „Quit“.
+  `test-core-app.ps1 -CoreProcess`: Schalter, Bericht „Kern im eigenen Prozess“, ein Ende des
+  Kernprozesses beendet die Beobachtung. `whole_build_android.sh` baut und kopiert
+  `libre4_coreproc.so` für `armeabi-v7a` (prüft: ein Programm mit `INTERP`).
+- **Geprüft (Cloud, 20.10.2026):** `re4_core_remote_test` (in `whole_build.sh`, i686 und armhf
+  unter qemu, Kind über `--wrapper qemu-arm`): die „App“ belegt MEM1 selbst, startet
+  `re4_coreproc` mit dem Testeinstieg (`tests/core_remote_probe.cpp`) und prüft über den Client:
+  Start/Zustand/Meldung, Controller vor dem Start und ein kurzer Tipper während der Pause (genau
+  ein Bild), Rumble an/aus, Bildzähler, etwa 700 GX-Chunks (Prüfsumme jedes Chunks gleich der des
+  Kindes, Reihenfolge, RESET zuerst und nach `gxDetach`, Speicherstücke wachsen ab 4 KB),
+  etwa 700 Zustandsbilder (Prüfsummen), Ton 6386 Bilder genau (1000/-1000), Vsync vollständig, Gyro
+  weitergegeben, Pause (das Spiel steht), Speicherkarte (leer, 251 frei, `.gci`-Import, Export
+  gleich bis auf den Startblock, „exists“, nur während das Spiel steht), Tiefenschärfe aus/an,
+  Debug-Menü einmal, Protokollende, Ende mit „re4_game_main returned 7“, die App endet → das Kind
+  endet mit Code 0. `--crash`: das Kind stürzt ab → „the game core process ended: signal 11“,
+  `crash.txt` mit Stelle. `--missing`: „the core process does not start (…)“. `core_mode.cpp`,
+  `core_ipc*.cpp`, `coreproc.cpp` für ARM32 und ARM64 mit Ersatz-Headern ohne Fehler und
+  Warnungen übersetzt (kein NDK in der Cloud: Download gesperrt); alle Java-Dateien der App gegen
+  Android 15 (android-all) übersetzt. `whole_build.sh i686 armhf x86_64 aarch64`: 0 Baufehler, alle
+  Prüfungen bestanden (auf 64 bit gibt es den Kernprozess nicht, dort prüft es, dass Lader und
+  GX-Warteschlange unverändert arbeiten).
+- **Nicht getestet:** auf einem Gerät (Retroid mit `-Abi armeabi-v7a -CoreProcess`, das
+  Mobicel-Gerät des Testers), der Android-Build (NDK, Gradle, `useLegacyPackaging`), das Testskript
+  (kein PowerShell in der Cloud), die Leistung (eine Kopie je GX-Bild), `memfd_create` unter
+  SELinux auf Android (sonst `ASharedMemory`).
+- **Erster Android-Bau (Projektinhaber, 20.10.2026, Stand `a31c1d85`):** brach in
+  `whole_build_android.sh` ab: „libre4_main.so exportiert re4_core_gx_notify nicht“. Die Prüfung
+  war falsch: `re4_core_gx_notify` und `re4_add_frame_hook` liegen in `libre4_platform.so` (wie
+  `re4_core_gx_acquire`; `dlsym` über `libre4_main.so` findet sie dort). Korrigiert (`d26896d`).
+- **Erster Gerätelauf (Retroid, 32 bit, `-CoreProcess -Manual`, Stand `d26896d`, 20.10.2026
+  18:29):** der Kernprozess startet (PID 8843, „MEM1 placeholder reserved“, APK 17,6 MB statt
+  38,6 MB: Bibliotheken gepackt), das Spiel läuft: Titel, Vorfilm (mit START übersprungen),
+  r120/r100, Leon frei, Vibration, Gyro; GX-Speicherstücke wuchsen auf 16 MB je Platz.
+  **Projektinhaber: Ton mit starken Rucklern und Aussetzern** (auch im automatischen Lauf, dessen
+  `senden.zip` der zweite Lauf löschte). Im Protokoll des Kerns: 32 „skips“ und 54 „ran dry“ in
+  70 s (im App-Prozess fast keine). Ursache: die AudioTrack der App nimmt ihre Bilder stoßweise
+  (mehrere Lesungen zu 256 hintereinander, wenn der Mischer eine Periode nimmt); der Ring im
+  geteilten Speicher hielt nur 512 Bilder vor, die übrigen Lesungen bekamen Stille (Aussetzer), und
+  was die App nicht nahm, blieb im Ring des Kerns, bis er übersprang. **Behoben:** fehlt einer
+  Lesung etwas, schreibt die App die gewünschte Stelle in den geteilten Speicher
+  (`Control::audioWant`) und wartet bis zu 20 ms (Klingel `audioDone`), das Kind liest genau das
+  beim Kern nach; vorgehalten werden nur noch 8 ms. Nachgestellt in `re4_core_remote_test`: der
+  Testeinstieg spielt Ton im Takt des AI (ein Block je 5 ms), die „App“ liest wie die AudioTrack
+  (erst 2560 Bilder, dann je 24 ms drei Lesungen). Mit dem alten Weg: 34 560 von 66 882 Bildern in
+  Aussetzern, 5 „skips“ (die Prüfung schlägt fehl); jetzt in drei Läufen 0 Aussetzer, 0 „ran dry“,
+  0 „skips“. Prüfung: jede Lücke, die die App hört, ist Stille, die schon der Kern lieferte.
+  Neu im Protokoll: „core process: GX copies: 600 chunks, … KB each, … ms each“ und „core process
+  sound: 2000 reads, … waited …, … short“ (Bericht: „Kernprozess Bilder kopiert“, „Kernprozess
+  Ton zuletzt“). `test-core-app.ps1` hebt die `senden.zip` des Laufs davor als
+  `senden-vorher.zip` auf.
+  **Projektinhaber: im Intro mit der Polizei ab und zu 15 FPS.** Im Protokoll für diese 10 s: GPU
+  31,9 ms je Bild (4× MSAA, Stufe 2, Anisotropie 16), 49 statt 60 gezeigte Bilder je Sekunde,
+  47 Shader neu übersetzt (ein Bild 839 ms), der Kern wartete im Mittel nur 2,6 ms je Bild auf den
+  Renderer, 18,7 ms Leerlauf. Das spricht für die GPU und neue Shader, nicht für den Kernprozess;
+  **offen:** Gegenprobe derselben Stelle ohne `-CoreProcess`.
+- **Zweiter Gerätelauf (Retroid, 32 bit, Stand `cc5cdb2`, 20.10.2026, drei Läufe):** Projektinhaber:
+  kein Ruckeln mehr im Ton, FPS durchgehend 30, keine Auffälligkeiten.
+
+  | | 1: `-CoreProcess` (automatisch, 240 s) | 2: ohne (automatisch, 240 s) | 3: `-CoreProcess -Manual` (140 s) |
+  |---|---|---|---|
+  | Kern im eigenen Prozess | ja, PID 11726 | nein | ja, PID 15241 |
+  | Ton des Kerns | 46000 Blöcke, 5 ran dry, **0 skips** | 46000 Blöcke, 11 ran dry, 0 skips | 28000 Blöcke, 6 ran dry, **0 skips** |
+  | Ton über den Kernprozess | 66 von 2000 Lesungen warteten, höchstens 1 ms, 0 zu kurz | – | 197 von 2000 warteten, höchstens 1 ms, 0 zu kurz |
+  | GX-Kopie im Kernprozess | 3901 KB je Bild, 1,14 ms (höchstens 3,2) | – | 3678 KB je Bild, 0,98 ms (höchstens 2,6) |
+  | Kern je Bild | 33,3 ms, 0 ms Warten auf den Renderer, 19,3 ms Leerlauf | 33,3 ms, 0 ms, 12,8 ms | 33,3 ms, 0 ms, 18,3 ms |
+  | Bildschirm | 60,0 gezeigt/s, GPU 17,6 ms | 59,8/s, GPU 14,3 ms | 60,0/s, GPU 17,5 ms |
+  | Filme | Vorfilm ganz (76,0 s, 2278 Bilder, 0 ausgelassen) | Vorfilm (START) | Demo-Film, Vorfilm (beide START) |
+  | sonst | Leon frei in r100, 377 Shader aus dem Zwischenspeicher | Leon frei | Vibration 3×, Leon frei |
+
+  Die 15 FPS im Intro beim ersten Lauf kamen also nicht vom Kernprozess (mit dem Zwischenspeicher
+  der Shader und denselben Einstellungen jetzt durchgehend 30). Die Kopie kostet auf dem Retroid
+  etwa 1 ms je Bild auf einem eigenen Thread (auf dem schwachen Gerät des Testers mehr: dort zu
+  messen). **Auf dem Gerät noch nicht mit dem Kernprozess geprüft:** das Menü der App (Pause,
+  Grafik, Speicherkarte als `.gci`), Speichern/Laden, das Debug-Menü (SELECT halten), ein Absturz des
+  Kernprozesses, und der echte Rückfall (MEM1 vom Java-Speicher belegt: nur auf Geräten wie dem
+  Mobicel des Testers; auf dem Retroid mit Android 13 ist MEM1 frei).
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -4115,6 +5208,7 @@ Variante `classic` braucht weiter nur Disc 1.
 | `libre4_main.so` | Spielcode von `main.dol` (295 Dateien), SN-Toolchain-Ersatz, erzeugte Platzhalter |
 | `modules/libre4_<modul>.so` | eine Bibliothek je Original-REL-Modul (114) |
 | `re4_host` + `libre4_host.so` | Linux-Vorlader (`host/loader.c`) und Startprogramm (`host/main.cpp`: `--self-test`, `--check-modules`, `--runtime-test`, sonst Spielstart; `--data DIR`; `kill -USR1 <pid>` gibt einen Backtrace der laufenden Stelle aus) |
+| `re4_coreproc` / `libre4_coreproc.so` | (32 bit) der Kern als eigener Prozess ohne Java (`host/coreproc.cpp`, Android: im Bibliotheksordner der App), mit dem Client `runtime/core_ipc_client.cpp` der App; Linux-Prüfung `re4_core_remote_test` (`port/docs/32bit-kernprozess.md`) |
 
 Warum zwei Bibliotheken: Der Spielcode ersetzt `operator new/delete` durch
 seine Heaps (`main_mem.cpp`). Die Version-Script-Datei
@@ -4176,9 +5270,9 @@ sie ersetzt.
 | Alias-Namen, die von der Breite von `u32`/`size_t` abhängen: `{u32}` in `GCC295_SYMBOLS` → `"…" RE4_ASM_U32` (`m` auf ILP32, `j` auf LP64), `_Znwj/_Znaj` → `RE4_ASM_NEW(_ARRAY)` (Prelude, M12) | `FlgOnStatus__5EventUl` und `__builtin_new` passen sonst auf LP64 nicht zur Funktion; `whole_asm_check.py` kennt die `RE4_ASM_*`-Makros als Teil eines Namens |
 | `operator new(unsigned …)`, eigene `extern "C"`-Deklarationen von `memcpy/strlen …` mit `unsigned int` → `__SIZE_TYPE__` (`OPERATOR_SIZE`, `LIBC_DECL`, M12) | auf LP64 ist `size_t` 8 Bytes; sonst Widerspruch zu den System-Headern |
 | Füllfelder `[A - sizeof(X)]` → `[((A) > sizeof(X) ? (A) - sizeof(X) : 0)]` (`PAD_TO_SIZE`, M12) | auf LP64 ist `X` größer als der feste Platz `A`: sonst negative Feldgröße. Die festen Plätze selbst werden in M12-A3 angepasst |
-| Strukturen mit fester Form (`port/whole/fixed_form.json`): Zeiger-Glieder → `RE4_P32(T)` (`re4_ptr32.h`; ILP32: `T*`, LP64: 4 Bytes `Re4Ptr32<T>`), Datei bekommt `#include "re4_ptr32.h"` (`fixed_form_structs`, M12) | Daten, die das Spiel von der Disc liest und an Ort und Stelle umbiegt (Texturen, Kollision, Kamerabereiche, Modelle, Szenen-Treffer, Raumtabelle), der Kopf des Spielstands und die Modul-Verkettung: ihre Form ist durch die Disc bzw. die Speicherkarte festgelegt. Dazu `GxWork`, `SaveDataPtrs` (Sichten solcher Daten) und `OtData`/`OtPrim` (Zeichenreihenfolge: aus dem Bildpuffer des Raums, dessen Größe für die GameCube-Form gemacht ist). Bricht ab, wenn ein Glied nicht umschreibbar ist |
+| Strukturen mit fester Form (`port/whole/fixed_form.json`): Zeiger-Glieder → `RE4_P32(T)` (`re4_ptr32.h`; ILP32: `T*`, LP64: 4 Bytes `Re4Ptr32<T>`), Datei bekommt `#include "re4_ptr32.h"` (`fixed_form_structs`, M12) | Daten, die das Spiel von der Disc liest und an Ort und Stelle umbiegt (Texturen, Kollision, Kamerabereiche, Modelle, Szenen-Treffer, Raumtabelle), der Kopf des Spielstands und die Modul-Verkettung: ihre Form ist durch die Disc bzw. die Speicherkarte festgelegt. Dazu `GxWork`, `SaveDataPtrs` (Sichten solcher Daten) und `OtData`/`OtPrim` (Zeichenreihenfolge: aus dem Bildpuffer des Raums, dessen Größe für die GameCube-Form gemacht ist). Dazu `cLightPath` (am Anfang von `LIT05_MOVE_FREE` über den Arbeitsbytes der Lichtsätze des Raums; Vergleichslauf r107, 19.10.2026) und `TSceAtHide` (Debug-Werkzeug, Sicht auf `SCE_AT_DATA_HIDE`). Bricht ab, wenn ein Glied nicht umschreibbar ist |
 | `TaskFunc`: Klasse statt `void*` (`re4_task_func.h`, gleiche Größe; auf LP64 4 Bytes wie auf der GameCube, M12) | GCC 2.95 wandelte Funktionszeiger still in `void*` um, modernes C++ nicht |
-| Feste Plätze und Arbeitsflächen (`port/whole/lp64_sizes.json`, `lp64_sizes`, nach den Patches, M12): die Größe in `EM_WORK_SIZE`, `OBJ_WORK_SIZE`, den 57 `u8 free[0xDE0 - 0x3E0]` der Gegner, den 25 `u8 free[OBJ_WORK_SIZE - 0x328]` der Objekte und `cEspgen::Free` → `RE4_LP64_SIZE(gc, lp64)` (Prelude; ILP32 der GameCube-Wert; auf beiden Breiten mit `+ re4_lp64_size`, einem Aufzählungswert 0, an dem die Prüfwerkzeuge eine geprüfte Größe im Syntaxbaum erkennen) | auf LP64 wird `cEm` 0xC0 Bytes größer, `cObj` 0x98; die eigenen Arbeitsbereiche mit Zeigern wachsen über ihre Fläche (bis 0xAB8 statt 0xA00). LP64: Gegner-Platz 0xF60, Fläche 0xAC0; Objekt-Platz 0x4B0, Fläche 0xF0; Effekt-Fläche 0xD0; Effekt-Pool-Platz 0x1A8. Dazu Speicher mit fester GameCube-Größe und Löschen mit fester Länge (`ATTACH_CAMERA`, `MOTION_INFO`, Bewegungstabellen des Spielers, Zeigertabellen der Puzzle-Teile und der Schatten-Objekte, Debug-Listen; `alloc_size_check.py`) und das Speicherbudget des Speicherbildschirms (`cCard::getUseMemSize`, + 8 KB für die 256 Bild-Bausteine). Geprüft mit `overlay_check.py`; eine andere Anzahl Fundstellen bricht den Build ab |
+| Feste Plätze und Arbeitsflächen (`port/whole/lp64_sizes.json`, `lp64_sizes`, nach den Patches, M12): die Größe in `EM_WORK_SIZE`, `OBJ_WORK_SIZE`, den 57 `u8 free[0xDE0 - 0x3E0]` der Gegner, den 25 `u8 free[OBJ_WORK_SIZE - 0x328]` der Objekte und `cEspgen::Free` → `RE4_LP64_SIZE(gc, lp64)` (Prelude; ILP32 der GameCube-Wert; auf beiden Breiten mit `+ re4_lp64_size`, einem Aufzählungswert 0, an dem die Prüfwerkzeuge eine geprüfte Größe im Syntaxbaum erkennen) | auf LP64 wird `cEm` 0xC0 Bytes größer, `cObj` 0x98; die eigenen Arbeitsbereiche mit Zeigern wachsen über ihre Fläche (bis 0xAB8 statt 0xA00). LP64: Gegner-Platz 0xF60, Fläche 0xAC0; Objekt-Platz 0x4B0, Fläche 0xF0; Effekt-Fläche 0xD0; Effekt-Pool-Platz 0x1A8. Dazu Speicher mit fester GameCube-Größe und Löschen mit fester Länge (`ATTACH_CAMERA`, `MOTION_INFO`, Bewegungstabellen des Spielers, Zeigertabellen der Puzzle-Teile und der Schatten-Objekte, Debug-Listen; `alloc_size_check.py`) und das Speicherbudget des Speicherbildschirms (`cCard::getUseMemSize`, + 8 KB für die 256 Bild-Bausteine). Geprüft mit `overlay_check.py`; eine andere Anzahl Fundstellen bricht den Build ab Dazu das Ende der Heaps (`SystemMemInit`, `Heap_end_addr`): auf LP64 1 MB höher (0x818F4000), die Laufzeit legt die FST darüber (`RE4_MEM1_LP64_HEAP_EXTRA`; Laufzeittest `tasks`); Anlass: `em12` fand in r107 auf dem POCO X7 Pro keinen Platz (19.10.2026) |
 | `(u16*) &pG->stage_no` → `(u16*) &pG->room_id`, `stage_prev` → `room_id_prev` (`ROOM_ID_ADDR`) | `G_ROOM_ID` und `RsfCheck(*(u16*) &pG->stage_no, …)` lesen die Raumnummer über die Adresse ihres ersten Bytes; auf little-endian liegt `stage_no` nach Patch 0016 am anderen Ende (auf der GameCube dieselbe Adresse) |
 | `new (p) T()` → `new (p) T` (`PLACEMENT_VALUE_INIT`) | C++11 füllt eine Klasse ohne eigenen Konstruktor bei `T()` erst mit Nullen; der GameCube-Compiler nicht. `em.cpp` setzt `subArc` vor `new (em) cEm10()` (Absturz in `Em12Set`, 14.10.2026). Prüfung: `port/tools/whole_value_init.py` |
 | Prelude: `#define _ctype_ re4_newlib_ctype_` (nach den System-Headern) | Bionic exportiert `_ctype_` als Zeiger, newlib (das Spiel, `t_movie`) als Feld; die Tabelle heißt jetzt `re4_newlib_ctype_` (`runtime/newlib_ctype.c`), Bionics Zeiger bleibt unberührt (K2) |
@@ -4283,13 +5377,16 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0074 `trans.cpp`, `emwindow.h`, `em3e.h`, `TexRender.cpp`, `light_area.cpp`, `objTrolley.cpp`, `r300.cpp`, `r30c.cpp`, `r310.cpp`, `r316.cpp`, `r317.cpp`, `r318.cpp`, `db_work.cpp` | 64 bit (M12): Sichten mit GameCube-Abständen (ein Füllfeld bis zu dem Glied, das sie benennen) über ein Objekt, dessen Grundklassen auf LP64 wachsen, erreichen das Glied jetzt über `RE4_OFS(T, glied, gc)` oder `sizeof` der Grundklasse (auf ILP32 der GameCube-Wert): Skelett (`cPartsWk` → `cParts::pList`), Fenster (`EmObjWork::eff`), `EmMarkView`, Lore (`FREE_EM10::Target_dir`), Ereignis-Kamera (`Event`-Glieder statt `TexRenderEvt`), Raketenwerfer (`cObjLauncher::pRocket`), r300/r30c/r310/r316/r317/r318, Objekt-Betrachter. `GxWork` und `SaveDataPtrs` stattdessen in `fixed_form.json`. Neu im Prelude: `RE4_OWN(B, T, gc)`, der Anfang der eigenen Arbeitsfläche hinter einer Grundklasse (auf LP64 in deren Füllbytes). Gefunden mit `cast_check.py` (jetzt auch C++) |
 | 0075 `event.cpp`, `ss_pzzl.cpp`, `ss_shop.cpp`, `eprintf.cpp`, `r332.cpp`, `r20d.cpp` | 64 bit (M12): Zeiger in 4-Byte-Plätzen. `EventMgr::GetRead` (Absturz beim Laden des Autofahrt-Ereignisses r120) und `Event::PFuncTbl` über eine Zeiger-Variable; die bin/tpl-Wörter von `ITEM_PIECE_INFO::model` als u32 geschrieben und gelesen; Debug-Textzeiger in 4-Byte-Plätzen (`RE4_P32`); r332-Makros und r20d mit Index statt GameCube-Byteabstand. Gefunden mit `ptr_slot_check.py` |
 | 0076 `db_log.cpp` | Die Spielmeldungen (`pLog->err/warn/mes`, auf dem GameCube Bildschirm und `printf`-Konsole) gehen über `re4_game_log` ins Protokoll des Ports: jede Meldung (nach ihrem Format) die ersten 3 Male, dann jedes 1000. Mal mit Zählung. Auf Android gab es keine Konsole, Meldungen wie „GetPrimBuff() : OVERFLOW“ gingen verloren |
-| 0077 `r117.cpp` | 64 bit (M12): Byte 0xF9 der Lichtstrahlen (Byte 1 der eigenen Arbeitsfläche hinter `cEsp`) über `RE4_OWN(cEsp, u8, 0xF8) + 1`; auf LP64 beginnt die Fläche bei 0x10C. Gefunden mit `raw_offset_check.py` (Abstände hinter dem Ende einer Struktur) |
+| 0077 `r117.cpp` | 64 bit (M12): Byte 0xF9 der Lichtstrahlen (Byte 1 der eigenen Arbeitsfläche hinter `cEsp`) über `RE4_OWN(cEsp, u8, 0xF8) + 1`; auf LP64 beginnt die Fläche bei 0x10C. Gefunden mit `raw_offset_check.py` (Abstände hinter dem Ende einer Struktur) **Berichtigt 19.10.2026:** der Lichtstrahl ist esp06, dessen Arbeit (mit Zeiger) auf LP64 bei 0x110 beginnt; gelesen wird jetzt `RE4_OWN(cEsp, void*, 0xF8) + 1` = 0x111 statt 0x10D (das Rätsel wartete sonst beim Prüfen des Musters ewig; Tester, POCO X7 Pro). Nachgezogen: `own_start_check.py` |
 | 0078 `motion.cpp`, `r320.cpp` | 64 bit (M12): GameCube-Abstände in Summen mit Variablen. `MOT_HIST` (Schlüssel-Verlauf der Wurzel für `MotionGetSpeed` und `MotionGetPosition`) über `RE4_OFS(MOTION_INFO, Key_hist, 8)`: vorher schrieb `HermiteInterpolation` auf LP64 in die obere Hälfte von `pHermite_data` (Absturz des ersten Ganados in r100, Gerät und PC-Prüfung; gefunden mit einem Hardware-Haltepunkt, `runtime/watch.cpp`). `R320_EM_OFS` über `RE4_OFS(R320Work, em, 0xC)` |
 | 0079 `cam_extra.cpp` | 64 bit (M12): die Kamera beim Öffnen einer Tür liest die z-Spalte von `FREE_EMDOOR::base_mat` über den Namen statt als `((f32*) em)[0x784 / 4]`. Gefunden mit `raw_offset_check.py --words` |
 | 0080 `include/trans.h` | 64 bit (M12): `ModelTexInfo`, die Sicht des Zeichners auf `cModelInfo` ab `flagsDC` (`MODEL_TEX`), legt jedes Glied dorthin, wo `cModelInfo` es hat: auf LP64 4-Byte-Packung und eine Lücke aus den Abständen von `cModelInfo` (auf dem GameCube 2 Bytes, auf LP64 6), `static_assert` je Glied. Vorher las `RefractShaderSetup` auf LP64 `blendTbl` 4 Bytes zu früh (Absturz im ersten Bild von r100, PC-Prüfung 18.10.2026). Gefunden mit `cast_check.py`, seit es den Operator `&` bei libclang abfragt (vorher im Makro übersehen) |
 | 0081 `main_mem.cpp`, `rnd.cpp` | Diagnose (M12), ändert das Verhalten des Spiels nicht: jede Speicheranforderung ohne Platz (`mem_alloc` mit jedem `flag`, `Debug_alloc`) ruft `re4_heap_failed` (runtime/log.cpp: „heap: no room for … in heap N (datei(zeile), flag F)“, Zähler für den Zustands-Trace); `re4_rnd_state` gibt den Zustand des Zufallsgenerators für den Trace. Anlass: der Absturz im Speicherbildschirm auf LP64 (PC-Prüfung 18.10.2026), ein zu kleines Speicherbudget (bestätigt durch das Protokoll; seit der Regel speichert und lädt die PC-Prüfung auf 64 bit); Speicherbudgets aus GameCube-Größen sind statisch kaum zu finden, der Vergleichslauf 32/64 bit zeigt jetzt jede Anforderung, die nur auf 64 bit scheitert |
 | 0082 `sce_sys.cpp`, `sce_at.cpp`, `r20d.cpp`, `r20e.cpp`, `r21d.cpp` | 64 bit (M12): GameCube-Abstände an einer Adresse als Zahl oder in einer Summe mit Index (`(u32) em + 0x320`, `i * sizeof(T) + (u32) w + 0x2C`, `base += 0x30C`) über `RE4_OFS(T, glied, gc)`: Szenen-Bedingung „Gegner tot“ (`cEm::hp`, LP64 0x3B8), Kamera-Ecken (`SceAtSysWork::pCamAt`, LP64 0x1B0, jetzt zeigerbreit geschrieben: `RAW_CAM_AT`), Schiebepuzzle r20e (Teile LP64 0x18, Felder 0x1C8), Zäune r20d (`fence[i].t`), Fallen r21d (`trap[]`, LP64 0x380). Gefunden mit `raw_offset_check.py` (Adressen als Zahl, Summen) und `sizeof_ptr_check.py` (18.10.2026) |
 | 0083 `id_sys.cpp` | Nicht initialisierter Lesezugriff in `IdShimmerTrans` (Flimmer-Effekt der Bildschirm-Elemente, z. B. die WARNING-Schrift): die Tiefe `dot`, die die Stärke der indirekten Verzerrung bestimmt, kam aus `indMtx`, bevor es beschrieben war (so schon im Original), also aus Resten auf dem Stapel, die je Build andere sind (Vergleichslauf 18.10.2026: Bild 301 an den Schriftkanten verschieden, alles andere gleich). `indMtx` beginnt jetzt mit Nullen: `dot` 0 → 1500 (Untergrenze), auf jedem Build gleich; was der GameCube dort las, ist nicht bekannt. Bestätigung: der nächste Vergleichslauf (Bild 301 gleich) |
+| 0084 `esp_efm.cpp` | `EfmSetObj04` schrieb Eltern-Modell und `guid` über einen Wortzeiger (`u32* link = (u32*) &w->pMod; link[0] = (u32) parent; link[1] = parent->guid;`): auf LP64 landete die `guid` in der oberen Hälfte von `pMod` (8 Bytes), `Guid_pMod` blieb alt; `cObj04::move` las das Eltern-Modell dann über `guid << 32 | parent` (Tester, POCO X7 Pro, 64 bit, r104, 18.10.2026: SIGSEGV an `0xf81017988`, `x8 = 0xf81017980`). Jetzt über die Felder selbst, auf ILP32 gleich. Gefunden vom erweiterten `ptr_word_check.py` (Wortzeiger in einer Hilfsvariablen). Bestätigung: Lauf an derselben Stelle auf 64 bit |
+| 0085 `dvd.cpp` | Der Start ohne Bild-Takt (Wunsch des Projektinhabers, 19.10.2026: kürzerer schwarzer Bildschirm): `cDvd::readProcMain` wartet nach jedem Schritt einer Lesung ein Bild (`TaskSleep(1)`); bis die erste `title.dat` gelesen ist, folgt der nächste Schritt sofort, solange nichts unterwegs ist (0x02000000 DVD, 0x01000000 ARAM), nach je 64 Schritten ein Bild (`runtime/dvd.cpp re4_dvd_boot_fast`); das Ende meldet `re4_dvd_read_done` (Name der Lesung). Danach und mit `RE4_DVD_BOOT_FAST=0` wie im Original. Prüfung: `runtime-test dvdq` (1 / 1 / 14 Bilder) |
+| 0086 `pl14.cpp`, `emmine.cpp`, `obj1b.cpp` | `GetWepTargetList2` legt für jeden Trefferbereich mit `YAT_FLAG_THROUGH`, den die Schusslinie kreuzt, einen Eintrag mehr an als `max` (bis 0x14). `isTarget` (Luis, `TARGET_WK list[2]`), der Treffer der Mine und der des Speers (je ein `TARGET_WK`) hatten nur Platz für `max`: der Eintrag dahinter überschrieb den Wachwert des Stack-Schutzes (Absturz „stack corruption detected“ bei Luis' erstem Schuss in der Hütte r11c, zwei Tester, 20.10.2026). Jetzt je 0x14 Einträge; die Aufrufer lesen weiter Eintrag 0 und 1 |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
@@ -4406,7 +5503,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `gx_fifo.cpp` (G1) | GX-FIFO und Register-Blöcke CP/PE/PI/MEM: Display-Listen aufnehmen, PE-Token/fertig als Unterbrechung (`re4_gx_deliver_interrupts`), Speicher wie ihn der Grafikprozessor sieht (MEM1 und Fenster für Port-Speicher, `re4_gx_physical`), EFB-Lesen antwortet „leer“ |
 | `gx_decode.cpp` (G2) | Befehlsdecoder: Zustand CP/XF/BP/TLUT, Punkte, Indizes, Texturen mit Inhalts-Schlüssel, Bildpuffer-Kopien, Bildstücke mit Warteschlange für den Renderer (`re4_gx_frame.h`, `re4_core_gx_acquire/release/detach`) |
 | SDK `GX*.c` (G1) | unverändert aus `src/lib` bis auf Patch 0030: die gesamte GX-Bibliothek |
-| `dvd.cpp` | `DVD*` über einen Ordner mit entpackten Disc-Dateien (siehe unten); Lesen sofort, Rückruf vor der Rückkehr; aus einem Interrupt heraus (Audio-Rahmen: Nachladen der Sprach-/Musik-Streams) bleibt der Auftrag „beschäftigt“, bis der Interrupt-Rückruf zurückgekehrt ist (`os_thread.cpp re4_os_defer`), Abbruch liefert dann −3; FST der eingelegten Disc oben in MEM1, Disc-ID bei `0x80000000`; Disc-Wechsel lädt den anderen Ordner; seit M9 `DVDCancel` (Abbruch über den verzögerten Rückruf, Ergebnis „abgebrochen“) |
+| `dvd.cpp` | `DVD*` über einen Ordner mit entpackten Disc-Dateien (siehe unten); Lesen sofort, Rückruf vor der Rückkehr; aus einem Interrupt heraus (Audio-Rahmen: Nachladen der Sprach-/Musik-Streams) bleibt der Auftrag „beschäftigt“, bis der Interrupt-Rückruf zurückgekehrt ist (`os_thread.cpp re4_os_defer`), Abbruch liefert dann −3; FST der eingelegten Disc oben in MEM1, Disc-ID bei `0x80000000`; Disc-Wechsel lädt den anderen Ordner; seit M9 `DVDCancel` (Abbruch über den verzögerten Rückruf, Ergebnis „abgebrochen“); seit 19.10.2026 `re4_dvd_boot_fast` / `re4_dvd_read_done` für Patch 0085 (der Start ohne Bild-Takt) |
 | `aram.cpp` | ARAM (16 MB) als Host-Puffer, `ARInit`/`ARAlloc` (Stapel ab `0x4000`), ARQ kopiert sofort und ruft den Rückruf (aus einem Interrupt heraus erst nach dessen Ende, wie `dvd.cpp`) |
 | `os_link.cpp` | `OSLink`/`OSUnlink` (siehe unten) |
 | `yz2_decode.cpp` + `port/src/yz2_kernel.cpp` | `yz2Decode_Decode`: der geprüfte Kern des alten Ports unverändert, ein Adapter verbindet ihn mit `yz2code.cpp` des Spiels |
@@ -4418,6 +5515,7 @@ die sie treffen, müssen einzeln behandelt werden (bisher keine aufgetreten).
 | `memcard.cpp` (M10) | die Karte in Schacht A: Memory Card 251 (2 MB, 8-KB-Blöcke) als Datei mit den Befehlen der echten Karte (Lesen 0x52, Seite schreiben 0xF2, Block löschen 0xF1, alles löschen 0xF4, Status, Hersteller); Status „entsperrt“ (kein DSP-Handshake); jede Änderung sofort in die Datei, 1 s danach `fsync`; SRAM (`__OSLockSram*`, Flash-ID aus dem Kartenkopf abgeleitet); `RE4_MEMCARD` (siehe „M10“); Log der Dateien auf der Karte und der Schritte des Kartenbildschirms (Patch 0058) |
 | `host_file.cpp` (M10) | Dateizugriffe für Code mit den Schaltern des Spiels (Kartendatei): Öffnen samt Ordnern, Lesen/Schreiben an einer Stelle, `fsync`, Schließen; dort wirken die Umbenennungen der C-Bibliothek (64-bit-Dateistellen, Android-Fortify) |
 | `card_files.cpp` (M11) | Dateien auf dem Kartenabbild für das Menü der App: Liste, Lesen, Schreiben/Ersetzen wie die Bibliothek (zwei Kopien von Verzeichnis und FAT, Blöcke wie `__CARDAllocBlock`) |
+| `gyro.cpp` (19.10.2026) | Gyro-Zielen (Wunsch des Projektinhabers, wie im ersten Android-Port): `re4_core_gyro` (Drehraten der App, rad/s) und ein Bild-Haken in `PADRead`, der nur beim Zielen mit einer Schusswaffe (Hauptschleife, kein Untermenü/Ereignis, Routine `pl_R1_Weapon`, nicht das Messer) Körperdrehung `pPL->ang.y` und Neigung `m3r` samt Mitte des Wackelns (`cPlWep::pitch`) dreht, mit Zielfernrohr `CameraScope::angle_x`; 35 % der Gerätedrehung, Zoom wie der Stick. Als Spielcode übersetzt (`re4_gamehooks_obj`), kein Patch |
 | `gci.cpp` (M11) | `.gci` für Dolphin/GameCube: Spielstände und Systemdatei Feld für Feld in GameCube-Reihenfolge und zurück (`save_layout.inc` aus den Headern, `port/tools/save_layout.py`), CRCs neu |
 | `alarm.cpp` (M10) | `OSAlarm` (Zeitüberwachung der CARD-Befehle: 100 ms je Seite, 2 s je Block), fällig an den Interrupt-Punkten |
 | `pad.cpp` (M4 B) | Controller: Kanal 0 angeschlossen, Kanäle 1–3 leer (ein zweiter Controller ließe den Titel die Logos überspringen). Tasten aus der Testfolge `RE4_PAD_SCRIPT` (`TASTEN@BILD` drückt 3 Bilder lang, `TASTEN@VON-BIS/ALLE` wiederholt; Tasten `A B X Y Z L R START UP DOWN LEFT RIGHT`, mit `+` verbunden; Bild = Zahl der `PADRead`-Aufrufe). Seit K2 zusätzlich `re4_pad_live` (Controller der App, sobald kein Testskript läuft) und Bildhaken `re4_add_frame_hook` (bis 4, je `PADRead`). Seit M7: Rohwerte wie die Hardware (das eigene No-op-`PADClamp` ist entfernt, siehe SDK `Padclamp.c`), `PADControlMotor` merkt den Rüttelmotor je Bild (`re4_core_rumble`) |

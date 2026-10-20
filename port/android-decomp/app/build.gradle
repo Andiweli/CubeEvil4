@@ -41,8 +41,10 @@ android {
         applicationId 'com.ast.re4decomp'
         minSdk 21
         targetSdk 35
-        versionCode 56
-        versionName '0.38.0'
+        versionCode 59
+        // with the release's name: the app menu shows it ("(v0.38.3-Alpha4)", without the flavour's
+        // suffix), the error report and the start screen as it is ("0.38.3-Alpha4-core")
+        versionName '0.38.3-Alpha4'
         externalNativeBuild { cmake { cppFlags '-std=c++17 -Wall -Wextra' } }
     }
     // classic: the app's own game modules (arm64-v8a), as before; since
@@ -76,6 +78,17 @@ android {
     externalNativeBuild { cmake { path file('src/main/cpp/CMakeLists.txt'); version '3.22.1' } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     buildTypes { release { minifyEnabled false } }
-    packaging { jniLibs { useLegacyPackaging = false } }
+    // the libraries extracted at installation (decision of the project owner, 20.10.2026): a 32-bit
+    // device whose Java heap lies on MEM1 runs the core as a program of its own
+    // (libre4_coreproc.so, port/docs/32bit-kernprozess.md), and Android runs programs only from
+    // the extracted library folder. The APK gets smaller (libraries compressed), the installed
+    // size stays about the same (only the device's ABI is extracted).
+    packaging { jniLibs { useLegacyPackaging = true } }
     lint { abortOnError true }
+}
+
+dependencies {
+    // RetroTouch (MIT, github.com/Andiweli/RetroTouch): the touch controls of the core mode
+    // (TouchControls). An update replaces libs/retrotouch.aar; the file name carries no version.
+    implementation files('libs/retrotouch.aar')
 }

@@ -16,6 +16,12 @@ javac -d "$task_build/java" "$task_root/app/src/main/java/com/ast/re4decomp/Cont
 java -cp "$task_build/java" ControllerPolicyTests
 javac -Xlint:all -d "$task_build/java" "$task_root/app/src/main/java/com/ast/re4decomp/CoreInput.java" "$task_root/tests/CoreInputTests.java"
 java -cp "$task_build/java" CoreInputTests
+javac -Xlint:all -d "$task_build/java" "$task_root/app/src/main/java/com/ast/re4decomp/CoreInput.java" "$task_root/app/src/main/java/com/ast/re4decomp/CoreTouch.java" "$task_root/tests/CoreTouchTests.java"
+java -cp "$task_build/java" com.ast.re4decomp.CoreTouchTests
+javac -Xlint:all -d "$task_build/java" "$task_root/app/src/main/java/com/ast/re4decomp/FramePacing.java" "$task_root/tests/FramePacingTests.java"
+java -cp "$task_build/java" com.ast.re4decomp.FramePacingTests
+javac -Xlint:all -d "$task_build/java" "$task_root/app/src/main/java/com/ast/re4decomp/GyroAxes.java" "$task_root/tests/GyroAxesTests.java"
+java -cp "$task_build/java" com.ast.re4decomp.GyroAxesTests
 javac -Xlint:all -d "$task_build/java" "$task_root/app/src/main/java/com/ast/re4decomp/GameMenuLayout.java" "$task_root/app/src/main/java/com/ast/re4decomp/GameMenuNavigation.java" "$task_root/tests/GameMenuNavigationTests.java"
 java -cp "$task_build/java" GameMenuNavigationTests
 javac -Xlint:all -cp "$task_build/java" -d "$task_build/java" "$task_root/app/src/main/java/com/ast/re4decomp/GameMenuLayout.java" "$task_root/tests/GameMenuLayoutTests.java"

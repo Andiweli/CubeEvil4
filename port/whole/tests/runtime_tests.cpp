@@ -429,6 +429,14 @@ struct TaskFunc {  // port/whole/include/re4_task_func.h: one pointer
 struct TASK;
 void SystemMemInit();
 void TaskSchedulerInit();
+struct HEAP_TBL {  // include/main_mem.h
+    int handle;
+    void* start;
+    void* end;
+    unsigned char status;
+    unsigned char pad_D[3];
+};
+extern HEAP_TBL Heap[13];
 TASK* TaskExec(int level, TaskFunc func, void* arg);
 TASK* iTaskExec(TaskFunc func);
 void TaskScheduler();
@@ -492,12 +500,14 @@ void onRetrace(unsigned count)
 }
 
 int gValidPtrOnThread = -1;
+unsigned long gHeapEnd;
 
 int taskTestMain()
 {
     gValidPtrOnThread = re4probe_valid_ptr(1);
     OSInit();
     SystemMemInit();
+    gHeapEnd = (unsigned long) Heap[0].end;
     TaskSchedulerInit();
     TaskExec(1, TaskFunc{(void*) taskA}, 0);
     TaskExec(3, TaskFunc{(void*) taskB}, 0);
@@ -532,6 +542,12 @@ static void testTasks()
         re4_log("  trace: %s", gTrace);
     }
     CHECK(TaskStatus(3) == 0 && TaskStatus(1) != 0);
+    // the game's heaps end where the runtime puts the FST (lp64_sizes.json Heap_end_addr and
+    // RE4_MEM1_LP64_HEAP_EXTRA: 0x817F4000 on ILP32, 1 MB higher on LP64)
+    CHECK(gHeapEnd == RE4_MEM1_FST_ADDR);
+    if (gHeapEnd != RE4_MEM1_FST_ADDR) {
+        re4_log("  heap end 0x%lx, FST at 0x%x", gHeapEnd, RE4_MEM1_FST_ADDR);
+    }
     // VALID_PTR (patch 0037) on an OS thread's stack and outside one
     CHECK(gValidPtrOnThread == 0);
     CHECK(re4probe_valid_ptr(0) == 0);
@@ -575,6 +591,7 @@ struct DVD_READINFO {  // include/dvd.h; the name is part of the C++ symbols
 };
 struct cDvd {  // the members used here (include/dvd.h); the object is the game's
     void Init();
+    void Watcher();
     int ReadCheck(int id, DVD_READINFO* info);
 };
 extern cDvd Dvd;
@@ -584,6 +601,27 @@ namespace {
 
 std::string gQueueDir;
 bool gQueueOk;
+int gFastFrames, gTitleFrames, gPacedFrames;
+
+// An asynchronous read through the queue as the game's frame runs it (the
+// watcher starts the read task, the scheduler runs it): the frames until it is in.
+int readFrames(const char* name)
+{
+    int req = DvdReadN(name, 0, 0, 0, 0, 0x8000 | 0x4, __FILE__, __LINE__);
+    if (req < 0) {
+        return -1;
+    }
+    DVD_READINFO info;
+    for (int frame = 1; frame <= 100; frame++) {
+        Dvd.Watcher();
+        TaskScheduler();
+        iTaskScheduler();
+        if (Dvd.ReadCheck(req, &info) == 1) {
+            return frame;
+        }
+    }
+    return 1000;
+}
 
 int dvdQueueMain()
 {
@@ -609,6 +647,14 @@ int dvdQueueMain()
         data = b[i] == (unsigned char) (0x10 + i);
     }
     CHECK(data);
+    // the start without the frame pace (patch 0085, runtime/dvd.cpp): a read
+    // at the start is in within the frame, the first title.dat ends the
+    // start, after it one step a frame as in the original
+    TaskSchedulerInit();
+    gFastFrames = readFrames("hdr.dat");
+    gTitleFrames = readFrames("ss/eng/title.dat");
+    gPacedFrames = readFrames("hdr.dat");
+    CHECK(gFastFrames == 1 && gTitleFrames == 1 && gPacedFrames >= 8 && gPacedFrames < 100);
     gQueueOk = ok;
     return 0;
 }
@@ -643,13 +689,17 @@ static void testDvdQueue()
     for (int i = 0; i < 0x20; i++) {
         file[0x440 + i] = (unsigned char) (0x10 + i);
     }
-    std::vector<FstEntry> fst = {{false, "hdr.dat", 0x1000, (unsigned) file.size()}};
+    std::vector<FstEntry> fst = {{true, "ss", 0, 4}, {true, "eng", 1, 4},
+                                 {false, "title.dat", 0x2000, (unsigned) file.size()},
+                                 {false, "hdr.dat", 0x1000, (unsigned) file.size()}};
     std::vector<unsigned char> f = buildFst(fst);
     unsigned char boot[0x40] = "G4BE08";
     CHECK(makeDirs(gQueueDir + "/disc0/sys") && makeDirs(gQueueDir + "/disc0/files"));
     CHECK(writeFile(gQueueDir + "/disc0/sys/fst.bin", f.data(), f.size()));
     CHECK(writeFile(gQueueDir + "/disc0/sys/boot.bin", boot, sizeof(boot)));
     CHECK(writeFile(gQueueDir + "/disc0/files/hdr.dat", file.data(), file.size()));
+    CHECK(makeDirs(gQueueDir + "/disc0/files/ss/eng"));
+    CHECK(writeFile(gQueueDir + "/disc0/files/ss/eng/title.dat", file.data(), file.size()));
     char saved[1024];
     snprintf(saved, sizeof(saved), "%s", re4_data_dir());
     re4_set_data_dir(root);
@@ -657,6 +707,10 @@ static void testDvdQueue()
     re4_set_data_dir(saved);
     std::string cmd = "rm -rf '" + gQueueDir + "'";
     CHECK(system(cmd.c_str()) == 0);
+    if (gFastFrames != 1 || gTitleFrames != 1 || gPacedFrames < 8) {
+        re4_log("  reads at the start: %d and %d frames (title.dat), after it: %d", gFastFrames, gTitleFrames,
+                gPacedFrames);
+    }
     report("dvdq", ok && gQueueOk);
 }
 
@@ -898,6 +952,7 @@ unsigned re4probe_cast_u8(float f);
 int re4probe_cast_s16(float f);
 int re4probe_debug_mode(int set);
 void re4probe_stale_list(int set);
+int re4probe_light05(void);
 }
 
 static unsigned bitsOf(float f)
@@ -1357,6 +1412,19 @@ static void testWatch()
     report("watch", ok);
 }
 
+// Light type 5 over a room light record's work bytes in GameCube form (game_probe.cpp): plays the
+// path the record names (needs MEM1, mapped since the tasks test)
+static void testLight()
+{
+    bool ok = true;
+    int r = re4probe_light05();
+    CHECK(r == 100);
+    if (r != 100) {
+        re4_log("  light05: DispCol.r %d (path 1: 100, path 0: 200, -1: no path data)", r);
+    }
+    report("light", ok);
+}
+
 int re4_runtime_tests()
 {
     gFailures = 0;
@@ -1369,6 +1437,7 @@ int re4_runtime_tests()
     testMath();
     testTrace();
     testTasks();
+    testLight();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);

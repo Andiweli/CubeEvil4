@@ -11,7 +11,11 @@
     "entries in the frame's prim buffer: GetPrimBuff hands out 32-byte steps out of a room",
     "budget made for the GameCube form (0x14 bytes, one step); with 8-byte pointers an entry",
     "takes two steps, the budget runs out and the last draws of a frame (far trees, the car",
-    "window's mirror picture in r120) are dropped."
+    "window's mirror picture in r120) are dropped. cLightPath (lightPath.h) lies at the start",
+    "of LIT05_MOVE_FREE in cLight::work, which the room's light records fill in GameCube form:",
+    "with 8-byte pointers the path number Id moved from 0xC to 0x18 and light type 5 played the",
+    "wrong path (compare run r107, 19.10.2026, overlay_check.py --areas). TSceAtHide (t_sce_at",
+    "debug tool) is that tool's view of SCE_AT_DATA_HIDE in the room's area records."
   ],
   "structs": {
     "include/tpl.h": ["CLUTHeader", "TEXHeader", "TEXDescriptor", "TEXPalette"],
@@ -25,6 +29,8 @@
     "include/dolphin/os/OSModule.h": ["OSModuleLink"],
     "src/game/trans.cpp": ["GxWork"],
     "src/game/card.cpp": ["SaveDataPtrs"],
-    "include/trans_ot.h": ["OtData", "OtPrim"]
+    "include/trans_ot.h": ["OtData", "OtPrim"],
+    "include/lightPath.h": ["cLightPath"],
+    "src/tools/t_sce_at.cpp": ["TSceAtHide"]
   }
 }

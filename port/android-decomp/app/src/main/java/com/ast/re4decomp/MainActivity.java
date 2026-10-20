@@ -53,7 +53,9 @@ public final class MainActivity extends Activity implements ImportManager.Listen
       middle.gravity = Gravity.CENTER_HORIZONTAL; middle.topMargin = dp(4); body.addView(swap, middle);
       heading(body, getString(R.string.core_import_heading));
     } else {
-      TextView title = new TextView(this); title.setText(R.string.app_title); title.setTextSize(25); body.addView(title);
+      // the variant "classic" (own game modules): its name and real version, so it is not taken for
+      // CubeEvil4 (the title said 0.37.0 for every version until 19.10.2026)
+      TextView title = new TextView(this); title.setText(getString(R.string.app_title) + " · " + versionName()); title.setTextSize(25); body.addView(title);
       TextView note = new TextView(this); note.setText(R.string.browser_notice);
       note.setPadding(0, dp(8), 0, dp(12)); body.addView(note);
       button(body,"Start game",this::startOriginalTitle);
@@ -99,6 +101,10 @@ public final class MainActivity extends Activity implements ImportManager.Listen
   private void startOriginalTitle(){if(!loading&&!imports.busy&&gameReady()){startupShown=true;Intent start=new Intent(this,core?CoreActivity.class:StartupActivity.class);if(core)start.putExtra("coreSettings",getIntent().getStringExtra("coreSettings"));startActivity(start);}else importPanel.setVisibility(View.VISIBLE);}
   @Override protected void onSaveInstanceState(Bundle state){state.putBoolean("startupShown",startupShown);super.onSaveInstanceState(state);}
   private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+  private String versionName() {
+    try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
+    catch (android.content.pm.PackageManager.NameNotFoundException e) { return "?"; }
+  }
   /** A centred line of text (the core launcher). */
   private TextView centered(LinearLayout body, String text, int sp, boolean bold, int top) {
     TextView t = new TextView(this); t.setText(text); t.setTextSize(sp); t.setGravity(Gravity.CENTER_HORIZONTAL);

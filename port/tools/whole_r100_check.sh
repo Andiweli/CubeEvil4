@@ -800,6 +800,82 @@ render_gx_pictures() {
     fi
     grep -i "shader failed" -A 3 "$run/gx-werkzeug-lauf.log" 2> /dev/null | head -20 | sed 's/^/  /' | tee -a "$report"
     ppm_to_png "$pics"
+    # GPU step b (19.10.2026): the same frames with what the renderer lets the GPU forget painted
+    # magenta (RE4_GX_INVALIDATE_POISON): a picture that changes still needed the old content
+    local poisoned="$run/bilder-gx-magenta"
+    rm -rf "$poisoned"
+    mkdir -p "$poisoned"
+    RE4_GX_INVALIDATE_POISON=1 "$tool_build/gx_chunk_render" "$poisoned" "$dump"/*.bin > /dev/null \
+        2>> "$run/gx-werkzeug-lauf.log"
+    ppm_to_png "$poisoned"
+    if python3 "$src/port/tools/picture_compare.py" "$pics" "$poisoned" --names normal,magenta \
+        > "$run/bilder-gx-magenta.txt" 2>&1; then
+        say "Wegwerfen (GPU-Schritt b), das Vergessene magenta$(grep 'Bildvergleich' "$run/bilder-gx-magenta.txt" | sed 's/^ *Bildvergleich normal \/ magenta//')"
+        rm -rf "$poisoned" "$run/bilder-gx-magenta.txt"
+    else
+        say "FEHLER Wegwerfen (GPU-Schritt b): Bilder ändern sich, wenn das Vergessene magenta ist (bilder-gx-magenta.txt, Ordner bilder-gx-magenta; bitte mitschicken)"
+        head -n 12 "$run/bilder-gx-magenta.txt" | sed 's/^/  /' | tee -a "$report"
+        overall=1
+    fi
+    # GPU step d2 (19.10.2026): the same frames with 4x MSAA on zink (lavapipe, mesa-vulkan-drivers:
+    # EXT_multisampled_render_to_texture2), in own buffers and on the tiles, where the EFB is drawn
+    # back after every pass. They may differ only at edges drawn before a copy (drawn back with
+    # their resolved colour and depth, not the samples; the Retroid's pictures at scale 3, 4x:
+    # 0.4 % of the pixels more than 8). Then on the tiles again as on a GPU that loses everything
+    # at a pass's end (RE4_GX_LOSE_TILES=1, magenta and depth 0; the Adreno 650 lost the depth):
+    # the pictures must not change at all
+    local msaa_own="$run/bilder-gx-msaa-puffer" msaa_tiles="$run/bilder-gx-msaa-kacheln"
+    local msaa_lost="$run/bilder-gx-msaa-verlust"
+    # (4: lavapipe has no 2x buffers of its own, the comparison was 2 against 4 samples)
+    local zink=(env LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=zink RE4_GX_SAMPLES=4)
+    rm -rf "$msaa_own" "$msaa_tiles" "$msaa_lost"
+    mkdir -p "$msaa_own" "$msaa_tiles" "$msaa_lost"
+    "${zink[@]}" RE4_GX_MSAA_TILES=0 "$tool_build/gx_chunk_render" "$msaa_own" "$dump"/*.bin > /dev/null \
+        2> "$run/gx-msaa-puffer.log"
+    "${zink[@]}" RE4_GX_MSAA_TILES=1 "$tool_build/gx_chunk_render" "$msaa_tiles" "$dump"/*.bin > /dev/null \
+        2> "$run/gx-msaa-kacheln.log"
+    "${zink[@]}" RE4_GX_MSAA_TILES=1 RE4_GX_LOSE_TILES=1 "$tool_build/gx_chunk_render" "$msaa_lost" "$dump"/*.bin \
+        > /dev/null 2> "$run/gx-msaa-verlust.log"
+    if grep -q "MSAA: .* in own buffers" "$run/gx-msaa-puffer.log" && grep -q "MSAA: .* on the tiles" "$run/gx-msaa-kacheln.log"; then
+        ppm_to_png "$msaa_own"
+        ppm_to_png "$msaa_tiles"
+        ppm_to_png "$msaa_lost"
+        python3 "$src/port/tools/picture_compare.py" "$msaa_own" "$msaa_tiles" --names puffer,kacheln \
+            > "$run/bilder-gx-msaa.txt" 2>&1
+        say "MSAA auf den Kacheln (GPU-Schritt d2) gegenüber eigenen Puffern, 4 Proben, je Bild (zink):"
+        sed 's/^/  /' "$run/bilder-gx-msaa.txt" | tee -a "$report"
+        say "  (Bilder: Ordner bilder-gx-msaa-puffer und bilder-gx-msaa-kacheln)"
+        if python3 "$src/port/tools/picture_compare.py" "$msaa_tiles" "$msaa_lost" --names kacheln,verlust \
+            > "$run/bilder-gx-msaa-verlust.txt" 2>&1; then
+            say "MSAA auf den Kacheln, alles verloren am Ende jedes Durchgangs (GPU-Schritt d2):$(grep 'Bildvergleich' "$run/bilder-gx-msaa-verlust.txt" | sed 's/^ *Bildvergleich kacheln \/ verlust://')"
+            rm -rf "$msaa_lost" "$run/bilder-gx-msaa-verlust.txt"
+        else
+            say "FEHLER MSAA auf den Kacheln (GPU-Schritt d2): Bilder ändern sich, wenn am Ende eines Durchgangs alles verloren geht (bilder-gx-msaa-verlust.txt, Ordner bilder-gx-msaa-verlust; bitte mitschicken)"
+            head -n 12 "$run/bilder-gx-msaa-verlust.txt" | sed 's/^/  /' | tee -a "$report"
+            overall=1
+        fi
+    else
+        say "MSAA auf den Kacheln (GPU-Schritt d2): nicht geprüft (zink fehlt: sudo $src/port/tools/whole_setup_linux.sh; Log: gx-msaa-kacheln.log)"
+        rm -rf "$msaa_own" "$msaa_tiles" "$msaa_lost"
+    fi
+    # GPU step e (19.10.2026): the same frames with the depth of field's blur at the full resolution
+    # as before step e (RE4_GX_DOF_HALF=0) against the half one of the pictures above. Only the
+    # blurred background may differ, by a few steps (the cloud with a fixed focus on the Retroid's
+    # pictures: on average under 1 of 255, 0.1 % of the pixels more than 8, at most 25); more than
+    # 40 somewhere: the pictures stay for a look
+    local dof_full="$run/bilder-gx-tiefe-voll" worst
+    rm -rf "$dof_full"
+    mkdir -p "$dof_full"
+    RE4_GX_DOF_HALF=0 "$tool_build/gx_chunk_render" "$dof_full" "$dump"/*.bin > "$run/gx-tiefe-voll.log" 2>&1
+    ppm_to_png "$dof_full"
+    python3 "$src/port/tools/picture_compare.py" "$dof_full" "$pics" --names voll,halb > "$run/bilder-gx-tiefe.txt" 2>&1
+    worst=$(sed -n 's/.*höchstens \([0-9]*\) von 255.*/\1/p' "$run/bilder-gx-tiefe.txt" | sort -n | tail -n 1)
+    say "Tiefenschärfe in halber Auflösung (GPU-Schritt e) gegenüber voller: $(grep -c 'Autofokus' "$run/gx-tiefe-voll.log") Bilder mit Autofokus,$(grep 'Bildvergleich' "$run/bilder-gx-tiefe.txt" | sed 's/^ *Bildvergleich voll \/ halb://'), größte Abweichung ${worst:-0} von 255"
+    if [ "${worst:-0}" -gt 40 ]; then
+        say "  auffällig (mehr als 40): Ordner bilder-gx-tiefe-voll und bilder-gx-tiefe.txt bitte mitschicken"
+    else
+        rm -rf "$dof_full"
+    fi
     # a few frames as data for the renderer work in the cloud (gx_chunk_render
     # draws them there; game data: never into the repository): the first
     # three and the first in the room
@@ -1371,7 +1447,11 @@ PY
         say "  GX-Daten der verschiedenen Bilder: gx-vergleich-daten.zip ($(du -h "$run/gx-vergleich-daten.zip" | cut -f1); bitte mitschicken)"
     fi
     rm -rf "$run/gx-i686" "$run/gx-x86_64"  # large; the pictures and the zip stay
-    say "Bilder: Ordner bilder-vergleich (i686/ und x86_64/, bitte mitschicken)"
+    if [ -s "$diffs" ]; then
+        say "Bilder: Ordner bilder-vergleich (i686/ und x86_64/, bitte mitschicken)"
+    else
+        say "Bilder: Ordner bilder-vergleich (i686/ und x86_64/; alle gleich, nicht nötig mitzuschicken)"
+    fi
 }
 
 if [ "$game_ok" -eq 1 ] && [ "$compare" -eq 1 ]; then

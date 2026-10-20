@@ -1,21 +1,32 @@
 # 64-bit build (milestone 12, way A): the own work of a class derived from a
 # pool base reached through a byte offset. On the GameCube it starts at the
-# size of the base; on LP64 at the end of the base's data, which is before
-# its size when the base ends in padding (cEsp: 0x10C of 0x110, cEm: 0x49C of
-# 0x4A0; RE4_OWN in re4_whole_prelude.h). Found with
-# port/tools/m12/raw_offset_check.py (offsets past the end of the record).
-# - r117.cpp: the light beams are done when bit 2 of byte 0xF9 is set.
+# size of the base; on LP64 where the compiler puts the derived class's first
+# member: at the end of the base's data (cEsp: 0x10C of 0x110, tail padding
+# reused) for a member aligned to 4 or less, 8-aligned (0x110) for one that
+# holds a pointer (RE4_OWN(B, T, gc) in re4_whole_prelude.h, T the member's
+# type or one of its alignment). Found with port/tools/m12/raw_offset_check.py
+# (offsets past the end of the record).
+# - r117.cpp (the church): the light beams are done when bit 2 of byte 0xF9 is
+#   set. The beam is an esp06 (the effect that rides a path; ESP06_WK.Flg bit 2:
+#   stopped at the path end, the only effect that sets bit 2 of its work's byte
+#   1). ESP06_WK holds a pointer (pPath), so on LP64 its work starts at 0x110 and
+#   the byte is 0x111. Until 19.10.2026 this patch read 0x10D (the work start of
+#   a u8): the puzzle's check of the pattern waited for the beam forever (tester,
+#   POCO X7 Pro, 64 bit, r117: the game ran on, the picture and the sound stood).
+#   The start of every effect class's work measured with the build's flags: 9
+#   of 36 begin at 0x110 on LP64 (esp03 06 0d 0e 11 12 16 3f 4e).
 # (esp_sub.cpp's spline sprite, the same case, is patch 0040.)
 --- a/src/st1/r117.cpp
 +++ b/src/st1/r117.cpp
-@@ -89,7 +89,9 @@
+@@ -81,7 +81,10 @@
  {
      int on = 0;
  
 -    if (((u8*) esp)[0xF9] & 4) {
-+    // port: patch 0077, byte 1 of the beam's own work (0xF9 on the GameCube; LP64: cEsp's data
-+    // ends at 0x10C, where the derived work starts, tail padding reused)
-+    if (((u8*) esp)[RE4_OWN(cEsp, u8, 0xF8) + 1] & 4) {
++    // port: patch 0077, byte 1 of the beam's own work: Flg of ESP06_WK (esp06.cpp, the effect that
++    // rides a path; bit 2: stopped at the end), 0xF9 on the GameCube. On LP64 that work starts
++    // 8-aligned behind cEsp (it holds a pointer, pPath): 0x110, not at cEsp's data end 0x10C
++    if (((u8*) esp)[RE4_OWN(cEsp, void*, 0xF8) + 1] & 4) {
          on = 1;
      }
      return on;

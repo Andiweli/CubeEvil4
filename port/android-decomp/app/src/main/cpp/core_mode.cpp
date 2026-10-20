@@ -7,13 +7,22 @@
 // with the GX renderer (gx_gl.cpp, port/docs/gx-plan.md step G4), and until
 // the first display copy (or with the setting RE4_VIEW=bridge) the published
 // state frames with CoreScene.
+//
+// On 32 bit with MEM1 taken in this process (ART's Java heap at 0x80000000 on
+// Android 14 devices) the core runs in a process of its own instead
+// (libre4_coreproc.so, port/docs/32bit-kernprozess.md): the table of core
+// calls below then goes to it (runtime/re4_core_client.h), the rest of this
+// file stays the same. RE4_CORE_PROCESS=1 asks for that on any 32-bit device
+// (tests).
 #include "core_scene.h"
 #include "gx_gl.h"
 #include "re4_card_files.h"
+#include "re4_core_client.h"
 #include "re4_gx_frame.h"
 #include "re4_gx_frame_io.h"
 
 #include <android/log.h>
+#include <dirent.h>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -21,6 +30,7 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
+#include <sys/utsname.h>
 #include <ucontext.h>
 #include <unistd.h>
 #include <jni.h>
@@ -31,6 +41,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdarg>
+#include <cstdint>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -67,6 +78,7 @@ struct CoreApi {
   int (*pause)(int, int){};
   void (*debugMenu)(void){};
   void (*setDof)(int){};
+  void (*gyro)(float, float){};  // optional (cores since 19.10.2026): gyro aiming
   int (*cardList)(Re4CardFile *, int){};
   int (*cardFree)(void){};
   int (*cardName)(int, char *, int){};
@@ -74,7 +86,14 @@ struct CoreApi {
   int (*cardImport)(const unsigned char *, unsigned, int, char *, int){};
   unsigned (*frameCount)(void){};
   int (*gameThread)(void){};
+  long (*freeAt)(void){};  // optional: the frame the player became free in the room (state_trace.cpp), -1 not yet
 } api;
+
+// The core in a process of its own (useCoreProcess): why, for the report; "" in this process.
+std::string coreProcessWhy;
+#if !defined(__aarch64__)
+void useCoreProcess(const std::string &why);
+#endif
 
 template <class F> bool bind(F &slot, const char *name) {
   slot = reinterpret_cast<F>(dlsym(api.main, name));
@@ -82,19 +101,16 @@ template <class F> bool bind(F &slot, const char *name) {
   return slot != nullptr;
 }
 
-#if defined(__aarch64__)
-// 64 bit (milestone 12): the game keeps its addresses in 32 bits and tells
-// its own from others by bit 31, so everything it reaches lies in the window
-// 0x80000000..0xFFFFFFFF. MEM1 (0x80000000..0x83000000) is held with an
-// inaccessible placeholder before anything is loaded (re4_mem1_init maps over
-// it, RE4_MEM1_PLACEHOLDER), and the linker loads the two core libraries into
-// ranges reserved at the top of the window. The core puts its module
-// libraries and stacks there itself (module_loader.cpp, game_window.cpp).
+// MEM1 (0x80000000..0x83000000) is held with an inaccessible placeholder
+// before the core's libraries load (re4_mem1_init maps over it,
+// RE4_MEM1_PLACEHOLDER): on 32 bit as well, since a tester's device (19.10.2026)
+// found MEM1 taken when the core reserved it after loading its libraries.
 #ifndef MAP_FIXED_NOREPLACE
 #define MAP_FIXED_NOREPLACE 0x100000
 #endif
-constexpr unsigned long kWindowStart = 0x83000000ul;
-constexpr unsigned long kWindowEnd = 0x100000000ul;
+constexpr unsigned long kMem1Start = 0x80000000ul, kMem1Size = 0x3000000ul;
+// the top of the 32-bit address space (the window's end on 64 bit)
+constexpr uint64_t kTop32 = 0x100000000ull;
 
 void *reserveFixed(unsigned long at, unsigned long size) {
   void *want = reinterpret_cast<void *>(at);
@@ -104,17 +120,8 @@ void *reserveFixed(unsigned long at, unsigned long size) {
   return nullptr;
 }
 
-// from the top of the window down, in 16 MB steps (ART and the drivers may
-// hold parts of it)
-void *reserveInWindow(unsigned long size) {
-  for (unsigned long at = kWindowEnd - size; at >= kWindowStart; at -= 16ul << 20) {
-    if (void *p = reserveFixed(at, size)) return p;
-  }
-  return nullptr;
-}
-
 // What lies below 4 GB when the core loads, for the error report (address-map.txt):
-// MEM1 and the window above it have to be free, and on 64 bit ART, the zygote and
+// MEM1 (and on 64 bit the window above it) has to be free; ART, the zygote and
 // the drivers decide what is there before the app runs
 std::string gAddressMap;
 std::string gMem1Owner;  // the first mapping in MEM1 (the reason when it is taken)
@@ -131,7 +138,13 @@ std::string shortMapping(const char *line) {
 }
 
 void recordLowMappings(const char *when) {
-  gAddressMap += std::string("--- ") + when + " (mappings below 4 GB; MEM1 0x80000000..0x83000000, window up to 4 GB)\n";
+  const uint64_t mem1End = kMem1Start + kMem1Size;
+  struct utsname u;
+  if (uname(&u) != 0) std::memset(&u, 0, sizeof(u));
+  char head[320];
+  snprintf(head, sizeof(head), "--- %s (%d-bit process, kernel %s %s; mappings below 4 GB; MEM1 0x80000000..0x83000000%s)\n",
+           when, (int)(sizeof(void *) * 8), u.machine, u.release, sizeof(void *) == 8 ? ", window up to 4 GB" : "");
+  gAddressMap += head;
   FILE *f = fopen("/proc/self/maps", "re");
   if (!f) {
     gAddressMap += "(cannot read /proc/self/maps)\n";
@@ -139,31 +152,54 @@ void recordLowMappings(const char *when) {
   }
   char line[512];
   int lines = 0;
-  unsigned long at = 0x80000000ul, largest = 0;
+  uint64_t at = kMem1Start, largest = 0, top = 0;
   while (fgets(line, sizeof(line), f)) {
-    unsigned long a, b;
-    if (sscanf(line, "%lx-%lx", &a, &b) != 2 || a >= kWindowEnd) continue;
+    unsigned long long a, b;
+    if (sscanf(line, "%llx-%llx", &a, &b) != 2 || a >= kTop32) continue;
     std::string text = shortMapping(line);
-    if (a < kWindowStart && b > 0x80000000ul) {
+    bool mem1 = a < mem1End && b > kMem1Start;
+    if (mem1) {
       text += "   <- MEM1";
       if (gMem1Owner.empty()) gMem1Owner = shortMapping(line);
-    } else if (b > kWindowStart) {
+    } else if (sizeof(void *) == 8 && b > mem1End) {
       text += "   <- window";
     }
-    if (b > at) {
+    // the vector pages lie in the kernel's part on a 32-bit kernel: no end of a free range
+    bool vectors = text.find("[vectors]") != std::string::npos || text.find("[sigpage]") != std::string::npos;
+    if (b > at && !vectors) {
       if (a > at && a - at > largest) largest = a - at;
       at = b;
     }
+    if (!vectors && b > top) top = b;  // the highest mapping: about where the address space ends
     if (++lines <= 2000) gAddressMap += text + '\n';
-    if (b > 0x80000000ul) LOG("below 4 GB: %s", text.c_str());
+    if (mem1 || (sizeof(void *) == 8 && b > kMem1Start)) LOG("below 4 GB: %s", text.c_str());
   }
   fclose(f);
-  if (kWindowEnd > at && kWindowEnd - at > largest) largest = kWindowEnd - at;
-  char sum[160];
-  snprintf(sum, sizeof(sum), "%d mappings below 4 GB; largest free range in 0x80000000..4 GB: %lu MB\n", lines,
-           largest >> 20);
+  // above the highest mapping: free on 64 bit; on 32 bit the kernel's part may begin there
+  if (sizeof(void *) == 8 && kTop32 > at && kTop32 - at > largest) largest = kTop32 - at;
+  char sum[224];
+  snprintf(sum, sizeof(sum), "%d mappings below 4 GB; highest ends at 0x%llx; largest free range from 0x80000000 on: %llu MB\n",
+           lines, (unsigned long long)top, (unsigned long long)(largest >> 20));
   gAddressMap += sum;
   LOG("%s", sum);
+}
+
+#if defined(__aarch64__)
+// 64 bit (milestone 12): the game keeps its addresses in 32 bits and tells
+// its own from others by bit 31, so everything it reaches lies in the window
+// 0x80000000..0xFFFFFFFF. The linker loads the two core libraries into
+// ranges reserved at the top of the window. The core puts its module
+// libraries and stacks there itself (module_loader.cpp, game_window.cpp).
+constexpr unsigned long kWindowStart = 0x83000000ul;
+constexpr unsigned long kWindowEnd = 0x100000000ul;
+
+// from the top of the window down, in 16 MB steps (ART and the drivers may
+// hold parts of it)
+void *reserveInWindow(unsigned long size) {
+  for (unsigned long at = kWindowEnd - size; at >= kWindowStart; at -= 16ul << 20) {
+    if (void *p = reserveFixed(at, size)) return p;
+  }
+  return nullptr;
 }
 
 // The mapping that holds `addr` (start, end, name), false when none does.
@@ -316,6 +352,22 @@ void loadCore(JNIEnv *env) {
   }
 #else
   (void)env;
+  recordLowMappings("when the core loads");
+  // the core's libraries load above it (the game tells its own addresses by bit 31, re4_check_game_address)
+  if (reserveFixed(kMem1Start, kMem1Size)) {
+    setenv("RE4_MEM1_PLACEHOLDER", "1", 1);
+    gAddressMap += "MEM1 placeholder: reserved\n";
+  } else if (!gMem1Owner.empty()) {
+    // something of this process lies there (ART's Java heap, "dalvik-main space", on Android 14
+    // devices: it comes from the zygote): the core runs in a process of its own (decision of the
+    // project owner, 20.10.2026: only then). Without a mapping there the system refuses the
+    // address, in any process: then the message below says so.
+    gAddressMap += "MEM1 placeholder: NOT reserved: the core runs in a process of its own\n";
+    useCoreProcess("MEM1 is taken in the app's process (by " + gMem1Owner + ")");
+    return;
+  } else {
+    gAddressMap += "MEM1 placeholder: NOT reserved\n";
+  }
   api.main = dlopen("libre4_main.so", RTLD_NOW | RTLD_LOCAL);
 #endif
   if (!api.main) {
@@ -344,6 +396,7 @@ void loadCore(JNIEnv *env) {
   api.pause = reinterpret_cast<int (*)(int, int)>(dlsym(api.main, "re4_core_pause"));
   api.debugMenu = reinterpret_cast<void (*)(void)>(dlsym(api.main, "re4_core_debug_menu"));
   api.setDof = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_set_dof"));
+  api.gyro = reinterpret_cast<void (*)(float, float)>(dlsym(api.main, "re4_core_gyro"));
   api.cardList = reinterpret_cast<int (*)(Re4CardFile *, int)>(dlsym(api.main, "re4_core_card_list"));
   api.cardFree = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_card_free_blocks"));
   api.cardName = reinterpret_cast<int (*)(int, char *, int)>(dlsym(api.main, "re4_core_card_file_name"));
@@ -353,17 +406,28 @@ void loadCore(JNIEnv *env) {
       dlsym(api.main, "re4_core_card_import"));
   api.frameCount = reinterpret_cast<unsigned (*)(void)>(dlsym(api.main, "re4_core_frame_count"));
   api.gameThread = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_game_thread"));
+  api.freeAt = reinterpret_cast<long (*)(void)>(dlsym(api.main, "re4_trace_free_at"));
   if (!ok) {
     LOG("%s", api.error.c_str());
     api.main = nullptr;
     return;
   }
+#if !defined(__aarch64__)
+  {
+    Dl_info info;
+    char note[160];
+    snprintf(note, sizeof(note), "libre4_main.so at %p\n",
+             dladdr(reinterpret_cast<void *>(api.mem1Init), &info) ? info.dli_fbase : nullptr);
+    gAddressMap += note;
+  }
+#endif
   // MEM1 before anything else maps memory there (GL drivers, ART growth)
   if (!api.mem1Init()) {
     api.error = "MEM1 0x80000000..0x83000000 is taken in this process";
-#if defined(__aarch64__)
-    if (!gMem1Owner.empty()) api.error += " (by " + gMem1Owner + ")";
-#endif
+    // nothing mapped there: the kernel does not give the address to apps (a 32-bit kernel whose
+    // apps' part of the address space ends below 0x80000000)
+    api.error += gMem1Owner.empty() ? std::string(" (no mapping there: the system refused the address)")
+                                    : " (by " + gMem1Owner + ")";
     LOG("%s", api.error.c_str());
   } else {
     LOG("core loaded, MEM1 reserved");
@@ -385,7 +449,8 @@ int width = 1, height = 1;
 std::chrono::steady_clock::time_point lastDraw;
 
 // GX view (GL thread): on unless RE4_VIEW=bridge; EFB scale from the menu
-// (CoreBridge.setGraphics; automatic: from the screen's height, at most 3),
+// (CoreBridge.setGraphics; automatic: from the screen's height, one level below the closest, at
+// most 2),
 // else RE4_GX_SCALE
 std::unique_ptr<re4gx::GxRenderer> gx;
 int gxMode = -1;  // -1 undecided, 0 bridge, 1 GX
@@ -393,6 +458,14 @@ int gxMode = -1;  // -1 undecided, 0 bridge, 1 GX
 // the renderer anew at the next picture while the game runs (the core then
 // starts over with the full state); 0 scale: automatic
 std::atomic<int> optScale{0}, optSamples{1}, optAnisotropy{1}, optAspect{-1};
+// GPU step b (GxOptions::invalidate): off (it saved nothing on the Retroid) unless
+// RE4_GX_INVALIDATE=1; GPU step d2 (GxOptions::tiledMsaa, MSAA on the tiles with the EFB drawn
+// back after every pass): off (the Retroid lost Leon's hair and textures with it; decision of the
+// project owner, 19.10.2026: MSAA in own buffers), unless RE4_GX_MSAA_TILES=1 in the renderer
+// (test-core-app.ps1 -MsaaTiles, experiments); GPU step e
+// (GxOptions::halfDof): the depth of field's blur at half the resolution, on unless
+// RE4_GX_DOF_HALF=0 in the renderer; the GPU measurement switches all three
+std::atomic<int> optInvalidate{-1}, optTiled{0}, optHalfDof{1};
 std::atomic<unsigned> optSerial{0};
 unsigned optApplied = ~0u;
 std::atomic<bool> corePaused{false};
@@ -434,10 +507,257 @@ bool gxHitSeriesPending = false;  // the chunk after a marked one starts over: a
 GLuint gxShotFbo = 0, gxShotColor = 0;
 unsigned gxShotW = 0, gxShotH = 0;
 
+// The GPU measurement (RE4_GPU_BENCH, test-core-app.ps1 -GpuBench; GPU step (a), 19.10.2026):
+// one run steps through picture options at the same place of the game (the test's start in r100,
+// Leon standing) and logs for each the GPU time of a picture and of a present on the screen
+// ("GPU bench N/M: ..."): what resolution, multisampling, anisotropic filtering and depth of field
+// cost on this device. RE4_GPU_BENCH=1 takes the steps below, "S/M/A/D,..." (scale, samples,
+// anisotropy, depth of field 0/1) names them. The first step comes RE4_GPU_BENCH_DELAY seconds
+// (default 10) after the player is free in the room (the core's re4_trace_free_at: the arrival's
+// event and the radio call are over); a core without it: that many seconds (default 60) after the
+// first picture. Each step: 5 s to settle (the renderer starts over), then 10 s measured.
+// Afterwards the options from before the run come back.
+//
+// Each step's line also has what lies in the picture (draws per picture: the same place for every
+// step?), the GPU's load times its clock (the work, independent of the GPU timer) and how many
+// pictures the GPU was behind (fences, GxStats::behind*). The first run on the Retroid
+// (19.10.2026) began 60 s after the first picture, during the arrival, and its timer read 110 to
+// 490 ms per picture with 2x MSAA and the autofocus while 30 pictures/s came: the timer alone does
+// not tell there.
+struct BenchStep {
+  int scale, samples, anisotropy, dof;
+  int invalidate = 0;  // GPU step b: copy targets forgotten before they are drawn over
+  int tiled = 0;       // GPU step d: MSAA on the tiles
+  int halfDof = 1;     // GPU step e: the depth of field's blur at half the resolution
+};
+struct Bench {
+  std::vector<BenchStep> steps;
+  int index = -2;  // -2 settings not read, -3 off or done, -1 waiting for the start, else the step
+  bool measuring = false;
+  std::chrono::steady_clock::time_point next;  // the next change of phase
+  std::chrono::steady_clock::time_point since, nextSample;
+  re4gx::GxStats at;  // the renderer's counters when the step's measurement began
+  double runMs = 0;   // the renderer's CPU time of the step's pictures
+  unsigned runCount = 0;
+  double clockSum = 0, busySum = 0, workSum = 0;
+  unsigned clockCount = 0, busyCount = 0, workCount = 0;
+  bool waitFree = false;  // waiting for the player to be free (api.freeAt)
+  int delay = 0;          // seconds from then to the first step
+  int keepScale = 0, keepSamples = 1, keepAnisotropy = 1, keepInvalidate = 0, keepTiled = 0, keepHalfDof = 1;
+};
+Bench bench;
+std::atomic<int> optDof{-1};  // the menu's depth of field (CoreBridge.setDof); -1 not set yet
+
+// A number from a file of the kernel (the GPU's clock and load, where the device lets an app read
+// them); -1 when it cannot.
+double readNumber(const char *path) {
+  FILE *f = std::fopen(path, "r");
+  if (!f) return -1;
+  double v = -1;
+  if (std::fscanf(f, "%lf", &v) != 1) v = -1;
+  std::fclose(f);
+  return v;
+}
+
+// The GPU clock in MHz (Adreno: kgsl in Hz; others in MHz), -1 when no file can be read.
+double gpuClockMhz() {
+  for (const char *path : {"/sys/class/kgsl/kgsl-3d0/gpuclk", "/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq",
+                           "/sys/kernel/gpu/gpu_clock"}) {
+    const double v = readNumber(path);
+    if (v > 0) return v > 100000 ? v / 1e6 : v;
+  }
+  return -1;
+}
+
+// The GPU's load in percent as the kernel reports it, -1 when no file can be read.
+double gpuBusyPercent() {
+  for (const char *path : {"/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage", "/sys/kernel/gpu/gpu_busy"}) {
+    const double v = readNumber(path);
+    if (v >= 0) return v;
+  }
+  return -1;
+}
+
+void benchApply(const BenchStep &step) {
+  optScale = step.scale;
+  optSamples = step.samples;
+  optAnisotropy = step.anisotropy;
+  optInvalidate = step.invalidate;
+  optTiled = step.tiled;
+  optHalfDof = step.halfDof;
+  optSerial++;
+  if (api.setDof) api.setDof(step.dof);
+}
+
+// Once per displayed frame (GL thread), after the chunk.
+void benchTick(std::chrono::steady_clock::time_point now) {
+  using std::chrono::seconds;
+  if (bench.index == -2) {
+    bench.index = -3;
+    const char *spec = getenv("RE4_GPU_BENCH");
+    if (!spec || !*spec || std::string(spec) == "0") return;
+    if (std::string(spec) == "1") {
+      // at scale 3: nothing extra; the depth of field; the tester's options (2x MSAA, 8x
+      // anisotropy, depth of field; POCO X7 Pro, 18.10.2026); the same with 4x MSAA; 4x at
+      // scale 2; nothing extra again. MSAA in own buffers (decision of the project owner,
+      // 19.10.2026: on the Retroid MSAA on the tiles, d and d2, lost Leon's hair and textures).
+      // The runs before (Retroid, 19.10.2026): MSAA 2x +74 % work, the depth of field +19 %
+      // (at the half resolution the same), 8x anisotropy and step b nothing measurable, the same
+      // setting twice up to 5 % apart; 4x at scale 3: 24 pictures/s.
+      // "S/M/A/D/I/T/H,..." names other steps (I: copy targets forgotten, T: MSAA on the tiles,
+      // H: the depth of field at half the resolution, 1 when left out)
+      bench.steps = {{3, 1, 1, 0}, {3, 1, 1, 1}, {3, 2, 8, 1}, {3, 4, 8, 1}, {2, 4, 8, 1}, {3, 1, 1, 0}};
+    } else {
+      for (const char *at = spec; *at;) {
+        BenchStep step{};
+        int used = 0;
+        if (std::sscanf(at, "%d/%d/%d/%d%n", &step.scale, &step.samples, &step.anisotropy, &step.dof, &used) != 4)
+          break;
+        int more = 0;
+        if (at[used] == '/' && std::sscanf(at + used, "/%d%n", &step.invalidate, &more) == 1) used += more;
+        if (at[used] == '/' && std::sscanf(at + used, "/%d%n", &step.tiled, &more) == 1) used += more;
+        if (at[used] == '/' && std::sscanf(at + used, "/%d%n", &step.halfDof, &more) == 1) used += more;
+        bench.steps.push_back(step);
+        at += used;
+        if (*at == ',') at++;
+      }
+    }
+    if (bench.steps.empty()) {
+      LOG("GPU bench: no steps in RE4_GPU_BENCH=%s", spec);
+      return;
+    }
+    const char *delay = getenv("RE4_GPU_BENCH_DELAY");
+    bench.waitFree = api.freeAt != nullptr;
+    bench.delay = delay ? std::max(1, std::atoi(delay)) : bench.waitFree ? 10 : 60;
+    // waiting for the player: at most 5 minutes, then measured anyway
+    bench.next = now + seconds(bench.waitFree ? 300 : bench.delay);
+    bench.index = -1;
+    const double clock = gpuClockMhz(), busy = gpuBusyPercent();
+    LOG("GPU bench: %zu steps, the first %d s after %s (5 s to settle, 10 s measured each); GPU clock %s, load %s",
+        bench.steps.size(), bench.delay, bench.waitFree ? "the player is free" : "the first picture",
+        clock > 0 ? "readable" : "not readable", busy >= 0 ? "readable" : "not readable");
+    return;
+  }
+  if (bench.index < -1 || !gx) return;
+  if (bench.index == -1 && bench.waitFree) {
+    const long freeAt = api.freeAt();
+    if (freeAt >= 0) {
+      bench.waitFree = false;
+      bench.next = now + seconds(bench.delay);
+      LOG("GPU bench: the player is free (frame %ld), the first step in %d s", freeAt, bench.delay);
+    } else if (now >= bench.next) {
+      bench.waitFree = false;
+      LOG("GPU bench: the player did not get free in 300 s; measured anyway");
+    }
+  }
+  if (bench.measuring && now >= bench.nextSample) {
+    bench.nextSample = now + seconds(1);
+    const double clock = gpuClockMhz(), busy = gpuBusyPercent();
+    if (clock > 0) {
+      bench.clockSum += clock;
+      bench.clockCount++;
+    }
+    if (busy >= 0) {
+      bench.busySum += busy;
+      bench.busyCount++;
+    }
+    // the work: load times clock of the same moment (MHz the GPU was busy)
+    if (clock > 0 && busy >= 0) {
+      bench.workSum += clock * busy / 100.0;
+      bench.workCount++;
+    }
+  }
+  if (bench.waitFree || now < bench.next) return;
+  if (bench.index == -1) {
+    bench.keepScale = optScale.load();
+    bench.keepSamples = optSamples.load();
+    bench.keepAnisotropy = optAnisotropy.load();
+    bench.keepInvalidate = optInvalidate.load();
+    bench.keepTiled = optTiled.load();
+    bench.keepHalfDof = optHalfDof.load();
+    bench.index = 0;
+    benchApply(bench.steps[0]);
+    bench.next = now + seconds(5);
+    return;
+  }
+  if (!bench.measuring) {
+    bench.at = gx->Stats();
+    bench.since = now;
+    bench.runMs = 0;
+    bench.runCount = 0;
+    bench.clockSum = bench.busySum = bench.workSum = 0;
+    bench.clockCount = bench.busyCount = bench.workCount = 0;
+    bench.nextSample = now;
+    bench.measuring = true;
+    bench.next = now + seconds(10);
+    return;
+  }
+  const re4gx::GxStats &s = gx->Stats();
+  const BenchStep &step = bench.steps[static_cast<size_t>(bench.index)];
+  const double secs = std::chrono::duration<double>(now - bench.since).count();
+  const unsigned timed = s.gpuTimed - bench.at.gpuTimed, presentTimed = s.presentTimed - bench.at.presentTimed;
+  const unsigned chunks = s.chunks - bench.at.chunks, checks = s.behindChecks - bench.at.behindChecks;
+  const double pictures = secs > 0 ? chunks / secs : 0.0;
+  char gpu[96] = "not measured", present[48] = "not measured", clock[24] = "-", busy[24] = "-", work[24] = "-";
+  char behind[64] = "not checked";
+  if (timed) {
+    const double ms = (s.gpuMicros - bench.at.gpuMicros) / 1000.0 / timed;
+    // longer than a picture's interval while the pictures keep coming: not the GPU's real time
+    const bool plausible = pictures <= 0 || ms <= 1000.0 / pictures * 1.05;
+    std::snprintf(gpu, sizeof(gpu), "%.1f ms (%u timed%s)", ms, timed,
+                  plausible ? "" : ", NOT plausible: longer than a picture's interval");
+  }
+  if (presentTimed)
+    std::snprintf(present, sizeof(present), "%.2f ms (%u timed)",
+                  (s.presentMicros - bench.at.presentMicros) / 1000.0 / presentTimed, presentTimed);
+  if (bench.clockCount) std::snprintf(clock, sizeof(clock), "%.0f MHz", bench.clockSum / bench.clockCount);
+  if (bench.busyCount) std::snprintf(busy, sizeof(busy), "%.0f %%", bench.busySum / bench.busyCount);
+  if (bench.workCount) std::snprintf(work, sizeof(work), "%.0f MHz", bench.workSum / bench.workCount);
+  if (checks) {
+    unsigned most = 0;
+    for (unsigned n = 0; n < 9; n++)
+      if (s.behindCount[n] != bench.at.behindCount[n]) most = n;
+    std::snprintf(behind, sizeof(behind), "%.2f pictures on average, at most %u%s",
+                  static_cast<double>(s.behindSum - bench.at.behindSum) / checks, most, most == 8 ? " or more" : "");
+  }
+  char tiles[64] = "";
+  if (gx->TiledMsaa())
+    std::snprintf(tiles, sizeof(tiles), " on the tiles (EFB drawn back %.1fx per picture)",
+                  chunks ? static_cast<double>(s.efbRestores - bench.at.efbRestores) / chunks : 0.0);
+  LOG("GPU bench %d/%zu: scale %d, %d samples%s, anisotropy %.0f, depth of field %s%s, copy targets forgotten %s: "
+      "GPU %s per picture, "
+      "present %s, %.1f pictures/s, %.1f presents/s, renderer CPU %.1f ms, GPU clock %s, load %s, "
+      "work (load x clock) %s, GPU behind %s, %.0f draws per picture",
+      bench.index + 1, bench.steps.size(), infoScale.load(), gx->Samples(),
+      gx->Samples() > 1 ? (gx->TiledMsaa() ? tiles : " in own buffers") : "", gx->Anisotropy(),
+      step.dof ? "on" : "off",
+      step.dof ? (gx->HalfDof() ? " (blur at half resolution)" : " (blur at full resolution)") : "",
+      gx->Invalidates() ? "yes" : "no", gpu, present, pictures, secs > 0 ? (s.presents - bench.at.presents) / secs : 0.0,
+      bench.runCount ? bench.runMs / bench.runCount : 0.0, clock, busy, work, behind,
+      chunks ? static_cast<double>(s.draws - bench.at.draws) / chunks : 0.0);
+  bench.measuring = false;
+  bench.index++;
+  if (bench.index >= static_cast<int>(bench.steps.size())) {
+    optScale = bench.keepScale;
+    optSamples = bench.keepSamples;
+    optAnisotropy = bench.keepAnisotropy;
+    optInvalidate = bench.keepInvalidate;
+    optTiled = bench.keepTiled;
+    optHalfDof = bench.keepHalfDof;
+    optSerial++;
+    if (optDof.load() >= 0 && api.setDof) api.setDof(optDof.load());
+    LOG("GPU bench done; the options from before the run are back");
+    bench.index = -3;
+    return;
+  }
+  benchApply(bench.steps[static_cast<size_t>(bench.index)]);
+  bench.next = now + seconds(5);
+}
+
 // The picture as the screen shows it (the XFB, the game's own size) into a 24-bit BMP.
-void SaveShot(const char *path) {
+void SaveShot(re4gx::GxRenderer &renderer, const char *path) {
   unsigned w = 0, h = 0;
-  if (!gx->Xfb(&w, &h) || !w || !h)
+  if (!renderer.Xfb(&w, &h) || !w || !h)
     return;
   if (!gxShotFbo || gxShotW != w || gxShotH != h) {
     if (!gxShotFbo)
@@ -455,7 +775,7 @@ void SaveShot(const char *path) {
   }
   glBindFramebuffer(GL_FRAMEBUFFER, gxShotFbo);
   glDisable(GL_SCISSOR_TEST);
-  gx->Present(0, 0, static_cast<int>(w), static_cast<int>(h));
+  renderer.Present(0, 0, static_cast<int>(w), static_cast<int>(h));
   std::vector<unsigned char> rgba(static_cast<size_t>(w) * h * 4);
   glReadPixels(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h), GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -491,6 +811,109 @@ void SaveShot(const char *path) {
   }
 }
 
+void SaveShot(const char *path) { SaveShot(*gx, path); }
+
+// Diagnosis (RE4_GX_REPLAY: a folder with R3 series, gx-geraet-NN-KK.bin; the test script's
+// -GxReplay): the series drawn again on this device before the game's first picture, with the
+// options of each variant, the first one three times, each picture kept as this GPU drew it
+// (replay-VARIANT-ROUND-NN-KK.bmp in that folder; the anisotropy of the menu). The cloud then sees
+// whether this GPU draws the same chunks the same every time and with which options a picture
+// differs (thin branches went paler for one picture with 2x MSAA on the Retroid only,
+// 20.10.2026). Once per process; the game waits meanwhile.
+bool gxReplayDone = false;
+
+void replayGx(int scale) {
+  if (gxReplayDone) return;
+  gxReplayDone = true;
+  const char *dir = getenv("RE4_GX_REPLAY");
+  if (!dir || !*dir) return;
+  std::vector<std::string> names;
+  if (DIR *d = opendir(dir)) {
+    while (const dirent *e = readdir(d)) {
+      const std::string n = e->d_name;
+      if (n.rfind("gx-geraet-", 0) == 0 && n.size() > 14 && n.compare(n.size() - 4, 4, ".bin") == 0) names.push_back(n);
+    }
+    closedir(d);
+  }
+  std::sort(names.begin(), names.end());
+  std::vector<std::unique_ptr<re4gxio::Loaded>> chunks;
+  std::vector<std::string> stems;  // "NN-KK"
+  for (const std::string &n : names) {
+    auto loaded = std::make_unique<re4gxio::Loaded>();
+    FILE *f = std::fopen((std::string(dir) + "/" + n).c_str(), "rb");
+    const bool ok = f && re4gxio::Read(f, *loaded);
+    if (f) std::fclose(f);
+    if (!ok) {
+      LOG("GX replay: %s not readable", n.c_str());
+      continue;
+    }
+    chunks.push_back(std::move(loaded));
+    stems.push_back(n.substr(10, n.size() - 14));
+  }
+  struct Variant {
+    const char *name;
+    int samples;
+    bool centroid, fullResolve;
+    int rounds;
+  };
+  // as the R3 series of the flicker was made (2x MSAA, without centroid: before 20.10.2026), then
+  // with centroid (since), with the whole EFB resolved each time, without MSAA, 4x with centroid
+  static const Variant kVariants[] = {{"s2old", 2, false, false, 3}, {"s2cen", 2, true, false, 2},
+                                      {"s2full", 2, false, true, 1}, {"s1", 1, true, false, 1},
+                                      {"s4cen", 4, true, false, 1}};
+  LOG("GX replay: %zu chunks from %s, EFB scale %d", chunks.size(), dir, scale);
+  const char *cache = getenv("RE4_GX_PROGRAM_CACHE");
+  unsigned pictures = 0;
+  for (const Variant &v : kVariants) {
+    for (int round = 1; round <= v.rounds; round++) {
+      std::unique_ptr<re4gx::GxRenderer> r;
+      uint32_t lastSequence = 0, lastFrame = 0;
+      for (size_t i = 0; i < chunks.size(); i++) {
+        Re4GxChunk chunk = chunks[i]->chunk;
+        const bool follows = r && chunk.sequence == lastSequence + 1 && chunks[i]->frame == lastFrame + 1;
+        if (!follows) {
+          if (!(chunk.flags & RE4_GX_CHUNK_RESET)) {
+            LOG("GX replay: %s follows no picture before it, left out", stems[i].c_str());
+            continue;
+          }
+          // each series on a renderer of its own, as after R3 in the game
+          if (r) r->Release();
+          r = std::make_unique<re4gx::GxRenderer>();
+          re4gx::GxOptions options;
+          options.samples = v.samples;
+          options.anisotropy = static_cast<float>(std::max(1, optAnisotropy.load()));
+          options.centroid = v.centroid;
+          options.fullResolve = v.fullResolve;
+          options.halfDof = optHalfDof.load() != 0;
+          r->SetOptions(options);
+          std::string error;
+          if (!r->Init(scale, &error)) {
+            LOG("GX replay %s: renderer: %s", v.name, error.c_str());
+            r.reset();
+            continue;
+          }
+          if (cache && *cache) r->SetProgramCache(cache);
+          chunk.flags &= ~RE4_GX_CHUNK_HOLD;
+        }
+        lastSequence = chunk.sequence;
+        lastFrame = chunks[i]->frame;
+        r->Run(chunk);
+        char path[512];
+        std::snprintf(path, sizeof(path), "%s/replay-%s-%d-%s.bmp", dir, v.name, round, stems[i].c_str());
+        SaveShot(*r, path);
+        pictures++;
+      }
+      if (r) {
+        LOG("GX replay %s round %d: %d samples%s, anisotropy %.0f", v.name, round, r->Samples(),
+            r->Samples() > 1 ? (r->TiledMsaa() ? " on the tiles" : " in own buffers") : "", r->Anisotropy());
+        r->Release();
+      }
+    }
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  LOG("GX replay: done, %u pictures", pictures);
+}
+
 // Runs the chunks the core has finished and shows the latest display copy.
 // False while there is nothing to show yet (the caller draws the bridge).
 bool drawGx() {
@@ -520,14 +943,24 @@ bool drawGx() {
       scale = scaleText ? std::atoi(scaleText) : 0;
     }
     if (scale < 1 || scale > 4) {
-      // automatic: the 336 rows of the picture to about the screen's rows
+      // automatic: one level below the one whose 336 picture rows come closest to the screen's
+      // rows (wish of the project owner, 19.10.2026: the Retroid's 1080 rows take 2, not 3;
+      // CoreMenu.autoScale is the same)
       const int rows = std::min(height, width * 9 / 16);
-      scale = std::max(1, std::min(3, (rows + 168) / 336));
+      scale = std::max(1, std::min(3, (rows + 168) / 336) - 1);
     }
+    replayGx(scale);
     gx = std::make_unique<re4gx::GxRenderer>();
     re4gx::GxOptions options;
     options.samples = std::max(1, optSamples.load());
     options.anisotropy = static_cast<float>(std::max(1, optAnisotropy.load()));
+    if (optInvalidate.load() < 0) {
+      const char *invalidate = getenv("RE4_GX_INVALIDATE");
+      optInvalidate = invalidate && *invalidate == '1' ? 1 : 0;
+    }
+    options.invalidate = optInvalidate.load() != 0;
+    options.tiledMsaa = optTiled.load() != 0;
+    options.halfDof = optHalfDof.load() != 0;
     gx->SetOptions(options);
     std::string error;
     if (!gx->Init(scale, &error)) {
@@ -551,8 +984,11 @@ bool drawGx() {
     infoScale = scale;
     infoSamples = gx->Samples();
     infoAnisotropy = static_cast<int>(gx->Anisotropy());
-    LOG("GX renderer ready, EFB scale %d, %d samples (of %d), anisotropy %.0f (of %.0f), program cache %s", scale,
-        gx->Samples(), maxSamples, gx->Anisotropy(), maxAnisotropy, cached ? cache : "off");
+    LOG("GX renderer ready, EFB scale %d, %d samples (of %d)%s, anisotropy %.0f (of %.0f), depth of field's blur "
+        "at %s resolution, program cache %s",
+        scale, gx->Samples(), maxSamples,
+        gx->Samples() > 1 ? (gx->TiledMsaa() ? " on the tiles" : " in own buffers") : "", gx->Anisotropy(),
+        maxAnisotropy, gx->HalfDof() ? "half" : "full", cached ? cache : "off");
   }
   // one chunk per displayed frame: every picture the game makes is shown (a
   // renderer slower than the game slows the game down, the core waits for it,
@@ -689,16 +1125,20 @@ bool drawGx() {
     gxRunMs += ms;
     gxRunMax = std::max(gxRunMax, ms);
     gxRunCount++;
+    if (bench.measuring) {
+      bench.runMs += ms;
+      bench.runCount++;
+    }
     if ((++gxChunks % 300) == 1) {
       const auto &s = gx->Stats();
       const double seconds = std::chrono::duration<double>(now - gxSince).count();
       LOG("GX: %u chunks, %u draws (%u per chunk), run %.1f ms (max %.1f), shown %.1f/s, %u programs, %u textures, "
           "%u copies, %u held pictures, %u missing, %u shader errors, %u inexact dst alpha, %u programs from the cache, "
-          "base vertex %s, %u autofocus passes",
+          "base vertex %s, %u autofocus passes, %u EFB restores (MSAA on the tiles)",
           s.chunks, s.draws, gxRunCount ? (s.draws - gxDraws) / gxRunCount : 0, gxRunCount ? gxRunMs / gxRunCount : 0.0,
           gxRunMax, seconds > 0 ? gxFrames / seconds : 0.0, s.programs, s.textures, s.textureCopies, s.heldCopies,
           s.missingTextures, s.shaderErrors, s.dstAlphaApprox, s.programsLoaded, gx->BaseVertex() ? "yes" : "no",
-          s.autofocus);
+          s.autofocus, s.efbRestores);
       // the GL work per chunk since the last line, and the GPU time when the driver measures it
       if (gxRunCount) {
         const double n = gxRunCount;
@@ -707,10 +1147,11 @@ bool drawGx() {
         if (timed)
           std::snprintf(gpu, sizeof(gpu), "%.1f ms", (s.gpuMicros - gxWork.gpuMicros) / 1000.0 / timed);
         LOG("GX work per chunk: %.0f uniform uploads (%.0f KB), %.0f program switches, %.0f texture binds, "
-            "%.0f state changes, %u stream waits, GPU %s",
+            "%.0f state changes, %u stream waits, %u stream switches (%u inside a chunk), GPU %s",
             (s.uniformUploads - gxWork.uniformUploads) / n, (s.uniformBytes - gxWork.uniformBytes) / n / 1024.0,
             (s.programSwitches - gxWork.programSwitches) / n, (s.textureBinds - gxWork.textureBinds) / n,
-            (s.stateChanges - gxWork.stateChanges) / n, s.streamWaits - gxWork.streamWaits, gpu);
+            (s.stateChanges - gxWork.stateChanges) / n, s.streamWaits - gxWork.streamWaits,
+            s.streamSwitches - gxWork.streamSwitches, s.streamSplits - gxWork.streamSplits, gpu);
       }
       gxWork = s;
       gxDraws = s.draws;
@@ -719,6 +1160,7 @@ bool drawGx() {
       gxSince = now;
     }
   }
+  benchTick(now);
   unsigned xw = 0, xh = 0;
   if (!gx->Xfb(&xw, &xh)) return false;
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -855,6 +1297,67 @@ void onHangSample(int, siginfo_t *, void *context) {
   crashContext(context);
 }
 
+#if !defined(__aarch64__)
+// The table's calls to the core process (runtime/re4_core_client.h); it starts with the first
+// re4ipc_reserve (CoreBridge.start). Its program lies in this library's folder: the libraries
+// are extracted at installation (build.gradle useLegacyPackaging, decision of the project owner,
+// 20.10.2026); Android runs programs only from there.
+void useCoreProcess(const std::string &why) {
+  coreProcessWhy = why;
+  re4ipc::Spawn spawn;
+  Dl_info info{};
+  const std::string lib =
+      dladdr(reinterpret_cast<void *>(&useCoreProcess), &info) && info.dli_fname ? info.dli_fname : "";
+  const auto slash = lib.rfind('/');
+  spawn.libraryDir = slash == std::string::npos ? std::string() : lib.substr(0, slash);
+  spawn.program = spawn.libraryDir + "/libre4_coreproc.so";
+  // its name in the process list: this process's (the package) with ":core"
+  if (FILE *f = std::fopen("/proc/self/cmdline", "re")) {
+    char name[160] = "";
+    if (std::fgets(name, sizeof(name), f) && name[0]) spawn.name = std::string(name) + ":core";
+    std::fclose(f);
+  }
+  re4ipc::configure(spawn);
+  if (crashFd >= 0) re4ipc::setCrashFd(crashFd);
+  api.error.clear();
+  if (lib.find("!/") != std::string::npos) {
+    api.error = "the core process needs the app's libraries extracted (this APK keeps them packed)";
+  }
+  api.mem1Init = re4ipc_mem1_init;
+  api.reserve = re4ipc_reserve;
+  api.start = re4ipc_start;
+  api.state = re4ipc_state;
+  api.message = re4ipc_message;
+  api.pad = re4ipc_pad;
+  api.rumble = re4ipc_rumble;
+  api.audio = re4ipc_audio;
+  api.audioStats = re4ipc_audio_stats;
+  api.acquire = re4ipc_acquire;
+  api.release = re4ipc_release;
+  api.logTail = re4ipc_log_tail;
+  api.gxAcquire = re4ipc_gx_acquire;
+  api.gxRelease = re4ipc_gx_release;
+  api.gxDetach = re4ipc_gx_detach;
+  api.vsync = re4ipc_vsync;
+  api.pause = re4ipc_pause;
+  api.debugMenu = re4ipc_debug_menu;
+  api.setDof = re4ipc_set_dof;
+  api.gyro = re4ipc_gyro;
+  api.cardList = re4ipc_card_list;
+  api.cardFree = re4ipc_card_free_blocks;
+  api.cardName = re4ipc_card_file_name;
+  api.cardExport = re4ipc_card_export;
+  api.cardImport = re4ipc_card_import;
+  api.frameCount = re4ipc_frame_count;
+  api.gameThread = re4ipc_game_thread;
+  api.freeAt = re4ipc_free_at;
+  char note[512];
+  snprintf(note, sizeof(note), "core: in a process of its own (%s): %s\n", why.c_str(), spawn.program.c_str());
+  gAddressMap += note;
+  LOG("%s", note);
+}
+#endif
+
 void installCrashHandler() {
   struct sigaction action {};
   action.sa_sigaction = onCrash;
@@ -870,13 +1373,26 @@ void installCrashHandler() {
 
 }  // namespace
 
-// The mappings below 4 GB when the core loaded (64 bit; "" on 32 bit)
+// The mappings below 4 GB when the core loaded
 extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_addressMap(JNIEnv *env, jclass) {
-#if defined(__aarch64__)
-  return env->NewStringUTF(gAddressMap.c_str());
-#else
-  return env->NewStringUTF("");
-#endif
+  std::string map = gAddressMap;
+  if (!coreProcessWhy.empty()) map += "core process: " + re4ipc::describe() + "\n" + re4ipc::addressMap();
+  return env->NewStringUTF(map.c_str());
+}
+
+// The core in a process of its own: why and how it is ("" when the core runs in this process).
+extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_coreProcess(JNIEnv *env, jclass) {
+  std::string text;
+  if (!coreProcessWhy.empty()) {
+    const std::string state = re4ipc::describe();
+    text = coreProcessWhy + (state.empty() ? std::string("; not started yet") : "; " + state);
+  }
+  return env->NewStringUTF(text.c_str());
+}
+
+// Why the core process ended while the app runs ("" while it runs, or the core runs in this process).
+extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_coreProblem(JNIEnv *env, jclass) {
+  return env->NewStringUTF(coreProcessWhy.empty() ? "" : re4ipc::ended().c_str());
 }
 
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
@@ -912,6 +1428,15 @@ Java_com_ast_re4decomp_CoreBridge_start(JNIEnv *env, jclass, jstring gameRoot, j
         LOG("setting %s", item.c_str());
       }
       pos = end + 1;
+    }
+    // the core in a process of its own also with MEM1 free (tests; test-core-app.ps1 -CoreProcess)
+    const char *own = getenv("RE4_CORE_PROCESS");
+    if (own && std::string(own) == "1" && coreProcessWhy.empty()) {
+#if defined(__aarch64__)
+      LOG("RE4_CORE_PROCESS=1: only for 32 bit; the core runs in the app's process");
+#else
+      useCoreProcess("RE4_CORE_PROCESS=1");
+#endif
     }
   }
   {
@@ -1075,7 +1600,13 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_debugMenu(JN
 
 // The depth of field switch of the menu (cores since 17.10.2026; older ones keep it on).
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setDof(JNIEnv *, jclass, jboolean on) {
+  optDof = on ? 1 : 0;
   if (api.setDof) api.setDof(on ? 1 : 0);
+}
+
+// Gyro aiming (GyroAim.java): the turn rates to the core (cores since 19.10.2026; older ones: none).
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_gyro(JNIEnv *, jclass, jfloat yaw, jfloat pitch) {
+  if (api.gyro) api.gyro(yaw, pitch);
 }
 
 std::mutex cardLock;
@@ -1188,6 +1719,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setCrashFile
   const int fd = file.empty() ? -1 : open(file.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
   const int old = crashFd;
   crashFd = fd;
+  // the core process writes its crashes there as well (it gets its own copy of the file)
+  if (!coreProcessWhy.empty()) re4ipc::setCrashFd(fd);
   if (old >= 0) close(old);
 }
 
@@ -1199,6 +1732,10 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_ast_re4decomp_CoreBridge_gameFrames(
 // The game stands without a pause: three samples of where its thread is, 200 ms apart
 // (a loop shows as places in one function, a wait as the same place).
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_reportHang(JNIEnv *, jclass, jint seconds) {
+  if (!coreProcessWhy.empty()) {
+    re4ipc::reportHang(static_cast<int>(seconds));  // the core process samples its game thread itself
+    return;
+  }
   const int tid = api.gameThread ? api.gameThread() : 0;
   crashLine("hang: no game frame for %d s (frame %u)", static_cast<int>(seconds),
             api.frameCount ? api.frameCount() : 0u);

@@ -168,6 +168,42 @@
     "why": "st ist immer 0 (COMPILER-DIFF #12 in r20d.cpp); gelesen wird mot[1], ein void*-Glied."
    }
   ],
+  "overlay_areas": [
+   {
+    "finding": "src/game/ctrl12.cpp: cCtrl::work: CTRL12_FREE (0x34 -> 0x40), CTRL14_FREE (0x2c -> 0x50), LightCtrlWork (0xc -> 0x18)",
+    "why": "Nur Laufzeit-Arbeit: cCtrlMgr::construct legt die Steuer-Einheiten mit placement new an, ihr Code füllt work Feld für Feld (Zeiger auf Texturverwalter, Drachen-Objekte, Lichtpfade); keine Kopie von der Disc oder aus dem Spielstand hinein (überprüft 19.10.2026)."
+   },
+   {
+    "finding": "src/game/sce_sys.cpp: cSceSys::SceTaskOt: SCE_TASK (0xc -> 0x10)",
+    "why": "SceTaskOt ist die Ordnungstabelle (16 OTags zu 4 Bytes); über den Kopf SceTaskOt[15] als SCE_TASK wird nur tag gelesen (scenarioGetOtAddr, Abstand 0, auf beiden Breiten gleich); die echten SCE_TASK liegen in SceSys.prim."
+   },
+   {
+    "finding": "src/game/Espgen42.cpp: tagESPGEN_FREE::buff: tagESPGEN00_WK (0x88 -> 0x98), tagESPGEN01_WK (0x5c -> 0x68), tagESPGEN02_WK (0xa0 -> 0xb0), tagESPGEN10_WK (0x80 -> 0x90), tagESPGEN43_WK (0x88 -> 0x98), tagESPGEN45_WK (0xb4 -> 0xd0)",
+    "why": "Nur Laufzeit-Arbeit der Effekt-Erzeuger: EstSet und die espgen-Funktionen füllen buff Feld für Feld (Kopf, Modell, Zähler), der Vorrat wird nur mit memclr_asm geleert; die Fläche hat auf LP64 die nötige Größe (lp64_sizes.json, cEspgen::Free 0xD0)."
+   }
+  ],
+  "own_start_check": [
+   {
+    "finding": "include/em3e.h: RE4_OWN(cEm, u8, 0x3E0): the classes derived from cEm begin their own work at 0x49c: 54 (cEm10, cEm18, cEm21, cEm22 ...); 0x4a0: 2 (cSubChar, cSubLuis)",
+    "why": "EmMarkView ist nur die Sicht auf cEmMark (EMMARK(em) nur auf Gegnern der Art 0x3E, r22c.cpp); dessen eigene Arbeit ist `u8 free[...]` und beginnt bei 0x49C wie RE4_OWN(cEm, u8). Bei 0x4A0 beginnen nur cSubChar und cSubLuis."
+   },
+   {
+    "finding": "src/game/esp_sub.cpp: RE4_OWN(cEsp, Esp1bSpWork, 0xF8): the classes derived from cEsp begin their own work at 0x10c: 36 (cEsp01, cEsp02, cEsp04, cEsp05 ...); 0x110: 9 (cEsp03, cEsp06, cEsp0d, cEsp0e ...)",
+    "why": "Esp1b_SpTrans erreicht nur esp1b; T ist der echte Typ der Arbeit (Esp1bSpWork, ohne Zeiger), Beginn 0x10C wie cEsp1b::m_Free (gemessen 19.10.2026; 64-bit-Lauf auf dem Retroid 17.10.2026 ohne Hänger)."
+   },
+   {
+    "finding": "src/st1/r117.cpp: RE4_OWN(cEsp, void *, 0xF8): the classes derived from cEsp begin their own work at 0x10c: 36 (cEsp01, cEsp02, cEsp04, cEsp05 ...); 0x110: 9 (cEsp03, cEsp06, cEsp0d, cEsp0e ...)",
+    "why": "Die Lichtstrahlen der Kirche sind esp06 (nur esp06 setzt Bit 2 im Byte 1 seiner Arbeit: Flg, am Pfadende angehalten); ESP06_WK enthält einen Zeiger und beginnt auf LP64 bei 0x110: T = void* (Patch 0077, berichtigt 19.10.2026; mit den Bau-Flaggen gemessen: Flg bei 0x111, gelesen 0x111)."
+   },
+   {
+    "finding": "src/st3/r300.cpp: RE4_OWN(cEsp, f32, 0xF8): the classes derived from cEsp begin their own work at 0x10c: 36 (cEsp01, cEsp02, cEsp04, cEsp05 ...); 0x110: 9 (cEsp03, cEsp06, cEsp0d, cEsp0e ...)",
+    "why": "Der Laser (EFF_ROOM 8) bekommt seinen zweiten Endpunkt als Vec 8 Bytes in die eigene Arbeit; einen Vec an dieser Stelle haben nur esp01 (BasePos), esp14 (Rimiter) und esp41 (Offset), alle mit Beginn 0x10C auf LP64 wie RE4_OWN(cEsp, f32) (gemessen 19.10.2026)."
+   },
+   {
+    "finding": "src/st3/r318.cpp: RE4_OWN(cEsp, f32, 0xF8): the classes derived from cEsp begin their own work at 0x10c: 36 (cEsp01, cEsp02, cEsp04, cEsp05 ...); 0x110: 9 (cEsp03, cEsp06, cEsp0d, cEsp0e ...)",
+    "why": "Wie r300.cpp: der Endpunkt des Lasers als Vec 8 Bytes in die eigene Arbeit; nur esp01, esp14 und esp41 haben dort einen Vec, alle mit Beginn 0x10C auf LP64 (gemessen 19.10.2026)."
+   }
+  ],
   "ptr_word_check": [
    {
     "finding": "src/game/pl_npc.cpp: write of `struct EmiEntry *` as a 32-bit word",

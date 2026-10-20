@@ -17,6 +17,8 @@
 #                              memory card library on a card file
 #   memcard_list.py            that card file read back (files, the game's CRCs),
 #                              and the .gci the core test exported (GameCube byte order)
+#   re4_core_remote_test       (32 bit) the core in a process of its own: the app's side
+#                              against re4_coreproc (frames, sound, controller, card, a crash)
 #   save_layout.py --check     the byte-order table of the save files
 #                              (runtime/save_layout.inc) still fits the game headers
 #   re4_format_compare         the Formatumwandler against the app's checked
@@ -77,6 +79,22 @@ for t in "${targets[@]}"; do
         echo "  FEHLER: game-flag code in libre4_platform calls $fortified(Android fortify: use runtime/host_file.cpp)"
         status=1
     fi
+    # aarch64: no fused multiply-add in the core (CMakeLists.txt -ffp-contract=off): float results
+    # as on armhf and x86, where the instructions do not exist. Left out: the two functions that
+    # call fmaf on purpose (the original's paired-single ps_madd, game/trans.cpp Sk1Loop and
+    # game/math_sub.cpp PsSeries; fmaf rounds alike everywhere)
+    if [ "$t" = aarch64 ]; then
+        if command -v llvm-objdump > /dev/null; then
+            fused=$(for so in "$build"/libre4_*.so "$build"/modules/*.so; do
+                llvm-objdump -d --no-show-raw-insn "$so" 2> /dev/null; done |
+                awk '/^[0-9a-f]+ <.*>:$/ {fn = $2} /\tf(n)?m(add|sub)\t/ && fn !~ /Sk1Loop|PsSeries/ {n++; print fn > "/dev/stderr"} END {print n + 0}' \
+                2> "$build/fused-functions.txt")
+            echo "  fused multiply-add in the core's libraries: $fused (must be 0; functions: $(basename "$build")/fused-functions.txt)"
+            [ "$fused" -ne 0 ] && status=1
+        else
+            echo "  (llvm-objdump missing: fused multiply-add not counted)"
+        fi
+    fi
     run=()
     if [ "$t" = armhf ]; then
         if ! command -v qemu-arm > /dev/null; then
@@ -111,6 +129,22 @@ for t in "${targets[@]}"; do
     code=$?
     echo "  memcard_list.py (the .gci of the core test): exit $code | $(echo "$out" | grep -oE 'CRC[^;,]*|version [0-9a-fx]+|room r[0-9a-f]+' | tr '\n' ' ')"
     [ "$code" -ne 0 ] && { echo "$out" | sed 's/^/    /'; status=1; }
+    # the core in a process of its own (32 bit, port/docs/32bit-kernprozess.md): the app's side
+    # (re4_core_remote_test, MEM1 taken in its process) against the core process; the core
+    # process runs through qemu-arm as well (the "app" starts it with --wrapper)
+    if [ -x "$build/re4_core_remote_test" ]; then
+        wrapper=()
+        [ "$t" = armhf ] && wrapper=(--wrapper "$(command -v qemu-arm)")
+        for mode in main --crash --missing; do
+            args=(--program "$build/re4_coreproc" "${wrapper[@]}" --modules "$build/modules"
+                --card "$build/remote-card.bin" --gci "$gci" --crash-file "$build/remote-crash.txt")
+            [ "$mode" != main ] && args+=("$mode")
+            out=$(cd "$build" && timeout 300 "${run[@]}" ./re4_core_remote_test "${args[@]}" 2>&1)
+            code=$?
+            echo "  re4_core_remote_test ${mode#--}: exit $code | $(echo "$out" | grep -E '^core-remote-test' | tr '\n' ' ')"
+            [ "$code" -ne 0 ] && { echo "$out" | tail -n 30 | sed 's/^/    /'; status=1; }
+        done
+    fi
     if command -v llvm-dwarfdump > /dev/null; then
         out=$(python3 "$root/port/tools/save_layout.py" "$build" --check 2>&1)
         code=$?

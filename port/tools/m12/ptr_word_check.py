@@ -11,9 +11,11 @@ a wild address.
 With libclang this check parses the units of an LP64 build and lists every
 dereference (`*`, `[]`) of a cast to a pointer to a 4-byte (or smaller)
 integer whose operand is the address of an object of pointer type, or an array
-of pointers; reads and writes are told apart. Pointer members of the
-fixed-form structures (RE4_P32, 4 bytes on LP64) are no pointer type here and
-are not listed.
+of pointers; reads and writes are told apart. The word view may also sit in a
+local variable first (`u32* link = (u32*) &w->pMod; link[1] = guid;`, as in
+EfmSetObj04: on LP64 the second word is the high half of the pointer) or be
+moved on (`*((u32*) &p + 1)`). Pointer members of the fixed-form structures
+(RE4_P32, 4 bytes on LP64) are no pointer type here and are not listed.
 
     port/tools/m12/ptr_word_check.py [--lp64 BUILD] [--pattern REGEX]
 
@@ -28,7 +30,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from raw_offset_check import args_of, entries, strip, unary_op  # noqa: E402
+from raw_offset_check import args_of, binary_op, entries, strip, unary_op  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[3]
 CASTS = ("CSTYLE_CAST_EXPR", "CXX_REINTERPRET_CAST_EXPR")
@@ -60,6 +62,11 @@ def scan(job):
     tree = entry["file"].split("/prepared/tree/")[0] + "/prepared/tree/"
     tu = ci.Index.create().parse(entry["file"], args=args_of(entry, resource_dir))
     found = []
+    # local variables that hold a word view: their declaration -> the pointer type it covers
+    held = {}
+
+    def key(d):
+        return (d.location.file.name if d.location.file else "", d.location.offset)
 
     def word_view(c):
         c = strip(c)
@@ -74,23 +81,57 @@ def scan(job):
         kids = [x for x in c.get_children() if x.kind != ci.CursorKind.TYPE_REF]
         return pointer_object(kids[-1]) if kids else None
 
+    def view_or_held(c):
+        """the pointer type behind a word view: the cast itself, the cast moved on (`+ n`, `++`),
+        or a local variable that holds one (then with its name)"""
+        c = strip(c)
+        if c is None:
+            return None
+        kids = list(c.get_children())
+        if c.kind == ci.CursorKind.BINARY_OPERATOR and binary_op(c) in ("+", "-") and len(kids) == 2:
+            return view_or_held(kids[0]) or (view_or_held(kids[1]) if binary_op(c) == "+" else None)
+        if c.kind == ci.CursorKind.UNARY_OPERATOR and unary_op(c) in ("++", "--") and kids:
+            return view_or_held(kids[0])
+        if c.kind == ci.CursorKind.DECL_REF_EXPR:
+            d = c.referenced
+            if d is not None and key(d) in held:
+                return f"{held[key(d)]}` through `{c.spelling}"
+            return None
+        return word_view(c)
+
+    def remember(var, value):
+        """a local pointer variable set to a word view (declaration or assignment)"""
+        target = word_view(value)
+        if target and var is not None:
+            held[key(var)] = target
+
     def walk(c, parent):
         for k in c.get_children():
             target = None
-            if k.kind == ci.CursorKind.UNARY_OPERATOR:
+            if k.kind == ci.CursorKind.VAR_DECL:
+                kids = [x for x in k.get_children() if x.kind != ci.CursorKind.TYPE_REF]
+                if kids and k.type.get_canonical().kind == ci.TypeKind.POINTER:
+                    remember(k, kids[-1])
+            elif k.kind == ci.CursorKind.BINARY_OPERATOR and binary_op(k) == "=":
+                kids = list(k.get_children())
+                if len(kids) == 2 and strip(kids[0]) is not None and strip(kids[0]).kind == ci.CursorKind.DECL_REF_EXPR:
+                    remember(strip(kids[0]).referenced, kids[1])
+            elif k.kind == ci.CursorKind.UNARY_OPERATOR:
                 kids = list(k.get_children())
                 if unary_op(k) == "*" and kids:
-                    target = word_view(kids[0])
+                    target = view_or_held(kids[0])
             elif k.kind == ci.CursorKind.ARRAY_SUBSCRIPT_EXPR:
                 kids = list(k.get_children())
                 if kids:
-                    target = word_view(kids[0])
+                    target = view_or_held(kids[0])
             if target:
                 loc = k.extent.start
                 path = loc.file.name if loc.file else ""
                 if path.startswith(tree):
-                    write = parent is not None and parent.kind in (
-                        ci.CursorKind.BINARY_OPERATOR, ci.CursorKind.COMPOUND_ASSIGNMENT_OPERATOR) and \
+                    # the left side of `=` or `+=` ... (not of `==` or `+`)
+                    write = parent is not None and (
+                        parent.kind == ci.CursorKind.COMPOUND_ASSIGNMENT_OPERATOR or
+                        parent.kind == ci.CursorKind.BINARY_OPERATOR and binary_op(parent) == "=") and \
                         list(parent.get_children())[0] == k
                     found.append((path[len(tree):], loc.line, loc.column, target, "write" if write else "read"))
             walk(k, k)

@@ -49,6 +49,13 @@ struct EspBase {  // 0x10 bytes on ILP32; on LP64 its data ends at 0x1C, sizeof 
     void* p;
     s32 y;
 };
+struct EspNear : EspBase {  // own work at 0x1C on LP64 (in EspBase's tail padding)
+    s32 flags;
+};
+struct EspFar : EspBase {   // own work at 0x20 on LP64 (it holds a pointer: 8-aligned)
+    void* path;
+    s32 flags;
+};
 
 #define VIEW(h) ((Narrow*) &(h)->w)          // a view over a member, in a macro (MODEL_TEX)
 #define FIELD_B(p) (*(s32*) ((u8*) (p) + 8))  // a GameCube byte offset in a macro
@@ -83,7 +90,7 @@ void forms2(EspBase* e, u8* buf, Owner* o)
     dh->table = (Wide*) ((u8*) dh->table + (u32) (unsigned long) dh);  // expect: reloc_check
     g_value = *(s32*) ((u8*) e + sizeof(EspBase));   // expect: sizeof_ptr_check
     g_value = *(s32*) (buf + sizeof(Wide));          // expect: sizeof_ptr_check
-    g_value = *(s32*) ((u8*) e + RE4_OWN(EspBase, s32, 0x10));
+    g_value = *(s32*) ((u8*) e + RE4_OWN(EspBase, s32, 0x10));  // expect: own_start_check
 }
 
 void forms(Holder* h, Wide* w, s32 n, u8* pool, int i)
@@ -92,6 +99,12 @@ void forms(Holder* h, Wide* w, s32 n, u8* pool, int i)
     s32 slot;
     getPtr((void**) &slot);                          // expect: ptr_slot_check
     *(u32*) &w->p = 0;                               // expect: ptr_word_check
+    {
+        u32* link = (u32*) &w->p;                    // the word view in a variable (EfmSetObj04)
+        link[0] = 0;                                 // expect: ptr_word_check
+        link[1] = 7;                                 // expect: ptr_word_check
+        *((u32*) &w->p + 1) = 0;                     // expect: ptr_word_check
+    }
     Narrow* v1 = (Narrow*) w;                        // expect: cast_check
     Narrow* v2 = VIEW(h);                            // expect: cast_check
     g_value = FIELD_B(w);                            // expect: raw_offset_check raw_offset_words
@@ -109,7 +122,7 @@ void forms(Holder* h, Wide* w, s32 n, u8* pool, int i)
     Wide* a3 = (Wide*) (pool + i * 0xC);             // expect: alloc_size_check
     memset(&w->a, 0, 8);                             // expect: span_check
     g_value = h->free[0x14];                         // expect: array_view_check
-    Wide* o1 = (Wide*) h->free;                      // expect: overlay_check
+    Wide* o1 = (Wide*) h->free;                      // expect: overlay_check overlay_areas
     CLEAR_WIDE(w);                                   // expect: alloc_size_check
     Wide* a7 = (Wide*) myAlloc2(0xC);                // expect: alloc_size_check
     Wide* a8 = (Wide*) new u8[0xC];                  // expect: alloc_size_check
@@ -136,6 +149,8 @@ void reviewed(Holder* h, Wide* w, s32 n, u8* pool, int i, Derived* d)
     g_value = *(s32*) ((u8*) w + WIDE_B);
     g_value = *(s32*) ((u8*) w + (n * 12 + WIDE_B));
     char* c2 = (char*) ADDR32(n);
+    u32* own = (u32*) &w->a;                         // a word view of a word: no pointer behind it
+    own[0] = 1;
     (void) a6; (void) c2;
     (void) c1; (void) a1; (void) a2; (void) a3; (void) a4; (void) a5; (void) h;
 }

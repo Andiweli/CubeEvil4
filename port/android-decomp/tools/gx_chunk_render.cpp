@@ -13,6 +13,13 @@
 // in the app: EFB, copies and textures stay, a held picture (RE4_GX_CHUNK_HOLD)
 // leaves the picture before on screen. Any other chunk must start over
 // (RE4_GX_CHUNK_RESET) and gets a fresh renderer.
+//
+// RE4_GX_INVALIDATE_POISON=1: what the renderer lets the GPU forget (copy targets, the blur and
+// the focus of the autofocus; GPU step b) is painted magenta instead: the pictures must not
+// change (whole_r100_check.sh compares them).
+//
+// RE4_GX_SAMPLES=2 (or 4): with MSAA, on the tiles where the GPU can (GPU step d;
+// RE4_GX_MSAA_TILES=0: in own buffers); a line on stderr says which.
 #include "gx_gl.h"
 #include "re4_gx_frame_io.h"
 
@@ -20,6 +27,7 @@
 #include <EGL/eglext.h>
 #include <GLES3/gl3.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -97,6 +105,24 @@ int main(int argc, char **argv) {
       if (renderer)
         renderer->Release();
       renderer = std::make_unique<re4gx::GxRenderer>();
+      const char *poison = std::getenv("RE4_GX_INVALIDATE_POISON");
+      re4gx::GxOptions options;
+      options.poison = poison && *poison == '1';
+      options.invalidate = options.poison;
+      const char *samples = std::getenv("RE4_GX_SAMPLES");
+      options.samples = samples ? std::max(1, std::min(4, std::atoi(samples))) : 1;
+      // RE4_GX_LOSE_TILES=1: MSAA on the tiles as on a GPU that loses everything at a pass's end
+      // (magenta, depth 0) before the EFB is drawn back (GPU step d2); 2: besides, the resolved
+      // depth never stored (the self-test takes own buffers then)
+      const char *lose = std::getenv("RE4_GX_LOSE_TILES");
+      options.loseTiles = lose ? std::max(0, std::min(2, std::atoi(lose))) : 0;
+      // RE4_GX_CENTROID=0: MSAA without centroid (before 20.10.2026); RE4_GX_FULL_RESOLVE=1: the whole
+      // EFB resolved each time
+      const char *centroid = std::getenv("RE4_GX_CENTROID");
+      options.centroid = !(centroid && *centroid == '0');
+      const char *full = std::getenv("RE4_GX_FULL_RESOLVE");
+      options.fullResolve = full && *full == '1';
+      renderer->SetOptions(options);
       std::string error;
       if (!renderer->Init(scale, &error)) {
         std::printf("%s: Renderer: %s\n", Stem(path).c_str(), error.c_str());
@@ -104,6 +130,9 @@ int main(int argc, char **argv) {
         failures++;
         continue;
       }
+      if (options.samples > 1)
+        std::fprintf(stderr, "MSAA: %d samples %s\n", renderer->Samples(),
+                     renderer->TiledMsaa() ? "on the tiles" : "in own buffers");
     }
     lastSequence = chunk.sequence;
     lastFrame = loaded.frame;
@@ -120,17 +149,21 @@ int main(int argc, char **argv) {
     unsigned w = 0, h = 0;
     const GLuint xfb = renderer->Xfb(&w, &h);
     const re4gx::GxStats &s = renderer->Stats();
-    std::printf("%s (Bild %u%s): %ux%u, %u Zeichenaufträge, %u Dreiecke, %u Texturen, %u Kopien, %u Shader%s%s\n",
+    std::printf("%s (Bild %u%s): %ux%u, %u Zeichenaufträge, %u Dreiecke, %u Texturen, %u Kopien, %u Shader%s%s%s%s\n",
                 Stem(path).c_str(), loaded.frame, follows ? ", Folgebild" : "", w, h, s.draws - before.draws,
                 s.triangles - before.triangles, s.textures - before.textures, s.textureCopies - before.textureCopies,
-                s.programs, s.missingTextures > before.missingTextures ? ", fehlende Texturen" : "",
+                s.programs, s.autofocus > before.autofocus ? ", Autofokus" : "",
+                s.efbRestores > before.efbRestores ? (", EFB " + std::to_string(s.efbRestores - before.efbRestores) +
+                                                      "x zurückgemalt").c_str() : "",
+                s.missingTextures > before.missingTextures ? ", fehlende Texturen" : "",
                 s.shaderErrors > before.shaderErrors ? ", FEHLER: Shader" : "");
     if (std::getenv("RE4_GX_WORK"))
       std::printf("  GL-Arbeit: %u Uniform-Uploads (%u KB), %u Programmwechsel, %u Textur-/Sampler-Bindungen, "
-                  "%u Zustandswechsel, %u Attribut-Einrichtungen\n",
+                  "%u Zustandswechsel, %u Attribut-Einrichtungen, %u Uniform-Ringwechsel (%u im Bild)\n",
                   s.uniformUploads - before.uniformUploads, (s.uniformBytes - before.uniformBytes) / 1024,
                   s.programSwitches - before.programSwitches, s.textureBinds - before.textureBinds,
-                  s.stateChanges - before.stateChanges, s.attributeSetups - before.attributeSetups);
+                  s.stateChanges - before.stateChanges, s.attributeSetups - before.attributeSetups,
+                  s.streamSwitches - before.streamSwitches, s.streamSplits - before.streamSplits);
     if (s.shaderErrors > before.shaderErrors)
       failures++;
     if (xfb && w && h) {

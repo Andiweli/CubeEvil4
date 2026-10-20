@@ -42,6 +42,15 @@ mit Bild und Ton; START ueberspringt ihn (laut Originalcode entfaellt dann auch 
 Autofahrt). Fuer Film, Autofahrt und Ankunft in r100 reichen etwa -Seconds 480.
 -WeaponTrace schreibt beim Nachladen jedes Bild eine Zeile ins Protokoll (Zustand
 und Bewegung von Leon und Waffe, Munition, R-Taste; fuer die Nachlade-Suche).
+-GpuBench misst die Grafik (GPU-Schritt a, 19.10.2026): Start in r100; sobald Leon frei steht
+(Ankunft und Funkspruch vorbei, der Kern meldet es), schaltet die App nach 10 s nacheinander
+die Einstellungen ihrer Messreihe durch (core_mode.cpp: Tiefenschaerfe, die Einstellung des
+Testers mit 2x und 4x Kantenglaettung, 4x bei Aufloesung 2) und misst je 10 s GPU-Zeit, Last mal Takt, wie weit die GPU
+hinterherhinkt und was im Bild liegt (Zeilen "GPU bench" im Bericht, dazu eine Zeile "GPU:" mit
+den Erweiterungen des Grafikchips); danach gelten wieder deine Einstellungen.
+Etwa 5 Minuten, waehrend der Messung den Controller nicht anfassen.
+-MsaaTiles schaltet die Kantenglaettung auf den Kacheln ein (GPU-Schritt d2, nur fuer Versuche:
+auf dem Retroid fehlen damit Haare und Texturen; sonst eigene Puffer).
 -StartRoom 100 springt direkt nach r100 (nur die kurze Ankunft). -Manual
 startet ohne Tastenfolge (Titelbild, du spielst selbst); dann beobachtet das
 Skript 30 Minuten statt 240 s (Taste Q beendet frueher, -Seconds legt die Zeit
@@ -61,6 +70,12 @@ Folge, damit Flackern sichtbar wird; auch ohne -GxDump; nach einem Spiel ohne
 dieses Skript holt pull-gx-dumps.ps1 die Aufnahmen), dazu jedes dieser Bilder so, wie
 die GPU des Geraets es gezeichnet hat (gx-geraet-NN-KK.bmp, ebenfalls in gx-geraet.zip).
 Die Bilder des Kerns folgen dem Bildschirmtakt (60 Hz), damit Filme nicht ruckeln.
+-GxReplay ORDNER-ODER-ZIP zeichnet R3-Aufnahmen (gx-geraet-NN-KK.bin, Folge -GxReplaySeries,
+Standard 00) beim Start der App auf dem Geraet noch einmal: so wie damals (2x MSAA,
+Anisotropie 16) dreimal, dazu ohne MSAA, mit 4x und ohne Anisotropie, jedes Bild so, wie die
+GPU es zeichnet (gx-replay.zip, fuer die Cloud). Zeigt, ob das Geraet dieselben Daten jedes
+Mal gleich zeichnet (Flackern duenner Dinge mit MSAA, 20.10.2026). Eine geteilte ZIP vorher
+zusammensetzen (cmd /c copy /b NAME.zip.001+NAME.zip.002 NAME.zip).
 -Scale waehlt die interne Aufloesung: 1 = 640x448 wie der GameCube, 2 = 1280x896
 (Standard, der sichtbare 16:9-Teil entspricht etwa 720p), 3 = 1920x1344 (etwa 1080p),
 4 = 2560x1792.
@@ -121,13 +136,20 @@ Moments; die App speichert die naechsten 24 Bilder so, wie der Bildschirm sie ze
 (Ordner treffer), mit -HitDumps N dazu die Grafikdaten von 4 Bildern ab dort (Standard
 jeweils 0 = aus; die Aufnahme laesst das Spiel kurz ruckeln).
 
-Zum Schicken packt das Skript senden.zip: bericht.txt, logcat.txt, profil-*.txt,
+Zum Schicken packt das Skript senden.zip (die des Laufs davor bleibt als senden-vorher.zip): bericht.txt, logcat.txt, profil-*.txt,
 Absturzberichte und die Bilder als kleine JPEGs (meist unter 5 MB). gx-geraet.zip
 (Grafikdaten) kommt dazu, wenn es hoechstens 25 MB hat.
 
 Ergebnis in -OutDir (Standard: Desktop\RE4-Kern-App): bericht.txt, logcat.txt,
 bild-*.png, kern-build.log, apk-build.log, nach einem Absturz absturz-system.txt und
 absturz-stapel.txt. Bitte bericht.txt, logcat.txt und die Bilder schicken.
+
+Kernprozess (32 bit, port/docs/32bit-kernprozess.md): Auf 32-bit-Geraeten, bei denen der
+Java-Speicher von Android schon auf dem Speicher des Spiels (0x80000000) liegt (Android 14),
+laeuft der Spielkern in einem eigenen Prozess ohne Java (libre4_coreproc.so). -CoreProcess
+erzwingt das auch auf dem Retroid (zusammen mit -Abi armeabi-v7a): Der Bericht nennt den
+Kernprozess (Prozessnummer, Grund, Ende), und endet der Kernprozess, waehrend die App noch
+laeuft, endet die Beobachtung wie bei einem Absturz.
 
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File .\port\scripts\test-core-app.ps1
@@ -165,12 +187,25 @@ param(
     [switch]$BlankCard,
     [switch]$SaveTest,
     [switch]$WeaponTrace,
+    [switch]$GpuBench,
+    [switch]$MsaaTiles,
     [switch]$NoCopy,
-    [ValidateSet('auto', 'armeabi-v7a', 'arm64-v8a')][string]$Abi = 'auto'
+    [string]$GxReplay = '',
+    [string]$GxReplaySeries = '00',
+    [ValidateSet('auto', 'armeabi-v7a', 'arm64-v8a')][string]$Abi = 'auto',
+    [switch]$CoreProcess
 )
 $ErrorActionPreference = 'Stop'
 # -Manual: you play yourself, 30 minutes unless -Seconds is given (Q ends earlier)
 if ($Manual -and -not $PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 1800 }
+# -GpuBench: the GPU measurement of the app (core_mode.cpp RE4_GPU_BENCH) at a calm place: the
+# start in r100 with the test keys, Leon standing; the first step 10 s after the player is free
+# (about 110 s after the start on the Retroid, 19.10.2026), then 7 or 8 steps of 15 s
+if ($GpuBench) {
+    if ($Manual) { throw '-GpuBench braucht den automatischen Start (ohne -Manual).' }
+    if (-not $PSBoundParameters.ContainsKey('StartRoom')) { $StartRoom = '100' }
+    if (-not $PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 330 }
+}
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $app = Join-Path $repo 'port\android-decomp'
 $package = 'com.ast.cubeevil4'
@@ -186,7 +221,12 @@ Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyCon
 # results of an earlier run must not pass for this one's
 Get-ChildItem -LiteralPath $OutDir -Filter 'absturz-*.txt' -ErrorAction SilentlyContinue | Remove-Item
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet.zip') -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath (Join-Path $OutDir 'senden.zip') -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $OutDir 'gx-replay.zip') -ErrorAction SilentlyContinue
+# the zip of the run before stays as senden-vorher.zip (two runs one after the other: both can be sent)
+$sendBefore = Join-Path $OutDir 'senden.zip'
+if (Test-Path -LiteralPath $sendBefore) {
+    Move-Item -LiteralPath $sendBefore -Destination (Join-Path $OutDir 'senden-vorher.zip') -Force
+}
 Remove-Item -LiteralPath (Join-Path $OutDir 'treffer') -Recurse -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'speicherkarte-a.bin') -ErrorAction SilentlyContinue
 Get-ChildItem -LiteralPath $OutDir -Filter 'profil-*' -ErrorAction SilentlyContinue | Remove-Item
@@ -371,6 +411,23 @@ if ($GxDump) {
     $dumpSetting = "RE4_GX_DUMP_DIR=$dumpRemote;RE4_GX_DUMP_EVERY=20"
     $settings = if ($settings) { "$settings;$dumpSetting" } else { $dumpSetting }
 }
+# R3 series drawn again on the device at the app's start (core_mode.cpp replayGx)
+$replayRemote = "/sdcard/Android/data/$package/files/gx-replay"
+$replayBins = @()
+if ($GxReplay) {
+    if (-not (Test-Path -LiteralPath $GxReplay)) { throw "-GxReplay: $GxReplay gibt es nicht." }
+    $replaySource = $GxReplay
+    if ((Get-Item -LiteralPath $GxReplay).Extension -eq '.zip') {
+        $replaySource = Join-Path $OutDir 'gx-replay-eingabe'
+        Remove-Item -LiteralPath $replaySource -Recurse -ErrorAction SilentlyContinue
+        Expand-Archive -LiteralPath $GxReplay -DestinationPath $replaySource -Force
+    }
+    $replayBins = @(Get-ChildItem -LiteralPath $replaySource -Recurse -Filter "gx-geraet-$GxReplaySeries-*.bin" |
+        Sort-Object Name)
+    if (-not $replayBins.Count) { throw "-GxReplay: keine gx-geraet-$GxReplaySeries-*.bin in $GxReplay." }
+    $replaySetting = "RE4_GX_REPLAY=$replayRemote"
+    $settings = if ($settings) { "$settings;$replaySetting" } else { $replaySetting }
+}
 # a hit on Leon (a dark bar at the bottom showed only then, too briefly for R3): the core
 # marks the picture of that moment; the app keeps the next 24 pictures as shown
 # (treffer-*.bmp, -HitShots: for how many hits) and the graphics data of 4 pictures from
@@ -385,12 +442,25 @@ if ($AudioWav -gt 0) {
     $wavSetting = "RE4_AUDIO_WAV=$wavRemote;RE4_AUDIO_WAV_SECONDS=$AudioWav"
     $settings = if ($settings) { "$settings;$wavSetting" } else { $wavSetting }
 }
+if ($GpuBench) {
+    # the GPU measurement (see above): the app steps through the picture options itself
+    $settings = if ($settings) { "$settings;RE4_GPU_BENCH=1" } else { 'RE4_GPU_BENCH=1' }
+}
+if ($MsaaTiles) {
+    # MSAA on the tiles with the EFB drawn back after every pass (GPU step d2, gx_gl.cpp)
+    $settings = if ($settings) { "$settings;RE4_GX_MSAA_TILES=1" } else { 'RE4_GX_MSAA_TILES=1' }
+}
 # the app's tools for the test: R3 saves graphics data (otherwise only with the menu's switch)
 if ($WeaponTrace) {
     # every frame with the weapon in hand: the player's and the weapon's state, ammo, R trigger (state_trace.cpp)
     $settings = if ($settings) { "$settings;RE4_TRACE_WEAPON=1" } else { 'RE4_TRACE_WEAPON=1' }
 }
 $settings = if ($settings) { "$settings;RE4_APP_TOOLS=1" } else { 'RE4_APP_TOOLS=1' }
+if ($CoreProcess) {
+    # the core in a process of its own also with MEM1 free (32 bit only; core_mode.cpp)
+    if ($Abi -ne 'armeabi-v7a') { Say 'Hinweis: -CoreProcess wirkt nur mit 32 bit (-Abi armeabi-v7a).' }
+    $settings = "$settings;RE4_CORE_PROCESS=1"
+}
 . (Join-Path $PSScriptRoot 'Retroid-Adb-Exclusive.ps1')
 Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     if ((& $Adb -s $Serial get-state) -ne 'device' -or $LASTEXITCODE -ne 0) {
@@ -526,6 +596,15 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
             Say '   Neue Speicherkarte (bisher gab es keine)'
         }
     }
+    if ($replayBins.Count) {
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & $Adb -s $Serial shell rm -rf $replayRemote 2>&1 | Out-Null
+        & $Adb -s $Serial shell mkdir -p $replayRemote 2>&1 | Out-Null
+        foreach ($bin in $replayBins) { & $Adb -s $Serial push $bin.FullName "$replayRemote/" 2>&1 | Out-Null }
+        $ErrorActionPreference = $previousPreference
+        Say "   Wiedergabe auf dem Geraet: $($replayBins.Count) Bilder der Folge $GxReplaySeries (dauert beim Start etwa eine Minute)"
+    }
     & $Adb -s $Serial shell input keyevent KEYCODE_WAKEUP
     $start = "am start -n $activity"
     if ($settings) { $start += " --es coreSettings '$settings'" }
@@ -598,6 +677,8 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     }
     $clock = [Diagnostics.Stopwatch]::StartNew()
     $firstPid = ''
+    # the core process (32 bit, MEM1 taken in the app's process or -CoreProcess): "<package>:core"
+    $corePid = ''
     $crashAt = -1
     $nextShot = 0
     # Q (or Strg+C) ends the observation early; the log, the crash report and the
@@ -625,6 +706,20 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         $alive = ((& $Adb -s $Serial shell pidof $package) -join '').Trim()
         if ($alive -and -not $firstPid) { $firstPid = $alive }
         $gone = if ($firstPid) { $alive -ne $firstPid } else { $now -ge 10 }
+        # the core process ended while the app runs (the app shows "The game core stopped")
+        if ($alive -and -not $gone) {
+            $core = ((& $Adb -s $Serial shell pidof "${package}:core") -join '').Trim()
+            if ($core -and -not $corePid) {
+                $corePid = $core
+                Say ("   {0,3} s: Kernprozess laeuft (PID {1})" -f $now, $core)
+            }
+            if ($corePid -and $core -ne $corePid) {
+                $crashAt = $now
+                Save-Shot $now
+                Say ("   {0,3} s: Kernprozess (PID {1}) LAEUFT NICHT MEHR: Beobachtung endet, Bild aufgenommen" -f $now, $corePid)
+                break
+            }
+        }
         if ($gone) {
             $crashAt = $now
             Save-Shot $now
@@ -700,6 +795,25 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         Say '   GX-Daten vom Geraet: keine (RE4_GX_DUMP_DIR)'
     }
     & $Adb -s $Serial shell rm -rf $dumpRemote
+    # the pictures of the replay (-GxReplay) as the device's GPU drew them
+    if ($replayBins.Count) {
+        $replayLocal = Join-Path $OutDir 'gx-replay'
+        Remove-Item -LiteralPath $replayLocal -Recurse -ErrorAction SilentlyContinue
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & $Adb -s $Serial pull $replayRemote $replayLocal 2>&1 | Out-Null
+        & $Adb -s $Serial shell rm -rf $replayRemote 2>&1 | Out-Null
+        $ErrorActionPreference = $previousPreference
+        $replayShots = @(Get-ChildItem -LiteralPath $replayLocal -Filter 'replay-*.bmp' -ErrorAction SilentlyContinue)
+        if ($replayShots.Count) {
+            $replayZip = Join-Path $OutDir 'gx-replay.zip'
+            Compress-Archive -Path $replayShots.FullName -DestinationPath $replayZip -Force
+            Say "   Wiedergabe auf dem Geraet: $($replayShots.Count) Bilder (gx-replay.zip, $([math]::Round((Get-Item -LiteralPath $replayZip).Length / 1MB, 1)) MB)"
+        } else {
+            Say '   Wiedergabe auf dem Geraet: KEINE Bilder (Protokoll: "GX replay")'
+        }
+        Remove-Item -LiteralPath $replayLocal -Recurse -ErrorAction SilentlyContinue
+    }
     # the memory card after the run (a copy; it stays on the device)
     $previousPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
@@ -718,8 +832,41 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     Say '== Auswertung =='
     $text = $keep -join "`n"
     function Has([string]$Pattern) { return [bool]($text -match $Pattern) }
-    Say ("Kern geladen, Speicher reserviert: {0}" -f $(if (Has 'core loaded, MEM1 reserved') { 'ja' } else { 'NEIN' }))
+    Say ("Kern geladen, Speicher reserviert: {0}" -f $(if (Has 'core loaded, MEM1 reserved|core process: ready \(pid \d+, MEM1 placeholder reserved') { 'ja' } else { 'NEIN' }))
+    # the core in a process of its own (core_mode.cpp useCoreProcess, host/coreproc.cpp)
+    $ownLine = $keep | Where-Object { $_ -match 'core: in a process of its own \((.*)\):' } | Select-Object -First 1
+    $ownWhy = if ($ownLine -and $ownLine -match 'core: in a process of its own \((.*)\):') { $Matches[1] } else { '' }
+    $ownPid = $keep | Where-Object { $_ -match 'core process started: pid (\d+)' } | Select-Object -First 1
+    $ownEnd = $keep | Where-Object { $_ -match 'the game core process ended: ' } | Select-Object -First 1
+    $ownState = if (-not $ownWhy) { 'nein (im App-Prozess)' }
+        else { "ja ($ownWhy)$(if ($ownPid -and $ownPid -match 'pid (\d+)') { ', PID ' + $Matches[1] })" +
+               $(if ($ownEnd) { ', ENDE: ' + (($ownEnd -split 'ended: ')[-1]) } else { '' }) }
+    Say "Kern im eigenen Prozess:          $ownState"
+    $ownProblem = $keep | Where-Object { $_ -match 'core process: .*(does not start|did not answer|missing|taken in the core process|no shared memory)' } | Select-Object -First 1
+    if ($ownProblem) { Say "Kernprozess-FEHLER:               $(($ownProblem -split 'core process: ', 2)[-1])" }
+    # what the way through the core process costs: the copy of each picture, the sound's waits
+    $ownCopies = $keep | Where-Object { $_ -match 'core process: GX copies: ' } | Select-Object -Last 1
+    if ($ownCopies) { Say "Kernprozess Bilder kopiert:       $(($ownCopies -split 'GX copies: ')[-1])" }
+    $ownSound = $keep | Where-Object { $_ -match 'core process sound: ' } | Select-Object -Last 1
+    if ($ownSound) { Say "Kernprozess Ton zuletzt:          $(($ownSound -split 'core process sound: ')[-1])" }
     Say ("Spiel gestartet:                  {0}" -f $(if (Has 'core: running') { 'ja' } else { 'NEIN' }))
+    # the black screen at the start (patch 0085): from the core's load to title.dat read (before
+    # the first logo; 19.10.2026 without the patch 5.8 s on the Retroid)
+    $loadedAt = $keep | Where-Object { $_ -match 'core process: ready \(pid' } | Select-Object -First 1
+    if (-not $loadedAt) { $loadedAt = $keep | Where-Object { $_ -match 'core loaded, MEM1 reserved' } | Select-Object -First 1 }
+    $titleAt = [Array]::FindIndex([string[]]$keep, [Predicate[string]]{ param($l) $l -match 'Read File: [Ss][Ss]/[a-z]+/title\.dat' })
+    $titleOk = $null
+    if ($titleAt -ge 0) { $titleOk = $keep[$titleAt..($keep.Count - 1)] | Where-Object { $_ -match 'DVD: Read Ok' } | Select-Object -First 1 }
+    $bootLine = $keep | Where-Object { $_ -match 'DVD: start reads done' } | Select-Object -First 1
+    $startTime = '?'
+    try {
+        if ($loadedAt -and $titleOk) {
+            $t0 = [datetime]::ParseExact($loadedAt.Substring(0, 18), 'MM-dd HH:mm:ss.fff', $null)
+            $t1 = [datetime]::ParseExact($titleOk.Substring(0, 18), 'MM-dd HH:mm:ss.fff', $null)
+            $startTime = '{0:N1} s' -f ($t1 - $t0).TotalSeconds
+        }
+    } catch { }
+    Say "Start bis title.dat gelesen:      $startTime$(if ($bootLine) { ' (' + ($bootLine -split 'DVD: ')[-1] + ')' } else { ' (ohne den schnellen Start)' })"
     $rooms = $keep | Where-Object { $_ -match 'RE4Core.*room [0-9a-f]{3}: ' }
     Say "Raeume aufgebaut:                 $(if ($rooms) { ($rooms | ForEach-Object { ($_ -split 'RE4Core\s*:\s*')[-1] }) -join ' | ' } else { 'keiner' })"
     $models = @($keep | Where-Object { $_ -match 'RE4Core.*model ' })
@@ -731,6 +878,10 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # the view: GX emulation (what the game draws) or the bridge
     $view = $keep | Where-Object { $_ -match 'RE4Core.*view: ' } | Select-Object -First 1
     Say "Ansicht:                          $(if ($view) { ($view -split 'view: ')[-1] } else { '?' })"
+    # the replay of R3 series (-GxReplay): the variants it drew
+    foreach ($line in @($keep | Where-Object { $_ -match 'GX replay' } | Select-Object -Last 12)) {
+        Say "Wiedergabe:                       $(($line -split 'RE4Core\s*:\s*', 2)[-1])"
+    }
     $gxReady = $keep | Where-Object { $_ -match 'GX renderer (ready|:)' } | Select-Object -First 1
     if ($gxReady) { Say "GX-Renderer:                      $(($gxReady -split 'RE4Core\s*:\s*')[-1])" }
     $gxStats = $keep | Where-Object { $_ -match 'RE4Core.*GX: \d+ chunks' } | Select-Object -Last 1
@@ -741,6 +892,28 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # the GL work per picture and the GPU time (the renderer's own measurement)
     $gxWork = $keep | Where-Object { $_ -match 'GX work per chunk: ' } | Select-Object -Last 1
     if ($gxWork) { Say "GX-Arbeit je Bild zuletzt:        $(($gxWork -split 'GX work per chunk: ')[-1])" }
+    # the uniform stream (gx_gl.cpp) moves on between pictures only (MSAA flicker on the Adreno,
+    # 20.10.2026); a picture larger than a quarter's rest still switches while drawing
+    $split = $keep | Where-Object { $_ -match 'RE4GX\s*: GX uniform stream: a chunk needs' } | Select-Object -First 1
+    if ($gxReady) { Say "Uniform-Ring:                     $(if ($split) { 'Wechsel MITTEN IM BILD: ' + (($split -split 'stream: ')[-1]) } else { 'Wechsel nur zwischen Bildern' })" }
+    # the GPU measurement (-GpuBench): one line per picture option
+    $bench = @($keep | Where-Object { $_ -match 'RE4Core\s*: GPU bench' })
+    if ($GpuBench -or $bench.Count) {
+        Say "GPU-Messung:                      $(if ($bench.Count) { "$($bench.Count) Zeilen" } else { 'KEINE (lief das Spiel bis r100?)' })"
+        foreach ($line in $bench) { Say "  $(($line -split 'RE4Core\s*:\s*')[-1])" }
+    }
+    # the screen's rate and how often the picture is drawn (GPU step c, CoreActivity / FramePacing)
+    $display = @($keep | Where-Object { $_ -match 'RE4Input\s*: display at ' })
+    foreach ($line in @($display | Select-Object -First 4)) { Say "Bildschirm:                       $(($line -split 'RE4Input\s*:\s*')[-1])" }
+    # gyro aiming (GyroAim.java, runtime/gyro.cpp): the switch and whether the aim turned
+    $gyro = @($keep | Where-Object { $_ -match 'RE4Input\s*: gyro aiming |re4\s*: gyro: ' })
+    foreach ($line in @($gyro | Select-Object -Last 3)) { Say "Gyro-Zielen:                      $(($line -split '(?:RE4Input|re4)\s*:\s*', 2)[-1])" }
+    # MSAA on the tiles (GPU step d2): what the device keeps over a pass's end (gx_gl.cpp TilesSelfTest)
+    $tilesTest = $keep | Where-Object { $_ -match 'RE4GX\s*: MSAA on the tiles, self-test' } | Select-Object -First 1
+    if ($tilesTest) { Say "Kacheln-Selbsttest:               $(($tilesTest -split 'self-test:\s*')[-1])" }
+    # the GPU and the extensions step d (MSAA on the tiles) needs (gx_gl.cpp, once per run)
+    $gpuInfo = $keep | Where-Object { $_ -match 'RE4GX\s*: GPU: ' } | Select-Object -First 1
+    if ($gpuInfo) { Say "Grafikchip:                       $(($gpuInfo -split 'RE4GX\s*:\s*GPU:\s*')[-1])" }
     $gxStream = $keep | Where-Object { $_ -match 'GX uniform stream: ' } | Select-Object -First 1
     if ($gxStream) { Say "GX-Uniform-Puffer:                $(($gxStream -split 'GX uniform stream: ')[-1])" }
     $shaderFail = @($keep | Where-Object { $_ -match 'RE4GX.*shader failed' })
@@ -957,6 +1130,10 @@ $sendMb = [math]::Round((Get-Item -LiteralPath $send).Length / 1MB, 1)
 $gxZip = Join-Path $OutDir 'gx-geraet.zip'
 $gxMb = if (Test-Path -LiteralPath $gxZip) { [math]::Round((Get-Item -LiteralPath $gxZip).Length / 1MB, 1) } else { 0 }
 Say ''
+$replayZip = Join-Path $OutDir 'gx-replay.zip'
+if (Test-Path -LiteralPath $replayZip) {
+    Say "Die Wiedergabe liegt in gx-replay.zip ($([math]::Round((Get-Item -LiteralPath $replayZip).Length / 1MB, 1)) MB, ebenfalls schicken)."
+}
 if ($gxMb -eq 0) {
     Say "Fertig. Bitte senden.zip ($sendMb MB) aus $OutDir schicken."
 } elseif ($gxMb -le 25) {

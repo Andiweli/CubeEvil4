@@ -226,6 +226,8 @@ std::deque<int> gReady;
 std::mutex gMutex;
 std::condition_variable gCv;
 std::atomic<bool> gWanted(false);
+// re4_core_gx_notify: the core process's server takes a chunk as soon as it is queued
+std::atomic<void (*)(void)> gNotify(nullptr);
 std::atomic<long long> gLastPoll(0);
 const long long kStallMs = 1000;
 
@@ -424,6 +426,9 @@ void publishPendingLocked()
     gPending = -1;
     gStats.chunks++;
     gCv.notify_all();
+    if (void (*notify)(void) = gNotify.load()) {
+        notify();
+    }
 }
 
 void dropQueueLocked()
@@ -1771,6 +1776,11 @@ void re4_gx_vi_flush(void)
     re4gx::drain();
     std::lock_guard<std::mutex> lock(gMutex);
     publishPendingLocked();
+}
+
+void re4_core_gx_notify(void (*notify)(void))
+{
+    gNotify.store(notify);
 }
 
 void re4_core_gx_detach(void)

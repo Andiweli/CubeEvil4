@@ -1,0 +1,28 @@
+# EfmSetObj04 (esp_efm.cpp, the effect models obj04 that fly off a hit: splinters, debris)
+# stores the parent model and its guid through a word pointer, `u32* link = (u32*) &w->pMod;
+# link[0] = (u32) parent; link[1] = parent->guid;` (the original does this so the compiler
+# reloads Parts_no like the target code). On ILP32 the two words are pMod and Guid_pMod. On
+# LP64 pMod has 8 bytes: link[1] is its high half, so pMod became guid << 32 | parent and
+# Guid_pMod kept what was there. cObj04::move, called right after, read the parent through
+# that address: SIGSEGV at 0xf81017988 (pMod 0xf81017980, guid 0xF) on a POCO X7 Pro in r104,
+# 18.10.2026, tester report. port/tools/m12/ptr_word_check.py only knew the dereferenced cast
+# (`*(u32*) &p = x`) and missed the view kept in a variable; it follows such variables now and
+# finds exactly these two lines. Stored through the members, the same on ILP32.
+--- a/src/game/esp_efm.cpp
++++ b/src/game/esp_efm.cpp
+@@ -433,9 +433,12 @@
+                 // pMod/Guid_pMod are stored through a word pointer so cse1 treats the store as
+                 // aliasing `w->Parts_no` and reloads the getPartsPtr argument like the target. A
+                 // plain member store would let the arm reuse the switch register.
+-                u32* link = (u32*) &w->pMod;
+-                link[0] = (u32) parent;
+-                link[1] = parent->guid;
++                // PORT: on LP64 pMod has 8 bytes, so link[1] (the guid) went into the high half of
++                // pMod instead of Guid_pMod: cObj04::move then read the parent through a wild
++                // address (POCO X7 Pro, 18.10.2026). The members themselves, the same on ILP32
++                // (patch 0084)
++                w->pMod = parent;
++                w->Guid_pMod = parent->guid;
+                 w->pParts = parent->getPartsPtr(w->Parts_no);
+                 if (ofs) {
+                     PSVECAdd(&obj->pos, ofs, &obj->pos);
