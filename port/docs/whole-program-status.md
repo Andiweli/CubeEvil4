@@ -4900,6 +4900,22 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   eingebaute Controller meldet Abzug und Sticks getrennt), die Touch-Steuerung ausgenommen;
   die Standardbelegung unverändert. `CoreInputTests` 125 Prüfungen bestanden; Menütext
   ergänzt; auf dem Gerät nicht gesehen.
+- **MSAA-Flackern, weiter (20.10.2026):** das eine erfasste Ereignis (32 bit, Reihe 00, Bild 01,
+  2× MSAA) ist **keine** Tiefenschärfe: mit erzwungenem Fokus 1,5–4,5 m im Nachspielen wird das
+  ganze Bild weich, auf dem Gerät aber nur die Äste heller (Mittel an den 532 Punkten 65,6
+  statt 55–57, das übrige Bild gleich), also eher Äste, die in diesem Bild teilweise fehlen. Es
+  passt weder zu „ohne MSAA“ noch zu „4 Proben“ im Nachspielen. Für die Ursache nötig: dieselben
+  Daten **auf dem Gerät** noch einmal zeichnen. **Neu: Wiedergabe auf dem Gerät**
+  (`core_mode.cpp replayGx`, `RE4_GX_REPLAY`; `test-core-app.ps1 -GxReplay ORDNER-ODER-ZIP
+  [-GxReplaySeries 00]`): beim Start der App, vor dem ersten Bild des Spiels, zeichnet ein
+  eigener Renderer die R3-Folge so wie damals (2× MSAA, Anisotropie 16) dreimal, dazu ohne MSAA,
+  mit 4× und ohne Anisotropie; jedes Bild so, wie die GPU es zeichnet
+  (`replay-VARIANTE-RUNDE-NN-KK.bmp`, `gx-replay.zip`). Fragen: zeichnet der Adreno dieselben
+  Daten jedes Mal gleich, und kommt Bild 01 auf ihm wieder heller? Geprüft (Cloud): beide ABIs
+  ohne Fehler und Warnungen übersetzt; `replayGx` in einem Linux-Testrahmen mit llvmpipe auf der
+  32-bit-Reihe 00: 72 Bilder, die Runden bitgleich, nahe an den Gerätebildern (Mittel 2,7;
+  Bild 01 weicht wie bekannt ab). Nicht getestet: auf dem Gerät, das Skript (kein PowerShell in
+  der Cloud).
 - **Für die nächste Alpha (nach v0.38.2 Alpha 3) bisher:** Version im Menü „(v…)“, FPS-Anzeige
   „30 FPS (Game) · 60 Hz“, Zielen mit dem rechten Stick in „Alternate Controls“.
 - **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter

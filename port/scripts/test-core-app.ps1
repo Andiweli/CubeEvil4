@@ -70,6 +70,12 @@ Folge, damit Flackern sichtbar wird; auch ohne -GxDump; nach einem Spiel ohne
 dieses Skript holt pull-gx-dumps.ps1 die Aufnahmen), dazu jedes dieser Bilder so, wie
 die GPU des Geraets es gezeichnet hat (gx-geraet-NN-KK.bmp, ebenfalls in gx-geraet.zip).
 Die Bilder des Kerns folgen dem Bildschirmtakt (60 Hz), damit Filme nicht ruckeln.
+-GxReplay ORDNER-ODER-ZIP zeichnet R3-Aufnahmen (gx-geraet-NN-KK.bin, Folge -GxReplaySeries,
+Standard 00) beim Start der App auf dem Geraet noch einmal: so wie damals (2x MSAA,
+Anisotropie 16) dreimal, dazu ohne MSAA, mit 4x und ohne Anisotropie, jedes Bild so, wie die
+GPU es zeichnet (gx-replay.zip, fuer die Cloud). Zeigt, ob das Geraet dieselben Daten jedes
+Mal gleich zeichnet (Flackern duenner Dinge mit MSAA, 20.10.2026). Eine geteilte ZIP vorher
+zusammensetzen (cmd /c copy /b NAME.zip.001+NAME.zip.002 NAME.zip).
 -Scale waehlt die interne Aufloesung: 1 = 640x448 wie der GameCube, 2 = 1280x896
 (Standard, der sichtbare 16:9-Teil entspricht etwa 720p), 3 = 1920x1344 (etwa 1080p),
 4 = 2560x1792.
@@ -177,6 +183,8 @@ param(
     [switch]$GpuBench,
     [switch]$MsaaTiles,
     [switch]$NoCopy,
+    [string]$GxReplay = '',
+    [string]$GxReplaySeries = '00',
     [ValidateSet('auto', 'armeabi-v7a', 'arm64-v8a')][string]$Abi = 'auto'
 )
 $ErrorActionPreference = 'Stop'
@@ -205,6 +213,7 @@ Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyCon
 # results of an earlier run must not pass for this one's
 Get-ChildItem -LiteralPath $OutDir -Filter 'absturz-*.txt' -ErrorAction SilentlyContinue | Remove-Item
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet.zip') -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $OutDir 'gx-replay.zip') -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'senden.zip') -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'treffer') -Recurse -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'speicherkarte-a.bin') -ErrorAction SilentlyContinue
@@ -390,6 +399,23 @@ if ($GxDump) {
     $dumpSetting = "RE4_GX_DUMP_DIR=$dumpRemote;RE4_GX_DUMP_EVERY=20"
     $settings = if ($settings) { "$settings;$dumpSetting" } else { $dumpSetting }
 }
+# R3 series drawn again on the device at the app's start (core_mode.cpp replayGx)
+$replayRemote = "/sdcard/Android/data/$package/files/gx-replay"
+$replayBins = @()
+if ($GxReplay) {
+    if (-not (Test-Path -LiteralPath $GxReplay)) { throw "-GxReplay: $GxReplay gibt es nicht." }
+    $replaySource = $GxReplay
+    if ((Get-Item -LiteralPath $GxReplay).Extension -eq '.zip') {
+        $replaySource = Join-Path $OutDir 'gx-replay-eingabe'
+        Remove-Item -LiteralPath $replaySource -Recurse -ErrorAction SilentlyContinue
+        Expand-Archive -LiteralPath $GxReplay -DestinationPath $replaySource -Force
+    }
+    $replayBins = @(Get-ChildItem -LiteralPath $replaySource -Recurse -Filter "gx-geraet-$GxReplaySeries-*.bin" |
+        Sort-Object Name)
+    if (-not $replayBins.Count) { throw "-GxReplay: keine gx-geraet-$GxReplaySeries-*.bin in $GxReplay." }
+    $replaySetting = "RE4_GX_REPLAY=$replayRemote"
+    $settings = if ($settings) { "$settings;$replaySetting" } else { $replaySetting }
+}
 # a hit on Leon (a dark bar at the bottom showed only then, too briefly for R3): the core
 # marks the picture of that moment; the app keeps the next 24 pictures as shown
 # (treffer-*.bmp, -HitShots: for how many hits) and the graphics data of 4 pictures from
@@ -552,6 +578,15 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         } else {
             Say '   Neue Speicherkarte (bisher gab es keine)'
         }
+    }
+    if ($replayBins.Count) {
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & $Adb -s $Serial shell rm -rf $replayRemote 2>&1 | Out-Null
+        & $Adb -s $Serial shell mkdir -p $replayRemote 2>&1 | Out-Null
+        foreach ($bin in $replayBins) { & $Adb -s $Serial push $bin.FullName "$replayRemote/" 2>&1 | Out-Null }
+        $ErrorActionPreference = $previousPreference
+        Say "   Wiedergabe auf dem Geraet: $($replayBins.Count) Bilder der Folge $GxReplaySeries (dauert beim Start etwa eine Minute)"
     }
     & $Adb -s $Serial shell input keyevent KEYCODE_WAKEUP
     $start = "am start -n $activity"
@@ -727,6 +762,25 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         Say '   GX-Daten vom Geraet: keine (RE4_GX_DUMP_DIR)'
     }
     & $Adb -s $Serial shell rm -rf $dumpRemote
+    # the pictures of the replay (-GxReplay) as the device's GPU drew them
+    if ($replayBins.Count) {
+        $replayLocal = Join-Path $OutDir 'gx-replay'
+        Remove-Item -LiteralPath $replayLocal -Recurse -ErrorAction SilentlyContinue
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & $Adb -s $Serial pull $replayRemote $replayLocal 2>&1 | Out-Null
+        & $Adb -s $Serial shell rm -rf $replayRemote 2>&1 | Out-Null
+        $ErrorActionPreference = $previousPreference
+        $replayShots = @(Get-ChildItem -LiteralPath $replayLocal -Filter 'replay-*.bmp' -ErrorAction SilentlyContinue)
+        if ($replayShots.Count) {
+            $replayZip = Join-Path $OutDir 'gx-replay.zip'
+            Compress-Archive -Path $replayShots.FullName -DestinationPath $replayZip -Force
+            Say "   Wiedergabe auf dem Geraet: $($replayShots.Count) Bilder (gx-replay.zip, $([math]::Round((Get-Item -LiteralPath $replayZip).Length / 1MB, 1)) MB)"
+        } else {
+            Say '   Wiedergabe auf dem Geraet: KEINE Bilder (Protokoll: "GX replay")'
+        }
+        Remove-Item -LiteralPath $replayLocal -Recurse -ErrorAction SilentlyContinue
+    }
     # the memory card after the run (a copy; it stays on the device)
     $previousPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
@@ -774,6 +828,10 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     # the view: GX emulation (what the game draws) or the bridge
     $view = $keep | Where-Object { $_ -match 'RE4Core.*view: ' } | Select-Object -First 1
     Say "Ansicht:                          $(if ($view) { ($view -split 'view: ')[-1] } else { '?' })"
+    # the replay of R3 series (-GxReplay): the variants it drew
+    foreach ($line in @($keep | Where-Object { $_ -match 'GX replay' } | Select-Object -Last 12)) {
+        Say "Wiedergabe:                       $(($line -split 'RE4Core\s*:\s*', 2)[-1])"
+    }
     $gxReady = $keep | Where-Object { $_ -match 'GX renderer (ready|:)' } | Select-Object -First 1
     if ($gxReady) { Say "GX-Renderer:                      $(($gxReady -split 'RE4Core\s*:\s*')[-1])" }
     $gxStats = $keep | Where-Object { $_ -match 'RE4Core.*GX: \d+ chunks' } | Select-Object -Last 1
@@ -1018,6 +1076,10 @@ $sendMb = [math]::Round((Get-Item -LiteralPath $send).Length / 1MB, 1)
 $gxZip = Join-Path $OutDir 'gx-geraet.zip'
 $gxMb = if (Test-Path -LiteralPath $gxZip) { [math]::Round((Get-Item -LiteralPath $gxZip).Length / 1MB, 1) } else { 0 }
 Say ''
+$replayZip = Join-Path $OutDir 'gx-replay.zip'
+if (Test-Path -LiteralPath $replayZip) {
+    Say "Die Wiedergabe liegt in gx-replay.zip ($([math]::Round((Get-Item -LiteralPath $replayZip).Length / 1MB, 1)) MB, ebenfalls schicken)."
+}
 if ($gxMb -eq 0) {
     Say "Fertig. Bitte senden.zip ($sendMb MB) aus $OutDir schicken."
 } elseif ($gxMb -le 25) {

@@ -14,6 +14,7 @@
 #include "re4_gx_frame_io.h"
 
 #include <android/log.h>
+#include <dirent.h>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -732,9 +733,9 @@ void benchTick(std::chrono::steady_clock::time_point now) {
 }
 
 // The picture as the screen shows it (the XFB, the game's own size) into a 24-bit BMP.
-void SaveShot(const char *path) {
+void SaveShot(re4gx::GxRenderer &renderer, const char *path) {
   unsigned w = 0, h = 0;
-  if (!gx->Xfb(&w, &h) || !w || !h)
+  if (!renderer.Xfb(&w, &h) || !w || !h)
     return;
   if (!gxShotFbo || gxShotW != w || gxShotH != h) {
     if (!gxShotFbo)
@@ -752,7 +753,7 @@ void SaveShot(const char *path) {
   }
   glBindFramebuffer(GL_FRAMEBUFFER, gxShotFbo);
   glDisable(GL_SCISSOR_TEST);
-  gx->Present(0, 0, static_cast<int>(w), static_cast<int>(h));
+  renderer.Present(0, 0, static_cast<int>(w), static_cast<int>(h));
   std::vector<unsigned char> rgba(static_cast<size_t>(w) * h * 4);
   glReadPixels(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h), GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -786,6 +787,106 @@ void SaveShot(const char *path) {
     }
     std::fclose(f);
   }
+}
+
+void SaveShot(const char *path) { SaveShot(*gx, path); }
+
+// Diagnosis (RE4_GX_REPLAY: a folder with R3 series, gx-geraet-NN-KK.bin; the test script's
+// -GxReplay): the series drawn again on this device before the game's first picture, with the
+// options of each variant, the first one three times, each picture kept as this GPU drew it
+// (replay-VARIANT-ROUND-NN-KK.bmp in that folder). The cloud then sees whether this GPU draws the
+// same chunks the same every time and with which options a picture differs (thin branches went
+// paler for one picture with 2x MSAA on the Retroid only, 20.10.2026). Once per process; the
+// game waits meanwhile.
+bool gxReplayDone = false;
+
+void replayGx(int scale) {
+  if (gxReplayDone) return;
+  gxReplayDone = true;
+  const char *dir = getenv("RE4_GX_REPLAY");
+  if (!dir || !*dir) return;
+  std::vector<std::string> names;
+  if (DIR *d = opendir(dir)) {
+    while (const dirent *e = readdir(d)) {
+      const std::string n = e->d_name;
+      if (n.rfind("gx-geraet-", 0) == 0 && n.size() > 14 && n.compare(n.size() - 4, 4, ".bin") == 0) names.push_back(n);
+    }
+    closedir(d);
+  }
+  std::sort(names.begin(), names.end());
+  std::vector<std::unique_ptr<re4gxio::Loaded>> chunks;
+  std::vector<std::string> stems;  // "NN-KK"
+  for (const std::string &n : names) {
+    auto loaded = std::make_unique<re4gxio::Loaded>();
+    FILE *f = std::fopen((std::string(dir) + "/" + n).c_str(), "rb");
+    const bool ok = f && re4gxio::Read(f, *loaded);
+    if (f) std::fclose(f);
+    if (!ok) {
+      LOG("GX replay: %s not readable", n.c_str());
+      continue;
+    }
+    chunks.push_back(std::move(loaded));
+    stems.push_back(n.substr(10, n.size() - 14));
+  }
+  struct Variant {
+    const char *name;
+    int samples;
+    float anisotropy;
+    int rounds;
+  };
+  // as the R3 series of the flicker was made (2x MSAA, anisotropy 16), then without MSAA, with 4x,
+  // and without the anisotropic filter
+  static const Variant kVariants[] = {{"s2a16", 2, 16.0f, 3}, {"s1a16", 1, 16.0f, 1}, {"s4a16", 4, 16.0f, 1},
+                                      {"s2a1", 2, 1.0f, 1}};
+  LOG("GX replay: %zu chunks from %s, EFB scale %d", chunks.size(), dir, scale);
+  const char *cache = getenv("RE4_GX_PROGRAM_CACHE");
+  unsigned pictures = 0;
+  for (const Variant &v : kVariants) {
+    for (int round = 1; round <= v.rounds; round++) {
+      std::unique_ptr<re4gx::GxRenderer> r;
+      uint32_t lastSequence = 0, lastFrame = 0;
+      for (size_t i = 0; i < chunks.size(); i++) {
+        Re4GxChunk chunk = chunks[i]->chunk;
+        const bool follows = r && chunk.sequence == lastSequence + 1 && chunks[i]->frame == lastFrame + 1;
+        if (!follows) {
+          if (!(chunk.flags & RE4_GX_CHUNK_RESET)) {
+            LOG("GX replay: %s follows no picture before it, left out", stems[i].c_str());
+            continue;
+          }
+          // each series on a renderer of its own, as after R3 in the game
+          if (r) r->Release();
+          r = std::make_unique<re4gx::GxRenderer>();
+          re4gx::GxOptions options;
+          options.samples = v.samples;
+          options.anisotropy = v.anisotropy;
+          options.halfDof = optHalfDof.load() != 0;
+          r->SetOptions(options);
+          std::string error;
+          if (!r->Init(scale, &error)) {
+            LOG("GX replay %s: renderer: %s", v.name, error.c_str());
+            r.reset();
+            continue;
+          }
+          if (cache && *cache) r->SetProgramCache(cache);
+          chunk.flags &= ~RE4_GX_CHUNK_HOLD;
+        }
+        lastSequence = chunk.sequence;
+        lastFrame = chunks[i]->frame;
+        r->Run(chunk);
+        char path[512];
+        std::snprintf(path, sizeof(path), "%s/replay-%s-%d-%s.bmp", dir, v.name, round, stems[i].c_str());
+        SaveShot(*r, path);
+        pictures++;
+      }
+      if (r) {
+        LOG("GX replay %s round %d: %d samples%s, anisotropy %.0f", v.name, round, r->Samples(),
+            r->Samples() > 1 ? (r->TiledMsaa() ? " on the tiles" : " in own buffers") : "", r->Anisotropy());
+        r->Release();
+      }
+    }
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  LOG("GX replay: done, %u pictures", pictures);
 }
 
 // Runs the chunks the core has finished and shows the latest display copy.
@@ -823,6 +924,7 @@ bool drawGx() {
       const int rows = std::min(height, width * 9 / 16);
       scale = std::max(1, std::min(3, (rows + 168) / 336) - 1);
     }
+    replayGx(scale);
     gx = std::make_unique<re4gx::GxRenderer>();
     re4gx::GxOptions options;
     options.samples = std::max(1, optSamples.load());
