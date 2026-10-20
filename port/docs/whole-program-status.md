@@ -5140,7 +5140,10 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   endet mit Code 0. `--crash`: das Kind stürzt ab → „the game core process ended: signal 11“,
   `crash.txt` mit Stelle. `--missing`: „the core process does not start (…)“. `core_mode.cpp`,
   `core_ipc*.cpp`, `coreproc.cpp` für ARM32 und ARM64 mit Ersatz-Headern ohne Fehler und
-  Warnungen übersetzt (kein NDK in der Cloud: Download gesperrt).
+  Warnungen übersetzt (kein NDK in der Cloud: Download gesperrt); alle Java-Dateien der App gegen
+  Android 15 (android-all) übersetzt. `whole_build.sh i686 armhf x86_64 aarch64`: 0 Baufehler, alle
+  Prüfungen bestanden (auf 64 bit gibt es den Kernprozess nicht, dort prüft es, dass Lader und
+  GX-Warteschlange unverändert arbeiten).
 - **Nicht getestet:** auf einem Gerät (Retroid mit `-Abi armeabi-v7a -CoreProcess`, das
   Mobicel-Gerät des Testers), der Android-Build (NDK, Gradle, `useLegacyPackaging`), das Testskript
   (kein PowerShell in der Cloud), die Leistung (eine Kopie je GX-Bild), `memfd_create` unter
