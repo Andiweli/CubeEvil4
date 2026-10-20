@@ -233,6 +233,27 @@ Datei-Handle). Vom Kind: `HELLO`, `SEGMENT` (neues GX-Speicherstück).
   und Ende der „App“ (das Kind endet). In `whole_build.sh` für i686 und armhf.
 - Gerät: Retroid, `-Abi armeabi-v7a -CoreProcess`: bis r100, Ton, Film, Speichern/Laden, Menü.
 
+### Stand (20.10.2026, Cloud)
+
+Umgesetzt wie geplant (Einzelheiten und Prüfungen: Status-Datei, „32 bit: der Kern als eigener
+Prozess“): `host/coreproc.cpp` (Kernprogramm), `runtime/re4_core_ipc.h` + `core_ipc.cpp`
+(geteilter Speicher, Nachrichten), `runtime/re4_core_client.h` + `core_ipc_client.cpp` (Client der
+App), `core_mode.cpp` (`useCoreProcess`), `CoreActivity`/`CoreBridge`/`CoreLog` (Dialog, Bericht),
+`test-core-app.ps1 -CoreProcess`, `whole_build_android.sh` (Programm für `armeabi-v7a`), Linux-Prüfung
+`re4_core_remote_test` in `whole_build.sh`. Cloud: i686 und armhf bestanden. **Offen: der
+Gerätetest** (Retroid, dann das Mobicel-Gerät des Testers).
+
+Gerätetest (Windows-PC, Retroid per ADB):
+
+1. `test-core-app.ps1 -Abi armeabi-v7a -CoreProcess`: automatischer Start bis r100; im Bericht
+   „Kern im eigenen Prozess: ja (RE4_CORE_PROCESS=1), PID …“, „Spiel gestartet: ja“, Bilder,
+   Ton-Zähler, keine „Kernprozess-FEHLER“-Zeile.
+2. `test-core-app.ps1 -Abi armeabi-v7a -CoreProcess -SkipCore -SkipApk -Manual`: selbst spielen:
+   Vorfilm mit Ton, Titel, Laden/Speichern an der Schreibmaschine, Menü (SELECT), Debug-Menü
+   (SELECT halten), Vibration, Speicherkarten-Export im Menü.
+3. Gegenprobe ohne Schalter (`test-core-app.ps1`, 64 bit): alles wie bisher, „Kern im eigenen
+   Prozess: nein“.
+
 ## Parallel: Raumklang im DPL2-Modus (anderer Branch)
 
 Entscheidung des Projektinhabers (20.10.2026): Weg 1 für „Dolby Pro Logic II“ – im DPL2-Modus
