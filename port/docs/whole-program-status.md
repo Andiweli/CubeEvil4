@@ -5017,7 +5017,9 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   Kern in einem eigenen Prozess ohne Java laufen lassen (ein Programm aus dem Bibliotheksordner
   der App, Bilder, Ton und Eingaben über geteilten Speicher), (B) MEM1 auf 32 bit an eine andere
   Adresse legen (jede Stelle in Spiel und Plattform, die 0x80000000 annimmt, müsste umrechnen),
-  (C) vorerst nicht unterstützt. Beides (A, B) ist eine Grundsatzentscheidung; offen. Im
+  (C) vorerst nicht unterstützt. **Entscheidung des Projektinhabers (20.10.2026): Weg A**, der
+  Kern als eigener Prozess ohne Java; Übergabe an eine neue Sitzung:
+  `port/docs/32bit-kernprozess.md`. Im
   Releasetext der Alpha 4 als bekannter Fehler genannt. Nebenbei im Protokoll: der Startfehler-
   Dialog (`CoreActivity.showStartProblem`) bleibt beim Beenden offen („WindowLeaked“), harmlos.
 - **Touch: L und R wie echte Knöpfe, Einrasten wählbar (20.10.2026).** Bisher rasteten L und R
