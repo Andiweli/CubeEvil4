@@ -22,6 +22,10 @@ import android.util.Log;
  * (CoreBridge.audio4) go out as 5.1 and Android renders them as surround
  * (decision of the project owner, 20.10.2026: way 1). Checked about once a
  * second; a change builds the track anew.
+ *
+ * Of the track's buffer only what the output needs is kept filled (LatencyTuner: small at first,
+ * larger after underruns, API 24 and later): on Bluetooth Android asks for a large buffer, which
+ * kept full delayed the sound by about 280 ms on top of the headphones' own delay.
  */
 final class CoreAudio {
   private static final String TAG = "RE4Audio";
@@ -32,6 +36,10 @@ final class CoreAudio {
   private Thread worker;
   private volatile boolean running;
   private String lastState = "";
+  // the latency tuning of the current track (API 24 and later), and what it grew to on which
+  // output (its capacity): the next track there starts with it
+  private LatencyTuner tuner;
+  private int learnedFrames, learnedCapacity;
 
   CoreAudio(Context context) {
     this.context = context;
@@ -112,11 +120,37 @@ final class CoreAudio {
       track.release();
       throw new IllegalStateException("AudioTrack did not start");
     }
+    // only as much of the buffer as the output needs (LatencyTuner): Bluetooth asks for a large one
+    String used = "all of it";
+    tuner = null;
+    if (Build.VERSION.SDK_INT >= 24) {
+      final AudioManager manager = context.getSystemService(AudioManager.class);
+      final int burst = LatencyTuner.burst(
+          manager == null ? null : manager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER),
+          manager == null ? null : manager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE), RATE);
+      final int capacity = track.getBufferCapacityInFrames();
+      tuner = new LatencyTuner(capacity, burst, FRAMES, capacity == learnedCapacity ? learnedFrames : 0);
+      final int set = track.setBufferSizeInFrames(tuner.size());
+      used = (set > 0 ? set : tuner.size()) + " frames (" + (set > 0 ? set : tuner.size()) * 1000 / RATE
+          + " ms), grows on underruns";
+    }
     // with the state of the last check: every report has it, also after a resume
     Log.i(TAG, "sound: AudioTrack 32000 Hz " + (surround ? "5.1 (Dolby Pro Logic II, spatialized)" : "stereo")
-        + ", buffer " + bufferBytes / frameBytes + " frames (minimum " + minimum / frameBytes + "); "
-        + lastState.replaceFirst("^sound: ", ""));
+        + ", buffer " + bufferBytes / frameBytes + " frames (minimum " + minimum / frameBytes + "), used " + used
+        + "; " + lastState.replaceFirst("^sound: ", ""));
     return track;
+  }
+
+  /** After a write: a larger part of the buffer when the track ran out since the last check. */
+  private void tune(AudioTrack track) {
+    if (tuner == null || Build.VERSION.SDK_INT < 24) return;
+    final int underruns = track.getUnderrunCount();
+    if (!tuner.check(underruns)) return;
+    final int set = track.setBufferSizeInFrames(tuner.size());
+    learnedFrames = set > 0 ? set : tuner.size();
+    learnedCapacity = track.getBufferCapacityInFrames();
+    Log.i(TAG, "sound: buffer " + learnedFrames + " frames (" + learnedFrames * 1000 / RATE + " ms) after "
+        + underruns + " underruns");
   }
 
   private static void release(AudioTrack track) {
@@ -168,6 +202,7 @@ final class CoreAudio {
           if (written < 0) throw new IllegalStateException("AudioTrack write error " + written);
           offset += written;
         }
+        tune(track);
       }
     } catch (RuntimeException failure) {
       Log.w(TAG, "sound output ended", failure);

@@ -5101,7 +5101,18 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
     wird sie nur bei einer Änderung wiederholt: ob der Retroid einen Spatializer hat, ist offen.
     Jetzt steht der Zustand in jeder Zeile „sound: AudioTrack …“. Auffällig: „45 ran dry“ (Ton
     ohne Nachschub) in etwa 70 s mit Bluetooth-Kopfhörern (AudioTrack-Puffer 8988 statt 2568
-    Bilder), sonst etwa 5 – zu prüfen, ob man Aussetzer hört. **Nicht getestet:**
+    Bilder), sonst etwa 5 – zu prüfen, ob man Aussetzer hört. Projektinhaber: mit den AirPods
+    kam der Ton stark verzögert (Schüsse spät gehört). Ursache auf unserer Seite: Android
+    verlangt bei Bluetooth einen großen AudioTrack-Puffer (8988 Bilder, 280 ms), und die
+    blockierenden Schreibvorgänge hielten ihn ganz voll; dazu kommt die Verzögerung von
+    Bluetooth selbst (unter Android meist 150–250 ms, nicht änderbar). **Neu `LatencyTuner`**
+    (wie Oboes LatencyTuner, ab API 24): gefüllt wird nur ein Teil des Puffers, anfangs zwei
+    Mixer-Perioden (mindestens zwei Schreibvorgänge, 512 Bilder = 16 ms), nach neuen Aussetzern
+    der Spur (`getUnderrunCount`) je eine Periode mehr bis zur Kapazität; die nächste Spur auf
+    derselben Ausgabe beginnt mit dem Gelernten. Protokoll: „used … frames (… ms), grows on
+    underruns“ und „sound: buffer … frames (… ms) after … underruns“. `LatencyTunerTests` 14
+    Prüfungen; alle Java-Dateien gegen Android übersetzt. **Nicht getestet:** auf dem Gerät
+    (Verzögerung mit AirPods, Lautsprecher ohne Knackser). **Nicht getestet (Raumklang):**
     auf einem Gerät mit Raumklang (Spatializer), wie es klingt; ob der Retroid einen hat
     (steht dann im Bericht).
 - **Release 0.38.3 Alpha 4** (Projektinhaber, 20.10.2026: „Alpha4 fertig für heute“): Text
