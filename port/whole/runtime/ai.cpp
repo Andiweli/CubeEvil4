@@ -16,6 +16,12 @@
 //
 // RE4_AUDIO_WAV=file writes every block into a WAV file as well (checks;
 // RE4_AUDIO_WAV_SECONDS=N stops after N seconds of game time).
+//
+// A second ring holds the same frames as four channels (front left, front
+// right, rear left, rear right; re4_audio_read4): in the game's Dolby Pro
+// Logic II mode the DSP keeps the rear apart (runtime/dsp.cpp
+// re4_dsp_surround), otherwise the rear is silent. The app reads one of the
+// two (Android's spatializer for headphones, 20.10.2026).
 #include "re4_runtime.h"
 
 #include <atomic>
@@ -52,6 +58,10 @@ u32 gOverBudget;                // blocks in which AX stopped voices over its bu
 
 // the ring: interleaved left/right, written by the game thread, read by the app
 int16_t gRing[kRing * 2];
+// the same frames as front left, front right, rear left, rear right
+int16_t gRing4[kRing * 4];
+std::atomic<u32> gSurroundBlocks{0};  // blocks with Dolby Pro Logic II's rear
+std::atomic<u32> gSurroundAt{0};      // gBlocks at the last of them
 std::atomic<u32> gWrite{0}, gRead{0};
 std::atomic<u32> gOverruns{0}, gUnderruns{0}, gSkips{0};
 // the reader's resampling position between ring frames (16.16)
@@ -107,6 +117,23 @@ void play(u32 addr, u32 length)
         const u32 at = (w + i) & (kRing - 1);
         gRing[at * 2] = block[i * 2 + 1];
         gRing[at * 2 + 1] = block[i * 2];
+    }
+    static int16_t four[kBlockFrames * 4];
+    const bool surround = frames == kBlockFrames && re4_dsp_surround(addr, four);
+    for (u32 i = 0; i < frames; i++) {
+        const u32 at = (w + i) & (kRing - 1);
+        if (surround) {
+            memcpy(&gRing4[at * 4], &four[i * 4], 4 * sizeof(int16_t));
+        } else {
+            gRing4[at * 4] = block[i * 2 + 1];
+            gRing4[at * 4 + 1] = block[i * 2];
+            gRing4[at * 4 + 2] = 0;
+            gRing4[at * 4 + 3] = 0;
+        }
+    }
+    if (surround) {
+        gSurroundBlocks++;
+        gSurroundAt = gBlocks;
     }
     gWrite.store(w + frames, std::memory_order_release);
     if (gWav) {
@@ -193,11 +220,12 @@ unsigned re4_ai_blocks(void)
     return gBlocks;
 }
 
-// The sound for the device: `frames` stereo frames (left, right) at 32 kHz.
-// Always fills `out` (silence when the ring runs dry); returns the frames that
-// came from the game.
-int re4_audio_read(short* out, int frames)
+// The sound for the device: `frames` frames of `channels` (2: the ring, 4: the four-channel ring)
+// at 32 kHz. Always fills `out` (silence when the ring runs dry); returns the frames that came
+// from the game.
+static int readRing(short* out, int frames, int channels)
 {
+    const int16_t* ring = channels == 4 ? gRing4 : gRing;
     std::lock_guard<std::mutex> lock(gReadLock);
     u32 r = gRead.load(std::memory_order_relaxed);
     const u32 w = gWrite.load(std::memory_order_acquire);
@@ -216,13 +244,17 @@ int re4_audio_read(short* out, int frames)
     int got = 0;
     for (int i = 0; i < frames; i++) {
         if (w - r < 2) {
-            out[i * 2] = out[i * 2 + 1] = 0;
+            for (int c = 0; c < channels; c++) {
+                out[i * channels + c] = 0;
+            }
             continue;
         }
         const u32 a = r & (kRing - 1), b = (r + 1) & (kRing - 1);
         const int f = (int) (gFrac >> 4);  // 12 bits
-        out[i * 2] = (int16_t) (gRing[a * 2] + ((gRing[b * 2] - gRing[a * 2]) * f >> 12));
-        out[i * 2 + 1] = (int16_t) (gRing[a * 2 + 1] + ((gRing[b * 2 + 1] - gRing[a * 2 + 1]) * f >> 12));
+        for (int c = 0; c < channels; c++) {
+            const int16_t va = ring[a * channels + c], vb = ring[b * channels + c];
+            out[i * channels + c] = (int16_t) (va + ((vb - va) * f >> 12));
+        }
         got++;
         gFrac += step;
         r += gFrac >> 16;
@@ -238,6 +270,29 @@ int re4_audio_read(short* out, int frames)
     return got;
 }
 
+int re4_audio_read(short* out, int frames)
+{
+    return readRing(out, frames, 2);
+}
+
+// The same as four channels: front left, front right, rear left, rear right.
+int re4_audio_read4(short* out, int frames)
+{
+    return readRing(out, frames, 4);
+}
+
+// Blocks that carried Dolby Pro Logic II's rear so far (the app's choice of output, tests).
+unsigned re4_audio_surround_blocks(void)
+{
+    return gSurroundBlocks.load();
+}
+
+// 1 while the game plays in Dolby Pro Logic II (a block with the rear within the last 0.5 s).
+int re4_audio_surround_now(void)
+{
+    return gSurroundBlocks.load() != 0 && gBlocks - gSurroundAt.load() < 100;
+}
+
 // The frames in the ring as they are, without the reader's rate matching
 // (tests); returns how many there were.
 int re4_audio_take(short* out, int frames)
@@ -250,6 +305,24 @@ int re4_audio_take(short* out, int frames)
         const u32 a = r & (kRing - 1);
         out[got * 2] = gRing[a * 2];
         out[got * 2 + 1] = gRing[a * 2 + 1];
+    }
+    gRead.store(r, std::memory_order_release);
+    return got;
+}
+
+// The same frames with the four channels (tests): `out4` gets front left, front right, rear left,
+// rear right of each frame `out` gets.
+int re4_audio_take4(short* out, short* out4, int frames)
+{
+    std::lock_guard<std::mutex> lock(gReadLock);
+    u32 r = gRead.load(std::memory_order_relaxed);
+    const u32 w = gWrite.load(std::memory_order_acquire);
+    int got = 0;
+    for (; got < frames && r != w; got++, r++) {
+        const u32 a = r & (kRing - 1);
+        out[got * 2] = gRing[a * 2];
+        out[got * 2 + 1] = gRing[a * 2 + 1];
+        memcpy(&out4[got * 4], &gRing4[a * 4], 4 * sizeof(int16_t));
     }
     gRead.store(r, std::memory_order_release);
     return got;

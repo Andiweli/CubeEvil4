@@ -39,6 +39,14 @@ public final class CoreBridge {
    */
   public static native int audio(short[] pcm, int frames);
   /**
+   * The same sound as four channels per frame (front left, front right, rear left, rear right):
+   * the game's own rear in its Dolby Pro Logic II mode, otherwise a silent rear. The same
+   * position as audio(): read one of the two.
+   */
+  public static native int audio4(short[] pcm, int frames);
+  /** The game plays in Dolby Pro Logic II (its AUDIO SETUP): the rear of audio4 is its own. */
+  public static native boolean audioSurround();
+  /**
    * A vsync of the display (the Choreographer's frame time, System.nanoTime):
    * the game's video retraces follow the display (no drift against 60 Hz).
    */

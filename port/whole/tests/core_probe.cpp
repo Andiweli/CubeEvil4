@@ -355,6 +355,9 @@ void re4_ai_block(void);
 unsigned re4_ai_blocks(void);
 int re4_audio_take(short* out, int frames);
 int re4_audio_read(short* out, int frames);
+int re4_audio_take4(short* out, short* out4, int frames);
+unsigned re4_audio_surround_blocks(void);
+int re4_audio_surround_now(void);
 unsigned char* re4_aram(void);
 void AIInit(unsigned char* stack);
 }
@@ -495,6 +498,36 @@ static void auxEffect(void* data, void*)
         bus[0][i] = 1000;
         bus[1][i] = 0;
         bus[2][i] = 0;
+    }
+}
+
+// Dolby Pro Logic II's aux A effect (AX_AUX_DATA_DPL2: l, r, ls, rs): what it saw of Ls and Rs,
+// and a constant back on each channel
+static int gDpl2SeenLs, gDpl2SeenRs;
+static void auxEffectDpl2(void* data, void*)
+{
+    s32** bus = (s32**) data;
+    for (int i = 0; i < 160; i++) {
+        gDpl2SeenLs = bus[2][i] > gDpl2SeenLs ? bus[2][i] : gDpl2SeenLs;
+        gDpl2SeenRs = bus[3][i] > gDpl2SeenRs ? bus[3][i] : gDpl2SeenRs;
+        bus[0][i] = 100;
+        bus[1][i] = 200;
+        bus[2][i] = 300;
+        bus[3][i] = 400;
+    }
+}
+
+// `blocks` AI blocks; the stereo and the four channels of their last frame
+static void axRun4(int blocks, short last2[2], short last4[4])
+{
+    static short st[2 * 160], four[4 * 160];
+    for (int i = 0; i < blocks; i++) {
+        re4_ai_block();
+        int n;
+        while ((n = re4_audio_take4(st, four, 160)) > 0) {
+            memcpy(last2, &st[(n - 1) * 2], 2 * sizeof(short));
+            memcpy(last4, &four[(n - 1) * 4], 4 * sizeof(short));
+        }
     }
 }
 
@@ -649,6 +682,56 @@ extern "C" int re4probe_ax_test(void)
     AXSetVoiceState(p, 0);
     AXFreeVoice(p);
     axRun(4, out, 640);
+
+    // Dolby Pro Logic II (AXSetMode 2, the game's AUDIO SETUP; MIX puts the front on the main
+    // buses and the rear on aux B's left/right): the stereo has the rear mixed in as before, the
+    // four channels keep it apart (dsp.cpp, ai.cpp re4_audio_read4)
+    {
+        const unsigned surroundBefore = re4_audio_surround_blocks();
+        re4_audio_take(out, 160 * 40);  // what the reader test above left in the ring
+        AXSetMode(2);
+        p = AXAcquireVoice(5, 0, 0);
+        AX_CHECK(p != 0);
+        pcmVoice(p, 0x20000, 4000, 0, 0, -1);  // 3000 (dc3000 at 0x40000)
+        AXPBMIX mix;
+        memset(&mix, 0, sizeof(mix));
+        mix.vL = 0x4000;      // front left 1500
+        mix.vAuxBR = 0x8000;  // rear right 3000 (back a block later)
+        AXSetVoiceMix(p, &mix);
+        AXSetVoiceState(p, 1);
+        short st[2], four[4];
+        axRun4(10, st, four);
+        AX_CHECK(four[0] == 1500 && four[1] == 0 && four[2] == 0 && four[3] == 3000);
+        AX_CHECK(st[0] == 1500 && st[1] == 3000);
+        AX_CHECK(re4_audio_surround_blocks() > surroundBefore && re4_audio_surround_now() == 1);
+        // aux A in DPL2: the effect gets Ls from aux A S and Rs from aux B S (MIX's vBS), its
+        // returns go to the front and the rear; the stereo takes the effect's rear at half
+        gDpl2SeenLs = gDpl2SeenRs = 0;
+        AXRegisterAuxACallback(auxEffectDpl2, 0);
+        memset(&mix, 0, sizeof(mix));
+        mix.vAuxAS = 0x8000;  // aux A Ls 3000
+        mix.vAuxBS = 0x4000;  // aux A Rs 1500
+        AXSetVoiceMix(p, &mix);
+        axRun4(10, st, four);
+        AX_CHECK(gDpl2SeenLs == 3000 && gDpl2SeenRs == 1500);
+        AX_CHECK(four[0] == 100 && four[1] == 200 && four[2] == 300 && four[3] == 400);
+        AX_CHECK(st[0] == 100 + 150 && st[1] == 200 + 200);
+        AXRegisterAuxACallback(0, 0);
+        AXSetVoiceState(p, 0);
+        AXSetMode(0);
+        // stereo again: the four channels are the stereo and a silent rear; 0.5 s later the
+        // surround is over
+        pcmVoice(p, 0x20000, 4000, 0x8000, 0x4000, -1);
+        AXSetVoiceState(p, 1);
+        axRun4(10, st, four);
+        AX_CHECK(st[0] == 3000 && st[1] == 1500 && four[0] == 3000 && four[1] == 1500 && four[2] == 0 &&
+                 four[3] == 0);
+        axRun4(100, st, four);
+        AX_CHECK(re4_audio_surround_now() == 0);
+        AXSetVoiceState(p, 0);
+        AXFreeVoice(p);
+        axRun(4, out, 640);
+    }
 
     // AX's DSP budget (dsp.cpp DSPAddTask): 40 voices on every bus with ramps
     // stay; with the GameCube's 405000 cycles AX stops some of them

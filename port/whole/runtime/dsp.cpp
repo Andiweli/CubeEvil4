@@ -18,7 +18,9 @@
 //   0x04 / 0x05   aux A / B: the bus goes to the CPU's effect (AXAux.c, an
 //                 AXFX reverb, read two blocks later), the effect's output of
 //                 two blocks ago is added to the main mix
-//   0x13 / 0x10   the same for Dolby Pro Logic II (four channels, mixed down)
+//   0x13 / 0x10   the same for Dolby Pro Logic II (four channels: front left/right
+//                 on the main buses, the rear (Ls, Rs) on aux B's left/right;
+//                 aux A's effect gets L, R, Ls (aux A S) and Rs (aux B S))
 //   0x12          the compressor (not done; the output is clamped as by the DSP)
 //   0x0E          output: surround to the CPU buffer, left/right as 16 bit into
 //                 the block the AI plays (right first, then left)
@@ -30,7 +32,11 @@
 //
 // Not rebuilt: the polyphase filters of the DSP ROM (a 4-point cubic
 // interpolation takes their place; linear stays linear), the time delay of
-// AXSetVoiceItdOn, the compressor; Dolby Pro Logic II is mixed down to stereo.
+// AXSetVoiceItdOn, the compressor, Dolby Pro Logic II's matrix encoding: the
+// stereo the AI plays has the rear mixed into left and right (as before
+// 20.10.2026), and the four channels of each block stay apart for the app
+// (re4_dsp_surround: Android's spatializer can render them for headphones;
+// decision of the project owner, 20.10.2026).
 #include "dolphin/ax.h"
 #include "dolphin/dsp.h"
 
@@ -47,6 +53,21 @@ const int kFrame = 5 * kMs;      // samples per AI block
 
 enum Bus { L, R, S, AL, AR, AS, BL, BR, BS, kBuses };
 s32 gBus[kBuses][kFrame];
+// Dolby Pro Logic II's rear (Ls, Rs) of the block being mixed: the main mix's (the aux B buses,
+// back from the 0x10 round trip) and aux A's effect return (0x13). The stereo output adds them
+// to left and right (the main rear fully, the effect's at half); the four channels keep them.
+s32 gRearMain[2][kFrame], gRearAux[2][kFrame];
+bool gRearUsed;
+
+// The four channels of the last blocks mixed in Dolby Pro Logic II, by the AI block's address
+// (AXOut fills two or three blocks in turn); runtime/ai.cpp takes them when the block plays.
+struct SurroundBlock {
+    u32 addr;
+    bool ready;
+    s16 pcm[kFrame * 4];  // front left, front right, rear left, rear right
+};
+SurroundBlock gSurround[4];
+unsigned gSurroundNext;
 
 // ---------------------------------------------------------------- the DSP task
 DSPTaskInfo* gTask;
@@ -87,6 +108,9 @@ void setup(u32 studioAddr)
             v += delta;
         }
     }
+    memset(gRearMain, 0, sizeof(gRearMain));
+    memset(gRearAux, 0, sizeof(gRearAux));
+    gRearUsed = false;
 }
 
 // ------------------------------------------------ 0x07 / 0x11: last surround
@@ -363,9 +387,11 @@ void aux(int first, u32 toCpu, u32 fromCpu)
     }
 }
 
-// ----------------------- 0x13 / 0x10: Dolby Pro Logic II, mixed down to stereo
-// Aux A: L, R and surround go out (the surround channel twice, as Ls and Rs);
-// back come L, R, Ls, Rs (surrounds into both sides). Aux B: L/R out, L/R back.
+// ------------------------------------------- 0x13 / 0x10: Dolby Pro Logic II
+// Aux A (0x13): L, R and Ls (aux A S) go out in one buffer, Rs (aux B S: MIX's vBS in the DPL2
+// mode) in a second (AXAux.c __AXGetAuxAInputDpl2; until 20.10.2026 aux A S went out twice);
+// back come L, R (front) and Ls, Rs (rear). Aux B (0x10): the main rear (aux B L/R) goes out
+// and comes back a block later (AXAux.c's two DPL2 positions).
 void auxDpl2A(const u16* p)
 {
     s32* inLR = ptr<s32>(hilo(p[0], p[1]));
@@ -376,16 +402,19 @@ void auxDpl2A(const u16* p)
         memcpy(inLR + 2 * kFrame, gBus[AS], sizeof(gBus[0]));
     }
     if (inRs) {
-        memcpy(inRs, gBus[AS], sizeof(gBus[0]));
+        memcpy(inRs, gBus[BS], sizeof(gBus[0]));
     }
     const s32* l = ptr<const s32>(hilo(p[4], p[5]));
     const s32* r = ptr<const s32>(hilo(p[6], p[7]));
     const s32* ls = ptr<const s32>(hilo(p[8], p[9]));
     const s32* rs = ptr<const s32>(hilo(p[10], p[11]));
     for (int i = 0; i < kFrame; i++) {
-        gBus[L][i] += (l ? l[i] : 0) + (ls ? ls[i] / 2 : 0);
-        gBus[R][i] += (r ? r[i] : 0) + (rs ? rs[i] / 2 : 0);
+        gBus[L][i] += l ? l[i] : 0;
+        gBus[R][i] += r ? r[i] : 0;
+        gRearAux[0][i] += ls ? ls[i] : 0;
+        gRearAux[1][i] += rs ? rs[i] : 0;
     }
+    gRearUsed = true;
 }
 
 void auxDpl2B(const u16* p)
@@ -398,10 +427,11 @@ void auxDpl2B(const u16* p)
     }
     if (back) {
         for (int i = 0; i < kFrame; i++) {
-            gBus[L][i] += back[i];
-            gBus[R][i] += back[kFrame + i];
+            gRearMain[0][i] += back[i];
+            gRearMain[1][i] += back[kFrame + i];
         }
     }
+    gRearUsed = true;
 }
 
 // --------------------------------------------------------- 0x0E: the output
@@ -414,9 +444,33 @@ void output(u32 surroundAddr, u32 blockAddr)
     if (!block) {
         return;
     }
+    // the stereo: the rear into left and right, the main rear fully, the effect's at half
     for (int i = 0; i < kFrame; i++) {
-        block[i * 2] = clamp16(gBus[R][i]);
-        block[i * 2 + 1] = clamp16(gBus[L][i]);
+        block[i * 2] = clamp16(gBus[R][i] + gRearMain[1][i] + gRearAux[1][i] / 2);
+        block[i * 2 + 1] = clamp16(gBus[L][i] + gRearMain[0][i] + gRearAux[0][i] / 2);
+    }
+    SurroundBlock* sb = 0;
+    for (SurroundBlock& b : gSurround) {
+        if (b.addr == blockAddr) {
+            sb = &b;
+        }
+    }
+    if (!gRearUsed) {
+        if (sb) {
+            sb->ready = false;
+        }
+        return;
+    }
+    if (!sb) {
+        sb = &gSurround[gSurroundNext++ % 4];
+    }
+    sb->addr = blockAddr;
+    sb->ready = true;
+    for (int i = 0; i < kFrame; i++) {
+        sb->pcm[i * 4] = clamp16(gBus[L][i]);
+        sb->pcm[i * 4 + 1] = clamp16(gBus[R][i]);
+        sb->pcm[i * 4 + 2] = clamp16(gRearMain[0][i] + gRearAux[0][i]);
+        sb->pcm[i * 4 + 3] = clamp16(gRearMain[1][i] + gRearAux[1][i]);
     }
 }
 
@@ -484,6 +538,21 @@ void run(const u16* p)
 }  // namespace
 
 extern "C" {
+
+// The four channels of the AI block at `blockAddr` (front left, front right, rear left, rear
+// right; 160 frames) when the DSP mixed it in Dolby Pro Logic II: 1, and taken; else 0
+// (runtime/ai.cpp, when the block plays).
+int re4_dsp_surround(unsigned blockAddr, short* out)
+{
+    for (SurroundBlock& b : gSurround) {
+        if (b.ready && b.addr == blockAddr) {
+            memcpy(out, b.pcm, sizeof(b.pcm));
+            b.ready = false;
+            return 1;
+        }
+    }
+    return 0;
+}
 
 // For the log and tests: command lists run so far, voice milliseconds mixed
 // so far, the most voices running in one frame since the last call.

@@ -4886,6 +4886,16 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   `build.gradle` nehmen**, nie fest in den Code schreiben. Geprüft: Menü (`CoreMenu.version`),
   Startbildschirm (`MainActivity.versionName`) und Fehlerbericht (`CoreLog`) lesen sie aus der
   App; sonst steht keine Versionsnummer im Code der App.
+- **Neue Nummerierung ab der nächsten Alpha (Entscheidung des Projektinhabers, 20.10.2026):** die
+  bisherige Form „0.38.x-AlphaN“ hatte zwei Zähler, die immer gemeinsam stiegen („0.38“ stammt
+  aus der internen Zählung der früheren App, zuletzt „0.37.17-fix6“). Ab jetzt: jede neue Alpha
+  erhöht die mittlere Zahl (nächste **0.39.0**, danach 0.40.0, …), nur ein dringender
+  Fehler-Nachtrag (Hotfix) die letzte (0.39.1, 0.39.2 …). Die Nummern steigen immer (Werkzeuge
+  wie Obtainium vergleichen sie). `versionName` mit dem Zusatz „-alpha“ (`'0.39.0-alpha'`, Menü
+  „(v0.39.0-alpha)“), `versionCode` zählt weiter (60, 61 …). Tag, Release-Titel und APK-Name
+  gleich: `v0.39.0-alpha`, „CubeEvil4 v0.39.0 (Alpha)“, `CubeEvil4-v0.39.0-alpha.apk`; der
+  Releasetext nennt die neue Nummerierung einmal. Später: Beta etwa `0.9.0-beta`, `1.0.0`
+  wenn das ganze Spiel durchspielbar ist.
 - **FPS-Anzeige mit der Rate des Bildschirms (Wunsch des Projektinhabers, 20.10.2026):** der
   Tester mit 120-Hz-Bildschirm (POCO X7 Pro) sah im Zähler des Handys 60, in unserem 30: unser
   Zähler zählt die Spielbilder (ein Controller-Lesen je Bild; das Spiel macht wie auf dem
@@ -5065,6 +5075,69 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   hinteren Kanäle getrennt an Android geben (Androids Raumklang für Kopfhörer, z. B. AirPods,
   wo das Gerät ihn hat; sonst wie heute), im Branch `claude/re4-dpl2-raumklang`. Weg 2 (eigener
   Kopfhörer-Raumklang in der App) später vielleicht als Ergänzung.
+- **DPL2 Weg 1 umgesetzt (20.10.2026, Branch `claude/re4-dpl2-raumklang`).** Aufbau im
+  DPL2-Modus (SDK `AXCL.c`, `AXAux.c`, `mix.c`): vorne auf den Haupt-Bussen L/R, hinten (Ls,
+  Rs) auf den Bussen von Aux B L/R (MIX `vBL`/`vBR`), Hall-Eingang Aux A mit L, R, Ls (Aux A S)
+  und Rs (**Aux B S**, MIX `vBS`). Befehl 0x10 schickt die hinteren Kanäle durch den
+  DPL2-Puffer von Aux B (zurück einen Block später), 0x13 den Hall (Rückgabe L, R, Ls, Rs).
+  - **`runtime/dsp.cpp`:** die hinteren Kanäle getrennt (`gRearMain`: der Rückweg von 0x10,
+    `gRearAux`: der Hall); die Stereo-Ausgabe an den AI wie bisher (hinten Haupt voll, Hall
+    halb auf die gleiche Seite: bitgleich zu vorher); dazu je AI-Block die vier Kanäle (vorne
+    links, vorne rechts, hinten links, hinten rechts; Hall voll), abrufbar mit
+    `re4_dsp_surround(blockAdresse)`. **Fehler behoben:** der Hall bekam als Rs bisher Aux A S
+    ein zweites Mal statt Aux B S.
+  - **`runtime/ai.cpp`:** zweiter Ring mit vier Kanälen (außerhalb DPL2: vorne = Stereo,
+    hinten still), Leser `re4_audio_read4` mit derselben Stelle und Takt-Anpassung wie
+    `re4_audio_read` (die App liest einen der beiden), `re4_audio_surround_now` (ein
+    DPL2-Block in den letzten 0,5 s). Kern-Schnittstelle: `re4_core_audio4`,
+    `re4_core_audio_surround` (beide optional für die App).
+  - **App:** `CoreAudio` (Kontext der Aktivität) prüft etwa jede Sekunde: das Spiel in DPL2 und
+    Androids `Spatializer` (ab Android 12L) vorhanden, verfügbar, eingeschaltet und bereit für
+    5.1 bei der jetzigen Ausgabe (`canBeSpatialized`) → AudioTrack 32 kHz 5.1
+    (`SurroundPcm.fivePointOne`: vorne, Mitte und Tiefton still, hinten), sonst Stereo wie
+    bisher; ein Wechsel baut die Ausgabe neu. Protokoll „sound: game … ; spatializer …“ bei
+    jeder Änderung, „sound: AudioTrack 32000 Hz 5.1 …“; Bericht `test-core-app.ps1`: Zeilen
+    „Raumklang“ und „Tonausgabe“. JNI `CoreBridge.audio4`, `CoreBridge.audioSurround` (ein
+    Kern ohne die Funktionen: Stereo, hinten still).
+  - **Geprüft (Cloud):** Kern-Test `ax` neu: DPL2 mit einer Stimme vorne links (1500) und
+    hinten rechts (3000): vier Kanäle 1500/0/0/3000, Stereo 1500/3000; Hall in DPL2: der
+    Effekt sieht Ls 3000 und Rs 1500 (mit dem alten Fehler 3000: die Gegenprobe scheitert),
+    Rückgabe 100/200/300/400 in den vier Kanälen, Stereo 250/400; zurück in Stereo: hinten
+    still, nach 0,5 s kein Raumklang mehr. `SurroundPcmTests` 3 Prüfungen; alle Java-Dateien
+    gegen Android übersetzt; `core_mode.cpp` 32/64 bit ohne neue Warnungen;
+    `whole_build.sh i686 aarch64`: 0 Fehler, alle Prüfungen bestanden. **Gerätelauf Retroid mit
+    AirPods Pro (20.10.2026, Stand `e3e5e7b3`):** Kern und App gebaut, Spiel läuft (Spielstand
+    r105 geladen), Ausgabe Stereo. Das Protokoll ist abgeschnitten (299 Zeilen, der Anfang
+    fehlt), die erste Zeile „sound: game … spatializer …“ ist nicht darin, nach dem Fortsetzen
+    wird sie nur bei einer Änderung wiederholt: ob der Retroid einen Spatializer hat, ist offen.
+    Jetzt steht der Zustand in jeder Zeile „sound: AudioTrack …“. Auffällig: „45 ran dry“ (Ton
+    ohne Nachschub) in etwa 70 s mit Bluetooth-Kopfhörern (AudioTrack-Puffer 8988 statt 2568
+    Bilder), sonst etwa 5 – zu prüfen, ob man Aussetzer hört. Projektinhaber: mit den AirPods
+    kam der Ton stark verzögert (Schüsse spät gehört). Ursache auf unserer Seite: Android
+    verlangt bei Bluetooth einen großen AudioTrack-Puffer (8988 Bilder, 280 ms), und die
+    blockierenden Schreibvorgänge hielten ihn ganz voll; dazu kommt die Verzögerung von
+    Bluetooth selbst (unter Android meist 150–250 ms, nicht änderbar). **Neu `LatencyTuner`**
+    (wie Oboes LatencyTuner, ab API 24): gefüllt wird nur ein Teil des Puffers, anfangs zwei
+    Mixer-Perioden (mindestens zwei Schreibvorgänge, 512 Bilder = 16 ms), nach neuen Aussetzern
+    der Spur (`getUnderrunCount`) je eine Periode mehr bis zur Kapazität; die nächste Spur auf
+    derselben Ausgabe beginnt mit dem Gelernten. Protokoll: „used … frames (… ms), grows on
+    underruns“ und „sound: buffer … frames (… ms) after … underruns“. `LatencyTunerTests` 14
+    Prüfungen; alle Java-Dateien gegen Android übersetzt.
+    **Gerätelauf Retroid, Lautsprecher (20.10.2026, Stand `de48f7fa`):** „spatializer: not on
+    this device“ – der Retroid hat keinen Raumklang, die App bleibt bei Stereo (wie gewollt);
+    die DPL2-Erkennung wechselt richtig („game in Dolby Pro Logic II“, später „not in“). Puffer:
+    Start 512 Bilder (16 ms), in den ersten 2 s sechs Aussetzer, dann ruhig bei 1280 (40 ms,
+    vorher immer 80 ms); „6 ran dry“ wie früher. **Danach:** Start mit mindestens vier
+    Schreibvorgängen (1024 Bilder, 32 ms), das Gelernte bleibt je Ausgabe (Kapazität der Spur)
+    in den Einstellungen (`core_audio`, „frames<Kapazität>“) auch über einen Neustart der App;
+    `LatencyTunerTests` 14 Prüfungen. **Gerätelauf mit Kopfhörern (20.10.2026, Stand
+    `a9571028`):** die Spur beginnt mit dem Gelernten (1280 Bilder, 40 ms, ohne neue Aussetzer;
+    das Spiel in DPL2, Ausgabe Stereo, kein Spatializer). Projektinhaber: mit anderen Kopfhörern
+    ist die Verzögerung nicht so groß; die starke Verzögerung liegt an den AirPods und an
+    Bluetooth (nicht an der App). Im Bericht „17 ran dry“ in 120 s (sonst etwa 6) – beobachten.
+    **Nicht getestet (Raumklang):**
+    auf einem Gerät mit Raumklang (Spatializer), wie es klingt; ob der Retroid einen hat
+    (steht dann im Bericht).
 - **Release 0.38.3 Alpha 4** (Projektinhaber, 20.10.2026: „Alpha4 fertig für heute“): Text
   `port/android-decomp/docs/releases/v0.38.3-alpha4.md`, APK `CubeEvil4-v0.38.3-alpha4.apk`,
   `versionName '0.38.3-Alpha4'`, `versionCode` 59 (`app/build.gradle`; das Menü zeigt
