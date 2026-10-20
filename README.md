@@ -6,7 +6,7 @@
 ![Android 6.0+](https://img.shields.io/badge/Android-6.0%2B-3DDC84?logo=android&logoColor=white)
 ![ARM 32/64-bit](https://img.shields.io/badge/ARM-32%2F64--bit-0091BD?logo=arm&logoColor=white)
 ![OpenGL ES 3.0+](https://img.shields.io/badge/OpenGL%20ES-3.0%2B-5586A4?logo=opengl&logoColor=white)
-![Controller only](https://img.shields.io/badge/Input-Controller%20only-9A1B1C)
+![Controller or touch](https://img.shields.io/badge/Input-Controller%20%7C%20Touch-9A1B1C)
 
 [![Join The Lair on Discord](https://img.shields.io/badge/Discord-The%20Lair-5865F2?logo=discord&logoColor=white)](https://discord.gg/AB3WVBqD5G)
 [![Support via PayPal](https://img.shields.io/badge/Support%20via-PayPal-0070BA?logo=paypal&logoColor=white)](https://paypal.me/andiweli)
@@ -34,8 +34,10 @@ data: you need your own images of both debug discs.
 - Sound: the original SDK sound libraries with an emulated DSP; movies through the original CRI
   middleware with picture and ADX sound.
 - Memory card as a file inside the app, with `.gci` import and export (Dolphin, GameCube).
-- Controller like the GameCube pad, with vibration. SELECT opens the app menu (graphics,
-  memory card, error report); holding SELECT opens the game's own debug menu.
+- Controller like the GameCube pad, with vibration, or a second layout (Alternate Controls,
+  aiming with the right stick); touch controls when no controller is connected; gyro aiming.
+  SELECT opens the app menu (graphics, controls, memory card, error report); holding SELECT
+  opens the game's own debug menu.
 - Android 6.0 or later, OpenGL ES 3.0.
 
 ## Requirements
@@ -64,11 +66,12 @@ Tested on the following devices:
 - Retroid Pocket Flip 2 (Android 13)
 - POCO X7 Pro (Android 16)
 
-32 and 64 bit: title, opening movie, the police car ride and the start of the village (stage 1-1); saving and loading on the
-device in 32 bit and in the PC check in 64 bit. On the PC, a comparison run plays the 32- and
-64-bit core with the same input through these parts and finds every frame and every compared
-picture identical. Later rooms have not been played through yet; that is the next step (a tour
-of many rooms). Progress, test results and every patch are recorded in
+32 and 64 bit: title, opening movie, the police car ride and the village of chapter 1; saving at
+the typewriter and loading on 32- and 64-bit devices. Testers have played on to the church (its
+light puzzle works since v0.38.2). On the PC, a comparison run plays the 32- and 64-bit core
+with the same input through the first parts and finds every frame and every compared picture
+identical. Later chapters have not been played through yet; that is the next step (a tour of
+many rooms). Progress, test results and every patch are recorded in
 `port/docs/whole-program-status.md` (German).
 
 > [!IMPORTANT]
@@ -81,8 +84,10 @@ leave the game (and a save made afterwards) in an odd state. Such problems come 
 
 **You need**
 
-- An Android device with Android 6.0 or later, OpenGL ES 3.0 and a 32- or 64-bit ARM processor.
-- A game controller (built in, USB or Bluetooth). There are no touch controls at the moment. 
+- An Android device with Android 6.0 or later, OpenGL ES 3.0 and a 32- or 64-bit ARM processor
+  (details and recommendations: [Requirements](#requirements)).
+- A game controller (built in, USB or Bluetooth) or the touch screen: the touch controls appear
+  on their own when no controller is connected.
 - Your own disc images (ISO or GCM) of **both** discs of the GameCube debug build from
   November 25, 2004 (`G4BE08`), and enough free storage to import them.
 
@@ -96,25 +101,31 @@ leave the game (and a save made afterwards) in an odd state. Such problems come 
 
 **SELECT button**
 
-- **Press SELECT:** the app menu: graphics (resolution, anti-aliasing, texture filter, 16:9 or
-  4:3 picture, FPS display, depth of field), memory card (export and import saves as `.gci` for
-  Dolphin and the GameCube) and the error log (send or save a report). B returns to the game.
+- **Press SELECT** (with touch controls: **MENU**): the app menu: graphics (resolution,
+  anti-aliasing, texture filter, 16:9 or 4:3 picture, FPS display, depth of field), controls
+  (touch controls, gyro aiming, Alternate Controls), memory card (export and import saves as
+  `.gci` for Dolphin and the GameCube) and the error log (send or save a report). B returns to
+  the game.
 - **Hold SELECT for a second:** the game's own debug menu (use with care, see Status: some of
   its options can break the game in ways the port has nothing to do with).
 
 **Buttons**
 
-| Controller | GameCube | In the game |
-|---|---|---|
-| A, B, X, Y | A, B, X, Y | by their labels |
-| Left stick | Control stick | move |
-| Right stick | C stick | |
-| D-pad | D-pad | |
-| START | START | |
-| R2 | R | ready weapon |
-| L2 | L | knife |
-| R1 | Z | map |
-| SELECT | – | app menu (hold: debug menu) |
+| Controller | GameCube | In the game | Alternate Controls |
+|---|---|---|---|
+| A, B, X, Y | A, B, X, Y | by their labels | A, B as before; X Ashley; Y map |
+| Left stick | Control stick | move | move |
+| Right stick | C stick | | aim while L1 or L2 is held |
+| D-pad | D-pad | | as before |
+| START | START | | as before |
+| R2 | R | ready weapon | fire, or slash with the knife ready |
+| L2 | L | knife | ready weapon (aim) |
+| R1 | Z | map | inventory (weapons and recovery) |
+| L1 | – | | ready the knife |
+| SELECT | – | app menu (hold: debug menu) | as before |
+
+Alternate Controls is a switch in the app menu (Controls). With gyro aiming switched on, turning
+the device left, right, up or down moves the aim while you aim a gun.
 
 The controller (or the device) vibrates where the game uses the rumble, if it can.
 
