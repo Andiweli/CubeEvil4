@@ -4967,6 +4967,23 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   Fehler nicht). Syntaxprüfung 64 und 32 bit ohne neue Warnungen. **Nicht getestet:** auf dem Gerät
   (Wiedergabe derselben Reihe: Bild 06 darf in keiner MSAA-Variante mehr springen; im Spiel
   mit 2× die Äste vor den Häusern).
+- **Nächster Bugfix (gemerkt, Rückmeldung eines Testers zum Gyro-Zielen, 20.10.2026):**
+  1. „Links und rechts zielt man durch Kippen wie bei einem Rennspiel (Lenkrad), nicht durch
+     Drehen (Gieren) wie in den meisten Shootern; sehr unintuitiv.“ Im Code: `GyroAim.java`
+     nimmt für links/rechts die Drehung um die Achse durch den Bildschirm (`event.values[2]`),
+     wie der erste Port; Shooter nehmen die Drehung um die senkrechte Achse des Bildschirms (im
+     Querformat je nach Drehung die x-Achse des Geräts, `values[0]`, Vorzeichen nach
+     `getRotation`). Vorhaben: Gieren als Standard; das Lenkrad vielleicht als Wahl im Menü
+     (vorher fragen).
+  2. „Der rechte Stick wirkt beim Zielen nicht gleichzeitig mit dem Gyro; vielleicht geht das
+     beim GameCube-Spiel gar nicht.“ In der Standardbelegung zielt das Spiel mit dem Hauptstick
+     (linker Stick); ob der C-Stick beim Zielen im Spiel selbst etwas tut, prüfen. In „Alternate
+     Controls“ zielt ab Alpha 4 der rechte Stick (`CoreInput`: beim Zielen wird er zum
+     Hauptstick). Prüfen: Stick und Gyro zusammen (`gyro.cpp` dreht `pl->ang.y` und `m3r` dazu;
+     `PlWepLockRand` zieht `m3r` zur Mitte zurück, wenn der Stick ruht): geht der Gyro-Anteil
+     verloren, sobald der Stick sich bewegt? Wenn der C-Stick beim Zielen im Spiel nichts tut:
+     ihn in der Standardbelegung beim Zielen wie in „Alternate Controls“ mitnehmen (vorher
+     fragen).
 - **Für die nächste Alpha (nach v0.38.2 Alpha 3) bisher:** Version im Menü „(v…)“, FPS-Anzeige
   „30 FPS (Game) · 60 Hz“, Zielen mit dem rechten Stick in „Alternate Controls“; MSAA-Flackern
   dünner Dinge behoben (Uniform-Ring wechselt nur zwischen Bildern; wenn der Gerätetest es
