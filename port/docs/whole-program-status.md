@@ -5119,7 +5119,11 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
     vorher immer 80 ms); „6 ran dry“ wie früher. **Danach:** Start mit mindestens vier
     Schreibvorgängen (1024 Bilder, 32 ms), das Gelernte bleibt je Ausgabe (Kapazität der Spur)
     in den Einstellungen (`core_audio`, „frames<Kapazität>“) auch über einen Neustart der App;
-    `LatencyTunerTests` 14 Prüfungen. **Nicht getestet:** mit AirPods (Verzögerung).
+    `LatencyTunerTests` 14 Prüfungen. **Gerätelauf mit Kopfhörern (20.10.2026, Stand
+    `a9571028`):** die Spur beginnt mit dem Gelernten (1280 Bilder, 40 ms, ohne neue Aussetzer;
+    das Spiel in DPL2, Ausgabe Stereo, kein Spatializer). Projektinhaber: mit anderen Kopfhörern
+    ist die Verzögerung nicht so groß; die starke Verzögerung liegt an den AirPods und an
+    Bluetooth (nicht an der App). Im Bericht „17 ran dry“ in 120 s (sonst etwa 6) – beobachten.
     **Nicht getestet (Raumklang):**
     auf einem Gerät mit Raumklang (Spatializer), wie es klingt; ob der Retroid einen hat
     (steht dann im Bericht).
