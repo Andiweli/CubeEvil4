@@ -14,8 +14,11 @@ import java.util.Set;
  * START), the D-pad (also for the game's menus), the move stick as the control
  * stick and the right look zone as the C stick (decision of the project owner,
  * 19.10.2026); MENU is the app's SELECT (pressed: the app's menu, held for a
- * second: the game's debug menu). L and R stay pressed after a tap until the
- * next tap: one thumb cannot hold R (ready the weapon) and tap A (fire).
+ * second: the game's debug menu). L and R are held while the finger is on
+ * them, as real buttons; with the menu's "Latch L and R" (setLatch) a tap keeps
+ * them pressed until the next tap: one thumb cannot hold R (ready the weapon)
+ * and tap A (fire). Latching was the only way until 20.10.2026; since then a
+ * switch, off unless chosen (decision of the project owner).
  *
  * The look zone reports how far a finger moved, not where it is. The C stick
  * is the way the finger went since it went down (LOOK_RANGE of the screen's
@@ -98,7 +101,8 @@ final class CoreTouch {
 
   private final CoreInput input;
   private final Host host;
-  private boolean l, r;
+  private boolean l, r;  // latched (only with latch)
+  private boolean latch;
   // the way the looking fingers went since the first of them went down (shares of the shorter side)
   private float lookX, lookY;
   private final Set<Integer> lookFingers = new HashSet<>();
@@ -144,7 +148,7 @@ final class CoreTouch {
     if (down) answered = true;
     if (MENU.equals(action)) {
       host.select(down);
-    } else if (L.equals(action) || R.equals(action)) {
+    } else if (latch && (L.equals(action) || R.equals(action))) {
       if (!down) return;
       boolean on = L.equals(action) ? (l = !l) : (r = !r);
       input.touchButton(gcButton(action), on);
@@ -199,6 +203,25 @@ final class CoreTouch {
   boolean looking() { return !lookFingers.isEmpty(); }
 
   boolean latched(String action) { return L.equals(action) ? l : R.equals(action) && r; }
+
+  /** The menu's switch: L and R latch by a tap (on) or are held while the finger is on them. */
+  void setLatch(boolean on) {
+    if (on == latch) return;
+    latch = on;
+    // what either way held goes
+    releaseLR();
+  }
+
+  boolean latch() { return latch; }
+
+  private void releaseLR() {
+    if (l) host.latched(L, false);
+    if (r) host.latched(R, false);
+    l = false;
+    r = false;
+    input.touchButton(CoreInput.GC_L, false);
+    input.touchButton(CoreInput.GC_R, false);
+  }
 
   private void centreLook() {
     lookX = 0;

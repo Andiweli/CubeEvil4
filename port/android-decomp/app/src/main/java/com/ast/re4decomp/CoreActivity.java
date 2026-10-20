@@ -84,6 +84,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   static final String GYRO_AIM = "gyroAiming";
   // the menu's switch "Alternate Controls" (CoreInput.setAlternate)
   static final String ALT_CONTROLS = "alternateControls";
+  // the menu's switch "Latch L and R" of the touch controls (CoreTouch.setLatch; off: held while touched)
+  static final String TOUCH_LATCH = "touchLatchLR";
   /** The menu's picture options: scale (0 auto, 1-4), samples, anisotropy, aspect (0 16:9, 1 4:3). */
   static final String GRAPHICS_PREFS = "core_graphics";
   private static final int REQUEST_EXPORT_ALL = 2, REQUEST_IMPORT = 3, REQUEST_REPORT = 4;
@@ -191,6 +193,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     showFps(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("fps", false));
     // the touch controls above everything
     touchControls = new TouchControls(this, input, inputPrefs.getBoolean(TOUCH_ALWAYS, false), touchHost);
+    touchControls.setLatch(inputPrefs.getBoolean(TOUCH_LATCH, false));
     gyroAim = new GyroAim(this, main);
     gyroAim.setEnabled(inputPrefs.getBoolean(GYRO_AIM, false));
     root.addView(touchControls.view(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
@@ -437,6 +440,13 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     @Override public void gyroChanged(boolean on) {
       getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(GYRO_AIM, on).apply();
       gyroAim.setEnabled(on);
+    }
+
+    @Override public void latchChanged(boolean on) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(TOUCH_LATCH, on).apply();
+      touchControls.setLatch(on);
+      send();
+      Log.i(TAG, "touch controls: L and R " + (on ? "latch on a tap" : "held while touched"));
     }
 
     @Override public void alternateChanged(boolean on) {

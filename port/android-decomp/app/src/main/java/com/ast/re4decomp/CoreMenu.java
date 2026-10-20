@@ -54,6 +54,8 @@ final class CoreMenu extends Dialog {
     void gyroChanged(boolean on);
     /** The switch "Alternate Controls" (the preferences hold it). */
     void alternateChanged(boolean on);
+    /** The switch "Latch L and R" of the touch controls (the preferences hold it). */
+    void latchChanged(boolean on);
   }
 
   private final Host host;
@@ -285,12 +287,14 @@ final class CoreMenu extends Dialog {
         gyro && input.getBoolean(CoreActivity.GYRO_AIM, false), 3, (b, on) -> host.gyroChanged(on));
     gyroBox.setEnabled(gyro);
     body.addView(text("Touch Controls: They appear when no controller is detected, use checkbox to manually enable "
-        + "it. The menu-icon opens the configuration (MENU = SELECT, L and R stay pressed until tapped again).",
-        12, false));
-    // the third switch: a row of its own (three do not fit side by side), under "Use Touch Controls"
+        + "it. The menu-icon opens the configuration (MENU = SELECT). Latch L and R: a tap keeps L or R pressed "
+        + "until the next tap (aim and fire with two thumbs).", 12, false));
+    // the third and fourth switch: a row of their own (three do not fit side by side), in the columns above
     LinearLayout layout = labelledRow("Button layout");
-    checkBox(layout, "Alternate Controls", input.getBoolean(CoreActivity.ALT_CONTROLS, false), 5,
+    checkBox(layout, "Alternate Controls", input.getBoolean(CoreActivity.ALT_CONTROLS, false), 2,
         (b, on) -> host.alternateChanged(on));
+    checkBox(layout, "Latch L and R (Touch)", input.getBoolean(CoreActivity.TOUCH_LATCH, false), 3,
+        (b, on) -> host.latchChanged(on));
     body.addView(text("Alternate Controls: L1 = Knife, L2 = Aim (aim with the right stick), R1 = Inventory "
         + "(Weapons/Recovery), R2 = Fire / use the knife, Y = Map. A, B, X (Ashley) and START as before.", 12, false));
 

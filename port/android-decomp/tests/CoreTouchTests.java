@@ -7,7 +7,7 @@ import java.util.Set;
 
 /**
  * The core mode's touch controls (CoreTouch): RetroTouch's callbacks as
- * GameCube controller 0 (buttons, L/R latched by a tap, D-pad, move stick,
+ * GameCube controller 0 (buttons, L/R held while touched or latched by a tap, D-pad, move stick,
  * look zone as the C stick that goes back when the finger lifts, MENU as
  * SELECT), together with a real controller, and the default layout on
  * screens of 4:3 to 20:9 (RetroTouch's geometry: no touch areas overlap,
@@ -47,7 +47,25 @@ public final class CoreTouchTests {
     t.action("unknown", true);
     check(in.pad()[0] == 0);
 
-    // L and R: a tap latches them (the trigger at its end stop), the next tap lets go
+    // L and R by default: held while the finger is on them (the trigger at its end stop), as real buttons
+    check(!t.latch());
+    t.action(CoreTouch.R, true);
+    check(in.pad()[0] == CoreInput.GC_R && in.pad()[6] == 255 && !t.latched(CoreTouch.R));
+    t.action(CoreTouch.A, true);   // fire while the weapon is ready (two fingers)
+    check(in.pad()[0] == (CoreInput.GC_R | CoreInput.GC_A));
+    t.action(CoreTouch.A, false);
+    t.action(CoreTouch.R, false);  // the finger lifts: R goes
+    check(in.pad()[0] == 0 && in.pad()[6] == 0);
+    t.action(CoreTouch.L, true);
+    check(in.pad()[0] == CoreInput.GC_L && in.pad()[5] == 255);
+    t.action(CoreTouch.L, false);
+    check(in.pad()[0] == 0 && in.pad()[5] == 0 && host.calls.isEmpty());
+    // switching to latching while L is held lets it go
+    t.action(CoreTouch.L, true);
+    t.setLatch(true);
+    check(t.latch() && in.pad()[0] == 0 && in.pad()[5] == 0 && host.calls.isEmpty());
+
+    // with the menu's "Latch L and R": a tap latches them, the next tap lets go
     t.action(CoreTouch.R, true);
     check(in.pad()[0] == CoreInput.GC_R && in.pad()[6] == 255 && in.pad()[5] == 0);
     t.action(CoreTouch.R, false);  // the finger lifts: R stays
@@ -72,6 +90,16 @@ public final class CoreTouchTests {
     // reset: everything let go, the latched L shown let go too
     t.reset();
     check(in.pad()[0] == 0 && in.pad()[5] == 0 && host.calls.equals(List.of("l false")) && !t.latched(CoreTouch.L));
+    host.calls.clear();
+
+    // switching latching off lets a latched button go and shows it let go
+    t.action(CoreTouch.R, true);
+    t.action(CoreTouch.R, false);
+    check(in.pad()[0] == CoreInput.GC_R && t.latched(CoreTouch.R));
+    host.calls.clear();
+    t.setLatch(false);
+    check(!t.latch() && in.pad()[0] == 0 && in.pad()[6] == 0 && !t.latched(CoreTouch.R)
+        && host.calls.equals(List.of("r false")));
     host.calls.clear();
 
     // the move stick is the control stick (raw, up positive)

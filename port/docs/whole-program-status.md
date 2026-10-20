@@ -5020,6 +5020,25 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   (C) vorerst nicht unterstützt. Beides (A, B) ist eine Grundsatzentscheidung; offen. Im
   Releasetext der Alpha 4 als bekannter Fehler genannt. Nebenbei im Protokoll: der Startfehler-
   Dialog (`CoreActivity.showStartProblem`) bleibt beim Beenden offen („WindowLeaked“), harmlos.
+- **Touch: L und R wie echte Knöpfe, Einrasten wählbar (20.10.2026).** Bisher rasteten L und R
+  der Touch-Steuerung bei jedem Tippen ein. **Entscheidung des Projektinhabers:** wählbar im Menü,
+  Standard wie ein echter Knopf (gedrückt, solange der Finger darauf liegt). `CoreTouch.setLatch`
+  (aus: L/R wie die übrigen Knöpfe; beim Umschalten wird Gehaltenes und Eingerastetes
+  losgelassen und die Anzeige von RetroTouch zurückgesetzt), `TouchControls.setLatch`,
+  Einstellung `touchLatchLR` (`CoreActivity.TOUCH_LATCH`), Schalter „Latch L and R (Touch)“ in der
+  Zeile „Button layout“ neben „Alternate Controls“, Menütext angepasst. **Geprüft (Cloud):**
+  `CoreTouchTests` 250 Prüfungen (beide Arten, Umschalten mit gehaltenem und eingerastetem
+  Knopf); alle Java-Dateien der App gegen Android übersetzt. **Nicht getestet:** auf dem Gerät.
+- **Absturz 64 bit bei Luis (Tester-Bericht `cubeevil4-report-20261020-083406.zip`, App 0.38.2):**
+  Samsung Galaxy M23 (SM-M236B), Android 14, 64 bit; letzter Spielstand r112 (Bauernhof im
+  Sturm, Kapitel 2-2), Spielzeit 1:28. Signal 6 (`abort`), auf dem Stapel direkt darüber
+  `cRoutine::shot` (`libre4_pl14.so+0xa8fc`) ← `cAnalysis::move` ← `cSubLuis::damageCheck` ←
+  `cSubLuis::move` ← `emMove`: Luis schießt (vermutlich der Kampf in der Hütte, Kapitel 2-3).
+  Kein Protokoll (Fehlerprotokoll aus). Geprüft: Luis passt auf 64 bit in seinen Gegner-Platz
+  (0x918 von 0xF60 Bytes); `shot` selbst hat keine Umschreibung; `__stack_chk_fail` ist es
+  wohl nicht (dessen 1-KB-Puffer läge zwischen `abort` und `shot`, der Abstand ist nur 0xD8).
+  Offen: welcher Aufruf vor `+0xa8fc` liegt (die arm64-`libre4_pl14.so` der Alpha 3 vom PC des
+  Projektinhabers), Protokoll und Spielstand vom Tester.
 - **Release 0.38.3 Alpha 4** (Projektinhaber, 20.10.2026: „Alpha4 fertig für heute“): Text
   `port/android-decomp/docs/releases/v0.38.3-alpha4.md`, APK `CubeEvil4-v0.38.3-alpha4.apk`,
   `versionName '0.38.3-Alpha4'`, `versionCode` 59 (`app/build.gradle`; das Menü zeigt

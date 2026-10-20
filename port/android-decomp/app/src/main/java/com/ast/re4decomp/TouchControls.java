@@ -119,6 +119,9 @@ final class TouchControls implements CoreTouch.Host {
     update();
   }
 
+  /** The menu's switch "Latch L and R": a tap keeps L or R pressed until the next tap (off: held while touched). */
+  void setLatch(boolean on) { touch.setLatch(on); }
+
   /** Shown or hidden by the controllers present and the switch (twice a second and when a device changes). */
   void update() {
     boolean controller = controllerConnected();
