@@ -90,9 +90,11 @@ Kern), Umgebungsvariablen als Einstellungen (`RE4_*`, `coreSettings`), das Fehle
 3. **Befehle**: ein `socketpair`, beim Start vererbt, für die seltenen Aufrufe (Start,
    Pause, Debug-Menü, DoF, Gyro, Speicherkarte, Meldungen, Protokollende) und das Ende
    (Absturz des Kindes = Socket schließt → Fehlerdialog, Absturzdatei des Kindes lesen).
-4. **Wann der eigene Prozess**: Vorschlag: nur wenn MEM1 im App-Prozess nicht frei ist
-   (Rückfall), sonst wie heute; Schalter zum Erzwingen für Tests (z. B. `RE4_CORE_PROCESS=1`,
-   Testskript-Parameter). Projektinhaber fragen.
+4. **Wann der eigene Prozess** (Entscheidung des Projektinhabers, 20.10.2026): **nur als
+   Rückfall**, wenn MEM1 im App-Prozess belegt ist (der Platzhalter scheitert); sonst läuft
+   der Kern wie heute im App-Prozess (64 bit immer, 32 bit mit freiem MEM1). Dazu ein
+   Schalter, der den eigenen Prozess für Tests erzwingt (z. B. `RE4_CORE_PROCESS=1`,
+   Testskript-Parameter), damit er auch auf dem Retroid geprüft werden kann.
 5. **Risiken**: „Phantom-Prozesse“ (Android 12+ beendet Kindprozesse, die im Hintergrund
    CPU brauchen; der Kern pausiert im Hintergrund ohnehin), Hersteller, die Kindprozesse
    beenden, SELinux (Ausführen aus `nativeLibraryDir` ist für Apps erlaubt), Leistung

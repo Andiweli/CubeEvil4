@@ -5018,7 +5018,8 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   der App, Bilder, Ton und Eingaben über geteilten Speicher), (B) MEM1 auf 32 bit an eine andere
   Adresse legen (jede Stelle in Spiel und Plattform, die 0x80000000 annimmt, müsste umrechnen),
   (C) vorerst nicht unterstützt. **Entscheidung des Projektinhabers (20.10.2026): Weg A**, der
-  Kern als eigener Prozess ohne Java; Übergabe an eine neue Sitzung:
+  Kern als eigener Prozess ohne Java, **nur als Rückfall, wenn MEM1 im App-Prozess belegt
+  ist** (Entscheidung ebenfalls 20.10.2026); Übergabe an eine neue Sitzung:
   `port/docs/32bit-kernprozess.md`. Im
   Releasetext der Alpha 4 als bekannter Fehler genannt. Nebenbei im Protokoll: der Startfehler-
   Dialog (`CoreActivity.showStartProblem`) bleibt beim Beenden offen („WindowLeaked“), harmlos.
