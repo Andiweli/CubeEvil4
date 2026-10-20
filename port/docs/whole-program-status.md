@@ -4964,9 +4964,15 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   ihrem Platz; ohne MSAA, 4×, MSAA auf den Kacheln): 0 Fehler; ohne die Korrektur 8 Fehler.
   Die 32-bit-Reihe 00 mit `gx_chunk_render` (2×, Auflösung 2): Wechsel in Bild 02, 04, 06, 08,
   10 jeweils vor dem Bild, keiner im Bild, alle 12 Bilder bitgleich zu vorher (llvmpipe hat den
-  Fehler nicht). Syntaxprüfung 64 und 32 bit ohne neue Warnungen. **Nicht getestet:** auf dem Gerät
-  (Wiedergabe derselben Reihe: Bild 06 darf in keiner MSAA-Variante mehr springen; im Spiel
-  mit 2× die Äste vor den Häusern).
+  Fehler nicht). Syntaxprüfung 64 und 32 bit ohne neue Warnungen.
+  **Gerätetest (Retroid, 64 bit, Stand `5e015486`, 20.10.2026): behoben.** Projektinhaber: das
+  Flackern ist weder mit 2× noch mit 4× zu sehen (r100, etwa 2 Minuten von Hand). Wiedergabe
+  derselben 32-bit-Reihe 00 (Anisotropie diesmal 1): Bild 06 springt in keiner MSAA-Variante mehr
+  (`s2old` 268k / 255 stark abweichende Punkte statt 320k / 567, `s2cen` 300k statt 355k,
+  `s4cen` 353k statt 441k), alle 12 Bilder gleichmäßig (`s2old` 268k–269k), die Runden
+  bitgleich. Bericht: „Uniform-Ring: Wechsel nur zwischen Bildern“, 150 Wechsel, 0 im Bild,
+  0 Wartezeiten, GPU 16,2 ms je Bild. Nicht erneut getestet: 32 bit (dort war das Flackern
+  dasselbe; der Renderer ist für beide ABIs derselbe Code).
 - **Nächster Bugfix (gemerkt, Rückmeldung eines Testers zum Gyro-Zielen, 20.10.2026):**
   1. „Links und rechts zielt man durch Kippen wie bei einem Rennspiel (Lenkrad), nicht durch
      Drehen (Gieren) wie in den meisten Shootern; sehr unintuitiv.“ Im Code: `GyroAim.java`
@@ -4986,8 +4992,8 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
      fragen).
 - **Für die nächste Alpha (nach v0.38.2 Alpha 3) bisher:** Version im Menü „(v…)“, FPS-Anzeige
   „30 FPS (Game) · 60 Hz“, Zielen mit dem rechten Stick in „Alternate Controls“; MSAA-Flackern
-  dünner Dinge behoben (Uniform-Ring wechselt nur zwischen Bildern; wenn der Gerätetest es
-  bestätigt), MSAA mit `centroid`.
+  dünner Dinge behoben (Uniform-Ring wechselt nur zwischen Bildern; auf dem Retroid bestätigt),
+  MSAA mit `centroid`.
 - **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter
   linksbündig, „Back to the game“ in derselben Zeile rechts.
 - **Release 0.38.2 Alpha 03** (Entscheidung des Projektinhabers, 19.10.2026: auf GitHub liegt
