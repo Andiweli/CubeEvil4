@@ -19,7 +19,9 @@
 //                      so as many pictures as in the app's process are on the
 //                      way (the same input delay)
 //   the sound thread   the core's sound into the shared ring, as much as the
-//                      app took (the core keeps matching the device's clock)
+//                      app took and asks for (the core keeps matching the
+//                      device's clock); 8 ms kept ahead, a read that needs
+//                      more waits for it
 //   a frame hook       rumble, frame counter and the player's free frame into
 //                      the shared mirrors, once per game frame (PADRead)
 //
@@ -36,6 +38,7 @@
 #include "re4_gx_frame.h"
 
 #include <atomic>
+#include <chrono>
 #include <deque>
 #include <dirent.h>
 #include <dlfcn.h>
@@ -482,6 +485,9 @@ void gxThread()
     const Re4GxChunk* inSlot[kGxSlots] = {};
     Piece pieces[kGxSlots];
     uint32_t epoch = 0, order = 0;
+    // what the copies cost (the log every 600 chunks: the price of this process on the device)
+    unsigned timed = 0;
+    double copyMs = 0, copyMax = 0, copyBytes = 0;
     for (;;) {
         const uint32_t seen = c->gxBell.seq.load(std::memory_order_acquire);
         // the app gave slots back: the core's chunks go back too
@@ -541,8 +547,19 @@ void gxThread()
             const Re4GxChunk* k = held.front();
             held.pop_front();
             c->slots[free].state.store(kSlotFilling, std::memory_order_relaxed);
+            const auto t0 = std::chrono::steady_clock::now();
             if (fillSlot(free, k, pieces[free], epoch, ++order)) {
                 inSlot[free] = k;
+                const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                copyMs += ms;
+                copyMax = ms > copyMax ? ms : copyMax;
+                copyBytes += (double) k->opWords * 4 + k->vertexBytes + k->indexCount * 2.0 + k->blobBytes;
+                if (++timed == 600) {
+                    say("GX copies: 600 chunks, %.0f KB each, %.2f ms each (max %.1f)", copyBytes / 1024.0 / 600,
+                        copyMs / 600, copyMax);
+                    timed = 0;
+                    copyMs = copyMax = copyBytes = 0;
+                }
             } else {
                 // without the chunk the app's picture state would be wrong: start over
                 c->slots[free].state.store(kSlotFree, std::memory_order_release);
@@ -563,22 +580,35 @@ void audioThread()
 {
     Control* c = gControl;
     // the sound thread of the app plays at THREAD_PRIORITY_AUDIO; this one feeds it
-    setpriority(PRIO_PROCESS, (id_t) syscall(SYS_gettid), -16);
+    if (setpriority(PRIO_PROCESS, (id_t) syscall(SYS_gettid), -16) != 0) {
+        say("sound thread: priority not raised (%s)", strerror(errno));
+    }
     const uint32_t channels = c->audioChannels;
-    const uint32_t kTarget = 512;  // frames kept for the app (16 ms)
+    const uint32_t kAhead = 256;  // frames kept ahead for the app's next read (8 ms)
     int16_t* ring16 = (int16_t*) ((char*) c + c->audioOffset);
-    std::vector<int16_t> block(kTarget * 2);
+    std::vector<int16_t> block(kAudioFrames * 2);
     uint32_t taken = c->audioBell.seq.load();
     for (;;) {
         const uint32_t seen = c->audioBell.seq.load(std::memory_order_acquire);
-        // only after the app read: the core's reader keeps its pace and its clock matching
+        // only after the app read or asked: the core's reader keeps the app's pace and its clock matching
         if (seen != taken) {
             taken = seen;
             const uint32_t w = c->audioWrite.load(std::memory_order_relaxed);
             const uint32_t fill = w - c->audioRead.load(std::memory_order_acquire);
-            if (fill < kTarget) {
-                const uint32_t n = kTarget - fill;
-                core.audio(block.data(), (int) n);
+            // what the app waits for, else what is kept ahead
+            const int32_t wanted = (int32_t) (c->audioWant.load(std::memory_order_acquire) - w);
+            uint32_t n = fill < kAhead ? kAhead - fill : 0;
+            if (wanted > 0 && (uint32_t) wanted > n) {
+                n = (uint32_t) wanted;
+            }
+            if (n > kAudioFrames - fill) {
+                n = kAudioFrames - fill;
+            }
+            if (n) {
+                const int got = core.audio(block.data(), (int) n);
+                if (got < (int) n) {
+                    c->audioCoreSilence.fetch_add(n - (uint32_t) (got > 0 ? got : 0));
+                }
                 for (uint32_t i = 0; i < n; i++) {
                     int16_t* f = ring16 + ((w + i) & (kAudioFrames - 1)) * channels;
                     f[0] = block[i * 2];
@@ -586,6 +616,7 @@ void audioThread()
                 }
                 c->audioWrite.store(w + n, std::memory_order_release);
                 c->audioForwarded.fetch_add(n);
+                ring(c->audioDone);
             }
         }
         waitBell(c->audioBell, seen, 250);

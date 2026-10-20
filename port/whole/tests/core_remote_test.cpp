@@ -10,7 +10,8 @@
 //   while the game stands), the rumble motor, the frame counter; state frames
 //   and GX chunks (the hashes of what the core process copied, sequence,
 //   RESET first and after a detach, the memory pieces growing); the sound
-//   (exact samples); vsync and gyro passed on; pause, the depth of field,
+//   (exact samples, read as the app's AudioTrack takes it: bursts of three
+//   reads, without holes, without the core skipping); vsync and gyro passed on; pause, the depth of field,
 //   the debug menu; the memory card (list, free blocks, .gci import and
 //   export); the log tail; the app's end ends the core process.
 //
@@ -94,7 +95,9 @@ struct Receiver {
     unsigned chunks = 0, resets = 0, outOfOrder = 0, firstNotReset = 0, afterDetachNotReset = 0;
     uint32_t lastSequence = 0;
     bool afterDetach = false;
-    unsigned audioFrames = 0, audioWrong = 0;
+    unsigned audioFrames = 0, audioWrong = 0, audioHoles = 0, audioSilence = 0, audioReads = 0;
+    double audioFrom = -1;
+    uint64_t audioTaken = 0;
     unsigned snapshots = 0, snapshotBad = 0;
     uint32_t lastSerial = 0;
     unsigned vsyncs = 0, gyros = 0;
@@ -122,15 +125,31 @@ struct Receiver {
             chunks++;
             re4ipc_gx_release(c);
         }
-        int16_t pcm[256 * 2];
-        re4ipc_audio(pcm, 256);
-        for (int i = 0; i < 256; i++) {
-            if (pcm[i * 2] || pcm[i * 2 + 1]) {
-                audioFrames++;
-                if (pcm[i * 2] != 1000 || pcm[i * 2 + 1] != -1000) {
-                    audioWrong++;
+        // as CoreAudio with its AudioTrack: 256 frames per read, until the track's buffer (2560
+        // frames) is full, then in bursts as the mixer takes its periods (here 3 reads each 24 ms)
+        if (audioFrom < 0) {
+            audioFrom = now();
+        }
+        const uint64_t due = (uint64_t) ((now() - audioFrom) * 32000.0) + 2560;
+        while (audioTaken + 768 <= due) {
+            for (int k = 0; k < 3; k++) {
+                int16_t pcm[256 * 2];
+                re4ipc_audio(pcm, 256);
+                audioReads++;
+                for (int i = 0; i < 256; i++) {
+                    if (pcm[i * 2] || pcm[i * 2 + 1]) {
+                        audioFrames++;
+                        audioHoles += audioSilence;  // silence between sound: a dropout
+                        audioSilence = 0;
+                        if (pcm[i * 2] != 1000 || pcm[i * 2 + 1] != -1000) {
+                            audioWrong++;
+                        }
+                    } else if (audioFrames) {
+                        audioSilence++;
+                    }
                 }
             }
+            audioTaken += 768;
         }
         if (const Re4CoreSnapshot* s = re4ipc_acquire()) {
             if (s->apiVersion != RE4_CORE_API_VERSION) {
@@ -161,6 +180,14 @@ struct Receiver {
             step();
             sleepMs(4);
         }
+    }
+
+    // the app's sound stops with its menu and starts again afterwards (CoreActivity)
+    void restartAudio()
+    {
+        audioFrom = -1;
+        audioTaken = 0;
+        audioSilence = 0;
     }
 
     void detach()
@@ -282,6 +309,7 @@ void mainRun(const char* modules, const char* gciPath)
     re4ipc_debug_menu();
     sleepMs(100);
     re4ipc_pause(0, 0);
+    r.restartAudio();
     r.run(0.5);
     CHECK(re4ipc_pause(0, 0) == 0);  // it runs again
     CHECK(re4ipc_frame_count() > frames);
@@ -308,20 +336,30 @@ void mainRun(const char* modules, const char* gciPath)
     CHECK(checked == r.chunks && mismatches == 0);
     CHECK(snaps >= r.snapshots && snapMismatches == 0);
     sleepMs(300);  // the last inputs on their way
-    unsigned f[7];
+    unsigned f[8];
     re4ipc::forwarded(f);
     CHECK(f[0] == 6);         // pads: every change in order
     CHECK(f[1] == r.vsyncs);  // vsyncs
     CHECK(f[2] >= 1 && f[2] <= r.gyros);
     CHECK(f[5] >= 3);         // memory pieces made (RE4_CORE_IPC_SEGMENT=4096: they had to grow)
-    CHECK(r.audioFrames >= 6000 && r.audioWrong == 0);
     unsigned stats[5];
     re4ipc_audio_stats(stats);
-    CHECK(stats[0] == 40);  // AI blocks of the probe
+    const unsigned blocks = number(probe, "AI blocks ");
+    CHECK(blocks != ~0u && stats[0] == blocks);  // the AI blocks of the probe, all counted
+    // every frame the probe played arrived, exactly, without a dropout in between, and the
+    // core never had to skip what the app did not take (as in the app's own process)
+    CHECK(r.audioWrong == 0);
+    CHECK(r.audioFrames + 2 * 160 >= blocks * 160 * 9 / 10);
+    // a dropout the app hears is silence the core itself filled in (its ring ran dry, as in the
+    // app's own process): the way between the processes adds none
+    CHECK(r.audioHoles <= f[7]);
+    CHECK(stats[4] == 0);  // skips
     fprintf(stderr,
-            "core-remote-test main: %u chunks (%u resets), %u state frames, %u sound frames, %u vsyncs, %u gyro, "
-            "pads %u, memory pieces %u, probe: %s\n",
-            r.chunks, r.resets, r.snapshots, r.audioFrames, f[1], f[2], f[0], f[5], probe.c_str());
+            "core-remote-test main: %u chunks (%u resets), %u state frames, %u sound frames in %u reads (%u in "
+            "dropouts; core: %u frames silence, %u ran dry, %u skips), %u vsyncs, %u gyro, pads %u, memory pieces %u, "
+            "probe: %s\n",
+            r.chunks, r.resets, r.snapshots, r.audioFrames, r.audioReads, r.audioHoles, f[7], stats[3], stats[4], f[1],
+            f[2], f[0], f[5], probe.c_str());
     // the app ends: so does the core process
     const int child = re4ipc::pid();
     CHECK(re4ipc::shutdown(10000));

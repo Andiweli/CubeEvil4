@@ -44,8 +44,9 @@ bool shutdown(int waitMs);
 // Checks (RE4_CORE_IPC_CHECK=1 in the core process): chunks and state frames
 // whose hash did not match what the core process copied, and how many were checked.
 void checkCounts(unsigned* chunks, unsigned* chunkMismatches, unsigned* snapshots, unsigned* snapshotMismatches);
-// What the core process passed on: pads, vsyncs, gyro values, state frames, chunks, memory pieces, sound frames.
-void forwarded(unsigned out[7]);
+// What the core process passed on: pads, vsyncs, gyro values, state frames, chunks, memory pieces,
+// sound frames, and of these the frames the core filled with silence.
+void forwarded(unsigned out[8]);
 
 }  // namespace re4ipc
 

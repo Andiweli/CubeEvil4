@@ -32,7 +32,7 @@
 namespace re4ipc {
 
 const uint32_t kMagic = 0x43344552;  // "RE4C"
-const uint32_t kVersion = 1;
+const uint32_t kVersion = 2;
 // the socket in the core process: file 3, inherited
 const int kSocketFd = 3;
 
@@ -116,6 +116,7 @@ struct Control {
     uint32_t check;           // RE4_CORE_IPC_CHECK in the core process: hashes filled in
 
     Bell inputBell, gxBell, audioBell;
+    Bell audioDone;  // the core process wrote sound (the app waits for it when the ring is short)
 
     // app -> core process (one producer each, the app holds a lock)
     alignas(64) std::atomic<uint32_t> padHead, padTail;
@@ -136,12 +137,15 @@ struct Control {
     alignas(64) std::atomic<uint32_t> appEpoch, pollEpoch, pollMs;
     GxSlot slots[kGxSlots];
 
-    // the sound ring: the core process writes, the app reads
-    alignas(64) std::atomic<uint32_t> audioWrite, audioRead;
+    // the sound ring: the core process writes, the app reads. audioWant: the ring position the
+    // app needs now (its read before last plus the frames of this read): an AudioTrack takes
+    // its frames in bursts, several reads at once, more than the ring keeps ahead
+    alignas(64) std::atomic<uint32_t> audioWrite, audioRead, audioWant;
 
     // what the core process passed on (the report, the checks)
     alignas(64) std::atomic<uint32_t> padsForwarded, vsyncsForwarded, gyroForwarded, snapshotsCopied;
     std::atomic<uint32_t> chunksCopied, chunksDropped, segmentsMade, audioForwarded;
+    std::atomic<uint32_t> audioCoreSilence;  // frames the core filled with silence (its ring ran dry)
 };
 
 static_assert(std::atomic<uint32_t>::is_always_lock_free, "shared atomics must be lock-free");

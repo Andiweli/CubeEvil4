@@ -97,6 +97,7 @@ Mapped gMapped[kGxSlots];
 Re4GxChunk gViews[kGxSlots];
 bool gWantReset = true;  // after a detach: chunks up to the next RESET are left out
 std::atomic<unsigned> gChunksChecked{0}, gChunkMismatches{0}, gSnapshotsChecked{0}, gSnapshotMismatches{0};
+std::atomic<bool> gEnded{false};  // the core process ended: nobody to wait for
 
 // the inputs' producers (any app thread)
 std::mutex gPadLock, gVsyncLock, gGyroLock;
@@ -175,6 +176,7 @@ void readerMain(int sock, pid_t child)
         got = waitpid(child, &status, 0);
     } while (got < 0 && errno == EINTR);
     std::string reason = got == child ? describeStatus(status) : std::string("status unknown");
+    gEnded.store(true);
     {
         std::lock_guard<std::mutex> l(g.lock);
         g.alive = false;
@@ -490,11 +492,11 @@ void checkCounts(unsigned* chunks, unsigned* chunkMismatches, unsigned* snapshot
     *snapshotMismatches = gSnapshotMismatches.load();
 }
 
-void forwarded(unsigned out[7])
+void forwarded(unsigned out[8])
 {
     Control* c = control();
     if (!c) {
-        memset(out, 0, 7 * sizeof(unsigned));
+        memset(out, 0, 8 * sizeof(unsigned));
         return;
     }
     out[0] = c->padsForwarded.load();
@@ -504,6 +506,7 @@ void forwarded(unsigned out[7])
     out[4] = c->chunksCopied.load();
     out[5] = c->segmentsMade.load();
     out[6] = c->audioForwarded.load();
+    out[7] = c->audioCoreSilence.load();
 }
 
 }  // namespace re4ipc
@@ -644,6 +647,9 @@ void re4ipc_gyro(float yaw, float pitch)
     ring(c->inputBell);
 }
 
+// the sound's way through the core process, for the log (every 2000 reads)
+unsigned gAudioReads, gAudioWaits, gAudioShort, gAudioWaitMax;
+
 int re4ipc_audio(int16_t* out, int frames)
 {
     Control* c = control();
@@ -655,7 +661,35 @@ int re4ipc_audio(int16_t* out, int frames)
         const uint32_t channels = c->audioChannels ? c->audioChannels : 2;
         const int16_t* ring16 = (const int16_t*) ((const char*) c + c->audioOffset);
         const uint32_t r = c->audioRead.load(std::memory_order_relaxed);
-        const uint32_t w = c->audioWrite.load(std::memory_order_acquire);
+        uint32_t w = c->audioWrite.load(std::memory_order_acquire);
+        if (w - r < (uint32_t) frames && !gEnded.load()) {
+            // more than the core process kept ahead (the AudioTrack takes several reads at
+            // once): it reads them from the core now, the app waits that long (at most 20 ms;
+            // in the app's own process the core's ring answers at once)
+            c->audioWant.store(r + (uint32_t) frames, std::memory_order_release);
+            ring(c->audioBell);
+            const uint32_t from = nowMs();
+            for (;;) {
+                const uint32_t seen = c->audioDone.seq.load(std::memory_order_acquire);
+                w = c->audioWrite.load(std::memory_order_acquire);
+                const uint32_t waited = nowMs() - from;
+                if (w - r >= (uint32_t) frames || waited >= 20) {
+                    break;
+                }
+                waitBell(c->audioDone, seen, (int) (20 - waited));
+            }
+            const uint32_t waited = nowMs() - from;
+            gAudioWaits++;
+            gAudioWaitMax = waited > gAudioWaitMax ? waited : gAudioWaitMax;
+            if (w - r < (uint32_t) frames) {
+                gAudioShort++;
+            }
+        }
+        if (++gAudioReads == 2000) {
+            note("core process sound: 2000 reads, %u waited for the core process (at most %u ms), %u short",
+                 gAudioWaits, gAudioWaitMax, gAudioShort);
+            gAudioReads = gAudioWaits = gAudioShort = gAudioWaitMax = 0;
+        }
         const uint32_t avail = w - r;
         got = (int) (avail < (uint32_t) frames ? avail : (uint32_t) frames);
         for (int i = 0; i < got; i++) {

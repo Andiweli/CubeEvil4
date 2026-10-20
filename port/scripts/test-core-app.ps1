@@ -136,7 +136,7 @@ Moments; die App speichert die naechsten 24 Bilder so, wie der Bildschirm sie ze
 (Ordner treffer), mit -HitDumps N dazu die Grafikdaten von 4 Bildern ab dort (Standard
 jeweils 0 = aus; die Aufnahme laesst das Spiel kurz ruckeln).
 
-Zum Schicken packt das Skript senden.zip: bericht.txt, logcat.txt, profil-*.txt,
+Zum Schicken packt das Skript senden.zip (die des Laufs davor bleibt als senden-vorher.zip): bericht.txt, logcat.txt, profil-*.txt,
 Absturzberichte und die Bilder als kleine JPEGs (meist unter 5 MB). gx-geraet.zip
 (Grafikdaten) kommt dazu, wenn es hoechstens 25 MB hat.
 
@@ -222,7 +222,11 @@ Get-ChildItem -LiteralPath $OutDir -Filter 'bild-*.png' -ErrorAction SilentlyCon
 Get-ChildItem -LiteralPath $OutDir -Filter 'absturz-*.txt' -ErrorAction SilentlyContinue | Remove-Item
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-geraet.zip') -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'gx-replay.zip') -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath (Join-Path $OutDir 'senden.zip') -ErrorAction SilentlyContinue
+# the zip of the run before stays as senden-vorher.zip (two runs one after the other: both can be sent)
+$sendBefore = Join-Path $OutDir 'senden.zip'
+if (Test-Path -LiteralPath $sendBefore) {
+    Move-Item -LiteralPath $sendBefore -Destination (Join-Path $OutDir 'senden-vorher.zip') -Force
+}
 Remove-Item -LiteralPath (Join-Path $OutDir 'treffer') -Recurse -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath (Join-Path $OutDir 'speicherkarte-a.bin') -ErrorAction SilentlyContinue
 Get-ChildItem -LiteralPath $OutDir -Filter 'profil-*' -ErrorAction SilentlyContinue | Remove-Item
@@ -840,6 +844,11 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     Say "Kern im eigenen Prozess:          $ownState"
     $ownProblem = $keep | Where-Object { $_ -match 'core process: .*(does not start|did not answer|missing|taken in the core process|no shared memory)' } | Select-Object -First 1
     if ($ownProblem) { Say "Kernprozess-FEHLER:               $(($ownProblem -split 'core process: ', 2)[-1])" }
+    # what the way through the core process costs: the copy of each picture, the sound's waits
+    $ownCopies = $keep | Where-Object { $_ -match 'core process: GX copies: ' } | Select-Object -Last 1
+    if ($ownCopies) { Say "Kernprozess Bilder kopiert:       $(($ownCopies -split 'GX copies: ')[-1])" }
+    $ownSound = $keep | Where-Object { $_ -match 'core process sound: ' } | Select-Object -Last 1
+    if ($ownSound) { Say "Kernprozess Ton zuletzt:          $(($ownSound -split 'core process sound: ')[-1])" }
     Say ("Spiel gestartet:                  {0}" -f $(if (Has 'core: running') { 'ja' } else { 'NEIN' }))
     # the black screen at the start (patch 0085): from the core's load to title.dat read (before
     # the first logo; 19.10.2026 without the patch 5.8 s on the Retroid)

@@ -22,7 +22,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
 | M11 Android-Feinschliff | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/nifty-feynman-jv729h`, Stand `093aa7a`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, „Depth of field“ mit dem Autofokus der ersten App, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester, alles auf Englisch), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Rundgang über alle Räume (PC mit Disc-Daten): 126 von 126 laufen (Patches 0062–0064). Super Magnum: kein Port-Fehler (Nachlade-Stufe Lv.5 aus dem Debug-Menü), mit Lv.1 bestätigt. Debug-Menü Waffenseite stürzte am Listenende ab (Patch 0066). Leistung: 60 Bilder/s, Kern 33,3 ms je Spielbild mit 13–15 ms Leerlauf, GPU um 20 ms („M11 Android-Feinschliff“) |
 | M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`, seit 18.10.2026 `claude/exciting-bohr-6akwfd`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt; A2 ✅ Adressen unter 4 GB; A3 ✅ Strukturen, die auf 64 bit auseinanderlaufen: alle Prüfwerkzeuge 0 (Patches 0070–0073, Regel `lp64_sizes`); A4 ✅ alle Cloud-Tests grün auf i686, armhf, x86_64 und **aarch64 (neu, ARM64 unter qemu)**, auch Filme und Speicherkarte; A5 Android arm64 eingebaut, aber ungeprüft (kein NDK in der Cloud). 18.10.2026: PC-Prüfung `-Lp64` läuft r100 10.000 Bilder ohne Absturz, Speichern stürzte ab (Budget des Speicherbildschirms, behoben, unbestätigt); Neustart mit Bestandsaufnahme aller Prüfwerkzeuge (libclang statt Wörter, Selbsttest, `run_all.py` + `reviewed.json`), vier neue Werkzeuge, Patch 0082 (fünf echte Fehler), Vergleichslauf 32/64 bit (`-Compare`, in der Cloud mit dem synthetischen Film gleich; mit Disc-Daten offen). Offen: `-Compare` und `-Lp64` mit Disc-Daten, Gerätetest beider ABIs. Dabei gefunden: Puzzle-Untermenü las auch auf 32 bit falsche Felder (Patch 0073). Bestandsaufnahme `arm64-bestandsaufnahme.md`. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** |
-| 32-bit-Kernprozess | in Arbeit (Branch `claude/re4-32bit-kernprozess`, 20.10.2026): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Gerätetest offen („32 bit: der Kern als eigener Prozess“) |
+| 32-bit-Kernprozess | in Arbeit (Branch `claude/re4-32bit-kernprozess`, 20.10.2026): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`); Retroid 20.10.2026: läuft, Ton-Aussetzer gefunden und behoben (Nachtest offen), FPS-Einbrüche im Intro zu prüfen („32 bit: der Kern als eigener Prozess“) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5148,6 +5148,36 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   Mobicel-Gerät des Testers), der Android-Build (NDK, Gradle, `useLegacyPackaging`), das Testskript
   (kein PowerShell in der Cloud), die Leistung (eine Kopie je GX-Bild), `memfd_create` unter
   SELinux auf Android (sonst `ASharedMemory`).
+- **Erster Android-Bau (Projektinhaber, 20.10.2026, Stand `a31c1d85`):** brach in
+  `whole_build_android.sh` ab: „libre4_main.so exportiert re4_core_gx_notify nicht“. Die Prüfung
+  war falsch: `re4_core_gx_notify` und `re4_add_frame_hook` liegen in `libre4_platform.so` (wie
+  `re4_core_gx_acquire`; `dlsym` über `libre4_main.so` findet sie dort). Korrigiert (`d26896d`).
+- **Erster Gerätelauf (Retroid, 32 bit, `-CoreProcess -Manual`, Stand `d26896d`, 20.10.2026
+  18:29):** der Kernprozess startet (PID 8843, „MEM1 placeholder reserved“, APK 17,6 MB statt
+  38,6 MB: Bibliotheken gepackt), das Spiel läuft: Titel, Vorfilm (mit START übersprungen),
+  r120/r100, Leon frei, Vibration, Gyro; GX-Speicherstücke wuchsen auf 16 MB je Platz.
+  **Projektinhaber: Ton mit starken Rucklern und Aussetzern** (auch im automatischen Lauf, dessen
+  `senden.zip` der zweite Lauf löschte). Im Protokoll des Kerns: 32 „skips“ und 54 „ran dry“ in
+  70 s (im App-Prozess fast keine). Ursache: die AudioTrack der App nimmt ihre Bilder stoßweise
+  (mehrere Lesungen zu 256 hintereinander, wenn der Mischer eine Periode nimmt); der Ring im
+  geteilten Speicher hielt nur 512 Bilder vor, die übrigen Lesungen bekamen Stille (Aussetzer), und
+  was die App nicht nahm, blieb im Ring des Kerns, bis er übersprang. **Behoben:** fehlt einer
+  Lesung etwas, schreibt die App die gewünschte Stelle in den geteilten Speicher
+  (`Control::audioWant`) und wartet bis zu 20 ms (Klingel `audioDone`), das Kind liest genau das
+  beim Kern nach; vorgehalten werden nur noch 8 ms. Nachgestellt in `re4_core_remote_test`: der
+  Testeinstieg spielt Ton im Takt des AI (ein Block je 5 ms), die „App“ liest wie die AudioTrack
+  (erst 2560 Bilder, dann je 24 ms drei Lesungen). Mit dem alten Weg: 34 560 von 66 882 Bildern in
+  Aussetzern, 5 „skips“ (die Prüfung schlägt fehl); jetzt in drei Läufen 0 Aussetzer, 0 „ran dry“,
+  0 „skips“. Prüfung: jede Lücke, die die App hört, ist Stille, die schon der Kern lieferte.
+  Neu im Protokoll: „core process: GX copies: 600 chunks, … KB each, … ms each“ und „core process
+  sound: 2000 reads, … waited …, … short“ (Bericht: „Kernprozess Bilder kopiert“, „Kernprozess
+  Ton zuletzt“). `test-core-app.ps1` hebt die `senden.zip` des Laufs davor als
+  `senden-vorher.zip` auf.
+  **Projektinhaber: im Intro mit der Polizei ab und zu 15 FPS.** Im Protokoll für diese 10 s: GPU
+  31,9 ms je Bild (4× MSAA, Stufe 2, Anisotropie 16), 49 statt 60 gezeigte Bilder je Sekunde,
+  47 Shader neu übersetzt (ein Bild 839 ms), der Kern wartete im Mittel nur 2,6 ms je Bild auf den
+  Renderer, 18,7 ms Leerlauf. Das spricht für die GPU und neue Shader, nicht für den Kernprozess;
+  **offen:** Gegenprobe derselben Stelle ohne `-CoreProcess`.
 
 ## Aufbau
 
