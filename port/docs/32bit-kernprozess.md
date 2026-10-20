@@ -249,6 +249,11 @@ vorbereitet (Releasetext `port/android-decomp/docs/releases/v0.40.0-alpha.md`). 
 Speichern/Laden und Debug-Menü auf dem Gerät mit dem Kernprozess, dann das Mobicel-Gerät des
 Testers (der echte Rückfall).
 
+**Erreicht (20.10.2026):** Release 0.40.0-alpha; auf dem Retroid in 64 bit und in 32 bit mit
+erzwungenem Kernprozess ohne Befund, und beim Tester mit dem reinen 32-bit-Gerät (Android 14) läuft
+das Spiel jetzt (Rückmeldung des Projektinhabers, ohne Bericht). Offen bleiben Leistungszahlen von
+diesem Gerät (sein Fehlerbericht) und der Raumklang auf einem Gerät mit Spatializer.
+
 Gerätetest (Windows-PC, Retroid per ADB):
 
 1. `test-core-app.ps1 -Abi armeabi-v7a -CoreProcess`: automatischer Start bis r100; im Bericht
