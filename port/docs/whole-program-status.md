@@ -5033,7 +5033,11 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   Samsung Galaxy M23 (SM-M236B), Android 14, 64 bit; letzter Spielstand r112 (Bauernhof im
   Sturm, Kapitel 2-2), Spielzeit 1:28. Signal 6 (`abort`), auf dem Stapel direkt darüber
   `cRoutine::shot` (`libre4_pl14.so+0xa8fc`) ← `cAnalysis::move` ← `cSubLuis::damageCheck` ←
-  `cSubLuis::move` ← `emMove`: Luis schießt (vermutlich der Kampf in der Hütte, Kapitel 2-3).
+  `cSubLuis::move` ← `emMove`: Luis schießt (vermutlich der Kampf in der Hütte, Kapitel 2-3;
+  laut Video des Testers direkt nach einer Zwischensequenz). In einer -O2-Übersetzung mit
+  Stack-Schutz (wie das NDK) liegt `p` (Startpunkt des Schusses) direkt unter dem Wachwert von
+  `shot`: wahrscheinlich hat ein Aufruf über `p`/`t` hinaus geschrieben, oder etwas anderes in
+  den Stapel des Spiels (das ist nicht belegt).
   Kein Protokoll (Fehlerprotokoll aus). Geprüft: Luis passt auf 64 bit in seinen Gegner-Platz
   (0x918 von 0xF60 Bytes); `shot` selbst hat keine Umschreibung; `__stack_chk_fail` ist es
   wohl nicht (dessen 1-KB-Puffer läge zwischen `abort` und `shot`, der Abstand ist nur 0xD8).
