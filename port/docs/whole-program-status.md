@@ -5384,7 +5384,11 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   - **Version:** `versionName '0.40.1-alpha'`, `versionCode` 61 (Hotfix nach der neuen
     Nummerierung). Releasetext `port/android-decomp/docs/releases/v0.40.1-alpha.md`.
   - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle 39 Prüfungen
-    bestanden, `runtime-test partner: ok` auf allen drei. **Nicht getestet:** auf dem Gerät (die
+    bestanden, `runtime-test partner: ok` auf allen drei; `m12/run_all.py --lp64
+    port/build/whole-aarch64`: 0 neue Funde. Die M12-Werkzeuge sahen diese Art nicht (ein
+    Zeiger der Basisklasse `cEm`, `pSUB`, wird als eine Geschwisterklasse gelesen, `cSubChar`
+    statt `cSubLuis`: jeder Zugriff für sich ist ein gewöhnlicher Abwärts-Cast); die Suche oben
+    deckt sie für den Partner ab. **Nicht getestet:** auf dem Gerät (die
     Belagerung in r11c, bis ein Ganado Luis würgt; danach muss Luis weiterkämpfen und seinen
     Dank-Satz sagen), auf 64 bit und auf 32 bit.
 
