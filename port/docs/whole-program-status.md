@@ -4885,6 +4885,16 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   `build.gradle` nehmen**, nie fest in den Code schreiben. Geprüft: Menü (`CoreMenu.version`),
   Startbildschirm (`MainActivity.versionName`) und Fehlerbericht (`CoreLog`) lesen sie aus der
   App; sonst steht keine Versionsnummer im Code der App.
+- **Neue Nummerierung ab der nächsten Alpha (Entscheidung des Projektinhabers, 20.10.2026):** die
+  bisherige Form „0.38.x-AlphaN“ hatte zwei Zähler, die immer gemeinsam stiegen („0.38“ stammt
+  aus der internen Zählung der früheren App, zuletzt „0.37.17-fix6“). Ab jetzt: jede neue Alpha
+  erhöht die mittlere Zahl (nächste **0.39.0**, danach 0.40.0, …), nur ein dringender
+  Fehler-Nachtrag (Hotfix) die letzte (0.39.1, 0.39.2 …). Die Nummern steigen immer (Werkzeuge
+  wie Obtainium vergleichen sie). `versionName` mit dem Zusatz „-alpha“ (`'0.39.0-alpha'`, Menü
+  „(v0.39.0-alpha)“), `versionCode` zählt weiter (60, 61 …). Tag, Release-Titel und APK-Name
+  gleich: `v0.39.0-alpha`, „CubeEvil4 v0.39.0 (Alpha)“, `CubeEvil4-v0.39.0-alpha.apk`; der
+  Releasetext nennt die neue Nummerierung einmal. Später: Beta etwa `0.9.0-beta`, `1.0.0`
+  wenn das ganze Spiel durchspielbar ist.
 - **FPS-Anzeige mit der Rate des Bildschirms (Wunsch des Projektinhabers, 20.10.2026):** der
   Tester mit 120-Hz-Bildschirm (POCO X7 Pro) sah im Zähler des Handys 60, in unserem 30: unser
   Zähler zählt die Spielbilder (ein Controller-Lesen je Bild; das Spiel macht wie auf dem
