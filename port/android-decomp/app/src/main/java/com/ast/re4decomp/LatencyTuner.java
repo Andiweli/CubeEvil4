@@ -2,9 +2,10 @@ package com.ast.re4decomp;
 
 /**
  * How much of an AudioTrack's buffer the sound output keeps filled (CoreAudio; the latency
- * tuning of Oboe's LatencyTuner): it starts small, two bursts of the output's mixer (at least two
- * writes), and grows by a burst whenever the track counts new underruns, up to the buffer's
- * capacity. Android asks for a large buffer on Bluetooth (about 280 ms for AirPods on the
+ * tuning of Oboe's LatencyTuner): it starts small, two bursts of the output's mixer (at least four
+ * writes: from two the Retroid's speaker had six underruns in the first two seconds before it
+ * settled at 40 ms, 20.10.2026), and grows by a burst whenever the track counts new underruns, up
+ * to the buffer's capacity. Android asks for a large buffer on Bluetooth (about 280 ms for AirPods on the
  * Retroid, 20.10.2026: the shots were heard late); kept full it added all of it to the
  * headphones' own delay. Independent of Android so the host tests can check it.
  */
@@ -20,7 +21,7 @@ final class LatencyTuner {
   LatencyTuner(int capacity, int burst, int write, int learned) {
     this.capacity = Math.max(1, capacity);
     this.step = Math.max(64, burst);
-    size = Math.min(this.capacity, Math.max(Math.max(2 * this.step, 2 * write), learned));
+    size = Math.min(this.capacity, Math.max(Math.max(2 * this.step, 4 * write), learned));
   }
 
   /** The frames to keep filled now. */

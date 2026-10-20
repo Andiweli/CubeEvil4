@@ -20,13 +20,13 @@ public final class LatencyTunerTests {
     check(LatencyTuner.burst("x", "48000", 32000) == 171);
     check(LatencyTuner.burst("0", "0", 32000) == 171);
 
-    // the Retroid's speaker: capacity 2568, burst 160, writes of 256: starts at 512 (16 ms)
+    // the Retroid's speaker: capacity 2568, burst 160, writes of 256: starts at 1024 (32 ms)
     LatencyTuner t = new LatencyTuner(2568, 160, 256, 0);
-    check(t.size() == 512);
-    check(!t.check(0) && t.size() == 512);   // no underruns: stays
-    check(t.check(1) && t.size() == 672);    // new ones: a burst more
-    check(!t.check(1) && t.size() == 672);   // the same count: stays
-    check(t.check(5) && t.size() == 832 && t.grown() == 2);
+    check(t.size() == 1024);
+    check(!t.check(0) && t.size() == 1024);  // no underruns: stays
+    check(t.check(1) && t.size() == 1184);   // new ones: a burst more
+    check(!t.check(1) && t.size() == 1184);  // the same count: stays
+    check(t.check(5) && t.size() == 1344 && t.grown() == 2);
 
     // Bluetooth: capacity 8988; it grows until the underruns stop, at most to the capacity
     t = new LatencyTuner(8988, 160, 256, 0);
@@ -42,7 +42,7 @@ public final class LatencyTunerTests {
     t = new LatencyTuner(8988, 160, 256, 2400);
     check(t.size() == 2400);
     t = new LatencyTuner(8988, 160, 256, 100);  // below the start: the start
-    check(t.size() == 512);
+    check(t.size() == 1024);
     System.out.println("LatencyTunerTests: " + checks + " checks passed");
   }
 }

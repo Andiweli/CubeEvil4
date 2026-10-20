@@ -36,10 +36,11 @@ final class CoreAudio {
   private Thread worker;
   private volatile boolean running;
   private String lastState = "";
-  // the latency tuning of the current track (API 24 and later), and what it grew to on which
-  // output (its capacity): the next track there starts with it
+  // the latency tuning of the current track (API 24 and later); what it grew to is kept per
+  // output (the track's capacity) in the preferences: the next track there, also after the
+  // next start of the app, begins with it
+  private static final String PREFS = "core_audio";
   private LatencyTuner tuner;
-  private int learnedFrames, learnedCapacity;
 
   CoreAudio(Context context) {
     this.context = context;
@@ -129,7 +130,8 @@ final class CoreAudio {
           manager == null ? null : manager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER),
           manager == null ? null : manager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE), RATE);
       final int capacity = track.getBufferCapacityInFrames();
-      tuner = new LatencyTuner(capacity, burst, FRAMES, capacity == learnedCapacity ? learnedFrames : 0);
+      final int learned = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("frames" + capacity, 0);
+      tuner = new LatencyTuner(capacity, burst, FRAMES, learned);
       final int set = track.setBufferSizeInFrames(tuner.size());
       used = (set > 0 ? set : tuner.size()) + " frames (" + (set > 0 ? set : tuner.size()) * 1000 / RATE
           + " ms), grows on underruns";
@@ -147,10 +149,11 @@ final class CoreAudio {
     final int underruns = track.getUnderrunCount();
     if (!tuner.check(underruns)) return;
     final int set = track.setBufferSizeInFrames(tuner.size());
-    learnedFrames = set > 0 ? set : tuner.size();
-    learnedCapacity = track.getBufferCapacityInFrames();
-    Log.i(TAG, "sound: buffer " + learnedFrames + " frames (" + learnedFrames * 1000 / RATE + " ms) after "
-        + underruns + " underruns");
+    final int frames = set > 0 ? set : tuner.size();
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        .putInt("frames" + track.getBufferCapacityInFrames(), frames).apply();
+    Log.i(TAG, "sound: buffer " + frames + " frames (" + frames * 1000 / RATE + " ms) after " + underruns
+        + " underruns");
   }
 
   private static void release(AudioTrack track) {

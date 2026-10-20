@@ -5111,8 +5111,16 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
     der Spur (`getUnderrunCount`) je eine Periode mehr bis zur Kapazität; die nächste Spur auf
     derselben Ausgabe beginnt mit dem Gelernten. Protokoll: „used … frames (… ms), grows on
     underruns“ und „sound: buffer … frames (… ms) after … underruns“. `LatencyTunerTests` 14
-    Prüfungen; alle Java-Dateien gegen Android übersetzt. **Nicht getestet:** auf dem Gerät
-    (Verzögerung mit AirPods, Lautsprecher ohne Knackser). **Nicht getestet (Raumklang):**
+    Prüfungen; alle Java-Dateien gegen Android übersetzt.
+    **Gerätelauf Retroid, Lautsprecher (20.10.2026, Stand `de48f7fa`):** „spatializer: not on
+    this device“ – der Retroid hat keinen Raumklang, die App bleibt bei Stereo (wie gewollt);
+    die DPL2-Erkennung wechselt richtig („game in Dolby Pro Logic II“, später „not in“). Puffer:
+    Start 512 Bilder (16 ms), in den ersten 2 s sechs Aussetzer, dann ruhig bei 1280 (40 ms,
+    vorher immer 80 ms); „6 ran dry“ wie früher. **Danach:** Start mit mindestens vier
+    Schreibvorgängen (1024 Bilder, 32 ms), das Gelernte bleibt je Ausgabe (Kapazität der Spur)
+    in den Einstellungen (`core_audio`, „frames<Kapazität>“) auch über einen Neustart der App;
+    `LatencyTunerTests` 14 Prüfungen. **Nicht getestet:** mit AirPods (Verzögerung).
+    **Nicht getestet (Raumklang):**
     auf einem Gerät mit Raumklang (Spatializer), wie es klingt; ob der Retroid einen hat
     (steht dann im Bericht).
 - **Release 0.38.3 Alpha 4** (Projektinhaber, 20.10.2026: „Alpha4 fertig für heute“): Text
