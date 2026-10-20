@@ -22,7 +22,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M10 Speichern/Laden | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/re4-m10-speichern`): die CARD-Bibliothek aus `src/lib` läuft auf einer nachgebildeten Speicherkarte (Datei im Speicher der App, nur für den Port); neue Karte vorformatiert, Startprüfung echt, aber ohne Meldungen (Systemdatei still angelegt); Speichern an der Schreibmaschine, Laden im Titel und im Pausemenü, „Retry“, Optionen über einen Neustart erhalten, Spielstände mit Banner und Symbol. Dabei behoben: Hänger beim Neustart eines Raums mit laufender Musik (Patch 0059) („M10 Speichern/Laden“) |
 | M11 Android-Feinschliff | ✅ 17.10.2026 (Retroid und PC-Prüfung, Branch `claude/nifty-feynman-jv729h`, Stand `093aa7a`): Menü der App über SELECT (Grafikoptionen, FPS-Anzeige, „Depth of field“ mit dem Autofokus der ersten App, Speicherkarte als `.gci` für Dolphin/GameCube, Fehlerprotokoll für Tester, alles auf Englisch), SELECT halten = Debug-Menü des Spiels, Diagnose-Anzeige ausgebaut, Spiel steht im Menü und im Hintergrund. Rundgang über alle Räume (PC mit Disc-Daten): 126 von 126 laufen (Patches 0062–0064). Super Magnum: kein Port-Fehler (Nachlade-Stufe Lv.5 aus dem Debug-Menü), mit Lv.1 bestätigt. Debug-Menü Waffenseite stürzte am Listenende ab (Patch 0066). Leistung: 60 Bilder/s, Kern 33,3 ms je Spielbild mit 13–15 ms Leerlauf, GPU um 20 ms („M11 Android-Feinschliff“) |
 | M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`, seit 18.10.2026 `claude/exciting-bohr-6akwfd`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt; A2 ✅ Adressen unter 4 GB; A3 ✅ Strukturen, die auf 64 bit auseinanderlaufen: alle Prüfwerkzeuge 0 (Patches 0070–0073, Regel `lp64_sizes`); A4 ✅ alle Cloud-Tests grün auf i686, armhf, x86_64 und **aarch64 (neu, ARM64 unter qemu)**, auch Filme und Speicherkarte; A5 Android arm64 eingebaut, aber ungeprüft (kein NDK in der Cloud). 18.10.2026: PC-Prüfung `-Lp64` läuft r100 10.000 Bilder ohne Absturz, Speichern stürzte ab (Budget des Speicherbildschirms, behoben, unbestätigt); Neustart mit Bestandsaufnahme aller Prüfwerkzeuge (libclang statt Wörter, Selbsttest, `run_all.py` + `reviewed.json`), vier neue Werkzeuge, Patch 0082 (fünf echte Fehler), Vergleichslauf 32/64 bit (`-Compare`, in der Cloud mit dem synthetischen Film gleich; mit Disc-Daten offen). Offen: `-Compare` und `-Lp64` mit Disc-Daten, Gerätetest beider ABIs. Dabei gefunden: Puzzle-Untermenü las auch auf 32 bit falsche Felder (Patch 0073). Bestandsaufnahme `arm64-bestandsaufnahme.md`. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** |
-| 32-bit-Kernprozess | in Arbeit (Branch `claude/re4-32bit-kernprozess`, 20.10.2026): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`); Retroid 20.10.2026 (`-CoreProcess`): Spiel bis r100, Filme, Ton ohne Aussetzer, 30 FPS wie ohne Kernprozess; DPL2 zusammengeführt, **0.40.0-alpha vorbereitet** (versionCode 60, Releasetext); offen: Gerätetest des Stands (Menü/Speichern/Debug-Menü), das Gerät des Testers („32 bit: der Kern als eigener Prozess“) |
+| 32-bit-Kernprozess | in Arbeit (Branch `claude/re4-32bit-kernprozess`, 20.10.2026): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`); Retroid 20.10.2026 (`-CoreProcess`): Spiel bis r100, Filme, Ton ohne Aussetzer, 30 FPS wie ohne Kernprozess; DPL2 zusammengeführt, **0.40.0-alpha** (versionCode 60, Releasetext), Release-Kandidat auf dem Retroid in 64 und 32 bit (Kernprozess) ohne Befund; offen: das 2-GB-Gerät des Testers, Raumklang mit Spatializer („32 bit: der Kern als eigener Prozess“) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5306,6 +5306,27 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     `whole_build.sh i686 armhf` vollständig bestanden, der Kernprozess-Test je dreimal ohne
     Fehler. **Nicht getestet:** der zusammengeführte Stand auf dem Gerät (Kernprozess mit
     DPL2-Ton, Menü/Speichern/Debug-Menü), Raumklang auf einem Gerät mit Spatializer.
+  - **Gerätelauf des Release-Kandidaten (Retroid, Projektinhaber, 20.10.2026, Stand `71c68cdf`,
+    beide Kerne neu gebaut, APK 17,6 MB):**
+    - **64 bit** (`-Manual`, 155 s): Spielstand 2 geladen (r105), Spielstand 3 an der
+      Schreibmaschine gespeichert (mit Systemdatei), Debug-Menü (SELECT halten), App-Menü, alle
+      fünf Dateien der Karte als `.gci` exportiert; Ton 26000 Blöcke, 9 ran dry, 0 skips; DPL2 im
+      Spiel erkannt („game in Dolby Pro Logic II; spatializer: not on this device“: Stereo, wie
+      gewollt); 60 gezeigte Bilder je Sekunde, GPU 12,3 ms.
+    - **32 bit mit Kernprozess** (`-Abi armeabi-v7a -CoreProcess -Manual`, 164 s): Kernprozess
+      PID 24125, Spielstand geladen, gespeichert, Debug-Menü über den Kernprozess, DPL2-Erkennung
+      über den Spiegel des Kernprozesses (an und wieder aus), Ton 32000 Blöcke, 11 ran dry,
+      **0 skips**; „2000 reads, 892 waited for the core process (at most 1 ms), 0 short“ (mit dem
+      kleineren AudioTrack-Puffer des `LatencyTuner` wartet fast jede zweite Lesung, höchstens
+      1 ms); Kopien 2203 KB je Bild, 0,80 ms; Kern 33,5 ms je Bild, 0 ms Warten, 21,9 ms
+      Leerlauf; 60 gezeigte Bilder je Sekunde; keine Fehlermeldung.
+    - Beim APK-Bau „2 warnings generated“ (C/C++); die Datei steht nicht im Bericht, frühere
+      Builds zeigten dieselbe Art in `ports/motion64/motion.cpp` und `ports/fdlibm`; mit Clang 18
+      sind die neuen Dateien ohne Warnung.
+    - **Nicht auf dem Gerät mit dem Kernprozess:** App-Menü und `.gci`-Export (in der Cloud
+      geprüft, auf dem Gerät nur in 64 bit), ein Absturz des Kernprozesses, der echte Rückfall
+      (das 2-GB-Gerät des Testers).
+    - **Projektinhaber: baut 0.40.0-alpha mit Android Studio** (`coreRelease`, signiert).
 
 ## Aufbau
 
