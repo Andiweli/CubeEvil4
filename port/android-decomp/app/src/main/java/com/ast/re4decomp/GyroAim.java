@@ -9,18 +9,18 @@ import android.hardware.SensorManager;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.util.Log;
-import android.view.Surface;
 
 /**
  * Gyro aiming of the core mode (wish of the project owner, 19.10.2026: as in
  * the first Android port, ControllerActivity / leon_preview.cpp aimTick): the
  * gyroscope's turn rates go to the core (CoreBridge.gyro), which turns the aim
  * by them only while Leon aims a gun, not before (port/whole/runtime). The
- * axes and the filter are the first port's: pitch about the screen's
- * horizontal axis, yaw about the axis through the screen, smoothed (35 % of
- * each new reading), below 0.006 rad/s nothing, a reading older than 150 ms
- * or not a number: nothing. Switched by the menu ("Use Gyro-Aiming"); off
- * while the app is not in front.
+ * axes (GyroAxes): pitch about the screen's horizontal axis, yaw about its
+ * vertical axis (turning the device like a camera; until 20.10.2026 the axis
+ * through the screen, a steering wheel). The filter is the first port's:
+ * smoothed (35 % of each new reading), below 0.006 rad/s nothing, a reading
+ * older than 150 ms or not a number: nothing. Switched by the menu ("Use
+ * Gyro-Aiming"); off while the app is not in front.
  */
 final class GyroAim implements SensorEventListener {
   private final Activity activity;
@@ -87,12 +87,10 @@ final class GyroAim implements SensorEventListener {
       still();
       return;
     }
-    // the gyroscope's axes are the device's natural orientation's
+    // the gyroscope's axes are the device's natural orientation's, the aim's the screen's
     int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
-    float p = rotation == Surface.ROTATION_90 ? -event.values[1]
-        : rotation == Surface.ROTATION_270 ? event.values[1]
-        : rotation == Surface.ROTATION_180 ? -event.values[0] : event.values[0];
-    float y = event.values[2];
+    float p = GyroAxes.pitch(rotation, event.values);
+    float y = GyroAxes.yaw(rotation, event.values);
     if (SystemClock.elapsedRealtimeNanos() - event.timestamp > 150_000_000L || !finite(y) || !finite(p)) {
       still();
       return;

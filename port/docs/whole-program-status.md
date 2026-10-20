@@ -4973,7 +4973,7 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   bitgleich. Bericht: „Uniform-Ring: Wechsel nur zwischen Bildern“, 150 Wechsel, 0 im Bild,
   0 Wartezeiten, GPU 16,2 ms je Bild. Nicht erneut getestet: 32 bit (dort war das Flackern
   dasselbe; der Renderer ist für beide ABIs derselbe Code).
-- **Nächster Bugfix (gemerkt, Rückmeldung eines Testers zum Gyro-Zielen, 20.10.2026):**
+- **Rückmeldung eines Testers zum Gyro-Zielen (20.10.2026; erledigt, siehe „Gyro-Zielen: Drehen“):**
   1. „Links und rechts zielt man durch Kippen wie bei einem Rennspiel (Lenkrad), nicht durch
      Drehen (Gieren) wie in den meisten Shootern; sehr unintuitiv.“ Im Code: `GyroAim.java`
      nimmt für links/rechts die Drehung um die Achse durch den Bildschirm (`event.values[2]`),
@@ -4990,10 +4990,28 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
      verloren, sobald der Stick sich bewegt? Wenn der C-Stick beim Zielen im Spiel nichts tut:
      ihn in der Standardbelegung beim Zielen wie in „Alternate Controls“ mitnehmen (vorher
      fragen).
-- **Für die nächste Alpha (nach v0.38.2 Alpha 3) bisher:** Version im Menü „(v…)“, FPS-Anzeige
-  „30 FPS (Game) · 60 Hz“, Zielen mit dem rechten Stick in „Alternate Controls“; MSAA-Flackern
-  dünner Dinge behoben (Uniform-Ring wechselt nur zwischen Bildern; auf dem Retroid bestätigt),
-  MSAA mit `centroid`.
+- **Gyro-Zielen: Drehen statt Lenkrad (20.10.2026).** Entscheidungen des Projektinhabers: links
+  und rechts nur noch durch Drehen des Geräts (um die senkrechte Achse des Bildschirms, wie eine
+  Kamera), das Kippen wie ein Lenkrad fällt weg, keine Wahl im Menü; die Standardbelegung bleibt
+  wie am GameCube (der rechte Stick zielt nur in „Alternate Controls“). Neu `GyroAxes.java` (ohne
+  Android-Klassen): Gieren und Nicken aus der Messung je Drehung des Bildschirms
+  (`Display.getRotation`); das Nicken wie vorher; `GyroAim` nimmt beide von dort. Rechter Stick
+  und Gyro zusammen, im Spielcode geprüft: `PlWepLockCtrl` verschiebt mit dem Hauptstick `m3r`
+  und `m_Fwork0`/`ang.y` schrittweise, `gyro.cpp` hat vorher (Rahmen-Haken in `PADRead`) auf
+  `ang.y`, `m3r` und `Wep->pitch` addiert, `PlWepLockRand` zentriert bei bewegtem Stick auf das
+  jetzige `m3r`: beide zählen zusammen. Im Original verschiebt der C-Stick beim Zielen das Ziel
+  nicht (`cPlWep::lockMove`: er beendet nur das automatische Anvisieren). **Geprüft (Cloud):**
+  `GyroAxesTests` 40 Prüfungen (je Drehung: Drehen um die Senkrechte ist Gieren, nach links
+  positiv; Nicken wie vorher; Kippen um die Achse durch den Bildschirm tut nichts), in
+  `tools/test_host.sh` aufgenommen; alle Java-Dateien der App gegen Android übersetzt.
+  **Nicht getestet:** auf dem Gerät.
+- **Release 0.38.3 Alpha 4** (Projektinhaber, 20.10.2026: „Alpha4 fertig für heute“): Text
+  `port/android-decomp/docs/releases/v0.38.3-alpha4.md`, APK `CubeEvil4-v0.38.3-alpha4.apk`,
+  `versionName '0.38.3-Alpha4'`, `versionCode` 59 (`app/build.gradle`; das Menü zeigt
+  „(v0.38.3-Alpha4)“). Inhalt seit Alpha 3: MSAA-Flackern dünner Dinge behoben (auf dem Retroid
+  bestätigt), Gyro-Zielen durch Drehen (auf dem Gerät nicht getestet), Zielen mit dem rechten
+  Stick in „Alternate Controls“, FPS-Anzeige mit der Bildwiederholrate, Version im Menü; intern
+  MSAA mit `centroid` und die Wiedergabe von R3-Aufnahmen auf dem Gerät (`-GxReplay`).
 - **Menükopf (Wunsch des Projektinhabers):** „CubeEvil4 Options“ und die Zeile darunter
   linksbündig, „Back to the game“ in derselben Zeile rechts.
 - **Release 0.38.2 Alpha 03** (Entscheidung des Projektinhabers, 19.10.2026: auf GitHub liegt
