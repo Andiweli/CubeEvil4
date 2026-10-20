@@ -178,11 +178,22 @@ unsigned re4_ai_blocks(void);
 int re4_audio_read(short* out, int frames);
 /* The frames waiting in the ring as they are (tests). */
 int re4_audio_take(short* out, int frames);
+/* The same frames as four channels (front left, front right, rear left, rear
+ * right; ai.cpp): the reader, the tests' raw reader, the blocks that carried
+ * Dolby Pro Logic II's rear so far, and 1 while such blocks play (the last
+ * within 0.5 s). */
+int re4_audio_read4(short* out, int frames);
+int re4_audio_take4(short* out, short* out4, int frames);
+unsigned re4_audio_surround_blocks(void);
+int re4_audio_surround_now(void);
 void re4_audio_stats(unsigned* blocks, unsigned* fill, unsigned* overruns, unsigned* underruns,
                      unsigned* skips);
 /* The DSP (dsp.cpp): command lists run, voice milliseconds mixed, the most
  * voices running in one frame since the last call. */
 void re4_dsp_stats(unsigned* lists, unsigned* voiceMs, unsigned* peakVoices);
+/* The four channels of a Dolby Pro Logic II block (front L/R, rear L/R) by its
+ * AI address: 1 and taken, else 0 (dsp.cpp). */
+int re4_dsp_surround(unsigned blockAddr, short* out);
 
 /* Interrupts (vi.cpp). re4_interrupt_point delivers the retraces that are due
  * (cheap when none is); re4_os_idle / re4_wait_interrupt wait for the next one. */

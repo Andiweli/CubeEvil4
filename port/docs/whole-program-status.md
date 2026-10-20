@@ -5064,6 +5064,39 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   hinteren Kanäle getrennt an Android geben (Androids Raumklang für Kopfhörer, z. B. AirPods,
   wo das Gerät ihn hat; sonst wie heute), im Branch `claude/re4-dpl2-raumklang`. Weg 2 (eigener
   Kopfhörer-Raumklang in der App) später vielleicht als Ergänzung.
+- **DPL2 Weg 1 umgesetzt (20.10.2026, Branch `claude/re4-dpl2-raumklang`).** Aufbau im
+  DPL2-Modus (SDK `AXCL.c`, `AXAux.c`, `mix.c`): vorne auf den Haupt-Bussen L/R, hinten (Ls,
+  Rs) auf den Bussen von Aux B L/R (MIX `vBL`/`vBR`), Hall-Eingang Aux A mit L, R, Ls (Aux A S)
+  und Rs (**Aux B S**, MIX `vBS`). Befehl 0x10 schickt die hinteren Kanäle durch den
+  DPL2-Puffer von Aux B (zurück einen Block später), 0x13 den Hall (Rückgabe L, R, Ls, Rs).
+  - **`runtime/dsp.cpp`:** die hinteren Kanäle getrennt (`gRearMain`: der Rückweg von 0x10,
+    `gRearAux`: der Hall); die Stereo-Ausgabe an den AI wie bisher (hinten Haupt voll, Hall
+    halb auf die gleiche Seite: bitgleich zu vorher); dazu je AI-Block die vier Kanäle (vorne
+    links, vorne rechts, hinten links, hinten rechts; Hall voll), abrufbar mit
+    `re4_dsp_surround(blockAdresse)`. **Fehler behoben:** der Hall bekam als Rs bisher Aux A S
+    ein zweites Mal statt Aux B S.
+  - **`runtime/ai.cpp`:** zweiter Ring mit vier Kanälen (außerhalb DPL2: vorne = Stereo,
+    hinten still), Leser `re4_audio_read4` mit derselben Stelle und Takt-Anpassung wie
+    `re4_audio_read` (die App liest einen der beiden), `re4_audio_surround_now` (ein
+    DPL2-Block in den letzten 0,5 s). Kern-Schnittstelle: `re4_core_audio4`,
+    `re4_core_audio_surround` (beide optional für die App).
+  - **App:** `CoreAudio` (Kontext der Aktivität) prüft etwa jede Sekunde: das Spiel in DPL2 und
+    Androids `Spatializer` (ab Android 12L) vorhanden, verfügbar, eingeschaltet und bereit für
+    5.1 bei der jetzigen Ausgabe (`canBeSpatialized`) → AudioTrack 32 kHz 5.1
+    (`SurroundPcm.fivePointOne`: vorne, Mitte und Tiefton still, hinten), sonst Stereo wie
+    bisher; ein Wechsel baut die Ausgabe neu. Protokoll „sound: game … ; spatializer …“ bei
+    jeder Änderung, „sound: AudioTrack 32000 Hz 5.1 …“; Bericht `test-core-app.ps1`: Zeilen
+    „Raumklang“ und „Tonausgabe“. JNI `CoreBridge.audio4`, `CoreBridge.audioSurround` (ein
+    Kern ohne die Funktionen: Stereo, hinten still).
+  - **Geprüft (Cloud):** Kern-Test `ax` neu: DPL2 mit einer Stimme vorne links (1500) und
+    hinten rechts (3000): vier Kanäle 1500/0/0/3000, Stereo 1500/3000; Hall in DPL2: der
+    Effekt sieht Ls 3000 und Rs 1500 (mit dem alten Fehler 3000: die Gegenprobe scheitert),
+    Rückgabe 100/200/300/400 in den vier Kanälen, Stereo 250/400; zurück in Stereo: hinten
+    still, nach 0,5 s kein Raumklang mehr. `SurroundPcmTests` 3 Prüfungen; alle Java-Dateien
+    gegen Android übersetzt; `core_mode.cpp` 32/64 bit ohne neue Warnungen;
+    `whole_build.sh i686 aarch64`: 0 Fehler, alle Prüfungen bestanden. **Nicht getestet:**
+    auf einem Gerät mit Raumklang (Spatializer), wie es klingt; ob der Retroid einen hat
+    (steht dann im Bericht).
 - **Release 0.38.3 Alpha 4** (Projektinhaber, 20.10.2026: „Alpha4 fertig für heute“): Text
   `port/android-decomp/docs/releases/v0.38.3-alpha4.md`, APK `CubeEvil4-v0.38.3-alpha4.apk`,
   `versionName '0.38.3-Alpha4'`, `versionCode` 59 (`app/build.gradle`; das Menü zeigt

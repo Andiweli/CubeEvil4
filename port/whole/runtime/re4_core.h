@@ -14,6 +14,7 @@
  *   re4_core_rumble()                 its rumble motor
  * The app's audio thread:
  *   re4_core_audio(out, frames)       the sound, 32 kHz stereo
+ *   re4_core_audio4(out, frames)      or as four channels (Dolby Pro Logic II)
  *   s = re4_core_acquire() ... re4_core_release(s)
  *                                     the newest published game frame
  * The game publishes one snapshot per game frame (PADRead), so a reader never
@@ -211,6 +212,15 @@ void re4_core_vsync(int64_t ns);
  * returns how many came from the game. Any thread (the app's audio thread);
  * the core keeps about 60 ms ahead and matches the device's clock. */
 int re4_core_audio(int16_t* out, int frames);
+/* The same sound as four channels: front left, front right, rear left, rear
+ * right per frame. In the game's Dolby Pro Logic II mode (AUDIO SETUP) the rear
+ * is the game's own; otherwise it is silent and the front is the stereo. The
+ * same ring position and clock matching as re4_core_audio: use one of the two.
+ * Optional for the app (cores since 20.10.2026). */
+int re4_core_audio4(int16_t* out, int frames);
+/* 1 while the game plays in Dolby Pro Logic II (the four channels carry a
+ * rear), else 0. */
+int re4_core_audio_surround(void);
 /* Sound counters: [0] AI blocks so far (5 ms each), [1] frames waiting,
  * [2] blocks lost while the app did not read, [3] reads that ran dry,
  * [4] skips after a pause of the app. */

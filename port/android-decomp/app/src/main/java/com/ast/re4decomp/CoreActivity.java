@@ -95,7 +95,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private final Handler main = new Handler(Looper.getMainLooper());
   private final ExecutorService rooms = Executors.newSingleThreadExecutor();
   private final CoreInput input = new CoreInput();
-  private final CoreAudio audio = new CoreAudio();
+  private final CoreAudio audio = new CoreAudio(this);
   private final Set<Integer> seenDevices = new HashSet<>();
   private GLSurfaceView surface;
   // the touch controls (RetroTouch) and its editor, during which the game stands

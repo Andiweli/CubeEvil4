@@ -59,6 +59,9 @@ struct CoreApi {
   unsigned (*rumble)(void){};
   int (*audio)(int16_t *, int){};
   void (*audioStats)(unsigned *){};
+  // optional (cores since 20.10.2026): the four channels (Dolby Pro Logic II) and whether the game uses them
+  int (*audio4)(int16_t *, int){};
+  int (*audioSurround)(void){};
   const Re4CoreSnapshot *(*acquire)(void){};
   void (*release)(const Re4CoreSnapshot *){};
   int (*logTail)(char *, int){};
@@ -371,6 +374,8 @@ void loadCore(JNIEnv *env) {
   ok = bind(api.gxRelease, "re4_core_gx_release") && ok;
   ok = bind(api.gxDetach, "re4_core_gx_detach") && ok;
   api.vsync = reinterpret_cast<void (*)(int64_t)>(dlsym(api.main, "re4_core_vsync"));
+  api.audio4 = reinterpret_cast<int (*)(int16_t *, int)>(dlsym(api.main, "re4_core_audio4"));
+  api.audioSurround = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_audio_surround"));
   api.pause = reinterpret_cast<int (*)(int, int)>(dlsym(api.main, "re4_core_pause"));
   api.debugMenu = reinterpret_cast<void (*)(void)>(dlsym(api.main, "re4_core_debug_menu"));
   api.setDof = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_set_dof"));
@@ -1375,6 +1380,38 @@ extern "C" JNIEXPORT jint JNICALL Java_com_ast_re4decomp_CoreBridge_audio(JNIEnv
   }
   env->ReleasePrimitiveArrayCritical(pcm, out, 0);
   return got;
+}
+
+// The same sound as four channels (front left, front right, rear left, rear right): the game's
+// own rear in its Dolby Pro Logic II mode (CoreAudio, for Android's spatializer). A core without
+// it gives the stereo with a silent rear.
+extern "C" JNIEXPORT jint JNICALL Java_com_ast_re4decomp_CoreBridge_audio4(JNIEnv *env, jclass,
+                                                                           jshortArray pcm, jint frames) {
+  const jsize length = env->GetArrayLength(pcm);
+  if (frames <= 0 || frames * 4 > length) return 0;
+  auto *out = static_cast<jshort *>(env->GetPrimitiveArrayCritical(pcm, nullptr));
+  if (!out) return 0;
+  int got = 0;
+  if (api.audio4) {
+    got = api.audio4(reinterpret_cast<int16_t *>(out), frames);
+  } else if (api.audio) {
+    // stereo into the front, the rear silent (spread from the end so nothing is overwritten)
+    got = api.audio(reinterpret_cast<int16_t *>(out), frames);
+    for (int i = frames - 1; i >= 0; i--) {
+      out[i * 4 + 1] = out[i * 2 + 1];
+      out[i * 4] = out[i * 2];
+      out[i * 4 + 2] = out[i * 4 + 3] = 0;
+    }
+  } else {
+    std::fill(out, out + frames * 4, 0);
+  }
+  env->ReleasePrimitiveArrayCritical(pcm, out, 0);
+  return got;
+}
+
+// 1 while the game plays in Dolby Pro Logic II (its rear in the four channels).
+extern "C" JNIEXPORT jboolean JNICALL Java_com_ast_re4decomp_CoreBridge_audioSurround(JNIEnv *, jclass) {
+  return api.audioSurround && api.audioSurround() ? JNI_TRUE : JNI_FALSE;
 }
 
 // A vsync of the display (CoreActivity, the Choreographer's frame time in ns of

@@ -840,6 +840,11 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     $gxCore = $keep | Where-Object { $_ -match 'GX core: ' } | Select-Object -Last 1
     if ($gxCore) { Say "GX im Kern zuletzt:               $(($gxCore -split 'GX core: ')[-1])" }
     # the GL work per picture and the GPU time (the renderer's own measurement)
+    # the sound's output (CoreAudio): the game's Dolby Pro Logic II and Android's spatializer
+    $soundState = $keep | Where-Object { $_ -match 'RE4Audio\s*: sound: game ' } | Select-Object -Last 1
+    if ($soundState) { Say "Raumklang:                        $(($soundState -split 'sound: game ')[-1])" }
+    $soundTrack = $keep | Where-Object { $_ -match 'RE4Audio\s*: sound: AudioTrack' } | Select-Object -Last 1
+    if ($soundTrack) { Say "Tonausgabe:                       $(($soundTrack -split 'sound: ')[-1])" }
     $gxWork = $keep | Where-Object { $_ -match 'GX work per chunk: ' } | Select-Object -Last 1
     if ($gxWork) { Say "GX-Arbeit je Bild zuletzt:        $(($gxWork -split 'GX work per chunk: ')[-1])" }
     # the uniform stream (gx_gl.cpp) moves on between pictures only (MSAA flicker on the Adreno,
