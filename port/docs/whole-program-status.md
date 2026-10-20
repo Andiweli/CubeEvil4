@@ -5051,8 +5051,9 @@ Ersparnis). Der GPU-Branch ist danach in den M12-Branch übernommen.
   drei Stellen; gelesen werden wie vorher Eintrag 0 und 1. Nebenbefunde: Luis passt auf 64 bit in
   seinen Gegner-Platz (0x918 von 0xF60). **Geprüft (Cloud):** `whole_build.sh i686 aarch64`
   mit 0086: 0 Fehler, alle Prüfungen bestanden (Module laden, Laufzeit-, Kern- und Filmtest,
-  Formatvergleich, M12-Prüfwerkzeuge); der Patch steht in den vorbereiteten Quellen. **Nicht
-  getestet:** auf dem Gerät (die Hütte mit Luis); der Android-Kern muss dafür neu gebaut werden.
+  Formatvergleich, M12-Prüfwerkzeuge); der Patch steht in den vorbereiteten Quellen. **Auf dem
+  Gerät bestätigt (Projektinhaber, 20.10.2026):** mit dem neu gebauten Kern läuft die Szene in der
+  Hütte weiter, Luis schießt ohne Absturz.
 - **Release 0.38.3 Alpha 4** (Projektinhaber, 20.10.2026: „Alpha4 fertig für heute“): Text
   `port/android-decomp/docs/releases/v0.38.3-alpha4.md`, APK `CubeEvil4-v0.38.3-alpha4.apk`,
   `versionName '0.38.3-Alpha4'`, `versionCode` 59 (`app/build.gradle`; das Menü zeigt
