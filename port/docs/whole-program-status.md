@@ -5685,7 +5685,10 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   - **Schießbude (r22c): Ursache gefunden, Patch 0090.** Im Protokoll beider Läufe „game:
     cEmMark::setNextInst() ERR 300“, im vorigen Lauf danach (12:56:43) der Absturz `cEmMark::move`
     → pc 0 (`crash.txt`). Ursache siehe Patch 0090 (Zieltyp und nächster Befehl aus dem falschen
-    Byte der Skriptwörter). Vor dem Patch liest das aarch64-Modul `ldrb w9, [x9, #0x3]`.
+    Byte der Skriptwörter). Vor dem Patch liest das aarch64-Modul `ldrb w9, [x9, #0x3]`, danach
+    `ldr w9, [x9]` und speichert dessen niedrigstes Byte (`strb w9` nach `r_no_0`); `init` liest
+    das Wort `flag` (`ldr w1, [x8, #0x4]`). `whole_build.sh i686 armhf aarch64`: 0 Baufehler,
+    alle Prüfungen bestanden. **Nicht getestet:** die Schießbude auf dem Gerät.
     Ashleys Schreie und der Texturfehler: mit Typ 0 für alle Ziele lief die Schießbude anders als
     im Original (Ashley-Tafeln, Trefferwirkungen `R22cHitEffect`); ob beides mit 0090 verschwindet,
     zeigt erst der nächste Versuch (Bildschirmfoto des Hintergrunds erbeten).
