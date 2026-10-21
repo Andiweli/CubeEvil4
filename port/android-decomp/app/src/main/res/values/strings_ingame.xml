@@ -30,12 +30,14 @@
 
     <!-- Controls -->
     <string name="ingame_controls">Controls</string>
-    <string name="ingame_methods">Select methods</string>
-    <string name="ingame_touch">Use Touch Controls</string>
+    <string name="ingame_touch_controls">Touch Controls</string>
+    <string name="ingame_touch_auto">Auto</string>
+    <string name="ingame_touch_force">Force</string>
+    <string name="ingame_touch_suppress">Suppress</string>
+    <string name="ingame_comfort">Comfort Controls</string>
     <string name="ingame_gyro">Use Gyro-Aiming</string>
     <string name="ingame_gyro_none">Use Gyro-Aiming (no gyroscope)</string>
-    <string name="ingame_touch_help">Touch Controls: They appear when no controller is detected, use checkbox to manually enable it; a tap on the screen shows them too, until a controller is used. The menu-icon opens the configuration (MENU = SELECT). Latch L and R: a tap keeps L or R pressed until the next tap (aim and fire with two thumbs).</string>
-    <string name="ingame_button_layout">Button layout</string>
+    <string name="ingame_touch_help">Auto: shown without a controller, a tap shows them, a button hides them. Force: always shown. Suppress: hidden while a controller is connected. MENU = SELECT. Latch: a tap holds L or R until the next tap.</string>
     <string name="ingame_alternate">Alternate Controls</string>
     <string name="ingame_latch">Latch L and R (Touch)</string>
     <string name="ingame_alternate_help">Alternate Controls: L1 = Knife, L2 = Aim (aim with the right stick), R1 = Inventory (Weapons/Recovery), R2 = Fire / use the knife, Y = Map. A, B, X (Ashley) and START as before.</string>

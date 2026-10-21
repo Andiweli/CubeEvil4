@@ -29,7 +29,7 @@ import java.util.Locale;
 /**
  * The core mode's menu (M11; SELECT pressed, decision of the project owner,
  * 17.10.2026): picture options with the resolution they give, the FPS
- * display, the touch controls' and gyro aiming's switches (19.10.2026), the memory card as .gci
+ * display, the touch controls (Auto, Force, Suppress; 21.10.2026) and gyro aiming, the memory card as .gci
  * (export for Dolphin or a GameCube, import from there) and the error log; centred headings in small
  * capitals between lines (wishes of the project owner, 17.10.2026). The game
  * stands while it is open (CoreActivity pauses the core).
@@ -51,8 +51,8 @@ final class CoreMenu extends Dialog {
     void logChanged(boolean on);
     void toolsChanged(boolean on);
     void fpsChanged(boolean on);
-    /** The switch "Use Touch Controls" (the preferences hold it). */
-    void touchChanged(boolean on);
+    /** The setting "Touch Controls": TouchShowRule.AUTO, FORCE or SUPPRESS (the preferences hold it). */
+    void touchModeChanged(int mode);
     /** The switch "Use Gyro-Aiming" (the preferences hold it). */
     void gyroChanged(boolean on);
     /** The switch "Alternate Controls" (the preferences hold it). */
@@ -193,13 +193,16 @@ final class CoreMenu extends Dialog {
    * children share the width as the five columns of the choices do (weight 1 each: a child of
    * weight 2 at the start spans the first two columns, the next one starts under the third).
    */
-  private LinearLayout labelledRow(String title) {
+  private LinearLayout labelledRow(String title) { return labelledRow(title, 5); }
+
+  /** The same with `columns` equal columns (3: under the three touch settings). */
+  private LinearLayout labelledRow(String title, int columns) {
     LinearLayout row = new LinearLayout(getContext());
     row.setGravity(Gravity.CENTER_VERTICAL);
     row.addView(text(title, 14, false), new LinearLayout.LayoutParams(dp(170), ViewGroup.LayoutParams.WRAP_CONTENT));
     LinearLayout box = new LinearLayout(getContext());
     box.setGravity(Gravity.CENTER_VERTICAL);
-    box.setWeightSum(5);
+    box.setWeightSum(columns);
     row.addView(box, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
     body.addView(row);
     return box;
@@ -235,6 +238,35 @@ final class CoreMenu extends Dialog {
     row.addView(group, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
     body.addView(row);
     return group;
+  }
+
+  /** The setting "Touch Controls": Auto, Force and Suppress side by side in equal parts, applied at once. */
+  private void touchModes(SharedPreferences input) {
+    LinearLayout row = new LinearLayout(getContext());
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    row.addView(text(s(R.string.ingame_touch_controls), 14, false),
+        new LinearLayout.LayoutParams(dp(170), ViewGroup.LayoutParams.WRAP_CONTENT));
+    RadioGroup group = new RadioGroup(getContext());
+    group.setOrientation(LinearLayout.HORIZONTAL);
+    int[] modes = {TouchShowRule.AUTO, TouchShowRule.FORCE, TouchShowRule.SUPPRESS};
+    int[] labels = {R.string.ingame_touch_auto, R.string.ingame_touch_force, R.string.ingame_touch_suppress};
+    int current = CoreActivity.touchMode(input);
+    for (int i = 0; i < modes.length; i++) {
+      RadioButton b = new RadioButton(getContext());
+      b.setId(View.generateViewId());
+      b.setText(s(labels[i]));
+      b.setTextSize(14);
+      b.setTag(modes[i]);
+      group.addView(b, new RadioGroup.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+      if (modes[i] == current) group.check(b.getId());
+    }
+    group.setOnCheckedChangeListener((g, id) -> {
+      if (id == -1) return;
+      RadioButton b = g.findViewById(id);
+      host.touchModeChanged((Integer) b.getTag());
+    });
+    row.addView(group, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+    body.addView(row);
   }
 
   private void build() {
@@ -283,22 +315,22 @@ final class CoreMenu extends Dialog {
     showGraphics();
 
     heading(s(R.string.ingame_controls));
-    // in the columns of the check boxes above
+    // "Touch Controls": Auto, Force, Suppress in equal parts of the row, Latch L and R in the second
+    // line, a short note on the three (wishes of the project owner, 21.10.2026)
     SharedPreferences input = getContext().getSharedPreferences(CoreActivity.INPUT_PREFS, Context.MODE_PRIVATE);
-    LinearLayout methods = labelledRow(s(R.string.ingame_methods));
-    checkBox(methods, s(R.string.ingame_touch), input.getBoolean(CoreActivity.TOUCH_ALWAYS, false), 2,
-        (b, on) -> host.touchChanged(on));
+    touchModes(input);
+    LinearLayout touchMore = labelledRow("", 3);
+    checkBox(touchMore, s(R.string.ingame_latch), input.getBoolean(CoreActivity.TOUCH_LATCH, false), 2,
+        (b, on) -> host.latchChanged(on));
+    body.addView(text(s(R.string.ingame_touch_help), 12, false));
+    // "Comfort Controls": Alternate Controls and Gyro aiming, in the columns of the check boxes above
+    LinearLayout comfort = labelledRow(s(R.string.ingame_comfort));
+    checkBox(comfort, s(R.string.ingame_alternate), input.getBoolean(CoreActivity.ALT_CONTROLS, false), 2,
+        (b, on) -> host.alternateChanged(on));
     boolean gyro = GyroAim.available(getContext());
-    CheckBox gyroBox = checkBox(methods, s(gyro ? R.string.ingame_gyro : R.string.ingame_gyro_none),
+    CheckBox gyroBox = checkBox(comfort, s(gyro ? R.string.ingame_gyro : R.string.ingame_gyro_none),
         gyro && input.getBoolean(CoreActivity.GYRO_AIM, false), 3, (b, on) -> host.gyroChanged(on));
     gyroBox.setEnabled(gyro);
-    body.addView(text(s(R.string.ingame_touch_help), 12, false));
-    // the third and fourth switch: a row of their own (three do not fit side by side), in the columns above
-    LinearLayout layout = labelledRow(s(R.string.ingame_button_layout));
-    checkBox(layout, s(R.string.ingame_alternate), input.getBoolean(CoreActivity.ALT_CONTROLS, false), 2,
-        (b, on) -> host.alternateChanged(on));
-    checkBox(layout, s(R.string.ingame_latch), input.getBoolean(CoreActivity.TOUCH_LATCH, false), 3,
-        (b, on) -> host.latchChanged(on));
     body.addView(text(s(R.string.ingame_alternate_help), 12, false));
 
     heading(s(R.string.ingame_card));

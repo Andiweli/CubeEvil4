@@ -78,7 +78,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   static final String TAG = "RE4Input";
   /** Preferences of the core mode's controller (MainActivity sets the swap). */
   static final String INPUT_PREFS = "core_input", SWAP_FACE = "swapFace", R3_CAPTURE = "r3Capture";
-  /** The menu's switch "Use Touch Controls": shown even with a controller (off: only without one). */
+  /** The menu's setting "Touch Controls": TouchShowRule.AUTO (the default), FORCE or SUPPRESS. */
+  static final String TOUCH_MODE = "touchMode";
+  /** Until 21.10.2026 the switch "Use Touch Controls" (true: shown even with a controller, now FORCE). */
   static final String TOUCH_ALWAYS = "touchControls";
   // the menu's switch "Use Gyro-Aiming" (GyroAim)
   static final String GYRO_AIM = "gyroAiming";
@@ -194,7 +196,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
         FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START));
     showFps(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("fps", false));
     // the touch controls above everything
-    touchControls = new TouchControls(this, input, inputPrefs.getBoolean(TOUCH_ALWAYS, false), touchHost);
+    touchControls = new TouchControls(this, input, touchMode(inputPrefs), touchHost);
     touchControls.setLatch(inputPrefs.getBoolean(TOUCH_LATCH, false));
     gyroAim = new GyroAim(this, main);
     gyroAim.setEnabled(inputPrefs.getBoolean(GYRO_AIM, false));
@@ -255,6 +257,12 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
         | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+  }
+
+  /** The menu's setting "Touch Controls"; the old switch "Use Touch Controls" on counts as Force. */
+  static int touchMode(SharedPreferences prefs) {
+    if (prefs.contains(TOUCH_MODE)) return prefs.getInt(TOUCH_MODE, TouchShowRule.AUTO);
+    return prefs.getBoolean(TOUCH_ALWAYS, false) ? TouchShowRule.FORCE : TouchShowRule.AUTO;
   }
 
   /**
@@ -455,9 +463,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
 
     @Override public void fpsChanged(boolean on) { showFps(on); }
 
-    @Override public void touchChanged(boolean on) {
-      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(TOUCH_ALWAYS, on).apply();
-      touchControls.setAlways(on);
+    @Override public void touchModeChanged(int mode) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putInt(TOUCH_MODE, mode).apply();
+      touchControls.setMode(mode);
     }
 
     @Override public void gyroChanged(boolean on) {

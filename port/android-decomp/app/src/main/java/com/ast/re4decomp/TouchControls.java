@@ -19,12 +19,10 @@ import java.util.Locale;
 /**
  * RetroTouch (app/libs/retrotouch.aar; an update replaces the file) above the
  * game's picture: the touch controls of the core mode, mapped by CoreTouch.
- * Shown while no controller is connected (built-in, USB and Bluetooth
- * controllers, counted as RetroTouchControllers counts them), and always when
- * the menu's switch "Use Touch Controls" is on (decisions of the project owner,
- * 19.10.2026); a finger on the screen shows them too, until the controller is
- * used again (TouchShowRule, 21.10.2026). The log names each device counted as
- * a controller.
+ * Shown by the menu's setting "Touch Controls" (TouchShowRule: Auto, Force,
+ * Suppress; decision of the project owner, 21.10.2026) and the controllers
+ * connected (built-in, USB and Bluetooth, counted as RetroTouchControllers
+ * counts them). The log names each device counted as a controller.
  * RetroTouch's gear at the top right opens its editor (move, resize, save the
  * layout); the game stands meanwhile. Everything here runs on the UI thread.
  */
@@ -46,14 +44,14 @@ final class TouchControls implements CoreTouch.Host {
   private final Host host;
   private final int[] where = new int[2];
   private final TouchShowRule rule = new TouchShowRule();
-  private boolean always, shown, editing, quiet, first = true;
+  private boolean shown, editing, quiet, first = true;
   // the devices counted as controllers at the last update, for the log
   private String devices = "";
 
-  /** always: the menu's switch (shown even with a controller). */
-  TouchControls(Context context, CoreInput input, boolean always, Host host) {
+  /** mode: the menu's setting (TouchShowRule.AUTO, FORCE, SUPPRESS). */
+  TouchControls(Context context, CoreInput input, int mode, Host host) {
     this.host = host;
-    this.always = always;
+    rule.setMode(mode);
     touch = new CoreTouch(input, this);
     view = new RetroTouchView(context);
     // the game's surface keeps the focus (the controller's keys)
@@ -138,9 +136,9 @@ final class TouchControls implements CoreTouch.Host {
     return out.toString();
   }
 
-  /** The menu's switch: shown always (on) or only while no controller is connected (off). */
-  void setAlways(boolean on) {
-    always = on;
+  /** The menu's setting "Touch Controls": TouchShowRule.AUTO, FORCE or SUPPRESS. */
+  void setMode(int mode) {
+    rule.setMode(mode);
     update();
   }
 
@@ -148,13 +146,13 @@ final class TouchControls implements CoreTouch.Host {
   void setLatch(boolean on) { touch.setLatch(on); }
 
   /**
-   * Shown or hidden by the controllers present, the switch and the last touch (twice a second,
+   * Shown or hidden by the controllers present, the setting and the last touch (twice a second,
    * when a device changes, after a touch or a controller's use).
    */
   void update() {
     String now = controllerDevices();
     boolean controller = !now.isEmpty();
-    boolean want = rule.shown(always, controller);
+    boolean want = rule.shown(controller);
     boolean change = want != shown || first;
     if (!change && now.equals(devices)) return;
     first = false;
@@ -164,14 +162,13 @@ final class TouchControls implements CoreTouch.Host {
       quietly(() -> view.setMode(want ? RetroTouchMode.GAMEPLAY : RetroTouchMode.OFF));
       touch.reset();
     }
-    String why = !controller ? "no controller"
-        : "a controller is connected" + (always ? ", the menu's switch is on"
-            : rule.touched() ? ", the screen was touched" : "") + ": " + now;
+    String why = TouchShowRule.name(rule.mode()) + ", " + (!controller ? "no controller"
+        : "a controller is connected" + (rule.touched() && want ? ", the screen was touched" : "") + ": " + now);
     Log.i(CoreActivity.TAG, "touch controls " + (want ? "shown" : "hidden") + " (" + why + ")");
     if (change) host.send();
   }
 
-  /** A controller's button or stick was used: hidden again (unless no controller or the switch). */
+  /** A controller's button or stick was used: hidden again (unless no controller or Force). */
   void controllerUsed() {
     if (rule.controller()) update();
   }

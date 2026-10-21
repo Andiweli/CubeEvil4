@@ -24,7 +24,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`, seit 18.10.2026 `claude/exciting-bohr-6akwfd`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt; A2 ✅ Adressen unter 4 GB; A3 ✅ Strukturen, die auf 64 bit auseinanderlaufen: alle Prüfwerkzeuge 0 (Patches 0070–0073, Regel `lp64_sizes`); A4 ✅ alle Cloud-Tests grün auf i686, armhf, x86_64 und **aarch64 (neu, ARM64 unter qemu)**, auch Filme und Speicherkarte; A5 Android arm64 eingebaut, aber ungeprüft (kein NDK in der Cloud). 18.10.2026: PC-Prüfung `-Lp64` läuft r100 10.000 Bilder ohne Absturz, Speichern stürzte ab (Budget des Speicherbildschirms, behoben, unbestätigt); Neustart mit Bestandsaufnahme aller Prüfwerkzeuge (libclang statt Wörter, Selbsttest, `run_all.py` + `reviewed.json`), vier neue Werkzeuge, Patch 0082 (fünf echte Fehler), Vergleichslauf 32/64 bit (`-Compare`, in der Cloud mit dem synthetischen Film gleich; mit Disc-Daten offen). Offen: `-Compare` und `-Lp64` mit Disc-Daten, Gerätetest beider ABIs. Dabei gefunden: Puzzle-Untermenü las auch auf 32 bit falsche Felder (Patch 0073). Bestandsaufnahme `arm64-bestandsaufnahme.md`. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** |
 | 32-bit-Kernprozess | ✅ 20.10.2026 (Branch `claude/re4-32bit-kernprozess`, Release **0.40.0-alpha**): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Retroid ✅ (erzwungen mit `-CoreProcess`: Spiel, Filme, Ton, Laden/Speichern, Debug-Menü, 30 FPS), **Tester-Gerät ✅** (nur 32 bit, Android 14: das Spiel läuft, Projektinhaber 20.10.2026; ohne Bericht). Offen: Leistungszahlen vom Tester-Gerät, Raumklang mit Spatializer („32 bit: der Kern als eigener Prozess“) |
 | Hotfix 0.40.1-alpha | 20.10.2026 (Branch `claude/re4-luis-hotfix`, vom Stand `548b0f24` des Kernprozess-Branches): Patch 0087, Absturz auf 64 bit, wenn ein Ganado Luis in der Hütte packt (Abschnitt „Absturz, wenn ein Ganado Luis in der Hütte packt“); Touch-Tasten nach einem Tippen auch bei einem „Geister-Controller“ (21.10.2026, Abschnitt „Touch-Bedienung bleibt ohne Controller versteckt“). Cloud ✅, **Gerätetest offen** |
-| Menü mehrsprachig | 21.10.2026 vorbereitet (Branch `claude/re4-menu-sprachen`): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache; weitere Sprachen liefert der Projektinhaber. Cloud ✅, **Gerätetest offen** |
+| Menü mehrsprachig, 0.41.0-alpha | 21.10.2026 (Branch `claude/re4-menu-sprachen`, enthält den Hotfix): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache (weitere liefert der Projektinhaber); Touchsteuerung Auto/Erzwingen/Unterdrücken, Komfortsteuerung. Cloud ✅, **Gerätetest offen** |
 | Hauptbranch `master` | 20.10.2026: alle Branches bis Alpha 4 (`claude/re4-start-controls`) und der 32-bit-Kernprozess bis zum zweiten Retroid-Lauf (`22aac6bf`) zusammengeführt, **ohne den Raumklang** (`claude/re4-dpl2-raumklang`, Wunsch des Projektinhabers: erst nach seinem Test). Das Release **0.40.0-alpha** (mit Raumklang, versionCode 60) und alles danach liegt im Branch `claude/re4-32bit-kernprozess`; dort weiterarbeiten oder ihn später ganz übernehmen |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
@@ -5450,6 +5450,36 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     auf einem Gerät (Menü auf Deutsch und Englisch, ob die längeren deutschen Texte in die
     Spalten passen); kein Android-Ressourcen-Bau in der Cloud (kein `aapt2`), das prüft erst
     Android Studio.
+- **Gerätelauf Hotfix-Stand (Retroid, Projektinhaber, 21.10.2026, Stand `73ed2246`, beide Kerne
+  neu gebaut):** die Belagerung in r11c läuft durch (Ereignisse `r11cs00` → `r11cs10` →
+  `r11cs20`), kein Absturz; „Ich konnte die Szene nach Luis weiterspielen ohne Probleme“. Ob ein
+  Ganado Luis in diesem Lauf gewürgt hat, zeigt das Protokoll nicht. Touch nach Variante A wie
+  geplant (der Retroid-Controller meldet sich als „Retroid Pocket Controller“ vendor 2022 product
+  3001 sources 0x1000511 external): jede Berührung zeigt die Touch-Tasten, jede Taste blendet
+  sie aus. **Projektinhaber:** mit Controller nervt das (Bildschirmfotos).
+- **Touchsteuerung Auto / Erzwingen / Unterdrücken, Menü umgestellt (Wünsche des
+  Projektinhabers, 21.10.2026), Branch `claude/re4-menu-sprachen`, Version 0.41.0-alpha.**
+  - **Einstellung** `touchMode` (`CoreActivity.TOUCH_MODE`, `TouchShowRule.AUTO/FORCE/SUPPRESS`):
+    Auto (Standard) = Variante A; Erzwingen = immer (der alte Schalter „Use Touch Controls“ an
+    wird beim ersten Start zu Erzwingen, `CoreActivity.touchMode`); Unterdrücken = aus, solange
+    ein Controller verbunden ist, Antippen holt sie nicht zurück. Sicherung: ohne Controller
+    sichtbar, und solange seit dem Start kein Controller benutzt wurde, zeigt ein Tippen sie auch
+    in Unterdrücken (ein Gerät, das nur einen Controller meldet, ließe sonst gar keine Steuerung
+    und kein Menü übrig). Die Protokollzeile nennt die Einstellung („touch controls hidden
+    (suppress, a controller is connected: …)“).
+  - **Menü:** Zeile „Touch Controls“/„Touchsteuerung“ (früher „Select methods“/„Eingabearten“)
+    mit drei Knöpfen Auto, Force/Erzwingen, Suppress/Unterdrücken in gleichen Teilen der Zeile;
+    darunter „Latch L and R (Touch)“; kurzer Hinweis auf die drei. „Comfort Controls“/
+    „Komfortsteuerung“ (früher „Button layout“/„Tastenbelegung“) mit „Alternate Controls“ und
+    „Use Gyro-Aiming“ (von der Touch-Zeile hierher). Englisch und Deutsch angepasst (69 Texte).
+  - **Version** `0.41.0-alpha`, `versionCode` 62 (neue Funktionen: neue mittlere Zahl; 0.40.1 ist
+    nie erschienen). Releasetext `port/android-decomp/docs/releases/v0.41.0-alpha.md` (statt
+    `v0.40.1-alpha.md`): Luis, Touch nach einem Tippen, Touch-Einstellung, Menü in der
+    Handy-Sprache. README: Menü und Touch-Einstellung.
+  - **Geprüft (Cloud):** `TouchShowRuleTests` 51 Prüfungen (alle drei Einstellungen, Wechsel im
+    Menü, Gerät ohne Eingaben in Unterdrücken); `check_translations.py` values-de 69 Texte ok;
+    alle Java-Dateien gegen Android 15 übersetzt; `tools/test_host.sh` wie bisher (nativ 40 von
+    42). **Nicht getestet:** auf dem Gerät (Menü, die drei Einstellungen mit dem Retroid).
 
 ## Aufbau
 

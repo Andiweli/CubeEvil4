@@ -87,7 +87,8 @@ leave the game (and a save made afterwards) in an odd state. Such problems come 
 - An Android device with Android 6.0 or later, OpenGL ES 3.0 and a 32- or 64-bit ARM processor
   (details and recommendations: [Requirements](#requirements)).
 - A game controller (built in, USB or Bluetooth) or the touch screen: the touch controls appear
-  on their own when no controller is connected.
+  on their own when no controller is connected, and after a tap on the screen (app menu → Touch
+  Controls: Auto, Force or Suppress).
 - Your own disc images (ISO or GCM) of **both** discs of the GameCube debug build from
   November 25, 2004 (`G4BE08`), and enough free storage to import them.
 
@@ -101,11 +102,12 @@ leave the game (and a save made afterwards) in an odd state. Such problems come 
 
 **SELECT button**
 
-- **Press SELECT** (with touch controls: **MENU**): the app menu: graphics (resolution,
-  anti-aliasing, texture filter, 16:9 or 4:3 picture, FPS display, depth of field), controls
-  (touch controls, gyro aiming, Alternate Controls), memory card (export and import saves as
-  `.gci` for Dolphin and the GameCube) and the error log (send or save a report). B returns to
-  the game.
+- **Press SELECT** (with touch controls: **MENU**): the app menu, in your phone's language where
+  there is a translation (English otherwise): graphics (resolution, anti-aliasing, texture filter,
+  16:9 or 4:3 picture, FPS display, depth of field), controls (touch controls Auto, Force or
+  Suppress, Latch L and R; comfort controls: Alternate Controls, gyro aiming), memory card (export
+  and import saves as `.gci` for Dolphin and the GameCube) and the error log (send or save a
+  report). B returns to the game.
 - **Hold SELECT for a second:** the game's own debug menu (use with care, see Status: some of
   its options can break the game in ways the port has nothing to do with).
 

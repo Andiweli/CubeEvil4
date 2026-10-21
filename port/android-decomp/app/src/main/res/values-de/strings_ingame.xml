@@ -20,12 +20,14 @@
     <string name="ingame_resolution_line_auto">Auflösung: %1$d × %2$d Pixel (Stufe %3$d, Auto) · Bildschirm %4$d × %5$d · gilt, sobald das Menü schließt. Höhere Stufen brauchen mehr Leistung.</string>
 
     <string name="ingame_controls">Steuerung</string>
-    <string name="ingame_methods">Eingabearten</string>
-    <string name="ingame_touch">Touch-Steuerung verwenden</string>
+    <string name="ingame_touch_controls">Touchsteuerung</string>
+    <string name="ingame_touch_auto">Auto</string>
+    <string name="ingame_touch_force">Erzwingen</string>
+    <string name="ingame_touch_suppress">Unterdrücken</string>
+    <string name="ingame_comfort">Komfortsteuerung</string>
     <string name="ingame_gyro">Gyro-Zielen verwenden</string>
     <string name="ingame_gyro_none">Gyro-Zielen verwenden (kein Gyroskop)</string>
-    <string name="ingame_touch_help">Touch-Steuerung: Sie erscheint, wenn kein Controller erkannt wird, und mit dem Kästchen immer; ein Tippen auf den Bildschirm zeigt sie ebenfalls, bis ein Controller benutzt wird. Das Menü-Symbol öffnet die Einstellungen (MENU = SELECT). L und R einrasten: Ein Tippen hält L oder R gedrückt bis zum nächsten Tippen (zielen und schießen mit zwei Daumen).</string>
-    <string name="ingame_button_layout">Tastenbelegung</string>
+    <string name="ingame_touch_help">Auto: ohne Controller sichtbar, Antippen zeigt sie, eine Taste blendet sie aus. Erzwingen: immer sichtbar. Unterdrücken: aus, solange ein Controller verbunden ist. MENU = SELECT. Einrasten: Antippen hält L oder R bis zum nächsten Antippen.</string>
     <string name="ingame_alternate">Alternative Steuerung</string>
     <string name="ingame_latch">L und R einrasten (Touch)</string>
     <string name="ingame_alternate_help">Alternative Steuerung: L1 = Messer, L2 = Zielen (mit dem rechten Stick), R1 = Inventar (Waffen/Heilung), R2 = Schießen / Messer benutzen, Y = Karte. A, B, X (Ashley) und START wie bisher.</string>
