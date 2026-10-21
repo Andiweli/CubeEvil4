@@ -5515,7 +5515,9 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
   `dl_iterate_phdr` über `dladdr` und die Programmköpfe; `runtime/watch.cpp` Signal 32 + 6
   statt `SIGRTMIN + 6`; `runtime/log.cpp` `RE4_LOG_STDERR=1` schreibt das Protokoll auf
   Android zusätzlich nach stderr (die Probe über adb).
-- **PC:** `port/scripts/ouya-probe.ps1` (unter `Global\Retroid_ADB_Exclusive`): Build in WSL,
+- **PC:** `port/scripts/ouya-probe.ps1` aus dem eigenen Klon `E:\Development\Android\RE4-OUYA`
+  (Entscheidung des Projektinhabers, 21.10.2026; WSL-Build unter `~/re4-ouya` mit
+  `whole_build_android.sh --work re4-ouya`), unter `Global\Retroid_ADB_Exclusive`: Build in WSL,
   Disc 1 als Ordner (`RE4-OUYA-Daten` neben dem Repository), alles nach
   `/data/local/tmp/re4-ouya`, Läufe `r100` (Echtzeit), `r101` (Dorf, Echtzeit), `r100-schnell`
   (`RE4_VI_FAST=1`), Bericht in `Desktop\RE4-OUYA-Probe`, `senden.zip`. `-Serial` für den

@@ -2,7 +2,7 @@
 # Builds the game core for the Android app (the core mode of
 # RE4-Android-Decomp) with the NDK and copies the libraries into the app:
 #
-#   port/tools/whole_build_android.sh [--ndk DIR] [--opt N] [--abi ABI] [--source REPO] [--into APP]
+#   port/tools/whole_build_android.sh [--ndk DIR] [--opt N] [--abi ABI] [--source REPO] [--work DIR] [--into APP]
 #
 #   --abi ABI      armeabi-v7a, arm64-v8a (milestone 12) or all (the default:
 #                  both, one APK for 32- and 64-bit devices)
@@ -10,6 +10,10 @@
 #                  checkout under /mnt/...: cloned once to ~/re4-kern/RE4 and
 #                  fetched, like whole_r100_check.sh; building on a Windows
 #                  drive would be slow)
+#   --work DIR     where --source is cloned (DIR/RE4; default ~/re4-kern, a
+#                  relative DIR lies in the home folder): the OUYA checkout
+#                  (port/scripts/ouya-probe.ps1) builds in ~/re4-ouya, apart
+#                  from the app's
 #   --into APP     copy the libraries into APP/src/core (default: the app of
 #                  the built checkout); port/scripts/test-core-app.ps1 passes
 #                  the Windows checkout's app folder
@@ -44,6 +48,7 @@ ndk=""
 opt=2
 abi=all
 source=""
+work="re4-kern"
 into=""
 ouya=0
 stage=""
@@ -53,6 +58,7 @@ while [ $# -gt 0 ]; do
         --opt) opt="$2"; shift 2 ;;
         --abi) abi="$2"; shift 2 ;;
         --source) source="$2"; shift 2 ;;
+        --work) work="$2"; shift 2 ;;
         --into) into="$2"; shift 2 ;;
         --ouya) ouya=1; shift ;;
         --stage) stage="$2"; shift 2 ;;
@@ -69,7 +75,10 @@ if [ -z "$ndk" ]; then
 fi
 [ "$ouya" -eq 1 ] && abi=armeabi-v7a
 if [ -n "$source" ]; then
-    work="$HOME/re4-kern"
+    case "$work" in
+        /*) ;;
+        *) work="$HOME/$work" ;;
+    esac
     root="$work/RE4"
     mkdir -p "$work"
     git_s() { git -c safe.directory='*' "$@"; }

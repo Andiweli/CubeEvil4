@@ -115,9 +115,11 @@ Takt jedes Prozessorkerns. Am Ende eine Zusammenfassung über die Zeit, in der L
 frei war (ohne Zwischensequenz, ohne Menü), sonst über die Hauptschleife des
 Raums: `probe-result: key=value ...`.
 
-**Auf der OUYA:** `port/scripts/ouya-probe.ps1` (Windows) baut in WSL mit dem NDK
-r23c (`whole_setup_linux.sh --ouya`, `whole_build_android.sh --ouya`), legt Disc 1
-als Ordner an (einmalig, `RE4-OUYA-Daten` neben dem Repository), kopiert alles
+**Auf der OUYA:** `port/scripts/ouya-probe.ps1` (Windows, aus dem eigenen Klon
+`E:\Development\Android\RE4-OUYA`, Entscheidung des Projektinhabers, 21.10.2026) baut in
+WSL mit dem NDK r23c (`whole_setup_linux.sh --ouya`, `whole_build_android.sh --ouya
+--work re4-ouya`: Quelltext und Build unter `~/re4-ouya`, getrennt von `~/re4-kern` der
+App), legt Disc 1 als Ordner an (einmalig, `RE4-OUYA-Daten` neben dem Klon), kopiert alles
 unter der ADB-Sperre nach `/data/local/tmp/re4-ouya` und misst drei Läufe mit der
 Tastenfolge der PC-Prüfung: r100 in Echtzeit, r101 (Dorf) in Echtzeit, r100 ohne
 Bremse (`RE4_VI_FAST=1`: so schnell der Kern kann). Bericht auf Deutsch in

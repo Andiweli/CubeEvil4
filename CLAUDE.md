@@ -20,7 +20,11 @@
   `E:\Development\Android\RE4-Fixed`, Disc-Daten
   `E:\Development\Android\RE4-Discdata`; Ergebnisse liegen auf dem Desktop in
   `RE4-Kern-App` bzw. `RE4-Kern-Pruefung`). Entscheidung des
-  Projektinhabers, 15.10.2026.
+  Projektinhabers, 15.10.2026. Die OUYA-Arbeit hat einen eigenen Klon
+  `E:\Development\Android\RE4-OUYA` (Disc 1 entpackt in
+  `E:\Development\Android\RE4-OUYA-Daten`, Ergebnisse auf dem Desktop in
+  `RE4-OUYA-Probe`), damit `RE4-Fixed` auf seinem Branch bleibt (Entscheidung des
+  Projektinhabers, 21.10.2026).
 - Bei jedem neuen Alpha-Release die Änderungen gleich im Chat mitschicken, kurz
   und knackig (englisch, für Tester: Fixed / New / Changed, je ein Satz pro Punkt);
   der Releasetext in `port/android-decomp/docs/releases/` bleibt genauso kurz

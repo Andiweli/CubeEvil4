@@ -7,8 +7,9 @@ Bild auf der OUYA. Misst, wie schnell er dort laeuft.
 Drei Schritte:
   1. WSL2 (Ubuntu): das Android-NDK r23c einmalig einrichten (whole_setup_linux.sh --ouya,
      etwa 700 MB Download; das letzte NDK fuer Android 4.1) und den Spielkern fuer
-     Android 4.1 bauen (whole_build_android.sh --ouya). Kern, Module und das
-     Messprogramm re4_probe landen in port\build\ouya-probe (nicht im Repository).
+     Android 4.1 bauen (whole_build_android.sh --ouya, in WSL unter ~/re4-ouya, getrennt
+     vom Build der App unter ~/re4-kern). Kern, Module und das Messprogramm re4_probe
+     landen in port\build\ouya-probe (nicht im Repository).
   2. Disc 1 als Ordner: aus -DataDir (Disc-Abbilder .iso/.gcm, mit Dolphin entpackte
      Disc, Import-Ordner der App oder Port-Ordner). Abbilder werden einmalig nach
      -CacheDir entpackt (Standard: RE4-OUYA-Daten neben dem Repository, etwa 1,4 GB).
@@ -32,10 +33,18 @@ und wird keine OUYA erkannt, die Kennung mit -Serial angeben (adb devices zeigt 
 Mit -Serial geht derselbe Test auch auf einem anderen Geraet (etwa dem Retroid zum
 Vergleich: dieselbe Probe laeuft auch auf neueren Android-Versionen).
 
-Vorher den Branch der Aufgabe holen, z. B.:
+Die OUYA-Arbeit hat einen eigenen Ordner neben RE4-Fixed (Entscheidung des
+Projektinhabers, 21.10.2026): E:\Development\Android\RE4-OUYA, ein zweiter Klon des
+Repositorys. So bleibt RE4-Fixed auf seinem Branch. Einmal anlegen:
+  cd E:\Development\Android
+  git clone https://github.com/Andiweli/RE4.git RE4-OUYA
+Danach dort den Branch der Aufgabe holen, z. B.:
+  cd E:\Development\Android\RE4-OUYA
   git fetch origin
   git checkout claude/adoring-mendel-vclbu8
   git pull
+Disc-Daten (RE4-Discdata) und der Ordner fuer die entpackte Disc 1 (RE4-OUYA-Daten) liegen
+neben dem Klon, also ebenfalls in E:\Development\Android.
 
 .EXAMPLE
 .\port\scripts\ouya-probe.ps1
@@ -135,7 +144,7 @@ if (-not $SkipBuild) {
     $buildLog = Join-Path $OutDir 'kern-build.log'
     $code = Invoke-Logged $buildLog {
         wsl.exe @wslBase --exec bash "$repoWsl/port/tools/whole_build_android.sh" --ouya --source $repoWsl `
-            --stage "$repoWsl/port/build/ouya-probe"
+            --work re4-ouya --stage "$repoWsl/port/build/ouya-probe"
     }
     Add-ReportTail $buildLog 30
     if ($code -ne 0) { throw 'Kern-Build fehlgeschlagen (Einzelheiten oben und in kern-build.log).' }
