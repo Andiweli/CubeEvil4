@@ -1,7 +1,7 @@
 // The game core without a picture (port/docs/ouya-machbarkeit.md, step O1):
 // how fast the core runs on a device before a renderer is built for it.
 //
-//   re4_probe --data DIR [--seconds N] [--report N] [--no-copy]
+//   re4_probe --data DIR [--seconds N] [--report N] [--no-copy] [--profile FILE]
 //
 // Loads the core as the core process does (host/coreproc.cpp), with every
 // address range below 0x83000000 held first (host/low_memory.h): the game
@@ -19,6 +19,12 @@
 //                     frames, frame times, CPU time of the game's thread per
 //                     frame, its idle time (asleep for the next retrace), the
 //                     process's CPU, GX, sound, memory, the processor clocks
+//   the sampler       (--profile FILE) sends SIGPROF to the game's thread about
+//                     1000 times a second; the handler notes where it is. At
+//                     the end each sampled place as "LIBRARY OFFSET COUNT" into
+//                     FILE (port/tools/probe_profile.py names the functions
+//                     with the libraries of the build) and the share of each
+//                     library in the output
 //
 // After --seconds (default 180) a summary over the stretches the game spent
 // in its main loop ("probe-result: key=value ..." for
@@ -311,6 +317,114 @@ void gxThread()
             }
             core.gxRelease(k);
         }
+    }
+}
+
+// --- where the game's thread spends its time (--profile) -------------------------------
+
+const unsigned kSamples = 1u << 19;  // 8.7 minutes at 1000 a second
+uintptr_t gSamples[kSamples];
+std::atomic<unsigned> gSampleCount{0};
+std::atomic<bool> gSampling{true};
+
+void onSample(int, siginfo_t*, void* context)
+{
+    if (!gSampling.load(std::memory_order_relaxed)) {
+        return;
+    }
+    const ucontext_t* uc = (const ucontext_t*) context;
+    uintptr_t pc = 0;
+#if defined(__arm__)
+    pc = uc->uc_mcontext.arm_pc;
+#elif defined(__i386__)
+    pc = (uintptr_t) uc->uc_mcontext.gregs[REG_EIP];
+#else
+    (void) uc;
+#endif
+    const unsigned n = gSampleCount.fetch_add(1, std::memory_order_relaxed);
+    if (n < kSamples) {
+        gSamples[n] = pc;
+    }
+}
+
+void samplerThread()
+{
+    prctl(PR_SET_NAME, "probe-sampler");
+    int tid = 0;
+    while ((tid = core.gameThread()) <= 0) {
+        usleep(10000);
+    }
+    while (gSampling.load()) {
+        usleep(1000);
+        syscall(SYS_tgkill, getpid(), tid, SIGPROF);
+    }
+}
+
+void startSampler()
+{
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    action.sa_sigaction = onSample;
+    // the game's sleep for the next retrace (vi.cpp) only wakes early and sleeps again
+    action.sa_flags = SA_SIGINFO | SA_RESTART;
+    sigemptyset(&action.sa_mask);
+    sigaction(SIGPROF, &action, nullptr);
+    std::thread(samplerThread).detach();
+}
+
+// the samples by library and offset into FILE, the share of each library on stdout
+void writeProfile(const char* path)
+{
+    gSampling.store(false);
+    usleep(20000);  // a signal still on its way
+    const unsigned n = std::min(gSampleCount.load(), kSamples);
+    struct Place {
+        std::string lib;
+        uintptr_t offset;
+        unsigned count;
+    };
+    std::vector<Place> places;
+    std::vector<std::pair<std::string, unsigned>> libs;
+    std::sort(gSamples, gSamples + n);
+    for (unsigned i = 0; i < n;) {
+        unsigned j = i;
+        while (j < n && gSamples[j] == gSamples[i]) {
+            j++;
+        }
+        Dl_info info;
+        memset(&info, 0, sizeof(info));
+        std::string lib = "?";
+        uintptr_t offset = gSamples[i];
+        if (gSamples[i] && dladdr((void*) gSamples[i], &info) && info.dli_fname) {
+            const char* slash = strrchr(info.dli_fname, '/');
+            lib = slash ? slash + 1 : info.dli_fname;
+            offset = gSamples[i] - (uintptr_t) info.dli_fbase;
+        }
+        places.push_back({lib, offset, j - i});
+        auto at = std::find_if(libs.begin(), libs.end(), [&](const std::pair<std::string, unsigned>& l) {
+            return l.first == lib;
+        });
+        if (at == libs.end()) {
+            libs.push_back({lib, j - i});
+        } else {
+            at->second += j - i;
+        }
+        i = j;
+    }
+    FILE* f = fopen(path, "we");
+    if (f) {
+        fprintf(f, "# re4_probe samples of the game's thread: %u\n", n);
+        for (const Place& p : places) {
+            fprintf(f, "%s 0x%lx %u\n", p.lib.c_str(), (unsigned long) p.offset, p.count);
+        }
+        fclose(f);
+    }
+    std::sort(libs.begin(), libs.end(), [](const std::pair<std::string, unsigned>& a,
+                                           const std::pair<std::string, unsigned>& b) { return a.second > b.second; });
+    printf("probe: profile of the game's thread: %u samples, %zu places%s%s\n", n, places.size(),
+           f ? " -> " : ", NOT written to ", path);
+    for (size_t i = 0; i < libs.size() && i < 8; i++) {
+        printf("probe-profile-lib: %s %.1f %%\n", libs[i].first.c_str(), n ? 100.0 * libs[i].second / n : 0.0);
     }
 }
 
@@ -660,6 +774,7 @@ int main(int argc, char** argv)
     prctl(PR_SET_NAME, "re4-probe");
 
     std::string data;
+    const char* profile = nullptr;
     int seconds = 180, report = 5;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--data") == 0 && i + 1 < argc) {
@@ -670,8 +785,10 @@ int main(int argc, char** argv)
             report = std::max(1, atoi(argv[++i]));
         } else if (strcmp(argv[i], "--no-copy") == 0) {
             gCopy = false;
+        } else if (strcmp(argv[i], "--profile") == 0 && i + 1 < argc) {
+            profile = argv[++i];
         } else {
-            fprintf(stderr, "usage: %s --data DIR [--seconds N] [--report N] [--no-copy]\n", argv[0]);
+            fprintf(stderr, "usage: %s --data DIR [--seconds N] [--report N] [--no-copy] [--profile FILE]\n", argv[0]);
             return 2;
         }
     }
@@ -728,6 +845,9 @@ int main(int argc, char** argv)
     }
     std::thread(gxThread).detach();
     std::thread(soundThread).detach();
+    if (profile) {
+        startSampler();
+    }
     printf("probe: the game runs (modules from %s)\n", modules.c_str());
 
     std::vector<Stretch> stretches;
@@ -814,6 +934,9 @@ int main(int argc, char** argv)
     printf("probe: summary: %.0f s, %.0f frames; main loop %.0f s; free to play %.0f s\n", all.seconds, all.frames,
            inLoop.seconds, inPlay.seconds);
     threadTimes();
+    if (profile) {
+        writeProfile(profile);
+    }
     if (inPlay.seconds > 0) {
         printResult("play", inPlay, previous);
     }

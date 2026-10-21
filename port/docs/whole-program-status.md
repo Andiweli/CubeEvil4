@@ -5545,6 +5545,24 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
   Platzhalters (`whole_prepare.py`) wurde verworfen: dann sehen Einheiten mit eigener
   Platzierungs-`operator new` (`cManager.h`, `cam_extra.h`) das echte `<new>` und brechen ab
   (i686/armhf, `state_trace.cpp`, `game_probe.cpp`).
+- **Erste Messung auf der OUYA (21.10.2026, Stand `7ce1115`, Projektinhaber):** Build mit NDK r23c
+  fehlerfrei (114 Module, Stubs wie erwartet), Disc 1 per ADB in 18 min (1,2 MB/s). Die Probe lädt
+  und spielt auf Android 4.1.2 (Kernel 3.1.10, Tegra 3 „cardhu“, 4 Kerne bei 1,6 GHz, 994 MB).
+  **r100, Leon frei (105 s): 10,7 Bilder/s, Kern 93 ms je Bild** (verfügbar 33,3), kein Leerlauf,
+  174 000 Punkte und 6,9 MB GX je Bild (Kopie 13,8 ms im eigenen Thread), Ton zu 72 % aus dem
+  Spiel; Prozessor 116 % (gut ein Kern von vier). Zwischensequenz 12–16 Bilder/s, Funkspruch-Menü
+  30. **Ohne Bremse 9,6 Bilder/s** (Kern 103,5 ms). r101: das Fernglas (Untermenü) wartete auf B
+  und blieb offen: 30 Bilder/s bei 23,8 ms Kern und 14 000 Punkten; kein Dorf gemessen. Die
+  Kern-Zeit wächst fast linear mit den Punkten je Bild (Menü 24 ms bei 14 000, Wald 92 ms bei
+  170 000). Bewertung des Skripts: ROT. Retroid zum Vergleich: 14–20 ms Kern je Bild.
+- **Profil der Probe** (`--profile FILE`, 21.10.2026): ein eigener Thread schickt dem Spiel-Thread
+  etwa 1000-mal je Sekunde SIGPROF, der Handler notiert die Programmstelle; am Ende jede Stelle
+  als „Bibliothek Offset Anzahl“. `port/tools/probe_profile.py` benennt die Funktionen mit den
+  Bibliotheken des Builds (llvm-symbolizer, `android_profile.py`) und ordnet grob in Bereiche
+  (Ton, GX-Umrechnung, GX-Bibliothek, Matrizen, Filme, Spiellogik). `ouya-probe.ps1` profiliert
+  jeden Lauf (`profil-<lauf>.txt`, Bereiche im Bericht), drückt in r101 alle 2 s B (Fernglas) und
+  zeigt den freien Platz von `/data` richtig an. Geprüft: Cloud (i686, armhf unter qemu) und
+  Trockenlauf des Skripts mit nachgebautem `adb` und `wsl.exe`; **nicht auf der OUYA**.
 - **`port/tools/ndk23_check.sh`** (neu): jeder Übersetzungsschritt des armhf-Builds noch einmal
   gegen einen Ersatz der NDK-r23c-Header (libc++ aus LLVM 12.0.0, Bionic von Android 12, API 16)
   mit clang 12 (aus `ziglang` 0.8.1 von PyPI), dazu die Android-Programme (`probe.cpp`,

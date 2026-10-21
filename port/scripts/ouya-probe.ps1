@@ -84,7 +84,7 @@ $remoteDisc = "$remote/data/disc0"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $report = Join-Path $OutDir 'bericht.txt'
 # results of an earlier run must not pass for this one's
-foreach ($pattern in @('bericht.txt', 'probe-*.log', 'logcat-*.txt', 'kern-build.log', 'senden.zip')) {
+foreach ($pattern in @('bericht.txt', 'probe-*.log', 'logcat-*.txt', 'profil-*.txt', 'kern-build.log', 'senden.zip')) {
     Get-ChildItem -LiteralPath $OutDir -Filter $pattern -ErrorAction SilentlyContinue | Remove-Item
 }
 function Say([string]$Text) {
@@ -260,7 +260,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     $release = ((Invoke-Adb shell getprop ro.build.version.release) -join '').Trim()
     $sdk = ((Invoke-Adb shell getprop ro.build.version.sdk) -join '').Trim()
     Say "3. Geraet $Serial`: $model, Android $release (API $sdk)"
-    Say "   Speicher /data: $(((Invoke-Adb shell df /data) | Select-Object -Last 1).Trim())"
+    Say "   Speicher /data: $(((Invoke-Adb shell df /data) | Where-Object { $_.Trim() } | Select-Object -Last 1))"
     Stop-Probe
 
     Say '3. Probe auf das Geraet kopieren ...'
@@ -302,11 +302,16 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
             "RE4_PAD_SCRIPT='UP@100-60000/60 A@115-60000/60 START@130-60000/60'",
             "RE4_PAD_FREE_SCRIPT='STICKUP@30-400/1 STICKLEFT@400-440/1 STICKUP@440-900/1 STICKRIGHT@900-960/1 STICKUP@960-1500/1'"
         )
+        # r101 starts with Leon's binoculars, a sub screen that waits for B (first OUYA run,
+        # 21.10.2026: open for the whole run): B every 2 s from 10 s after the room loaded
+        if ($room -eq '101') { $settings += "RE4_PAD_ROOM_SCRIPT='B@300-9000/60'" }
         if ($fast) { $settings += 'RE4_VI_FAST=1' }
         $copyArg = ''
         if ($NoCopy) { $copyArg = ' --no-copy' }
+        # where the game's thread spends its time (port/tools/probe_profile.py names the functions)
+        $profileRemote = "$remote/profile-$run.txt"
         $command = "cd $remoteBin && LD_LIBRARY_PATH=$remoteBin $($settings -join ' ') ./re4_probe --data $remote/data " +
-            "--seconds $Seconds$copyArg 2>&1"
+            "--seconds $Seconds$copyArg --profile $profileRemote 2>&1"
         $log = Join-Path $OutDir "probe-$run.log"
         Say "4. Lauf $run$(if ($fast) { ' (ohne Bremse)' } else { ' (Echtzeit)' }): $Seconds s ..."
         $writer = New-Object System.IO.StreamWriter($log, $false, (New-Object System.Text.UTF8Encoding($false)))
@@ -327,6 +332,8 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         } finally { $writer.Dispose() }
         Stop-Probe
         Invoke-Adb logcat -d -v time | Set-Content -LiteralPath (Join-Path $OutDir "logcat-$run.txt") -Encoding UTF8
+        Invoke-Adb pull $profileRemote (Join-Path $OutDir "profil-roh-$run.txt") | Out-Null
+        Invoke-Adb shell rm $profileRemote | Out-Null
         $text = Get-Content -LiteralPath $log -Encoding UTF8
         $entry = @{ run = $run; fast = $fast; log = $text }
         foreach ($set in @('play', 'loop', 'all')) {
@@ -338,7 +345,22 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     Invoke-Adb shell rm -r $remoteBin | Out-Null
 }
 
-# ---- 4. the report ---------------------------------------------------------------------------
+# ---- 4. the profiles: function names from the libraries of the build (WSL) -----------------
+foreach ($run in $results.Keys) {
+    $raw = Join-Path $OutDir "profil-roh-$run.txt"
+    if (-not (Test-Path -LiteralPath $raw) -or -not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) { continue }
+    if (-not $repoWsl) { $repoWsl = ConvertTo-WslPath $repo }
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $named = @(& wsl.exe @wslBase --exec python3 "$repoWsl/port/tools/probe_profile.py" (ConvertTo-WslPath $raw) 2>&1 |
+            ForEach-Object { "$_" })
+    } finally { $ErrorActionPreference = $old }
+    $named | Set-Content -LiteralPath (Join-Path $OutDir "profil-$run.txt") -Encoding UTF8
+    $results[$run]['profile'] = $named
+}
+
+# ---- 5. the report ---------------------------------------------------------------------------
 Say ''
 Say '== Ergebnis =='
 $first = $results.Values | Select-Object -First 1
@@ -379,6 +401,20 @@ foreach ($entry in $results.Values) {
     Say "   GX je Bild:                      $($r.gx_kb) KB, $($r.vertices) Punkte, Kopie $($r.copy_ms) ms"
     Say "   Ton aus dem Spiel:               $($r.sound_from_game_pct) %"
     Say "   Speicher des Prozesses:          $($r.rss_mb) MB"
+    # where the time goes (the areas of probe_profile.py)
+    if ($entry.ContainsKey('profile')) {
+        $areas = @()
+        $inAreas = $false
+        foreach ($line in $entry.profile) {
+            if ($line -match '^Bereiche') { $inAreas = $true; continue }
+            if ($inAreas -and -not $line.Trim()) { break }
+            if ($inAreas) { $areas += $line }
+        }
+        if ($areas.Count -gt 0) {
+            Say '   Rechenzeit des Spiel-Threads nach Bereichen:'
+            foreach ($a in $areas) { Say "   $a" }
+        }
+    }
     if ($entry.fast -and $setName -ne 'all') { $verdictFps = [double]$r.fps }
     if ($entry.run -eq 'r100' -and $setName -ne 'all') { $verdictCpu = [double]$r.core_cpu_ms }
 }
@@ -399,7 +435,7 @@ if ($null -ne $verdictFps) {
 Say 'Nur der Kern ist gemessen; die Grafik (GPU) der OUYA kommt spaeter dazu.'
 
 $send = Join-Path $OutDir 'senden.zip'
-$parts = @(Get-ChildItem -LiteralPath $OutDir -File | Where-Object { $_.Name -match '^(bericht\.txt|probe-.*\.log|logcat-.*\.txt|kern-build\.log|disc-ordner\.log)$' })
+$parts = @(Get-ChildItem -LiteralPath $OutDir -File | Where-Object { $_.Name -match '^(bericht\.txt|probe-.*\.log|logcat-.*\.txt|profil-.*\.txt|kern-build\.log|disc-ordner\.log)$' })
 if ($parts.Count -gt 0) {
     Compress-Archive -Path $parts.FullName -DestinationPath $send -Force
 }
