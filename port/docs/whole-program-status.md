@@ -5711,14 +5711,15 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
     `re4probe_gx_texture_check_test` (neu geschrieben: neuer Schlüssel sofort; ein Byte
     zwischen den Stichproben: nach 2–64 Paketen), der Fingerabdruck stimmt auch so.
   - **Vorausladen** (`__builtin_prefetch`, ändert keine Ausgabe): in den Durchgängen das
-    Element 4 Punkte voraus, vor jedem Lauf die Ausgabebytes. Standard nur auf 32-bit-ARM
-    (auf dem PC 8 % langsamer, dort liegt alles im Cache), `RE4_GX_PREFETCH=0/1` entscheidet
-    anders; `ouya-probe.ps1` misst `r100-schnell-gp-ohnevorladen` zum Vergleich.
+    Element 4 Punkte voraus, vor jedem Lauf die Ausgabebytes. Nur mit `RE4_GX_PREFETCH=1`
+    (die OUYA-Läufe; auf dem PC 8 % langsamer, dort liegt alles im Cache; die App bleibt
+    ohne, bis es gemessen ist); `ouya-probe.ps1` misst `r100-schnell-gp-ohnevorladen` zum
+    Vergleich, `whole_build.sh` prüft den Grafik-Thread mit Vorausladen.
   - **Schneller Eingang:** `re4gx::ringPut` schreibt inline an `gRingAt`, solange es unter
     `gRingStop` passt (Platz im Ring, nächste Übergabe, Ringende); der Rest über
     `ringPutSlow` (Übergabe, Warten auf Platz, Umbruch).
-  - Geprüft (Cloud): `whole_build.sh` i686 und armhf grün (armhf mit Vorausladen), auch mit
-    `RE4_GX_THREAD=1`; 60 Läufe von `--runtime-test` und `--core-test` mit Thread ohne
+  - Geprüft (Cloud): `whole_build.sh` i686 und armhf grün, auch mit `RE4_GX_THREAD=1` und
+    `RE4_GX_PREFETCH=1`; 60 Läufe von `--runtime-test` und `--core-test` mit Thread ohne
     Fehler; `ndk23_check.sh` 1201 Einheiten ohne Fehler; Trockenlauf von `ouya-probe.ps1`
     (Standard jetzt `r100-gp`, `r101-gp`, `r100-schnell-gp`, `r100-schnell-gp-ohnevorladen`,
     mit Grafik-Thread immer `RE4_GX_TEXTURE_CHECK=sampled`). **Auf der OUYA noch nicht

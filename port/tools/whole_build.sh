@@ -125,10 +125,11 @@ for t in "${targets[@]}"; do
         echo "  re4_host $check: exit $code | $(echo "$out" | grep -E 'self-test:|check-modules:|runtime-test|core-test' | tr '\n' ' ' | sed 's/\[re4\] //g')"
         [ "$code" -ne 0 ] && status=1
     done
-    # the same with the GP on a thread of its own (runtime/gx_thread.cpp, RE4_GX_THREAD=1):
-    # the decoder's fingerprint and the chunks of the core test unchanged
+    # the same with the GP on a thread of its own (runtime/gx_thread.cpp, RE4_GX_THREAD=1) and
+    # the vertex data asked for ahead (RE4_GX_PREFETCH=1, the OUYA's setting): the decoder's
+    # fingerprint and the chunks of the core test unchanged
     for check in --runtime-test --core-test; do
-        out=$(cd "$build" && RE4_GX_THREAD=1 RE4_CARD_TEST_FILE="$build/card-test-gp.bin" \
+        out=$(cd "$build" && RE4_GX_THREAD=1 RE4_GX_PREFETCH=1 RE4_CARD_TEST_FILE="$build/card-test-gp.bin" \
             RE4_GCI_TEST_FILE="$build/card-test-gp.gci" timeout 300 "${run[@]}" ./re4_host "$check" 2>&1)
         code=$?
         echo "  re4_host $check (GP thread): exit $code | $(echo "$out" | grep -E 'runtime-test|core-test' | grep -vE ': ok$' | tr '\n' ' ' | sed 's/\[re4\] //g')"

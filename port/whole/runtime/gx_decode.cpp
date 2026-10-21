@@ -921,18 +921,11 @@ struct Run {  // vertices of one draw: in the stream, in the chunk
 // output stays the same). On the OUYA most of the decoder's time went into
 // waiting for those elements (the line profile of the GP thread, 21.10.2026);
 // on the PC the hints only cost (RE4_GX_BENCH +8 %, the data is in the cache).
-// On by default for 32-bit ARM, RE4_GX_PREFETCH=0/1 decides otherwise.
+// On with RE4_GX_PREFETCH=1 (the OUYA runs; the app as it was until measured).
 const u32 kAhead = 4;
 bool gPrefetch = [] {
     const char* v = getenv("RE4_GX_PREFETCH");
-    if (v && *v) {
-        return *v != '0';
-    }
-#if defined(__arm__)
-    return true;
-#else
-    return false;
-#endif
+    return v && *v && *v != '0';
 }();
 
 template <unsigned Mode, bool BE>

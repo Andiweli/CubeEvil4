@@ -26,8 +26,8 @@ Drei Schritte:
                      (RE4_GX_TEXTURE_CHECK=sampled, nur fuer die OUYA).
        ...-ohnekopie die Grafikpakete werden nur abgenommen, nicht kopiert (wie --no-copy):
                      zeigt, wie sehr die Kopie die Speicherbandbreite belastet
-       ...-ohnevorladen  ohne das Vorausladen der Punktdaten (RE4_GX_PREFETCH=0): zeigt,
-                     was es auf der OUYA bringt
+       ...-ohnevorladen  ohne das Vorausladen der Punktdaten (sonst mit Grafik-Thread
+                     RE4_GX_PREFETCH=1): zeigt, was es auf der OUYA bringt
      Standard: r100-gp, r101-gp, r100-schnell-gp, r100-schnell-gp-ohnevorladen (r100 ohne
      Thread: 10,6 Bilder/s, Messung vom 21.10.2026; mit -Runs r100,... wieder dabei).
      Jeder Lauf dauert -Seconds Sekunden (Standard 240). Die Test-Tastenfolge der
@@ -328,8 +328,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         # the GX decoder on a thread of its own (port/whole/runtime/gx_thread.cpp), textures
         # checked by samples from frame to frame (gx_decode.cpp: 18 % of its time otherwise)
         if ($gp) { $settings += 'RE4_GX_THREAD=1'; $settings += 'RE4_GX_TEXTURE_CHECK=sampled' }
+        # the vertex data asked for ahead (gx_decode.cpp), except in the run that shows its worth
         $noPrefetch = $run -like '*-ohnevorladen'
-        if ($noPrefetch) { $settings += 'RE4_GX_PREFETCH=0' }
+        if ($gp -and -not $noPrefetch) { $settings += 'RE4_GX_PREFETCH=1' }
         $copyArg = ''
         if ($runNoCopy) { $copyArg = ' --no-copy' }
         # where the game's thread spends its time (port/tools/probe_profile.py names the functions)
