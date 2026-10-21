@@ -5811,6 +5811,25 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Bericht moto g72 (0.41.3, 21.10.2026 18:13): Absturz im Mali-Grafiktreiber
+
+- **Gerät:** Motorola moto g72 (Android 13, 64 bit im App-Prozess, **Mali-G57 MC2**, MT6789).
+  Sitzungen 18:04–18:07 (r208, die Burghalle: Raumstart mit 27 Gegnern, zwei Treffer auf s20,
+  Leon 1200 → 480 → 1, dann vom Tester beendet) und 18:11–18:13 (r214, Inventar). Die neuen
+  Zeilen kommen an (`em:`, `room:`, `pad: menu`, `math: acosf/asinf of 1.00000012 taken as 1`
+  in r214: die Korrektur von 0.41.3 greift). Zur Burghalle in 25 Sekunden kein Verschwinden
+  (`em: -`), zu kurz für den gemeldeten Fehler.
+- **`crash-system.txt`:** 18 Abstürze des Geräts seit 20.10.2026, davon 10 (alle Versionen bis
+  0.41.3, zuletzt 17:50 nach einer Stunde Spiel) mit derselben Stelle: SIGSEGV an Adresse 0 in
+  `libGLES_mali.so`, aufgerufen von `re4gx::GxRenderer::Impl::TimerPool::Collect` (GPU-Zeitmessung
+  über `GL_EXT_disjoint_timer_query`, `glGetIntegerv(GL_GPU_DISJOINT_EXT)` /
+  `glGetQueryObjectuiv`). Die übrigen 8 sind ältere Kernfehler vom 20.10. (behoben seitdem).
+- **Behoben (App, `gx_gl.cpp` `TimerInit`):** auf Mali-Grafikchips (`GL_RENDERER` enthält „Mali“)
+  keine Zeitmessung mehr, eine Zeile `GPU time: off on … (its driver crashes in timer queries)`.
+  Die Messung dient nur der Diagnose (GPU-Zeit im Protokoll, GPU-Messlauf); Adreno (Retroid)
+  misst weiter. Geprüft: Syntaxprüfung von `gx_gl.cpp` mit clang (Android-Kopfdatei als
+  Platzhalter). **Nicht getestet:** auf einem Mali-Gerät.
+
 ### Fehlersuche mit Werkzeugen, Teil 1: der Code (22.10.2026, Cloud, Branch `claude/re4-start-controls`)
 
 Auftrag des Projektinhabers: die Fehlerarten der letzten Berichte vorab im ganzen Spielcode suchen

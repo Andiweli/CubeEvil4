@@ -584,6 +584,14 @@ struct GxRenderer::Impl {
   void TimerInit() {
     const char *ext = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
     timerOn = ext && std::strstr(ext, "GL_EXT_disjoint_timer_query");
+    // Mali drivers crash in the timer queries (moto g72, Mali-G57 MC2 / MT6789, 0.40-0.41.3:
+    // SIGSEGV at address 0 in libGLES_mali.so under TimerPool::Collect, again and again after
+    // minutes to an hour of play); the GPU time is a diagnosis only, so not there
+    const char *renderer = reinterpret_cast<const char *>(glGetString(GL_RENDERER));
+    if (timerOn && renderer && std::strstr(renderer, "Mali")) {
+      timerOn = false;
+      GXLOG("GPU time: off on %s (its driver crashes in timer queries)", renderer);
+    }
     if (timerOn) {
       glGenQueries(TimerPool::kQueries, chunkTimer.query);
       glGenQueries(TimerPool::kQueries, presentTimer.query);
