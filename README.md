@@ -103,7 +103,9 @@ leave the game (and a save made afterwards) in an odd state. Such problems come 
 **SELECT button**
 
 - **Press SELECT** (with touch controls: **MENU**): the app menu, in your phone's language where
-  there is a translation (English otherwise): graphics (resolution, anti-aliasing, texture filter,
+  there is a translation (English otherwise; Arabic, Chinese (simplified), French, German, Hindi,
+  Italian, Portuguese, Russian and Spanish so far; on Android 13 and later also per app under
+  Settings → Apps → CubeEvil4 → Language): graphics (resolution, anti-aliasing, texture filter,
   16:9 or 4:3 picture, FPS display, depth of field), controls (touch controls Auto, Force or
   Suppress, Latch L and R; comfort controls: Alternate Controls, gyro aiming), memory card (export
   and import saves as `.gci` for Dolphin and the GameCube) and the error log (send or save a

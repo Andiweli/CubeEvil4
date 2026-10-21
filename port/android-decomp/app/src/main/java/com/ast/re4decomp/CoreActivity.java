@@ -7,6 +7,7 @@ import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.hardware.input.InputManager;
@@ -107,6 +108,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private String startProblem = "";
   private String settings = "";
   private volatile boolean destroyed;
+  // the language at the start or the last change (onConfigurationChanged)
+  private String shownLanguage = "";
   // the menu (SELECT) and the debug menu (SELECT held)
   private CoreMenu menu;
   private boolean menuSupported, tools, selectDown, selectHeld;
@@ -149,6 +152,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     if (settings == null) settings = "";
     // the error log of this run (the one before is kept for the report)
     CoreLog.start(this, settings);
+    shownLanguage = language();
+    Log.i(TAG, "app menu: " + shownLanguage);
     // linked shader programs kept between runs (no compile stutter the second time)
     String programs = "RE4_GX_PROGRAM_CACHE=" + new File(getCacheDir(), "gx-programs").getAbsolutePath();
     String coreSettings = settings.isEmpty() ? programs : settings + ";" + programs;
@@ -192,8 +197,10 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     fpsView.setTextColor(Color.WHITE);
     fpsView.setBackgroundColor(0x60000000);
     fpsView.setPadding(8, 2, 8, 2);
+    // bottom left and left to right in every language, Arabic too (the menu's switch says so)
+    fpsView.setTextDirection(View.TEXT_DIRECTION_LTR);
     root.addView(fpsView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,
-        FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START));
+        FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.LEFT));
     showFps(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("fps", false));
     // the touch controls above everything
     touchControls = new TouchControls(this, input, touchMode(inputPrefs), touchHost);
@@ -416,7 +423,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     boolean paused = CoreBridge.pause(true, 800);
     audio.stop();
     stopVibrator();
-    Log.i(TAG, "menu open" + (paused ? ", the game stands" : ", the game did not stop yet (loading?)"));
+    Log.i(TAG, "menu open" + (paused ? ", the game stands" : ", the game did not stop yet (loading?)")
+        + " (" + language() + ")");
     menu = new CoreMenu(this, menuHost, tools, surface.getWidth(), surface.getHeight());
     menu.setOnDismissListener(d -> {
       menu = null;
@@ -1033,6 +1041,21 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     releaseAll();
     surface.onPause();
     super.onPause();
+  }
+
+  /** "language de" / "language ar, right to left": the menu's language (the phone's or the app's own). */
+  private String language() {
+    boolean rtl = getResources().getConfiguration().getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
+    return "language " + Locale.getDefault().toLanguageTag() + (rtl ? ", right to left" : "");
+  }
+
+  /** A new language keeps the game running (configChanges locale|layoutDirection); the log says so. */
+  @Override
+  public void onConfigurationChanged(Configuration config) {
+    super.onConfigurationChanged(config);
+    String now = language();
+    if (!now.equals(shownLanguage)) Log.i(TAG, "configuration changed, the game keeps running: " + now);
+    shownLanguage = now;
   }
 
   @Override

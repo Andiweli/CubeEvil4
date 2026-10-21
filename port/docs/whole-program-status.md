@@ -25,7 +25,8 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 32-bit-Kernprozess | ✅ 20.10.2026 (Branch `claude/re4-32bit-kernprozess`, Release **0.40.0-alpha**): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Retroid ✅ (erzwungen mit `-CoreProcess`: Spiel, Filme, Ton, Laden/Speichern, Debug-Menü, 30 FPS), **Tester-Gerät ✅** (nur 32 bit, Android 14: das Spiel läuft, Projektinhaber 20.10.2026; ohne Bericht). Offen: Leistungszahlen vom Tester-Gerät, Raumklang mit Spatializer („32 bit: der Kern als eigener Prozess“) |
 | Hotfix 0.40.1-alpha | 20.10.2026 (Branch `claude/re4-luis-hotfix`, vom Stand `548b0f24` des Kernprozess-Branches): Patch 0087, Absturz auf 64 bit, wenn ein Ganado Luis in der Hütte packt (Abschnitt „Absturz, wenn ein Ganado Luis in der Hütte packt“); Touch-Tasten nach einem Tippen auch bei einem „Geister-Controller“ (21.10.2026, Abschnitt „Touch-Bedienung bleibt ohne Controller versteckt“). Cloud ✅, **Gerätetest offen** |
 | Menü mehrsprachig, 0.41.0-alpha | 21.10.2026 (Branch `claude/re4-menu-sprachen`, enthält den Hotfix): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache (weitere liefert der Projektinhaber); Touchsteuerung Auto/Erzwingen/Unterdrücken, Komfortsteuerung. Cloud ✅, **Gerätetest offen** |
-| Hauptbranch `master` | 20.10.2026: alle Branches bis Alpha 4 (`claude/re4-start-controls`) und der 32-bit-Kernprozess bis zum zweiten Retroid-Lauf (`22aac6bf`) zusammengeführt, **ohne den Raumklang** (`claude/re4-dpl2-raumklang`, Wunsch des Projektinhabers: erst nach seinem Test). Das Release **0.40.0-alpha** (mit Raumklang, versionCode 60) und alles danach liegt im Branch `claude/re4-32bit-kernprozess`; dort weiterarbeiten oder ihn später ganz übernehmen |
+| Hauptbranch `master` | 21.10.2026: steht auf **0.41.0-alpha** (`0394c644`, versionCode 62): alle Branches bis Alpha 4, der 32-bit-Kernprozess mit Raumklang (0.40.0-alpha, `548b0f24`), der Luis-Hotfix und die Menü-Sprachen; jeweils ohne Zusammenführung nachgezogen (Wunsch des Projektinhabers). Die Release-Markierungen `0.40.0-alpha` und `0.41.0-alpha` zeigen noch auf ältere Stände (aus der Cloud nicht umsetzbar, GitHub verweigert das Hochladen von Markierungen); umsetzen am PC mit `git tag -f` und `git push -f origin <Markierung>` |
+| Menü in 10 Sprachen | 21.10.2026 (Branch `claude/re4-start-controls`, vom `master`-Stand `0394c644`): Spanisch, Französisch, Italienisch, Portugiesisch (Brasilien), Russisch, Arabisch (von rechts nach links), Chinesisch (vereinfacht), Hindi zu Englisch und Deutsch; Sprache auch je App wählbar (Android 13+). Cloud ✅, **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5487,6 +5488,58 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     Bild, FPS-Anzeige „30 FPS (Spiel) · 60 Hz“. Ob nach der Wahl auf den Bildschirm getippt
     wurde, zeigt das Protokoll nicht: der Wechsel der Einstellung stand nicht darin. Jetzt
     schreibt `TouchControls.setMode` „touch controls: setting auto/force/suppress“.
+- **App-Menü in zehn Sprachen (Wunsch des Projektinhabers, 21.10.2026), Branch
+  `claude/re4-start-controls` (vom `master`-Stand `0394c644`, 0.41.0-alpha).** Zu Englisch und
+  Deutsch kommen Spanisch (`values-es`), Französisch (`values-fr`), Italienisch (`values-it`),
+  Portugiesisch (`values-pt`, Wortwahl Brasilien, gilt auch für Portugal), Russisch (`values-ru`),
+  Arabisch (`values-ar`), Chinesisch vereinfacht (`values-zh`; Android nimmt sie für zh-Hans,
+  China und Singapur; Taiwan und Hongkong mit traditionellen Zeichen bleiben Englisch, bis eine
+  `values-zh-rTW` kommt) und Hindi (`values-hi`). Übersetzt von Claude; Muttersprachler unter den
+  Testern sollten drüberschauen (vor allem Arabisch, Hindi, Chinesisch).
+  - **Schriften:** das Menü nutzt Androids Textfelder, jedes Handy bringt die Schriften für
+    Kyrillisch, Arabisch, Chinesisch und Devanagari mit. Die Kapitälchen der Überschriften
+    (`CoreMenu.smallCaps`) lassen Schriften ohne Groß/Klein unverändert; Android setzt den
+    Buchstabenabstand bei verbundenen Schriften (Arabisch, Devanagari) selbst aus.
+  - **Arabisch von rechts nach links:** `android:supportsRtl` war schon an, die Zeilen des Menüs
+    spiegeln sich (Beschriftung rechts, Knöpfe links), der Fokus des Steuerkreuzes folgt. Texte,
+    die mit lateinischen Buchstaben oder einem Dateinamen beginnen (`SELECT …`, `R3 = …`,
+    `%1$s ist schon auf der Karte`), beginnen mit der Marke U+200F, sonst legt Android die ganze
+    Zeile links-nach-rechts an; „1280 × 672“ und „.gci“ tragen U+200E, sonst tauschen die Zahlen
+    die Plätze bzw. der Punkt wandert hinter „gci“. Mit dem Unicode-Algorithmus für gemischte
+    Schreibrichtungen (Paket `python-bidi`) nachgeprüft: zwölf Zeilen in richtiger Reihenfolge.
+    Die Mehrzahl „Dateien exportiert“ als „Anzahl der exportierten Dateien: N“ (passt zu allen
+    sechs arabischen Mehrzahlformen). Die FPS-Anzeige bleibt unten links und links-nach-rechts
+    (`CoreActivity`: `Gravity.LEFT`, `TEXT_DIRECTION_LTR`; vorher `START`, das wäre unter
+    Arabisch nach rechts gewandert, obwohl der Schalter „unten links“ sagt). Die Versionsnummer
+    neben dem Titel bekommt ihren Abstand als Innenrand am Anfang statt zweier Leerzeichen
+    (`CoreMenu`), damit er auch rechts-nach-links zwischen Titel und Nummer liegt.
+  - **Mehrzahl:** Russisch one/few/many/other, Arabisch zero/one/two/few/many/other,
+    Spanisch/Französisch/Italienisch/Portugiesisch one/many/other, Hindi one/other, Chinesisch
+    other. Französisch mit geschütztem Leerzeichen vor „:“ und „?“, geschrieben `\u00A0`
+    (Androids Ressourcen-Bau macht aus dem Zeichen selbst ein normales Leerzeichen).
+  - **Sprache je App (Android 13 und neuer):** `res/xml/locales_config.xml` mit
+    `android:localeConfig` im Manifest: unter Einstellungen → Apps → CubeEvil4 → Sprache lässt
+    sich die Menüsprache unabhängig von der Handy-Sprache wählen (ohne Wahl gilt die
+    Handy-Sprache wie bisher). `CoreActivity` hat `locale|layoutDirection` in `configChanges`:
+    ein Sprachwechsel (Handy oder App) startet das laufende Spiel nicht neu (der Kern lässt sich
+    im selben Prozess nicht neu starten); das Menü zeigt die neue Sprache beim nächsten Öffnen.
+    Protokoll: „app menu: language de“ beim Start, „menu open, … (language ar, right to left)“
+    bei jedem Öffnen, „configuration changed, the game keeps running: language …“ beim Wechsel.
+  - **Prüfwerkzeug** `check_translations.py` erweitert: kein `@` oder `?` am Textanfang (Android
+    hielte es für einen Verweis), kein Sonder-Leerzeichen wie U+00A0 als Zeichen selbst; für
+    Arabisch (und andere Rechts-nach-links-Sprachen) Anfang rechts-nach-links (FPS-Anzeige
+    ausgenommen), U+200E bei „N × M“ und „.gci“;
+    `locales_config.xml` nennt genau Englisch und die Sprachen mit Datei. Gegenprobe mit
+    absichtlich fehlerhaften Kopien (fehlende Marke U+200F, fehlende U+200E bei „×“ und „.gci“,
+    `?` am Anfang, Apostroph, Sprache in der Liste ohne Datei, Datei ohne Listeneintrag,
+    geschütztes Leerzeichen als Zeichen): alle acht gemeldet.
+  - **Geprüft (Cloud):** `check_translations.py`: alle neun Sprachen 69 Texte, 1 Mehrzahl, ok;
+    alle Java-Dateien der App gegen Android 15 übersetzt, ohne Fehler und ohne neue Warnung;
+    `tools/test_host.sh`: Java-Tests bestanden, nativ 40 von 42 wie bisher (die bekannten
+    `enemy_feedback_tests` und `inventory_case_contracts`). **Nicht getestet:**
+    Android-Ressourcen-Bau (kein `aapt2` in der Cloud, Googles Server gesperrt; prüft Android
+    Studio), auf dem Gerät (Menü in jeder Sprache: passt alles in die Spalten, Arabisch
+    gespiegelt, Sprachwechsel bei laufendem Spiel).
 
 ## Aufbau
 

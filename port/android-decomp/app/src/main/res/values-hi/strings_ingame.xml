@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hindi (हिन्दी): the texts of values/strings_ingame.xml, same names and placeholders. -->
+<resources>
+    <string name="ingame_title">CubeEvil4 विकल्प</string>
+    <string name="ingame_hint">SELECT (छोटा दबाएँ) = यह मेनू  ·  SELECT (देर तक दबाएँ) = गेम का डीबग मेनू</string>
+    <string name="ingame_back">गेम पर लौटें</string>
+
+    <string name="ingame_graphics">ग्राफ़िक्स</string>
+    <string name="ingame_resolution">रिज़ॉल्यूशन</string>
+    <string name="ingame_auto">ऑटो</string>
+    <string name="ingame_antialiasing">एंटी-एलियासिंग</string>
+    <string name="ingame_off">बंद</string>
+    <string name="ingame_texture_filter">टेक्सचर फ़िल्टर</string>
+    <string name="ingame_picture">चित्र अनुपात</string>
+    <string name="ingame_original_43">4:3 (मूल)</string>
+    <string name="ingame_other_options">अन्य विकल्प</string>
+    <string name="ingame_dof">डेप्थ ऑफ़ फ़ील्ड</string>
+    <string name="ingame_fps_display">नीचे बाईं ओर FPS दिखाएँ</string>
+    <string name="ingame_resolution_line">रिज़ॉल्यूशन: %1$d × %2$d पिक्सेल (स्तर %3$d) · स्क्रीन %4$d × %5$d · मेनू बंद होने पर लागू होता है। ऊँचे स्तरों को ज़्यादा क्षमता चाहिए।</string>
+    <string name="ingame_resolution_line_auto">रिज़ॉल्यूशन: %1$d × %2$d पिक्सेल (स्तर %3$d, ऑटो) · स्क्रीन %4$d × %5$d · मेनू बंद होने पर लागू होता है। ऊँचे स्तरों को ज़्यादा क्षमता चाहिए।</string>
+
+    <string name="ingame_controls">नियंत्रण</string>
+    <string name="ingame_touch_controls">टच नियंत्रण</string>
+    <string name="ingame_touch_auto">ऑटो</string>
+    <string name="ingame_touch_force">हमेशा</string>
+    <string name="ingame_touch_suppress">छिपाएँ</string>
+    <string name="ingame_comfort">आसान नियंत्रण</string>
+    <string name="ingame_gyro">जाइरो से निशाना लगाएँ</string>
+    <string name="ingame_gyro_none">जाइरो से निशाना लगाएँ (जाइरोस्कोप नहीं है)</string>
+    <string name="ingame_touch_help">ऑटो: कंट्रोलर न होने पर दिखते हैं, स्क्रीन छूने पर दिखते हैं, कोई बटन दबाने पर छिप जाते हैं। हमेशा: हमेशा दिखते हैं। छिपाएँ: कंट्रोलर जुड़ा रहने तक छिपे रहते हैं। MENU = SELECT। लॉक: एक बार छूने पर L या R अगली बार छूने तक दबा रहता है।</string>
+    <string name="ingame_alternate">वैकल्पिक नियंत्रण</string>
+    <string name="ingame_latch">L और R लॉक करें (टच)</string>
+    <string name="ingame_alternate_help">वैकल्पिक नियंत्रण: L1 = चाकू, L2 = निशाना (दाएँ स्टिक से), R1 = इन्वेंटरी (हथियार/उपचार), R2 = फ़ायर / चाकू चलाएँ, Y = नक्शा। A, B, X (एश्ली) और START पहले जैसे।</string>
+
+    <string name="ingame_card">मेमोरी कार्ड (स्लॉट A)</string>
+    <string name="ingame_card_help">सेव गेम .gci के रूप में एक्सपोर्ट और इम्पोर्ट करें (Dolphin या GameCube के लिए)।</string>
+    <string name="ingame_card_busy">कार्ड अभी उपयोग में है (गेम सेव या लोड कर रहा है) या गेम अभी लोड हो रहा है – मेनू बंद करें और थोड़ी देर बाद फिर खोलें।</string>
+    <string name="ingame_card_none">कोई मेमोरी कार्ड नहीं।</string>
+    <string name="ingame_export">सेव गेम एक्सपोर्ट करें (.gci)</string>
+    <string name="ingame_import">सेव गेम इम्पोर्ट करें (.gci)</string>
+
+    <string name="ingame_log">त्रुटि लॉग</string>
+    <string name="ingame_log_help">ऐप की रिपोर्ट रिकॉर्ड करता है (क्रैश होने या अटकने पर भी)। रिपोर्ट में इस और पिछले रन का लॉग होता है।</string>
+    <string name="ingame_log_record">त्रुटि लॉग रिकॉर्ड करें</string>
+    <string name="ingame_log_capture">R3 = ग्राफ़िक्स कैप्चर</string>
+    <string name="ingame_report_send">रिपोर्ट भेजें …</string>
+    <string name="ingame_report_save">रिपोर्ट सहेजें …</string>
+
+    <string name="ingame_source">सोर्स कोड</string>
+    <string name="ingame_source_line">इस पोर्ट के बारे में और जानकारी: %1$s</string>
+    <string name="ingame_no_browser">इस डिवाइस पर कोई ब्राउज़र नहीं है</string>
+
+    <string name="ingame_fps_none">-- FPS (गेम)</string>
+    <string name="ingame_fps">%1$d FPS (गेम)</string>
+
+    <string name="ingame_core_not_started">गेम कोर शुरू नहीं हुआ:\n%1$s</string>
+    <string name="ingame_core_stopped">गेम कोर रुक गया:\n%1$s</string>
+    <string name="ingame_send_report">रिपोर्ट भेजें</string>
+    <string name="ingame_quit">बाहर निकलें</string>
+    <string name="ingame_end_question">गेम बंद करें? (जो प्रगति सेव नहीं हुई, वह खो जाएगी।)</string>
+    <string name="ingame_end">बंद करें</string>
+    <string name="ingame_continue">जारी रखें</string>
+    <string name="ingame_no_debug_menu">इस कोर में अभी डीबग मेनू नहीं है</string>
+    <string name="ingame_no_menu">इस कोर में अभी मेनू नहीं है</string>
+    <string name="ingame_no_file_picker">इस डिवाइस पर फ़ाइल चुनने का कोई ऐप नहीं है</string>
+    <string name="ingame_report_saved">रिपोर्ट सहेजी गई</string>
+    <string name="ingame_failed">यह नहीं हो सका: %1$s</string>
+    <string name="ingame_card_unreadable">कार्ड अभी पढ़ा नहीं जा सकता।</string>
+    <plurals name="ingame_exported">
+        <item quantity="one">%1$d फ़ाइल एक्सपोर्ट हुई।</item>
+        <item quantity="other">%1$d फ़ाइलें एक्सपोर्ट हुईं।</item>
+    </plurals>
+    <string name="ingame_imported">इम्पोर्ट हुआ: %1$s</string>
+    <string name="ingame_import_no_space">कार्ड पर %1$s के लिए जगह नहीं है</string>
+    <string name="ingame_import_busy">गेम कार्ड का उपयोग कर रहा है: %1$s</string>
+    <string name="ingame_import_no_card">कोई मेमोरी कार्ड नहीं: %1$s</string>
+    <string name="ingame_import_bad">यह इस गेम की फ़ाइल नहीं है, या खराब है: %1$s (%2$s)</string>
+    <string name="ingame_import_exists">%1$s पहले से कार्ड पर है। बदलें?</string>
+    <string name="ingame_replace">बदलें</string>
+    <string name="ingame_skip">छोड़ें</string>
+    <string name="ingame_report_chooser">त्रुटि रिपोर्ट भेजें</string>
+    <string name="ingame_report_failed">रिपोर्ट नहीं बन सकी: %1$s</string>
+    <string name="ingame_capture_saved">ग्राफ़िक्स कैप्चर सहेजा गया</string>
+</resources>

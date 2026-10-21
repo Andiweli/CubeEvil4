@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish (Español): the texts of values/strings_ingame.xml, same names and placeholders. -->
+<resources>
+    <string name="ingame_title">Opciones de CubeEvil4</string>
+    <string name="ingame_hint">SELECT (pulsación corta) = este menú  ·  SELECT (pulsación larga) = menú de depuración del juego</string>
+    <string name="ingame_back">Volver al juego</string>
+
+    <string name="ingame_graphics">Gráficos</string>
+    <string name="ingame_resolution">Resolución</string>
+    <string name="ingame_auto">Auto</string>
+    <string name="ingame_antialiasing">Suavizado de bordes</string>
+    <string name="ingame_off">Desactivado</string>
+    <string name="ingame_texture_filter">Filtro de texturas</string>
+    <string name="ingame_picture">Formato de imagen</string>
+    <string name="ingame_original_43">4:3 (original)</string>
+    <string name="ingame_other_options">Otras opciones</string>
+    <string name="ingame_dof">Profundidad de campo</string>
+    <string name="ingame_fps_display">Mostrar FPS abajo a la izquierda</string>
+    <string name="ingame_resolution_line">Resolución: %1$d × %2$d píxeles (nivel %3$d) · pantalla %4$d × %5$d · se aplica al cerrar el menú. Los niveles más altos requieren más potencia.</string>
+    <string name="ingame_resolution_line_auto">Resolución: %1$d × %2$d píxeles (nivel %3$d, Auto) · pantalla %4$d × %5$d · se aplica al cerrar el menú. Los niveles más altos requieren más potencia.</string>
+
+    <string name="ingame_controls">Controles</string>
+    <string name="ingame_touch_controls">Controles táctiles</string>
+    <string name="ingame_touch_auto">Auto</string>
+    <string name="ingame_touch_force">Forzar</string>
+    <string name="ingame_touch_suppress">Ocultar</string>
+    <string name="ingame_comfort">Controles de comodidad</string>
+    <string name="ingame_gyro">Apuntar con giroscopio</string>
+    <string name="ingame_gyro_none">Apuntar con giroscopio (sin giroscopio)</string>
+    <string name="ingame_touch_help">Auto: visibles sin mando; un toque los muestra y un botón los oculta. Forzar: siempre visibles. Ocultar: ocultos mientras haya un mando conectado. MENU = SELECT. Fijar: un toque mantiene L o R hasta el siguiente toque.</string>
+    <string name="ingame_alternate">Controles alternativos</string>
+    <string name="ingame_latch">Fijar L y R (táctil)</string>
+    <string name="ingame_alternate_help">Controles alternativos: L1 = Cuchillo, L2 = Apuntar (con el stick derecho), R1 = Inventario (Armas/Curación), R2 = Disparar / usar el cuchillo, Y = Mapa. A, B, X (Ashley) y START como antes.</string>
+
+    <string name="ingame_card">Tarjeta de memoria (ranura A)</string>
+    <string name="ingame_card_help">Exportar e importar partidas guardadas como .gci (para Dolphin o GameCube).</string>
+    <string name="ingame_card_busy">La tarjeta está en uso (el juego guarda o carga) o el juego aún está cargando: cierra el menú y vuelve a abrirlo en un momento.</string>
+    <string name="ingame_card_none">No hay tarjeta de memoria.</string>
+    <string name="ingame_export">Exportar partidas (.gci)</string>
+    <string name="ingame_import">Importar partidas (.gci)</string>
+
+    <string name="ingame_log">Registro de errores</string>
+    <string name="ingame_log_help">Graba un informe de la app (también tras un cierre inesperado o si se bloquea). El informe contiene el registro de esta sesión y de la anterior.</string>
+    <string name="ingame_log_record">Grabar el registro de errores</string>
+    <string name="ingame_log_capture">R3 = Captura de gráficos</string>
+    <string name="ingame_report_send">Enviar informe …</string>
+    <string name="ingame_report_save">Guardar informe …</string>
+
+    <string name="ingame_source">Código fuente</string>
+    <string name="ingame_source_line">Más sobre este port en %1$s</string>
+    <string name="ingame_no_browser">No hay navegador en este dispositivo</string>
+
+    <string name="ingame_fps_none">-- FPS (juego)</string>
+    <string name="ingame_fps">%1$d FPS (juego)</string>
+
+    <string name="ingame_core_not_started">El núcleo del juego no se ha iniciado:\n%1$s</string>
+    <string name="ingame_core_stopped">El núcleo del juego se ha detenido:\n%1$s</string>
+    <string name="ingame_send_report">Enviar informe</string>
+    <string name="ingame_quit">Salir</string>
+    <string name="ingame_end_question">¿Terminar la partida? (Se perderá el progreso no guardado.)</string>
+    <string name="ingame_end">Terminar</string>
+    <string name="ingame_continue">Continuar</string>
+    <string name="ingame_no_debug_menu">Este núcleo aún no tiene menú de depuración</string>
+    <string name="ingame_no_menu">Este núcleo aún no tiene menú</string>
+    <string name="ingame_no_file_picker">No hay selector de archivos en este dispositivo</string>
+    <string name="ingame_report_saved">Informe guardado</string>
+    <string name="ingame_failed">No ha funcionado: %1$s</string>
+    <string name="ingame_card_unreadable">Ahora mismo no se puede leer la tarjeta.</string>
+    <plurals name="ingame_exported">
+        <item quantity="one">%1$d archivo exportado.</item>
+        <item quantity="many">%1$d archivos exportados.</item>
+        <item quantity="other">%1$d archivos exportados.</item>
+    </plurals>
+    <string name="ingame_imported">Importado: %1$s</string>
+    <string name="ingame_import_no_space">No hay espacio en la tarjeta para %1$s</string>
+    <string name="ingame_import_busy">El juego está usando la tarjeta: %1$s</string>
+    <string name="ingame_import_no_card">No hay tarjeta de memoria: %1$s</string>
+    <string name="ingame_import_bad">No es un archivo de este juego o está dañado: %1$s (%2$s)</string>
+    <string name="ingame_import_exists">%1$s ya está en la tarjeta. ¿Reemplazarlo?</string>
+    <string name="ingame_replace">Reemplazar</string>
+    <string name="ingame_skip">Omitir</string>
+    <string name="ingame_report_chooser">Enviar el informe de errores</string>
+    <string name="ingame_report_failed">No se pudo crear el informe: %1$s</string>
+    <string name="ingame_capture_saved">Captura de gráficos guardada</string>
+</resources>

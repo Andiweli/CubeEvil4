@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- French (Français): the texts of values/strings_ingame.xml, same names and placeholders.
+     Before : and ? a no-break space, written \u00A0 (Android's resource build turns the
+     character itself into a normal space), as French typography wants it. -->
+<resources>
+    <string name="ingame_title">Options de CubeEvil4</string>
+    <string name="ingame_hint">SELECT (appui court) = ce menu  ·  SELECT (appui long) = menu de débogage du jeu</string>
+    <string name="ingame_back">Retour au jeu</string>
+
+    <string name="ingame_graphics">Graphismes</string>
+    <string name="ingame_resolution">Résolution</string>
+    <string name="ingame_auto">Auto</string>
+    <string name="ingame_antialiasing">Anticrénelage</string>
+    <string name="ingame_off">Désactivé</string>
+    <string name="ingame_texture_filter">Filtrage des textures</string>
+    <string name="ingame_picture">Format d’image</string>
+    <string name="ingame_original_43">4:3 (original)</string>
+    <string name="ingame_other_options">Autres options</string>
+    <string name="ingame_dof">Profondeur de champ</string>
+    <string name="ingame_fps_display">Afficher les FPS en bas à gauche</string>
+    <string name="ingame_resolution_line">Résolution\u00A0: %1$d × %2$d pixels (niveau %3$d) · écran %4$d × %5$d · s’applique à la fermeture du menu. Les niveaux plus élevés demandent plus de puissance.</string>
+    <string name="ingame_resolution_line_auto">Résolution\u00A0: %1$d × %2$d pixels (niveau %3$d, Auto) · écran %4$d × %5$d · s’applique à la fermeture du menu. Les niveaux plus élevés demandent plus de puissance.</string>
+
+    <string name="ingame_controls">Commandes</string>
+    <string name="ingame_touch_controls">Commandes tactiles</string>
+    <string name="ingame_touch_auto">Auto</string>
+    <string name="ingame_touch_force">Forcer</string>
+    <string name="ingame_touch_suppress">Masquer</string>
+    <string name="ingame_comfort">Commandes de confort</string>
+    <string name="ingame_gyro">Visée gyroscopique</string>
+    <string name="ingame_gyro_none">Visée gyroscopique (pas de gyroscope)</string>
+    <string name="ingame_touch_help">Auto\u00A0: visibles sans manette, un appui sur l’écran les affiche, un bouton les masque. Forcer\u00A0: toujours visibles. Masquer\u00A0: masquées tant qu’une manette est connectée. MENU = SELECT. Verrouiller\u00A0: un appui maintient L ou R jusqu’à l’appui suivant.</string>
+    <string name="ingame_alternate">Commandes alternatives</string>
+    <string name="ingame_latch">Verrouiller L et R (tactile)</string>
+    <string name="ingame_alternate_help">Commandes alternatives\u00A0: L1 = Couteau, L2 = Viser (avec le stick droit), R1 = Inventaire (Armes/Soins), R2 = Tirer / utiliser le couteau, Y = Carte. A, B, X (Ashley) et START comme avant.</string>
+
+    <string name="ingame_card">Carte mémoire (emplacement A)</string>
+    <string name="ingame_card_help">Exporter et importer les sauvegardes au format .gci (pour Dolphin ou GameCube).</string>
+    <string name="ingame_card_busy">La carte est utilisée (le jeu sauvegarde ou charge) ou le jeu charge encore – fermez le menu et rouvrez-le dans un instant.</string>
+    <string name="ingame_card_none">Aucune carte mémoire.</string>
+    <string name="ingame_export">Exporter les sauvegardes (.gci)</string>
+    <string name="ingame_import">Importer des sauvegardes (.gci)</string>
+
+    <string name="ingame_log">Journal d’erreurs</string>
+    <string name="ingame_log_help">Enregistre un rapport de l’application (même après un plantage ou un blocage). Le rapport contient le journal de cette session et de la précédente.</string>
+    <string name="ingame_log_record">Enregistrer le journal d’erreurs</string>
+    <string name="ingame_log_capture">R3 = Capture graphique</string>
+    <string name="ingame_report_send">Envoyer le rapport …</string>
+    <string name="ingame_report_save">Enregistrer le rapport …</string>
+
+    <string name="ingame_source">Code source</string>
+    <string name="ingame_source_line">Plus d’infos sur ce portage\u00A0: %1$s</string>
+    <string name="ingame_no_browser">Aucun navigateur sur cet appareil</string>
+
+    <string name="ingame_fps_none">-- FPS (jeu)</string>
+    <string name="ingame_fps">%1$d FPS (jeu)</string>
+
+    <string name="ingame_core_not_started">Le cœur du jeu n’a pas démarré\u00A0:\n%1$s</string>
+    <string name="ingame_core_stopped">Le cœur du jeu s’est arrêté\u00A0:\n%1$s</string>
+    <string name="ingame_send_report">Envoyer le rapport</string>
+    <string name="ingame_quit">Quitter</string>
+    <string name="ingame_end_question">Terminer la partie\u00A0? (La progression non sauvegardée sera perdue.)</string>
+    <string name="ingame_end">Terminer</string>
+    <string name="ingame_continue">Continuer</string>
+    <string name="ingame_no_debug_menu">Ce cœur n’a pas encore de menu de débogage</string>
+    <string name="ingame_no_menu">Ce cœur n’a pas encore de menu</string>
+    <string name="ingame_no_file_picker">Aucun sélecteur de fichiers sur cet appareil</string>
+    <string name="ingame_report_saved">Rapport enregistré</string>
+    <string name="ingame_failed">Cela n’a pas fonctionné\u00A0: %1$s</string>
+    <string name="ingame_card_unreadable">Impossible de lire la carte pour le moment.</string>
+    <plurals name="ingame_exported">
+        <item quantity="one">%1$d fichier exporté.</item>
+        <item quantity="many">%1$d fichiers exportés.</item>
+        <item quantity="other">%1$d fichiers exportés.</item>
+    </plurals>
+    <string name="ingame_imported">Importé\u00A0: %1$s</string>
+    <string name="ingame_import_no_space">Pas assez d’espace sur la carte pour %1$s</string>
+    <string name="ingame_import_busy">Le jeu utilise la carte\u00A0: %1$s</string>
+    <string name="ingame_import_no_card">Aucune carte mémoire\u00A0: %1$s</string>
+    <string name="ingame_import_bad">Ce n’est pas un fichier de ce jeu, ou il est endommagé\u00A0: %1$s (%2$s)</string>
+    <string name="ingame_import_exists">%1$s est déjà sur la carte. Le remplacer\u00A0?</string>
+    <string name="ingame_replace">Remplacer</string>
+    <string name="ingame_skip">Ignorer</string>
+    <string name="ingame_report_chooser">Envoyer le rapport d’erreurs</string>
+    <string name="ingame_report_failed">Impossible de créer le rapport\u00A0: %1$s</string>
+    <string name="ingame_capture_saved">Capture graphique enregistrée</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The languages of the app menu in the game (values-<language>/strings_ingame.xml) for Android's
+     language per app (Android 13 and later: Settings, Apps, CubeEvil4, Language); without a
+     choice there the menu follows the phone's language. tools/check_translations.py checks that
+     this list and the values-<language> folders match. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="ar" />
+    <locale android:name="de" />
+    <locale android:name="es" />
+    <locale android:name="fr" />
+    <locale android:name="hi" />
+    <locale android:name="it" />
+    <locale android:name="pt-BR" />
+    <locale android:name="ru" />
+    <locale android:name="zh-Hans" />
+</locale-config>

@@ -13,12 +13,15 @@
         android:banner="@drawable/tv_banner"
         android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false"
         android:isGame="true" android:appCategory="game" android:supportsRtl="true"
+        android:localeConfig="@xml/locales_config"
         android:enableOnBackInvokedCallback="true">
         <activity android:name=".StartupActivity" android:exported="false" android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden" />
         <activity android:name=".RoomCheckActivity" android:exported="false" />
+        <!-- locale|layoutDirection: a new language (the phone's or the app's own) keeps the running
+             game; the menu takes it the next time it opens -->
         <activity android:name=".CoreActivity" android:exported="false" android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation" />
+            android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation|locale|layoutDirection" />
         <activity android:name=".ControllerActivity" android:exported="false" android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden" />
         <!-- the core mode's error report for the app it is sent with (CoreLog, M11) -->

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Portuguese (Português, worded for Brazil; Portugal gets the same texts): the texts of
+     values/strings_ingame.xml, same names and placeholders. -->
+<resources>
+    <string name="ingame_title">Opções do CubeEvil4</string>
+    <string name="ingame_hint">SELECT (pressionar) = este menu  ·  SELECT (segurar) = menu de depuração do jogo</string>
+    <string name="ingame_back">Voltar ao jogo</string>
+
+    <string name="ingame_graphics">Gráficos</string>
+    <string name="ingame_resolution">Resolução</string>
+    <string name="ingame_auto">Auto</string>
+    <string name="ingame_antialiasing">Antisserrilhamento</string>
+    <string name="ingame_off">Desligado</string>
+    <string name="ingame_texture_filter">Filtro de texturas</string>
+    <string name="ingame_picture">Formato da imagem</string>
+    <string name="ingame_original_43">4:3 (original)</string>
+    <string name="ingame_other_options">Outras opções</string>
+    <string name="ingame_dof">Profundidade de campo</string>
+    <string name="ingame_fps_display">Mostrar FPS no canto inferior esquerdo</string>
+    <string name="ingame_resolution_line">Resolução: %1$d × %2$d pixels (nível %3$d) · tela %4$d × %5$d · aplicada ao fechar o menu. Níveis mais altos exigem mais desempenho.</string>
+    <string name="ingame_resolution_line_auto">Resolução: %1$d × %2$d pixels (nível %3$d, Auto) · tela %4$d × %5$d · aplicada ao fechar o menu. Níveis mais altos exigem mais desempenho.</string>
+
+    <string name="ingame_controls">Controles</string>
+    <string name="ingame_touch_controls">Controles de toque</string>
+    <string name="ingame_touch_auto">Auto</string>
+    <string name="ingame_touch_force">Forçar</string>
+    <string name="ingame_touch_suppress">Ocultar</string>
+    <string name="ingame_comfort">Controles de conforto</string>
+    <string name="ingame_gyro">Mirar com giroscópio</string>
+    <string name="ingame_gyro_none">Mirar com giroscópio (sem giroscópio)</string>
+    <string name="ingame_touch_help">Auto: visíveis sem controle, um toque os mostra, um botão os oculta. Forçar: sempre visíveis. Ocultar: ocultos enquanto um controle estiver conectado. MENU = SELECT. Travar: um toque mantém L ou R pressionado até o próximo toque.</string>
+    <string name="ingame_alternate">Controles alternativos</string>
+    <string name="ingame_latch">Travar L e R (toque)</string>
+    <string name="ingame_alternate_help">Controles alternativos: L1 = Faca, L2 = Mirar (com o analógico direito), R1 = Inventário (Armas/Cura), R2 = Atirar / usar a faca, Y = Mapa. A, B, X (Ashley) e START como antes.</string>
+
+    <string name="ingame_card">Cartão de memória (slot A)</string>
+    <string name="ingame_card_help">Exportar e importar jogos salvos como .gci (para Dolphin ou GameCube).</string>
+    <string name="ingame_card_busy">O cartão está em uso (o jogo está salvando ou carregando) ou o jogo ainda está carregando – feche o menu e abra-o de novo em instantes.</string>
+    <string name="ingame_card_none">Nenhum cartão de memória.</string>
+    <string name="ingame_export">Exportar jogos salvos (.gci)</string>
+    <string name="ingame_import">Importar jogos salvos (.gci)</string>
+
+    <string name="ingame_log">Registro de erros</string>
+    <string name="ingame_log_help">Grava um relatório do app (também após uma falha ou um travamento). O relatório contém o registro desta sessão e da anterior.</string>
+    <string name="ingame_log_record">Gravar o registro de erros</string>
+    <string name="ingame_log_capture">R3 = Captura gráfica</string>
+    <string name="ingame_report_send">Enviar relatório …</string>
+    <string name="ingame_report_save">Salvar relatório …</string>
+
+    <string name="ingame_source">Código-fonte</string>
+    <string name="ingame_source_line">Mais sobre este port em %1$s</string>
+    <string name="ingame_no_browser">Nenhum navegador neste dispositivo</string>
+
+    <string name="ingame_fps_none">-- FPS (jogo)</string>
+    <string name="ingame_fps">%1$d FPS (jogo)</string>
+
+    <string name="ingame_core_not_started">O núcleo do jogo não foi iniciado:\n%1$s</string>
+    <string name="ingame_core_stopped">O núcleo do jogo parou:\n%1$s</string>
+    <string name="ingame_send_report">Enviar relatório</string>
+    <string name="ingame_quit">Sair</string>
+    <string name="ingame_end_question">Encerrar o jogo? (O progresso não salvo será perdido.)</string>
+    <string name="ingame_end">Encerrar</string>
+    <string name="ingame_continue">Continuar</string>
+    <string name="ingame_no_debug_menu">Este núcleo ainda não tem menu de depuração</string>
+    <string name="ingame_no_menu">Este núcleo ainda não tem menu</string>
+    <string name="ingame_no_file_picker">Nenhum seletor de arquivos neste dispositivo</string>
+    <string name="ingame_report_saved">Relatório salvo</string>
+    <string name="ingame_failed">Não funcionou: %1$s</string>
+    <string name="ingame_card_unreadable">O cartão não pode ser lido agora.</string>
+    <plurals name="ingame_exported">
+        <item quantity="one">%1$d arquivo exportado.</item>
+        <item quantity="many">%1$d arquivos exportados.</item>
+        <item quantity="other">%1$d arquivos exportados.</item>
+    </plurals>
+    <string name="ingame_imported">Importado: %1$s</string>
+    <string name="ingame_import_no_space">Sem espaço no cartão para %1$s</string>
+    <string name="ingame_import_busy">O jogo está usando o cartão: %1$s</string>
+    <string name="ingame_import_no_card">Nenhum cartão de memória: %1$s</string>
+    <string name="ingame_import_bad">Não é um arquivo deste jogo ou está danificado: %1$s (%2$s)</string>
+    <string name="ingame_import_exists">%1$s já está no cartão. Substituir?</string>
+    <string name="ingame_replace">Substituir</string>
+    <string name="ingame_skip">Pular</string>
+    <string name="ingame_report_chooser">Enviar o relatório de erros</string>
+    <string name="ingame_report_failed">Não foi possível criar o relatório: %1$s</string>
+    <string name="ingame_capture_saved">Captura gráfica salva</string>
+</resources>

@@ -279,7 +279,12 @@ final class CoreMenu extends Dialog {
     LinearLayout titleRow = new LinearLayout(getContext());
     titleRow.addView(text(s(R.string.ingame_title), 22, true));
     String version = version();
-    if (version != null) titleRow.addView(text("  (v" + version + ")", 15, false));
+    if (version != null) {
+      // the gap on the title's side (its start: right of it in Arabic)
+      TextView v = text("(v" + version + ")", 15, false);
+      v.setPaddingRelative(dp(8), 0, 0, 0);
+      titleRow.addView(v);
+    }
     titles.addView(titleRow);
     titles.addView(text(s(R.string.ingame_hint), 13, false));
     top.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));

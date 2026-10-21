@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Russian (Русский): the texts of values/strings_ingame.xml, same names and placeholders. -->
+<resources>
+    <string name="ingame_title">Настройки CubeEvil4</string>
+    <string name="ingame_hint">SELECT (коротко) = это меню  ·  SELECT (удерживать) = отладочное меню игры</string>
+    <string name="ingame_back">Вернуться в игру</string>
+
+    <string name="ingame_graphics">Графика</string>
+    <string name="ingame_resolution">Разрешение</string>
+    <string name="ingame_auto">Авто</string>
+    <string name="ingame_antialiasing">Сглаживание</string>
+    <string name="ingame_off">Выкл.</string>
+    <string name="ingame_texture_filter">Фильтрация текстур</string>
+    <string name="ingame_picture">Формат изображения</string>
+    <string name="ingame_original_43">4:3 (оригинал)</string>
+    <string name="ingame_other_options">Другие настройки</string>
+    <string name="ingame_dof">Глубина резкости</string>
+    <string name="ingame_fps_display">FPS внизу слева</string>
+    <string name="ingame_resolution_line">Разрешение: %1$d × %2$d пикс. (уровень %3$d) · экран %4$d × %5$d · применяется после закрытия меню. Более высокие уровни требуют больше ресурсов.</string>
+    <string name="ingame_resolution_line_auto">Разрешение: %1$d × %2$d пикс. (уровень %3$d, авто) · экран %4$d × %5$d · применяется после закрытия меню. Более высокие уровни требуют больше ресурсов.</string>
+
+    <string name="ingame_controls">Управление</string>
+    <string name="ingame_touch_controls">Сенсорное управление</string>
+    <string name="ingame_touch_auto">Авто</string>
+    <string name="ingame_touch_force">Всегда</string>
+    <string name="ingame_touch_suppress">Скрывать</string>
+    <string name="ingame_comfort">Удобное управление</string>
+    <string name="ingame_gyro">Прицеливание гироскопом</string>
+    <string name="ingame_gyro_none">Прицеливание гироскопом (нет гироскопа)</string>
+    <string name="ingame_touch_help">Авто: кнопки видны без контроллера, касание экрана показывает их, нажатие кнопки скрывает. Всегда: кнопки видны всегда. Скрывать: кнопки скрыты, пока подключён контроллер. MENU = SELECT. Фиксация: касание удерживает L или R до следующего касания.</string>
+    <string name="ingame_alternate">Альтернативное управление</string>
+    <string name="ingame_latch">Фиксация L и R (сенсор)</string>
+    <string name="ingame_alternate_help">Альтернативное управление: L1 = нож, L2 = прицеливание (правым стиком), R1 = инвентарь (оружие/лечение), R2 = выстрел / удар ножом, Y = карта. A, B, X (Эшли) и START — как раньше.</string>
+
+    <string name="ingame_card">Карта памяти (слот A)</string>
+    <string name="ingame_card_help">Экспорт и импорт сохранений в формате .gci (для Dolphin или GameCube).</string>
+    <string name="ingame_card_busy">Карта памяти занята (игра сохраняет или загружает) или игра ещё загружается — закройте меню и откройте его снова чуть позже.</string>
+    <string name="ingame_card_none">Нет карты памяти.</string>
+    <string name="ingame_export">Экспорт сохранений (.gci)</string>
+    <string name="ingame_import">Импорт сохранений (.gci)</string>
+
+    <string name="ingame_log">Журнал ошибок</string>
+    <string name="ingame_log_help">Записывает отчёт приложения (в том числе после сбоя или зависания). Отчёт содержит журнал этого и предыдущего запуска.</string>
+    <string name="ingame_log_record">Записывать журнал ошибок</string>
+    <string name="ingame_log_capture">R3 = снимок графики</string>
+    <string name="ingame_report_send">Отправить отчёт …</string>
+    <string name="ingame_report_save">Сохранить отчёт …</string>
+
+    <string name="ingame_source">Исходный код</string>
+    <string name="ingame_source_line">Подробнее об этом порте: %1$s</string>
+    <string name="ingame_no_browser">На этом устройстве нет браузера</string>
+
+    <string name="ingame_fps_none">-- FPS (игра)</string>
+    <string name="ingame_fps">%1$d FPS (игра)</string>
+
+    <string name="ingame_core_not_started">Ядро игры не запустилось:\n%1$s</string>
+    <string name="ingame_core_stopped">Ядро игры остановилось:\n%1$s</string>
+    <string name="ingame_send_report">Отправить отчёт</string>
+    <string name="ingame_quit">Выйти</string>
+    <string name="ingame_end_question">Завершить игру? (Несохранённый прогресс будет потерян.)</string>
+    <string name="ingame_end">Завершить</string>
+    <string name="ingame_continue">Продолжить</string>
+    <string name="ingame_no_debug_menu">У этого ядра пока нет отладочного меню</string>
+    <string name="ingame_no_menu">У этого ядра пока нет меню</string>
+    <string name="ingame_no_file_picker">На этом устройстве нет средства выбора файлов</string>
+    <string name="ingame_report_saved">Отчёт сохранён</string>
+    <string name="ingame_failed">Не получилось: %1$s</string>
+    <string name="ingame_card_unreadable">Сейчас не удаётся прочитать карту памяти.</string>
+    <plurals name="ingame_exported">
+        <item quantity="one">Экспортирован %1$d файл.</item>
+        <item quantity="few">Экспортировано %1$d файла.</item>
+        <item quantity="many">Экспортировано %1$d файлов.</item>
+        <item quantity="other">Экспортировано файлов: %1$d.</item>
+    </plurals>
+    <string name="ingame_imported">Импортировано: %1$s</string>
+    <string name="ingame_import_no_space">На карте нет места для %1$s</string>
+    <string name="ingame_import_busy">Игра использует карту: %1$s</string>
+    <string name="ingame_import_no_card">Нет карты памяти: %1$s</string>
+    <string name="ingame_import_bad">Это не файл этой игры, или он повреждён: %1$s (%2$s)</string>
+    <string name="ingame_import_exists">%1$s уже есть на карте. Заменить?</string>
+    <string name="ingame_replace">Заменить</string>
+    <string name="ingame_skip">Пропустить</string>
+    <string name="ingame_report_chooser">Отправить отчёт об ошибках</string>
+    <string name="ingame_report_failed">Не удалось создать отчёт: %1$s</string>
+    <string name="ingame_capture_saved">Снимок графики сохранён</string>
+</resources>
