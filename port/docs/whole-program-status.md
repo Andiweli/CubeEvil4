@@ -5569,10 +5569,13 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   - **Neuer Laufzeittest `route`** (`game_probe.cpp` `re4probe_route_far`): drei Wegpunkte in
     MEM1, eine Position nahe Punkt 1 findet ihn, eine 2e8 entfernte gibt in beiden Arten -1 (vor
     jedem Aufruf ein Stack voller 0x46464646 wie im Bericht).
-  - **Geprüft (Cloud):** `whole_build.sh i686 armhf`: 0 Baufehler, alle Prüfungen bestanden,
-    `runtime-test route: ok` auf beiden; aarch64 läuft noch (Ergebnis folgt). **Nicht getestet:**
-    auf dem Gerät; die eigentliche Ursache (wessen Position) zeigt erst ein Bericht mit
-    eingeschaltetem Fehlerprotokoll.
+  - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle Prüfungen
+    bestanden, `runtime-test route: ok` auf allen drei (mit der Meldung „check: route: a position
+    … at (0 2e+08 0): 0 of the 3 route points …“). **Gegenprobe** (aarch64 ohne 0088): der
+    Laufzeittest stürzt ab, „signal 11, fault address 0x4e7456480“ in `re4probe_route_far`,
+    fast dieselbe Adresse wie im Bericht (0x4e399b6e0). **Nicht getestet:** auf dem Gerät; die
+    eigentliche Ursache (wessen Position) zeigt erst ein Bericht mit eingeschaltetem
+    Fehlerprotokoll.
 
 ## Aufbau
 
