@@ -24,6 +24,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | M12 ARM64 | in Arbeit (Branch `claude/re4-m12-arm64`, seit 18.10.2026 `claude/exciting-bohr-6akwfd`): A1 ✅ 64-bit-Linux (x86_64) baut und linkt; A2 ✅ Adressen unter 4 GB; A3 ✅ Strukturen, die auf 64 bit auseinanderlaufen: alle Prüfwerkzeuge 0 (Patches 0070–0073, Regel `lp64_sizes`); A4 ✅ alle Cloud-Tests grün auf i686, armhf, x86_64 und **aarch64 (neu, ARM64 unter qemu)**, auch Filme und Speicherkarte; A5 Android arm64 eingebaut, aber ungeprüft (kein NDK in der Cloud). 18.10.2026: PC-Prüfung `-Lp64` läuft r100 10.000 Bilder ohne Absturz, Speichern stürzte ab (Budget des Speicherbildschirms, behoben, unbestätigt); Neustart mit Bestandsaufnahme aller Prüfwerkzeuge (libclang statt Wörter, Selbsttest, `run_all.py` + `reviewed.json`), vier neue Werkzeuge, Patch 0082 (fünf echte Fehler), Vergleichslauf 32/64 bit (`-Compare`, in der Cloud mit dem synthetischen Film gleich; mit Disc-Daten offen). Offen: `-Compare` und `-Lp64` mit Disc-Daten, Gerätetest beider ABIs. Dabei gefunden: Puzzle-Untermenü las auch auf 32 bit falsche Felder (Patch 0073). Bestandsaufnahme `arm64-bestandsaufnahme.md`. **Entscheidung des Projektinhabers (17.10.2026): Weg A, nativ 64 bit** |
 | 32-bit-Kernprozess | ✅ 20.10.2026 (Branch `claude/re4-32bit-kernprozess`, Release **0.40.0-alpha**): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Retroid ✅ (erzwungen mit `-CoreProcess`: Spiel, Filme, Ton, Laden/Speichern, Debug-Menü, 30 FPS), **Tester-Gerät ✅** (nur 32 bit, Android 14: das Spiel läuft, Projektinhaber 20.10.2026; ohne Bericht). Offen: Leistungszahlen vom Tester-Gerät, Raumklang mit Spatializer („32 bit: der Kern als eigener Prozess“) |
 | Hotfix 0.40.1-alpha | 20.10.2026 (Branch `claude/re4-luis-hotfix`, vom Stand `548b0f24` des Kernprozess-Branches): Patch 0087, Absturz auf 64 bit, wenn ein Ganado Luis in der Hütte packt (Abschnitt „Absturz, wenn ein Ganado Luis in der Hütte packt“); Touch-Tasten nach einem Tippen auch bei einem „Geister-Controller“ (21.10.2026, Abschnitt „Touch-Bedienung bleibt ohne Controller versteckt“). Cloud ✅, **Gerätetest offen** |
+| Menü mehrsprachig | 21.10.2026 vorbereitet (Branch `claude/re4-menu-sprachen`): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache; weitere Sprachen liefert der Projektinhaber. Cloud ✅, **Gerätetest offen** |
 | Hauptbranch `master` | 20.10.2026: alle Branches bis Alpha 4 (`claude/re4-start-controls`) und der 32-bit-Kernprozess bis zum zweiten Retroid-Lauf (`22aac6bf`) zusammengeführt, **ohne den Raumklang** (`claude/re4-dpl2-raumklang`, Wunsch des Projektinhabers: erst nach seinem Test). Das Release **0.40.0-alpha** (mit Raumklang, versionCode 60) und alles danach liegt im Branch `claude/re4-32bit-kernprozess`; dort weiterarbeiten oder ihn später ganz übernehmen |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
@@ -5419,6 +5420,36 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     Java-Tests bestanden, nativ 40 von 42 wie bisher (die bekannten `enemy_feedback_tests` und
     `inventory_case_contracts`). **Nicht getestet:** auf einem Gerät (Retroid: Touch erscheint nach
     einem Tippen, verschwindet bei einer Taste; Redmi: Touch nach einem Tippen).
+- **App-Menü im Spiel in mehreren Sprachen: vorbereitet (Wunsch des Projektinhabers,
+  21.10.2026), Branch `claude/re4-menu-sprachen` (vom Hotfix-Stand `5c08212c`).** Die Sprache
+  folgt der Sprache des Handys; gibt es sie nicht, bleibt es Englisch. Welche Sprachen kommen,
+  liefert der Projektinhaber noch.
+  - **Umsetzung mit Androids eigenen Sprachdateien:** alle Texte des App-Menüs (`CoreMenu`) und
+    der Meldungen der App im Spiel (`CoreActivity`: Kern startet nicht / beendet, Spiel beenden,
+    Speicherkarten-Export und -Import, Bericht senden/speichern, FPS-Anzeige „(Game)“) stehen in
+    `app/src/main/res/values/strings_ingame.xml` (Englisch, 67 Texte und eine Mehrzahl-Form „%d
+    files exported“). Eine Sprache ist eine Datei `values-<Sprachkürzel>/strings_ingame.xml` mit
+    denselben Namen (z. B. `values-fr`, `values-es`, `values-pt-rBR`); Android nimmt die Sprache des
+    Handys, sonst `values/` (Englisch), auch für einen einzelnen fehlenden Text. Als erste
+    Übersetzung **Deutsch** (`values-de`), zum Ausprobieren. Zahlen im Menü bleiben Ziffern 0–9
+    (`Locale.ROOT`), „OK“ kommt von Android selbst.
+  - **Bleibt Englisch:** die Texte des Spiels selbst (GameCube), der Startbildschirm der App
+    (Disc-Import, „Start game“; nicht Teil des Menüs im Spiel), der Fehlerbericht und das
+    Protokoll (für uns), technische Gründe in den Meldungen (z. B. „No data folder“). Die übrigen
+    Texte der alten App (`values/strings.xml`) sind als „nicht übersetzt“ gekennzeichnet
+    (`tools:ignore="MissingTranslation"`), `app_label` als `translatable="false"` (Name der App).
+  - **Prüfwerkzeug** `port/android-decomp/tools/check_translations.py` (in `tools/test_host.sh`):
+    je Sprache alle Texte da, keine fremden, gleiche Platzhalter (`%1$s`, `%2$d`) und
+    Zeilenumbrüche, Apostroph mit `\'`, `&` als `&amp;`, Mehrzahl mit „other“; jeder
+    `R.string.ingame_*` der App steht in der englischen Datei. Gegenprobe mit absichtlich
+    fehlerhaften Dateien (fehlender Text, falscher Platzhalter, Apostroph, fehlende Mehrzahl,
+    kaputtes XML): alle fünf gemeldet.
+  - **Geprüft (Cloud):** alle Java-Dateien der App gegen Android 15 übersetzt (mit den neuen
+    Namen), ohne Fehler; `check_translations.py`: values-de 67 Texte, 1 Mehrzahl, ok;
+    `tools/test_host.sh` wie bisher (Java-Tests bestanden, nativ 40 von 42). **Nicht getestet:**
+    auf einem Gerät (Menü auf Deutsch und Englisch, ob die längeren deutschen Texte in die
+    Spalten passen); kein Android-Ressourcen-Bau in der Cloud (kein `aapt2`), das prüft erst
+    Android Studio.
 
 ## Aufbau
 

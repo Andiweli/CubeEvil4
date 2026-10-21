@@ -1,5 +1,5 @@
 <resources>
     <!-- The core flavor (src/core) sets these: the original game core runs the game. -->
     <bool name="core_mode">false</bool>
-    <string name="app_label">RE4 Decomp</string>
+    <string name="app_label" translatable="false">RE4 Decomp</string>
 </resources>

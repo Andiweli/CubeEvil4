@@ -35,7 +35,10 @@ import java.util.Locale;
  * stands while it is open (CoreActivity pauses the core).
  * Run with the controller: D-pad between the entries, A chooses, B / START /
  * SELECT close it; by touch like any Android dialog ("Back to the game"
- * closes it). English (decision of the project owner, 17.10.2026).
+ * closes it). Its texts in res/values/strings_ingame.xml (English) and, in the phone's language
+ * where there is one, values-<language>/strings_ingame.xml (decision of the project owner,
+ * 21.10.2026; English until then, 17.10.2026). The memory card's lines in the error report
+ * (describe) stay English.
  */
 final class CoreMenu extends Dialog {
   interface Host {
@@ -97,6 +100,9 @@ final class CoreMenu extends Dialog {
       return null;
     }
   }
+
+  /** A text of strings_ingame.xml in the phone's language (English where there is none). */
+  private String s(int id) { return getContext().getString(id); }
 
   private int dp(int value) {
     return Math.round(value * getContext().getResources().getDisplayMetrics().density);
@@ -239,35 +245,35 @@ final class CoreMenu extends Dialog {
     titles.setOrientation(LinearLayout.VERTICAL);
     // the app's version after the title, smaller (testers and screenshots show which one runs)
     LinearLayout titleRow = new LinearLayout(getContext());
-    titleRow.addView(text("CubeEvil4 Options", 22, true));
+    titleRow.addView(text(s(R.string.ingame_title), 22, true));
     String version = version();
     if (version != null) titleRow.addView(text("  (v" + version + ")", 15, false));
     titles.addView(titleRow);
-    titles.addView(text("SELECT (short-press) = this Menu  ·  SELECT (long-press) = the Game's Debug Menu", 13, false));
+    titles.addView(text(s(R.string.ingame_hint), 13, false));
     top.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-    button(top, "Back to the game", v -> dismiss());
+    button(top, s(R.string.ingame_back), v -> dismiss());
     body.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.WRAP_CONTENT));
 
-    heading("Graphics");
+    heading(s(R.string.ingame_graphics));
     int[] info = CoreBridge.graphicsInfo();
     int maxSamples = info != null ? info[0] : 0, maxAnisotropy = info != null ? info[1] : 0;
-    firstChoice = choices("Resolution", "scale", new String[] {"Auto", "1×", "2×", "3×", "4×"},
+    firstChoice = choices(s(R.string.ingame_resolution), "scale", new String[] {s(R.string.ingame_auto), "1×", "2×", "3×", "4×"},
         new int[] {0, 1, 2, 3, 4}, 0, 0);
-    choices("Anti-aliasing", "samples", new String[] {"Off", "2× MSAA", "4× MSAA"},
+    choices(s(R.string.ingame_antialiasing), "samples", new String[] {s(R.string.ingame_off), "2× MSAA", "4× MSAA"},
         new int[] {1, 2, 4}, 1, maxSamples);
-    choices("Texture filter", "anisotropy", new String[] {"Off", "2×", "4×", "8×", "16×"},
+    choices(s(R.string.ingame_texture_filter), "anisotropy", new String[] {s(R.string.ingame_off), "2×", "4×", "8×", "16×"},
         new int[] {1, 2, 4, 8, 16}, 1, maxAnisotropy);
-    choices("Picture", "aspect", new String[] {"16:9", "4:3 (original)"},
+    choices(s(R.string.ingame_picture), "aspect", new String[] {"16:9", s(R.string.ingame_original_43)},
         new int[] {0, 1}, 0, 0);
     // the check boxes in the choices' columns: the first under "16:9", the second under the third
-    LinearLayout other = labelledRow("Other options");
-    checkBox(other, "Depth of field", graphics.getBoolean("dof", true), 2,
+    LinearLayout other = labelledRow(s(R.string.ingame_other_options));
+    checkBox(other, s(R.string.ingame_dof), graphics.getBoolean("dof", true), 2,
         (b, on) -> {
           graphics.edit().putBoolean("dof", on).apply();
           CoreBridge.setDof(on);
         });
-    checkBox(other, "FPS display bottom left", graphics.getBoolean("fps", false), 3,
+    checkBox(other, s(R.string.ingame_fps_display), graphics.getBoolean("fps", false), 3,
         (b, on) -> {
           graphics.edit().putBoolean("fps", on).apply();
           host.fpsChanged(on);
@@ -276,61 +282,56 @@ final class CoreMenu extends Dialog {
     body.addView(graphicsLine);
     showGraphics();
 
-    heading("Controls");
+    heading(s(R.string.ingame_controls));
     // in the columns of the check boxes above
     SharedPreferences input = getContext().getSharedPreferences(CoreActivity.INPUT_PREFS, Context.MODE_PRIVATE);
-    LinearLayout methods = labelledRow("Select methods");
-    checkBox(methods, "Use Touch Controls", input.getBoolean(CoreActivity.TOUCH_ALWAYS, false), 2,
+    LinearLayout methods = labelledRow(s(R.string.ingame_methods));
+    checkBox(methods, s(R.string.ingame_touch), input.getBoolean(CoreActivity.TOUCH_ALWAYS, false), 2,
         (b, on) -> host.touchChanged(on));
     boolean gyro = GyroAim.available(getContext());
-    CheckBox gyroBox = checkBox(methods, gyro ? "Use Gyro-Aiming" : "Use Gyro-Aiming (no gyroscope)",
+    CheckBox gyroBox = checkBox(methods, s(gyro ? R.string.ingame_gyro : R.string.ingame_gyro_none),
         gyro && input.getBoolean(CoreActivity.GYRO_AIM, false), 3, (b, on) -> host.gyroChanged(on));
     gyroBox.setEnabled(gyro);
-    body.addView(text("Touch Controls: They appear when no controller is detected, use checkbox to manually enable "
-        + "it. The menu-icon opens the configuration (MENU = SELECT). Latch L and R: a tap keeps L or R pressed "
-        + "until the next tap (aim and fire with two thumbs).", 12, false));
+    body.addView(text(s(R.string.ingame_touch_help), 12, false));
     // the third and fourth switch: a row of their own (three do not fit side by side), in the columns above
-    LinearLayout layout = labelledRow("Button layout");
-    checkBox(layout, "Alternate Controls", input.getBoolean(CoreActivity.ALT_CONTROLS, false), 2,
+    LinearLayout layout = labelledRow(s(R.string.ingame_button_layout));
+    checkBox(layout, s(R.string.ingame_alternate), input.getBoolean(CoreActivity.ALT_CONTROLS, false), 2,
         (b, on) -> host.alternateChanged(on));
-    checkBox(layout, "Latch L and R (Touch)", input.getBoolean(CoreActivity.TOUCH_LATCH, false), 3,
+    checkBox(layout, s(R.string.ingame_latch), input.getBoolean(CoreActivity.TOUCH_LATCH, false), 3,
         (b, on) -> host.latchChanged(on));
-    body.addView(text("Alternate Controls: L1 = Knife, L2 = Aim (aim with the right stick), R1 = Inventory "
-        + "(Weapons/Recovery), R2 = Fire / use the knife, Y = Map. A, B, X (Ashley) and START as before.", 12, false));
+    body.addView(text(s(R.string.ingame_alternate_help), 12, false));
 
-    heading("Memory card (slot A)");
-    body.addView(text("Export and Import Savegames as .gci (for Dolphin or GameCube).", 12, false));
+    heading(s(R.string.ingame_card));
+    body.addView(text(s(R.string.ingame_card_help), 12, false));
     // only when the card cannot be read now (in use, still loading, none)
     cardLine = text("", 12, false);
     body.addView(cardLine);
     LinearLayout cardButtons = new LinearLayout(getContext());
-    exportAll = button(cardButtons, "Export Savegames (.gci)", 1, v -> host.exportAll());
-    button(cardButtons, "Import Savegames (.gci)", 1, v -> host.importFiles());
+    exportAll = button(cardButtons, s(R.string.ingame_export), 1, v -> host.exportAll());
+    button(cardButtons, s(R.string.ingame_import), 1, v -> host.importFiles());
     body.addView(cardButtons);
     refreshCard();
 
-    heading("Error log");
-    body.addView(text("Records an app report (also when crashed or it hangs). The report holds log of this run and the "
-        + "one before.", 12, false));
+    heading(s(R.string.ingame_log));
+    body.addView(text(s(R.string.ingame_log_help), 12, false));
     // four equal parts: the two check boxes, then the two buttons
     LinearLayout log = new LinearLayout(getContext());
     log.setGravity(Gravity.CENTER_VERTICAL);
-    checkBox(log, "Record the error log", CoreLog.enabled(getContext()),
+    checkBox(log, s(R.string.ingame_log_record), CoreLog.enabled(getContext()),
         (b, on) -> host.logChanged(on));
-    checkBox(log, "R3 = Graphics capture", tools,
+    checkBox(log, s(R.string.ingame_log_capture), tools,
         (b, on) -> host.toolsChanged(on));
-    button(log, "Send report …", 1, v -> host.shareReport());
-    button(log, "Save report …", 1, v -> host.saveReport());
+    button(log, s(R.string.ingame_report_send), 1, v -> host.shareReport());
+    button(log, s(R.string.ingame_report_save), 1, v -> host.saveReport());
     body.addView(log);
 
-    heading("Source");
-    // the address opens in the browser (A on it, or a tap)
+    heading(s(R.string.ingame_source));
+    // the address opens in the browser (A on it, or a tap); it stands where the language puts it
     TextView source = text("", 12, false);
-    SpannableStringBuilder link = new SpannableStringBuilder("More on this port at ");
-    int at = link.length();
-    link.append(SOURCE_URL);
-    link.setSpan(new UnderlineSpan(), at, link.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-    link.setSpan(new ForegroundColorSpan(source.getLinkTextColors().getDefaultColor()), at, link.length(),
+    SpannableStringBuilder link = new SpannableStringBuilder(getContext().getString(R.string.ingame_source_line, SOURCE_URL));
+    int at = Math.max(0, link.toString().indexOf(SOURCE_URL)), end = Math.min(link.length(), at + SOURCE_URL.length());
+    link.setSpan(new UnderlineSpan(), at, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    link.setSpan(new ForegroundColorSpan(source.getLinkTextColors().getDefaultColor()), at, end,
         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
     source.setText(link);
     source.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -352,7 +353,7 @@ final class CoreMenu extends Dialog {
     try {
       getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(SOURCE_URL)));
     } catch (ActivityNotFoundException e) {
-      android.widget.Toast.makeText(getContext(), "No browser on this device", android.widget.Toast.LENGTH_SHORT).show();
+      android.widget.Toast.makeText(getContext(), s(R.string.ingame_no_browser), android.widget.Toast.LENGTH_SHORT).show();
     }
   }
 
@@ -370,9 +371,9 @@ final class CoreMenu extends Dialog {
     int chosen = graphics.getInt("scale", 0), scale = chosen;
     if (scale < 1 || scale > 4) scale = autoScale(screenWidth, screenHeight);
     boolean original = graphics.getInt("aspect", 0) == 1;
-    graphicsLine.setText(String.format(Locale.ROOT, "Resolution: %d × %d pixels (level %d%s) · screen %d × %d · "
-        + "applies when the menu closes. Higher levels need more power.", 640 * scale, (original ? 448 : 336) * scale, scale, chosen == 0 ? ", Auto" : "",
-        screenWidth, screenHeight));
+    // the numbers as digits 0..9 in every language (Locale.ROOT)
+    graphicsLine.setText(String.format(Locale.ROOT, s(chosen == 0 ? R.string.ingame_resolution_line_auto
+        : R.string.ingame_resolution_line), 640 * scale, (original ? 448 : 336) * scale, scale, screenWidth, screenHeight));
   }
 
   /** Whether the card can be read now (the game stands): the export only then, else why not. */
@@ -380,9 +381,7 @@ final class CoreMenu extends Dialog {
     String[] rows = CoreBridge.cardList();
     if (rows == null) {
       boolean busy = "busy".equals(CoreBridge.cardNote());
-      cardLine.setText(busy ? "The card is in use (the game saves or loads) or the game is still loading – close the "
-          + "menu and open it again in a moment."
-          : "No memory card.");
+      cardLine.setText(s(busy ? R.string.ingame_card_busy : R.string.ingame_card_none));
       cardLine.setVisibility(View.VISIBLE);
       exportAll.setEnabled(false);
       return;
@@ -391,7 +390,10 @@ final class CoreMenu extends Dialog {
     exportAll.setEnabled(rows.length > 0);
   }
 
-  /** "Datei 01 · r100 · Spielzeit 0:12:34 · 17.10.2026 00:48" for a save, the system file by name. */
+  /**
+   * "File 01 · r100 · play time 0:12:34 · 2026-10-17 00:48" for a save, the system file by name; for
+   * the error report, so in English in every language.
+   */
   static String describe(String[] f) {
     String name = f[1];
     boolean intact = "1".equals(f[4]);

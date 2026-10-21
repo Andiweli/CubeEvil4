@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The app's menu in the game (CoreMenu, SELECT) and the app's messages around it (CoreActivity),
+  in English: the text of every language the phone may use that has no file of its own
+  (values-<language>/strings_ingame.xml with the same names; decision of the project owner,
+  21.10.2026). Android picks the phone's language itself. Placeholders (%1$s, %1$d, …) and
+  "\n" stay as they are in each translation; tools/check_translations.py compares them.
+  The game's own texts (GameCube) and the error report stay as they are.
+-->
+<resources>
+    <!-- the menu's top -->
+    <string name="ingame_title">CubeEvil4 Options</string>
+    <string name="ingame_hint">SELECT (short-press) = this Menu  ·  SELECT (long-press) = the Game\'s Debug Menu</string>
+    <string name="ingame_back">Back to the game</string>
+
+    <!-- Graphics -->
+    <string name="ingame_graphics">Graphics</string>
+    <string name="ingame_resolution">Resolution</string>
+    <string name="ingame_auto">Auto</string>
+    <string name="ingame_antialiasing">Anti-aliasing</string>
+    <string name="ingame_off">Off</string>
+    <string name="ingame_texture_filter">Texture filter</string>
+    <string name="ingame_picture">Picture</string>
+    <string name="ingame_original_43">4:3 (original)</string>
+    <string name="ingame_other_options">Other options</string>
+    <string name="ingame_dof">Depth of field</string>
+    <string name="ingame_fps_display">FPS display bottom left</string>
+    <string name="ingame_resolution_line">Resolution: %1$d × %2$d pixels (level %3$d) · screen %4$d × %5$d · applies when the menu closes. Higher levels need more power.</string>
+    <string name="ingame_resolution_line_auto">Resolution: %1$d × %2$d pixels (level %3$d, Auto) · screen %4$d × %5$d · applies when the menu closes. Higher levels need more power.</string>
+
+    <!-- Controls -->
+    <string name="ingame_controls">Controls</string>
+    <string name="ingame_methods">Select methods</string>
+    <string name="ingame_touch">Use Touch Controls</string>
+    <string name="ingame_gyro">Use Gyro-Aiming</string>
+    <string name="ingame_gyro_none">Use Gyro-Aiming (no gyroscope)</string>
+    <string name="ingame_touch_help">Touch Controls: They appear when no controller is detected, use checkbox to manually enable it; a tap on the screen shows them too, until a controller is used. The menu-icon opens the configuration (MENU = SELECT). Latch L and R: a tap keeps L or R pressed until the next tap (aim and fire with two thumbs).</string>
+    <string name="ingame_button_layout">Button layout</string>
+    <string name="ingame_alternate">Alternate Controls</string>
+    <string name="ingame_latch">Latch L and R (Touch)</string>
+    <string name="ingame_alternate_help">Alternate Controls: L1 = Knife, L2 = Aim (aim with the right stick), R1 = Inventory (Weapons/Recovery), R2 = Fire / use the knife, Y = Map. A, B, X (Ashley) and START as before.</string>
+
+    <!-- Memory card -->
+    <string name="ingame_card">Memory card (slot A)</string>
+    <string name="ingame_card_help">Export and Import Savegames as .gci (for Dolphin or GameCube).</string>
+    <string name="ingame_card_busy">The card is in use (the game saves or loads) or the game is still loading – close the menu and open it again in a moment.</string>
+    <string name="ingame_card_none">No memory card.</string>
+    <string name="ingame_export">Export Savegames (.gci)</string>
+    <string name="ingame_import">Import Savegames (.gci)</string>
+
+    <!-- Error log -->
+    <string name="ingame_log">Error log</string>
+    <string name="ingame_log_help">Records an app report (also when crashed or it hangs). The report holds log of this run and the one before.</string>
+    <string name="ingame_log_record">Record the error log</string>
+    <string name="ingame_log_capture">R3 = Graphics capture</string>
+    <string name="ingame_report_send">Send report …</string>
+    <string name="ingame_report_save">Save report …</string>
+
+    <!-- Source -->
+    <string name="ingame_source">Source</string>
+    <string name="ingame_source_line">More on this port at %1$s</string>
+    <string name="ingame_no_browser">No browser on this device</string>
+
+    <!-- the FPS display (the screen's rate follows, " · 60 Hz") -->
+    <string name="ingame_fps_none">-- FPS (Game)</string>
+    <string name="ingame_fps">%1$d FPS (Game)</string>
+
+    <!-- the app's messages in the game -->
+    <string name="ingame_core_not_started">The game core did not start:\n%1$s</string>
+    <string name="ingame_core_stopped">The game core stopped:\n%1$s</string>
+    <string name="ingame_send_report">Send report</string>
+    <string name="ingame_quit">Quit</string>
+    <string name="ingame_end_question">End the game? (Progress not saved is lost.)</string>
+    <string name="ingame_end">End</string>
+    <string name="ingame_continue">Continue</string>
+    <string name="ingame_no_debug_menu">This core has no debug menu yet</string>
+    <string name="ingame_no_menu">This core has no menu yet</string>
+    <string name="ingame_no_file_picker">No file picker on this device</string>
+    <string name="ingame_report_saved">Report saved</string>
+    <string name="ingame_failed">That did not work: %1$s</string>
+    <string name="ingame_card_unreadable">The card cannot be read now.</string>
+    <plurals name="ingame_exported">
+        <item quantity="one">%1$d file exported.</item>
+        <item quantity="other">%1$d files exported.</item>
+    </plurals>
+    <string name="ingame_imported">Imported: %1$s</string>
+    <string name="ingame_import_no_space">No space on the card for %1$s</string>
+    <string name="ingame_import_busy">The game uses the card: %1$s</string>
+    <string name="ingame_import_no_card">No memory card: %1$s</string>
+    <string name="ingame_import_bad">Not a file of this game, or damaged: %1$s (%2$s)</string>
+    <string name="ingame_import_exists">%1$s is on the card already. Replace it?</string>
+    <string name="ingame_replace">Replace</string>
+    <string name="ingame_skip">Skip</string>
+    <string name="ingame_report_chooser">Send the error report</string>
+    <string name="ingame_report_failed">The report could not be made: %1$s</string>
+    <string name="ingame_capture_saved">Graphics capture saved</string>
+</resources>

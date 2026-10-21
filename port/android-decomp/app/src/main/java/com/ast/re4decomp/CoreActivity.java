@@ -218,9 +218,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private void showStartProblem() {
     if (destroyed) return;
     new AlertDialog.Builder(this)
-        .setMessage("The game core did not start:\n" + startProblem)
-        .setPositiveButton("Send report", (d, w) -> shareReport())
-        .setNegativeButton("Quit", (d, w) -> quit())
+        .setMessage(getString(R.string.ingame_core_not_started, startProblem))
+        .setPositiveButton(R.string.ingame_send_report, (d, w) -> shareReport())
+        .setNegativeButton(R.string.ingame_quit, (d, w) -> quit())
         .setCancelable(false).show();
   }
 
@@ -238,9 +238,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     audio.stop();
     stopVibrator();
     new AlertDialog.Builder(this)
-        .setMessage("The game core stopped:\n" + ended)
-        .setPositiveButton("Send report", (d, w) -> shareReport())
-        .setNegativeButton("Quit", (d, w) -> quit())
+        .setMessage(getString(R.string.ingame_core_stopped, ended))
+        .setPositiveButton(R.string.ingame_send_report, (d, w) -> shareReport())
+        .setNegativeButton(R.string.ingame_quit, (d, w) -> quit())
         .setCancelable(false).show();
   }
 
@@ -275,7 +275,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
 
   private void showFps(boolean on) {
     fpsView.setVisibility(on && menuSupported ? View.VISIBLE : View.GONE);
-    fpsView.setText("-- FPS (Game)" + screenHz());
+    fpsView.setText(getString(R.string.ingame_fps_none) + screenHz());
     fpsFrames = -1;
   }
 
@@ -301,8 +301,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       fpsFrames = frames;
       fpsSince = now;
     } else if (now - fpsSince >= 1000) {
-      fpsView.setText(String.format(Locale.ROOT, "%d FPS (Game)%s",
-          Math.round((frames - fpsFrames) * 1000.0 / (now - fpsSince)), screenHz()));
+      fpsView.setText(String.format(Locale.ROOT, getString(R.string.ingame_fps),
+          Math.round((frames - fpsFrames) * 1000.0 / (now - fpsSince))) + screenHz());
       fpsFrames = frames;
       fpsSince = now;
     }
@@ -354,9 +354,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   }
 
   private void askExit() {
-    new AlertDialog.Builder(this).setMessage("End the game? (Progress not saved is lost.)")
-        .setPositiveButton("End", (d, w) -> quit())
-        .setNegativeButton("Continue", null).show();
+    new AlertDialog.Builder(this).setMessage(R.string.ingame_end_question)
+        .setPositiveButton(R.string.ingame_end, (d, w) -> quit())
+        .setNegativeButton(R.string.ingame_continue, null).show();
   }
 
   private void quit() {
@@ -373,7 +373,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     if (!selectDown || menu != null) return;
     selectHeld = true;
     if (!menuSupported) {
-      Toast.makeText(this, "This core has no debug menu yet",
+      Toast.makeText(this, R.string.ingame_no_debug_menu,
           Toast.LENGTH_SHORT).show();
       return;
     }
@@ -400,7 +400,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private void openMenu() {
     if (menu != null || destroyed) return;
     if (!menuSupported) {
-      Toast.makeText(this, "This core has no menu yet",
+      Toast.makeText(this, R.string.ingame_no_menu,
           Toast.LENGTH_SHORT).show();
       return;
     }
@@ -527,13 +527,13 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     try {
       startActivityForResult(intent, request);
     } catch (android.content.ActivityNotFoundException e) {
-      Toast.makeText(this, "No file picker on this device",
+      Toast.makeText(this, R.string.ingame_no_file_picker,
           Toast.LENGTH_LONG).show();
     }
   }
 
   private void message(String text) {
-    new AlertDialog.Builder(this).setMessage(text).setPositiveButton("OK", null).show();
+    new AlertDialog.Builder(this).setMessage(text).setPositiveButton(android.R.string.ok, null).show();
   }
 
   @Override
@@ -556,11 +556,11 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
           if (out == null) throw new IOException("no stream");
           CoreLog.writeReport(this, out, settings, reportExtras());
         }
-        Toast.makeText(this, "Report saved", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, R.string.ingame_report_saved, Toast.LENGTH_SHORT).show();
       }
     } catch (IOException | RuntimeException e) {
       Log.w(TAG, "menu: " + e);
-      message("That did not work: " + e.getMessage());
+      message(getString(R.string.ingame_failed, e.getMessage()));
     }
   }
 
@@ -568,7 +568,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private void exportAllInto(Uri tree) throws IOException {
     String[] rows = CoreBridge.cardList();
     if (rows == null) {
-      message("The card cannot be read now.");
+      message(getString(R.string.ingame_card_unreadable));
       return;
     }
     Uri folder = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
@@ -590,7 +590,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       }
       done++;
     }
-    message(String.format(java.util.Locale.ROOT, "%d files exported.", done)
+    message(String.format(java.util.Locale.ROOT, getResources().getQuantityString(R.plurals.ingame_exported, done), done)
         + problems);
   }
 
@@ -612,15 +612,14 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   }
 
   /** What became of an import, in the menu's language. */
-  private static String importText(int r, String name) {
+  private String importText(int r, String name) {
     switch (r) {
-      case CoreBridge.CARD_OK: return "Imported: " + name;
-      case CoreBridge.CARD_NOSPACE: return "No space on the card for " + name;
-      case CoreBridge.CARD_BUSY: return "The game uses the card: " + name;
-      case CoreBridge.CARD_NOCARD: return "No memory card: " + name;
+      case CoreBridge.CARD_OK: return getString(R.string.ingame_imported, name);
+      case CoreBridge.CARD_NOSPACE: return getString(R.string.ingame_import_no_space, name);
+      case CoreBridge.CARD_BUSY: return getString(R.string.ingame_import_busy, name);
+      case CoreBridge.CARD_NOCARD: return getString(R.string.ingame_import_no_card, name);
       default:
-        return "Not a file of this game, or damaged: " + name
-            + " (" + CoreBridge.cardNote() + ")";
+        return getString(R.string.ingame_import_bad, name, CoreBridge.cardNote());
     }
   }
 
@@ -637,14 +636,14 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     Log.i(TAG, "import " + name + ": " + r + " " + CoreBridge.cardNote());
     if (r == CoreBridge.CARD_EXISTS) {
       new AlertDialog.Builder(this)
-          .setMessage(name + " is on the card already. Replace it?")
-          .setPositiveButton("Replace", (d, w) -> {
+          .setMessage(getString(R.string.ingame_import_exists, name))
+          .setPositiveButton(R.string.ingame_replace, (d, w) -> {
             int again = CoreBridge.cardImport(gci, true);
             Log.i(TAG, "import " + name + " (replace): " + again + " " + CoreBridge.cardNote());
             report.append(importText(again, name)).append('\n');
             importNext(report);
           })
-          .setNegativeButton("Skip", (d, w) -> importNext(report))
+          .setNegativeButton(R.string.ingame_skip, (d, w) -> importNext(report))
           .setCancelable(false).show();
       return;
     }
@@ -685,10 +684,10 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       Intent send = new Intent(Intent.ACTION_SEND).setType("application/zip").putExtra(Intent.EXTRA_STREAM, uri)
           .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_label) + ": " + zip.getName()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
       send.setClipData(ClipData.newRawUri(zip.getName(), uri));
-      startActivity(Intent.createChooser(send, "Send the error report"));
+      startActivity(Intent.createChooser(send, getString(R.string.ingame_report_chooser)));
     } catch (IOException | RuntimeException e) {
       Log.w(TAG, "report: " + e);
-      message("The report could not be made: " + e.getMessage());
+      message(getString(R.string.ingame_report_failed, e.getMessage()));
     }
   }
 
@@ -749,7 +748,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
           File dir = getExternalFilesDir(null);
           if (dir != null) {
             CoreBridge.gxDump(new File(dir, "gx-dumps").getAbsolutePath());
-            Toast.makeText(this, "Grafik-Aufnahme gespeichert", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.ingame_capture_saved, Toast.LENGTH_SHORT).show();
           }
         }
         return true;

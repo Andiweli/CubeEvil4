@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German (Deutsch): the texts of values/strings_ingame.xml, same names and placeholders. -->
+<resources>
+    <string name="ingame_title">CubeEvil4 Optionen</string>
+    <string name="ingame_hint">SELECT (kurz drücken) = dieses Menü  ·  SELECT (lang drücken) = Debug-Menü des Spiels</string>
+    <string name="ingame_back">Zurück zum Spiel</string>
+
+    <string name="ingame_graphics">Grafik</string>
+    <string name="ingame_resolution">Auflösung</string>
+    <string name="ingame_auto">Auto</string>
+    <string name="ingame_antialiasing">Kantenglättung</string>
+    <string name="ingame_off">Aus</string>
+    <string name="ingame_texture_filter">Texturfilter</string>
+    <string name="ingame_picture">Bildformat</string>
+    <string name="ingame_original_43">4:3 (Original)</string>
+    <string name="ingame_other_options">Weitere Optionen</string>
+    <string name="ingame_dof">Tiefenschärfe</string>
+    <string name="ingame_fps_display">FPS-Anzeige unten links</string>
+    <string name="ingame_resolution_line">Auflösung: %1$d × %2$d Pixel (Stufe %3$d) · Bildschirm %4$d × %5$d · gilt, sobald das Menü schließt. Höhere Stufen brauchen mehr Leistung.</string>
+    <string name="ingame_resolution_line_auto">Auflösung: %1$d × %2$d Pixel (Stufe %3$d, Auto) · Bildschirm %4$d × %5$d · gilt, sobald das Menü schließt. Höhere Stufen brauchen mehr Leistung.</string>
+
+    <string name="ingame_controls">Steuerung</string>
+    <string name="ingame_methods">Eingabearten</string>
+    <string name="ingame_touch">Touch-Steuerung verwenden</string>
+    <string name="ingame_gyro">Gyro-Zielen verwenden</string>
+    <string name="ingame_gyro_none">Gyro-Zielen verwenden (kein Gyroskop)</string>
+    <string name="ingame_touch_help">Touch-Steuerung: Sie erscheint, wenn kein Controller erkannt wird, und mit dem Kästchen immer; ein Tippen auf den Bildschirm zeigt sie ebenfalls, bis ein Controller benutzt wird. Das Menü-Symbol öffnet die Einstellungen (MENU = SELECT). L und R einrasten: Ein Tippen hält L oder R gedrückt bis zum nächsten Tippen (zielen und schießen mit zwei Daumen).</string>
+    <string name="ingame_button_layout">Tastenbelegung</string>
+    <string name="ingame_alternate">Alternative Steuerung</string>
+    <string name="ingame_latch">L und R einrasten (Touch)</string>
+    <string name="ingame_alternate_help">Alternative Steuerung: L1 = Messer, L2 = Zielen (mit dem rechten Stick), R1 = Inventar (Waffen/Heilung), R2 = Schießen / Messer benutzen, Y = Karte. A, B, X (Ashley) und START wie bisher.</string>
+
+    <string name="ingame_card">Speicherkarte (Steckplatz A)</string>
+    <string name="ingame_card_help">Spielstände als .gci exportieren und importieren (für Dolphin oder GameCube).</string>
+    <string name="ingame_card_busy">Die Karte wird gerade benutzt (das Spiel speichert oder lädt) oder das Spiel lädt noch – Menü schließen und gleich noch einmal öffnen.</string>
+    <string name="ingame_card_none">Keine Speicherkarte.</string>
+    <string name="ingame_export">Spielstände exportieren (.gci)</string>
+    <string name="ingame_import">Spielstände importieren (.gci)</string>
+
+    <string name="ingame_log">Fehlerprotokoll</string>
+    <string name="ingame_log_help">Zeichnet einen Bericht der App auf (auch nach einem Absturz oder wenn sie hängt). Der Bericht enthält das Protokoll dieses und des vorigen Laufs.</string>
+    <string name="ingame_log_record">Fehlerprotokoll aufzeichnen</string>
+    <string name="ingame_log_capture">R3 = Grafikaufnahme</string>
+    <string name="ingame_report_send">Bericht senden …</string>
+    <string name="ingame_report_save">Bericht speichern …</string>
+
+    <string name="ingame_source">Quelle</string>
+    <string name="ingame_source_line">Mehr zu dieser Portierung unter %1$s</string>
+    <string name="ingame_no_browser">Kein Browser auf diesem Gerät</string>
+
+    <string name="ingame_fps_none">-- FPS (Spiel)</string>
+    <string name="ingame_fps">%1$d FPS (Spiel)</string>
+
+    <string name="ingame_core_not_started">Der Spielkern ist nicht gestartet:\n%1$s</string>
+    <string name="ingame_core_stopped">Der Spielkern wurde unerwartet beendet:\n%1$s</string>
+    <string name="ingame_send_report">Bericht senden</string>
+    <string name="ingame_quit">Beenden</string>
+    <string name="ingame_end_question">Spiel beenden? (Nicht gespeicherter Fortschritt geht verloren.)</string>
+    <string name="ingame_end">Beenden</string>
+    <string name="ingame_continue">Weiterspielen</string>
+    <string name="ingame_no_debug_menu">Dieser Kern hat noch kein Debug-Menü</string>
+    <string name="ingame_no_menu">Dieser Kern hat noch kein Menü</string>
+    <string name="ingame_no_file_picker">Keine Dateiauswahl auf diesem Gerät</string>
+    <string name="ingame_report_saved">Bericht gespeichert</string>
+    <string name="ingame_failed">Das hat nicht geklappt: %1$s</string>
+    <string name="ingame_card_unreadable">Die Karte kann gerade nicht gelesen werden.</string>
+    <plurals name="ingame_exported">
+        <item quantity="one">%1$d Datei exportiert.</item>
+        <item quantity="other">%1$d Dateien exportiert.</item>
+    </plurals>
+    <string name="ingame_imported">Importiert: %1$s</string>
+    <string name="ingame_import_no_space">Kein Platz auf der Karte für %1$s</string>
+    <string name="ingame_import_busy">Das Spiel benutzt die Karte: %1$s</string>
+    <string name="ingame_import_no_card">Keine Speicherkarte: %1$s</string>
+    <string name="ingame_import_bad">Keine Datei dieses Spiels oder beschädigt: %1$s (%2$s)</string>
+    <string name="ingame_import_exists">%1$s ist schon auf der Karte. Ersetzen?</string>
+    <string name="ingame_replace">Ersetzen</string>
+    <string name="ingame_skip">Überspringen</string>
+    <string name="ingame_report_chooser">Fehlerbericht senden</string>
+    <string name="ingame_report_failed">Der Bericht konnte nicht erstellt werden: %1$s</string>
+    <string name="ingame_capture_saved">Grafikaufnahme gespeichert</string>
+</resources>
