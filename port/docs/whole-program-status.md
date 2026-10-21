@@ -32,7 +32,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 0.41.2-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 64): Patch 0089, die Gondel in r10f setzte Leon und Ashley auf Plätze aus gesicherten Registern (Ursache der Wegsuche-Abstürze). Cloud ✅, **Gerätetest offen** |
 | Todesschleife r21d (Insekten bei NaN) | 22.10.2026 (Branch `claude/re4-start-controls`): `acosf`/`asinf` des Spielcodes nehmen einen Wert knapp über ±1 als ±1 (Umschreibung `ARC_CALL`); vorher setzte der Wandschritt der Novistadore (em2d, auch em2c) sie auf etwa 30 % der schrägen Flächen auf NaN, die Stampfer in r21d töteten Leon sofort, auch nach jedem Weitermachen. Dazu Todes-, Raumstart- und NaN-Zeilen im Fehlerprotokoll (Abschnitt „Todesschleife in r21d“). Cloud ✅ (i686, armhf, aarch64), **Gerätetest offen** |
 | 0.41.3-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 65, Wunsch des Projektinhabers nach dem r21d-Bericht): Todesschleife r21d (`ARC_CALL`), Schießbude (Patch 0090), Gegner-, Menü-, Raum- und Todeszeilen im Fehlerprotokoll; Releasetext `port/android-decomp/docs/releases/v0.41.3-alpha.md`. Cloud ✅, **Gerätetest offen** |
-| Fehlersuche Teil 1 (Code) | 22.10.2026 (Branch `claude/re4-start-controls`): Werkzeuge `port/tools/scan/` (ungesetzte Werte, Byte-Reihenfolge, Lage lokaler Variablen), Patches 0091–0093 (r221, Ziel-Überblendung der Waffen, r104, Krauser, Debug-Editoren auf R1). Abschnitt „Fehlersuche mit Werkzeugen“. Cloud: siehe dort, **Gerätetest offen**; Teil 2 (Raum-Rundgang am PC) offen |
+| Fehlersuche Teil 1 (Code) | 22.10.2026 (Branch `claude/re4-start-controls`): Werkzeuge `port/tools/scan/` (ungesetzte Werte, Byte-Reihenfolge, Lage lokaler Variablen), Patches 0091–0093 (r221, Ziel-Überblendung der Waffen, r104, Krauser, Debug-Editoren auf R1). Abschnitt „Fehlersuche mit Werkzeugen“. Cloud ✅ (i686, armhf, aarch64), **Gerätetest offen**; Teil 2 (Raum-Rundgang am PC) offen |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5859,8 +5859,10 @@ Aufgaben-Stapel liegen unter 4 GB, AArch64 erweitert 32-bit-Argumente mit Nullen
 Nur in Entwickler-Werkzeugen: `dbmodule.cpp` `Draw_tile` (Farbe rückwärts), `t_rck`, `t_flag`,
 `db_light`, `t_*`.
 
-**Geprüft (Cloud):** siehe unten nach dem Build. **Nicht getestet:** die drei Stellen auf dem
-Gerät.
+**Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` mit 0091–0093: 0 Baufehler, alle Patches
+gelten, 114 Module ohne offene Verweise, Laufzeit-, Kern-, Kernprozess-, Format- und Filmtests 0
+Fehler. **Nicht getestet:** die Stellen auf dem Gerät (r221 Glocken, Zielen mit Waffen, r104
+Wiederkommen, Krauser, R1 im Inventar).
 
 ## Aufbau
 
