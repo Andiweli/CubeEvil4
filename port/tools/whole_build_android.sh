@@ -152,6 +152,15 @@ echo "android $1 $platform -O$opt: $failed failed build steps, $errors distinct 
 grep -h '^link plan:' "$log" | tail -1 | sed 's/^/  /'
 if [ "$code" -ne 0 ] || [ "$failed" -ne 0 ] || [ "$errors" -ne 0 ]; then
     grep -E ': error:|fatal error:|ld.lld: error' "$log" | sort -u | head -40 | sed 's/^/  /'
+    # the first five distinct errors once in full: where they were included from and the
+    # compiler's notes after them (the previous declaration ...)
+    grep -E ': error:|fatal error:' "$log" | sort -u | head -5 | while IFS= read -r message; do
+        at=$(grep -n -m 1 -F -- "$message" "$log" | cut -d: -f1)
+        [ -n "$at" ] || continue
+        echo "  --- $(basename "${message%%:*}"): first time in full"
+        sed -n "$((at > 12 ? at - 12 : 1)),$((at + 10))p" "$log" | grep -vE '^\[[0-9]+/[0-9]+\]|^FAILED:|^ninja:' |
+            cut -c1-300 | sed 's/^/    /'
+    done
     if [ "$failed" -eq 0 ] && [ "$errors" -eq 0 ]; then
         # no compile step failed: CMake or the source preparation (whole_prepare.py,
         # patches) stopped, or ninja itself was ended; the end of the log says which

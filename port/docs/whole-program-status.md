@@ -5530,6 +5530,23 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
   Stellen oben betrafen den Android-Build); `ouya-probe.ps1` mit PowerShell 7 geparst und mit
   einem nachgebauten `adb` durchgespielt. **Nicht geprüft:** NDK r23c (in der Cloud gesperrt),
   Windows PowerShell 5.1, OUYA.
+- **Erster PC-Lauf (21.10.2026, Projektinhaber):** NDK r23c geladen, Build `android-16`:
+  460 fehlgeschlagene Schritte, 5 verschiedene Fehler. (1) `math_sub.h:16: static declaration of
+  'fabsf' follows non-static declaration` in fast allen Spieldateien: **Ursache offen**, in der
+  Cloud nicht nachstellbar. (2–5) `memory:5362/5373/5379` (`std::__libcpp_allocate`) und
+  `math.h:591` (`isgreater` mit `unsigned`, eine Folge davon) aus `runtime/ai.cpp`: das `<new>`
+  der libc++ des NDK r23c wird vom Platzhalter `include/new` des Spiels verdeckt, und diese ältere
+  libc++ liest in `<memory>` eine Hilfsklasse ohne Template (`__builtin_new_allocator`), die
+  `std::__libcpp_allocate` braucht (neuere libc++ und `-fdelayed-template-parsing` stört das
+  nicht). **Behoben:** `ai.cpp` nimmt einen pthread-Mutex statt `<mutex>`. Ein Umbenennen des
+  Platzhalters (`whole_prepare.py`) wurde verworfen: dann sehen Einheiten mit eigener
+  Platzierungs-`operator new` (`cManager.h`, `cam_extra.h`) das echte `<new>` und brechen ab
+  (i686/armhf, `state_trace.cpp`, `game_probe.cpp`).
+- **`port/tools/ndk23_check.sh`** (neu): jeder Übersetzungsschritt des armhf-Builds noch einmal
+  gegen einen Ersatz der NDK-r23c-Header (libc++ aus LLVM 12.0.0, Bionic von Android 12, API 16)
+  mit clang 12 (aus `ziglang` 0.8.1 von PyPI); fand den `ai.cpp`-Fehler, zeigt den `fabsf`-Fehler
+  nicht. Stand: 1196 Einheiten, 0 mit Fehlern. `whole_build_android.sh` gibt bei Fehlern jetzt die
+  ersten fünf vollständig aus (Einbindungskette, Hinweise des Compilers).
 
 ## Aufbau
 

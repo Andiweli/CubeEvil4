@@ -25,7 +25,7 @@
 #include "re4_runtime.h"
 
 #include <atomic>
-#include <mutex>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,7 +66,13 @@ std::atomic<u32> gWrite{0}, gRead{0};
 std::atomic<u32> gOverruns{0}, gUnderruns{0}, gSkips{0};
 // the reader's resampling position between ring frames (16.16)
 u32 gFrac;
-std::mutex gReadLock;
+// the readers' lock: pthread, as <mutex> brings <memory>, which the libc++ of the NDK r23c
+// cannot read next to the game's stand-in <new> (the OUYA build, port/docs/ouya-machbarkeit.md)
+pthread_mutex_t gReadLock = PTHREAD_MUTEX_INITIALIZER;
+struct ReadLock {
+    ReadLock() { pthread_mutex_lock(&gReadLock); }
+    ~ReadLock() { pthread_mutex_unlock(&gReadLock); }
+};
 
 FILE* gWav;
 u32 gWavFrames;
@@ -233,7 +239,7 @@ static int readRing(short* out, int frames, int channels)
     };
     Source sources[2] = {{channels == 4 ? gRing4 : gRing, channels == 4 ? 4 : 2}, {gRing4, 4}};
     const int nSources = channels == 6 ? 2 : 1;
-    std::lock_guard<std::mutex> lock(gReadLock);
+    ReadLock lock;
     u32 r = gRead.load(std::memory_order_relaxed);
     const u32 w = gWrite.load(std::memory_order_acquire);
     u32 fill = w - r;
@@ -315,7 +321,7 @@ int re4_audio_surround_now(void)
 // (tests); returns how many there were.
 int re4_audio_take(short* out, int frames)
 {
-    std::lock_guard<std::mutex> lock(gReadLock);
+    ReadLock lock;
     u32 r = gRead.load(std::memory_order_relaxed);
     const u32 w = gWrite.load(std::memory_order_acquire);
     int got = 0;
@@ -332,7 +338,7 @@ int re4_audio_take(short* out, int frames)
 // rear right of each frame `out` gets.
 int re4_audio_take4(short* out, short* out4, int frames)
 {
-    std::lock_guard<std::mutex> lock(gReadLock);
+    ReadLock lock;
     u32 r = gRead.load(std::memory_order_relaxed);
     const u32 w = gWrite.load(std::memory_order_acquire);
     int got = 0;
