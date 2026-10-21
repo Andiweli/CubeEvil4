@@ -45,9 +45,12 @@ in einen Ring von 512 KB (der FIFO des Spiels hat 448 KB), ein eigener Faden
 dekodiert sie wie der Grafikprozessor neben der CPU der GameCube (Dolphin:
 „Dual Core“). Die Aufrufe des Ports zwischen den Bytes (`VISetNextFrameBuffer`,
 `VISetBlack`, `VIFlush`, Markierungen, Host-Reihenfolge-Listen) reihen sich
-an ihrer Stelle ein. Wo das Spiel auf den Grafikprozessor wartet
-(`OSSleepThread`, Bildwechsel: `re4_gx_deliver_interrupts`) und bevor ein Test
-seinen Zustand liest, holt der Faden erst alles auf. Unterschied: der Decoder
+an ihrer Stelle ein. Seine Unterbrechungen (`GXDrawDone`, Draw-Sync) erreichen
+das Spiel wie bisher beim Warten und Bildwechsel; warten alle Spiel-Threads,
+endet der Leerlauf auch, sobald der Faden eine meldet (`re4_gx_idle_wait`).
+Das Spiel wartet nicht bei jedem Bildwechsel auf ihn, so dekodiert er Bild N,
+während das Spiel Bild N+1 bewegt; vor dem Lesen von Zustand in Tests holt er
+auf (`re4_gx_sync`). Unterschied: der Decoder
 liest Spielspeicher etwas später als gesendet, wie die echte Hardware; ein
 Spiel, das einen Puffer überschreibt, bevor der Grafikprozessor ihn gelesen
 hat, sähe dann die neuen Daten. Gleiche Ausgabe Bit für Bit

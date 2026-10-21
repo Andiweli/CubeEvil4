@@ -19,12 +19,14 @@
 //                     frames, frame times, CPU time of the game's thread per
 //                     frame, its idle time (asleep for the next retrace), the
 //                     process's CPU, GX, sound, memory, the processor clocks
-//   the sampler       (--profile FILE) sends SIGPROF to the game's thread about
-//                     1000 times a second; the handler notes where it is. At
-//                     the end each sampled place as "LIBRARY OFFSET COUNT" into
-//                     FILE (port/tools/probe_profile.py names the functions
-//                     with the libraries of the build) and the share of each
-//                     library in the output
+//   the sampler       (--profile FILE) sends SIGPROF to the game's thread (and
+//                     the GP thread, RE4_GX_THREAD) about 1000 times a second;
+//                     the handler notes where it is, or that the thread was
+//                     waiting (it hardly ran since the last sample). At the end
+//                     each sampled place as "LIBRARY OFFSET COUNT" into FILE
+//                     (the GP thread: FILE.gp; port/tools/probe_profile.py
+//                     names the functions with the libraries of the build) and
+//                     the share of each library in the output
 //
 // After --seconds (default 180) a summary over the stretches the game spent
 // in its main loop ("probe-result: key=value ..." for
@@ -328,14 +330,42 @@ void gxThread()
 
 // --- where the game's thread spends its time (--profile) -------------------------------
 
-const unsigned kSamples = 1u << 19;  // 8.7 minutes at 1000 a second
-uintptr_t gSamples[kSamples];
-std::atomic<unsigned> gSampleCount{0};
+const unsigned kSamples = 1u << 19;  // per thread: 8.7 minutes at 1000 a second
+const long long kSampleNs = 1000000;
+
+// One sampled thread: the game's, and the GP thread (RE4_GX_THREAD,
+// runtime/gx_thread.cpp). A sample in which the thread hardly ran since the
+// one before (its CPU time grew by less than half the interval) counts as
+// waiting, not as a place: a thread asleep in a wait sits in the C library.
+struct Sampled {
+    std::atomic<int> tid;
+    uintptr_t samples[kSamples];
+    std::atomic<unsigned> count;
+    std::atomic<unsigned> waiting;
+    long long lastCpuNs;  // only the signal handler on that thread uses it
+};
+Sampled gGameSampled, gGpSampled;
 std::atomic<bool> gSampling{true};
 
 void onSample(int, siginfo_t*, void* context)
 {
     if (!gSampling.load(std::memory_order_relaxed)) {
+        return;
+    }
+    const int self = (int) syscall(SYS_gettid);
+    Sampled* t = self == gGameSampled.tid.load(std::memory_order_relaxed) ? &gGameSampled
+                 : self == gGpSampled.tid.load(std::memory_order_relaxed) ? &gGpSampled
+                                                                           : nullptr;
+    if (!t) {
+        return;
+    }
+    struct timespec ts;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+    const long long cpu = (long long) ts.tv_sec * 1000000000LL + ts.tv_nsec;
+    const long long last = t->lastCpuNs;
+    t->lastCpuNs = cpu;
+    if (last > 0 && cpu - last < kSampleNs / 2) {
+        t->waiting.fetch_add(1, std::memory_order_relaxed);
         return;
     }
     const ucontext_t* uc = (const ucontext_t*) context;
@@ -347,9 +377,9 @@ void onSample(int, siginfo_t*, void* context)
 #else
     (void) uc;
 #endif
-    const unsigned n = gSampleCount.fetch_add(1, std::memory_order_relaxed);
+    const unsigned n = t->count.fetch_add(1, std::memory_order_relaxed);
     if (n < kSamples) {
-        gSamples[n] = pc;
+        t->samples[n] = pc;
     }
 }
 
@@ -360,9 +390,18 @@ void samplerThread()
     while ((tid = core.gameThread()) <= 0) {
         usleep(10000);
     }
-    while (gSampling.load()) {
-        usleep(1000);
+    gGameSampled.tid.store(tid);
+    for (unsigned tick = 0; gSampling.load(); tick++) {
+        usleep(kSampleNs / 1000);
         syscall(SYS_tgkill, getpid(), tid, SIGPROF);
+        int gp = gGpSampled.tid.load();
+        if (!gp && core.gxThreadId && tick % 100 == 0) {
+            gp = core.gxThreadId();  // the GP thread starts with the game's first GX command
+            gGpSampled.tid.store(gp);
+        }
+        if (gp) {
+            syscall(SYS_tgkill, getpid(), gp, SIGPROF);
+        }
     }
 }
 
@@ -378,12 +417,11 @@ void startSampler()
     std::thread(samplerThread).detach();
 }
 
-// the samples by library and offset into FILE, the share of each library on stdout
-void writeProfile(const char* path)
+// the samples of one thread by library and offset into FILE, the share of each
+// library on stdout
+void writeSamples(Sampled& t, const char* what, const std::string& path)
 {
-    gSampling.store(false);
-    usleep(20000);  // a signal still on its way
-    const unsigned n = std::min(gSampleCount.load(), kSamples);
+    const unsigned n = std::min(t.count.load(), kSamples), waiting = t.waiting.load();
     struct Place {
         std::string lib;
         uintptr_t offset;
@@ -391,20 +429,20 @@ void writeProfile(const char* path)
     };
     std::vector<Place> places;
     std::vector<std::pair<std::string, unsigned>> libs;
-    std::sort(gSamples, gSamples + n);
+    std::sort(t.samples, t.samples + n);
     for (unsigned i = 0; i < n;) {
         unsigned j = i;
-        while (j < n && gSamples[j] == gSamples[i]) {
+        while (j < n && t.samples[j] == t.samples[i]) {
             j++;
         }
         Dl_info info;
         memset(&info, 0, sizeof(info));
         std::string lib = "?";
-        uintptr_t offset = gSamples[i];
-        if (gSamples[i] && dladdr((void*) gSamples[i], &info) && info.dli_fname) {
+        uintptr_t offset = t.samples[i];
+        if (t.samples[i] && dladdr((void*) t.samples[i], &info) && info.dli_fname) {
             const char* slash = strrchr(info.dli_fname, '/');
             lib = slash ? slash + 1 : info.dli_fname;
-            offset = gSamples[i] - (uintptr_t) info.dli_fbase;
+            offset = t.samples[i] - (uintptr_t) info.dli_fbase;
         }
         places.push_back({lib, offset, j - i});
         auto at = std::find_if(libs.begin(), libs.end(), [&](const std::pair<std::string, unsigned>& l) {
@@ -417,9 +455,9 @@ void writeProfile(const char* path)
         }
         i = j;
     }
-    FILE* f = fopen(path, "we");
+    FILE* f = fopen(path.c_str(), "we");
     if (f) {
-        fprintf(f, "# re4_probe samples of the game's thread: %u\n", n);
+        fprintf(f, "# re4_probe samples of %s: %u\n# waiting: %u\n", what, n, waiting);
         for (const Place& p : places) {
             fprintf(f, "%s 0x%lx %u\n", p.lib.c_str(), (unsigned long) p.offset, p.count);
         }
@@ -427,10 +465,21 @@ void writeProfile(const char* path)
     }
     std::sort(libs.begin(), libs.end(), [](const std::pair<std::string, unsigned>& a,
                                            const std::pair<std::string, unsigned>& b) { return a.second > b.second; });
-    printf("probe: profile of the game's thread: %u samples, %zu places%s%s\n", n, places.size(),
-           f ? " -> " : ", NOT written to ", path);
+    printf("probe: profile of %s: %u samples at work, %u waiting, %zu places%s%s\n", what, n, waiting, places.size(),
+           f ? " -> " : ", NOT written to ", path.c_str());
     for (size_t i = 0; i < libs.size() && i < 8; i++) {
         printf("probe-profile-lib: %s %.1f %%\n", libs[i].first.c_str(), n ? 100.0 * libs[i].second / n : 0.0);
+    }
+}
+
+// FILE: the game's thread; FILE.gp: the GP thread (when it ran)
+void writeProfile(const char* path)
+{
+    gSampling.store(false);
+    usleep(20000);  // a signal still on its way
+    writeSamples(gGameSampled, "the game's thread", path);
+    if (gGpSampled.tid.load()) {
+        writeSamples(gGpSampled, "the GP thread", std::string(path) + ".gp");
     }
 }
 

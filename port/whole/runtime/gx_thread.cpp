@@ -11,9 +11,14 @@
 //     VISetBlack, VIFlush, re4_gx_mark, re4_gx_host_order_list) go into the
 //     ring's queue of events at their place in the stream, the GP thread
 //     applies them there;
-//   - the GP catches up whenever the game's thread waits or takes the GP's
-//     interrupts (OSSleepThread, the VI retrace: re4_gx_deliver_interrupts
-//     waits for the GP thread first), and before a test reads its state;
+//   - the GP's interrupts (GXDrawDone, draw sync) reach the game's thread as
+//     before: when a thread starts waiting, with the retraces, and in the
+//     dispatcher's idle, which also ends when the GP thread raises one
+//     (re4_gx_idle_wait). The game's thread does not wait for the GP thread
+//     there: the GP decodes frame N while the game moves frame N+1 (until the
+//     game waits for "draw done"). It catches up before a test reads its
+//     state (re4_gx_sync, re4_gx_deliver_interrupts, the counters) and, with
+//     RE4_VI_FAST, in the idle;
 //   - the GP never runs further behind than the ring holds: 512 KB, the game's
 //     FIFO is 448 KB (GXInit, main_sub.cpp); with the ring full the game waits,
 //     as the GameCube's CPU waits on a full FIFO.
@@ -87,6 +92,9 @@ std::mutex& gLock = *new std::mutex;  // the events, the GP thread's sleep, the 
 std::condition_variable& gWake = *new std::condition_variable;  // the GP thread: work
 std::condition_variable& gIdle = *new std::condition_variable;  // the game's thread: caught up / bytes taken
 std::deque<re4gx::Event>& gEvents = *new std::deque<re4gx::Event>;
+// the dispatcher's idle (re4_gx_idle_wait) and the PE interrupts that end it
+std::mutex& gIdleLock = *new std::mutex;
+std::condition_variable& gRaised = *new std::condition_variable;
 u64 gDone;            // under gLock: bytes worked through, with the events up to there
 bool gBusy = true;    // under gLock: the GP thread is at work
 bool gSyncWaiting;    // under gLock: the game's thread waits in sync()
@@ -265,6 +273,19 @@ void post(Event e)
     gWake.notify_one();
 }
 
+void flush()
+{
+    if (gThread) {
+        publish(true);
+    }
+}
+
+void raised()
+{
+    std::lock_guard<std::mutex> lock(gIdleLock);
+    gRaised.notify_all();
+}
+
 void sync()
 {
     if (!gThread) {
@@ -302,6 +323,16 @@ void re4_gx_sync(void)
     if (re4gx::gThreaded) {
         re4gx::sync();
     }
+}
+
+int re4_gx_idle_wait(long long ns)
+{
+    if (!re4gx::gThreaded) {
+        return -1;
+    }
+    re4gx::flush();
+    std::unique_lock<std::mutex> lock(gIdleLock);
+    return gRaised.wait_for(lock, std::chrono::nanoseconds(ns), [] { return re4gx::interruptPending(); }) ? 1 : 0;
 }
 
 // The GP thread's thread id (0: none yet), for the probe's measurement of its time

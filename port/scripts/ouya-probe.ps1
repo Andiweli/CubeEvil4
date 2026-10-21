@@ -22,7 +22,10 @@ Drei Schritte:
        ...-gp        derselbe Lauf mit dem Grafik-Decoder auf einem eigenen Thread
                      (RE4_GX_THREAD=1, port/whole/runtime/gx_thread.cpp): r100-gp,
                      r101-gp, r100-schnell-gp
-     Standard: r100, r100-gp, r101-gp, r100-schnell-gp (Vergleich mit und ohne Thread).
+       ...-ohnekopie die Grafikpakete werden nur abgenommen, nicht kopiert (wie --no-copy):
+                     zeigt, wie sehr die Kopie die Speicherbandbreite belastet
+     Standard: r100-gp, r101-gp, r100-schnell-gp, r100-schnell-gp-ohnekopie (r100 ohne
+     Thread: 10,6 Bilder/s, Messung vom 21.10.2026; mit -Runs r100,... wieder dabei).
      Jeder Lauf dauert -Seconds Sekunden (Standard 240). Die Test-Tastenfolge der
      PC-Pruefung fuehrt durch Speicherkarten-Dialog und Titel in den Raum; danach geht
      Leon ein paar Schritte. Gemessen wird nur der Kern (Spiellogik, GX-Decoder, Ton);
@@ -76,8 +79,8 @@ param(
     [string]$CacheDir = '',
     [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'RE4-OUYA-Probe'),
     [int]$Seconds = 240,
-    [ValidateSet('r100', 'r101', 'r100-schnell', 'r100-gp', 'r101-gp', 'r100-schnell-gp')]
-    [string[]]$Runs = @('r100', 'r100-gp', 'r101-gp', 'r100-schnell-gp'),
+    [ValidateSet('r100', 'r101', 'r100-schnell', 'r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnekopie')]
+    [string[]]$Runs = @('r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnekopie'),
     [switch]$SkipBuild,
     [switch]$SkipSetup,
     [switch]$SkipData,
@@ -304,7 +307,8 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         $room = '100'
         if ($run -like 'r101*') { $room = '101' }
         $fast = $run -like 'r100-schnell*'
-        $gp = $run -like '*-gp'
+        $gp = $run -like '*-gp*'
+        $runNoCopy = $NoCopy -or $run -like '*-ohnekopie'
         # the keys of the PC check (whole_r100_check.sh) through the memory card dialog and the
         # title into the room; once free, Leon walks around for about 50 s
         $settings = @(
@@ -319,13 +323,16 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         # the GX decoder on a thread of its own (port/whole/runtime/gx_thread.cpp)
         if ($gp) { $settings += 'RE4_GX_THREAD=1' }
         $copyArg = ''
-        if ($NoCopy) { $copyArg = ' --no-copy' }
+        if ($runNoCopy) { $copyArg = ' --no-copy' }
         # where the game's thread spends its time (port/tools/probe_profile.py names the functions)
         $profileRemote = "$remote/profile-$run.txt"
         $command = "cd $remoteBin && LD_LIBRARY_PATH=$remoteBin $($settings -join ' ') ./re4_probe --data $remote/data " +
             "--seconds $Seconds$copyArg --profile $profileRemote 2>&1"
         $log = Join-Path $OutDir "probe-$run.log"
-        Say "4. Lauf $run$(if ($fast) { ' (ohne Bremse' } else { ' (Echtzeit' })$(if ($gp) { ', Grafik-Thread)' } else { ')' }): $Seconds s ..."
+        $label = if ($fast) { 'ohne Bremse' } else { 'Echtzeit' }
+        if ($gp) { $label += ', Grafik-Thread' }
+        if ($runNoCopy) { $label += ', ohne Kopie' }
+        Say "4. Lauf $run ($label): $Seconds s ..."
         $writer = New-Object System.IO.StreamWriter($log, $false, (New-Object System.Text.UTF8Encoding($false)))
         $resultLines = @()
         try {
@@ -346,8 +353,13 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         Invoke-Adb logcat -d -v time | Set-Content -LiteralPath (Join-Path $OutDir "logcat-$run.txt") -Encoding UTF8
         Invoke-Adb pull $profileRemote (Join-Path $OutDir "profil-roh-$run.txt") | Out-Null
         Invoke-Adb shell rm $profileRemote | Out-Null
+        # the GP thread's (RE4_GX_THREAD): the probe writes it next to the game's
+        if (Test-Remote "$profileRemote.gp") {
+            Invoke-Adb pull "$profileRemote.gp" (Join-Path $OutDir "profil-roh-$run-grafikthread.txt") | Out-Null
+            Invoke-Adb shell rm "$profileRemote.gp" | Out-Null
+        }
         $text = Get-Content -LiteralPath $log -Encoding UTF8
-        $entry = @{ run = $run; fast = $fast; gp = $gp; log = $text }
+        $entry = @{ run = $run; fast = $fast; gp = $gp; noCopy = $runNoCopy; log = $text }
         foreach ($set in @('play', 'loop', 'all')) {
             $line = $resultLines | Where-Object { $_ -match "^probe-result: set=$set " } | Select-Object -First 1
             if ($line) { $entry[$set] = Read-Result $line }
@@ -358,18 +370,20 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
 }
 
 # ---- 4. the profiles: function names from the libraries of the build (WSL) -----------------
-foreach ($run in $results.Keys) {
-    $raw = Join-Path $OutDir "profil-roh-$run.txt"
-    if (-not (Test-Path -LiteralPath $raw) -or -not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) { continue }
-    if (-not $repoWsl) { $repoWsl = ConvertTo-WslPath $repo }
-    $old = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        $named = @(& wsl.exe @wslBase --exec python3 "$repoWsl/port/tools/probe_profile.py" (ConvertTo-WslPath $raw) 2>&1 |
-            ForEach-Object { "$_" })
-    } finally { $ErrorActionPreference = $old }
-    $named | Set-Content -LiteralPath (Join-Path $OutDir "profil-$run.txt") -Encoding UTF8
-    $results[$run]['profile'] = $named
+foreach ($run in @($results.Keys)) {
+    foreach ($part in @(@{ suffix = ''; key = 'profile' }, @{ suffix = '-grafikthread'; key = 'profileGp' })) {
+        $raw = Join-Path $OutDir "profil-roh-$run$($part.suffix).txt"
+        if (-not (Test-Path -LiteralPath $raw) -or -not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) { continue }
+        if (-not $repoWsl) { $repoWsl = ConvertTo-WslPath $repo }
+        $old = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $named = @(& wsl.exe @wslBase --exec python3 "$repoWsl/port/tools/probe_profile.py" (ConvertTo-WslPath $raw) 2>&1 |
+                ForEach-Object { "$_" })
+        } finally { $ErrorActionPreference = $old }
+        $named | Set-Content -LiteralPath (Join-Path $OutDir "profil-$run$($part.suffix).txt") -Encoding UTF8
+        $results[$run][$part.key] = $named
+    }
 }
 
 # ---- 5. the report ---------------------------------------------------------------------------
@@ -387,6 +401,7 @@ foreach ($entry in $results.Values) {
     Say ''
     $mode = if ($entry.fast) { 'ohne Bremse: so schnell der Kern kann' } else { 'Echtzeit wie im Spiel' }
     if ($entry.gp) { $mode += '; Grafik-Decoder auf eigenem Thread' }
+    if ($entry.noCopy) { $mode += '; Grafikpakete nicht kopiert' }
     Say "Lauf $($entry.run) ($mode)"
     $failed = $entry.log | Where-Object { $_ -match '^probe: (FAILED|HANG|CRASH)|^probe: the game (ended|failed)' } | Select-Object -First 3
     foreach ($f in $failed) { Say "   PROBLEM: $($f -replace '^probe: ', '')" }
@@ -419,18 +434,22 @@ foreach ($entry in $results.Values) {
     Say "   GX je Bild:                      $($r.gx_kb) KB, $($r.vertices) Punkte, Kopie $($r.copy_ms) ms"
     Say "   Ton aus dem Spiel:               $($r.sound_from_game_pct) %"
     Say "   Speicher des Prozesses:          $($r.rss_mb) MB"
-    # where the time goes (the areas of probe_profile.py)
-    if ($entry.ContainsKey('profile')) {
+    # where the time goes (the areas of probe_profile.py), for the game's thread and the GP thread
+    foreach ($part in @(@{ key = 'profile'; title = 'Spiel-Threads' }, @{ key = 'profileGp'; title = 'Grafik-Threads' })) {
+        if (-not $entry.ContainsKey($part.key)) { continue }
         $areas = @()
         $inAreas = $false
-        foreach ($line in $entry.profile) {
+        foreach ($line in $entry[$part.key]) {
+            if ($line -match '^Dazu .* wartete') {
+                Say "   $($part.title -replace 's$', ''): $($line -replace '^Dazu \d+ Proben, in denen er wartete \(schlief\): ', 'wartet ' -replace '; die Anteile.*$', '')"
+            }
             if ($line -match '^Bereiche') { $inAreas = $true; continue }
             if ($inAreas -and -not $line.Trim()) { break }
             if ($inAreas) { $areas += $line }
         }
         if ($areas.Count -gt 0) {
-            Say '   Rechenzeit des Spiel-Threads nach Bereichen:'
-            foreach ($a in $areas) { Say "   $a" }
+            Say "   Rechenzeit des $($part.title) nach Bereichen:"
+            foreach ($a in ($areas | Select-Object -First 8)) { Say "   $a" }
         }
     }
     # the verdict: the fastest run without the brake, else the game's thread in r100

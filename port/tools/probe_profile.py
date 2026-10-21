@@ -5,7 +5,8 @@ spends its time, by library, by rough area and by function.
 
     probe_profile.py FILE [DIR...]
 
-FILE: lines "LIBRARY OFFSET COUNT" (one per sampled place of the game's thread)
+FILE: lines "LIBRARY OFFSET COUNT" (one per sampled place of the game's thread, or of
+      the GP thread: FILE.gp), "# waiting: N" for the samples the thread was asleep
 DIR:  folders searched for the libraries with symbols (default: the OUYA build of
       whole_build_android.sh --ouya in WSL, ~/re4-ouya/RE4/port/build/whole-android-ouya,
       then this checkout's port/build/whole-android-ouya). The offsets become function
@@ -75,6 +76,28 @@ def symbolize(lib, addresses):
     return dict(zip(addresses, out))
 
 
+def symbolize_lines(lib, addresses):
+    """Address -> (innermost function, source file:line), inlined callees included."""
+    tool = next(Path(android_profile.NDK).glob("toolchains/llvm/prebuilt/*/bin/llvm-symbolizer"), None) or \
+        shutil.which("llvm-symbolizer")
+    if not tool:
+        return {}
+    text = "\n".join(hex(a) for a in addresses) + "\n"
+    proc = subprocess.run([str(tool), "--obj=" + lib, "-C", "--inlining=true", "--functions=linkage"],
+                          input=text, capture_output=True, text=True)
+    out, block = [], []
+    for line in proc.stdout.splitlines() + [""]:
+        if line.strip() == "":
+            if block:
+                where = block[1].rsplit(":", 1)[0] if len(block) > 1 else "?"  # without the column
+                where = re.sub(r"^.*?/(port|src|prepared/tree)/", r"\1/", where)
+                out.append((block[0], where))
+                block = []
+        else:
+            block.append(line.strip())
+    return dict(zip(addresses, out))
+
+
 def area(lib, name, source="?"):
     for label, pattern in FILE_AREAS:
         if pattern.search(source):
@@ -98,7 +121,13 @@ def main():
     dirs = sys.argv[2:] or [os.path.expanduser("~/re4-ouya/RE4/port/build/whole-android-ouya"),
                             str(ROOT / "port/build/whole-android-ouya")]
     places = []
+    waiting = 0
+    which = "Spiel-Threads"
     for line in Path(sys.argv[1]).read_text(errors="replace").splitlines():
+        if line.startswith("# waiting:"):
+            waiting = int(line.split(":")[1])
+        if line.startswith("# re4_probe samples of the GP thread"):
+            which = "Grafik-Threads"
         parts = line.split()
         if len(parts) == 3 and not line.startswith("#"):
             try:
@@ -111,24 +140,33 @@ def main():
     for lib, offset, n in places:
         by_lib[lib][offset] += n
     names = {}
+    lines = {}
     missing = []
     for lib, offsets in by_lib.items():
         if lib.startswith("libre4") or lib == "libc++_shared.so":
             if lib in libs:
                 names[lib] = symbolize(libs[lib], sorted(offsets))
+                lines[lib] = symbolize_lines(libs[lib], sorted(offsets))
             else:
                 missing.append(lib)
     per_lib = defaultdict(int)
     per_func = defaultdict(int)
     per_area = defaultdict(int)
+    per_line = defaultdict(int)
     for lib, offset, n in places:
+        inner = lines.get(lib, {}).get(offset)
+        if inner:
+            per_line[(lib, inner[0], inner[1])] += n
         name, source = names.get(lib, {}).get(offset) or ("?", "?")
         if name == "??":
             name = "?"
         per_lib[lib] += n
         per_func[(lib, name)] += n
         per_area[area(lib, name, source)] += n
-    print(f"Profil des Spiel-Threads: {total} Proben (etwa 1000 je Sekunde)")
+    print(f"Profil des {which}: {total} Proben bei der Arbeit (etwa 1000 je Sekunde)")
+    if waiting:
+        print(f"Dazu {waiting} Proben, in denen er wartete (schlief): "
+              f"{100.0 * waiting / (total + waiting):.1f} % der Zeit; die Anteile unten nur von der Arbeit")
     print()
     print("Bereiche (grob, nach Quelldatei, sonst Funktionsnamen):")
     for label, n in sorted(per_area.items(), key=lambda t: -t[1]):
@@ -141,6 +179,11 @@ def main():
     print("Funktionen (die 40 groessten):")
     for (lib, name), n in sorted(per_func.items(), key=lambda t: -t[1])[:40]:
         print(f"  {100.0 * n / total:5.1f}%  {lib:22s} {name[:110]}")
+    if per_line:
+        print()
+        print("Zeilen (innerste Funktion mit Datei:Zeile, die 40 groessten):")
+        for (lib, name, where), n in sorted(per_line.items(), key=lambda t: -t[1])[:40]:
+            print(f"  {100.0 * n / total:5.1f}%  {where[-60:]:60s} {name[:70]}")
     if missing:
         print()
         print("Ohne Bibliothek mit Symbolen: " + ", ".join(sorted(missing)))

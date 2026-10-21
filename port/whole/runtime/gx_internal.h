@@ -30,9 +30,11 @@ uint8_t* memorySpan(uint32_t physical, uint32_t* available);
 uint8_t* listMemory(uint32_t address, uint32_t size);
 
 // The PE raises its interrupts (delivered by re4_gx_deliver_interrupts); a
-// token without interrupt (BP 0x47) only sets the token register.
+// token without interrupt (BP 0x47) only sets the token register. On the GP
+// thread (gx_thread.cpp) they wake the dispatcher's idle (raised()).
 void peFinish();
 void peToken(uint16_t token, bool interrupt);
+bool interruptPending();
 
 // gx_decode.cpp -----------------------------------------------------------
 
@@ -60,6 +62,8 @@ extern bool gThreaded;
 void ringPut(const uint8_t* bytes, size_t n);  // the game's thread (gx_fifo.cpp)
 void post(Event e);                            // an event after the bytes put so far
 void sync();  // waits until the GP thread has worked through all of it
+void raised();  // the GP thread raised a PE interrupt: an idle game thread takes it
+void flush();   // the bytes put so far to the GP thread, now (as GXFlush on the GameCube)
 
 #pragma GCC visibility pop
 

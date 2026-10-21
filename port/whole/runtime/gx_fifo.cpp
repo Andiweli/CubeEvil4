@@ -128,9 +128,10 @@ inline void put(const u8* bytes, int n)
 
 // --- the PE -------------------------------------------------------------------
 
-bool gPendingFinish;
-bool gPendingToken;
-u16 gToken;
+// raised by the GP (the GP thread, gx_thread.cpp), taken by the game's thread
+std::atomic<bool> gPendingFinish{false};
+std::atomic<bool> gPendingToken{false};
+std::atomic<u16> gToken{0};
 bool gDelivering;
 
 }  // namespace
@@ -214,17 +215,28 @@ uint8_t* listMemory(uint32_t address, uint32_t size)
 
 void peFinish()
 {
-    gPendingFinish = true;
+    gPendingFinish.store(true);
+    if (gThreaded) {
+        raised();
+    }
 }
 
 void peToken(uint16_t token, bool interrupt)
 {
     if (interrupt) {
-        gToken = token;
-        gPendingToken = true;
+        gToken.store(token);
+        gPendingToken.store(true);
+        if (gThreaded) {
+            raised();
+        }
     } else {
         __atomic_store_n(&gPe[7], token, __ATOMIC_RELAXED);  // the GP thread: the game may read it meanwhile
     }
+}
+
+bool interruptPending()
+{
+    return gPendingFinish.load() || gPendingToken.load();
 }
 
 }  // namespace re4gx
@@ -321,6 +333,21 @@ unsigned int re4_gx_efb_peek(unsigned short x, unsigned short y, int z)
     return z ? 0x00FFFFFF : 0;  // depth far, colour black
 }
 
+namespace {
+
+void deliverRaised()
+{
+    if (gPendingToken.exchange(false)) {
+        gPe[7] = gToken.load();
+        re4_os_hw_interrupt(0x12);  // __OS_INTERRUPT_PI_PE_TOKEN
+    }
+    if (gPendingFinish.exchange(false)) {
+        re4_os_hw_interrupt(0x13);  // __OS_INTERRUPT_PI_PE_FINISH
+    }
+}
+
+}  // namespace
+
 void re4_gx_deliver_interrupts(void)
 {
     if (gDelivering) {
@@ -334,15 +361,24 @@ void re4_gx_deliver_interrupts(void)
     } else {
         re4gx::drain();
     }
-    if (gPendingToken) {
-        gPendingToken = false;
-        gPe[7] = gToken;
-        re4_os_hw_interrupt(0x12);  // __OS_INTERRUPT_PI_PE_TOKEN
+    deliverRaised();
+    gDelivering = false;
+}
+
+void re4_gx_deliver_pending(void)
+{
+    if (gDelivering) {
+        return;
     }
-    if (gPendingFinish) {
-        gPendingFinish = false;
-        re4_os_hw_interrupt(0x13);  // __OS_INTERRUPT_PI_PE_FINISH
+    gDelivering = true;
+    // the GP thread goes on meanwhile: what it raised so far (the game's thread
+    // waits for it only in the dispatcher's idle, re4_gx_idle_wait)
+    if (re4gx::gThreaded) {
+        re4gx::flush();  // what the GP thread has not been handed yet (it may be "draw done")
+    } else {
+        re4gx::drain();
     }
+    deliverRaised();
     gDelivering = false;
 }
 

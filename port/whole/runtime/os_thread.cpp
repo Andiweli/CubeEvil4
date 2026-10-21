@@ -637,8 +637,16 @@ void OSSleepThread(OSThreadQueue* q)
     t->state = kWaiting;
     enqueue(q, t);
     // While the CPU waits the graphics processor catches up (gx_fifo.cpp): its
-    // "draw done" interrupt may wake this very thread (GXWaitDrawDone).
-    re4_gx_deliver_interrupts();
+    // "draw done" interrupt may wake this very thread (GXWaitDrawDone). The GP
+    // on a thread of its own (gx_thread.cpp) goes on meanwhile; when every
+    // thread waits, the idle waits for its interrupts too (vi.cpp). Without the
+    // dispatcher (tests) nothing else runs: the GP catches up at once (else
+    // the caller's loop would queue this thread a second time).
+    if (gDispatching) {
+        re4_gx_deliver_pending();
+    } else {
+        re4_gx_deliver_interrupts();
+    }
     // ... and the memory card's transfers end (runtime/exi.cpp)
     re4_exi_deliver();
     if (t->state == kReady) {

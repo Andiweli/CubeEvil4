@@ -142,8 +142,17 @@ int re4_valid_port_ptr(const void* p);
 int re4_game_library_ptr(const void* p);
 /* The emulated graphics processor (gx_fifo.cpp): its pending PE interrupts
  * (draw done, token) are delivered when a thread starts waiting and with the
- * video retraces, the moments the GP would have caught up on the GameCube. */
+ * video retraces, the moments the GP would have caught up on the GameCube.
+ * re4_gx_deliver_interrupts first lets the GP catch up with all the game sent
+ * (with the GP on a thread of its own, gx_thread.cpp: waits for it);
+ * re4_gx_deliver_pending delivers what it raised so far (OSSleepThread, the
+ * retrace: the game's thread does not wait for the GP thread there). */
 void re4_gx_deliver_interrupts(void);
+void re4_gx_deliver_pending(void);
+/* The dispatcher's idle (vi.cpp) waits up to `ns` for the next retrace: with
+ * the GP thread also until it raises an interrupt (1; 0: the time is up). -1:
+ * no GP thread, nothing waited. */
+int re4_gx_idle_wait(long long ns);
 /* EXI (exi.cpp, M10): the memory card's pending transfer ends and "done"
  * interrupts, and the due OS alarms (alarm.cpp), delivered at the interrupt
  * points (re4_os_idle, OSSleepThread). */
