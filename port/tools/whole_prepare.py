@@ -360,6 +360,30 @@ TYPEDEF_LONG32 = re.compile(r"^typedef\s+(signed|unsigned)\s+long\s+(s32|u32|Sin
 EXACT_WIDTH_FILES = ("include/types.h", "include/dolphin/types.h", "src/lib/cri/cri_xpt.h")
 
 
+# acosf / asinf in the game code (src/ outside src/lib) -> re4_acosf / re4_asinf
+# (re4_whole_prelude.h): an argument a rounding step beyond +-1 counts as +-1. The port's
+# unit vectors (C_VECNormalize, 1/sqrtf) can be a last bit longer than the GameCube's
+# (PSVECNormalize, frsqrte and one Newton step), and acosf of a dot product of two of them
+# was NaN (the insects' wall step, tester report 22.10.2026). Applied last, after the
+# patches and the reviewed line lists, which match the original text.
+ARC_CALL = re.compile(r"\b(acosf|asinf)(\s*\()")
+
+
+def arc_calls(staging: Path) -> int:
+    done = 0
+    for path in sorted((staging / "src").rglob("*")):
+        if path.suffix not in TEXT_SUFFIXES or path.relative_to(staging / "src").parts[0] == "lib":
+            continue
+        text = path.read_text(encoding="utf-8", errors="surrogateescape")
+        new, n = ARC_CALL.subn(r"re4_\1\2", text)
+        if n:
+            path.write_text(new, encoding="utf-8", errors="surrogateescape")
+            done += n
+    if not done:
+        sys.exit("arc_calls: no acosf / asinf call found in the game code")
+    return done
+
+
 def exact_width_types(staging: Path) -> None:
     for rel in EXACT_WIDTH_FILES:
         path = staging / rel
@@ -482,13 +506,15 @@ def prepare(out: Path) -> Path:
     sizes = lp64_sizes(staging)
     views = apply_byte_views(staging)
     casts = apply_int_casts(staging)
+    arcs = arc_calls(staging)
     plan = module_plan()
     # Every dropped inline asm with real instructions needs a C replacement.
     found, problems = whole_asm_check.check(staging, whole_asm_check.plan_units(plan), OVERLAY)
     if problems:
         sys.exit("inline asm check failed (port/tools/whole_asm_check.py):\n  " + "\n  ".join(problems))
     print(f"whole_prepare: asm {whole_asm_check.summary(found)}; {views} byte views; "
-          f"{fixed} fixed-form pointer members; {sizes} LP64 work sizes; {casts} signed casts to pointers")
+          f"{fixed} fixed-form pointer members; {sizes} LP64 work sizes; {casts} signed casts to pointers; "
+          f"{arcs} acosf/asinf calls guarded")
     sync(staging, tree)
     shutil.rmtree(staging)
     write_sdk_c_only(out)

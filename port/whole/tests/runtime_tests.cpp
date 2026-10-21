@@ -956,6 +956,8 @@ int re4probe_light05(void);
 int re4probe_luis_damage(void);
 int re4probe_route_far(void);
 void re4probe_enemy_log(void);
+void re4probe_death_log(void);
+int re4probe_arc(void);
 int re4_log_tail(char* out, int size);
 }
 
@@ -1483,6 +1485,44 @@ static void testEnemyLog()
     report("enemylog", ok);
 }
 
+// Leon's side of a death in the error log (state_trace.cpp playerLog, game_probe.cpp
+// re4probe_death_log): the room starts running, the death demo with the scene areas hit,
+// Leon's position not a number, the continue; an enemy at NaN (tester report 22.10.2026, r21d)
+static void testDeathLog()
+{
+    bool ok = true;
+    re4probe_death_log();
+    static char tail[24 * 160];
+    re4_log_tail(tail, sizeof tail);
+    const char* want[] = {
+        "room: r21d runs (frame 2001), Leon at (100 0 200) facing 0.50, life 1200/1200, weapon 0x02",
+        "die: r21d after 2 frames, life 1200, Leon at (100 0 200); scene areas hit: 0x05 0x13",
+        "die: area 0x05 id 0 on 1 trg 1: floor 0 height 2000, (0 0) (1000 0) (1000 1000) (0 1000), for 1",
+        "pl: Leon's position is not a number in r21d (frame 2004, 3 frames after the room started)",
+        "room: r21d runs (frame 2006), Leon at (100 0 200) facing 0.50, life 1200/1200, weapon 0x02, continue after a death",
+        "em: + s1 0x2d/0 set 0 hp 100 at (0 0 0) in r21d",
+        "em: s1 position is not a number, last at (0 0 0)",
+    };
+    for (const char* w : want) {
+        if (!strstr(tail, w)) {
+            ok = false;
+            re4_log("  deathlog: missing \"%s\"", w);
+        }
+    }
+    report("deathlog", ok);
+}
+
+// The insects' wall step with the port's vector functions stays a number (re4_acosf, game_probe.cpp
+// re4probe_arc: the bits name what failed)
+static void testArc()
+{
+    int bad = re4probe_arc();
+    if (bad) {
+        re4_log("  arc: failed checks 0x%x", bad);
+    }
+    report("arc", bad == 0);
+}
+
 // The error log's core file (log.cpp re4_log_file, CoreBridge.setLogFile): the lines remembered
 // before it, then every line with logcat's time; at the size limit (RE4_LOG_FILE_LIMIT here, 4 MB
 // in the app) the file becomes <file>.1 and starts anew; after "" nothing more
@@ -1563,6 +1603,8 @@ int re4_runtime_tests()
     testRoute();
     testLogFile();
     testEnemyLog();
+    testDeathLog();
+    testArc();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);

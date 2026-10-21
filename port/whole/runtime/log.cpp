@@ -268,6 +268,28 @@ extern "C" unsigned re4_heap_fail_count(void)
     return gHeapFails.load();
 }
 
+// acosf / asinf of the game with an argument a rounding step beyond +-1 (re4_whole_prelude.h
+// re4_arc_arg): the first time and at every tenfold count, so that the log shows how often.
+static std::atomic<unsigned> gArcClamps{0};
+
+extern "C" void re4_arc_clamped(float x)
+{
+    unsigned n = ++gArcClamps;
+    unsigned step = 1;
+    while (step <= n / 10) {
+        step *= 10;
+    }
+    if (n == step) {
+        re4_log("math: acosf/asinf of %.9g taken as %d (%u times so far; on the GameCube the unit vectors "
+                "stay within 1)", (double) x, x > 0 ? 1 : -1, n);
+    }
+}
+
+extern "C" unsigned re4_arc_clamp_count(void)
+{
+    return gArcClamps.load();
+}
+
 extern "C" void re4_stub_hit(const char* const* names, unsigned char* seen, int index)
 {
     if (!seen[index]) {

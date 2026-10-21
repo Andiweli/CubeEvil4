@@ -30,6 +30,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | Absturz Wegesuche r11c (64 bit) | 21.10.2026 (Branch `claude/re4-start-controls`): Patch 0088 fängt ihn ab und meldet, wessen Position außerhalb lag; die eigentliche Ursache zeigt erst ein Bericht mit Fehlerprotokoll. Cloud ✅, **Gerätetest offen** |
 | 0.41.1-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 63): Fehlerprotokoll auf jedem Handy (der Kern schreibt `core-log.txt` selbst, `logcat-status.txt`, „Error log: on/off“ im Bericht), Patch 0088, Menü in 10 Sprachen. Cloud ✅, Retroid ✅ (Deutsch, Protokoll), Samsung-Tester offen |
 | 0.41.2-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 64): Patch 0089, die Gondel in r10f setzte Leon und Ashley auf Plätze aus gesicherten Registern (Ursache der Wegsuche-Abstürze). Cloud ✅, **Gerätetest offen** |
+| Todesschleife r21d (Insekten bei NaN) | 22.10.2026 (Branch `claude/re4-start-controls`): `acosf`/`asinf` des Spielcodes nehmen einen Wert knapp über ±1 als ±1 (Umschreibung `ARC_CALL`); vorher setzte der Wandschritt der Novistadore (em2d, auch em2c) sie auf etwa 30 % der schrägen Flächen auf NaN, die Stampfer in r21d töteten Leon sofort, auch nach jedem Weitermachen. Dazu Todes-, Raumstart- und NaN-Zeilen im Fehlerprotokoll (Abschnitt „Todesschleife in r21d“). Cloud: siehe Abschnitt, **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5749,6 +5750,64 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     bestanden, `runtime-test enemylog: ok` auf allen drei. **Nicht getestet:** auf dem Gerät (Menge der Zeilen in einer
     langen Sitzung).
 
+### Todesschleife in r21d: die Insekten stehen bei NaN (Tester-Bericht 22.10.2026, Branch `claude/re4-start-controls`)
+
+- **Bericht** (`cubeevil4-report-20261022-030337.zip`, Samsung SCV40, Android 10, **64 bit im
+  App-Prozess**, 0.41.2, Sprache Indonesisch; vom Projektinhaber als „El Gigante“ geschickt):
+  r220 → r223 → r224 (El Gigante, em2b, zweimal gestorben, Weitermachen normal) → r21d
+  (Novistadore em2d, die Stampfer). In r21d: Tod um 02:54:28 (drei Sekunden vorher die einzige
+  Zeile `LIMIT_ANGLE: angle nan is not finite`, die nur einmal je Lauf kommt), Weitermachen normal;
+  Tod um 03:02:46, danach **nach jedem Weitermachen 40 ms nach dem Raumstart sofort wieder
+  `--DIEDEMO START!!`** (03:02:56, 03:03:05, 03:03:32), bis der Tester den Bericht schickte.
+  Nach dem zweiten Tod lud das Weitermachen die Handgranate (`wep19`), beim Betreten von r21d
+  und nach dem ersten Tod die Pistole: der Zwischenstand stammte vom Gitter-Schalter
+  (`r21d_checkFence` speichert mit `GameSave.save(pSaveData, -1)` den Platz, nachdem die
+  Stampfer losgelaufen sind). Ab da laufen die Stampfer schon beim Raumstart
+  (`r21d_initFence`), und `R21D_TRAP_HIT` tötet Leon, sobald die Szenenfläche `hitAtNo` eines
+  Stampfers in diesem Bild getroffen ist, **von wem auch immer** (`SceAtCheck` prüft Spieler,
+  Partner und Gegner; Novistadore 0x2D sind nicht ausgenommen). Die alten Systemabstürze in
+  `crash-system.txt` (cSubLuis, getNearPoint, ScenarioMove) sind von früheren Versionen.
+- **Ursache:** Der Wandschritt der Novistadore (`em2dSetWallMatrix2`, gleich in em2c, dem
+  Insekten-Boss in r221) rechnet `sum.y = sinf(acosf(PSVECDotProduct(&nrm, &w->wallNrm))) * 700`
+  und addiert das zur Position. Beide Vektoren sind Einheitsvektoren derselben Fläche. Auf der
+  GameCube macht `PSVECNormalize` (`frsqrte` und ein Newton-Schritt) sie etwas **zu kurz**, ihr
+  Skalarprodukt bleibt unter 1. Der Port nimmt `C_VECNormalize` (`1/sqrtf`, richtig gerundet),
+  das Ergebnis ist manchmal ein letztes Bit **zu lang**, das Skalarprodukt 1,0000001,
+  `acosf` NaN, die Position des Insekts NaN. Versuch (`gcc`, 2 Mio. zufällige Flächen, alle vier
+  Messpunkte auf derselben Fläche): NaN bei **30,1 %** mit den Funktionen des Ports, **0,2 %**
+  mit nachgebildetem `frsqrte` (Tabelle aus Dolphin, größter Fehler der Schätzung 2^-12,4) und
+  dem Newton-Schritt; schon die Neigung (0,1 1 −0,05) trifft es. Eine Position aus NaN liegt in
+  **jeder** Vierecksfläche (`areaHitCheck_xz4` weist nur ab, alle Vergleiche mit NaN sind
+  falsch), also auch in den Stampfer-Flächen: Leon stirbt im ersten Bild, in dem ein Insekt
+  sich auf eine schräge Fläche setzt, nach dem Weitermachen also gleich am Anfang. Auf der
+  GameCube würde ein Insekt bei NaN `LIMIT_ANGLE` endlos laufen lassen; dass das Spiel dort nicht
+  hängt, passt zu den kurzen Einheitsvektoren. Dass die Stampfer-Flächen Gegner zählen, ist aus
+  dem Bericht nicht belegt (die Flächendaten liegen nur auf der Disc); belegt sind NaN-Winkel,
+  Zwischenstand und Schleife.
+- **Behoben:** `whole_prepare.py` schreibt alle 42 `acosf(`/`asinf(` des Spielcodes zu
+  `re4_acosf(`/`re4_asinf(` um (Prelude): ein Wert höchstens 1e-5 jenseits von ±1 gilt als ±1
+  (das Insekt rückt 0 statt etwa 0,2 Einheiten ab), weiter draußen bleibt NaN wie im Original.
+  Gewählt statt eines nachgebildeten `PSVECNormalize`, weil es nur Werte ändert, die sonst NaN
+  wären; das nachgebildete `frsqrte` (näher an der GameCube, ändert aber jede Normalisierung)
+  bleibt eine Möglichkeit für später. Jeder Eingriff zählt mit (`math: acosf/asinf of 1.00000012
+  taken as 1 (N times so far …)`, beim ersten Mal und bei jeder Zehnerpotenz).
+- **Mehr im Fehlerprotokoll** (`runtime/state_trace.cpp`, immer an):
+  - `room: r21d runs (frame N), Leon at (x y z) facing a, life 1200/1200, weapon 0x02[, continue
+    after a death]`: jeder Raumstart, mit dem Zwischenstand nach einem Tod.
+  - `die: r21d after N frames, life L[, partner life P], Leon at (x y z); scene areas hit: 0x05 …`
+    und je getroffener Fläche (höchstens 8) `die: area 0x05 id … on … trg …: Form, for 1|2|8[,
+    moves with a model]`: wodurch ein Raumskript tötet.
+  - `pl: Leon's position is not a number in r21d (…)` und `em: s12 position is not a number,
+    last at (x y z)`.
+  - Die Zeilen „sub screen open/closed“ und „player hit“ hörten nach je 40 je Lauf auf (im Bericht
+    um 02:38 schon verbraucht); jetzt höchstens 120 je Minute wie die Gegnerzeilen.
+  - `run: area …` (Flächenliste der PC-Prüfung) nennt jetzt auch, wer die Fläche auslöst (`for`).
+- **Tests:** Laufzeittest `deathlog` (`game_probe.cpp` `re4probe_death_log`: künstlicher Spieler und
+  eine Fläche in MEM1, Raumstart, Tod mit den Flächen 0x05 und 0x13, Leon bei NaN, Weitermachen,
+  ein Gegner bei NaN) und `arc` (`re4probe_arc`: der Wandschritt mit den Vektorfunktionen des
+  Ports und der Neigung (0,1 1 −0,05): Skalarprodukt über 1, Ergebnis eine Zahl; knapp über ±1
+  ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -5828,6 +5887,7 @@ sie ersetzt.
 | Prelude: `Re4BeBytes2` | Byte-Array-Sicht `b[0]` = hohes, `b[1]` = niedriges Byte eines Halbworts, unabhängig von der Host-Reihenfolge (Patch 0016: `cItem::lv8`, `SND_RND::b`) |
 | CodeWarrior-`asm { … }`-Blöcke, die nur Register umkopieren (`mr`) und keine C-Variable ändern → `/* port: register pin */;` (`whole_asm_check.drop_register_pins`, seit M9) | Registerbindungen des Decompilats (Reihenfolge der Register wie im Original), ohne Wirkung auf das Ergebnis; clang kennt die Syntax nicht. Blöcke mit echten Befehlen bleiben und brechen den Build ab (dann Patch) |
 | Vorzeichenbehaftete 32-bit-Werte, die zu Zeigern werden (`port/whole/lp64_int_casts.json`, `lp64_int_casts`, zuletzt, M12): der Operand jeder gelisteten Umwandlung `(T*) x` → `RE4_ADDR32(x)` (Prelude: `(unsigned int) (x)`) | auf LP64 wird aus einem `int`/`s32` mit gesetztem Bit 31 die Adresse `0xFFFFFFFF8…` (Absturz in `primInit` auf dem Retroid, 17.10.2026: `(void*) pG->prim_cnt`); vorzeichenlos gelesen behält der Zeiger das Bitmuster von ILP32, auch bei Zahlen, die keine Adressen sind (`(void*) -1`, Aufgabenparameter). Liste von `port/tools/m12/int_cast_check.py` (libclang, 142 Stellen, dazu zwei in Makros von Hand: `EM3D_GUN_SHOT`, `R332_TASK_SET`); eine Stelle, die nicht wie gelistet gefunden wird, bricht den Build ab |
+| `acosf(` / `asinf(` im Spielcode (`src/` außer `src/lib`) → `re4_acosf(` / `re4_asinf(` (`ARC_CALL`, zuletzt, 22.10.2026; 42 Stellen) | Prelude: ein Wert höchstens 1e-5 über ±1 gilt als ±1, weiter draußen bleibt NaN wie auf der GameCube. Das Spiel nimmt den Winkel zweier Einheitsvektoren als `acosf` ihres Skalarprodukts; die GameCube normalisiert mit `frsqrte` und einem Newton-Schritt (etwas zu kurz), der Port mit `1/sqrtf` (`C_VECNormalize`, manchmal ein letztes Bit zu lang): Skalarprodukt 1,0000001, `acosf` NaN. Der erste Fall und jede Zehnerpotenz stehen im Protokoll (`math: acosf/asinf of … taken as 1`) |
 | `GXWGFifo.T = x` / `GXWGFifo->T = x` → `re4_gx_put_T(x)` (`GX_FIFO_STORE`, in `GXVert.h` als `re4_gx_put_##T`), Datei bekommt `#include "re4_gx_fifo.h"` | Die Schreibadresse `0xCC008000` des Grafikprozessors gibt es im Port nicht; der FIFO des Ports (`runtime/gx_fifo.cpp`) bekommt jeden Wert (G1) |
 
 Compiler-Schalter: `-std=gnu++11 -Wno-c++11-narrowing -fdelayed-template-parsing

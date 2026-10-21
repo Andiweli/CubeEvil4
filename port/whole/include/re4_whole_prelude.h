@@ -80,6 +80,45 @@ template <class B, class T> struct Re4OwnWork : B {
 /* C equivalents of the Gekko instructions of the replaced inline asm. */
 #include "re4_ppc.h"
 
+/* acosf / asinf of the game code (whole_prepare.py ARC_CALL: every call outside src/lib): an
+ * argument at most RE4_ARC_SLACK beyond +-1 counts as +-1. The game takes the angle between
+ * two unit vectors as acosf of their dot product. On the GameCube PSVECNormalize (frsqrte and
+ * one Newton step) makes unit vectors a little short, so the product stays within +-1; the port
+ * normalizes with 1/sqrtf (C_VECNormalize), its unit vectors can be a last bit long, and
+ * acosf(1.0000001) is NaN: the wall step of the insects (em2d, em2c: sinf(acosf(...)) * 700
+ * added to the position) put them at NaN on about 30 % of slanted surfaces, where every
+ * quadrilateral area counts them inside (tester report 22.10.2026, r21d: the pistons crushed
+ * Leon at once, also after each continue). Further out stays NaN, as on the GameCube. The
+ * first clamp and every tenfold count are logged (runtime/log.cpp). */
+#define RE4_ARC_SLACK 1e-5f
+#ifdef __cplusplus
+extern "C" {
+#endif
+void re4_arc_clamped(float x);
+#ifdef __cplusplus
+}
+#endif
+static inline float re4_arc_arg(float x)
+{
+    if (x > 1.0f && x <= 1.0f + RE4_ARC_SLACK) {
+        re4_arc_clamped(x);
+        return 1.0f;
+    }
+    if (x < -1.0f && x >= -1.0f - RE4_ARC_SLACK) {
+        re4_arc_clamped(x);
+        return -1.0f;
+    }
+    return x;
+}
+static inline float re4_acosf(float x)
+{
+    return acosf(re4_arc_arg(x));
+}
+static inline float re4_asinf(float x)
+{
+    return asinf(re4_arc_arg(x));
+}
+
 /* GameCube inline asm (register pinning, PPC instructions, section
  * directives) has no meaning on ARM or x86 and is dropped. Defined after the
  * system headers, which use __asm__ for symbol redirection. Symbol aliases

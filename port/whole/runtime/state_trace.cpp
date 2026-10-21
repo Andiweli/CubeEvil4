@@ -97,7 +97,16 @@
 //   em: s12 head lost                       a Ganado's Be_flg bit 0x80 (em10LostHead)
 //   em: s12 hidden / shown                  be_flag bit1 (drawn)
 //   em: s12 jumps (x y z) -> (x y z)        more than 3000 in one frame
+//   em: s12 position is not a number, last at (x y z)
 //   pad: menu frame N rep 0x.. stick (x y) c (x y)   the cursor moves in a sub screen
+//
+// Since 22.10.2026 Leon's side of a death (playerLog below) and the sub screen and hit lines
+// in the same budget per minute (before: the first 40 of a session):
+//
+//   room: r21d runs (frame N), Leon at (x y z) facing a, life 1200/1200, weapon 0x02[, continue after a death]
+//   die: r21d after 812 frames, life 1200, Leon at (x y z); scene areas hit: 0x05 0x13
+//   die: area 0x05 id 0 on 1 trg 1: floor .. (corners), for 1    each area hit, at most 8
+//   pl: Leon's position is not a number in r21d (frame N, M frames after the room started)
 #include "types.h"
 #include "em.h"
 #include "em10.h"
@@ -165,33 +174,46 @@ void vec(FILE* f, const Vec& v)
     fprintf(f, "[%.3f,%.3f,%.3f]", (double) v.x, (double) v.y, (double) v.z);
 }
 
-// The room's scene areas (AEV, sce_at.cpp) once its main loop runs: where the
-// room scripts' triggers are (r100: 0x0A starts the s03 event at the first
-// house), for placing the player in the checks (RE4_TEST_PLACE).
+// One scene area (AEV, sce_at.cpp) as text: number, kind, enabled, trigger bits, its shape and
+// who may trigger it (1 the player, 2 enemies, 8 the partner).
+void areaText(const SCE_AT_DATA* w, char* out, size_t size)
+{
+    const AREA_HIT_DATA& a = w->area;
+    int k = snprintf(out, size, "0x%02x id %u on %u trg %u: ", (unsigned) w->no, (unsigned) w->id,
+                     (unsigned) (w->be_flg & 1), (unsigned) w->trg_type);
+    if (k < 0 || (size_t) k >= size) {
+        return;
+    }
+    if (a.type == AREA_TYPE_XZ4) {
+        const AREA_XZ4& q = a.xz4;
+        k += snprintf(out + k, size - k, "floor %.0f height %.0f, (%.0f %.0f) (%.0f %.0f) (%.0f %.0f) (%.0f %.0f)",
+                      (double) q.floor, (double) q.height, (double) q.p[0].x, (double) q.p[0].z, (double) q.p[1].x,
+                      (double) q.p[1].z, (double) q.p[2].x, (double) q.p[2].z, (double) q.p[3].x, (double) q.p[3].z);
+    } else if (a.type == AREA_TYPE_CYLINDER) {
+        const AREA_CYLINDER& c = a.cylinder;
+        k += snprintf(out + k, size - k, "floor %.0f height %.0f, circle (%.0f %.0f) radius %.0f", (double) c.floor,
+                      (double) c.height, (double) c.x, (double) c.z, (double) c.radius);
+    } else {
+        const AREA_EYE_TRIGGER& e = a.eye_trigger;
+        k += snprintf(out + k, size - k, "type %u floor %.0f height %.0f, at (%.0f %.0f) radius %.0f, view %.2f %.2f "
+                      "open %.2f", (unsigned) a.type, (double) e.floor, (double) e.height, (double) e.xz, (double) e.z,
+                      (double) e.radius, (double) e.ang_x, (double) e.ang_y, (double) e.open_ang);
+    }
+    if (k > 0 && (size_t) k < size) {
+        snprintf(out + k, size - k, ", for %u%s", (unsigned) w->target_type, w->pParent != 0 ? ", moves with a model" : "");
+    }
+}
+
+// The room's scene areas once its main loop runs: where the room scripts'
+// triggers are (r100: 0x0A starts the s03 event at the first house), for
+// placing the player in the checks (RE4_TEST_PLACE).
 void logAreas()
 {
     unsigned count = 0;
+    char text[256];
     for (SCE_AT_DATA* w = sceAtSetOtStart(); (w = sceAtGetOtAddr(w)) != 0 && count < 256; count++) {
-        const AREA_HIT_DATA& a = w->area;
-        if (a.type == AREA_TYPE_XZ4) {
-            const AREA_XZ4& q = a.xz4;
-            re4_log("run: area 0x%02x id %u on %u trg %u: floor %.0f height %.0f, (%.0f %.0f) (%.0f %.0f) (%.0f %.0f) "
-                    "(%.0f %.0f)", (unsigned) w->no, (unsigned) w->id, (unsigned) (w->be_flg & 1),
-                    (unsigned) w->trg_type, (double) q.floor, (double) q.height, (double) q.p[0].x, (double) q.p[0].z,
-                    (double) q.p[1].x, (double) q.p[1].z, (double) q.p[2].x, (double) q.p[2].z, (double) q.p[3].x,
-                    (double) q.p[3].z);
-        } else if (a.type == AREA_TYPE_CYLINDER) {
-            const AREA_CYLINDER& c = a.cylinder;
-            re4_log("run: area 0x%02x id %u on %u trg %u: floor %.0f height %.0f, circle (%.0f %.0f) radius %.0f",
-                    (unsigned) w->no, (unsigned) w->id, (unsigned) (w->be_flg & 1), (unsigned) w->trg_type,
-                    (double) c.floor, (double) c.height, (double) c.x, (double) c.z, (double) c.radius);
-        } else {
-            const AREA_EYE_TRIGGER& e = a.eye_trigger;
-            re4_log("run: area 0x%02x id %u on %u trg %u: type %u floor %.0f height %.0f, at (%.0f %.0f) radius %.0f, "
-                    "view %.2f %.2f open %.2f", (unsigned) w->no, (unsigned) w->id, (unsigned) (w->be_flg & 1),
-                    (unsigned) w->trg_type, (unsigned) a.type, (double) e.floor, (double) e.height, (double) e.xz,
-                    (double) e.z, (double) e.radius, (double) e.ang_x, (double) e.ang_y, (double) e.open_ang);
-        }
+        areaText(w, text, sizeof text);
+        re4_log("run: area %s", text);
     }
 }
 
@@ -503,6 +525,7 @@ struct EnemySeen {
     bool alive;
     bool shown;
     bool headLost;
+    bool lost;          // its position is not a number
     u8 id, type;
     s16 hp;
     u8 r[4];
@@ -520,6 +543,13 @@ u16 g_seenRoom;
 bool isGanado(const cEm* e)
 {
     return e->id >= 0x10 && e->id <= 0x1F;
+}
+
+// A position that is a number in all three parts (NaN or infinite: the difference is not 0). A
+// work at NaN is inside every quadrilateral scene area (area.cpp areaHitCheck_xz4 only rejects).
+bool finite(const Vec& v)
+{
+    return v.x - v.x == 0.0f && v.y - v.y == 0.0f && v.z - v.z == 0.0f;
 }
 
 // A line within the window's budget (true), else counted and left out, said once per window.
@@ -545,6 +575,9 @@ struct LineWindow {
 };
 
 LineWindow g_enemyWindow, g_menuWindow;
+// the sub screen and player hit lines (before: the first 40 of a session each)
+LineWindow g_runWindow;
+const unsigned kRunWindowLines = 120;
 unsigned g_enemyFrame;  // the frame enemyLine counts for
 
 bool enemyLine()
@@ -627,6 +660,10 @@ void enemyLog(unsigned n, GLOBAL_WK* g)
                 s.visLines++;
                 re4_log("em: s%u %s", (unsigned) i, shown ? "shown" : "hidden");
             }
+            if (!finite(e->pos) && !s.lost && enemyLine()) {
+                re4_log("em: s%u position is not a number, last at (%.0f %.0f %.0f)", (unsigned) i, (double) s.pos.x,
+                        (double) s.pos.y, (double) s.pos.z);
+            }
             float dx = e->pos.x - s.pos.x, dy = e->pos.y - s.pos.y, dz = e->pos.z - s.pos.z;
             if (dx * dx + dy * dy + dz * dz > 3000.0f * 3000.0f && enemyLine()) {
                 re4_log("em: s%u jumps (%.0f %.0f %.0f) -> (%.0f %.0f %.0f)", (unsigned) i, (double) s.pos.x,
@@ -646,6 +683,7 @@ void enemyLog(unsigned n, GLOBAL_WK* g)
         s.pos = e->pos;
         s.shown = shown;
         s.headLost = headLost;
+        s.lost = !finite(e->pos);
     }
 }
 
@@ -666,6 +704,80 @@ void menuLog(unsigned n, GLOBAL_WK* g)
         re4_log("pad: menu frame %u rep 0x%08x stick (%d %d) c (%d %d) buttons 0x%04x", n, (unsigned) dir,
                 (int) j.stickX, (int) j.stickY, (int) j.substickX, (int) j.substickY, (unsigned) (j.on & 0xFFFF));
     }
+}
+
+// Leon's side of a death (tester report 22.10.2026: in r21d Leon died again at once after every
+// continue, the log said only "--DIEDEMO START!!"): a line when a room starts running (where
+// Leon stands, life, weapon; "after a death" for the continue), when the death demo starts (life,
+// place, the scene areas hit in that frame: room scripts kill through them, r21d's pistons) and
+// when his position stops being a number.
+struct PlayerSeen {
+    bool running;    // the room's main loop (step 3) ran in the last frame
+    bool dying;      // STA_DIEDEMO
+    bool died;       // a death since the room started
+    bool lost;       // the position is not a number
+    unsigned start;  // the frame the room started running
+};
+PlayerSeen g_player;
+
+void playerLog(unsigned n, GLOBAL_WK* g)
+{
+    if (g->Rno0 != 3 || !live(pPL)) {
+        g_player.running = false;
+        return;
+    }
+    const Vec& p = pPL->pos;
+    if (!g_player.running) {
+        g_player.running = true;
+        g_player.dying = false;
+        g_player.lost = false;
+        g_player.start = n;
+        re4_log("room: r%03x runs (frame %u), Leon at (%.0f %.0f %.0f) facing %.2f, life %d/%d, weapon 0x%02x%s",
+                (unsigned) g->room_id, n, (double) p.x, (double) p.y, (double) p.z, (double) pPL->ang.y,
+                (int) (s16) g->pl_life, (int) (s16) g->pl_life_max, (unsigned) g->weapon_no,
+                g_player.died ? ", continue after a death" : "");
+        g_player.died = false;
+    }
+    bool dying = StaFlagChk(g, STA_DIEDEMO) != 0;
+    if (dying && !g_player.dying) {
+        // the hit bits stay until the next scene check, which the death demo stops (SPF_SCE_AT);
+        // the scene system exists once a room was set up (SceAtInit, else its table is at 0)
+        bool areas = live(sceAtSetOtStart());
+        char hit[160] = "";
+        unsigned count = 0;
+        int k = 0;
+        for (u32 a = 0; areas && a < 256; a++) {
+            if (SceAtHitCheck(a) && k >= 0 && (size_t) k < sizeof hit - 8) {
+                k += snprintf(hit + k, sizeof hit - k, " 0x%02x", (unsigned) a);
+                count++;
+            }
+        }
+        char partner[48] = "";
+        if (live(pSUB)) {
+            snprintf(partner, sizeof partner, ", partner life %d", (int) (s16) g->ashley_life);
+        }
+        re4_log("die: r%03x after %u frames, life %d%s, Leon at (%.0f %.0f %.0f); scene areas hit:%s", (unsigned) g->room_id,
+                n - g_player.start, (int) (s16) g->pl_life, partner, (double) p.x, (double) p.y, (double) p.z,
+                count ? hit : " none");
+        unsigned shown = 0, seen = 0;
+        char text[256];
+        for (SCE_AT_DATA* w = sceAtSetOtStart(); areas && (w = sceAtGetOtAddr(w)) != 0 && seen < 512 && shown < 8;
+             seen++) {
+            if (SceAtHitCheck(w->no)) {
+                shown++;
+                areaText(w, text, sizeof text);
+                re4_log("die: area %s", text);
+            }
+        }
+        g_player.died = true;
+    }
+    g_player.dying = dying;
+    bool lost = !finite(p);
+    if (lost && !g_player.lost) {
+        re4_log("pl: Leon's position is not a number in r%03x (frame %u, %u frames after the room started)",
+                (unsigned) g->room_id, n, n - g_player.start);
+    }
+    g_player.lost = lost;
 }
 
 void frame(unsigned n)
@@ -722,15 +834,14 @@ void frame(unsigned n)
     // sub screens (inventory, map, radio): when they open and close (the map
     // stayed black on the Retroid and could not be closed)
     static bool subOpen;
-    static unsigned subChanges;
     bool sub = StaFlagChk(g, STA_SUB_SCRN) != 0;
-    if (sub != subOpen && subChanges < 40) {
-        subChanges++;
+    if (sub != subOpen && g_runWindow.take(n, kRunWindowLines, "run")) {
         re4_log("run: sub screen %s at frame %u", sub ? "open" : "closed", n);
     }
     subOpen = sub;
     enemyLog(n, g);
     menuLog(n, g);
+    playerLog(n, g);
     // hits on the player (life goes down in the game): a dark bar showed at the
     // bottom of the picture only then; the app records the pictures after a hit
     // (re4_core_player_hits, core_mode.cpp RE4_GX_DUMP_ON_HIT)
@@ -745,7 +856,7 @@ void frame(unsigned n)
         int life = (int) g->pl_life;
         if (lastLife >= 0 && life < lastLife) {
             g_playerHits++;
-            if (g_playerHits <= 40) {
+            if (g_runWindow.take(n, kRunWindowLines, "run")) {
                 re4_log("run: player hit, life %d -> %d at frame %u", lastLife, life, n);
             }
             // a new hit (not the next frame of the same grab or burn): the GX chunk
@@ -1028,6 +1139,7 @@ extern "C" void re4_state_trace_enemy_frame(unsigned n)
     if (live(pG)) {
         enemyLog(n, pG);
         menuLog(n, pG);
+        playerLog(n, pG);
     }
 }
 

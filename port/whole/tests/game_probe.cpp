@@ -22,6 +22,9 @@
 #include "route_ck.h"
 #include "em10.h"
 #include "joy.h"
+#include "player.h"
+#include "sce_at.h"
+#include "area.h"
 
 #include <new>
 #include <stdlib.h>
@@ -400,4 +403,144 @@ extern "C" void re4probe_enemy_log(void)
     EmMgr.nArray = keepCount;
     EmMgr.size = keepSize;
     re4_state_trace_enemy_frame(1009);  // the old array again: starts over without a line
+}
+
+extern cPlayer* pPL;
+
+// The head of an AEV file as SceAtInit reads it (sce_at.cpp SceAtFileHead).
+struct SceAtProbeHead {
+    char magic[4];
+    u16 version;
+    u16 num;
+    u8 pad[8];
+};
+static_assert(sizeof(cPlayer) <= 0x10000, "the fake player must fit below the fake scene areas");
+
+// Leon's side of a death in the error log (state_trace.cpp playerLog) with a fake player and
+// one scene area in MEM1: r21d starts running, the death demo starts with the areas 0x05 (a
+// quadrilateral for the player) and 0x13 hit, Leon's position stops being a number, the room
+// runs again (the continue); then an enemy of a fake EmMgr array goes to NaN (enemyLog).
+extern "C" void re4probe_death_log(void)
+{
+    cPlayer* keepPl = pPL;
+    cEm* keepSub = pSUB;
+    u8 keepStep = pG->Rno0;
+    u16 keepRoom = pG->room_id;
+    u16 keepLife = pG->pl_life, keepMax = pG->pl_life_max;
+    u8 keepWeapon = pG->weapon_no;
+    int keepDying = StaFlagChk(pG, STA_DIEDEMO) != 0;
+    cEm* keepArray = EmMgr.pArray;
+    u32 keepCount = EmMgr.nArray, keepSize = EmMgr.size;
+
+    u8* aev = (u8*) (unsigned long) 0x82E50000ul;
+    memset(aev, 0, 0x10 + sizeof(SCE_AT_DATA));
+    memcpy(aev, "AEV", 4);
+    ((SceAtProbeHead*) aev)->version = 0x104;
+    ((SceAtProbeHead*) aev)->num = 1;
+    SCE_AT_DATA* w = (SCE_AT_DATA*) (aev + 0x10);
+    w->no = 5;
+    w->be_flg = 1;
+    w->trg_type = 1;
+    w->target_type = 1;
+    w->parts_no = -1;
+    w->area.type = AREA_TYPE_XZ4;
+    w->area.xz4.height = 2000.0f;
+    w->area.xz4.p[1].x = 1000.0f;
+    w->area.xz4.p[2].x = 1000.0f;
+    w->area.xz4.p[2].z = 1000.0f;
+    w->area.xz4.p[3].z = 1000.0f;
+    SceAtInit(aev, 0);
+
+    cPlayer* pl = (cPlayer*) (unsigned long) 0x82E40000ul;
+    memset((void*) pl, 0, sizeof(cPlayer));
+    pPL = pl;
+    pSUB = 0;
+    pl->pos.x = 100.0f;
+    pl->pos.z = 200.0f;
+    pl->ang.y = 0.5f;
+    pG->room_id = 0x21D;
+    pG->pl_life = 1200;
+    pG->pl_life_max = 1200;
+    pG->weapon_no = 2;
+    StaFlagOff(pG, STA_DIEDEMO);
+    EmMgr.pArray = 0;  // no enemy lines yet
+    pG->Rno0 = 4;
+    re4_state_trace_enemy_frame(2000);
+    pG->Rno0 = 3;
+    re4_state_trace_enemy_frame(2001);  // room: r21d runs
+    SceAtSetHitFlg(5);
+    SceAtSetHitFlg(0x13);
+    StaFlagOn(pG, STA_DIEDEMO);
+    re4_state_trace_enemy_frame(2003);  // die: r21d after 2 frames, die: area 0x05
+    pl->pos.x = __builtin_nanf("");
+    re4_state_trace_enemy_frame(2004);  // pl: not a number
+    pG->Rno0 = 4;
+    re4_state_trace_enemy_frame(2005);
+    StaFlagOff(pG, STA_DIEDEMO);
+    pl->pos.x = 100.0f;
+    pG->Rno0 = 3;
+    re4_state_trace_enemy_frame(2006);  // room: r21d runs ..., continue after a death
+
+    u8* works = (u8*) (unsigned long) 0x82E20000ul;
+    const u32 stride = (u32) sizeof(cEm10);
+    memset(works, 0, 2 * stride);
+    EmMgr.pArray = (cEm*) works;
+    EmMgr.nArray = 2;
+    EmMgr.size = stride;
+    cEm* e = (cEm*) (works + stride);
+    e->be_flag = 1 | 2;
+    e->id = 0x2D;
+    e->hp = 100;
+    re4_state_trace_enemy_frame(2007);  // em: + s1 0x2d/0
+    e->pos.y = __builtin_nanf("");
+    re4_state_trace_enemy_frame(2008);  // em: s1 position is not a number
+
+    EmMgr.pArray = keepArray;
+    EmMgr.nArray = keepCount;
+    EmMgr.size = keepSize;
+    SceAtInit(0, 0);
+    pPL = keepPl;
+    pSUB = keepSub;
+    pG->Rno0 = keepStep;
+    pG->room_id = keepRoom;
+    pG->pl_life = keepLife;
+    pG->pl_life_max = keepMax;
+    pG->weapon_no = keepWeapon;
+    if (keepDying) {
+        StaFlagOn(pG, STA_DIEDEMO);
+    }
+}
+
+extern "C" unsigned re4_arc_clamp_count(void);
+
+// acosf / asinf of the game code (re4_whole_prelude.h re4_acosf, whole_prepare.py ARC_CALL): the
+// insects' wall step (em2d/em2c em2dSetWallMatrix2: sinf(acosf(dot(nrm, wallNrm))) * 700 added
+// to the position) on a slope with the normal (0.1, 1, -0.05), all four probes on that face, with
+// the port's own PSVECNormalize / PSVECAdd / PSVECDotProduct: the dot product comes out above 1,
+// which made the insect's position NaN. Bits: 1 the dot product is not above 1 here (the case
+// is not reproduced), 2 the step is not a number, 4 a rounding step beyond 1 is not 0 / pi /
+// pi/2, 8 further out is not NaN (as on the GameCube), 16 an ordinary value changed, 32 the
+// clamps were not counted.
+extern "C" int re4probe_arc(void)
+{
+    int bad = 0;
+    unsigned before = re4_arc_clamp_count();
+    Vec raw = {0.1f, 1.0f, -0.05f};
+    Vec nrm, sum, wall;
+    PSVECNormalize(&raw, &nrm);
+    PSVECAdd(&nrm, &nrm, &sum);
+    PSVECAdd(&nrm, &sum, &sum);
+    PSVECAdd(&nrm, &sum, &sum);
+    PSVECNormalize(&sum, &wall);
+    f32 dot = PSVECDotProduct(&nrm, &wall);
+    if (!(dot > 1.0f)) bad |= 1;
+    f32 step = sinf(re4_acosf(dot)) * 700.0f;
+    if (step - step != 0.0f) bad |= 2;
+    volatile f32 up = 1.00000012f, down = -1.00000012f, far = 1.001f, half = 0.5f;
+    if (re4_acosf(up) != 0.0f || re4_acosf(down) != acosf(-1.0f) || re4_asinf(up) != asinf(1.0f)) bad |= 4;
+    f32 out = re4_acosf(far);
+    if (out == out) bad |= 8;
+    if (re4_acosf(half) != acosf(half) || re4_asinf(half) != asinf(half)) bad |= 16;
+    if (re4_arc_clamp_count() - before != (dot > 1.0f ? 4u : 3u)) bad |= 32;
+    return bad;
 }
