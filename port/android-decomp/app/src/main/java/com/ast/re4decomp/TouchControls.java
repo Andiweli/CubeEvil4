@@ -139,6 +139,7 @@ final class TouchControls implements CoreTouch.Host {
   /** The menu's setting "Touch Controls": TouchShowRule.AUTO, FORCE or SUPPRESS. */
   void setMode(int mode) {
     rule.setMode(mode);
+    Log.i(CoreActivity.TAG, "touch controls: setting " + TouchShowRule.name(rule.mode()));
     update();
   }
 

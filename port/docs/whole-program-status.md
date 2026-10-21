@@ -5480,6 +5480,13 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     Menü, Gerät ohne Eingaben in Unterdrücken); `check_translations.py` values-de 69 Texte ok;
     alle Java-Dateien gegen Android 15 übersetzt; `tools/test_host.sh` wie bisher (nativ 40 von
     42). **Nicht getestet:** auf dem Gerät (Menü, die drei Einstellungen mit dem Retroid).
+  - **Gerätelauf (Retroid, Projektinhaber, 21.10.2026, Stand `2fb30fb7`, 31 s):** das Menü auf
+    Deutsch, alle Zeilen in ihren Spalten (Touchsteuerung mit drei gleich breiten Knöpfen,
+    darunter „L und R einrasten (Touch)“, Hinweis, Komfortsteuerung mit Alternativer Steuerung
+    und Gyro-Zielen), „Unterdrücken“ gewählt; danach keine Touch-Tasten mehr im Protokoll und im
+    Bild, FPS-Anzeige „30 FPS (Spiel) · 60 Hz“. Ob nach der Wahl auf den Bildschirm getippt
+    wurde, zeigt das Protokoll nicht: der Wechsel der Einstellung stand nicht darin. Jetzt
+    schreibt `TouchControls.setMode` „touch controls: setting auto/force/suppress“.
 
 ## Aufbau
 
