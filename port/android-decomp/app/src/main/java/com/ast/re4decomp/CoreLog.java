@@ -5,6 +5,8 @@ import android.app.ApplicationExitInfo;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.os.SystemClock;
+import android.text.TextUtils;
 import android.util.Log;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -14,6 +16,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -25,17 +29,25 @@ import java.util.zip.ZipOutputStream;
  * game runs, the app's own log (an app reads only its own lines) goes into
  * logs/log.txt in the app's folder on the shared storage
  * (Android/data/<app>/files/logs), two files of 4 MB at most; a crash
- * writes where it happened into logs/crash.txt (core_mode.cpp). At the
+ * writes where it happened into logs/crash.txt (core_mode.cpp). The core's own
+ * lines go into logs/core-log.txt as well, written by the core without logcat
+ * (21.10.2026: a tester's Samsung recorded nothing through logcat); what logcat
+ * says when it ends early goes into logs/logcat-status.txt, and it starts once
+ * more with the app's own lines only. At the
  * next start the files of the run before move to logs/previous/, with what the
  * system says about how that run ended (ApplicationExitInfo, Android 11 and
  * later) and its crash report lines. The texts are English (wish of the
  * project owner, 17.10.2026: everything the app adds in English). The menu packs all of it with the
  * device's data into a zip to save or to send (CoreActivity, ReportProvider).
- * On by default; the menu switches the recording off.
+ * On by default; the menu switches the recording off (logcat and the core's file).
  */
 final class CoreLog {
   static final String PREFS = "core_log", RECORD = "record";
   private static final String TAG = "RE4Log";
+  static final String CORE_LOG = "core-log.txt";
+  // logcat's buffers: the app's lines, the system's about it and crashes; on a device that ends
+  // logcat for that, the app's lines only
+  private static final String[][] BUFFERS = {{"-b", "main", "-b", "system", "-b", "crash"}, {"-b", "main"}};
   private static Process recorder;
   private static boolean started;  // once per process (the Activity may be made anew, the core runs on)
 
@@ -54,6 +66,7 @@ final class CoreLog {
 
   static void setEnabled(Context c, boolean on) {
     c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(RECORD, on).apply();
+    CoreBridge.setLogFile(on ? new File(folder(c), CORE_LOG).getAbsolutePath() : "");
     if (on) startRecorder(c); else stop();
   }
 
@@ -74,22 +87,80 @@ final class CoreLog {
     write(new File(before, "exit.txt"), lastExits(c));
     String crash = run("logcat", "-d", "-b", "crash", "-v", "threadtime");
     if (!crash.trim().isEmpty()) write(new File(before, "crash-system.txt"), crash);
-    write(new File(dir, "device.txt"), deviceText(c, settings));
     CoreBridge.setCrashFile(new File(dir, "crash.txt").getAbsolutePath());
-    if (enabled(c)) startRecorder(c);
+    if (enabled(c)) {
+      CoreBridge.setLogFile(new File(dir, CORE_LOG).getAbsolutePath());
+      startRecorder(c);
+    }
+    write(new File(dir, "device.txt"), deviceText(c, settings));
   }
 
   private static synchronized void startRecorder(Context c) {
     if (recorder != null) return;
-    File file = new File(folder(c), "log.txt");
+    startRecorder(c.getApplicationContext(), 0);
+  }
+
+  private static synchronized void startRecorder(Context c, int attempt) {
+    File dir = folder(c);
+    File file = new File(dir, "log.txt");
+    // from now on (-T 1), rotated: 2 files of 4 MB
+    List<String> command = new ArrayList<>(Arrays.asList("logcat", "-v", "threadtime"));
+    command.addAll(Arrays.asList(BUFFERS[attempt]));
+    command.addAll(Arrays.asList("-T", "1", "-f", file.getAbsolutePath(), "-r", "4096", "-n", "2"));
+    String what = TextUtils.join(" ", command);
     try {
-      // from now on (-T 1), rotated: 2 files of 4 MB
-      recorder = new ProcessBuilder("logcat", "-v", "threadtime", "-b", "main", "-b", "system", "-b", "crash",
-          "-T", "1", "-f", file.getAbsolutePath(), "-r", "4096", "-n", "2").redirectErrorStream(true).start();
+      Process p = new ProcessBuilder(command).redirectErrorStream(true).start();
+      recorder = p;
+      status(dir, "started: " + what);
       Log.i(TAG, "error log: recording into " + file);
+      watch(c, p, attempt, SystemClock.elapsedRealtime());
     } catch (IOException e) {
+      status(dir, "does not start: " + what + ": " + e);
       Log.w(TAG, "error log: logcat does not start: " + e);
       recorder = null;
+    }
+  }
+
+  /**
+   * logcat ending while it should record: what it said (with -f it says nothing while it works)
+   * and its exit code into logcat-status.txt; after the first attempt once more with the app's
+   * lines only.
+   */
+  private static void watch(Context c, Process p, int attempt, long since) {
+    Thread t = new Thread(() -> {
+      String said;
+      try {
+        said = new String(readAll(p.getInputStream()), StandardCharsets.UTF_8).trim();
+      } catch (IOException e) {
+        said = e.toString();
+      }
+      int code;
+      try {
+        code = p.waitFor();
+      } catch (InterruptedException e) {
+        return;
+      }
+      synchronized (CoreLog.class) {
+        if (recorder != p) return;  // stopped on purpose (the menu, the app's end)
+        recorder = null;
+        if (said.length() > 2000) said = said.substring(0, 2000) + " ...";
+        status(folder(c), "ended after " + (SystemClock.elapsedRealtime() - since) + " ms, exit code " + code
+            + (said.isEmpty() ? "" : ": " + said));
+        Log.w(TAG, "error log: logcat ended, exit code " + code);
+        if (attempt + 1 < BUFFERS.length) startRecorder(c, attempt + 1);
+      }
+    }, "RE4 logcat watch");
+    t.setDaemon(true);
+    t.start();
+  }
+
+  /** A line about logcat (logcat-status.txt, in the report). */
+  private static void status(File dir, String line) {
+    String time = new SimpleDateFormat("MM-dd HH:mm:ss", Locale.ROOT).format(new Date());
+    try (OutputStream out = new java.io.FileOutputStream(new File(dir, "logcat-status.txt"), true)) {
+      out.write((time + " logcat " + line + "\n").getBytes(StandardCharsets.UTF_8));
+    } catch (IOException e) {
+      Log.w(TAG, "cannot write logcat-status.txt: " + e);
     }
   }
 
@@ -143,6 +214,11 @@ final class CoreLog {
           info[2], info[3], info[0], info[4], info[1]));
     }
     b.append("Switches: ").append(settings == null || settings.isEmpty() ? "-" : settings).append('\n');
+    // whether the error log records (the menu's switch) and whether logcat runs now
+    synchronized (CoreLog.class) {
+      b.append("Error log: ").append(enabled(c) ? "on (logcat " + (recorder != null ? "running" : "not running")
+          + ", see logcat-status.txt; the core's lines in " + CORE_LOG + ")" : "off").append('\n');
+    }
     return b.toString();
   }
 

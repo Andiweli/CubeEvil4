@@ -10,6 +10,9 @@ extern "C" {
 #endif
 
 void re4_log(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
+/* re4_log's lines into this file as well (appended, 2 x 4 MB at most: <path>.1), the app's error
+   log without logcat; nullptr or "" stops it. The core process takes it from RE4_LOG_FILE. */
+void re4_log_file(const char* path);
 
 /* Generated stubs (stubs.cpp) report their first call through this. */
 void re4_stub_hit(const char* const* names, unsigned char* seen, int index);

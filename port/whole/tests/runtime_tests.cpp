@@ -1453,6 +1453,69 @@ static void testRoute()
     report("route", ok);
 }
 
+// The error log's core file (log.cpp re4_log_file, CoreBridge.setLogFile): the lines remembered
+// before it, then every line with logcat's time; at the size limit (RE4_LOG_FILE_LIMIT here, 4 MB
+// in the app) the file becomes <file>.1 and starts anew; after "" nothing more
+static void testLogFile()
+{
+    bool ok = true;
+    char dir[] = "/tmp/re4-log-file-XXXXXX";
+    CHECK(mkdtemp(dir) != nullptr);
+    const std::string path = std::string(dir) + "/core-log.txt";
+    re4_log("log file: a line before the file");
+    setenv("RE4_LOG_FILE_LIMIT", "4096", 1);
+    re4_log_file(path.c_str());
+    unsetenv("RE4_LOG_FILE_LIMIT");
+    for (int i = 0; i < 80; i++) {
+        re4_log("log file: line %d of 80", i);
+    }
+    re4_log_file("");
+    re4_log("log file: a line after it");
+    auto read = [](const std::string& name) {
+        std::string text;
+        if (FILE* f = fopen(name.c_str(), "rb")) {
+            char buffer[4096];
+            size_t n;
+            while ((n = fread(buffer, 1, sizeof(buffer), f)) > 0) {
+                text.append(buffer, n);
+            }
+            fclose(f);
+        }
+        return text;
+    };
+    const std::string now = read(path), before = read(path + ".1");
+    CHECK(!before.empty() && !now.empty());
+    CHECK(before.size() <= 4096 && now.size() <= 4096);
+    CHECK(before.find("--- core log, process ") != std::string::npos);
+    CHECK(before.find("log file: a line before the file") != std::string::npos);
+    CHECK(now.find("log file: line 79 of 80") != std::string::npos);
+    CHECK((before + now).find("a line after it") == std::string::npos);
+    // "10-21 14:03:07.512 " in front of every line
+    int lines = 0, stamped = 0;
+    for (size_t at = 0; at < now.size();) {
+        size_t end = now.find('\n', at);
+        if (end == std::string::npos) {
+            end = now.size();
+        }
+        const std::string line = now.substr(at, end - at);
+        lines++;
+        if (line.size() > 19 && line[2] == '-' && line[5] == ' ' && line[8] == ':' && line[11] == ':' &&
+            line[14] == '.' && line[18] == ' ') {
+            stamped++;
+        }
+        at = end + 1;
+    }
+    CHECK(lines > 0 && stamped == lines);
+    if (!ok) {
+        re4_log("  log file: %u + %u bytes, %d lines, %d with the time", (unsigned) before.size(),
+                (unsigned) now.size(), lines, stamped);
+    }
+    unlink((path + ".1").c_str());
+    unlink(path.c_str());
+    rmdir(dir);
+    report("logfile", ok);
+}
+
 int re4_runtime_tests()
 {
     gFailures = 0;
@@ -1468,6 +1531,7 @@ int re4_runtime_tests()
     testLight();
     testPartner();
     testRoute();
+    testLogFile();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);

@@ -90,6 +90,7 @@ struct CoreApi {
   unsigned (*frameCount)(void){};
   int (*gameThread)(void){};
   long (*freeAt)(void){};  // optional: the frame the player became free in the room (state_trace.cpp), -1 not yet
+  void (*logFile)(const char *){};  // optional (cores since 21.10.2026): the core's lines into a file
 } api;
 
 // The core in a process of its own (useCoreProcess): why, for the report; "" in this process.
@@ -412,6 +413,7 @@ void loadCore(JNIEnv *env) {
   api.frameCount = reinterpret_cast<unsigned (*)(void)>(dlsym(api.main, "re4_core_frame_count"));
   api.gameThread = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_game_thread"));
   api.freeAt = reinterpret_cast<long (*)(void)>(dlsym(api.main, "re4_trace_free_at"));
+  api.logFile = reinterpret_cast<void (*)(const char *)>(dlsym(api.main, "re4_log_file"));
   if (!ok) {
     LOG("%s", api.error.c_str());
     api.main = nullptr;
@@ -1324,6 +1326,11 @@ void useCoreProcess(const std::string &why) {
   }
   re4ipc::configure(spawn);
   if (crashFd >= 0) re4ipc::setCrashFd(crashFd);
+  // the core process writes the core's log file (RE4_LOG_FILE from this process's environment)
+  if (api.logFile) {
+    api.logFile(nullptr);
+    api.logFile = nullptr;
+  }
   api.error.clear();
   if (lib.find("!/") != std::string::npos) {
     api.error = "the core process needs the app's libraries extracted (this APK keeps them packed)";
@@ -1761,6 +1768,19 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setCrashFile
   // the core process writes its crashes there as well (it gets its own copy of the file)
   if (!coreProcessWhy.empty()) re4ipc::setCrashFd(fd);
   if (old >= 0) close(old);
+}
+
+// The core's own log file (CoreLog, "Record the error log"): its lines straight into the file,
+// without logcat (a tester's Samsung recorded nothing through logcat, 21.10.2026); "" stops it.
+// The core process takes the file from the environment when it starts (RE4_LOG_FILE).
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setLogFile(JNIEnv *env, jclass, jstring path) {
+  const auto file = text(env, path);
+  if (file.empty()) {
+    unsetenv("RE4_LOG_FILE");
+  } else {
+    setenv("RE4_LOG_FILE", file.c_str(), 1);
+  }
+  if (coreProcessWhy.empty() && api.logFile) api.logFile(file.empty() ? nullptr : file.c_str());
 }
 
 // Game frames so far (one per PADRead), -1 without the core's counter.

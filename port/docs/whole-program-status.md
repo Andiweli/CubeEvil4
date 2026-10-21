@@ -28,6 +28,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | Hauptbranch `master` | 21.10.2026: steht auf **0.41.0-alpha** (`0394c644`, versionCode 62): alle Branches bis Alpha 4, der 32-bit-Kernprozess mit Raumklang (0.40.0-alpha, `548b0f24`), der Luis-Hotfix und die Menü-Sprachen; jeweils ohne Zusammenführung nachgezogen (Wunsch des Projektinhabers). Die Release-Markierungen `0.40.0-alpha` und `0.41.0-alpha` zeigen noch auf ältere Stände (aus der Cloud nicht umsetzbar, GitHub verweigert das Hochladen von Markierungen); umsetzen am PC mit `git tag -f` und `git push -f origin <Markierung>` |
 | Menü in 10 Sprachen | 21.10.2026 (Branch `claude/re4-start-controls`, vom `master`-Stand `0394c644`): Spanisch, Französisch, Italienisch, Portugiesisch (Brasilien), Russisch, Arabisch (von rechts nach links), Chinesisch (vereinfacht), Hindi zu Englisch und Deutsch; Sprache auch je App wählbar (Android 13+). Cloud ✅, **Gerätetest offen** |
 | Absturz Wegesuche r11c (64 bit) | 21.10.2026 (Branch `claude/re4-start-controls`): Patch 0088 fängt ihn ab und meldet, wessen Position außerhalb lag; die eigentliche Ursache zeigt erst ein Bericht mit Fehlerprotokoll. Cloud ✅, **Gerätetest offen** |
+| 0.41.1-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 63): Fehlerprotokoll auf jedem Handy (der Kern schreibt `core-log.txt` selbst, `logcat-status.txt`, „Error log: on/off“ im Bericht), Patch 0088, Menü in 10 Sprachen. Cloud ✅, **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5576,6 +5577,40 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     fast dieselbe Adresse wie im Bericht (0x4e399b6e0). **Nicht getestet:** auf dem Gerät; die
     eigentliche Ursache (wessen Position) zeigt erst ein Bericht mit eingeschaltetem
     Fehlerprotokoll.
+
+- **0.41.1-alpha: Fehlerprotokoll auf jedem Handy (Wunsch des Projektinhabers, 21.10.2026: die
+  Tester sollen ab sofort damit protokollieren), Branch `claude/re4-start-controls`.** Die Version
+  enthält auch Patch 0088 und die Menü-Sprachen (Entscheidung des Projektinhabers: „als 0.41.1“).
+  - **Anlass:** Das Fehlerprotokoll ist seit M11 ab Werk an; beim Samsung-Tester (Galaxy M23)
+    war `log.txt` trotzdem zweimal leer (Bericht zu 0.38.2 und `…-20261021-091210.zip`), beim
+    POCO-Tester nicht. Die App lässt `logcat` mitschreiben; endet es (oder schreibt es nichts),
+    stand das bisher nirgends: seine Meldungen gingen in eine nie gelesene Leitung.
+  - **Kern schreibt selbst:** `re4_log_file` (`runtime/log.cpp`) schreibt jede Zeile von
+    `re4_log` zusätzlich direkt in `logs/core-log.txt` (Zeit wie `logcat`, jede Zeile sofort per
+    `write`, ab 4 MB wird die Datei zu `core-log.txt.1`, also höchstens 2 × 4 MB); zuerst die
+    gemerkten Zeilen davor (bis 24, die der Anzeige). Die App gibt den Pfad über
+    `CoreBridge.setLogFile` (`core_mode.cpp`, `CoreLog.start` und der Menü-Schalter, „“ beendet
+    es); der eigene Kernprozess (32 bit) bekommt ihn über die geerbte Umgebung (`RE4_LOG_FILE`,
+    `coreproc.cpp`), im App-Prozess schließt `useCoreProcess` die Datei dann. Kosten: im Schnitt
+    etwa 3 Zeilen je Sekunde (450–700 Zeilen je Retroid-Lauf), je Zeile wenige Mikrosekunden.
+  - **`logcat` überwacht:** ein Faden liest, was `logcat` sagt, und schreibt beim Ende Dauer,
+    Rückgabewert und Meldung in `logs/logcat-status.txt` (dazu jeden Start mit dem Befehl);
+    endet der erste Versuch (main/system/crash), startet ein zweiter nur mit `-b main`.
+  - **Bericht:** `device.txt`/`device-now.txt` mit „Error log: on (logcat running/not running,
+    …)“ oder „off“; `device.txt` jetzt nach dem Start der Aufzeichnung.
+  - **Version** `0.41.1-alpha`, `versionCode` 63; Releasetext
+    `port/android-decomp/docs/releases/v0.41.1-alpha.md`.
+  - **Neue Prüfungen:** `runtime-test logfile` (Zeile davor und alle danach mit Zeitstempel,
+    Wechsel auf `.1` bei `RE4_LOG_FILE_LIMIT=4096`, beide Dateien höchstens so groß, nach „“ nichts
+    mehr); `re4_core_remote_test main` prüft, dass der Kernprozess die Datei selbst schreibt
+    (Kopfzeile und „ready (pid …)“).
+  - **Geprüft (Cloud):** `whole_build.sh i686`: 0 Baufehler, alle Prüfungen bestanden
+    (`runtime-test logfile: ok`, Kernprozess-Datei 32 Zeilen); armhf und aarch64 folgen;
+    alle Java-Dateien gegen Android 15 übersetzt (ohne neue
+    Warnung), `core_mode.cpp` für ARM32 und ARM64 mit Ersatz-Headern ohne Fehler und Warnungen.
+    **Nicht getestet:** auf einem Gerät, vor allem auf dem Samsung des Testers (ob `logcat` dort
+    endet oder nur schweigt, zeigt `logcat-status.txt`; die Zeilen des Kerns stehen auf jeden Fall
+    in `core-log.txt`, die der Java-Seite nur, wenn `logcat` läuft).
 
 ## Aufbau
 

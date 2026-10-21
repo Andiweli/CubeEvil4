@@ -1,13 +1,20 @@
 // Logging for the port runtime and the generated stubs.
 // The last lines also stay in a small ring for the app's diagnostic overlay
-// (re4_core_log_tail).
+// (re4_core_log_tail), and with re4_log_file they go into a file of their own
+// as well (the app's error log, without logcat).
 #include "re4_runtime.h"
 
 #include <atomic>
+#include <fcntl.h>
 #include <mutex>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <string>
+#include <sys/stat.h>
+#include <time.h>
+#include <unistd.h>
 #ifdef __ANDROID__
 #include <android/log.h>
 #endif
@@ -38,7 +45,109 @@ void remember(const char* fmt, va_list ap)
     }
 }
 
+// The log file (re4_log_file): each line written at once, so a crash loses none; at 4 MB
+// (RE4_LOG_FILE_LIMIT bytes, the runtime test) it becomes <file>.1 and a new one starts (two
+// files at most, as the app's logcat recording).
+const off_t kFileLimit = 4 << 20;
+const int kFileLine = 1024;
+std::mutex gFileLock;
+int gFile = -1;
+off_t gFileSize;
+off_t gFileLimit = kFileLimit;
+std::string gFilePath;
+
+void writeLine(const char* text, int length)
+{
+    // "10-21 14:03:07.512 " as logcat's time
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
+    struct tm t;
+    time_t sec = now.tv_sec;
+    localtime_r(&sec, &t);
+    char line[kFileLine + 32];
+    int n = snprintf(line, sizeof(line), "%02d-%02d %02d:%02d:%02d.%03ld ", t.tm_mon + 1, t.tm_mday, t.tm_hour,
+                     t.tm_min, t.tm_sec, now.tv_nsec / 1000000L);
+    if (length > kFileLine) {
+        length = kFileLine;
+    }
+    memcpy(line + n, text, (size_t) length);
+    n += length;
+    line[n++] = '\n';
+    if (gFileSize + n > gFileLimit) {
+        close(gFile);
+        rename(gFilePath.c_str(), (gFilePath + ".1").c_str());
+        gFile = open(gFilePath.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_APPEND | O_CLOEXEC, 0644);
+        gFileSize = 0;
+        if (gFile < 0) {
+            return;
+        }
+    }
+    if (write(gFile, line, (size_t) n) == n) {
+        gFileSize += n;
+    }
+}
+
+void fileLine(const char* fmt, va_list ap)
+{
+    std::lock_guard<std::mutex> lock(gFileLock);
+    if (gFile < 0) {
+        return;
+    }
+    char text[kFileLine];
+    int n = vsnprintf(text, sizeof(text), fmt, ap);
+    if (n < 0) {
+        return;
+    }
+    writeLine(text, n < (int) sizeof(text) ? n : (int) sizeof(text) - 1);
+}
+
 }  // namespace
+
+extern "C" int re4_log_tail(char* out, int size);
+
+// The core's lines into `path` too (appended), from now on; the lines remembered for the overlay
+// first, so the start of the run is there. nullptr or "" stops it.
+extern "C" void re4_log_file(const char* path)
+{
+    char tail[kTailLines * (kTailWidth + 1) + 1];
+    int tailLength = 0;
+    if (path && *path) {
+        tailLength = re4_log_tail(tail, (int) sizeof(tail));
+    }
+    std::lock_guard<std::mutex> lock(gFileLock);
+    if (gFile >= 0) {
+        close(gFile);
+        gFile = -1;
+    }
+    gFilePath = path ? path : "";
+    if (gFilePath.empty()) {
+        return;
+    }
+    gFile = open(gFilePath.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
+    if (gFile < 0) {
+        return;
+    }
+    struct stat st;
+    gFileSize = fstat(gFile, &st) == 0 ? st.st_size : 0;
+    gFileLimit = kFileLimit;
+    if (const char* limit = getenv("RE4_LOG_FILE_LIMIT")) {
+        if (atol(limit) >= 1024) {
+            gFileLimit = (off_t) atol(limit);
+        }
+    }
+    char head[96];
+    int n = snprintf(head, sizeof(head), "--- core log, process %d; first the lines before it (up to %d)",
+                     (int) getpid(), kTailLines);
+    writeLine(head, n);
+    for (char* line = tail; line < tail + tailLength;) {
+        char* end = (char*) memchr(line, '\n', (size_t) (tail + tailLength - line));
+        if (!end) {
+            end = tail + tailLength;
+        }
+        writeLine(line, (int) (end - line));
+        line = end + 1;
+    }
+}
 
 extern "C" void re4_log(const char* fmt, ...)
 {
@@ -47,6 +156,9 @@ extern "C" void re4_log(const char* fmt, ...)
     va_list copy;
     va_copy(copy, ap);
     remember(fmt, copy);
+    va_end(copy);
+    va_copy(copy, ap);
+    fileLine(fmt, copy);
     va_end(copy);
 #ifdef __ANDROID__
     __android_log_vprint(ANDROID_LOG_INFO, "re4", fmt, ap);
