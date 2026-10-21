@@ -5532,8 +5532,11 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
   Windows PowerShell 5.1, OUYA.
 - **Erster PC-Lauf (21.10.2026, Projektinhaber):** NDK r23c geladen, Build `android-16`:
   460 fehlgeschlagene Schritte, 5 verschiedene Fehler. (1) `math_sub.h:16: static declaration of
-  'fabsf' follows non-static declaration` in fast allen Spieldateien: **Ursache offen**, in der
-  Cloud nicht nachstellbar. (2–5) `memory:5362/5373/5379` (`std::__libcpp_allocate`) und
+  'fabsf' follows non-static declaration` in fast allen Spieldateien; die vorige Deklaration steht
+  in der `math.h` des Sysroots (Zeile 194, vom Projektinhaber aus dem Log geholt): dort liest schon
+  einer der System-Header vor der Umbenennung `<math.h>`. **Behoben:** die Prelude benennt
+  `fabsf` jetzt vor allen ihren System-Headern um (`#define fabsf fabsf_libm` vor `<stddef.h>`).
+  (2–5) `memory:5362/5373/5379` (`std::__libcpp_allocate`) und
   `math.h:591` (`isgreater` mit `unsigned`, eine Folge davon) aus `runtime/ai.cpp`: das `<new>`
   der libc++ des NDK r23c wird vom Platzhalter `include/new` des Spiels verdeckt, und diese ältere
   libc++ liest in `<memory>` eine Hilfsklasse ohne Template (`__builtin_new_allocator`), die
@@ -5544,8 +5547,10 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
   (i686/armhf, `state_trace.cpp`, `game_probe.cpp`).
 - **`port/tools/ndk23_check.sh`** (neu): jeder Übersetzungsschritt des armhf-Builds noch einmal
   gegen einen Ersatz der NDK-r23c-Header (libc++ aus LLVM 12.0.0, Bionic von Android 12, API 16)
-  mit clang 12 (aus `ziglang` 0.8.1 von PyPI); fand den `ai.cpp`-Fehler, zeigt den `fabsf`-Fehler
-  nicht. Stand: 1196 Einheiten, 0 mit Fehlern. `whole_build_android.sh` gibt bei Fehlern jetzt die
+  mit clang 12 (aus `ziglang` 0.8.1 von PyPI), dazu die Android-Programme (`probe.cpp`,
+  `coreproc.cpp`) und jeder Aufruf einer C-Funktion jünger als API 16 (`-Wunguarded-availability`,
+  auch im Spielcode); fand den `ai.cpp`-Fehler, den `fabsf`-Fehler nicht (der Ersatz-Sysroot liest
+  `<math.h>` nicht früher). Stand: 1200 Einheiten, 0 mit Fehlern, 0 Aufrufe jünger als Android 4.1. `whole_build_android.sh` gibt bei Fehlern jetzt die
   ersten fünf vollständig aus (Einbindungskette, Hinweise des Compilers).
 
 ## Aufbau

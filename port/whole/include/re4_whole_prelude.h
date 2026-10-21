@@ -4,14 +4,17 @@
  * redeclare a few C functions themselves (memcpy in joy.h, sprintf in xml.h);
  * after the system declaration those redeclarations are compatible.
  * math_sub.h defines its own inline fabsf, so libm's is renamed here exactly
- * as include/dolphin/types.h does it. */
+ * as include/dolphin/types.h does it, for all of these headers: with the NDK
+ * r23c for Android 4.1 (the OUYA build, port/docs/ouya-machbarkeit.md) one of
+ * the others already reads <math.h> (first PC build, 21.10.2026: "previous
+ * declaration" in the sysroot's math.h at the static fabsf of math_sub.h). */
+#define fabsf fabsf_libm
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <limits.h>
-#define fabsf fabsf_libm
 #include <math.h>
 #undef fabsf
 
