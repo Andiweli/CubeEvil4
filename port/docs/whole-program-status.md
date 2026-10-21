@@ -5604,9 +5604,14 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     Wechsel auf `.1` bei `RE4_LOG_FILE_LIMIT=4096`, beide Dateien höchstens so groß, nach „“ nichts
     mehr); `re4_core_remote_test main` prüft, dass der Kernprozess die Datei selbst schreibt
     (Kopfzeile und „ready (pid …)“).
-  - **Geprüft (Cloud):** `whole_build.sh i686`: 0 Baufehler, alle Prüfungen bestanden
-    (`runtime-test logfile: ok`, Kernprozess-Datei 32 Zeilen); armhf und aarch64 folgen;
-    alle Java-Dateien gegen Android 15 übersetzt (ohne neue
+  - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle Prüfungen
+    bestanden (`runtime-test logfile: ok` und `route: ok` auf allen drei; der Kernprozess schreibt
+    seine Datei selbst, i686 und armhf je 32 Zeilen). Ein zusätzlicher Lauf von
+    `re4_core_remote_test` während des armhf/aarch64-Baus meldete einmal Tonaussetzer
+    (`stats[4]`, Volllast); danach in Ruhe dreimal ohne Fehler. Inhalt von 0.41.1 gegen
+    `master` (0.41.0) geprüft: Menü-Sprachen, Patch 0088, Fehlerprotokoll; der neue Branch
+    `claude/adoring-mendel-vclbu8` (OUYA-Machbarkeit, nur Dokument) gehört nicht zur App.
+    Alle Java-Dateien gegen Android 15 übersetzt (ohne neue
     Warnung), `core_mode.cpp` für ARM32 und ARM64 mit Ersatz-Headern ohne Fehler und Warnungen.
     **Nicht getestet:** auf einem Gerät, vor allem auf dem Samsung des Testers (ob `logcat` dort
     endet oder nur schweigt, zeigt `logcat-status.txt`; die Zeilen des Kerns stehen auf jeden Fall
