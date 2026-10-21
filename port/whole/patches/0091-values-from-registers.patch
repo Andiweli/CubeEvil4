@@ -1,7 +1,7 @@
 # Three places where the original took a value from a processor register the C code never sets
 # (bug hunt 22.10.2026, clang -Wuninitialized over the prepared tree, port/tools/scan): the port
 # had an unset local there.
-# - r221 (the insect boss's room, st2): the scene of each of the four bells calls
+# - r221 (the insect boss's room, st2): the scene of each of the four gas bombs calls
 #   SceEventStart(evNo); the original passes the constant 0 (the decompiler set it in case 0 only,
 #   for the instruction order of the matching build). Cases 1..3 passed an unset value, not 0:
 #   enemies, objects, effects and damage did not go into event mode for the scene.
