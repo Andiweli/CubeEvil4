@@ -5567,6 +5567,20 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     points of room r11c lie within 1e8 …“ nennt bis zu viermal, wessen Position es war (Spieler,
     Partner oder welcher Gegner mit id/type), damit der nächste Bericht mit Fehlerprotokoll die
     eigentliche Ursache zeigt.
+  - **Zweiter Bericht, derselbe Fehler über Ashley** (`cubeevil4-report-20261021-203112.zip`,
+    Samsung Galaxy S9+ „SCV40“, Android 10, 64 bit, **App 0.41.0**, also noch ohne 0088): im
+    Absturzpuffer des Systems (`previous/crash-system.txt`) 20:16 „SIGSEGV, fault addr
+    0xfffffffa814f00a0“, `getNearPoint+412` ← `RouteCkToPos+456` ← **`cSubChar::analyze+588`** ←
+    `cSubChar::moveCore` ← `emMove`: Ashley sucht ihren Weg zu einem Ziel, das mehr als 1e8 von
+    allen Wegpunkten weg liegt (Register x27/x28 = 1.6e7/1e6, die Abstandsgrenzen aus `analyze`).
+    Ziele dort: `pAnotherRoute->pos` (EMI, Typ 0xB, ohne Zeiger), `m_TargetPos` (SubCharMoveTo),
+    `m_PlActPos` (Warteplatz an Kanten) oder `pPL->pos`; welches, zeigt der Bericht nicht. Das
+    Protokoll dieses Laufs fehlt: der Tester startete danach zweimal neu, die App behält nur den
+    letzten und den vorletzten Lauf (danach r10f geladen, ohne Absturz). Zwei ältere Abstürze im
+    selben Puffer (19:24, 19:31, `cSubLuis::move+136`, pc 0) stammen von einer APK mit gepackten
+    Bibliotheken, also vor 0.40.0 (Patch 0087). Patch 0088 fängt auch den Weg über
+    `RouteCkToPos` ab; die Meldung nennt dort „a position“ (eine Kopie des Ziels) mit den
+    Koordinaten.
   - **Neuer Laufzeittest `route`** (`game_probe.cpp` `re4probe_route_far`): drei Wegpunkte in
     MEM1, eine Position nahe Punkt 1 findet ihn, eine 2e8 entfernte gibt in beiden Arten -1 (vor
     jedem Aufruf ein Stack voller 0x46464646 wie im Bericht).
