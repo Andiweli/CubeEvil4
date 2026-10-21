@@ -22,9 +22,13 @@ Drei Schritte:
        ...-gp        derselbe Lauf mit dem Grafik-Decoder auf einem eigenen Thread
                      (RE4_GX_THREAD=1, port/whole/runtime/gx_thread.cpp): r100-gp,
                      r101-gp, r100-schnell-gp
+                     Mit Grafik-Thread prueft der Decoder Texturen nur stichprobenweise
+                     (RE4_GX_TEXTURE_CHECK=sampled, nur fuer die OUYA).
        ...-ohnekopie die Grafikpakete werden nur abgenommen, nicht kopiert (wie --no-copy):
                      zeigt, wie sehr die Kopie die Speicherbandbreite belastet
-     Standard: r100-gp, r101-gp, r100-schnell-gp, r100-schnell-gp-ohnekopie (r100 ohne
+       ...-ohnevorladen  ohne das Vorausladen der Punktdaten (RE4_GX_PREFETCH=0): zeigt,
+                     was es auf der OUYA bringt
+     Standard: r100-gp, r101-gp, r100-schnell-gp, r100-schnell-gp-ohnevorladen (r100 ohne
      Thread: 10,6 Bilder/s, Messung vom 21.10.2026; mit -Runs r100,... wieder dabei).
      Jeder Lauf dauert -Seconds Sekunden (Standard 240). Die Test-Tastenfolge der
      PC-Pruefung fuehrt durch Speicherkarten-Dialog und Titel in den Raum; danach geht
@@ -79,8 +83,9 @@ param(
     [string]$CacheDir = '',
     [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'RE4-OUYA-Probe'),
     [int]$Seconds = 240,
-    [ValidateSet('r100', 'r101', 'r100-schnell', 'r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnekopie')]
-    [string[]]$Runs = @('r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnekopie'),
+    [ValidateSet('r100', 'r101', 'r100-schnell', 'r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnekopie',
+        'r100-schnell-gp-ohnevorladen')]
+    [string[]]$Runs = @('r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnevorladen'),
     [switch]$SkipBuild,
     [switch]$SkipSetup,
     [switch]$SkipData,
@@ -320,8 +325,11 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         # 21.10.2026: open for the whole run): B every 2 s from 10 s after the room loaded
         if ($room -eq '101') { $settings += "RE4_PAD_ROOM_SCRIPT='B@300-9000/60'" }
         if ($fast) { $settings += 'RE4_VI_FAST=1' }
-        # the GX decoder on a thread of its own (port/whole/runtime/gx_thread.cpp)
-        if ($gp) { $settings += 'RE4_GX_THREAD=1' }
+        # the GX decoder on a thread of its own (port/whole/runtime/gx_thread.cpp), textures
+        # checked by samples from frame to frame (gx_decode.cpp: 18 % of its time otherwise)
+        if ($gp) { $settings += 'RE4_GX_THREAD=1'; $settings += 'RE4_GX_TEXTURE_CHECK=sampled' }
+        $noPrefetch = $run -like '*-ohnevorladen'
+        if ($noPrefetch) { $settings += 'RE4_GX_PREFETCH=0' }
         $copyArg = ''
         if ($runNoCopy) { $copyArg = ' --no-copy' }
         # where the game's thread spends its time (port/tools/probe_profile.py names the functions)
@@ -332,6 +340,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         $label = if ($fast) { 'ohne Bremse' } else { 'Echtzeit' }
         if ($gp) { $label += ', Grafik-Thread' }
         if ($runNoCopy) { $label += ', ohne Kopie' }
+        if ($noPrefetch) { $label += ', ohne Vorausladen' }
         Say "4. Lauf $run ($label): $Seconds s ..."
         $writer = New-Object System.IO.StreamWriter($log, $false, (New-Object System.Text.UTF8Encoding($false)))
         $resultLines = @()
@@ -359,7 +368,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
             Invoke-Adb shell rm "$profileRemote.gp" | Out-Null
         }
         $text = Get-Content -LiteralPath $log -Encoding UTF8
-        $entry = @{ run = $run; fast = $fast; gp = $gp; noCopy = $runNoCopy; log = $text }
+        $entry = @{ run = $run; fast = $fast; gp = $gp; noCopy = $runNoCopy; noPrefetch = $noPrefetch; log = $text }
         foreach ($set in @('play', 'loop', 'all')) {
             $line = $resultLines | Where-Object { $_ -match "^probe-result: set=$set " } | Select-Object -First 1
             if ($line) { $entry[$set] = Read-Result $line }
@@ -402,6 +411,7 @@ foreach ($entry in $results.Values) {
     $mode = if ($entry.fast) { 'ohne Bremse: so schnell der Kern kann' } else { 'Echtzeit wie im Spiel' }
     if ($entry.gp) { $mode += '; Grafik-Decoder auf eigenem Thread' }
     if ($entry.noCopy) { $mode += '; Grafikpakete nicht kopiert' }
+    if ($entry.noPrefetch) { $mode += '; ohne Vorausladen der Punktdaten' }
     Say "Lauf $($entry.run) ($mode)"
     $failed = $entry.log | Where-Object { $_ -match '^probe: (FAILED|HANG|CRASH)|^probe: the game (ended|failed)' } | Select-Object -First 3
     foreach ($f in $failed) { Say "   PROBLEM: $($f -replace '^probe: ', '')" }

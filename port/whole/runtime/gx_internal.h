@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 namespace re4gx {
 
@@ -59,7 +60,21 @@ void apply(const Event& e);
 // The GP on a thread of its own (RE4_GX_THREAD=1, re4_gx_threaded): the
 // FIFO's bytes and the events go through a ring to that thread
 extern bool gThreaded;
-void ringPut(const uint8_t* bytes, size_t n);  // the game's thread (gx_fifo.cpp)
+// The game's thread puts its bytes at gRingAt while they fit below gRingStop
+// (the room the GP thread left, the next hand-over, the ring's end): no call
+// for most values; the rest goes through ringPutSlow
+extern uint8_t* gRingAt;
+extern uint8_t* gRingStop;
+void ringPutSlow(const uint8_t* bytes, size_t n);
+inline void ringPut(const uint8_t* bytes, size_t n)
+{
+    if ((size_t) (gRingStop - gRingAt) >= n) {
+        memcpy(gRingAt, bytes, n);
+        gRingAt += n;
+    } else {
+        ringPutSlow(bytes, n);
+    }
+}
 void post(Event e);                            // an event after the bytes put so far
 void sync();  // waits until the GP thread has worked through all of it
 void raised();  // the GP thread raised a PE interrupt: an idle game thread takes it

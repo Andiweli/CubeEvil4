@@ -38,6 +38,7 @@
 #include <deque>
 #include <mutex>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unordered_map>
 #include <utility>
@@ -284,8 +285,24 @@ struct Bound {
     u32 flags;
     u32 dataBytes;
     u32 address;
+    // RE4_GX_TEXTURE_CHECK=sampled: kept from chunk to chunk (sampledStillSame)
+    u64 sample;   // hash of samples of the texels
+    u32 checked;  // chunk (gSequence) of the last check
+    u32 fullAt;   // chunk of the last hash of all texels
 };
 std::unordered_map<u64, Bound> gTexMemo;
+// Each chunk hashes the texels of every texture it binds (a texture may change
+// at the same address: a room loads, a movie decodes into it). With
+// RE4_GX_TEXTURE_CHECK=sampled (the OUYA: 18 % of the GP thread's time in
+// r100 went into those hashes, port/docs/whole-program-status.md) a texture
+// keeps its key from chunk to chunk while 16 samples of 32 bytes stay the
+// same, and all its texels are hashed again every kFullEvery chunks: a change
+// the samples miss shows that much later.
+bool gTexturesSampled = [] {
+    const char* v = getenv("RE4_GX_TEXTURE_CHECK");
+    return v && strcmp(v, "sampled") == 0;
+}();
+const u32 kFullEvery = 64;
 // A register bindTextures() reads, a palette or an EFB copy changed since the
 // last draw, or a chunk began: the maps are bound again.
 bool gTexturesDirty = true;
@@ -404,7 +421,9 @@ bool beginLocked()
     Chunk* c = chunk();
     c->clear();
     c->view.sequence = ++gSequence;
-    gTexMemo.clear();
+    if (!gTexturesSampled || gTexMemo.size() > 4096) {
+        gTexMemo.clear();
+    }
     memset(gMapValid, 0, sizeof(gMapValid));
     gTexturesDirty = true;
     if (gNeedReset) {
@@ -897,8 +916,34 @@ struct Run {  // vertices of one draw: in the stream, in the chunk
     u32 count;
 };
 
+// An indexed attribute's element kAhead vertices on is asked for from memory
+// while the vertices before it are converted (__builtin_prefetch: a hint, the
+// output stays the same). On the OUYA most of the decoder's time went into
+// waiting for those elements (the line profile of the GP thread, 21.10.2026);
+// on the PC the hints only cost (RE4_GX_BENCH +8 %, the data is in the cache).
+// On by default for 32-bit ARM, RE4_GX_PREFETCH=0/1 decides otherwise.
+const u32 kAhead = 4;
+bool gPrefetch = [] {
+    const char* v = getenv("RE4_GX_PREFETCH");
+    if (v && *v) {
+        return *v != '0';
+    }
+#if defined(__arm__)
+    return true;
+#else
+    return false;
+#endif
+}();
+
+template <unsigned Mode, bool BE>
+inline void prefetchElement(const Array& array, const u8* in)
+{
+    const u32 index = Mode == 2 ? *in : rd16(in, BE);
+    __builtin_prefetch((const void*) ((uintptr_t) array.base + (uintptr_t) index * array.stride));
+}
+
 // Returns the indices 0xFF / 0xFFFF it met (GX skips such a vertex, kept here)
-template <unsigned Format, unsigned Comps, unsigned Mode, bool BE>
+template <unsigned Format, unsigned Comps, unsigned Mode, bool BE, bool Ahead>
 u32 attributePass(const Run& r, const Attr& a, const Array& arr)
 {
     const unsigned cs = Format <= 1 ? 1 : Format <= 3 ? 2 : 4;
@@ -908,9 +953,17 @@ u32 attributePass(const Run& r, const Attr& a, const Array& arr)
     const u8* in = r.in + a.inAt;
     u8* out = r.out + a.outAt;
     u32 marked = 0;
+    if (Ahead && Mode != 1 && array.base) {
+        for (u32 v = 0; v < kAhead && v < count; v++) {
+            prefetchElement<Mode, BE>(array, in + v * inSize);
+        }
+    }
     for (u32 v = 0; v < count; v++, in += inSize, out += stride) {
         const u8* src = in;
         if (Mode != 1) {
+            if (Ahead && v + kAhead < count) {
+                prefetchElement<Mode, BE>(array, in + kAhead * inSize);
+            }
             const u32 index = Mode == 2 ? *in : rd16(in, BE);
             marked += Mode == 2 ? index == 0xFF : index == 0xFFFF;
             src = at(array, index, bytes);
@@ -980,16 +1033,25 @@ u32 colorPass(const Run& r, const Attr& a, const Array& arr)
     return 0;
 }
 
+template <unsigned Format, unsigned Comps, unsigned Mode>
+Pass attributePassFor(bool be)
+{
+    if (gPrefetch) {
+        return be ? attributePass<Format, Comps, Mode, true, true> : attributePass<Format, Comps, Mode, false, true>;
+    }
+    return be ? attributePass<Format, Comps, Mode, true, false> : attributePass<Format, Comps, Mode, false, false>;
+}
+
 template <unsigned Format, unsigned Comps>
 Pass attributePassFor(unsigned mode, bool be)
 {
     switch (mode) {
     case 1:
-        return be ? attributePass<Format, Comps, 1, true> : attributePass<Format, Comps, 1, false>;
+        return be ? attributePass<Format, Comps, 1, true, false> : attributePass<Format, Comps, 1, false, false>;
     case 2:
-        return be ? attributePass<Format, Comps, 2, true> : attributePass<Format, Comps, 2, false>;
+        return attributePassFor<Format, Comps, 2>(be);
     default:
-        return be ? attributePass<Format, Comps, 3, true> : attributePass<Format, Comps, 3, false>;
+        return attributePassFor<Format, Comps, 3>(be);
     }
 }
 
@@ -1202,6 +1264,13 @@ void draw(u8 op, u32 count, const u8* data, bool be)
         run.in = data + (size_t) v * f.inSize;
         run.out = c->vertices.data() + base + (size_t) v * f.stride;
         run.count = count - v < kRun ? count - v : kRun;
+        // the run's vertex bytes asked for from memory before the passes write them
+        // (the chunk's buffers are megabytes, written once a frame: not in the cache)
+        if (gPrefetch) {
+            for (u32 at = 0; at < run.count * f.stride; at += 32) {
+                __builtin_prefetch(run.out + at, 1);
+            }
+        }
         if (f.anyMatrix) {
             matrixPass(run, f);
         }
@@ -1422,6 +1491,47 @@ u32 mapRegister(u32 map, u32 offset)
 
 u32 gLoggedMissing;
 
+// 16 blocks of 32 bytes spread over the texels (the first and the last among
+// them), hashed; small textures whole
+u64 sampleHash(u32 address, u32 bytes)
+{
+    const u8* data = re4gx::memory(address, bytes);
+    if (!data) {
+        return 0;
+    }
+    if (bytes <= 1024) {
+        return hashBytes(data, bytes, 0x53414D50ull);
+    }
+    u8 picked[16 * 32];
+    for (u32 k = 0; k < 16; k++) {
+        const u32 at = (u32) ((u64) (bytes - 32) * k / 15) & ~3u;
+        memcpy(picked + 32 * k, data + at, 32);
+    }
+    return hashBytes(picked, sizeof(picked), 0x53414D50ull ^ bytes);
+}
+
+// RE4_GX_TEXTURE_CHECK=sampled: a texture of an earlier chunk still has the same
+// texels (an EFB copy: the same marker; else the same samples, at most
+// kFullEvery chunks after its last full hash)
+bool sampledStillSame(const Bound& b)
+{
+    const u8* marker = re4gx::memory(b.address, 32);
+    const bool copy = marker && memcmp(marker, kCopyMagic, 8) == 0;
+    if (copy != ((b.flags & RE4_GX_TEX_COPY) != 0)) {
+        return false;
+    }
+    if (copy) {
+        u32 serial, check;
+        memcpy(&serial, marker + 8, 4);
+        memcpy(&check, marker + 12, 4);
+        return check == (serial ^ b.address ^ 0x5A5A5A5Au) && b.key == ((u64) serial << 32 | b.address);
+    }
+    if (b.dataBytes == 0 || gSequence - b.fullAt >= kFullEvery) {
+        return false;
+    }
+    return sampleHash(b.address, b.dataBytes) == b.sample;
+}
+
 void bindMap(u32 map)
 {
     const u32* bp = gGp.bp;
@@ -1450,7 +1560,13 @@ void bindMap(u32 map)
     u64 dkey = hashWords(desc, 3);
     auto memo = gTexMemo.find(dkey);
     Bound bound;
+    if (memo != gTexMemo.end() && gTexturesSampled && memo->second.checked != gSequence &&
+        !sampledStillSame(memo->second)) {
+        gTexMemo.erase(memo);
+        memo = gTexMemo.end();
+    }
     if (memo != gTexMemo.end()) {
+        memo->second.checked = gSequence;
         bound = memo->second;
     } else {
         bound.key = 0;
@@ -1484,6 +1600,8 @@ void bindMap(u32 map)
                 bound.key = hashBytes(data, bound.dataBytes, hashWords(shape, 4)) | 1;
             }
         }
+        bound.sample = gTexturesSampled && bound.dataBytes ? sampleHash(t.address, bound.dataBytes) : 0;
+        bound.checked = bound.fullAt = gSequence;
         gTexMemo[dkey] = bound;
     }
     if (isCi(t.format) && bound.key != 0 && !(bound.flags & RE4_GX_TEX_COPY)) {
@@ -2120,6 +2238,19 @@ void re4_gx_stats2(unsigned out[9])
     const u32 v[9] = {gStats.xfbCopies, gStats.texCopies, gStats.tlutLoads, gStats.textures, gStats.textureBytes,
                       gStats.chunks, gStats.dropped, gStats.hostLists, gStats.skipped};
     memcpy(out, v, sizeof(v));
+}
+
+// RE4_GX_TEXTURE_CHECK at run time (tests): 1 sampled, 0 every chunk, -1 only
+// asks; returns the mode before
+int re4_gx_texture_check(int sampled)
+{
+    catchUp();
+    const int was = gTexturesSampled ? 1 : 0;
+    if (sampled >= 0) {
+        gTexturesSampled = sampled != 0;
+        gTexMemo.clear();
+    }
+    return was;
 }
 
 unsigned re4_gx_bp(unsigned reg)

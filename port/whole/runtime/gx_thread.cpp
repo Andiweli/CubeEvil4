@@ -28,6 +28,7 @@
 #include "gx_internal.h"
 #include "re4_runtime.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -45,6 +46,8 @@
 namespace re4gx {
 
 bool gThreaded = getenv("RE4_GX_THREAD") && atoi(getenv("RE4_GX_THREAD")) > 0;
+uint8_t* gRingAt;
+uint8_t* gRingStop;
 
 }  // namespace re4gx
 
@@ -77,7 +80,8 @@ std::atomic<int> gTid{0};
 #define RE4_LINE alignas(64)
 
 // the game's thread
-RE4_LINE u64 gPut;  // bytes put
+RE4_LINE u64 gPut;  // bytes put (up to date after syncPut(); the fast path moves re4gx::gRingAt)
+u64 gLapBase;       // the stream's byte at gRing[0] in this lap
 u64 gPublished;     // of them handed to the GP thread
 u64 gRoomUntil;     // gPut may grow to this without asking the GP thread
 
@@ -99,6 +103,30 @@ u64 gDone;            // under gLock: bytes worked through, with the events up t
 bool gBusy = true;    // under gLock: the GP thread is at work
 bool gSyncWaiting;    // under gLock: the game's thread waits in sync()
 
+// gPut from the fast path's position (re4gx::ringPut)
+void syncPut()
+{
+    if (re4gx::gRingAt) {
+        gPut = gLapBase + (u64) (re4gx::gRingAt - gRing);
+    }
+}
+
+// Where the fast path stops: the ring's end, the next hand-over, the room left
+void updateStop()
+{
+    if (!gRing) {
+        return;
+    }
+    if (gPut - gLapBase == kRing) {  // at the ring's end: the next lap
+        gLapBase = gPut;
+        re4gx::gRingAt = gRing;
+    }
+    u64 limit = gLapBase + kRing;
+    limit = std::min(limit, gPublished + kPublishEvery);
+    limit = std::min(limit, gRoomUntil);
+    re4gx::gRingStop = gRing + (size_t) (limit - gLapBase);
+}
+
 void wakeGp()
 {
     if (gGpWaiting.load()) {
@@ -110,6 +138,7 @@ void wakeGp()
 // The bytes put so far to the GP thread; `wake`: also when it sleeps on less than kWakeFor
 void publish(bool wake)
 {
+    syncPut();
     if (gPublished != gPut) {
         gPublished = gPut;
         gHanded.store(gPut);  // after the bytes and what the game wrote before them
@@ -119,6 +148,7 @@ void publish(bool wake)
     } else if (wake) {
         wakeGp();
     }
+    updateStop();
 }
 
 inline void relax()
@@ -220,6 +250,7 @@ void start()
 {
     if (!gThread) {
         gRing = new u8[kRing];
+        re4gx::gRingAt = re4gx::gRingStop = gRing;  // gPut is 0: the slow path once
         gThread = new std::thread(gpThread);
         gThread->detach();
     }
@@ -229,10 +260,11 @@ void start()
 
 namespace re4gx {
 
-void ringPut(const uint8_t* bytes, size_t n)
+void ringPutSlow(const uint8_t* bytes, size_t n)
 {
+    start();
+    syncPut();
     if (gPut + n > gRoomUntil) {
-        start();
         gRoomUntil = gTaken.load() + kRing;
         if (gPut + n > gRoomUntil) {  // full: the GP thread has to take some first
             publish(true);
@@ -245,20 +277,16 @@ void ringPut(const uint8_t* bytes, size_t n)
             gRoomWaiting.store(false);
         }
     }
-    const size_t at = (size_t) (gPut & (kRing - 1));
-    u8* w = gRing + at;
-    if (n == 4 && at + 4 <= kRing) {  // most values (copies of a known size: no call)
-        memcpy(w, bytes, 4);
-    } else if (n == 1) {
-        *w = *bytes;
-    } else {
-        for (size_t i = 0; i < n; i++) {
-            gRing[(gPut + i) & (kRing - 1)] = bytes[i];
-        }
+    for (size_t i = 0; i < n; i++) {
+        gRing[(gPut + i) & (kRing - 1)] = bytes[i];
     }
     gPut += n;
+    gLapBase = gPut & ~(u64) (kRing - 1);
+    re4gx::gRingAt = gRing + (size_t) (gPut & (kRing - 1));
     if (gPut - gPublished >= kPublishEvery) {
         publish(false);
+    } else {
+        updateStop();
     }
 }
 

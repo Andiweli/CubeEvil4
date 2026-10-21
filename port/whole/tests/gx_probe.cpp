@@ -210,6 +210,7 @@ void VIFlush(void);
 void VISetBlack(int black);
 void re4_dof_autofocus_mark(void* w);
 void re4_gx_sync(void);
+int re4_gx_texture_check(int sampled);
 }
 
 // A chunk the GP finished: with the GP on its own thread (gx_thread.cpp) once
@@ -1156,4 +1157,75 @@ extern "C" unsigned re4probe_gx_bench_fifo(void* fifo, void* xfb, int frames, un
     re4_core_gx_detach();
     *untilDone = frames ? (unsigned) (caughtUp / frames) : 0;
     return frames ? (unsigned) (total / frames) : 0;
+}
+
+// RE4_GX_TEXTURE_CHECK=sampled (gx_decode.cpp): a texture keeps its key from
+// chunk to chunk while its texels stay; rewritten it gets a new one at once; a
+// byte changed between the samples shows within 64 chunks. Returns failed
+// checks as bits (0: all passed).
+extern "C" int re4probe_gx_texture_check_test(void* fifo, void* mem, void* xfb)
+{
+    int failed = 0;
+    const int was = re4_gx_texture_check(1);
+    GXInit(fifo, 0x10000);
+    take();  // attach
+    copyDisp(xfb);
+    if (const Re4GxChunk* c = take()) {
+        re4_core_gx_release(c);
+    }
+    u8* texels = (u8*) mem;  // 64x64 RGB5A3: 8192 bytes
+    Rng r = {0x7E57u};
+    for (int i = 0; i < 8192; i++) {
+        texels[i] = r.byte();
+    }
+    GXTexObj tex;
+    GXInitTexObj(&tex, texels, 64, 64, 5, 0, 0, 0);
+    // one frame with the texture: its key (0: no texture op)
+    auto frame = [&]() -> uint64_t {
+        GXLoadTexObj(&tex, 0);
+        GXSetNumTevStages(1);
+        GXSetTevOrder(0, 0, 0, 4);
+        triangle();
+        copyDisp(xfb);
+        uint64_t key = 0;
+        if (const Re4GxChunk* c = take()) {
+            Parsed p;
+            parse(c, p);
+            for (int i = 0; i < p.textureCount; i++) {
+                if (p.textures[i]->map == 0) {
+                    key = (uint64_t) p.textures[i]->keyHi << 32 | p.textures[i]->keyLo;
+                }
+            }
+            re4_core_gx_release(c);
+        }
+        return key;
+    };
+    const uint64_t first = frame();
+    if (!first || frame() != first) {
+        failed |= 0x1;  // kept from chunk to chunk
+    }
+    for (int i = 0; i < 8192; i++) {  // rewritten (a room loads, a movie decodes)
+        texels[i] = r.byte();
+    }
+    const uint64_t second = frame();
+    if (!second || second == first) {
+        failed |= 0x2;  // a new key at once
+    }
+    texels[100] ^= 0x5A;  // between the samples
+    int chunks = 1;
+    while (frame() == second && chunks < 100) {
+        chunks++;
+    }
+    if (chunks > 64) {
+        failed |= 0x4;  // within kFullEvery chunks
+    }
+    if (chunks < 2) {
+        failed |= 0x8;  // not at once: else the samples did not decide (the mode is not on)
+    }
+    re4_core_gx_detach();
+    re4_gx_texture_check(was);
+    if (failed) {
+        re4_log("  gx texture check: failed 0x%x (a byte between the samples showed after %d chunks)", failed, chunks);
+    }
+    return failed;
 }

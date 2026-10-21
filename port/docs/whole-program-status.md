@@ -5685,7 +5685,44 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
   1201 Einheiten ohne Fehler, Trockenlauf des Skripts mit nachgebautem `adb`. Ein Fehler auf
   dem Weg: ohne Thread-Wechsler (Tests) reihte `GXWaitDrawDone` den Thread zweimal in die
   Warteschlange, weil `OSSleepThread` nicht mehr aufholte; dort holt er jetzt sofort auf.
-  **Auf der OUYA noch nicht gemessen.**
+- **Vierte Messung auf der OUYA (21.10.2026, Stand `970644f`):**
+  | Lauf | Bilder/s | Spiel-Thread ms/Bild (wartet) | Grafik-Thread ms/Bild (wartet) | Punkte/Bild |
+  |---|---|---|---|---|
+  | r100-gp | **23,5** | 23,7 (45 %) | 34,4 (25 %) | 91 500 |
+  | r101-gp (Dorf) | **25,0** | 26,7 (37 %) | 36,7 (16 %) | 100 100 |
+  | r100-schnell-gp | **31,8** | 21,1 (34 %) | 28,1 (12 %) | 71 800 |
+  | r100-schnell-gp-ohnekopie | **34,5** | 19,7 (33 %) | 26,3 (11 %) | 68 900 |
+
+  Das Warten nur im Leerlauf wirkte (r100 16,2 → 23,5 Bilder/s); ohne Bremse über 30
+  (Bewertung des Skripts: GRÜN). Der Grafik-Thread ist der Engpass (28–37 ms je Bild, etwa
+  375 ns je Punkt), der Spiel-Thread wartet auf ihn. Die Kopie der Pakete (im anderen Thread)
+  kostet 8 % durch Speicherbandbreite. **Zeilenprofil des Grafik-Threads:** etwa 18 % im
+  Prüfsummen-Rechnen über Texturen (`hashBytes`: jedes Bild alle gebundenen Texturen ganz,
+  der Merkzettel `gTexMemo` wurde mit jedem Paket geleert), die Durchgänge der Punkte etwa
+  50 % mit den meisten Proben an den Ladebefehlen (Index, Element: `rd16`, `convert`) und am
+  Speichern (`put`): Warten auf den Speicher. Auf dem Spiel-Thread: Spiellogik 38 %,
+  GX-Eingang (`ringPut`, `put`) 18 %, `libm` 12 %, Matrizen 7 %, Ton 6 %, Zustandsbrücke 4 %.
+- **Danach (Cloud):**
+  - **Texturen per Stichprobe** (`RE4_GX_TEXTURE_CHECK=sampled`, nur für die OUYA, die App
+    bleibt bei „jedes Paket ganz“): eine Textur behält ihren Schlüssel von Paket zu Paket,
+    solange 16 Stichproben zu 32 Bytes gleich bleiben; alle 64 Pakete wird sie ganz neu
+    gerechnet (eine Änderung zwischen den Stichproben zeigt sich so höchstens 64 Bilder
+    später); EFB-Kopien wie bisher über ihre Marke. Neuer Test
+    `re4probe_gx_texture_check_test` (neu geschrieben: neuer Schlüssel sofort; ein Byte
+    zwischen den Stichproben: nach 2–64 Paketen), der Fingerabdruck stimmt auch so.
+  - **Vorausladen** (`__builtin_prefetch`, ändert keine Ausgabe): in den Durchgängen das
+    Element 4 Punkte voraus, vor jedem Lauf die Ausgabebytes. Standard nur auf 32-bit-ARM
+    (auf dem PC 8 % langsamer, dort liegt alles im Cache), `RE4_GX_PREFETCH=0/1` entscheidet
+    anders; `ouya-probe.ps1` misst `r100-schnell-gp-ohnevorladen` zum Vergleich.
+  - **Schneller Eingang:** `re4gx::ringPut` schreibt inline an `gRingAt`, solange es unter
+    `gRingStop` passt (Platz im Ring, nächste Übergabe, Ringende); der Rest über
+    `ringPutSlow` (Übergabe, Warten auf Platz, Umbruch).
+  - Geprüft (Cloud): `whole_build.sh` i686 und armhf grün (armhf mit Vorausladen), auch mit
+    `RE4_GX_THREAD=1`; 60 Läufe von `--runtime-test` und `--core-test` mit Thread ohne
+    Fehler; `ndk23_check.sh` 1201 Einheiten ohne Fehler; Trockenlauf von `ouya-probe.ps1`
+    (Standard jetzt `r100-gp`, `r101-gp`, `r100-schnell-gp`, `r100-schnell-gp-ohnevorladen`,
+    mit Grafik-Thread immer `RE4_GX_TEXTURE_CHECK=sampled`). **Auf der OUYA noch nicht
+    gemessen.**
 
 ## Aufbau
 
