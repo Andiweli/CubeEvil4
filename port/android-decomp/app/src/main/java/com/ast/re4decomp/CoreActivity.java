@@ -736,6 +736,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       case CoreInput.APP_MENU:
         // pressed: the menu when let go; held for a second: the game's debug menu
         if (first) {
+          if (controller(e)) touchControls.controllerUsed();
           select(true);
         } else if (e.getAction() == KeyEvent.ACTION_UP) {
           select(false);
@@ -760,6 +761,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       if (e.getRepeatCount() > 0) return true;  // held: nothing changes
       if (input.key(e.getDeviceId(), code, down)) {
         if (down) {
+          touchControls.controllerUsed();
           noteDevice(e.getDevice());
           Log.i(TAG, "key " + KeyEvent.keyCodeToString(code) + " (" + code + ", scan " + e.getScanCode()
               + ", device " + e.getDeviceId() + ") -> GC " + CoreInput.names(input.gcButton(code)));
@@ -795,13 +797,15 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       // the right stick: Z/RZ on most Android controllers, RX/RY on others
       boolean zr = d != null && d.getMotionRange(MotionEvent.AXIS_Z, e.getSource()) != null
           && d.getMotionRange(MotionEvent.AXIS_RZ, e.getSource()) != null;
-      input.motion(e.getDeviceId(),
-          axis(e, d, MotionEvent.AXIS_X, false), axis(e, d, MotionEvent.AXIS_Y, false),
-          axis(e, d, zr ? MotionEvent.AXIS_Z : MotionEvent.AXIS_RX, false),
-          axis(e, d, zr ? MotionEvent.AXIS_RZ : MotionEvent.AXIS_RY, false),
-          Math.max(axis(e, d, MotionEvent.AXIS_LTRIGGER, true), axis(e, d, MotionEvent.AXIS_BRAKE, true)),
-          Math.max(axis(e, d, MotionEvent.AXIS_RTRIGGER, true), axis(e, d, MotionEvent.AXIS_GAS, true)),
-          axis(e, d, MotionEvent.AXIS_HAT_X, false), axis(e, d, MotionEvent.AXIS_HAT_Y, false));
+      float lx = axis(e, d, MotionEvent.AXIS_X, false), ly = axis(e, d, MotionEvent.AXIS_Y, false);
+      float rx = axis(e, d, zr ? MotionEvent.AXIS_Z : MotionEvent.AXIS_RX, false);
+      float ry = axis(e, d, zr ? MotionEvent.AXIS_RZ : MotionEvent.AXIS_RY, false);
+      float l = Math.max(axis(e, d, MotionEvent.AXIS_LTRIGGER, true), axis(e, d, MotionEvent.AXIS_BRAKE, true));
+      float r = Math.max(axis(e, d, MotionEvent.AXIS_RTRIGGER, true), axis(e, d, MotionEvent.AXIS_GAS, true));
+      float hx = axis(e, d, MotionEvent.AXIS_HAT_X, false), hy = axis(e, d, MotionEvent.AXIS_HAT_Y, false);
+      input.motion(e.getDeviceId(), lx, ly, rx, ry, l, r, hx, hy);
+      // a stick, trigger or hat moved on purpose: the touch controls go again (TouchShowRule)
+      if (TouchShowRule.moved(lx, ly, rx, ry, l, r, hx, hy)) touchControls.controllerUsed();
       send();
       return true;
     }

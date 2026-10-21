@@ -1,25 +1,30 @@
 package com.ast.re4decomp;
 
 import android.content.Context;
+import android.os.Build;
 import android.util.Log;
+import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
 import com.ast.retrotouch.RetroTouchAdapter;
 import com.ast.retrotouch.RetroTouchColors;
 import com.ast.retrotouch.RetroTouchControl;
-import com.ast.retrotouch.RetroTouchControllers;
 import com.ast.retrotouch.RetroTouchLayout;
 import com.ast.retrotouch.RetroTouchMode;
 import com.ast.retrotouch.RetroTouchView;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * RetroTouch (app/libs/retrotouch.aar; an update replaces the file) above the
  * game's picture: the touch controls of the core mode, mapped by CoreTouch.
- * Shown while no controller is connected (RetroTouchControllers: built-in,
- * USB and Bluetooth controllers), and always when the menu's switch "Use
- * Touch Controls" is on (decisions of the project owner, 19.10.2026).
+ * Shown while no controller is connected (built-in, USB and Bluetooth
+ * controllers, counted as RetroTouchControllers counts them), and always when
+ * the menu's switch "Use Touch Controls" is on (decisions of the project owner,
+ * 19.10.2026); a finger on the screen shows them too, until the controller is
+ * used again (TouchShowRule, 21.10.2026). The log names each device counted as
+ * a controller.
  * RetroTouch's gear at the top right opens its editor (move, resize, save the
  * layout); the game stands meanwhile. Everything here runs on the UI thread.
  */
@@ -40,7 +45,10 @@ final class TouchControls implements CoreTouch.Host {
   private final CoreTouch touch;
   private final Host host;
   private final int[] where = new int[2];
+  private final TouchShowRule rule = new TouchShowRule();
   private boolean always, shown, editing, quiet, first = true;
+  // the devices counted as controllers at the last update, for the log
+  private String devices = "";
 
   /** always: the menu's switch (shown even with a controller). */
   TouchControls(Context context, CoreInput input, boolean always, Host host) {
@@ -110,8 +118,25 @@ final class TouchControls implements CoreTouch.Host {
 
   boolean shown() { return shown; }
 
-  /** A gamepad or joystick is connected (built-in, USB, Bluetooth). */
-  static boolean controllerConnected() { return RetroTouchControllers.isControllerConnected(); }
+  /**
+   * The gamepads and joysticks connected (built-in, USB, Bluetooth), by RetroTouchControllers'
+   * rule (the sources GAMEPAD or JOYSTICK), one description each; "" when there is none.
+   */
+  static String controllerDevices() {
+    StringBuilder out = new StringBuilder();
+    for (int id : InputDevice.getDeviceIds()) {
+      InputDevice d = InputDevice.getDevice(id);
+      if (d == null) continue;
+      int sources = d.getSources();
+      if ((sources & InputDevice.SOURCE_GAMEPAD) != InputDevice.SOURCE_GAMEPAD
+          && (sources & InputDevice.SOURCE_JOYSTICK) != InputDevice.SOURCE_JOYSTICK) continue;
+      if (out.length() > 0) out.append(", ");
+      out.append(String.format(Locale.ROOT, "device %d \"%s\" vendor %04x product %04x sources 0x%x%s%s",
+          id, d.getName(), d.getVendorId(), d.getProductId(), sources, d.isVirtual() ? " virtual" : "",
+          Build.VERSION.SDK_INT < 29 ? "" : d.isExternal() ? " external" : " built-in"));
+    }
+    return out.toString();
+  }
 
   /** The menu's switch: shown always (on) or only while no controller is connected (off). */
   void setAlways(boolean on) {
@@ -122,18 +147,33 @@ final class TouchControls implements CoreTouch.Host {
   /** The menu's switch "Latch L and R": a tap keeps L or R pressed until the next tap (off: held while touched). */
   void setLatch(boolean on) { touch.setLatch(on); }
 
-  /** Shown or hidden by the controllers present and the switch (twice a second and when a device changes). */
+  /**
+   * Shown or hidden by the controllers present, the switch and the last touch (twice a second,
+   * when a device changes, after a touch or a controller's use).
+   */
   void update() {
-    boolean controller = controllerConnected();
-    boolean want = always || !controller;
-    if (want == shown && !first) return;
+    String now = controllerDevices();
+    boolean controller = !now.isEmpty();
+    boolean want = rule.shown(always, controller);
+    boolean change = want != shown || first;
+    if (!change && now.equals(devices)) return;
     first = false;
-    shown = want;
-    quietly(() -> view.setMode(want ? RetroTouchMode.GAMEPLAY : RetroTouchMode.OFF));
-    touch.reset();
-    Log.i(CoreActivity.TAG, "touch controls " + (want ? "shown" : "hidden")
-        + (controller ? " (a controller is connected" + (always ? ", the menu's switch is on)" : ")") : " (no controller)"));
-    host.send();
+    devices = now;
+    if (change) {
+      shown = want;
+      quietly(() -> view.setMode(want ? RetroTouchMode.GAMEPLAY : RetroTouchMode.OFF));
+      touch.reset();
+    }
+    String why = !controller ? "no controller"
+        : "a controller is connected" + (always ? ", the menu's switch is on"
+            : rule.touched() ? ", the screen was touched" : "") + ": " + now;
+    Log.i(CoreActivity.TAG, "touch controls " + (want ? "shown" : "hidden") + " (" + why + ")");
+    if (change) host.send();
+  }
+
+  /** A controller's button or stick was used: hidden again (unless no controller or the switch). */
+  void controllerUsed() {
+    if (rule.controller()) update();
   }
 
   /** Nothing held (the app's menu, focus lost, pause): RetroTouch forgets its fingers too. */
@@ -162,7 +202,11 @@ final class TouchControls implements CoreTouch.Host {
 
   /** After it went through them: which finger looks, which stopped. */
   void after(MotionEvent e) {
-    if (!shown) return;
+    if (!shown) {
+      // hidden by a controller: the end of a touch shows them (the next one plays)
+      if (e.getActionMasked() == MotionEvent.ACTION_UP && rule.touch()) update();
+      return;
+    }
     int i = e.getActionIndex();
     switch (e.getActionMasked()) {
       case MotionEvent.ACTION_DOWN:

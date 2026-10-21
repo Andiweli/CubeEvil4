@@ -5392,6 +5392,35 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     Belagerung in r11c, bis ein Ganado Luis würgt; danach muss Luis weiterkämpfen und seinen
     Dank-Satz sagen), auf 64 bit und auf 32 bit.
 
+- **Touch-Bedienung bleibt ohne Controller versteckt (Redmi 15 5G): Variante A (Entscheidung des
+  Projektinhabers, 21.10.2026), Branch `claude/re4-luis-hotfix`, Teil von 0.40.1-alpha.** Ein
+  Nutzer ohne Controller sah keine Touch-Tasten; damit war auch das App-Menü (SELECT) und der
+  Fehlerbericht nicht erreichbar. Bericht `cubeevil4-report-20261020-233709.zip` (Xiaomi
+  25078RA3EL „dew“, Redmi 15 5G, Android 16, 64 bit, App 0.40.0-alpha-core): „touch controls
+  shown (a controller is connected, the menu's switch is on)“ (er hatte den Schalter inzwischen
+  an) und **keine einzige** Controller-Taste im Protokoll: Android meldet dort ein Gerät mit den
+  Quellen GAMEPAD oder JOYSTICK, das kein Controller ist (bekannt etwa vom Fingerabdrucksensor
+  `uinput-fpc` der Pixel-Handys, den SDL deshalb übergeht). Welches Gerät, stand nicht im
+  Protokoll. Derselbe Bericht zeigt außerdem den Luis-Absturz in r11c (`cSubLuis::move+136`, pc 0),
+  den Patch 0087 behebt.
+  - **Regel neu** (`TouchShowRule.java`, rein Java): gezeigt bei Schalter, ohne Controller wie
+    bisher, **und** nach einer Berührung des Bildschirms, solange die Tasten versteckt waren (das
+    Ende der Berührung zeigt sie, die nächste spielt), bis zur nächsten echten Controller-Eingabe:
+    eine belegte Taste (`input.key`), SELECT von einem Controller, ein Stick, Trigger oder
+    Steuerkreuz über die Hälfte (`TouchShowRule.MOVED`), damit das Rauschen eines ruhenden Sticks
+    nicht zählt. Auf dem Retroid bleibt alles wie bisher, nur ein Tippen auf den Bildschirm holt
+    die Touch-Tasten, bis wieder eine Taste gedrückt wird.
+  - **Protokoll:** `TouchControls.controllerDevices()` zählt nach derselben Regel wie
+    `RetroTouchControllers` (Quellen GAMEPAD 0x401 oder JOYSTICK 0x1000010) und nennt jedes
+    Gerät (Nummer, Name, Hersteller/Produkt, Quellen, virtuell, eingebaut/extern ab Android 10);
+    die Zeile „touch controls shown/hidden (…)“ steht bei jeder Änderung der Anzeige oder der
+    Geräte im Protokoll (mit dem Grund „the screen was touched“).
+  - **Geprüft (Cloud):** `TouchShowRuleTests` 33 Prüfungen bestanden (in `tools/test_host.sh`);
+    alle Java-Dateien der App gegen Android 15 übersetzt, ohne Fehler; `tools/test_host.sh`: die
+    Java-Tests bestanden, nativ 40 von 42 wie bisher (die bekannten `enemy_feedback_tests` und
+    `inventory_case_contracts`). **Nicht getestet:** auf einem Gerät (Retroid: Touch erscheint nach
+    einem Tippen, verschwindet bei einer Taste; Redmi: Touch nach einem Tippen).
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
