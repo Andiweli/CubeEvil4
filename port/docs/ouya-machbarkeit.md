@@ -107,6 +107,12 @@ ein Kompaktformat der Punkte** (`RE4_GX_COMPACT=1`: die Bytes, die GX las,
 etwa 20 statt 44 Bytes je Punkt; Umrechnen auf der GPU), mit der Probe messen,
 **danach O2**: der GLES-2-Renderer liest dieses Format.
 
+**Ergebnis (21.10.2026, sechste Messung):** mit Kompaktformat r100 in Echtzeit
+28,3 Bilder/s (Median der Bildzeit 33,6 ms, 96 % der Bilder rechtzeitig), das
+Dorf 28,7, ohne Bremse 51 (mit Gleitkomma-Punkten 40). Spiel-Thread 21–23 ms,
+Grafik-Thread 24–25 ms je Bild, auf zwei Kernen nebeneinander. **Stufe O1
+abgeschlossen**; der Kern reicht für die OUYA. Weiter mit O2.
+
 ## Vorschlag: in Stufen, erst messen
 
 | Stufe | Inhalt | Wo | Ergebnis |

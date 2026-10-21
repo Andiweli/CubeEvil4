@@ -25,7 +25,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 32-bit-Kernprozess | ✅ 20.10.2026 (Branch `claude/re4-32bit-kernprozess`, Release **0.40.0-alpha**): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Retroid ✅ (erzwungen mit `-CoreProcess`: Spiel, Filme, Ton, Laden/Speichern, Debug-Menü, 30 FPS), **Tester-Gerät ✅** (nur 32 bit, Android 14: das Spiel läuft, Projektinhaber 20.10.2026; ohne Bericht). Offen: Leistungszahlen vom Tester-Gerät, Raumklang mit Spatializer („32 bit: der Kern als eigener Prozess“) |
 | Hotfix 0.40.1-alpha | 20.10.2026 (Branch `claude/re4-luis-hotfix`, vom Stand `548b0f24` des Kernprozess-Branches): Patch 0087, Absturz auf 64 bit, wenn ein Ganado Luis in der Hütte packt (Abschnitt „Absturz, wenn ein Ganado Luis in der Hütte packt“); Touch-Tasten nach einem Tippen auch bei einem „Geister-Controller“ (21.10.2026, Abschnitt „Touch-Bedienung bleibt ohne Controller versteckt“). Cloud ✅, **Gerätetest offen** |
 | Menü mehrsprachig, 0.41.0-alpha | 21.10.2026 (Branch `claude/re4-menu-sprachen`, enthält den Hotfix): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache (weitere liefert der Projektinhaber); Touchsteuerung Auto/Erzwingen/Unterdrücken, Komfortsteuerung. Cloud ✅, **Gerätetest offen** |
-| OUYA | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): Bestandsaufnahme (`ouya-machbarkeit.md`): drei Hürden (Android 4.1 mit NDK r23c, nur OpenGL ES 2.0, Leistung). **Entscheidungen des Projektinhabers:** erst die Kern-Probe O1, später eine eigene OUYA-App. **O1 gebaut und auf der OUYA gemessen** (`host/probe.cpp`, `whole_build_android.sh --ouya`, `ouya-probe.ps1`; Abschnitt „OUYA: Kern-Probe O1“): r100 10,6 Bilder/s, Kern 94 ms je Bild, davon gut 60 % GX-Umrechnung. **Schritt A** (GX-Umrechnung schneller, gleiche Ausgabe) und **Schritt B** (Umrechnung auf eigenem Thread, `RE4_GX_THREAD=1`, gleiche Ausgabe) gemessen: r100 16,2 Bilder/s, ohne Bremse 21,6 (Spiel-Thread 22–27 ms, Grafik-Thread 33–46 ms je Bild); danach Warten nur noch im Leerlauf und Profil des Grafik-Threads mit Zeilen (Cloud ✅, OUYA offen) |
+| OUYA | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): Bestandsaufnahme (`ouya-machbarkeit.md`): drei Hürden (Android 4.1 mit NDK r23c, nur OpenGL ES 2.0, Leistung). **Entscheidungen des Projektinhabers:** erst die Kern-Probe O1, später eine eigene OUYA-App. **O1 gebaut und auf der OUYA gemessen** (`host/probe.cpp`, `whole_build_android.sh --ouya`, `ouya-probe.ps1`; Abschnitt „OUYA: Kern-Probe O1“): r100 10,6 Bilder/s, Kern 94 ms je Bild, davon gut 60 % GX-Umrechnung. GX-Umrechnung schneller (A), auf eigenem Thread (B, `RE4_GX_THREAD=1`), Texturen per Stichprobe und **Kompaktformat der Punkte** (`RE4_GX_COMPACT=1`, nur OUYA): **O1 abgeschlossen**, r100 in Echtzeit 28,3 Bilder/s, Dorf 28,7, ohne Bremse 51 (Messung 21.10.2026). Nächster Schritt O2: GLES-2-Renderer für das Kompaktformat |
 | Hauptbranch `master` | 20.10.2026: alle Branches bis Alpha 4 (`claude/re4-start-controls`) und der 32-bit-Kernprozess bis zum zweiten Retroid-Lauf (`22aac6bf`) zusammengeführt, **ohne den Raumklang** (`claude/re4-dpl2-raumklang`, Wunsch des Projektinhabers: erst nach seinem Test). Das Release **0.40.0-alpha** (mit Raumklang, versionCode 60) und alles danach liegt im Branch `claude/re4-32bit-kernprozess`; dort weiterarbeiten oder ihn später ganz übernehmen |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
@@ -5760,9 +5760,26 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
   (Ohne die EFB-Kopien des Stroms: deren Marke trägt eine fortlaufende Nummer, die Indizes
   über Felder hinaus mitlesen, und die Nummer ist im zweiten Lauf eine andere.) Auf dem PC ist
   das Kompaktformat etwas langsamer (`RE4_GX_BENCH` 1,7 statt 1,5 ms, dort zählt die
-  Speicheranbindung nicht); **auf der OUYA noch nicht gemessen**: `ouya-probe.ps1` misst
-  `r100-gp`, `r101-gp`, `r100-schnell-gp` kompakt und `r100-schnell-gp-gleitkomma` zum
-  Vergleich.
+  Speicheranbindung nicht); `ouya-probe.ps1` misst `r100-gp`, `r101-gp`, `r100-schnell-gp`
+  kompakt und `r100-schnell-gp-gleitkomma` zum Vergleich.
+- **Sechste Messung auf der OUYA (21.10.2026, Stand `0d9f7fc`, Kompaktformat):**
+  | Lauf | Bilder/s | Spiel-Thread ms/Bild | Grafik-Thread ms/Bild | je Punkt | Bildzeit Median / 95 % |
+  |---|---|---|---|---|---|
+  | r100-gp | **28,3** | 21,4 | 23,5 | 291 ns | 33,6 / 44,9 ms |
+  | r101-gp (Dorf) | **28,7** | 22,6 | 24,7 | 250 ns | 33,4 / 45,8 ms |
+  | r100-schnell-gp | **51,2** | 17,2 | 16,1 | 279 ns | – |
+  | r100-schnell-gp-gleitkomma | 39,7 | 18,7 | 22,1 | 343 ns | – |
+
+  Das Kompaktformat spart auf der OUYA ein Fünftel der Zeit je Punkt und halbiert die
+  Punktdaten (2,0 statt 3,9 MB je Bild, die Kopie der Probe 4,7 statt 12 ms); der behobene
+  Eingang (`put` ohne `memcpy`) senkte die C-Bibliothek auf dem Spiel-Thread von 10,7 auf
+  4,3 %. In Echtzeit sind 96 % der Bilder rechtzeitig (r100: 192 von 4250 über 45 ms), der
+  Median ist die volle Bildrate. **Stufe O1 abgeschlossen; Einschätzung des Skripts GRÜN.**
+  Was jetzt noch Zeit kostet: Grafik-Thread `command` 31 % (Zeichenbefehle, Indizes,
+  Zustände), Kopier-Durchgänge 38 %; Spiel-Thread `libm` 12 %, `Sk1Loop` 10 %, die
+  Zustandsbrücke (`captureModel`) 6 % (für die OUYA-App abschaltbar), Ton 6 %.
+  **Nächster Schritt (Entscheidung des Projektinhabers): O2, der GLES-2-Renderer, der das
+  Kompaktformat liest.**
 
 ## Aufbau
 
