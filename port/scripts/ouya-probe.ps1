@@ -19,6 +19,10 @@ Drei Schritte:
        r100          Debug-Start in r100, Echtzeit wie im Spiel (30 Bilder/s als Ziel)
        r101          dasselbe im Dorf (viele Gegner, die schwerste Stelle)
        r100-schnell  r100 ohne Warten auf den Bildschirm: so schnell der Kern kann
+       ...-gp        derselbe Lauf mit dem Grafik-Decoder auf einem eigenen Thread
+                     (RE4_GX_THREAD=1, port/whole/runtime/gx_thread.cpp): r100-gp,
+                     r101-gp, r100-schnell-gp
+     Standard: r100, r100-gp, r101-gp, r100-schnell-gp (Vergleich mit und ohne Thread).
      Jeder Lauf dauert -Seconds Sekunden (Standard 240). Die Test-Tastenfolge der
      PC-Pruefung fuehrt durch Speicherkarten-Dialog und Titel in den Raum; danach geht
      Leon ein paar Schritte. Gemessen wird nur der Kern (Spiellogik, GX-Decoder, Ton);
@@ -58,6 +62,10 @@ Falls Windows das Ausfuehren von Skripten sperrt.
 Ohne neuen Build, nur ein kurzer Lauf in r100.
 
 .EXAMPLE
+.\port\scripts\ouya-probe.ps1 -Runs r100,r101,r100-schnell,r100-gp,r101-gp,r100-schnell-gp
+Alle Laeufe, mit und ohne Grafik-Thread (etwa 25 Minuten).
+
+.EXAMPLE
 .\port\scripts\ouya-probe.ps1 -SkipBuild -Serial dbdcacc -OutDir "$env:USERPROFILE\Desktop\RE4-OUYA-Probe-Retroid"
 Dieselbe Probe auf dem Retroid, als Vergleich.
 #>
@@ -68,7 +76,8 @@ param(
     [string]$CacheDir = '',
     [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'RE4-OUYA-Probe'),
     [int]$Seconds = 240,
-    [ValidateSet('r100', 'r101', 'r100-schnell')][string[]]$Runs = @('r100', 'r101', 'r100-schnell'),
+    [ValidateSet('r100', 'r101', 'r100-schnell', 'r100-gp', 'r101-gp', 'r100-schnell-gp')]
+    [string[]]$Runs = @('r100', 'r100-gp', 'r101-gp', 'r100-schnell-gp'),
     [switch]$SkipBuild,
     [switch]$SkipSetup,
     [switch]$SkipData,
@@ -293,8 +302,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
 
     foreach ($run in $Runs) {
         $room = '100'
-        if ($run -eq 'r101') { $room = '101' }
-        $fast = $run -eq 'r100-schnell'
+        if ($run -like 'r101*') { $room = '101' }
+        $fast = $run -like 'r100-schnell*'
+        $gp = $run -like '*-gp'
         # the keys of the PC check (whole_r100_check.sh) through the memory card dialog and the
         # title into the room; once free, Leon walks around for about 50 s
         $settings = @(
@@ -306,6 +316,8 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         # 21.10.2026: open for the whole run): B every 2 s from 10 s after the room loaded
         if ($room -eq '101') { $settings += "RE4_PAD_ROOM_SCRIPT='B@300-9000/60'" }
         if ($fast) { $settings += 'RE4_VI_FAST=1' }
+        # the GX decoder on a thread of its own (port/whole/runtime/gx_thread.cpp)
+        if ($gp) { $settings += 'RE4_GX_THREAD=1' }
         $copyArg = ''
         if ($NoCopy) { $copyArg = ' --no-copy' }
         # where the game's thread spends its time (port/tools/probe_profile.py names the functions)
@@ -313,7 +325,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         $command = "cd $remoteBin && LD_LIBRARY_PATH=$remoteBin $($settings -join ' ') ./re4_probe --data $remote/data " +
             "--seconds $Seconds$copyArg --profile $profileRemote 2>&1"
         $log = Join-Path $OutDir "probe-$run.log"
-        Say "4. Lauf $run$(if ($fast) { ' (ohne Bremse)' } else { ' (Echtzeit)' }): $Seconds s ..."
+        Say "4. Lauf $run$(if ($fast) { ' (ohne Bremse' } else { ' (Echtzeit' })$(if ($gp) { ', Grafik-Thread)' } else { ')' }): $Seconds s ..."
         $writer = New-Object System.IO.StreamWriter($log, $false, (New-Object System.Text.UTF8Encoding($false)))
         $resultLines = @()
         try {
@@ -335,7 +347,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         Invoke-Adb pull $profileRemote (Join-Path $OutDir "profil-roh-$run.txt") | Out-Null
         Invoke-Adb shell rm $profileRemote | Out-Null
         $text = Get-Content -LiteralPath $log -Encoding UTF8
-        $entry = @{ run = $run; fast = $fast; log = $text }
+        $entry = @{ run = $run; fast = $fast; gp = $gp; log = $text }
         foreach ($set in @('play', 'loop', 'all')) {
             $line = $resultLines | Where-Object { $_ -match "^probe-result: set=$set " } | Select-Object -First 1
             if ($line) { $entry[$set] = Read-Result $line }
@@ -374,6 +386,7 @@ $verdictCpu = $null
 foreach ($entry in $results.Values) {
     Say ''
     $mode = if ($entry.fast) { 'ohne Bremse: so schnell der Kern kann' } else { 'Echtzeit wie im Spiel' }
+    if ($entry.gp) { $mode += '; Grafik-Decoder auf eigenem Thread' }
     Say "Lauf $($entry.run) ($mode)"
     $failed = $entry.log | Where-Object { $_ -match '^probe: (FAILED|HANG|CRASH)|^probe: the game (ended|failed)' } | Select-Object -First 3
     foreach ($f in $failed) { Say "   PROBLEM: $($f -replace '^probe: ', '')" }
@@ -392,6 +405,11 @@ foreach ($entry in $results.Values) {
     Say "   gemessen:                        $($r.seconds) s, $what, Raum $($r.room)"
     Say "   Spielbilder je Sekunde:          $($r.fps)$(if (-not $entry.fast) { ' (Ziel 30)' })"
     Say "   Rechenzeit des Kerns je Bild:    $($r.core_cpu_ms) ms$(if (-not $entry.fast) { ' (verfuegbar: 33,3 ms)' })"
+    if ($r.gx_thread -eq '1') {
+        Say "   Rechenzeit des Grafik-Threads:   $($r.gp_cpu_ms) ms je Bild (auf einem anderen Prozessorkern, neben dem Kern)"
+    } elseif ($entry.gp) {
+        Say '   PROBLEM: der Grafik-Thread war nicht an (alter Build?).'
+    }
     if (-not $entry.fast) {
         Say "   Leerlauf je Bild:                $($r.idle_ms) ms"
         Say "   Bildzeiten Median / 95 % / Max:  $($r.frame_ms_p50) / $($r.frame_ms_p95) / $($r.frame_ms_max) ms"
@@ -415,8 +433,10 @@ foreach ($entry in $results.Values) {
             foreach ($a in $areas) { Say "   $a" }
         }
     }
-    if ($entry.fast -and $setName -ne 'all') { $verdictFps = [double]$r.fps }
-    if ($entry.run -eq 'r100' -and $setName -ne 'all') { $verdictCpu = [double]$r.core_cpu_ms }
+    # the verdict: the fastest run without the brake, else the game's thread in r100
+    if ($entry.fast -and $setName -ne 'all' -and ($null -eq $verdictFps -or [double]$r.fps -gt $verdictFps)) { $verdictFps = [double]$r.fps }
+    if ($entry.run -like 'r100*' -and -not $entry.fast -and $setName -ne 'all' -and
+        ($null -eq $verdictCpu -or [double]$r.core_cpu_ms -lt $verdictCpu)) { $verdictCpu = [double]$r.core_cpu_ms }
 }
 Say ''
 if ($null -ne $verdictFps) {

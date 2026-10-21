@@ -39,6 +39,20 @@ Punkt- und Texturdaten werden beim Dekodieren auf dem Kern-Faden kopiert
 (das Spiel überschreibt seine Puffer im nächsten Bild); der GL-Faden liest
 keinen Spielspeicher.
 
+**Eigener Faden für den Decoder (Schritt B der OUYA-Arbeit, 21.10.2026,
+`gx_thread.cpp`, eingeschaltet mit `RE4_GX_THREAD=1`):** die FIFO-Bytes gehen
+in einen Ring von 512 KB (der FIFO des Spiels hat 448 KB), ein eigener Faden
+dekodiert sie wie der Grafikprozessor neben der CPU der GameCube (Dolphin:
+„Dual Core“). Die Aufrufe des Ports zwischen den Bytes (`VISetNextFrameBuffer`,
+`VISetBlack`, `VIFlush`, Markierungen, Host-Reihenfolge-Listen) reihen sich
+an ihrer Stelle ein. Wo das Spiel auf den Grafikprozessor wartet
+(`OSSleepThread`, Bildwechsel: `re4_gx_deliver_interrupts`) und bevor ein Test
+seinen Zustand liest, holt der Faden erst alles auf. Unterschied: der Decoder
+liest Spielspeicher etwas später als gesendet, wie die echte Hardware; ein
+Spiel, das einen Puffer überschreibt, bevor der Grafikprozessor ihn gelesen
+hat, sähe dann die neuen Daten. Gleiche Ausgabe Bit für Bit
+(`re4probe_gx_fingerprint`, `whole_build.sh` prüft beide Betriebsarten).
+
 ## Schritte
 
 | | Inhalt | Test (Cloud, ohne Disc-Daten) |
@@ -57,7 +71,8 @@ keinen Spielspeicher.
   `0x03000000` (`re4_gx_physical`, Patch 0031); Display-Listen-Aufrufe tragen
   den Zeiger selbst.
 - Zeichen-fertig: `GXDrawDone` wartet auf die PE-Unterbrechung; der Nachbau
-  arbeitet die Befehle sofort ab und meldet „fertig“ im Unterbrechungsweg des
-  Ports (`re4_os_interrupt_*`).
+  arbeitet die Befehle sofort ab (mit eigenem Faden: holt auf, bevor die
+  Unterbrechungen zugestellt werden) und meldet „fertig“ im Unterbrechungsweg
+  des Ports (`re4_os_interrupt_*`).
 - Bildtakt: das Spiel zeigt mit `VISetNextFrameBuffer`; die App holt die
   Bildliste des zuletzt gezeigten Bildes.

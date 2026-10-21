@@ -41,6 +41,26 @@ void feed(const uint8_t* bytes, size_t n);
 // Works through what has arrived (a command cut off waits for its bytes).
 void drain();
 
+// The port's calls between the bytes of the stream (VI, marks, host-order
+// lists), applied in their place: at once, or by the GP thread
+struct Event {
+    enum Kind { kViNext, kViBlack, kViFlush, kMark, kHostList } kind;
+    uint64_t at;        // after this many bytes of the stream (post())
+    uintptr_t pointer;  // kViNext: the XFB; kHostList: the list
+    uint32_t value;     // kViBlack: black; kHostList: its size
+    uint64_t hash;      // kHostList: its bytes when the game registered it
+};
+void apply(const Event& e);
+
+// gx_thread.cpp -----------------------------------------------------------
+
+// The GP on a thread of its own (RE4_GX_THREAD=1, re4_gx_threaded): the
+// FIFO's bytes and the events go through a ring to that thread
+extern bool gThreaded;
+void ringPut(const uint8_t* bytes, size_t n);  // the game's thread (gx_fifo.cpp)
+void post(Event e);                            // an event after the bytes put so far
+void sync();  // waits until the GP thread has worked through all of it
+
 #pragma GCC visibility pop
 
 }  // namespace re4gx

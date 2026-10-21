@@ -780,8 +780,10 @@ extern "C" int re4probe_gx_test(void* fifo, void* list);
 extern "C" int re4probe_gx_frame_test(void* fifo, void* mem);
 extern "C" void re4probe_gx_produce(void* fifo, void* xfb, int frames, int init);
 extern "C" unsigned long long re4probe_gx_fingerprint(void* fifo, void* mem, void* xfb, int frames);
-extern "C" unsigned re4probe_gx_bench(void* fifo, void* mem, void* xfb, int frames);
-extern "C" unsigned re4probe_gx_bench_fifo(void* fifo, void* xfb, int frames);
+extern "C" unsigned re4probe_gx_bench(void* fifo, void* mem, void* xfb, int frames, unsigned* untilDone);
+extern "C" unsigned re4probe_gx_bench_fifo(void* fifo, void* xfb, int frames, unsigned* untilDone);
+extern "C" int re4_gx_threaded(int on);
+extern "C" void re4_gx_sync(void);
 
 // The SDK's GX library and the game's inline vertex functions feed the port's
 // GX FIFO (runtime/gx_fifo.cpp, tests/gx_probe.cpp). The FIFO and the display
@@ -833,11 +835,13 @@ static void testGx()
             }
         });
         re4probe_gx_produce(fifo, xfb, 60, 0);
+        re4_gx_sync();
         renderer.join();
         CHECK(received.load() == 60 && outOfOrder.load() == 0 && resets.load() == 1);
         // nobody takes chunks now: the producer must not wait for ever
         auto t0 = std::chrono::steady_clock::now();
         re4probe_gx_produce(fifo, xfb, 12, 0);
+        re4_gx_sync();  // with the GP on its own thread: until it is through them
         double waited = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
         CHECK(waited < 3.0);
         const Re4GxChunk* first = 0;
@@ -845,6 +849,7 @@ static void testGx()
             first = re4_core_gx_acquire();
             if (!first) {
                 re4probe_gx_produce(fifo, xfb, 1, 0);
+                re4_gx_sync();
             }
         }
         CHECK(first && (first->flags & RE4_GX_CHUNK_RESET));
@@ -871,6 +876,9 @@ static void testGx()
             re4_log("  gx fingerprint: %016llx (expected 02524012c6419af2), %.0f ms", hash, ms);
         }
         CHECK(hash == 0x02524012c6419af2ull);
+        // the same value with the GP on a thread of its own: whole_build.sh runs
+        // these tests once more with RE4_GX_THREAD=1 (a second run here would
+        // start from the state the first left)
     }
     // a marked chunk (re4_gx_mark: a hit on the player) starts over and carries the mark
     {
@@ -878,11 +886,13 @@ static void testGx()
         void* xfb = (void*) (unsigned long) 0x82830000u;
         re4_core_gx_acquire();  // attach
         re4probe_gx_produce(fifo, xfb, 2, 1);
+        re4_gx_sync();
         while (const Re4GxChunk* c = re4_core_gx_acquire()) {
             re4_core_gx_release(c);
         }
         re4_gx_mark();
         re4probe_gx_produce(fifo, xfb, 3, 0);
+        re4_gx_sync();
         unsigned flags[3] = {0, 0, 0};
         for (int i = 0; i < 3; i++) {
             if (const Re4GxChunk* c = re4_core_gx_acquire()) {
@@ -900,14 +910,29 @@ static void testGx()
         re4_core_gx_detach();
     }
     // RE4_GX_BENCH=N: the decoder's time for N village-like frames (120 000 vertices each),
-    // then for N frames of draws the CPU puts into the FIFO value by value
+    // then for N frames of draws the CPU puts into the FIFO value by value; each
+    // once more with the GP on its own thread: the game's thread's time, then
+    // the time until the GP thread caught up
     if (const char* bench = getenv("RE4_GX_BENCH")) {
-        unsigned us = re4probe_gx_bench((void*) (unsigned long) 0x82800000u, (void*) (unsigned long) 0x82900000u,
-                                        (void*) (unsigned long) 0x82830000u, atoi(bench) > 0 ? atoi(bench) : 10);
-        re4_log("  gx bench: %.2f ms per frame of 120000 vertices", us / 1000.0);
-        us = re4probe_gx_bench_fifo((void*) (unsigned long) 0x82800000u, (void*) (unsigned long) 0x82830000u,
-                                    atoi(bench) > 0 ? atoi(bench) : 10);
-        re4_log("  gx bench: %.2f ms per frame of 8000 vertices put by the CPU", us / 1000.0);
+        const int frames = atoi(bench) > 0 ? atoi(bench) : 10;
+        for (int threaded = 0; threaded < 2; threaded++) {
+            const int was = re4_gx_threaded(threaded);
+            unsigned done = 0;
+            unsigned us = re4probe_gx_bench((void*) (unsigned long) 0x82800000u, (void*) (unsigned long) 0x82900000u,
+                                            (void*) (unsigned long) 0x82830000u, frames, &done);
+            const char* how = threaded ? " (GP thread: game's thread, until caught up)" : "";
+            re4_log("  gx bench: %.2f ms per frame of 120000 vertices%s", us / 1000.0, how);
+            if (threaded) {
+                re4_log("  gx bench: %.2f ms until caught up", done / 1000.0);
+            }
+            us = re4probe_gx_bench_fifo((void*) (unsigned long) 0x82800000u, (void*) (unsigned long) 0x82830000u,
+                                        frames, &done);
+            re4_log("  gx bench: %.2f ms per frame of 8000 vertices put by the CPU%s", us / 1000.0, how);
+            if (threaded) {
+                re4_log("  gx bench: %.2f ms until caught up", done / 1000.0);
+            }
+            re4_gx_threaded(was);
+        }
     }
     report("gx", ok);
 }

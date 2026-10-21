@@ -25,7 +25,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 32-bit-Kernprozess | ✅ 20.10.2026 (Branch `claude/re4-32bit-kernprozess`, Release **0.40.0-alpha**): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Retroid ✅ (erzwungen mit `-CoreProcess`: Spiel, Filme, Ton, Laden/Speichern, Debug-Menü, 30 FPS), **Tester-Gerät ✅** (nur 32 bit, Android 14: das Spiel läuft, Projektinhaber 20.10.2026; ohne Bericht). Offen: Leistungszahlen vom Tester-Gerät, Raumklang mit Spatializer („32 bit: der Kern als eigener Prozess“) |
 | Hotfix 0.40.1-alpha | 20.10.2026 (Branch `claude/re4-luis-hotfix`, vom Stand `548b0f24` des Kernprozess-Branches): Patch 0087, Absturz auf 64 bit, wenn ein Ganado Luis in der Hütte packt (Abschnitt „Absturz, wenn ein Ganado Luis in der Hütte packt“); Touch-Tasten nach einem Tippen auch bei einem „Geister-Controller“ (21.10.2026, Abschnitt „Touch-Bedienung bleibt ohne Controller versteckt“). Cloud ✅, **Gerätetest offen** |
 | Menü mehrsprachig, 0.41.0-alpha | 21.10.2026 (Branch `claude/re4-menu-sprachen`, enthält den Hotfix): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache (weitere liefert der Projektinhaber); Touchsteuerung Auto/Erzwingen/Unterdrücken, Komfortsteuerung. Cloud ✅, **Gerätetest offen** |
-| OUYA | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): Bestandsaufnahme (`ouya-machbarkeit.md`): drei Hürden (Android 4.1 mit NDK r23c, nur OpenGL ES 2.0, Leistung). **Entscheidungen des Projektinhabers:** erst die Kern-Probe O1, später eine eigene OUYA-App. **O1 gebaut und auf der OUYA gemessen** (`host/probe.cpp`, `whole_build_android.sh --ouya`, `ouya-probe.ps1`; Abschnitt „OUYA: Kern-Probe O1“): r100 10,6 Bilder/s, Kern 94 ms je Bild, davon gut 60 % GX-Umrechnung. **Schritt A** (GX-Umrechnung schneller, gleiche Ausgabe) in der Cloud ✅ (−37 % bzw. −56 %), **auf der OUYA offen**; danach B (Umrechnung im eigenen Thread) |
+| OUYA | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): Bestandsaufnahme (`ouya-machbarkeit.md`): drei Hürden (Android 4.1 mit NDK r23c, nur OpenGL ES 2.0, Leistung). **Entscheidungen des Projektinhabers:** erst die Kern-Probe O1, später eine eigene OUYA-App. **O1 gebaut und auf der OUYA gemessen** (`host/probe.cpp`, `whole_build_android.sh --ouya`, `ouya-probe.ps1`; Abschnitt „OUYA: Kern-Probe O1“): r100 10,6 Bilder/s, Kern 94 ms je Bild, davon gut 60 % GX-Umrechnung. **Schritt A** (GX-Umrechnung schneller, gleiche Ausgabe) und **Schritt B** (Umrechnung auf eigenem Thread, `RE4_GX_THREAD=1`, gleiche Ausgabe) in der Cloud ✅, **auf der OUYA offen** |
 | Hauptbranch `master` | 20.10.2026: alle Branches bis Alpha 4 (`claude/re4-start-controls`) und der 32-bit-Kernprozess bis zum zweiten Retroid-Lauf (`22aac6bf`) zusammengeführt, **ohne den Raumklang** (`claude/re4-dpl2-raumklang`, Wunsch des Projektinhabers: erst nach seinem Test). Das Release **0.40.0-alpha** (mit Raumklang, versionCode 60) und alles danach liegt im Branch `claude/re4-32bit-kernprozess`; dort weiterarbeiten oder ihn später ganz übernehmen |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
@@ -5605,6 +5605,45 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
     die CPU Wert für Wert schickt (Effekte, Anzeigen), **0,80 → 0,35 ms** (−56 %). Auf der OUYA
     sollte der Gewinn größer sein (dort kosteten Nullfüllen und Kopien mehr, siehe Profil);
     **auf der OUYA noch nicht gemessen.**
+- **Schritt B: GX-Umrechnung auf eigenem Thread (21.10.2026, `runtime/gx_thread.cpp`,
+  eingeschaltet mit `RE4_GX_THREAD=1` oder `re4_gx_threaded(1)`; aus: alles wie bisher):**
+  die Bytes, die das Spiel in den FIFO schreibt, gehen in einen Ring von 512 KB (der FIFO des
+  Spiels hat 448 KB, `main_sub.cpp`; ist der Ring voll, wartet das Spiel wie die CPU der
+  GameCube), ein Thread `re4-gp` gibt sie dem Decoder. Reihenfolge: die Aufrufe des Ports
+  zwischen den Bytes (`VISetNextFrameBuffer`, `VISetBlack`, `VIFlush`, `re4_gx_mark`,
+  `re4_gx_host_order_list`) sind Ereignisse an ihrer Stelle im Strom (`re4gx::Event`,
+  `apply()`). Aufholen: `re4_gx_deliver_interrupts` (aus `OSSleepThread` und beim Bildwechsel
+  des VI) wartet, bis der Thread alles abgearbeitet hat, dann erst die PE-Unterbrechungen
+  (`GXDrawDone`, Draw-Sync-Token); ebenso vor dem Lesen von Zustand und Zählern
+  (`re4_gx_stats`, `re4_gx_bp`, `re4_gx_xf`) und in Tests `re4_gx_sync()`. Für den Thread
+  sicher gemacht: Alias-Fenster (`gx_fifo.cpp`, atomar), Token-Register, die Prüfung von
+  Display-Listen außerhalb von MEM1 (`re4_game_library_ptr`, nur die Spielbibliotheken mit
+  eigenem Zwischenspeicher; die Stapel der Spiel-Threads gehören dem Spiel-Thread).
+  **Unterschied zu bisher:** der Decoder liest Spielspeicher (Felder, Listen, Texturen) etwas
+  später, als das Spiel den Befehl schickte, wie der Grafikprozessor der GameCube; spätestens
+  beim nächsten Warten oder Bildwechsel ist er durch. Ein Spiel, das einen Puffer
+  überschreibt, bevor der Grafikprozessor ihn gelesen hat, sähe die neuen Daten (auf der
+  GameCube ebenso; RE4 synchronisiert mit `GXDrawDone` und Draw-Sync). Im Prüftest
+  `re4probe_gx_fingerprint` lesen Indizes absichtlich über Felder hinaus bis in den Bereich, in
+  den der Test danach neue Display-Listen schreibt: dort wartet der Test vorher
+  (`re4_gx_sync`), wie ein Spiel es müsste. Feinarbeit: der Thread wird erst ab 16 KB geweckt
+  (sonst kostete das Wecken mehr als die Arbeit), schaut nach dem Aufholen 0,1 ms nach mehr
+  und schläft höchstens 2 ms; die gemeinsam benutzten Zähler liegen je auf einer eigenen
+  Cache-Zeile (sonst 0,9 statt 0,5 ms auf dem Spiel-Thread).
+  - Geprüft (Cloud): `whole_build.sh` führt `--runtime-test` und `--core-test` ein zweites
+    Mal mit `RE4_GX_THREAD=1` aus (gleicher Fingerabdruck), die Probe mit Test-Einstieg
+    ebenso; i686 und armhf (qemu). 300 Läufe von `--runtime-test` mit Thread hintereinander
+    ohne Fehler (vorher fielen zwei Tests, die gleich nach dem Senden ein Bild abholten, selten
+    aus: sie warten jetzt mit `re4_gx_sync`). `ndk23_check.sh`: 1201 Einheiten, 0 Fehler,
+    0 Aufrufe jünger als Android 4.1. Trockenlauf von `ouya-probe.ps1` mit nachgebautem `adb`.
+  - Messung `RE4_GX_BENCH=200` (i686, 4 Kerne): Modell-Listen 1,5 ms je Bild → auf dem
+    Spiel-Thread **0,00 ms**, der Thread braucht 1,5–1,7 ms nebenher; Werte einzeln von der CPU
+    0,40 ms → auf dem Spiel-Thread 0,40–0,47 ms (das Kopieren in den Ring statt Dekodieren).
+  - Probe: `gx_thread=` und `gp_cpu_ms=` (CPU-Zeit des Threads je Bild aus
+    `/proc/self/task/<tid>/stat`) im Ergebnis, „gp“ in jeder Zeile; `ouya-probe.ps1` misst jetzt
+    standardmäßig `r100`, `r100-gp`, `r101-gp`, `r100-schnell-gp`. **Auf der OUYA und in der
+    App noch nicht gelaufen**; die App schaltet den Thread nicht ein (erst nach einem
+    Gerätetest auf dem Retroid mit Bild).
 
 ## Aufbau
 

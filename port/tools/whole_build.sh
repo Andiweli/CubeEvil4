@@ -12,6 +12,8 @@
 #   re4_host --self-test       cross-module trampolines pass arguments intact
 #   re4_host --check-modules   every module loads, every cross-module import resolves
 #   re4_host --runtime-test    OSLink, DVD folder and yz2 work without disc data
+#   ... --runtime-test, --core-test once more with RE4_GX_THREAD=1 (the GP on a
+#                              thread of its own, runtime/gx_thread.cpp)
 #   re4_host --core-test       the embedding interface of the app (core thread,
 #                              controller, snapshots) without disc data, the
 #                              memory card library on a card file
@@ -123,6 +125,15 @@ for t in "${targets[@]}"; do
         echo "  re4_host $check: exit $code | $(echo "$out" | grep -E 'self-test:|check-modules:|runtime-test|core-test' | tr '\n' ' ' | sed 's/\[re4\] //g')"
         [ "$code" -ne 0 ] && status=1
     done
+    # the same with the GP on a thread of its own (runtime/gx_thread.cpp, RE4_GX_THREAD=1):
+    # the decoder's fingerprint and the chunks of the core test unchanged
+    for check in --runtime-test --core-test; do
+        out=$(cd "$build" && RE4_GX_THREAD=1 RE4_CARD_TEST_FILE="$build/card-test-gp.bin" \
+            RE4_GCI_TEST_FILE="$build/card-test-gp.gci" timeout 300 "${run[@]}" ./re4_host "$check" 2>&1)
+        code=$?
+        echo "  re4_host $check (GP thread): exit $code | $(echo "$out" | grep -E 'runtime-test|core-test' | grep -vE ': ok$' | tr '\n' ' ' | sed 's/\[re4\] //g')"
+        [ "$code" -ne 0 ] && { echo "$out" | grep -E 'failed|FAILED' | head -n 10 | sed 's/^/    /'; status=1; }
+    done
     out=$(python3 "$root/port/tools/memcard_list.py" "$card" --expect-system --expect-save 0 2>&1)
     code=$?
     echo "  memcard_list.py (the card of the core test): exit $code | $(echo "$out" | grep -cE '^  file ') files, $(echo "$out" | grep -oE 'CRC[^;,]*' | tr '\n' ' ')"
@@ -151,18 +162,20 @@ for t in "${targets[@]}"; do
     # the entry of the core process check instead of the game: frames counted, GX chunks taken
     # and copied, the sound read in real time, the summary line the PC script reads
     if [ -x "$build/re4_probe" ]; then
-        out=$(cd "$build" && RE4_CORE_TEST_ENTRY=remote timeout 120 "${run[@]}" ./re4_probe --seconds 4 --report 2 2>&1)
-        code=$?
-        result=$(echo "$out" | grep -E '^probe-result: set=all ')
-        value() { echo "$result" | grep -oE " $1=[0-9.]+" | cut -d= -f2 | cut -d. -f1; }
-        frames=$(value frames)
-        vertices=$(value vertices)
-        sound=$(value sound_from_game_pct)
-        echo "  re4_probe (test entry): exit $code | frames ${frames:-?}, fps $(value fps), vertices per chunk ${vertices:-?}, sound from the game ${sound:-?} %"
-        if [ "$code" -ne 0 ] || [ "${frames:-0}" -lt 100 ] || [ "${vertices:-0}" -lt 1 ] || [ "${sound:-0}" -lt 50 ]; then
-            echo "$out" | grep -v '^map: ' | tail -n 30 | sed 's/^/    /'
-            status=1
-        fi
+        for gp in 0 1; do  # 1: the GP on a thread of its own (RE4_GX_THREAD)
+            out=$(cd "$build" && RE4_GX_THREAD=$gp RE4_CORE_TEST_ENTRY=remote timeout 120 "${run[@]}" ./re4_probe --seconds 4 --report 2 2>&1)
+            code=$?
+            result=$(echo "$out" | grep -E '^probe-result: set=all ')
+            value() { echo "$result" | grep -oE " $1=[0-9.]+" | cut -d= -f2 | cut -d. -f1; }
+            frames=$(value frames)
+            vertices=$(value vertices)
+            sound=$(value sound_from_game_pct)
+            echo "  re4_probe (test entry$([ $gp = 1 ] && echo ", GP thread")): exit $code | frames ${frames:-?}, fps $(value fps), vertices per chunk ${vertices:-?}, sound from the game ${sound:-?} %"
+            if [ "$code" -ne 0 ] || [ "${frames:-0}" -lt 100 ] || [ "${vertices:-0}" -lt 1 ] || [ "${sound:-0}" -lt 50 ]; then
+                echo "$out" | grep -v '^map: ' | tail -n 30 | sed 's/^/    /'
+                status=1
+            fi
+        done
     fi
     if command -v llvm-dwarfdump > /dev/null; then
         out=$(python3 "$root/port/tools/save_layout.py" "$build" --check 2>&1)

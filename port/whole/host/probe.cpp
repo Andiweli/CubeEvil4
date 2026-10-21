@@ -31,7 +31,9 @@
 // port/scripts/ouya-probe.ps1), then the program ends. The test switches come
 // from the environment (RE4_*, as port/tools/whole_r100_check.sh sets them:
 // RE4_START_ROOM, RE4_PAD_SCRIPT ...); RE4_VI_FAST=1 runs the game without
-// waiting for retraces (how fast it could go). RE4_DEBUG_HUD defaults to 0 as
+// waiting for retraces (how fast it could go); RE4_GX_THREAD=1 puts the GX
+// decoder on a thread of its own (runtime/gx_thread.cpp: its CPU time per
+// frame as "gp", gp_cpu_ms). RE4_DEBUG_HUD defaults to 0 as
 // in the app. On Linux RE4_CORE_TEST_ENTRY=remote runs the entry of the core
 // process check (tests/core_remote_probe.cpp) instead of the game: the cloud
 // check of this program without disc data.
@@ -104,6 +106,8 @@ struct Core {
     void (*addFrameHook)(void (*)(unsigned));
     int (*gameThread)(void);
     long long (*idleNs)(void);
+    int (*gxThreaded)(int);   // the GP on a thread of its own (RE4_GX_THREAD, runtime/gx_thread.cpp)
+    int (*gxThreadId)(void);
 } core;
 
 std::string gMissing;
@@ -159,6 +163,8 @@ bool loadCore(std::string& problem)
     bind(core.addFrameHook, "re4_add_frame_hook");
     bind(core.gameThread, "re4_core_game_thread");
     bind(core.idleNs, "re4_idle_ns", false);
+    bind(core.gxThreaded, "re4_gx_threaded", false);
+    bind(core.gxThreadId, "re4_gx_thread_id", false);
     if (!gMissing.empty()) {
         problem = "missing in libre4_main.so / libre4_platform.so: " + gMissing;
         return false;
@@ -620,6 +626,7 @@ struct Mark {
     long long ns;
     unsigned frames;
     long long gameCpuNs, idleNs, processTicks;
+    long long gpTicks;  // CPU time of the GP thread (clock ticks; 0: none)
     unsigned long long sound, soundFromGame;
     bool snapshot;
     unsigned room, step, screen;
@@ -641,6 +648,12 @@ Mark mark()
     m.gameCpuNs = gGameCpuNs.load();
     m.idleNs = core.idleNs ? core.idleNs() : 0;
     m.processTicks = statTicks("/proc/self/stat");
+    m.gpTicks = 0;
+    if (const int gp = core.gxThreadId ? core.gxThreadId() : 0) {
+        char path[64];
+        snprintf(path, sizeof(path), "/proc/self/task/%d/stat", gp);
+        m.gpTicks = statTicks(path);
+    }
     m.sound = gSoundFrames.load();
     m.soundFromGame = gSoundFromGame.load();
     if (const Re4CoreSnapshot* s = core.acquire()) {
@@ -666,7 +679,7 @@ std::string place(const Mark& m)
 
 struct Figures {
     double seconds = 0, frames = 0, fps = 0, p50 = 0, p95 = 0, p99 = 0, max = 0, late = 0, cpuMs = 0, idleMs = 0,
-           processPct = 0, gxKb = 0, copyMs = 0, vertices = 0, soundShare = 0, rssMb = 0;
+           processPct = 0, gxKb = 0, copyMs = 0, vertices = 0, soundShare = 0, rssMb = 0, gpMs = 0;
 };
 
 // the frame times of frames [from, to) still in the ring
@@ -687,13 +700,14 @@ Figures figures(const std::vector<Stretch>& stretches)
     Figures f;
     std::vector<float> times;
     double cpuNs = 0, idleNs = 0, ticks = 0, chunks = 0, bytes = 0, copyNs = 0, vertices = 0, sound = 0, fromGame = 0,
-           rss = 0;
+           rss = 0, gpTicks = 0;
     for (const Stretch& s : stretches) {
         f.seconds += (s.to.ns - s.from.ns) / 1e9;
         f.frames += s.to.frames - s.from.frames;
         cpuNs += (double) (s.to.gameCpuNs - s.from.gameCpuNs);
         idleNs += (double) (s.to.idleNs - s.from.idleNs);
         ticks += (double) (s.to.processTicks - s.from.processTicks);
+        gpTicks += s.from.gpTicks ? (double) (s.to.gpTicks - s.from.gpTicks) : 0;
         chunks += s.gx.chunks;
         bytes += s.gx.bytes;
         copyNs += s.gx.copyNs;
@@ -718,6 +732,7 @@ Figures figures(const std::vector<Stretch>& stretches)
     }
     f.cpuMs = cpuNs / 1e6 / f.frames;
     f.idleMs = idleNs / 1e6 / f.frames;
+    f.gpMs = gpTicks / sysconf(_SC_CLK_TCK) * 1000.0 / f.frames;
     f.processPct = ticks / sysconf(_SC_CLK_TCK) / f.seconds * 100.0;
     f.gxKb = chunks ? bytes / 1024.0 / chunks : 0;
     f.copyMs = chunks ? copyNs / 1e6 / chunks : 0;
@@ -733,10 +748,10 @@ void printResult(const char* set, const Figures& f, const Mark& last)
     printf("probe-result: set=%s mode=%s room=r%03x seconds=%.0f frames=%.0f fps=%.1f frame_ms_p50=%.1f "
            "frame_ms_p95=%.1f frame_ms_p99=%.1f frame_ms_max=%.1f late=%.0f core_cpu_ms=%.1f idle_ms=%.1f "
            "process_cpu_pct=%.0f gx_kb=%.0f copy_ms=%.2f vertices=%.0f sound_from_game_pct=%.0f rss_mb=%.0f "
-           "copy=%d\n",
+           "copy=%d gx_thread=%d gp_cpu_ms=%.1f\n",
            set, fast && strcmp(fast, "1") == 0 ? "fast" : "realtime", last.room, f.seconds, f.frames, f.fps, f.p50,
            f.p95, f.p99, f.max, f.late, f.cpuMs, f.idleMs, f.processPct, f.gxKb, f.copyMs, f.vertices, f.soundShare,
-           f.rssMb, gCopy ? 1 : 0);
+           f.rssMb, gCopy ? 1 : 0, core.gxThreaded && core.gxThreaded(-1) ? 1 : 0, f.gpMs);
 }
 
 void printLogTail()
@@ -888,11 +903,13 @@ int main(int argc, char** argv)
             sum += t;
         }
         printf("probe: %5.0f s %-22s frames %4u (%4.1f/s) frame ms avg %5.1f max %6.1f late %3u | core %5.1f ms/frame, "
-               "idle %5.1f | process cpu %3.0f %% | gx %3u chunks %5.0f KB copy %5.2f ms | sound %3.0f %% game | rss %ld "
-               "MB | MHz %s\n",
+               "idle %5.1f, gp %5.1f | process cpu %3.0f %% | gx %3u chunks %5.0f KB copy %5.2f ms | sound %3.0f %% game | "
+               "rss %ld MB | MHz %s\n",
                (s.to.ns - startNs) / 1e9, place(s.to).c_str(), frames, frames / dt, times.empty() ? 0.0 : sum / times.size(),
                worst, late, frames ? (s.to.gameCpuNs - s.from.gameCpuNs) / 1e6 / frames : 0.0,
                frames && core.idleNs ? (s.to.idleNs - s.from.idleNs) / 1e6 / frames : 0.0,
+               frames && s.from.gpTicks ? (double) (s.to.gpTicks - s.from.gpTicks) / sysconf(_SC_CLK_TCK) * 1000.0 / frames
+                                        : 0.0,
                (double) (s.to.processTicks - s.from.processTicks) / sysconf(_SC_CLK_TCK) / dt * 100.0, s.gx.chunks,
                s.gx.chunks ? s.gx.bytes / 1024.0 / s.gx.chunks : 0.0, s.gx.chunks ? s.gx.copyNs / 1e6 / s.gx.chunks : 0.0,
                s.to.sound > s.from.sound

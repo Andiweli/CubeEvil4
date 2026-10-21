@@ -20,6 +20,7 @@
 #include "gx_internal.h"
 #include "re4_runtime.h"
 
+#include <atomic>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -51,21 +52,28 @@ bool linked()
 const u32 kAliasBase = 0x03000000;
 const u32 kAliasWindow = 0x00100000;
 const int kAliasSlots = 16;
-uintptr_t gAlias[kAliasSlots];  // host address of each window, 0 = free
+// host address of each window, 0 = free: written by the game's thread, read
+// also by the GP thread (gx_thread.cpp)
+std::atomic<uintptr_t> gAlias[kAliasSlots];
+
+inline uintptr_t alias(int s)
+{
+    return gAlias[s].load(std::memory_order_relaxed);
+}
 bool gAliasFullLogged;
 
 u32 aliasOf(uintptr_t pointer)
 {
     uintptr_t window = pointer & ~(uintptr_t) (kAliasWindow - 1);
     for (int s = 0; s < kAliasSlots; s++) {
-        if (gAlias[s] == window) {
+        if (alias(s) == window) {
             return kAliasBase + (u32) s * kAliasWindow + (u32) (pointer - window);
         }
     }
     for (int s = 0; s + 1 < kAliasSlots; s += 2) {
-        if (gAlias[s] == 0 && gAlias[s + 1] == 0) {
-            gAlias[s] = window;
-            gAlias[s + 1] = window + kAliasWindow;
+        if (alias(s) == 0 && alias(s + 1) == 0) {
+            gAlias[s + 1].store(window + kAliasWindow, std::memory_order_relaxed);
+            gAlias[s].store(window, std::memory_order_relaxed);
             return kAliasBase + (u32) s * kAliasWindow + (u32) (pointer - window);
         }
     }
@@ -108,7 +116,11 @@ void toMemory(const u8* bytes, int n)
 inline void put(const u8* bytes, int n)
 {
     if (linked()) {
-        re4gx::feed(bytes, (size_t) n);
+        if (re4gx::gThreaded) {
+            re4gx::ringPut(bytes, (size_t) n);
+        } else {
+            re4gx::feed(bytes, (size_t) n);
+        }
     } else {
         toMemory(bytes, n);
     }
@@ -136,17 +148,17 @@ uint8_t* memory(uint32_t physical, uint32_t size)
     if (physical >= kAliasBase && physical < kAliasBase + kAliasSlots * kAliasWindow) {
         u32 s = (physical - kAliasBase) / kAliasWindow;
         u32 offset = (physical - kAliasBase) % kAliasWindow;
-        if (gAlias[s] == 0) {
+        if (alias(s) == 0) {
             return nullptr;
         }
         u32 available = kAliasWindow - offset;
-        if (s + 1 < kAliasSlots && gAlias[s + 1] == gAlias[s] + kAliasWindow) {
+        if (s + 1 < kAliasSlots && alias(s + 1) == alias(s) + kAliasWindow) {
             available += kAliasWindow;
         }
         if (size > available) {
             return nullptr;
         }
-        return (uint8_t*) (gAlias[s] + offset);
+        return (uint8_t*) (alias(s) + offset);
     }
     return nullptr;
 }
@@ -161,15 +173,15 @@ uint8_t* memorySpan(uint32_t physical, uint32_t* available)
     if (physical >= kAliasBase && physical < kAliasBase + kAliasSlots * kAliasWindow) {
         u32 s = (physical - kAliasBase) / kAliasWindow;
         u32 offset = (physical - kAliasBase) % kAliasWindow;
-        if (gAlias[s] == 0) {
+        if (alias(s) == 0) {
             return nullptr;
         }
         u32 span = kAliasWindow - offset;
-        if (s + 1 < kAliasSlots && gAlias[s + 1] == gAlias[s] + kAliasWindow) {
+        if (s + 1 < kAliasSlots && alias(s + 1) == alias(s) + kAliasWindow) {
             span += kAliasWindow;
         }
         *available = span;
-        return (uint8_t*) (gAlias[s] + offset);
+        return (uint8_t*) (alias(s) + offset);
     }
     return nullptr;
 }
@@ -191,7 +203,10 @@ uint8_t* listMemory(uint32_t address, uint32_t size)
         return nullptr;
     }
     const uint8_t* list = (const uint8_t*) (uintptr_t) address;
-    if (!re4_valid_port_ptr(list) || !re4_valid_port_ptr(list + size - 1)) {
+    // on the GP thread (gx_thread.cpp) only the game's libraries: the check of
+    // the threads' stacks belongs to the game's thread
+    int (*valid)(const void*) = re4gx::gThreaded ? re4_game_library_ptr : re4_valid_port_ptr;
+    if (!valid(list) || !valid(list + size - 1)) {
         return nullptr;
     }
     return (uint8_t*) list;
@@ -208,7 +223,7 @@ void peToken(uint16_t token, bool interrupt)
         gToken = token;
         gPendingToken = true;
     } else {
-        gPe[7] = token;
+        __atomic_store_n(&gPe[7], token, __ATOMIC_RELAXED);  // the GP thread: the game may read it meanwhile
     }
 }
 
@@ -312,7 +327,13 @@ void re4_gx_deliver_interrupts(void)
         return;
     }
     gDelivering = true;
-    re4gx::drain();
+    // the GP catches up first: on the game's thread what has arrived, on the GP
+    // thread (gx_thread.cpp) everything sent so far
+    if (re4gx::gThreaded) {
+        re4gx::sync();
+    } else {
+        re4gx::drain();
+    }
     if (gPendingToken) {
         gPendingToken = false;
         gPe[7] = gToken;

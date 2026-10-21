@@ -96,7 +96,9 @@ etwa 13 % (Status-Datei, Abschnitt „OUYA: Kern-Probe O1“). Entscheidung des
 Projektinhabers: **erst die Umrechnung schneller machen (A, gleiche Ausgabe Bit
 für Bit), dann in einen eigenen Thread verlegen (B, wie Dolphins „Dual Core“)**.
 A ist gebaut (Cloud: −37 % für Modell-Listen, −56 % für Werte, die die CPU
-einzeln schickt), auf der OUYA noch nicht gemessen.
+einzeln schickt), B ebenso (`RE4_GX_THREAD=1`, `port/whole/runtime/gx_thread.cpp`:
+Modell-Listen kosten den Spiel-Thread dann nichts mehr); beides auf der OUYA
+noch nicht gemessen (`ouya-probe.ps1` misst mit und ohne Thread).
 
 ## Vorschlag: in Stufen, erst messen
 
