@@ -5703,6 +5703,15 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     Stick-Rauschen des Controllers, versehentliche Berührungen oder ein Fehler im Menü. Nachfrage
     beim Tester (passiert es mit Touch Controls auf „Suppress“ und ohne den Stick zu berühren?).
   - **Sonst:** `logcat` läuft auf diesem Xiaomi, `log.txt` und `core-log.txt` gefüllt.
+  - **Nachgereicht ohne Protokoll (derselbe Tester):** im Raum, in dem die roten Ganados ihr
+    Ritual halten, überlebt ein schwarz gekleideter Gegner eine Granate; verfolgt und am Kopf
+    getroffen, platzt sein Kopf nicht („Fehler in seiner Animation“). Offen: im Original platzt
+    ein Kopf nur bei einem zufälligen kritischen Treffer oder mit der Plaga; ob der Zustand nach
+    der Granate das im Port verhindert, braucht einen Bericht direkt nach der Szene (Raum,
+    Gegnertyp) und den Vergleich mit dem Original/Dolphin.
+  - **0.41.3** (Patch 0090) erst, wenn der Tester brauchbare Protokolle zu Burghalle,
+    Waffenverbesserung und Kopfschuss geschickt hat (Entscheidung des Projektinhabers,
+    21.10.2026).
 
 ## Aufbau
 
