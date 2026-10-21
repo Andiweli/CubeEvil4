@@ -1,0 +1,68 @@
+# The debug build opens two editors of the sub screens with Z (R1 on the controller, Y with
+# Alternate Controls): in the item screen the item maker (cross and A give or remove items), in
+# the attache case the case maker (inventory sets that replace the whole inventory, case size,
+# infinite ammo, pesetas). Their text is debug text, which the app hides (RE4_DEBUG_HUD=0): a
+# tester who pressed R1 there had an invisible editor on the cross. They open now only with the
+# debug displays on (RE4_DEBUG_HUD=1, test-core-app.ps1 -DebugHud; re4_debug_hud_shown,
+# runtime/state_trace.cpp). The case maker also gave back byte 3 of the saved debug_mode word,
+# the low byte only on the GameCube: (u8) now (bug hunt 22.10.2026).
+--- a/src/Sscrn/ss_item.cpp
++++ b/src/Sscrn/ss_item.cpp
+@@ -22,6 +22,7 @@
+ #include "camera.h"
+ #include "sscrn.h"
+ #include "ss_main.h"
++extern "C" int re4_debug_hud_shown(void); /* PORT (patch 0093): runtime/state_trace.cpp */
+ 
+ #define DVD_READ_N(name, dst, a, b, c, mode) DvdReadN(name, dst, a, b, c, mode, __FILE__, __LINE__)
+ 
+@@ -395,7 +396,10 @@
+             }
+         }
+     }
+-    if (Joy[0].trg & 0x10) {
++    /* PORT (patch 0093): Z (R1 on the controller) opened the debug build's item editor (A gives or
++       removes items) also in normal play, where the app hides its debug text: an invisible editor.
++       Only with the debug displays on (RE4_DEBUG_HUD=1, runtime/state_trace.cpp). */
++    if ((Joy[0].trg & 0x10) && re4_debug_hud_shown()) {
+         if (!SysFlagChk(pG, SYS_PUBLICITY_VER) || PadCheckStatus(&Joy[1]) == 1) {
+             wk->item_make_open = wk->item_make_open == 0;
+         }
+--- a/src/Sscrn/ss_pzzl.cpp
++++ b/src/Sscrn/ss_pzzl.cpp
+@@ -29,6 +29,7 @@
+ #include "ss_main.h"
+ #include "ss_pzzl.h"
+ #include "pl_npc.h"
++extern "C" int re4_debug_hud_shown(void); /* PORT (patch 0093): runtime/state_trace.cpp */
+ 
+ class cSubChar;
+ 
+@@ -1606,18 +1607,21 @@
+             if (wk->pzzl_debug_open) {
+                 pG->debug_mode = 1;
+             } else {
+-                pG->debug_mode = *((u8*) &wk->debugMode + 3);
+-            }
+-        }
+-    }
+-    if (wk->puzzlePlayer->pieceInHand() == 0 && (Joy[0].trg & 0x10)) {
++                pG->debug_mode = (u8) wk->debugMode;  /* PORT (patch 0093): byte 3 is the low byte only on the GameCube */
++            }
++        }
++    }
++    /* PORT (patch 0093): Z (R1 on the controller) opened the debug build's case editor (inventory
++       sets, case size, pesetas on the cross) also in normal play, invisible (the app hides the
++       debug text). Only with the debug displays on (RE4_DEBUG_HUD=1). */
++    if (wk->puzzlePlayer->pieceInHand() == 0 && (Joy[0].trg & 0x10) && re4_debug_hud_shown()) {
+         if (!SysFlagChk(pG, SYS_PUBLICITY_VER) || PadCheckStatus(&Joy[1]) == 1) {
+             wk->pzzl_debug_open = wk->pzzl_debug_open == 0;
+         }
+         if (wk->pzzl_debug_open) {
+             pG->debug_mode = 1;
+         } else {
+-            pG->debug_mode = *((u8*) &wk->debugMode + 3);
++            pG->debug_mode = (u8) wk->debugMode;  /* PORT (patch 0093): as above */
+         }
+     }
+     if (caseMove) {

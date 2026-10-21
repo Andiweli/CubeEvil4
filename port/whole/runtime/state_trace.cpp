@@ -1128,6 +1128,13 @@ extern "C" unsigned re4_core_player_hits(void)
     return g_playerHits.load();
 }
 
+// The debug build's own displays are shown (RE4_DEBUG_HUD not 0): the sub screens' debug editors
+// open only then (patch 0093; with the displays hidden they were invisible editors on the cross).
+extern "C" int re4_debug_hud_shown(void)
+{
+    return !g_hideDebugHud;
+}
+
 extern "C" long re4_trace_free_at(void)
 {
     return g_freeAt;

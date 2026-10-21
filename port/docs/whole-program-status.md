@@ -32,6 +32,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 0.41.2-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 64): Patch 0089, die Gondel in r10f setzte Leon und Ashley auf Plätze aus gesicherten Registern (Ursache der Wegsuche-Abstürze). Cloud ✅, **Gerätetest offen** |
 | Todesschleife r21d (Insekten bei NaN) | 22.10.2026 (Branch `claude/re4-start-controls`): `acosf`/`asinf` des Spielcodes nehmen einen Wert knapp über ±1 als ±1 (Umschreibung `ARC_CALL`); vorher setzte der Wandschritt der Novistadore (em2d, auch em2c) sie auf etwa 30 % der schrägen Flächen auf NaN, die Stampfer in r21d töteten Leon sofort, auch nach jedem Weitermachen. Dazu Todes-, Raumstart- und NaN-Zeilen im Fehlerprotokoll (Abschnitt „Todesschleife in r21d“). Cloud ✅ (i686, armhf, aarch64), **Gerätetest offen** |
 | 0.41.3-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 65, Wunsch des Projektinhabers nach dem r21d-Bericht): Todesschleife r21d (`ARC_CALL`), Schießbude (Patch 0090), Gegner-, Menü-, Raum- und Todeszeilen im Fehlerprotokoll; Releasetext `port/android-decomp/docs/releases/v0.41.3-alpha.md`. Cloud ✅, **Gerätetest offen** |
+| Fehlersuche Teil 1 (Code) | 22.10.2026 (Branch `claude/re4-start-controls`): Werkzeuge `port/tools/scan/` (ungesetzte Werte, Byte-Reihenfolge, Lage lokaler Variablen), Patches 0091–0093 (r221, Ziel-Überblendung der Waffen, r104, Krauser, Debug-Editoren auf R1). Abschnitt „Fehlersuche mit Werkzeugen“. Cloud: siehe dort, **Gerätetest offen**; Teil 2 (Raum-Rundgang am PC) offen |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5810,6 +5811,57 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Fehlersuche mit Werkzeugen, Teil 1: der Code (22.10.2026, Cloud, Branch `claude/re4-start-controls`)
+
+Auftrag des Projektinhabers: die Fehlerarten der letzten Berichte vorab im ganzen Spielcode suchen
+(Teil 2, der automatische Raum-Rundgang am PC, folgt). Die letzten fünf Fehler waren nur einmal
+reine 64-bit-Fehler (0087); sonst ein ungesetzter Wert (0088), eine Annahme über die Lage lokaler
+Variablen (0089), die Byte-Reihenfolge (0090) und Rundung (r21d). Neue Werkzeuge in
+`port/tools/scan/`, beide über die Übersetzungsbefehle eines Builds (`whole-armhf`):
+
+- **`uninit_scan.py`**: clangs Warnungen für ungesetzte Werte (70 Meldungen, 44 Stellen) und der
+  statische Analysator (Pfad für Pfad; 387 Meldungen, davon 269 Null-Zeiger und 23 Teilungen durch
+  0, die auf der GameCube genauso wären; 61 Stellen außerhalb der Werkzeug-Module geprüft).
+- **`view_scan.py`** (libclang): Sichten mit anderer Breite auf ein Objekt an fester Stelle
+  (`((u8*) p)[3]` über einem `s32`, auch über Zeigerwerte, die `whole_byte_views.py` nicht sah)
+  und die Adresse einer lokalen Variable über die Variable hinaus (als Zahl, als größerer Typ,
+  Zeigerrechnung). Selbsttest: findet 0089, 0090 und 0063 im Originalcode wieder. 43 Funde.
+- **Gleitkomma:** nach `acosf`/`asinf` (`ARC_CALL`) keine weitere Stelle: `SQRTF` gibt bei Werten
+  ≤ 1e-5 schon im Original 0 zurück, die `sqrtf` der Bibliothek nehmen nur Abstände (Summen von
+  Quadraten).
+
+**Behoben:**
+- Patch 0091: r221 (`SceEventStart` mit ungesetztem Wert in drei der vier Glocken-Szenen, im Raum
+  des Insekten-Bosses, in dem der r21d-Tester vorher sechsmal starb; ob das die Ursache war, ist
+  nicht belegt), `cMot3::set` (Überblendlänge der Ziel-Bewegungen aller Waffen aus einem
+  weggelassenen Register), r104 (geöffnete Regale/Kisten beim Wiederkommen).
+- Patch 0092: Krauser (em39) verglich bei der Wahl seines nächsten Punkts die falschen Bytes.
+- Patch 0093: **Debug-Editoren auf R1** im Gegenstand- und Koffer-Bildschirm (Z der GameCube):
+  unsichtbar, aber mit dem Steuerkreuz und A wirksam (Gegenstände geben/entfernen, ganzes Inventar
+  ersetzen, Koffergröße, Peseten). Jetzt nur mit `RE4_DEBUG_HUD=1`. Antwort auf die Frage des
+  Projektinhabers, ob die Debug-Fassung Fehler macht, ohne dass jemand das Debug-Menü öffnet:
+  diese beiden schon (seltsame Inventar- oder Menü-Effekte von Testern passen dazu, belegt ist es
+  nicht). Sonst ist im normalen Spiel nichts davon erreichbar: L+START ersetzt (0061), Pads 2–4
+  „kein Controller“, Debug-Schalter beim Start aus, START+Z zeigt nur das (ausgeblendete) Protokoll.
+
+**Geprüft, unbedenklich** (Original-Verhalten, Fehlalarm oder ein Weg, den das Spiel nicht
+nimmt): `est.cpp` `eff1` (im Original genauso ungesetzt verglichen, nur Treffereffekte), `item.cpp`
+`sz` (nur bei 0 Einträgen), `em_wrap.cpp` `beginEvent/endEvent` (nicht aufgerufen), `ss_pzzl.cpp`
+`n` (toter Wert), `r332.cpp` (`strstr` einer Konstanten), `route_ck.cpp` (0088 hält die gefüllten
+Einträge), `math_sub.cpp` `Matrix2AxisAngle` (`v3` später gesetzt), `motion.cpp` (Werte aus der
+Tabellen-Funktion), `ctrl14`, `pl_push`, `foot_shadow`, `ik`, `cam_motion`, `cockpit`, `obj09`,
+`obj1b`, `r20e`, `ss_map`, `dvd`, die ungesetzten `GXColor` der Filter und Schatten (`GXSetChanAmbColor`; die Kanäle nehmen die Umgebungsfarbe dort von den Eckpunkten, `GXSetChanCtrl(…, GX_SRC_VTX, …)`),
+Schleifen-Variablen (`card.cpp`, `r202.cpp`, `ss_shop.cpp`, `esp08.cpp`); Byte-Sichten: die
+Bewegungsfolgen (`motion.cpp`: der Umwandler lässt Byte 2 als Byte, der Mischtabellen-Kopf ist ein
+`u32`), `shape.cpp`, `r117.cpp` (geprüfte Port-Zeilen), EMI-Typ-Bytes, `sce_at.cpp`; die Adressen
+lokaler Variablen als Zahl (`libgpu.cpp`, `r209.cpp`, `sce_at.cpp`, `r21d.cpp` `setReset`: die
+Aufgaben-Stapel liegen unter 4 GB, AArch64 erweitert 32-bit-Argumente mit Nullen).
+Nur in Entwickler-Werkzeugen: `dbmodule.cpp` `Draw_tile` (Farbe rückwärts), `t_rck`, `t_flag`,
+`db_light`, `t_*`.
+
+**Geprüft (Cloud):** siehe unten nach dem Build. **Nicht getestet:** die drei Stellen auf dem
+Gerät.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -6002,6 +6054,9 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0088 `route_ck.cpp` | `getNearPoint` sortiert die zehn nächsten Wegpunkte in `idx[]`/`dist[]` (Anfang: Stack-Inhalt bzw. 1e16). Ein Punkt weiter als 1e8 kommt nie hinein; liegen weniger als zehn (bzw. `nPoint`) Punkte so nah, behalten die Einträge dahinter ihren Stack-Inhalt, und die Suche nach freier Sicht liest `pt[Müll]` (Absturz weit über 4 GB in `getNearPoint` aus `RouteCkToEm`/`em10RouteCk`, Tester Samsung Galaxy M23, 64 bit, Hütte r11c, 21.10.2026). Jetzt nur die gefüllten Einträge; keiner: -1 („kein Wegpunkt“, jeder Aufrufer geht dann direkt aufs Ziel). Positionen im Raum füllen alle, dort ändert sich nichts. Wessen Position es war (Spieler, Partner, welcher Gegner), meldet „check: route: …“ bis zu viermal. Prüfung: `runtime-test route` |
 | 0089 `r10f.cpp` | Die Gondel (`r10f_GondolaGetOn`/`GetOff`) setzt Leon und Ashley über `&((R10fGondolaTbl*) mot)->posA[side]`/`->posB[side]`: eine Sicht auf das lokale `void* mot[2][3]`, die die Variablen `posA`/`posB` dahinter liest, wo CodeWarrior sie ablegte. clang legt sie anders ab und speichert sie bei -O2 gar nicht (nie beim Namen benutzt; armhf und aarch64 nachgeprüft: 0 Zugriffe auf ihre Konstanten); die Sicht liest gesicherte Register. Folge: Ashley nach der Gondel bei (-1469.6, -2.32e35, -2346.42), ihre Höhe die Bits einer Adresse in `libre4_main.so` (zwei Tester, 21.10.2026; mit 0.41.0 Absturz in `getNearPoint`). Jetzt `&posA[side]`/`&posB[side]` (nach dem Patch 4 Zugriffe) |
 | 0090 `em3e.cpp` | Die Schießbude (r22c) hält die Skripte ihrer Zieltafeln als `s32`-Felder `{time, flag, X, Y, Z, Befehle…}` im Modul, im Port in Host-Reihenfolge. `cEmMark::init(EmMarkData*)` nahm den Typ als Byte 7 (`EmMarkData::type`), `setNextInstruction` die nächste Routine als Byte 3 des Befehlsworts: auf der GameCube das niedrigste Byte, auf ARM das höchste (0). Folge: alle Ziele Typ 0 (keine Ashley-Tafeln), jede Tafel nach jedem Befehl wieder „begin“ (hochklappen), nie „end“, über ihr Skript hinaus („cEmMark::setNextInst() ERR 300“) und am Ende `emmark_tbl` hinter dem Feld (Absturz pc 0 aus `cEmMark::move`, Tester 21.10.2026). Jetzt das niedrigste Byte des Worts als Wert. `byte_views.json` kannte beide Stellen nicht (Struktur-Zeiger statt `(u8*) &skalar`, Struktur mit Byte-Feld über dem Wort); die Suche nach weiteren `((u8*) ptr)[n]` und Struktur-Sichten über eingebaute Zahlenfelder der Räume fand nur diese |
+| 0091 `r221.cpp`, `pl_class.cpp`, `r104.cpp` | Werte, die das Original aus einem Prozessor-Register nahm (Fehlersuche 22.10.2026, `uninit_scan.py`): r221 (Raum des Insekten-Bosses) ruft für die Szene jeder der vier Glocken `SceEventStart(evNo)`, das Original übergibt immer 0, gesetzt war es nur im ersten Fall: sonst gingen Gegner, Objekte, Effekte und Schaden nicht in den Szenen-Zustand. `cMot3::set` (Ziel-Überblendung von Pistole, Messer, Granate, Raketenwerfer …) las die Überblendlänge über eine Register-Bindung (`r9`), die der Port weglässt: beliebige Länge. r104: die „schon geöffnet“-Aufgaben der Regale und Kisten bekommen die Nummer als Aufgaben-Argument, das Original deklariert keinen Parameter; beim Wiederkommen stand ein zufälliges (oder kein) Regal offen |
+| 0092 `em39.cpp` | Krauser (em39) sucht seinen nächsten EMI-Punkt und überspringt bei einem zweiten Versuch die Punkte, die dem letzten in Byte 1 und 3 (`sub`, `pad_3`) gleichen: `*(u32*) e & 0x00FF00FF`, eine GameCube-Wortsicht; auf ARM/x86 verglich die Maske `type` und `state`. Jetzt `RE4_BE` (Fehlersuche 22.10.2026, `view_scan.py`) |
+| 0093 `ss_item.cpp`, `ss_pzzl.cpp` | Z (R1 am Controller, Y mit Alternate Controls) öffnete im Gegenstand-Bildschirm den „Item Maker“ (Steuerkreuz und A geben oder entfernen Gegenstände) und im Koffer den „Case Maker“ (Inventar-Sätze, die das ganze Inventar ersetzen, Koffergröße, Munition, Peseten) der Debug-Fassung, auch im normalen Spiel. Ihr Text ist Debug-Text, den die App ausblendet: unsichtbare Editoren auf dem Steuerkreuz. Jetzt nur mit sichtbaren Debug-Anzeigen (`RE4_DEBUG_HUD=1`, `re4_debug_hud_shown` in `runtime/state_trace.cpp`). Dazu `(u8) wk->debugMode` statt Byte 3 des Wortes (Fehlersuche 22.10.2026) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
