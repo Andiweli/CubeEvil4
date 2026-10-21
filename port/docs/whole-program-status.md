@@ -5563,6 +5563,17 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
   jeden Lauf (`profil-<lauf>.txt`, Bereiche im Bericht), drückt in r101 alle 2 s B (Fernglas) und
   zeigt den freien Platz von `/data` richtig an. Geprüft: Cloud (i686, armhf unter qemu) und
   Trockenlauf des Skripts mit nachgebautem `adb` und `wsl.exe`; **nicht auf der OUYA**.
+- **Zweite Messung mit Profil (21.10.2026, Stand `a9cfeee`):** r100 frei 10,6 Bilder/s, Kern 94,4 ms
+  (175 000 Punkte, 7 MB GX je Bild); **Dorf r101 frei (205 s, Fernglas mit B geschlossen):
+  13,7 Bilder/s, Kern 72,4 ms** (105 000 Punkte); ohne Bremse r100 11,5 Bilder/s. Profil des
+  Spiel-Threads (r100): `libre4_platform.so` 71,8 %, davon die GX-Umrechnung (`gx_decode.cpp`):
+  `command` 38,2 % (mit eingefaltetem `draw`), `readComponents` 9,7 %, `drain` 4,3 %, `feed`
+  2,2 %, `std::vector`-Einfügen 2,1 %, kleinere GX-Helfer gut 4 % – zusammen etwa 62 %; dazu
+  `libc.so` 11,1 % ohne Namen (vermutlich Speicherkopien des Decoders) und `libm.so` 4,2 %.
+  Spielcode etwa 13 % (`Sk1Loop` 4,1 %), Ton 2,6 %, Zustandsbrücke (`captureModel`) 1,3 %. Das
+  Dorf fast gleich verteilt. **Folgerung:** die GX-Umrechnung kostet auf der OUYA 60–70 ms je
+  Bild; ohne sie bliebe der Spiel-Thread bei etwa 30 ms. `probe_profile.py` ordnet die Bereiche
+  jetzt nach Quelldatei (die Bibliotheken des Builds haben Debug-Informationen).
 - **`port/tools/ndk23_check.sh`** (neu): jeder Übersetzungsschritt des armhf-Builds noch einmal
   gegen einen Ersatz der NDK-r23c-Header (libc++ aus LLVM 12.0.0, Bionic von Android 12, API 16)
   mit clang 12 (aus `ziglang` 0.8.1 von PyPI), dazu die Android-Programme (`probe.cpp`,

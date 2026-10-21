@@ -13,6 +13,8 @@ DIR:  folders searched for the libraries with symbols (default: the OUYA build o
 """
 import os
 import re
+import shutil
+import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -39,10 +41,49 @@ AREAS = [
 ]
 
 
-def area(lib, name):
+# rough areas by source file (the build's libraries carry debug information); first match wins
+FILE_AREAS = [
+    ("Grafik: Umrechnung der GX-Befehle (Port)", re.compile(r"runtime/gx_[a-z_]+\.cpp$")),
+    ("Grafik: GX-Bibliothek des SDK", re.compile(r"src/lib/GX[A-Za-z]+\.c$")),
+    ("Ton (DSP, AX, Synthesizer, Hall)", re.compile(
+        r"runtime/(dsp|ai)\.cpp$|src/lib/(AX|ax|syn|mix|seq|reverb|chorus|delay|DSP)[A-Za-z0-9_]*\.c$")),
+    ("Matrix- und Vektorrechnung", re.compile(r"(mtx|mtxvec|mtx44|mtx44vec|vec|quat)\.c$|runtime/mtx_ps\.c$")),
+    ("Filme (CRI: ADX, Sofdec, MPEG)", re.compile(r"src/lib/cri/")),
+    ("Zustandsbruecke und Protokoll des Ports", re.compile(r"runtime/(core_bridge|core_api|state_trace|log)\.cpp$")),
+    ("Spiellogik (Spielcode, Module)", re.compile(r"^src/(?!lib/)|/prepared/tree/src/(?!lib/)")),
+]
+
+
+def symbolize(lib, addresses):
+    """Address -> (function, source file) with llvm-symbolizer (no inlined callees)."""
+    tool = next(Path(android_profile.NDK).glob("toolchains/llvm/prebuilt/*/bin/llvm-symbolizer"), None) or \
+        shutil.which("llvm-symbolizer")
+    if not tool:
+        return {}
+    text = "\n".join(hex(a) for a in addresses) + "\n"
+    proc = subprocess.run([str(tool), "--obj=" + lib, "-C", "--inlining=false", "--functions=linkage"],
+                          input=text, capture_output=True, text=True)
+    out, block = [], []
+    for line in proc.stdout.splitlines() + [""]:
+        if line.strip() == "":
+            if block:
+                where = block[1].rsplit(":", 2)[0] if len(block) > 1 else "?"
+                out.append((block[0], where))
+                block = []
+        else:
+            block.append(line.strip())
+    return dict(zip(addresses, out))
+
+
+def area(lib, name, source="?"):
+    for label, pattern in FILE_AREAS:
+        if pattern.search(source):
+            return label
     for label, pattern in AREAS:
         if pattern.search(name):
             return label
+    if lib in ("libc.so", "libm.so"):
+        return f"C-Bibliothek ({lib}, ohne Namen: vermutlich Speicherkopien bzw. Mathefunktionen)"
     if lib in ("libre4_main.so",) or re.match(r"libre4_(?!platform).*\.so$", lib):
         return "Spiellogik (Spielcode, Module)"
     if lib == "libre4_platform.so":
@@ -74,22 +115,22 @@ def main():
     for lib, offsets in by_lib.items():
         if lib.startswith("libre4") or lib == "libc++_shared.so":
             if lib in libs:
-                names[lib] = android_profile.symbolize(libs[lib], sorted(offsets))
+                names[lib] = symbolize(libs[lib], sorted(offsets))
             else:
                 missing.append(lib)
     per_lib = defaultdict(int)
     per_func = defaultdict(int)
     per_area = defaultdict(int)
     for lib, offset, n in places:
-        name = names.get(lib, {}).get(offset) or "?"
+        name, source = names.get(lib, {}).get(offset) or ("?", "?")
         if name == "??":
             name = "?"
         per_lib[lib] += n
         per_func[(lib, name)] += n
-        per_area[area(lib, name)] += n
+        per_area[area(lib, name, source)] += n
     print(f"Profil des Spiel-Threads: {total} Proben (etwa 1000 je Sekunde)")
     print()
-    print("Bereiche (grob, nach Funktionsnamen):")
+    print("Bereiche (grob, nach Quelldatei, sonst Funktionsnamen):")
     for label, n in sorted(per_area.items(), key=lambda t: -t[1]):
         print(f"  {100.0 * n / total:5.1f}%  {label}")
     print()
