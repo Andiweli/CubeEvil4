@@ -28,7 +28,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | Hauptbranch `master` | 21.10.2026: steht auf **0.41.0-alpha** (`0394c644`, versionCode 62): alle Branches bis Alpha 4, der 32-bit-Kernprozess mit Raumklang (0.40.0-alpha, `548b0f24`), der Luis-Hotfix und die Menü-Sprachen; jeweils ohne Zusammenführung nachgezogen (Wunsch des Projektinhabers). Die Release-Markierungen `0.40.0-alpha` und `0.41.0-alpha` zeigen noch auf ältere Stände (aus der Cloud nicht umsetzbar, GitHub verweigert das Hochladen von Markierungen); umsetzen am PC mit `git tag -f` und `git push -f origin <Markierung>` |
 | Menü in 10 Sprachen | 21.10.2026 (Branch `claude/re4-start-controls`, vom `master`-Stand `0394c644`): Spanisch, Französisch, Italienisch, Portugiesisch (Brasilien), Russisch, Arabisch (von rechts nach links), Chinesisch (vereinfacht), Hindi zu Englisch und Deutsch; Sprache auch je App wählbar (Android 13+). Cloud ✅, **Gerätetest offen** |
 | Absturz Wegesuche r11c (64 bit) | 21.10.2026 (Branch `claude/re4-start-controls`): Patch 0088 fängt ihn ab und meldet, wessen Position außerhalb lag; die eigentliche Ursache zeigt erst ein Bericht mit Fehlerprotokoll. Cloud ✅, **Gerätetest offen** |
-| 0.41.1-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 63): Fehlerprotokoll auf jedem Handy (der Kern schreibt `core-log.txt` selbst, `logcat-status.txt`, „Error log: on/off“ im Bericht), Patch 0088, Menü in 10 Sprachen. Cloud ✅, **Gerätetest offen** |
+| 0.41.1-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 63): Fehlerprotokoll auf jedem Handy (der Kern schreibt `core-log.txt` selbst, `logcat-status.txt`, „Error log: on/off“ im Bericht), Patch 0088, Menü in 10 Sprachen. Cloud ✅, Retroid ✅ (Deutsch, Protokoll), Samsung-Tester offen |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5616,6 +5616,15 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     **Nicht getestet:** auf einem Gerät, vor allem auf dem Samsung des Testers (ob `logcat` dort
     endet oder nur schweigt, zeigt `logcat-status.txt`; die Zeilen des Kerns stehen auf jeden Fall
     in `core-log.txt`, die der Java-Seite nur, wenn `logcat` läuft).
+  - **Gerätelauf (Retroid, Projektinhaber, 21.10.2026, Stand `3d28b414`, beide Kerne neu gebaut,
+    64 bit, `-Manual`, 78 s):** Spielstand in r105 geladen, Spieler frei, Menü auf Deutsch
+    („app menu: language de-AT“, „menu open … (language de-AT)“), alle Zeilen in ihren Spalten;
+    kein Absturz, keine „check: route“-Meldung. Fehlerbericht aus dem Menü
+    (`cubeevil4-report-20261021-150722.zip`): `logs/core-log.txt` 22 KB mit Kopfzeile,
+    Zeitstempeln und den Zeilen vor dem Start, `logcat-status.txt` „logcat started …“ ohne Ende,
+    `log.txt` 36 KB, „Error log: on (logcat running …)“ in `device.txt` und `device-now.txt`.
+    **Nicht getestet:** andere Sprachen und der Sprachwechsel bei laufendem Spiel, das Samsung
+    des Testers, der 32-bit-Kernprozess auf dem Gerät.
 
 ## Aufbau
 
