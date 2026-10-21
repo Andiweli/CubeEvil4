@@ -1,0 +1,59 @@
+# r10f_GondolaGetOn / r10f_GondolaGetOff (st1/r10f.cpp, the cable car) place Leon and Ashley with
+# &((R10fGondolaTbl*) mot)->posA[side] / ->posB[side]: a view of the local `void* mot[2][3]` that
+# reads the locals posA and posB behind it, where CodeWarrior placed them. Another compiler places
+# them elsewhere; on LP64 `mot` is 48 bytes instead of 24, and clang at -O2 does not store posA /
+# posB at all (never named), so the view reads saved registers: two testers' reports (Samsung
+# Galaxy M23 and S9+, 64 bit, 21.10.2026) show Ashley at (-1469.6, -2.32e35, -2346.42) after the
+# cable car's scene in r10f, her height the bits of an address in libre4_main.so (patch 0088's
+# "check: route"); with 0.41.0 this crashed in getNearPoint through cSubChar::analyze. The calls
+# now take posA[side] / posB[side] themselves, the positions the original places them at.
+--- a/src/st1/r10f.cpp
++++ b/src/st1/r10f.cpp
+@@ -141,6 +141,11 @@
+     Vec posA[2];
+     Vec posB[2];
+ };
++/* PORT (patch 0089): the view above reads posA/posB behind `mot`, where CodeWarrior placed the
++   locals; another compiler places them elsewhere (on LP64 `mot` is 48 bytes, and at -O2 clang
++   does not store posA/posB at all, the view reads saved registers): Leon and Ashley got
++   garbage positions on the cable car, Ashley's height a pointer's bits. The calls take
++   posA[side] / posB[side] themselves. */
+ 
+ // The setPos argument goes through two inlines so integrate.c expands it into a multi-set pseudo
+ // that cse1 cannot share, which recomputes `side*12` in GetOff and PREs it in GetOn like the target.
+@@ -177,7 +182,7 @@
+         {
+             cPlayer* pl = pPL;
+ 
+-            r10f_setPos(pl, &((R10fGondolaTbl*) mot)->posA[side]);
++            r10f_setPos(pl, &posA[side]);  /* PORT: the local itself (patch 0089) */
+             ang.x = 0.0f;
+             pa->y = ry;
+             ang.z = 0.0f;
+@@ -190,7 +195,7 @@
+             {
+                 cSubChar* s = SUB_CHAR();
+ 
+-                r10f_setPos(s, &((R10fGondolaTbl*) mot)->posB[side]);
++                r10f_setPos(s, &posB[side]);  /* PORT: the local itself (patch 0089) */
+                 ang.x = 0.0f;
+                 pa->y = ry;
+                 ang.z = 0.0f;
+@@ -312,7 +317,7 @@
+         {
+             cPlayer* pl = pPL;
+ 
+-            r10f_setPos(pl, &((R10fGondolaTbl*) mot)->posA[side]);
++            r10f_setPos(pl, &posA[side]);  /* PORT: the local itself (patch 0089) */
+             ang.x = 0.0f;
+             pa->y = ry;
+             ang.z = 0.0f;
+@@ -325,7 +330,7 @@
+             {
+                 cSubChar* s = SUB_CHAR();
+ 
+-                r10f_setPos(s, &((R10fGondolaTbl*) mot)->posB[side]);
++                r10f_setPos(s, &posB[side]);  /* PORT: the local itself (patch 0089) */
+                 ang.x = 0.0f;
+                 pa->y = ry;
+                 ang.z = 0.0f;

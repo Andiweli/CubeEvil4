@@ -29,6 +29,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | Menü in 10 Sprachen | 21.10.2026 (Branch `claude/re4-start-controls`, vom `master`-Stand `0394c644`): Spanisch, Französisch, Italienisch, Portugiesisch (Brasilien), Russisch, Arabisch (von rechts nach links), Chinesisch (vereinfacht), Hindi zu Englisch und Deutsch; Sprache auch je App wählbar (Android 13+). Cloud ✅, **Gerätetest offen** |
 | Absturz Wegesuche r11c (64 bit) | 21.10.2026 (Branch `claude/re4-start-controls`): Patch 0088 fängt ihn ab und meldet, wessen Position außerhalb lag; die eigentliche Ursache zeigt erst ein Bericht mit Fehlerprotokoll. Cloud ✅, **Gerätetest offen** |
 | 0.41.1-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 63): Fehlerprotokoll auf jedem Handy (der Kern schreibt `core-log.txt` selbst, `logcat-status.txt`, „Error log: on/off“ im Bericht), Patch 0088, Menü in 10 Sprachen. Cloud ✅, Retroid ✅ (Deutsch, Protokoll), Samsung-Tester offen |
+| 0.41.2-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 64): Patch 0089, die Gondel in r10f setzte Leon und Ashley auf Plätze aus gesicherten Registern (Ursache der Wegsuche-Abstürze). Cloud: siehe Abschnitt, **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5640,6 +5641,36 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     **Nicht getestet:** andere Sprachen und der Sprachwechsel bei laufendem Spiel, das Samsung
     des Testers, der 32-bit-Kernprozess auf dem Gerät.
 
+- **Ursache gefunden: die Gondel in r10f (Patch 0089, 21.10.2026, Branch
+  `claude/re4-start-controls`, 0.41.2-alpha).** Zwei Berichte mit 0.41.1:
+  - `cubeevil4-report-20261021-103813.zip` (Galaxy M23): in beiden Läufen nach dem Laden in r10f,
+    A an der Gondel, Zwischensequenz (Tiefenschärfe aus), START, danach viermal „check: route:
+    the partner (id 0x3, type 0) at (-1469.6 -2.32037e+35 -2346.42): 0 of the 83 route points of
+    room r10f …“, kein Absturz mehr. Ashleys Höhe ist als Bitmuster 0xFA32C13x, eine Adresse in
+    `libre4_main.so` (geladen bei 0xFA000000). `log.txt` in beiden Läufen leer, obwohl
+    `logcat-status.txt` „started“ ohne Ende zeigt: auf diesem Samsung schreibt `logcat` still
+    nichts; `core-log.txt` (25 und 37 KB) hat alles.
+  - `cubeevil4-report-20261021-203815.zip` (Galaxy S9+, 0.41.1): r10f geladen, keine Meldung
+    (Gondel in diesem Lauf nicht benutzt), `log.txt` und `core-log.txt` gefüllt.
+  - **Ursache:** `r10f_GondolaGetOn`/`r10f_GondolaGetOff` lesen die Plätze von Leon (`posA`) und
+    Ashley (`posB`) über eine Struktur-Sicht auf das lokale Zeigerfeld `mot`, also hinter `mot`
+    auf dem Stapel, wo der Original-Compiler die beiden Felder ablegte (eine Nachbildung seines
+    Codes, Kommentar in `r10f.cpp`). clang speichert `posA`/`posB` bei -O2 gar nicht (nie beim
+    Namen benutzt; in der aarch64- und der armhf-Übersetzung von `r10f.cpp` 0 Zugriffe auf ihre
+    Konstanten), die Sicht liest gesicherte Register: Gleitkomma-Register für x/z, ein Zeiger in
+    die Daten von `libre4_main.so` für y. Betroffen waren also alle Geräte (32 und 64 bit), Leon
+    wie Ashley; Leons Fehlplatz fiel nicht auf (die Gondel setzt ihn danach selbst), Ashleys
+    unendlich ferne Höhe ließ ihre Wegsuche abstürzen (vor 0088).
+  - **Patch 0089:** die vier Aufrufe nehmen `&posA[side]`/`&posB[side]` selbst. Nach dem Patch
+    4 Zugriffe auf die Konstanten. Die Suche nach weiteren Sichten dieser Art über lokale Felder
+    (`((T*) local)->feld[…]`) in `src/` fand sonst nur `t_esp.cpp` (`SeqCountView` über echte
+    Daten, harmlos).
+  - **Version** `0.41.2-alpha`, `versionCode` 64; Releasetext
+    `port/android-decomp/docs/releases/v0.41.2-alpha.md`.
+  - **Geprüft (Cloud):** `r10f.cpp` mit -O2 für aarch64 und armhf übersetzt (ohne Patch 0 Zugriffe
+    auf `posA`/`posB`, mit Patch 4); `whole_build.sh i686 armhf aarch64` läuft. **Nicht getestet:** auf dem Gerät (die Gondel in r10f mit
+    Ashley: beide kommen auf ihren Plätzen an, keine „check: route“-Meldung mehr).
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -5829,6 +5860,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0086 `pl14.cpp`, `emmine.cpp`, `obj1b.cpp` | `GetWepTargetList2` legt für jeden Trefferbereich mit `YAT_FLAG_THROUGH`, den die Schusslinie kreuzt, einen Eintrag mehr an als `max` (bis 0x14). `isTarget` (Luis, `TARGET_WK list[2]`), der Treffer der Mine und der des Speers (je ein `TARGET_WK`) hatten nur Platz für `max`: der Eintrag dahinter überschrieb den Wachwert des Stack-Schutzes (Absturz „stack corruption detected“ bei Luis' erstem Schuss in der Hütte r11c, zwei Tester, 20.10.2026). Jetzt je 0x14 Einträge; die Aufrufer lesen weiter Eintrag 0 und 1 |
 | 0087 `pl_sub.cpp`, `em10.cpp` | Luis (`cSubLuis`) ist kein `cSubChar`: `SetSubDamage` schreibt für ihn über `cSubChar::m_MotTbl2[0]` / das erste Byte von `m_MotBase`, auf der GameCube sein `m_pFunc` (0x584) und `status` (0x58C, 0x40 = `F_KARAMI`); auf LP64 andere Stellen, `m_pFunc` blieb 0 (Absturz, wenn ein Ganado Luis in der Hütte r11c packt, Tester 20.10.2026). Jetzt für id 4 über Luis' eigene Mitglieder; `subem10_NeckHang_Luis` zählt `m_Work0` wie die GameCube in Luis' `routine.pos.y`. Das Bit `F_KARAMI` (von 0024 gestrichen) setzt Luis' Dank-Satz nach dem Packen wieder in Gang |
 | 0088 `route_ck.cpp` | `getNearPoint` sortiert die zehn nächsten Wegpunkte in `idx[]`/`dist[]` (Anfang: Stack-Inhalt bzw. 1e16). Ein Punkt weiter als 1e8 kommt nie hinein; liegen weniger als zehn (bzw. `nPoint`) Punkte so nah, behalten die Einträge dahinter ihren Stack-Inhalt, und die Suche nach freier Sicht liest `pt[Müll]` (Absturz weit über 4 GB in `getNearPoint` aus `RouteCkToEm`/`em10RouteCk`, Tester Samsung Galaxy M23, 64 bit, Hütte r11c, 21.10.2026). Jetzt nur die gefüllten Einträge; keiner: -1 („kein Wegpunkt“, jeder Aufrufer geht dann direkt aufs Ziel). Positionen im Raum füllen alle, dort ändert sich nichts. Wessen Position es war (Spieler, Partner, welcher Gegner), meldet „check: route: …“ bis zu viermal. Prüfung: `runtime-test route` |
+| 0089 `r10f.cpp` | Die Gondel (`r10f_GondolaGetOn`/`GetOff`) setzt Leon und Ashley über `&((R10fGondolaTbl*) mot)->posA[side]`/`->posB[side]`: eine Sicht auf das lokale `void* mot[2][3]`, die die Variablen `posA`/`posB` dahinter liest, wo CodeWarrior sie ablegte. clang legt sie anders ab und speichert sie bei -O2 gar nicht (nie beim Namen benutzt; armhf und aarch64 nachgeprüft: 0 Zugriffe auf ihre Konstanten); die Sicht liest gesicherte Register. Folge: Ashley nach der Gondel bei (-1469.6, -2.32e35, -2346.42), ihre Höhe die Bits einer Adresse in `libre4_main.so` (zwei Tester, 21.10.2026; mit 0.41.0 Absturz in `getNearPoint`). Jetzt `&posA[side]`/`&posB[side]` (nach dem Patch 4 Zugriffe) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
