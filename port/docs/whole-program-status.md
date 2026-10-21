@@ -5745,8 +5745,8 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   - **Neuer Laufzeittest `enemylog`** (`game_probe.cpp` `re4probe_enemy_log`): zwei künstliche
     Gegner-Plätze in MEM1; erwartet werden die acht Zeilen von Erscheinen, Kopftreffer,
     Routinenwechsel, Kopfverlust, Verstecken, Sprung, Verschwinden und C-Stick im Untermenü.
-  - **Geprüft (Cloud):** die geänderten Dateien mit den i686-Einstellungen ohne Fehler übersetzt;
-    `whole_build.sh i686 armhf aarch64` läuft (Ergebnis folgt). **Nicht getestet:** auf dem Gerät (Menge der Zeilen in einer
+  - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle Prüfungen
+    bestanden, `runtime-test enemylog: ok` auf allen drei. **Nicht getestet:** auf dem Gerät (Menge der Zeilen in einer
     langen Sitzung).
 
 ## Aufbau
