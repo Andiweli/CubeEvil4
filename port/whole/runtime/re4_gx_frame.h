@@ -70,7 +70,11 @@ enum Re4GxOp {
     RE4_GX_OP_FORGET = 6,
     /* payload 256 words: all BP registers (the start of a RESET chunk), no
      * side effects. */
-    RE4_GX_OP_BP_STATE = 7
+    RE4_GX_OP_BP_STATE = 7,
+    /* payload RE4_GX_COMPACT_ATTRS words: the vertex format of the draws with
+     * RE4_GX_V_COMPACT that follow, until the next such op (only with
+     * RE4_GX_COMPACT=1, see Re4GxCompactAttr). */
+    RE4_GX_OP_COMPACT_FORMAT = 8
 };
 
 /* Primitive classes (Re4GxDraw.primitive bits 0-7). Quads, strips and fans
@@ -103,8 +107,50 @@ enum Re4GxLayout {
     RE4_GX_V_COLOR0 = 1u << 2,
     RE4_GX_V_COLOR1 = 1u << 3,
     RE4_GX_V_TEX0 = 1u << 4, /* TEX0 << n for coordinate n */
-    RE4_GX_V_MATRIX = 1u << 12
+    RE4_GX_V_MATRIX = 1u << 12,
+    /* the compact vertex (RE4_GX_COMPACT=1, the OUYA): the attributes keep
+     * GX's formats, as the last RE4_GX_OP_COMPACT_FORMAT describes them;
+     * the layout bits above say which are present, as for the float
+     * vertex */
+    RE4_GX_V_COMPACT = 1u << 13
 };
+
+/* --- the compact vertex (RE4_GX_V_COMPACT) ----------------------------------
+ * About half the bytes of the float vertex: on the OUYA the decoder's time
+ * went into writing them (port/docs/whole-program-status.md, "OUYA"). Each
+ * attribute keeps the components GX read (host byte order: direct data from
+ * the command stream turned around, indexed arrays as they are), starts on 4
+ * bytes and is padded with zeros to 4; the renderer scales them. The
+ * RE4_GX_OP_COMPACT_FORMAT payload: one word per attribute, in this order
+ * (absent: 0) */
+enum Re4GxCompactAttrIndex {
+    RE4_GX_CA_POSITION = 0,
+    RE4_GX_CA_NORMAL = 1, /* 3 components, or 9 with binormal and tangent */
+    RE4_GX_CA_COLOR0 = 2,
+    RE4_GX_CA_COLOR1 = 3,
+    RE4_GX_CA_TEX0 = 4, /* + n */
+    RE4_GX_CA_MATRIX = 12,
+    RE4_GX_COMPACT_ATTRS = 13
+};
+/* An attribute word: bit 31 present; bits 0-7 byte offset in the vertex;
+ * bits 8-11 type; bits 12-15 components; bits 16-20 fraction bits (the
+ * value is the component / 2^fraction; f32: 0). Normals: fraction 6 (8-bit)
+ * or 14 (16-bit). Colours: RGBA8, 4 components (as in the float vertex).
+ * Matrix indices: one byte for each slot the vertex carries, components =
+ * their count, bits 16-24 the slots (bit 0 position matrix, bit 1 + n
+ * texture matrix n); the other slots are the draw's defaults
+ * (Re4GxDraw.matrices). Positions with 2 components have z = 0, texture
+ * coordinates with 1 component t = 0. */
+enum Re4GxCompactType {
+    RE4_GX_CT_U8 = 0,
+    RE4_GX_CT_S8 = 1,
+    RE4_GX_CT_U16 = 2,
+    RE4_GX_CT_S16 = 3,
+    RE4_GX_CT_F32 = 4,
+    RE4_GX_CT_RGBA8 = 5,
+    RE4_GX_CT_MATRIX = 6
+};
+#define RE4_GX_CA_PRESENT (1u << 31)
 
 typedef struct Re4GxDraw {
     uint32_t primitive;    /* Re4GxPrimitive | GX command (0x80..0xB8) << 8 | vertex format << 16 */

@@ -211,6 +211,7 @@ void VISetBlack(int black);
 void re4_dof_autofocus_mark(void* w);
 void re4_gx_sync(void);
 int re4_gx_texture_check(int sampled);
+int re4_gx_compact(int on);
 }
 
 // A chunk the GP finished: with the GP on its own thread (gx_thread.cpp) once
@@ -845,6 +846,13 @@ void vertices(Stream& s, Rng& r, const Fmt& f, uint32_t count, uint32_t entries)
 
 // `fifo`: 64 KB for the GX FIFO, `mem`: 1 MB of 32-byte aligned MEM1 scratch
 // memory, `xfb`: a display copy target. Returns the hash of `frames` chunks.
+// every chunk of the fingerprint's stream, for the compact vertex's check
+void (*gFingerprintChunk)(const Re4GxChunk* c);
+// the EFB copies of the stream: each leaves a marker with a serial number in
+// memory where indices beyond an array may read it, and the serial goes on
+// from run to run (the compact vertex's check compares two runs: without them)
+bool gFingerprintCopies = true;
+
 extern "C" unsigned long long re4probe_gx_fingerprint(void* fifo, void* mem, void* xfb, int frames)
 {
     static u8 bytes[0x40000];
@@ -949,10 +957,13 @@ extern "C" unsigned long long re4probe_gx_fingerprint(void* fifo, void* mem, voi
                 bp(s, 0x65, r.below(0x400) | (1 + r.below(16)) << 10);
             }
             if (r.chance(5)) {  // an EFB copy to a texture
-                bp(s, 0x49, 0);
-                bp(s, 0x4A, 7 | 7u << 10);
-                bp(s, 0x4B, (phys + 32 * r.below(0x1800)) >> 5);
-                bp(s, 0x52, 0x0230);
+                const uint32_t dest = phys + 32 * r.below(0x1800);
+                if (gFingerprintCopies) {
+                    bp(s, 0x49, 0);
+                    bp(s, 0x4A, 7 | 7u << 10);
+                    bp(s, 0x4B, dest >> 5);
+                    bp(s, 0x52, 0x0230);
+                }
             }
             if (r.chance(25)) {  // a state register between draws (no joining)
                 bp(s, 0x41, r.below(0x1000));
@@ -997,6 +1008,9 @@ extern "C" unsigned long long re4probe_gx_fingerprint(void* fifo, void* mem, voi
         if (!c) {
             hash = fnv(hash, "none", 4);
             continue;
+        }
+        if (gFingerprintChunk) {
+            gFingerprintChunk(c);
         }
         const uint32_t head[11] = {c->flags, c->opWords, c->vertexBytes, c->indexCount, c->blobBytes,
                                    c->draws, c->vertexCount, c->textureBytes, c->xfbAddress, c->xfbWidth,
@@ -1228,4 +1242,200 @@ extern "C" int re4probe_gx_texture_check_test(void* fifo, void* mem, void* xfb)
         re4_log("  gx texture check: failed 0x%x (a byte between the samples showed after %d chunks)", failed, chunks);
     }
     return failed;
+}
+
+// --- the compact vertex (RE4_GX_COMPACT) ------------------------------------------
+//
+// The fingerprint's stream once with the float vertex and once with the compact
+// one; each compact draw turned back into float vertices as a renderer would
+// read it (re4_gx_frame.h) must give the float run's vertex bytes, bit for bit.
+// (Plain buffers: this file sees the game's <new>, std::vector does not build.)
+
+namespace {
+
+struct Bytes {
+    uint8_t* p;
+    size_t n, cap;
+};
+
+void append(Bytes& b, const void* src, size_t n)
+{
+    if (b.n + n > b.cap) {
+        b.cap = b.cap * 2 > b.n + n + 4096 ? b.cap * 2 : b.n + n + 4096;
+        b.p = (uint8_t*) realloc(b.p, b.cap);
+    }
+    memcpy(b.p + b.n, src, n);
+    b.n += n;
+}
+
+const int kCompactChunks = 64;
+Bytes gCompactRun[kCompactChunks];  // per chunk: the vertices as float vertices
+int gCompactRunChunks;
+size_t gCompactRunBytes;  // the chunks' vertex bytes as sent
+
+float scaled(int value, uint32_t fraction)
+{
+    return (float) value * (1.0f / (float) (1u << fraction));
+}
+
+// One component of a compact attribute as the float vertex has it
+uint32_t floatBits(const uint8_t* p, uint32_t type, uint32_t fraction, bool normal)
+{
+    float v = 0;
+    switch (type) {
+    case RE4_GX_CT_U8:
+        v = normal ? (float) p[0] * (1.0f / 64) : scaled(p[0], fraction);
+        break;
+    case RE4_GX_CT_S8:
+        v = normal ? (float) (int8_t) p[0] * (1.0f / 64) : scaled((int8_t) p[0], fraction);
+        break;
+    case RE4_GX_CT_U16: {
+        uint16_t h;
+        memcpy(&h, p, 2);
+        v = normal ? (float) h * (1.0f / 16384) : scaled(h, fraction);
+        break;
+    }
+    case RE4_GX_CT_S16: {
+        int16_t h;
+        memcpy(&h, p, 2);
+        v = normal ? (float) h * (1.0f / 16384) : scaled(h, fraction);
+        break;
+    }
+    default: {
+        uint32_t b;
+        memcpy(&b, p, 4);
+        return b;
+    }
+    }
+    return bits(v);
+}
+
+void putFloats(Bytes& out, const uint8_t* vertex, uint32_t word, uint32_t floats, bool normal)
+{
+    const uint32_t type = (word >> 8) & 15, comps = (word >> 12) & 15, fraction = (word >> 16) & 31;
+    const uint32_t size = type == RE4_GX_CT_U8 || type == RE4_GX_CT_S8 ? 1 : type <= RE4_GX_CT_S16 ? 2 : 4;
+    for (uint32_t k = 0; k < floats; k++) {
+        uint32_t b = 0;
+        if ((word & RE4_GX_CA_PRESENT) && k < comps) {
+            b = floatBits(vertex + (word & 0xFF) + k * size, type, fraction, normal);
+        }
+        append(out, &b, 4);
+    }
+}
+
+// The chunk's vertices as float vertices (compact draws turned back)
+void asFloatVertices(const Re4GxChunk* c, Bytes& out)
+{
+    uint32_t words[RE4_GX_COMPACT_ATTRS] = {0};
+    for (uint32_t at = 0; at < c->opWords;) {
+        const uint32_t op = c->ops[at] & 0xFF, n = c->ops[at] >> 8;
+        const uint32_t* payload = c->ops + at + 1;
+        if (op == RE4_GX_OP_COMPACT_FORMAT && n == RE4_GX_COMPACT_ATTRS) {
+            memcpy(words, payload, sizeof(words));
+        } else if (op == RE4_GX_OP_DRAW) {
+            Re4GxDraw d;
+            memcpy(&d, payload, sizeof(d));
+            const uint8_t* v = c->vertices + d.vertexOffset;
+            for (uint32_t i = 0; i < d.vertexCount; i++, v += d.stride) {
+                if (!(d.layout & RE4_GX_V_COMPACT)) {
+                    append(out, v, d.stride);
+                    continue;
+                }
+                putFloats(out, v, words[RE4_GX_CA_POSITION], 3, false);
+                if (d.layout & RE4_GX_V_NORMAL) {
+                    putFloats(out, v, words[RE4_GX_CA_NORMAL], (d.layout & RE4_GX_V_BINORMAL_TANGENT) ? 9 : 3, true);
+                }
+                for (int k = 0; k < 2; k++) {
+                    if (d.layout & (RE4_GX_V_COLOR0 << k)) {
+                        append(out, v + (words[RE4_GX_CA_COLOR0 + k] & 0xFF), 4);
+                    }
+                }
+                for (int t = 0; t < 8; t++) {
+                    if (d.layout & (RE4_GX_V_TEX0 << t)) {
+                        putFloats(out, v, words[RE4_GX_CA_TEX0 + t], 2, false);
+                    }
+                }
+                if (d.layout & RE4_GX_V_MATRIX) {
+                    uint8_t m[12] = {0};
+                    for (int slot = 0; slot < 9; slot++) {
+                        m[slot] = (uint8_t) (d.matrices[slot / 4] >> (8 * (slot % 4)));
+                    }
+                    const uint32_t w = words[RE4_GX_CA_MATRIX], slots = (w >> 16) & 0x1FF;
+                    const uint8_t* own = v + (w & 0xFF);
+                    for (int slot = 0, j = 0; slot < 9; slot++) {
+                        if (slots & (1u << slot)) {
+                            m[slot] = own[j++];
+                        }
+                    }
+                    append(out, m, 12);
+                }
+            }
+        }
+        at += 1 + n;
+    }
+}
+
+void startRun()
+{
+    for (int i = 0; i < kCompactChunks; i++) {
+        gCompactRun[i].n = 0;
+    }
+    gCompactRunChunks = 0;
+    gCompactRunBytes = 0;
+}
+
+}  // namespace
+
+// Returns the chunks whose vertices differ (0: all the same), -1 when the runs
+// had no chunks or not the same number
+extern "C" int re4probe_gx_compact_test(void* fifo, void* mem, void* xfb, int frames)
+{
+    static Bytes plain[kCompactChunks];
+    gFingerprintChunk = [](const Re4GxChunk* c) {
+        if (gCompactRunChunks < kCompactChunks) {
+            asFloatVertices(c, gCompactRun[gCompactRunChunks++]);
+        }
+        gCompactRunBytes += c->vertexBytes;
+    };
+    const int was = re4_gx_compact(0);
+    gFingerprintCopies = false;
+    startRun();
+    re4probe_gx_fingerprint(fifo, mem, xfb, frames);
+    const int plainChunks = gCompactRunChunks;
+    const size_t floatBytes = gCompactRunBytes;
+    for (int i = 0; i < plainChunks; i++) {
+        plain[i].n = 0;
+        append(plain[i], gCompactRun[i].p, gCompactRun[i].n);
+    }
+    re4_gx_compact(1);
+    startRun();
+    re4probe_gx_fingerprint(fifo, mem, xfb, frames);
+    const size_t compactBytes = gCompactRunBytes;
+    re4_gx_compact(was);
+    gFingerprintCopies = true;
+    gFingerprintChunk = nullptr;
+    if (plainChunks == 0 || plainChunks != gCompactRunChunks) {
+        re4_log("  gx compact: %d chunks with the float vertex, %d with the compact one", plainChunks,
+                gCompactRunChunks);
+        return -1;
+    }
+    int differ = 0;
+    for (int i = 0; i < plainChunks; i++) {
+        const Bytes& a = plain[i];
+        const Bytes& b = gCompactRun[i];
+        if (a.n != b.n || memcmp(a.p, b.p, a.n) != 0) {
+            if (differ++ < 3) {
+                size_t at = 0;
+                while (at < a.n && at < b.n && a.p[at] == b.p[at]) {
+                    at++;
+                }
+                re4_log("  gx compact: chunk %d differs at byte %zu (%zu / %zu bytes)", i, at, a.n, b.n);
+            }
+        }
+    }
+    if (differ || getenv("RE4_GX_FINGERPRINT_PARTS")) {
+        re4_log("  gx compact: %d of %d chunks differ; vertices %zu bytes float, %zu compact", differ, plainChunks,
+                floatBytes, compactBytes);
+    }
+    return differ;
 }

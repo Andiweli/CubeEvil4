@@ -23,10 +23,13 @@ Drei Schritte:
                      (RE4_GX_THREAD=1, port/whole/runtime/gx_thread.cpp): r100-gp,
                      r101-gp, r100-schnell-gp
                      Mit Grafik-Thread prueft der Decoder Texturen nur stichprobenweise
-                     (RE4_GX_TEXTURE_CHECK=sampled, nur fuer die OUYA).
+                     (RE4_GX_TEXTURE_CHECK=sampled) und schreibt die Punkte im kompakten
+                     Format der GameCube (RE4_GX_COMPACT=1); beides nur fuer die OUYA.
        ...-ohnekopie die Grafikpakete werden nur abgenommen, nicht kopiert (wie --no-copy):
                      zeigt, wie sehr die Kopie die Speicherbandbreite belastet
-     Standard: r100-gp, r101-gp, r100-schnell-gp, r100-schnell-gp-ohnekopie (r100 ohne
+       ...-gleitkomma  die Punkte im bisherigen Format (Gleitkomma, wie die Haupt-App):
+                     zeigt, was das Kompaktformat bringt
+     Standard: r100-gp, r101-gp, r100-schnell-gp, r100-schnell-gp-gleitkomma (r100 ohne
      Thread: 10,6 Bilder/s, Messung vom 21.10.2026; mit -Runs r100,... wieder dabei).
      Jeder Lauf dauert -Seconds Sekunden (Standard 240). Die Test-Tastenfolge der
      PC-Pruefung fuehrt durch Speicherkarten-Dialog und Titel in den Raum; danach geht
@@ -81,8 +84,9 @@ param(
     [string]$CacheDir = '',
     [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'RE4-OUYA-Probe'),
     [int]$Seconds = 240,
-    [ValidateSet('r100', 'r101', 'r100-schnell', 'r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnekopie')]
-    [string[]]$Runs = @('r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnekopie'),
+    [ValidateSet('r100', 'r101', 'r100-schnell', 'r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnekopie',
+        'r100-schnell-gp-gleitkomma')]
+    [string[]]$Runs = @('r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-gleitkomma'),
     [switch]$SkipBuild,
     [switch]$SkipSetup,
     [switch]$SkipData,
@@ -325,6 +329,9 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         # the GX decoder on a thread of its own (port/whole/runtime/gx_thread.cpp), textures
         # checked by samples from frame to frame (gx_decode.cpp: 18 % of its time otherwise)
         if ($gp) { $settings += 'RE4_GX_THREAD=1'; $settings += 'RE4_GX_TEXTURE_CHECK=sampled' }
+        # the compact vertex (re4_gx_frame.h): about half the bytes; -gleitkomma: the float vertex
+        $float = $run -like '*-gleitkomma'
+        if ($gp -and -not $float) { $settings += 'RE4_GX_COMPACT=1' }
 
         $copyArg = ''
         if ($runNoCopy) { $copyArg = ' --no-copy' }
@@ -336,6 +343,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         $label = if ($fast) { 'ohne Bremse' } else { 'Echtzeit' }
         if ($gp) { $label += ', Grafik-Thread' }
         if ($runNoCopy) { $label += ', ohne Kopie' }
+        if ($float) { $label += ', Gleitkomma-Punkte' } elseif ($gp) { $label += ', kompakte Punkte' }
         Say "4. Lauf $run ($label): $Seconds s ..."
         $writer = New-Object System.IO.StreamWriter($log, $false, (New-Object System.Text.UTF8Encoding($false)))
         $resultLines = @()
@@ -363,7 +371,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
             Invoke-Adb shell rm "$profileRemote.gp" | Out-Null
         }
         $text = Get-Content -LiteralPath $log -Encoding UTF8
-        $entry = @{ run = $run; fast = $fast; gp = $gp; noCopy = $runNoCopy; log = $text }
+        $entry = @{ run = $run; fast = $fast; gp = $gp; noCopy = $runNoCopy; float = $float; log = $text }
         foreach ($set in @('play', 'loop', 'all')) {
             $line = $resultLines | Where-Object { $_ -match "^probe-result: set=$set " } | Select-Object -First 1
             if ($line) { $entry[$set] = Read-Result $line }
@@ -406,6 +414,7 @@ foreach ($entry in $results.Values) {
     $mode = if ($entry.fast) { 'ohne Bremse: so schnell der Kern kann' } else { 'Echtzeit wie im Spiel' }
     if ($entry.gp) { $mode += '; Grafik-Decoder auf eigenem Thread' }
     if ($entry.noCopy) { $mode += '; Grafikpakete nicht kopiert' }
+    if ($entry.gp) { $mode += $(if ($entry.float) { '; Punkte als Gleitkomma' } else { '; kompakte Punkte' }) }
     Say "Lauf $($entry.run) ($mode)"
     $failed = $entry.log | Where-Object { $_ -match '^probe: (FAILED|HANG|CRASH)|^probe: the game (ended|failed)' } | Select-Object -First 3
     foreach ($f in $failed) { Say "   PROBLEM: $($f -replace '^probe: ', '')" }

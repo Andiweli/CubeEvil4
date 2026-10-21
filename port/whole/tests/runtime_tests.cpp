@@ -784,6 +784,7 @@ extern "C" unsigned re4probe_gx_bench(void* fifo, void* mem, void* xfb, int fram
 extern "C" unsigned re4probe_gx_bench_fifo(void* fifo, void* xfb, int frames, unsigned* untilDone);
 extern "C" int re4_gx_threaded(int on);
 extern "C" int re4probe_gx_texture_check_test(void* fifo, void* mem, void* xfb);
+extern "C" int re4probe_gx_compact_test(void* fifo, void* mem, void* xfb, int frames);
 extern "C" void re4_gx_sync(void);
 
 // The SDK's GX library and the game's inline vertex functions feed the port's
@@ -881,6 +882,9 @@ static void testGx()
         // these tests once more with RE4_GX_THREAD=1 (a second run here would
         // start from the state the first left)
     }
+    // RE4_GX_COMPACT: the compact vertex turned back gives the float vertex, bit for bit
+    CHECK(re4probe_gx_compact_test((void*) (unsigned long) 0x82800000u, (void*) (unsigned long) 0x82900000u,
+                                   (void*) (unsigned long) 0x82830000u, 24) == 0);
     // RE4_GX_TEXTURE_CHECK=sampled: textures checked by samples from chunk to chunk
     CHECK(re4probe_gx_texture_check_test((void*) (unsigned long) 0x82800000u, (void*) (unsigned long) 0x82900000u,
                                          (void*) (unsigned long) 0x82830000u) == 0);

@@ -226,6 +226,9 @@ struct Chunk {
     // ops.size() right after the last draw record (0: none); a draw that
     // follows it with nothing in between may join it (draw())
     size_t lastDrawEnd = 0;
+    // the RE4_GX_OP_COMPACT_FORMAT last sent in this chunk (RE4_GX_COMPACT)
+    u32 compactWords[RE4_GX_COMPACT_ATTRS];
+    bool compactSent = false;
 
     void clear()
     {
@@ -235,6 +238,7 @@ struct Chunk {
         blob.clear();
         memset(&view, 0, sizeof(view));
         lastDrawEnd = 0;
+        compactSent = false;
     }
 };
 
@@ -687,6 +691,13 @@ struct Format {
     // order [host, big-endian] (choosePasses)
     Attr pos, nrm, clr[2], tex[8];
     Pass posPass[2], nrmPass[2], clrPass[2][2], texPass[8][2];
+    // the compact vertex (RE4_GX_COMPACT, re4_gx_frame.h): its stride, the
+    // words of RE4_GX_OP_COMPACT_FORMAT, where each attribute goes, its passes
+    u32 posShift, texShift[8];
+    u32 cStride, cWords[RE4_GX_COMPACT_ATTRS], cMatrixOff, cMatrixBytes;
+    bool cEmpty;
+    Attr cPos, cNrm, cClr[2], cTex[8];
+    Pass cPosPass[2], cNrmPass[2], cTexPass[8][2];
 };
 
 void describe(u32 vat, Format& f)
@@ -705,7 +716,8 @@ void describe(u32 vat, Format& f)
     f.posMode = (lo >> 9) & 3;
     f.posComps = (a & 1) ? 3 : 2;
     f.posFormat = (a >> 1) & 7;
-    f.posScale = 1.0f / (float) (1u << ((a >> 4) & 31));
+    f.posShift = (a >> 4) & 31;
+    f.posScale = 1.0f / (float) (1u << f.posShift);
     size += f.posMode == 1 ? f.posComps * componentSize(f.posFormat) : indexSize(f.posMode);
     f.nrmMode = (lo >> 11) & 3;
     f.nbt = (a >> 9) & 1;
@@ -732,6 +744,7 @@ void describe(u32 vat, Format& f)
         f.texMode[i] = (hi >> (2 * i)) & 3;
         f.texComps[i] = comps[i] ? 2 : 1;
         f.texFormat[i] = formats[i];
+        f.texShift[i] = shifts[i];
         f.texScale[i] = 1.0f / (float) (1u << shifts[i]);
         size += f.texMode[i] == 1 ? f.texComps[i] * componentSize(f.texFormat[i]) : indexSize(f.texMode[i]);
     }
@@ -1133,6 +1146,207 @@ void noPositionPass(const Run& r)
     }
 }
 
+// --- the compact vertex (RE4_GX_COMPACT, re4_gx_frame.h) ---------------------------
+bool gCompact = [] {
+    const char* v = getenv("RE4_GX_COMPACT");
+    return v && *v && *v != '0';
+}();
+
+// The attribute's element as GX read it, in host order (direct data from a
+// big-endian stream turned around component by component), padded with zeros
+// to 4 bytes; zeros where the float vertex has zeros (no element).
+template <unsigned Comps, unsigned CS, unsigned Mode, bool BE>
+u32 copyPass(const Run& r, const Attr& a, const Array& arr)
+{
+    const unsigned elem = Comps * CS, padded = (elem + 3) & ~3u;
+    const u32 inSize = r.inSize, stride = r.stride, count = r.count;
+    const Array array = arr;
+    const u8* in = r.in + a.inAt;
+    u8* out = r.out + a.outAt;
+    u32 marked = 0;
+    for (u32 v = 0; v < count; v++, in += inSize, out += stride) {
+        const u8* src = in;
+        if (Mode != 1) {
+            const u32 index = Mode == 2 ? *in : rd16(in, BE);
+            marked += Mode == 2 ? index == 0xFF : index == 0xFFFF;
+            src = at(array, index, elem);
+        }
+        u8 element[padded] = {0};
+        if (Mode == 1 || src) {
+            if (Mode == 1 && BE && CS > 1) {
+                for (unsigned k = 0; k < Comps; k++) {
+                    for (unsigned b = 0; b < CS; b++) {
+                        element[k * CS + b] = src[k * CS + CS - 1 - b];
+                    }
+                }
+            } else {
+                memcpy(element, src, elem);
+            }
+        }
+        memcpy(__builtin_assume_aligned(out, 4), element, padded);
+    }
+    return marked;
+}
+
+// Normal, binormal and tangent by three indices: the part of each element
+template <unsigned CS, unsigned Mode, bool BE>
+u32 copyNbt3Pass(const Run& r, const Attr& a, const Array& arr)
+{
+    const unsigned part = 3 * CS, padded = (9 * CS + 3) & ~3u;
+    const u32 inSize = r.inSize, stride = r.stride, count = r.count;
+    const Array array = arr;
+    const u8* in = r.in + a.inAt;
+    u8* out = r.out + a.outAt;
+    for (u32 v = 0; v < count; v++, in += inSize, out += stride) {
+        u8 element[padded] = {0};
+        for (u32 k = 0; k < 3; k++) {
+            const u32 index = Mode == 2 ? in[k] : rd16(in + 2 * k, BE);
+            if (const u8* src = at(array, index, 9 * CS)) {
+                memcpy(element + k * part, src + k * part, part);
+            }
+        }
+        memcpy(__builtin_assume_aligned(out, 4), element, padded);
+    }
+    return 0;
+}
+
+template <unsigned Comps, unsigned CS>
+Pass copyPassFor(unsigned mode, bool be)
+{
+    switch (mode) {
+    case 1:
+        return be ? copyPass<Comps, CS, 1, true> : copyPass<Comps, CS, 1, false>;
+    case 2:
+        return be ? copyPass<Comps, CS, 2, true> : copyPass<Comps, CS, 2, false>;
+    default:
+        return be ? copyPass<Comps, CS, 3, true> : copyPass<Comps, CS, 3, false>;
+    }
+}
+
+template <unsigned CS>
+Pass copyPassFor(unsigned comps, unsigned mode, bool be)
+{
+    switch (comps) {
+    case 1:
+        return copyPassFor<1, CS>(mode, be);
+    case 2:
+        return copyPassFor<2, CS>(mode, be);
+    case 3:
+        return copyPassFor<3, CS>(mode, be);
+    default:
+        return copyPassFor<9, CS>(mode, be);
+    }
+}
+
+// format: 0 u8, 1 s8, 2 u16, 3 s16, 4 and above f32 (componentSize)
+Pass copyPassFor(unsigned format, unsigned comps, unsigned mode, bool be)
+{
+    switch (componentSize(format)) {
+    case 1:
+        return copyPassFor<1>(comps, mode, be);
+    case 2:
+        return copyPassFor<2>(comps, mode, be);
+    default:
+        return copyPassFor<4>(comps, mode, be);
+    }
+}
+
+Pass copyNbt3PassFor(unsigned format, unsigned mode, bool be)
+{
+    const unsigned cs = componentSize(format);
+    if (mode == 2) {
+        return cs == 1 ? (be ? copyNbt3Pass<1, 2, true> : copyNbt3Pass<1, 2, false>)
+               : cs == 2 ? (be ? copyNbt3Pass<2, 2, true> : copyNbt3Pass<2, 2, false>)
+                         : (be ? copyNbt3Pass<4, 2, true> : copyNbt3Pass<4, 2, false>);
+    }
+    return cs == 1 ? (be ? copyNbt3Pass<1, 3, true> : copyNbt3Pass<1, 3, false>)
+           : cs == 2 ? (be ? copyNbt3Pass<2, 3, true> : copyNbt3Pass<2, 3, false>)
+                     : (be ? copyNbt3Pass<4, 3, true> : copyNbt3Pass<4, 3, false>);
+}
+
+// The matrix indices the vertex carries, one byte each, padded to 4
+void compactMatrixPass(const Run& r, const Format& f)
+{
+    const u32 n = f.cMatrixBytes, padded = (n + 3) & ~3u, inSize = r.inSize, stride = r.stride, count = r.count;
+    const u8* in = r.in;
+    u8* out = r.out + f.cMatrixOff;
+    for (u32 v = 0; v < count; v++, in += inSize, out += stride) {
+        u8 bytes[12] = {0};
+        for (u32 j = 0; j < n; j++) {
+            bytes[j] = in[j] & 63;
+        }
+        memcpy(__builtin_assume_aligned(out, 4), bytes, padded);
+    }
+}
+
+// The compact layout of a format: each attribute on 4 bytes, in the order of
+// the float vertex (re4_gx_frame.h)
+void compactLayout(Format& f)
+{
+    u32 at = 0;
+    auto word = [&](u32 type, u32 comps, u32 fraction) {
+        return RE4_GX_CA_PRESENT | at | type << 8 | comps << 12 | fraction << 16;
+    };
+    auto typeOf = [](u32 format) { return format >= 4 ? (u32) RE4_GX_CT_F32 : format; };
+    if (f.posMode) {
+        f.cPos = f.pos;
+        f.cPos.outAt = at;
+        f.cWords[RE4_GX_CA_POSITION] = word(typeOf(f.posFormat), f.posComps, f.posFormat >= 4 ? 0 : f.posShift);
+        at += (f.posBytes + 3) & ~3u;
+    }
+    if (f.nrmMode) {
+        f.cNrm = f.nrm;
+        f.cNrm.outAt = at;
+        f.cWords[RE4_GX_CA_NORMAL] =
+            word(typeOf(f.nrmFormat), f.nrmComps, f.nrmCs == 1 ? 6 : f.nrmCs == 2 ? 14 : 0);
+        at += (f.nrmComps * f.nrmCs + 3) & ~3u;
+    }
+    for (int k = 0; k < 2; k++) {
+        if (f.clrMode[k]) {
+            f.cClr[k] = f.clr[k];
+            f.cClr[k].outAt = at;
+            f.cWords[RE4_GX_CA_COLOR0 + k] = word(RE4_GX_CT_RGBA8, 4, 0);
+            at += 4;
+        }
+    }
+    for (int i = 0; i < 8; i++) {
+        if (f.texMode[i]) {
+            f.cTex[i] = f.tex[i];
+            f.cTex[i].outAt = at;
+            f.cWords[RE4_GX_CA_TEX0 + i] =
+                word(typeOf(f.texFormat[i]), f.texComps[i], f.texFormat[i] >= 4 ? 0 : f.texShift[i]);
+            at += (f.texBytes[i] + 3) & ~3u;
+        }
+    }
+    if (f.anyMatrix) {
+        u32 slots = f.pnmtx ? 1 : 0;
+        for (u32 j = 0; j < f.mtxCount; j++) {
+            slots |= 2u << f.mtxList[j];
+        }
+        f.cMatrixOff = at;
+        f.cMatrixBytes = (f.pnmtx ? 1 : 0) + f.mtxCount;
+        f.cWords[RE4_GX_CA_MATRIX] = RE4_GX_CA_PRESENT | at | RE4_GX_CT_MATRIX << 8 | f.cMatrixBytes << 12 | slots << 16;
+        at += (f.cMatrixBytes + 3) & ~3u;
+    }
+    f.cStride = at ? at : 4;  // a format without attributes: 4 bytes of zeros
+    f.cEmpty = at == 0;
+    for (int be = 0; be < 2; be++) {
+        if (f.posMode) {
+            f.cPosPass[be] = copyPassFor(f.posFormat, f.posComps, f.posMode, be);
+        }
+        if (f.nrmMode >= 2 && f.nbt3) {
+            f.cNrmPass[be] = copyNbt3PassFor(f.nrmFormat, f.nrmMode, be);
+        } else if (f.nrmMode) {
+            f.cNrmPass[be] = copyPassFor(f.nrmFormat, f.nrmComps, f.nrmMode, be);
+        }
+        for (int i = 0; i < 8; i++) {
+            if (f.texMode[i]) {
+                f.cTexPass[i][be] = copyPassFor(f.texFormat[i], f.texComps[i], f.texMode[i], be);
+            }
+        }
+    }
+}
+
 // Where each attribute starts in a vertex of the stream (the order of GX: the
 // matrix indices, position, normal, colors, texture coordinates) and the
 // passes of the format, by the stream's byte order
@@ -1180,6 +1394,7 @@ void choosePasses(Format& f)
             }
         }
     }
+    compactLayout(f);
 }
 
 // Decodes `count` vertices at `data` into the chunk, appends the indices.
@@ -1209,18 +1424,50 @@ void draw(u8 op, u32 count, const u8* data, bool be)
         const u32 i = f.texList[j];
         tex[i] = f.texMode[i] >= 2 ? &array(4 + i) : &kNone;
     }
+    // the compact vertex (RE4_GX_COMPACT): its format before the draws that use it
+    const bool compact = gCompact;
+    const u32 stride = compact ? f.cStride : f.stride;
+    if (compact && (!c->compactSent || memcmp(c->compactWords, f.cWords, sizeof(f.cWords)) != 0)) {
+        memcpy(c->compactWords, f.cWords, sizeof(f.cWords));
+        c->compactSent = true;
+        emit(RE4_GX_OP_COMPACT_FORMAT, f.cWords, RE4_GX_COMPACT_ATTRS);
+    }
     u32 base = (u32) c->vertices.size();
-    c->vertices.resize(base + (size_t) count * f.stride);  // not filled (Uninitialized): the passes write it all
+    c->vertices.resize(base + (size_t) count * stride);  // not filled (Uninitialized): the passes write it all
     // in runs of 64 vertices: a run's bytes stay in the cache from one pass to the next
     const u32 kRun = 64;
     const int order = be ? 1 : 0;
     Run run;
     run.inSize = f.inSize;
-    run.stride = f.stride;
+    run.stride = stride;
     for (u32 v = 0; v < count; v += kRun) {
         run.in = data + (size_t) v * f.inSize;
-        run.out = c->vertices.data() + base + (size_t) v * f.stride;
+        run.out = c->vertices.data() + base + (size_t) v * stride;
         run.count = count - v < kRun ? count - v : kRun;
+        if (compact) {
+            if (f.cEmpty) {
+                memset(run.out, 0, (size_t) run.count * 4);
+            }
+            if (f.anyMatrix) {
+                compactMatrixPass(run, f);
+            }
+            if (f.posMode) {
+                gStats.skipped += f.cPosPass[order](run, f.cPos, pos);
+            }
+            if (f.nrmMode) {
+                f.cNrmPass[order](run, f.cNrm, nrm);
+            }
+            for (int k = 0; k < 2; k++) {
+                if (f.clrMode[k]) {
+                    f.clrPass[k][order](run, f.cClr[k], *clr[k]);
+                }
+            }
+            for (u32 j = 0; j < f.texCount; j++) {
+                const u32 i = f.texList[j];
+                f.cTexPass[i][order](run, f.cTex[i], *tex[i]);
+            }
+            continue;
+        }
         if (f.anyMatrix) {
             matrixPass(run, f);
         }
@@ -1337,8 +1584,8 @@ void draw(u8 op, u32 count, const u8* data, bool be)
     }
     Re4GxDraw d;
     d.primitive = primitive | (u32) (op & 0xF8) << 8 | vat << 16;
-    d.layout = f.layout;
-    d.stride = f.stride;
+    d.layout = f.layout | (compact ? (u32) RE4_GX_V_COMPACT : 0u);
+    d.stride = stride;
     d.vertexOffset = base;
     d.vertexCount = count;
     d.indexOffset = first;
@@ -2188,6 +2435,21 @@ void re4_gx_stats2(unsigned out[9])
     const u32 v[9] = {gStats.xfbCopies, gStats.texCopies, gStats.tlutLoads, gStats.textures, gStats.textureBytes,
                       gStats.chunks, gStats.dropped, gStats.hostLists, gStats.skipped};
     memcpy(out, v, sizeof(v));
+}
+
+// RE4_GX_COMPACT at run time (tests): 1 the compact vertex, 0 the float vertex,
+// -1 only asks; returns the mode before
+int re4_gx_compact(int on)
+{
+    catchUp();
+    const int was = gCompact ? 1 : 0;
+    if (on >= 0) {
+        gCompact = on != 0;
+        if (Chunk* c = chunk()) {
+            c->compactSent = false;
+        }
+    }
+    return was;
 }
 
 // RE4_GX_TEXTURE_CHECK at run time (tests): 1 sampled, 0 every chunk, -1 only

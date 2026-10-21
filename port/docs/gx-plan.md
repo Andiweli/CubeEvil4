@@ -37,7 +37,9 @@ Spiel ─GX-Aufrufe→ GX-Bibliothek (src/lib) ─FIFO-Bytes→ gx_fifo (Kern-Fa
 
 Punkt- und Texturdaten werden beim Dekodieren auf dem Kern-Faden kopiert
 (das Spiel überschreibt seine Puffer im nächsten Bild); der GL-Faden liest
-keinen Spielspeicher.
+keinen Spielspeicher. Punkte kommen als Gleitkomma (Haupt-App) oder, mit
+`RE4_GX_COMPACT=1` für die OUYA, im Kompaktformat: die Bytes, die GX las,
+umgerechnet auf der GPU (`re4_gx_frame.h`, `RE4_GX_V_COMPACT`).
 
 **Eigener Faden für den Decoder (Schritt B der OUYA-Arbeit, 21.10.2026,
 `gx_thread.cpp`, eingeschaltet mit `RE4_GX_THREAD=1`):** die FIFO-Bytes gehen

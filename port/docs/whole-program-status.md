@@ -5742,6 +5742,27 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
   und ohne zusätzliche Kopien zwischen Kern und Renderer.
   `ouya-probe.ps1` zeigt jetzt „Grafik-Thread je Punkt“ (ns) und misst wieder
   `r100-schnell-gp-ohnekopie` statt `-ohnevorladen`.
+- **Kompaktformat der Punkte (21.10.2026, Entscheidung des Projektinhabers: „Kompaktformat
+  zuerst, messbar mit der Probe, danach der GLES-2-Renderer O2“; `RE4_GX_COMPACT=1`, nur für
+  die OUYA, die App bleibt beim Gleitkomma-Punkt):** `re4_gx_frame.h` hat dafür
+  `RE4_GX_V_COMPACT` (Bit im Punkt-Layout) und `RE4_GX_OP_COMPACT_FORMAT` (13 Wörter vor den
+  Zeichenbefehlen, die es nutzen: je Eigenschaft Versatz, Typ, Komponenten, Nachkommabits).
+  Jede Eigenschaft behält die Bytes, die GX las (Host-Reihenfolge, direkte Daten aus dem
+  big-endian Strom umgedreht), auf 4 Bytes ausgerichtet und mit Nullen aufgefüllt; Farben
+  wie bisher RGBA8; von den Matrix-Indizes nur die, die der Punkt selbst trägt (die übrigen
+  aus `Re4GxDraw.matrices`). Ein typischer Modellpunkt (Position s16, Normale s8,
+  Texturkoordinate s16, Matrix-Index) braucht 20 statt 44 Bytes; der Renderer rechnet auf der
+  GPU um. Decoder: Kopier-Durchgänge (`copyPass`, `copyNbt3Pass`, `compactMatrixPass`,
+  `compactLayout`; ARM-Maschinencode für Positionen: ein Wort und ein Halbwort laden, zwei
+  Wörter speichern, keine Gleitkommarechnung). **Test** `re4probe_gx_compact_test`: der Strom
+  des Fingerabdrucks einmal mit Gleitkomma-, einmal mit Kompaktpunkten, die Kompaktpunkte wie
+  ein Renderer zurückgerechnet: alle 24 Pakete Bit für Bit gleich, 1,9 statt 3,5 MB Punkte.
+  (Ohne die EFB-Kopien des Stroms: deren Marke trägt eine fortlaufende Nummer, die Indizes
+  über Felder hinaus mitlesen, und die Nummer ist im zweiten Lauf eine andere.) Auf dem PC ist
+  das Kompaktformat etwas langsamer (`RE4_GX_BENCH` 1,7 statt 1,5 ms, dort zählt die
+  Speicheranbindung nicht); **auf der OUYA noch nicht gemessen**: `ouya-probe.ps1` misst
+  `r100-gp`, `r101-gp`, `r100-schnell-gp` kompakt und `r100-schnell-gp-gleitkomma` zum
+  Vergleich.
 
 ## Aufbau
 

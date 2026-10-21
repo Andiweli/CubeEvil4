@@ -100,6 +100,13 @@ einzeln schickt), B ebenso (`RE4_GX_THREAD=1`, `port/whole/runtime/gx_thread.cpp
 Modell-Listen kosten den Spiel-Thread dann nichts mehr); beides auf der OUYA
 noch nicht gemessen (`ouya-probe.ps1` misst mit und ohne Thread).
 
+**Stand danach (21.10.2026):** mit Grafik-Thread r100 etwa 22–24 Bilder/s, ohne
+Bremse 28–32; der Grafik-Thread braucht auf dem Tegra 3 etwa 380 ns je Punkt,
+begrenzt durch die Speicheranbindung. Entscheidung des Projektinhabers: **erst
+ein Kompaktformat der Punkte** (`RE4_GX_COMPACT=1`: die Bytes, die GX las,
+etwa 20 statt 44 Bytes je Punkt; Umrechnen auf der GPU), mit der Probe messen,
+**danach O2**: der GLES-2-Renderer liest dieses Format.
+
 ## Vorschlag: in Stufen, erst messen
 
 | Stufe | Inhalt | Wo | Ergebnis |
