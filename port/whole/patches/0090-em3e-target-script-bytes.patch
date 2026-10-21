@@ -1,0 +1,36 @@
+# The shooting gallery's targets (em3e cEmMark, room st2 r22c) run scripts that the room keeps as
+# s32 arrays ({time, flag, X, Y, Z, instructions...}), in host order in the port. Two places read
+# a byte of those words at its GameCube position: cEmMark::init(EmMarkData*) takes the target's
+# type as EmMarkData::type, byte 7 (the low byte of `flag` on the GameCube, its high byte on ARM:
+# every target became type 0, no Ashley targets), and setNextInstruction takes the next routine as
+# byte 3 of the instruction's type word (on ARM its high byte, 0 = begin): every target rose again
+# after each instruction, never reached `end`, ran past its script ("cEmMark::setNextInst() ERR
+# 300", the next record's time) and finally called emmark_tbl past its end (a tester's report,
+# Xiaomi 11 Lite 5G NE, 64 bit, 21.10.2026: "wooden targets keep respawning", then signal 11, pc 0,
+# from cEmMark::move). Both now take the word's least significant byte by value, which is the same
+# byte on the GameCube. port/whole/byte_views.json did not list them (a struct pointer, not
+# `(u8*) &scalar`; a struct whose byte field overlays the word).
+--- a/src/em3e/em3e.cpp
++++ b/src/em3e/em3e.cpp
+@@ -42,7 +42,9 @@
+ // Room entry: init from an EmMarkData record (type, instruction list, integer position).
+ void cEmMark::init(EmMarkData* d)
+ {
+-    init(d->type, d->inst, (f32) d->X, (f32) d->Y, (f32) d->Z);
++    /* PORT (patch 0090): the record is the room's s32 words {time, flag, X, Y, Z, ...} in host order;
++       EmMarkData::type (byte 7) is the least significant byte of `flag` only on the GameCube */
++    init((u8) ((s32*) d)[1], d->inst, (f32) d->X, (f32) d->Y, (f32) d->Z);
+ }
+ 
+ // Builds the target at (x, y, z). Targets take their model from the module archive and walls from
+@@ -689,7 +691,9 @@
+         return;
+     }
+     EMMARK(this)->pInst = (EmMarkInst*) ((u8*) EMMARK(this)->pInst + size);
+-    r_no_0 = ((u8*) EMMARK(this)->pInst)[3];
++    /* PORT (patch 0090): the routine is the type word's least significant byte, byte 3 on the
++       GameCube, byte 0 in host order */
++    r_no_0 = (u8) EMMARK(this)->pInst->type;
+     r_no_1 = 0;
+     r_no_2 = 0;
+     r_no_3 = 0;

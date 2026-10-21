@@ -5676,6 +5676,31 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     Prüfungen bestanden (114 Module laden, Laufzeit-, Kern- und Kernprozess-Tests). **Nicht getestet:** auf dem Gerät (die Gondel in r10f mit
     Ashley: beide kommen auf ihren Plätzen an, keine „check: route“-Meldung mehr).
 
+- **Zwei Berichte eines Testers mit 0.41.2 (Xiaomi 11 Lite 5G NE „lisa“, Android 14, 64 bit,
+  GameSir G8, Menü auf Portugiesisch; `cubeevil4-report-20261021-150324.zip` und
+  `…-150829.zip`, derselbe Lauf 14:38–15:08 und derselbe vorige 11:32–12:56).**
+  Seine Angaben: Burghalle beim Hebel: Ganados mit Sicheln tauchen immer wieder auf oder
+  verschwinden; Schießbude: Ashleys Schreie, Texturfehler im Hintergrund, Holzziele tauchen
+  immer wieder auf; Waffenverbesserung: Auswahl springt von selbst.
+  - **Schießbude (r22c): Ursache gefunden, Patch 0090.** Im Protokoll beider Läufe „game:
+    cEmMark::setNextInst() ERR 300“, im vorigen Lauf danach (12:56:43) der Absturz `cEmMark::move`
+    → pc 0 (`crash.txt`). Ursache siehe Patch 0090 (Zieltyp und nächster Befehl aus dem falschen
+    Byte der Skriptwörter). Vor dem Patch liest das aarch64-Modul `ldrb w9, [x9, #0x3]`.
+    Ashleys Schreie und der Texturfehler: mit Typ 0 für alle Ziele lief die Schießbude anders als
+    im Original (Ashley-Tafeln, Trefferwirkungen `R22cHitEffect`); ob beides mit 0090 verschwindet,
+    zeigt erst der nächste Versuch (Bildschirmfoto des Hintergrunds erbeten).
+  - **Burghalle (r208):** im Protokoll entstehen in r208 Ganados in Gruppen (14:43:19, 14:43:35,
+    14:43:43, 14:44:14, 14:44:25, 14:47:04 sechs auf einmal, 14:48:08, 14:48:32, 14:48:48), ohne
+    Fehlermeldung des Spiels oder des Ports. Ob das das Nachrücken des Originals ist oder ein
+    Fehler (Verschwinden), lässt sich daraus nicht sagen. Offen: Video oder genaue Stelle, Vergleich
+    mit Dolphin; sonst im Raum-Rundgang (10b) prüfen.
+  - **Waffenverbesserung (Händler, 15:05:40–15:06):** im Kern-Protokoll nur Tasten (A in schneller
+    Folge), keine Stick-Werte; die App zeigte in diesem Lauf neunmal die Touch-Tasten, weil der
+    Bildschirm berührt wurde (Klemm-Controller GameSir G8, Einstellung Auto). Ursache offen:
+    Stick-Rauschen des Controllers, versehentliche Berührungen oder ein Fehler im Menü. Nachfrage
+    beim Tester (passiert es mit Touch Controls auf „Suppress“ und ohne den Stick zu berühren?).
+  - **Sonst:** `logcat` läuft auf diesem Xiaomi, `log.txt` und `core-log.txt` gefüllt.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -5866,6 +5891,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0087 `pl_sub.cpp`, `em10.cpp` | Luis (`cSubLuis`) ist kein `cSubChar`: `SetSubDamage` schreibt für ihn über `cSubChar::m_MotTbl2[0]` / das erste Byte von `m_MotBase`, auf der GameCube sein `m_pFunc` (0x584) und `status` (0x58C, 0x40 = `F_KARAMI`); auf LP64 andere Stellen, `m_pFunc` blieb 0 (Absturz, wenn ein Ganado Luis in der Hütte r11c packt, Tester 20.10.2026). Jetzt für id 4 über Luis' eigene Mitglieder; `subem10_NeckHang_Luis` zählt `m_Work0` wie die GameCube in Luis' `routine.pos.y`. Das Bit `F_KARAMI` (von 0024 gestrichen) setzt Luis' Dank-Satz nach dem Packen wieder in Gang |
 | 0088 `route_ck.cpp` | `getNearPoint` sortiert die zehn nächsten Wegpunkte in `idx[]`/`dist[]` (Anfang: Stack-Inhalt bzw. 1e16). Ein Punkt weiter als 1e8 kommt nie hinein; liegen weniger als zehn (bzw. `nPoint`) Punkte so nah, behalten die Einträge dahinter ihren Stack-Inhalt, und die Suche nach freier Sicht liest `pt[Müll]` (Absturz weit über 4 GB in `getNearPoint` aus `RouteCkToEm`/`em10RouteCk`, Tester Samsung Galaxy M23, 64 bit, Hütte r11c, 21.10.2026). Jetzt nur die gefüllten Einträge; keiner: -1 („kein Wegpunkt“, jeder Aufrufer geht dann direkt aufs Ziel). Positionen im Raum füllen alle, dort ändert sich nichts. Wessen Position es war (Spieler, Partner, welcher Gegner), meldet „check: route: …“ bis zu viermal. Prüfung: `runtime-test route` |
 | 0089 `r10f.cpp` | Die Gondel (`r10f_GondolaGetOn`/`GetOff`) setzt Leon und Ashley über `&((R10fGondolaTbl*) mot)->posA[side]`/`->posB[side]`: eine Sicht auf das lokale `void* mot[2][3]`, die die Variablen `posA`/`posB` dahinter liest, wo CodeWarrior sie ablegte. clang legt sie anders ab und speichert sie bei -O2 gar nicht (nie beim Namen benutzt; armhf und aarch64 nachgeprüft: 0 Zugriffe auf ihre Konstanten); die Sicht liest gesicherte Register. Folge: Ashley nach der Gondel bei (-1469.6, -2.32e35, -2346.42), ihre Höhe die Bits einer Adresse in `libre4_main.so` (zwei Tester, 21.10.2026; mit 0.41.0 Absturz in `getNearPoint`). Jetzt `&posA[side]`/`&posB[side]` (nach dem Patch 4 Zugriffe) |
+| 0090 `em3e.cpp` | Die Schießbude (r22c) hält die Skripte ihrer Zieltafeln als `s32`-Felder `{time, flag, X, Y, Z, Befehle…}` im Modul, im Port in Host-Reihenfolge. `cEmMark::init(EmMarkData*)` nahm den Typ als Byte 7 (`EmMarkData::type`), `setNextInstruction` die nächste Routine als Byte 3 des Befehlsworts: auf der GameCube das niedrigste Byte, auf ARM das höchste (0). Folge: alle Ziele Typ 0 (keine Ashley-Tafeln), jede Tafel nach jedem Befehl wieder „begin“ (hochklappen), nie „end“, über ihr Skript hinaus („cEmMark::setNextInst() ERR 300“) und am Ende `emmark_tbl` hinter dem Feld (Absturz pc 0 aus `cEmMark::move`, Tester 21.10.2026). Jetzt das niedrigste Byte des Worts als Wert. `byte_views.json` kannte beide Stellen nicht (Struktur-Zeiger statt `(u8*) &skalar`, Struktur mit Byte-Feld über dem Wort); die Suche nach weiteren `((u8*) ptr)[n]` und Struktur-Sichten über eingebaute Zahlenfelder der Räume fand nur diese |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
