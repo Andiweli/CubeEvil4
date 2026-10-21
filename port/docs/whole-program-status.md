@@ -5709,6 +5709,13 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     ein Kopf nur bei einem zufälligen kritischen Treffer oder mit der Plaga; ob der Zustand nach
     der Granate das im Port verhindert, braucht einen Bericht direkt nach der Szene (Raum,
     Gegnertyp) und den Vergleich mit dem Original/Dolphin.
+  - **Dritter Bericht** (`cubeevil4-report-20261021-154756.zip`, derselbe Lauf bis 15:47, ohne
+    Beschreibung): r205, r204 (13 Ganados beim Betreten), r209 (Ritual-Raum: Ereignis
+    `r209s00`, Modul em1a, 8 Ganados; 15:19–15:27, zweimal betreten), r20a, Speichern um 15:30,
+    danach fast nur das App-Menü und einmal kurz das Debug-Menü. Kein Absturz, keine Meldung
+    des Spiels oder des Ports. Zum Kopfschuss enthält das Protokoll nichts: Treffer und Zustände
+    der Gegner zeichnet der Kern nicht auf (Spur gibt es nur für die Waffe, `RE4_TRACE_WEAPON`).
+    Weiter: Spielstände des Testers (.gci) zum Nachspielen oder eine Gegner-Spur im Protokoll.
   - **0.41.3** (Patch 0090) erst, wenn der Tester brauchbare Protokolle zu Burghalle,
     Waffenverbesserung und Kopfschuss geschickt hat (Entscheidung des Projektinhabers,
     21.10.2026).
