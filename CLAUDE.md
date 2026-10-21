@@ -5,8 +5,12 @@
 - Der Projektinhaber programmiert nicht selbst. Antworten auf Deutsch, per Du,
   ohne Fachjargon. Fachbegriffe kurz erklären.
 - Texte, die wir in App oder Spiel einbauen (Menüs, Meldungen, Fehlerbericht,
-  Dateinamen für Tester), nur auf Englisch (Entscheidung des Projektinhabers,
-  17.10.2026). Antworten im Chat bleiben deutsch.
+  Dateinamen für Tester), auf Englisch (Entscheidung des Projektinhabers,
+  17.10.2026). Ausnahme: Das App-Menü im Spiel folgt der Handy-Sprache
+  (Englisch als Rückfall, Entscheidung des Projektinhabers, 21.10.2026; Texte in
+  `port/android-decomp/app/src/main/res/values*/strings_ingame.xml`, Prüfung mit
+  `port/android-decomp/tools/check_translations.py`). Alle anderen Texte,
+  Fehlerbericht und Dateinamen bleiben Englisch. Antworten im Chat bleiben deutsch.
 - Am Ende jeder Aufgabe in wenigen Sätzen sagen: was erreicht wurde, was getestet
   wurde (mit Ergebnis), was als Nächstes kommt.
 - Vor jeder Grundsatzentscheidung (Architektur, Regeln dieser Datei ändern)
