@@ -30,7 +30,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | Absturz Wegesuche r11c (64 bit) | 21.10.2026 (Branch `claude/re4-start-controls`): Patch 0088 fängt ihn ab und meldet, wessen Position außerhalb lag; die eigentliche Ursache zeigt erst ein Bericht mit Fehlerprotokoll. Cloud ✅, **Gerätetest offen** |
 | 0.41.1-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 63): Fehlerprotokoll auf jedem Handy (der Kern schreibt `core-log.txt` selbst, `logcat-status.txt`, „Error log: on/off“ im Bericht), Patch 0088, Menü in 10 Sprachen. Cloud ✅, Retroid ✅ (Deutsch, Protokoll), Samsung-Tester offen |
 | 0.41.2-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 64): Patch 0089, die Gondel in r10f setzte Leon und Ashley auf Plätze aus gesicherten Registern (Ursache der Wegsuche-Abstürze). Cloud ✅, **Gerätetest offen** |
-| Todesschleife r21d (Insekten bei NaN) | 22.10.2026 (Branch `claude/re4-start-controls`): `acosf`/`asinf` des Spielcodes nehmen einen Wert knapp über ±1 als ±1 (Umschreibung `ARC_CALL`); vorher setzte der Wandschritt der Novistadore (em2d, auch em2c) sie auf etwa 30 % der schrägen Flächen auf NaN, die Stampfer in r21d töteten Leon sofort, auch nach jedem Weitermachen. Dazu Todes-, Raumstart- und NaN-Zeilen im Fehlerprotokoll (Abschnitt „Todesschleife in r21d“). Cloud: siehe Abschnitt, **Gerätetest offen** |
+| Todesschleife r21d (Insekten bei NaN) | 22.10.2026 (Branch `claude/re4-start-controls`): `acosf`/`asinf` des Spielcodes nehmen einen Wert knapp über ±1 als ±1 (Umschreibung `ARC_CALL`); vorher setzte der Wandschritt der Novistadore (em2d, auch em2c) sie auf etwa 30 % der schrägen Flächen auf NaN, die Stampfer in r21d töteten Leon sofort, auch nach jedem Weitermachen. Dazu Todes-, Raumstart- und NaN-Zeilen im Fehlerprotokoll (Abschnitt „Todesschleife in r21d“). Cloud ✅ (i686, armhf, aarch64), **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5807,6 +5807,7 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ein Gegner bei NaN) und `arc` (`re4probe_arc`: der Wandschritt mit den Vektorfunktionen des
   Ports und der Neigung (0,1 1 −0,05): Skalarprodukt über 1, Ergebnis eine Zahl; knapp über ±1
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
 ## Aufbau
 
