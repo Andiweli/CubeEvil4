@@ -200,6 +200,8 @@ extern "C" {
 void GXLoadPosMtxIndx(u16 index, u32 id);
 void re4_gx_put_u8(unsigned char v);
 void re4_gx_put_u16(unsigned short v);
+void re4_gx_put_u32(unsigned int v);
+void re4_gx_put_f32(float v);
 unsigned re4_gx_xf(unsigned address);
 unsigned int re4_gx_physical(const void* pointer);
 void re4_gx_host_order_list(const void* list, unsigned int size);
@@ -1073,6 +1075,54 @@ extern "C" unsigned re4probe_gx_bench(void* fifo, void* mem, void* xfb, int fram
             c.u32_(listSize);
             for (size_t i = 0; i < c.n; i++) {
                 re4_gx_put_u8(bytes[i]);
+            }
+        }
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        total += (t1.tv_sec - t0.tv_sec) * 1e6 + (t1.tv_nsec - t0.tv_nsec) / 1e3;
+        copyDisp(xfb);
+        if (const Re4GxChunk* c = re4_core_gx_acquire()) {
+            re4_core_gx_release(c);
+        }
+    }
+    re4_core_gx_detach();
+    return frames ? (unsigned) (total / frames) : 0;
+}
+
+// Draws the CPU puts into the FIFO itself (GXPosition3f32 ...: effects, shadows,
+// the HUD): 2000 quads per frame of position f32, color RGBA8 and texture
+// coordinate f32, each value a call of re4_gx_put_*. Returns the time per frame
+// in microseconds (RE4_GX_BENCH, tests/runtime_tests.cpp).
+extern "C" unsigned re4probe_gx_bench_fifo(void* fifo, void* xfb, int frames)
+{
+    static u8 bytes[64];
+    GXInit(fifo, 0x10000);
+    re4_core_gx_acquire();  // attach
+    copyDisp(xfb);
+    if (const Re4GxChunk* c = re4_core_gx_acquire()) {
+        re4_core_gx_release(c);
+    }
+    Stream s = {bytes, 0};
+    cp(s, 0x50, 1u << 9 | 1u << 13);                                           // position, color 0: direct
+    cp(s, 0x60, 1);                                                             // texture coordinate 0: direct
+    cp(s, 0x70, 1 | 4u << 1 | 1u << 13 | 5u << 14 | 1u << 21 | 4u << 22);  // xyz f32, RGBA8, st f32
+    for (size_t i = 0; i < s.n; i++) {
+        re4_gx_put_u8(bytes[i]);
+    }
+    Rng r = {0x51F0u};
+    double total = 0;
+    for (int frame = 0; frame < frames; frame++) {
+        struct timespec t0, t1;
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+        for (int q = 0; q < 2000; q++) {
+            re4_gx_put_u8(0x80);  // quads, vertex format 0
+            re4_gx_put_u16(4);
+            for (int v = 0; v < 4; v++) {
+                re4_gx_put_f32((float) r.below(1000) * 0.5f);
+                re4_gx_put_f32((float) r.below(1000) * 0.5f);
+                re4_gx_put_f32((float) r.below(1000) * 0.5f);
+                re4_gx_put_u32(r.next());
+                re4_gx_put_f32((float) (v & 1));
+                re4_gx_put_f32((float) (v >> 1));
             }
         }
         clock_gettime(CLOCK_MONOTONIC, &t1);

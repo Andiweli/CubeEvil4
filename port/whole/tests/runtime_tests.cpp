@@ -781,6 +781,7 @@ extern "C" int re4probe_gx_frame_test(void* fifo, void* mem);
 extern "C" void re4probe_gx_produce(void* fifo, void* xfb, int frames, int init);
 extern "C" unsigned long long re4probe_gx_fingerprint(void* fifo, void* mem, void* xfb, int frames);
 extern "C" unsigned re4probe_gx_bench(void* fifo, void* mem, void* xfb, int frames);
+extern "C" unsigned re4probe_gx_bench_fifo(void* fifo, void* xfb, int frames);
 
 // The SDK's GX library and the game's inline vertex functions feed the port's
 // GX FIFO (runtime/gx_fifo.cpp, tests/gx_probe.cpp). The FIFO and the display
@@ -898,11 +899,15 @@ static void testGx()
         }
         re4_core_gx_detach();
     }
-    // RE4_GX_BENCH=N: the decoder's time for N village-like frames (120 000 vertices each)
+    // RE4_GX_BENCH=N: the decoder's time for N village-like frames (120 000 vertices each),
+    // then for N frames of draws the CPU puts into the FIFO value by value
     if (const char* bench = getenv("RE4_GX_BENCH")) {
         unsigned us = re4probe_gx_bench((void*) (unsigned long) 0x82800000u, (void*) (unsigned long) 0x82900000u,
                                         (void*) (unsigned long) 0x82830000u, atoi(bench) > 0 ? atoi(bench) : 10);
         re4_log("  gx bench: %.2f ms per frame of 120000 vertices", us / 1000.0);
+        us = re4probe_gx_bench_fifo((void*) (unsigned long) 0x82800000u, (void*) (unsigned long) 0x82830000u,
+                                    atoi(bench) > 0 ? atoi(bench) : 10);
+        re4_log("  gx bench: %.2f ms per frame of 8000 vertices put by the CPU", us / 1000.0);
     }
     report("gx", ok);
 }

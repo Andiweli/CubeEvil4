@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -194,10 +195,28 @@ u32 gCopySerial;
 
 // --- chunks -------------------------------------------------------------------
 
+// An allocator whose resize() leaves new elements as they are: the vertices,
+// indices and op words are written completely right after (draw(), xfWrite()),
+// and filling them with zeros first wrote every byte of a frame (7 MB in a
+// forest frame of r100) twice. On the OUYA the C library (memset and memcpy, by
+// the look of it) took 11 % of the core's time (port/docs/ouya-machbarkeit.md).
+template <class T> struct Uninitialized : std::allocator<T> {
+    template <class U> struct rebind {
+        typedef Uninitialized<U> other;
+    };
+    Uninitialized() = default;
+    template <class U> Uninitialized(const Uninitialized<U>&) {}
+    template <class U> void construct(U* p) { ::new ((void*) p) U; }
+    template <class U, class... Args> void construct(U* p, Args&&... args)
+    {
+        ::new ((void*) p) U(std::forward<Args>(args)...);
+    }
+};
+
 struct Chunk {
-    std::vector<u32> ops;
-    std::vector<u8> vertices;
-    std::vector<u16> indices;
+    std::vector<u32, Uninitialized<u32>> ops;
+    std::vector<u8, Uninitialized<u8>> vertices;
+    std::vector<u16, Uninitialized<u16>> indices;
     std::vector<u8> blob;
     Re4GxChunk view;
     // ops.size() right after the last draw record (0: none); a draw that
@@ -452,7 +471,8 @@ long long gBoundaryAt;
 long long gFrameMs, gWaitMs;
 u32 gTimedChunks;
 long long gIdleAt;                    // re4_idle_ns() at the last log line
-double gFifoBytes, gFifoVertices;     // since the last log line (FIFO: written by the CPU)
+u64 gFifoBytes;                       // since the last log line (FIFO: written by the CPU)
+double gFifoVertices;
 double gListBytes;                    // display list bytes read since the last log line
 
 // A display copy ends the chunk: queue it, start the next one if a renderer
@@ -473,7 +493,8 @@ void chunkBoundary(u32 xfb, u32 width, u32 height)
             gIdleAt = idle;
             gTimedChunks = 0;
             gFrameMs = gWaitMs = 0;
-            gFifoBytes = gFifoVertices = gListBytes = 0;
+            gFifoBytes = 0;
+            gFifoVertices = gListBytes = 0;
         }
     }
     gBoundaryAt = start;
@@ -530,7 +551,7 @@ unsigned componentSize(unsigned format)
     return format <= 1 ? 1 : format <= 3 ? 2 : 4;  // u8 s8 / u16 s16 / f32
 }
 
-unsigned colorSize(unsigned format)
+inline unsigned colorSize(unsigned format)
 {
     static const unsigned kSize[8] = {2, 3, 4, 2, 3, 4, 4, 4};  // 565 888 888x 4444 6666 8888
     return kSize[format & 7];
@@ -567,7 +588,7 @@ inline u8 x6(u32 v)
     return (u8) (v << 2 | v >> 4);
 }
 
-void color(const u8* p, unsigned format, bool be, u8 out[4])
+inline void color(const u8* p, unsigned format, bool be, u8 out[4])
 {
     u32 v;
     switch (format) {
@@ -608,6 +629,17 @@ void color(const u8* p, unsigned format, bool be, u8 out[4])
     }
 }
 
+// The vertex loop's pass for one attribute of a run of vertices (draw()):
+// where the attribute is in a vertex of the stream and of the layout
+struct Run;
+struct Array;
+struct Attr {
+    u32 inAt, outAt;  // its first byte in a vertex of the stream, of the layout
+    float scale;
+    u32 pad;  // zero floats after the components (2D position, 1D texture coordinate)
+};
+typedef u32 (*Pass)(const Run& r, const Attr& a, const Array& array);
+
 // The vertex format of one draw: what the stream holds per vertex and where
 // each attribute goes in the chunk's vertex layout.
 struct Format {
@@ -629,6 +661,10 @@ struct Format {
     u32 posBytes, nrmCs, nrmComps, clrBytes[2], texCs[8], texBytes[8];
     u8 texList[8], texCount;
     u8 mtxList[8], mtxCount;
+    // each attribute for the vertex loop and its pass by the stream's byte
+    // order [host, big-endian] (choosePasses)
+    Attr pos, nrm, clr[2], tex[8];
+    Pass posPass[2], nrmPass[2], clrPass[2][2], texPass[8][2];
 };
 
 void describe(u32 vat, Format& f)
@@ -747,11 +783,19 @@ void describe(u32 vat, Format& f)
 Format gFormat[8];
 bool gFormatValid[8];
 
-const Format& format(u32 vat)
+void choosePasses(Format& f);
+
+void refreshFormat(u32 vat)
+{
+    describe(vat, gFormat[vat]);
+    choosePasses(gFormat[vat]);
+    gFormatValid[vat] = true;
+}
+
+inline const Format& format(u32 vat)
 {
     if (!gFormatValid[vat]) {
-        describe(vat, gFormat[vat]);
-        gFormatValid[vat] = true;
+        refreshFormat(vat);
     }
     return gFormat[vat];
 }
@@ -765,21 +809,34 @@ unsigned vertexSize(u32 vat)
 // `bytes` long; NULL when outside memory.
 const u8 kZero[64] = {0};
 
-// An indexed array as host memory, resolved once per draw (element() went
-// through re4gx::memory for every attribute of every vertex: a tenth of the
-// core's time in the village).
+// An indexed array as host memory (element() went through re4gx::memory for
+// every attribute of every vertex: a tenth of the core's time in the village).
 struct Array {
     const u8* base;  // null: the array is not memory
     u32 limit;       // bytes from base that are memory
     u32 stride;
 };
 
-Array array(u32 index)
+// Resolved by the first draw that reads it and kept until the game sets the
+// array again (GXSetArray, cpWrite): resolving the arrays for every draw was a
+// tenth of the decoder's time in RE4_GX_BENCH (most draws have a few dozen
+// vertices). Only arrays in MEM1 are kept: a window of port memory may get its
+// neighbour later (memorySpan).
+Array gArrays[16];
+u32 gArraysKept;  // bit per array
+
+inline const Array& array(u32 index)
 {
-    Array a;
-    a.stride = gGp.arrayStride[index];
-    a.base = re4gx::memorySpan(gGp.arrayBase[index], &a.limit);
-    return a;
+    if (!((gArraysKept >> index) & 1)) {
+        Array& a = gArrays[index];
+        const u32 physical = gGp.arrayBase[index];
+        a.stride = gGp.arrayStride[index];
+        a.base = re4gx::memorySpan(physical, &a.limit);
+        if (physical < RE4_MEM1_SIZE) {
+            gArraysKept |= 1u << index;
+        }
+    }
+    return gArrays[index];
 }
 
 inline const u8* at(const Array& a, u32 index, u32 bytes)
@@ -788,16 +845,19 @@ inline const u8* at(const Array& a, u32 index, u32 bytes)
     return a.base && offset < a.limit && bytes <= a.limit - offset ? a.base + offset : nullptr;
 }
 
-// One float into the vertex being written (out is zero where nothing is put)
+// One float into the vertex being written: every slot of the vertex layout
+// starts on 4 bytes (Chunk::vertices, strides and offsets in 4-byte steps), so
+// the store may be a float store (memcpy keeps it free of aliasing rules)
 inline void put(u8* out, float v)
 {
-    memcpy(out, &v, 4);
+    memcpy(__builtin_assume_aligned(out, 4), &v, 4);
 }
 
-// The components of one attribute, converted as component() does, by a
-// function chosen once per draw for the format, the count and the byte order
-// (instead of a switch for every component of every vertex).
-typedef void (*Reader)(u8* out, const u8* src, float scale);
+inline void putZero(u8* out)
+{
+    const u32 zero = 0;
+    memcpy(__builtin_assume_aligned(out, 4), &zero, 4);
+}
 
 template <unsigned Format, bool BE>
 inline float convert(const u8* p, float scale)
@@ -817,44 +877,286 @@ inline float convert(const u8* p, float scale)
     return asFloat(rd32(p, BE));
 }
 
-template <unsigned Format, unsigned Comps, bool BE>
-void readComponents(u8* out, const u8* src, float scale)
+// The vertex loop of draw() in passes, one per attribute: the positions of a
+// run of vertices, then their normals, ... each by a function made for the
+// attribute's format, component count, index mode and the stream's byte order
+// (direct data in the stream's order, arrays in host order), chosen when the
+// format changes (choosePasses). Together the passes write every byte of the
+// vertex layout (what an attribute does not set: 0), so the vertices need no
+// zero fill first. Vertex by vertex, with a reader function per attribute and
+// a memset per vertex, the decoder was over half of the core's time on the
+// OUYA (Tegra 3, 21.10.2026).
+struct Run {  // vertices of one draw: in the stream, in the chunk
+    const u8* in;
+    u32 inSize;
+    u8* out;
+    u32 stride;
+    u32 count;
+};
+
+// Returns the indices 0xFF / 0xFFFF it met (GX skips such a vertex, kept here)
+template <unsigned Format, unsigned Comps, unsigned Mode, bool BE>
+u32 attributePass(const Run& r, const Attr& a, const Array& arr)
 {
     const unsigned cs = Format <= 1 ? 1 : Format <= 3 ? 2 : 4;
-    for (unsigned k = 0; k < Comps; k++) {
-        put(out + 4 * k, convert<Format, BE>(src + k * cs, scale));
+    const u32 bytes = Comps * cs, inSize = r.inSize, stride = r.stride, count = r.count, pad = a.pad;
+    const Array array = arr;
+    const float scale = a.scale;
+    const u8* in = r.in + a.inAt;
+    u8* out = r.out + a.outAt;
+    u32 marked = 0;
+    for (u32 v = 0; v < count; v++, in += inSize, out += stride) {
+        const u8* src = in;
+        if (Mode != 1) {
+            const u32 index = Mode == 2 ? *in : rd16(in, BE);
+            marked += Mode == 2 ? index == 0xFF : index == 0xFFFF;
+            src = at(array, index, bytes);
+        }
+        if (Mode == 1 || src) {
+            for (unsigned k = 0; k < Comps; k++) {
+                put(out + 4 * k, convert<Format, Mode == 1 && BE>(src + k * cs, scale));
+            }
+        } else {
+            for (unsigned k = 0; k < Comps; k++) {
+                putZero(out + 4 * k);
+            }
+        }
+        if (pad) {
+            putZero(out + 4 * Comps);
+        }
+    }
+    return marked;
+}
+
+// Normal, binormal and tangent by three indices, each the part of its element
+template <unsigned Format, unsigned Mode, bool BE>
+u32 nbt3Pass(const Run& r, const Attr& a, const Array& arr)
+{
+    const unsigned cs = Format <= 1 ? 1 : Format <= 3 ? 2 : 4;
+    const u32 inSize = r.inSize, stride = r.stride, count = r.count;
+    const Array array = arr;
+    const float scale = a.scale;
+    const u8* in = r.in + a.inAt;
+    u8* out = r.out + a.outAt;
+    for (u32 v = 0; v < count; v++, in += inSize, out += stride) {
+        for (u32 part = 0; part < 3; part++) {
+            const u32 index = Mode == 2 ? in[part] : rd16(in + 2 * part, BE);
+            u8* o = out + 12 * part;
+            if (const u8* src = at(array, index, 9 * cs)) {
+                for (unsigned k = 0; k < 3; k++) {
+                    put(o + 4 * k, convert<Format, false>(src + (part * 3 + k) * cs, scale));
+                }
+            } else {
+                putZero(o);
+                putZero(o + 4);
+                putZero(o + 8);
+            }
+        }
+    }
+    return 0;
+}
+
+template <unsigned Format, unsigned Mode, bool BE>
+u32 colorPass(const Run& r, const Attr& a, const Array& arr)
+{
+    const u32 bytes = colorSize(Format), inSize = r.inSize, stride = r.stride, count = r.count;
+    const Array array = arr;
+    const u8* in = r.in + a.inAt;
+    u8* out = r.out + a.outAt;
+    for (u32 v = 0; v < count; v++, in += inSize, out += stride) {
+        u8 rgba[4] = {0, 0, 0, 255};
+        if (Mode == 1) {
+            color(in, Format, BE, rgba);
+        } else {
+            const u32 index = Mode == 2 ? *in : rd16(in, BE);
+            const u8* src = at(array, index, bytes);
+            color(src ? src : kZero, Format, false, rgba);
+        }
+        memcpy(__builtin_assume_aligned(out, 4), rgba, 4);
+    }
+    return 0;
+}
+
+template <unsigned Format, unsigned Comps>
+Pass attributePassFor(unsigned mode, bool be)
+{
+    switch (mode) {
+    case 1:
+        return be ? attributePass<Format, Comps, 1, true> : attributePass<Format, Comps, 1, false>;
+    case 2:
+        return be ? attributePass<Format, Comps, 2, true> : attributePass<Format, Comps, 2, false>;
+    default:
+        return be ? attributePass<Format, Comps, 3, true> : attributePass<Format, Comps, 3, false>;
     }
 }
 
-template <unsigned Format, bool BE>
-Reader readerFor(unsigned comps)
+template <unsigned Format>
+Pass attributePassFor(unsigned comps, unsigned mode, bool be)
 {
     switch (comps) {
     case 1:
-        return readComponents<Format, 1, BE>;
+        return attributePassFor<Format, 1>(mode, be);
     case 2:
-        return readComponents<Format, 2, BE>;
+        return attributePassFor<Format, 2>(mode, be);
     case 3:
-        return readComponents<Format, 3, BE>;
+        return attributePassFor<Format, 3>(mode, be);
     default:
-        return readComponents<Format, 9, BE>;
+        return attributePassFor<Format, 9>(mode, be);
     }
 }
 
 // format: 0 u8, 1 s8, 2 u16, 3 s16, 4 and above f32 (componentSize, component)
-Reader readerFor(unsigned format, unsigned comps, bool be)
+Pass attributePassFor(unsigned format, unsigned comps, unsigned mode, bool be)
 {
     switch (format) {
     case 0:
-        return be ? readerFor<0, true>(comps) : readerFor<0, false>(comps);
+        return attributePassFor<0>(comps, mode, be);
     case 1:
-        return be ? readerFor<1, true>(comps) : readerFor<1, false>(comps);
+        return attributePassFor<1>(comps, mode, be);
     case 2:
-        return be ? readerFor<2, true>(comps) : readerFor<2, false>(comps);
+        return attributePassFor<2>(comps, mode, be);
     case 3:
-        return be ? readerFor<3, true>(comps) : readerFor<3, false>(comps);
+        return attributePassFor<3>(comps, mode, be);
     default:
-        return be ? readerFor<4, true>(comps) : readerFor<4, false>(comps);
+        return attributePassFor<4>(comps, mode, be);
+    }
+}
+
+template <unsigned Format>
+Pass nbt3PassFor(unsigned mode, bool be)
+{
+    if (mode == 2) {
+        return be ? nbt3Pass<Format, 2, true> : nbt3Pass<Format, 2, false>;
+    }
+    return be ? nbt3Pass<Format, 3, true> : nbt3Pass<Format, 3, false>;
+}
+
+Pass nbt3PassFor(unsigned format, unsigned mode, bool be)
+{
+    switch (format) {
+    case 0:
+        return nbt3PassFor<0>(mode, be);
+    case 1:
+        return nbt3PassFor<1>(mode, be);
+    case 2:
+        return nbt3PassFor<2>(mode, be);
+    case 3:
+        return nbt3PassFor<3>(mode, be);
+    default:
+        return nbt3PassFor<4>(mode, be);
+    }
+}
+
+template <unsigned Format>
+Pass colorPassFor(unsigned mode, bool be)
+{
+    switch (mode) {
+    case 1:
+        return be ? colorPass<Format, 1, true> : colorPass<Format, 1, false>;
+    case 2:
+        return be ? colorPass<Format, 2, true> : colorPass<Format, 2, false>;
+    default:
+        return be ? colorPass<Format, 3, true> : colorPass<Format, 3, false>;
+    }
+}
+
+// format: 0 RGB565, 1 RGB888, 2 RGB888x, 3 RGBA4444, 4 RGBA6666, 5 and above RGBA8888 (color)
+Pass colorPassFor(unsigned format, unsigned mode, bool be)
+{
+    switch (format) {
+    case 0:
+        return colorPassFor<0>(mode, be);
+    case 1:
+        return colorPassFor<1>(mode, be);
+    case 2:
+        return colorPassFor<2>(mode, be);
+    case 3:
+        return colorPassFor<3>(mode, be);
+    case 4:
+        return colorPassFor<4>(mode, be);
+    default:
+        return colorPassFor<5>(mode, be);
+    }
+}
+
+// The matrix indices: the defaults, then those of the vertex; three bytes of padding
+void matrixPass(const Run& r, const Format& f)
+{
+    u8 first[12] = {0};
+    memcpy(first, f.defaults, 9);
+    u8 slots[8];
+    memcpy(slots, f.mtxList, 8);
+    const bool pnmtx = f.pnmtx;
+    const u32 n = f.mtxCount, inSize = r.inSize, stride = r.stride, count = r.count;
+    const u8* in = r.in;
+    u8* out = r.out + f.offMatrix;
+    for (u32 v = 0; v < count; v++, in += inSize, out += stride) {
+        memcpy(__builtin_assume_aligned(out, 4), first, 12);
+        const u8* i = in;
+        if (pnmtx) {
+            out[0] = *i++ & 63;
+        }
+        for (u32 j = 0; j < n; j++) {
+            out[1 + slots[j]] = *i++ & 63;
+        }
+    }
+}
+
+// A format without position: its 12 bytes stay 0
+void noPositionPass(const Run& r)
+{
+    u8* out = r.out;
+    for (u32 v = 0; v < r.count; v++, out += r.stride) {
+        memset(out, 0, 12);
+    }
+}
+
+// Where each attribute starts in a vertex of the stream (the order of GX: the
+// matrix indices, position, normal, colors, texture coordinates) and the
+// passes of the format, by the stream's byte order
+void choosePasses(Format& f)
+{
+    u32 at = (f.pnmtx ? 1 : 0) + f.mtxCount;
+    f.pos.inAt = at;
+    f.pos.outAt = 0;
+    f.pos.scale = f.posScale;
+    f.pos.pad = 3 - f.posComps;
+    at += f.posMode == 1 ? f.posBytes : indexSize(f.posMode);
+    f.nrm.inAt = at;
+    f.nrm.outAt = f.offNormal;
+    f.nrm.scale = f.nrmScale;
+    at += f.nrmMode == 1 ? f.nrmComps * f.nrmCs : indexSize(f.nrmMode) * (f.nbt3 ? 3 : 1);
+    for (int k = 0; k < 2; k++) {
+        f.clr[k].inAt = at;
+        f.clr[k].outAt = f.offColor[k];
+        at += f.clrMode[k] == 1 ? f.clrBytes[k] : indexSize(f.clrMode[k]);
+    }
+    for (int i = 0; i < 8; i++) {
+        f.tex[i].inAt = at;
+        f.tex[i].outAt = f.offTex[i];
+        f.tex[i].scale = f.texScale[i];
+        f.tex[i].pad = 2 - f.texComps[i];
+        at += f.texMode[i] == 1 ? f.texBytes[i] : indexSize(f.texMode[i]);
+    }
+    for (int be = 0; be < 2; be++) {
+        if (f.posMode) {
+            f.posPass[be] = attributePassFor(f.posFormat, f.posComps, f.posMode, be);
+        }
+        if (f.nrmMode >= 2 && f.nbt3) {
+            f.nrmPass[be] = nbt3PassFor(f.nrmFormat, f.nrmMode, be);
+        } else if (f.nrmMode) {
+            f.nrmPass[be] = attributePassFor(f.nrmFormat, f.nrmComps, f.nrmMode, be);
+        }
+        for (int k = 0; k < 2; k++) {
+            if (f.clrMode[k]) {
+                f.clrPass[k][be] = colorPassFor(f.clrFormat[k], f.clrMode[k], be);
+            }
+        }
+        for (int i = 0; i < 8; i++) {
+            if (f.texMode[i]) {
+                f.texPass[i][be] = attributePassFor(f.texFormat[i], f.texComps[i], f.texMode[i], be);
+            }
+        }
     }
 }
 
@@ -870,125 +1172,52 @@ void draw(u8 op, u32 count, const u8* data, bool be)
     }
     u32 vat = op & 7;
     const Format& f = format(vat);
-    // the arrays this format reads
-    Array pos = {}, nrm = {}, clr[2] = {}, tex[8] = {};
-    if (f.posMode >= 2) {
-        pos = array(0);
-    }
-    if (f.nrmMode >= 2) {
-        nrm = array(1);
-    }
+    // the arrays the format reads
+    static const Array kNone = {nullptr, 0, 0};
+    const Array& pos = f.posMode >= 2 ? array(0) : kNone;
+    const Array& nrm = f.nrmMode >= 2 ? array(1) : kNone;
+    const Array* clr[2] = {&kNone, &kNone};
     for (int k = 0; k < 2; k++) {
         if (f.clrMode[k] >= 2) {
-            clr[k] = array(2 + k);
+            clr[k] = &array(2 + k);
         }
     }
+    const Array* tex[8];
     for (u32 j = 0; j < f.texCount; j++) {
         const u32 i = f.texList[j];
-        if (f.texMode[i] >= 2) {
-            tex[i] = array(4 + i);
-        }
-    }
-    // the readers: direct data in the stream's byte order, arrays in host order
-    const bool posDirect = f.posMode == 1, nrmDirect = f.nrmMode == 1;
-    const Reader posRead = readerFor(f.posFormat, f.posComps, posDirect && be);
-    const Reader nrmRead = readerFor(f.nrmFormat, f.nrmComps, nrmDirect && be);
-    const Reader nrmPartRead = readerFor(f.nrmFormat, 3, false);  // one of three indexed parts (NBT3)
-    Reader texRead[8];
-    for (u32 j = 0; j < f.texCount; j++) {
-        const u32 i = f.texList[j];
-        texRead[i] = readerFor(f.texFormat[i], f.texComps[i], f.texMode[i] == 1 && be);
+        tex[i] = f.texMode[i] >= 2 ? &array(4 + i) : &kNone;
     }
     u32 base = (u32) c->vertices.size();
-    c->vertices.resize(base + (size_t) count * f.stride);
-    u8* out = c->vertices.data() + base;
-    const u8* in = data;
-    const u32 posIndex = indexSize(f.posMode), nrmIndex = indexSize(f.nrmMode);
-    for (u32 v = 0; v < count; v++, out += f.stride) {
-        if (f.anyMatrix) {  // the matrix indices: the defaults, then those of the vertex
-            u8* matrix = out + f.offMatrix;
-            memcpy(matrix, f.defaults, 9);
-            if (f.pnmtx) {
-                matrix[0] = *in++ & 63;
-            }
-            for (u32 j = 0; j < f.mtxCount; j++) {
-                matrix[1 + f.mtxList[j]] = *in++ & 63;
-            }
+    c->vertices.resize(base + (size_t) count * f.stride);  // not filled (Uninitialized): the passes write it all
+    // in runs of 64 vertices: a run's bytes stay in the cache from one pass to the next
+    const u32 kRun = 64;
+    const int order = be ? 1 : 0;
+    Run run;
+    run.inSize = f.inSize;
+    run.stride = f.stride;
+    for (u32 v = 0; v < count; v += kRun) {
+        run.in = data + (size_t) v * f.inSize;
+        run.out = c->vertices.data() + base + (size_t) v * f.stride;
+        run.count = count - v < kRun ? count - v : kRun;
+        if (f.anyMatrix) {
+            matrixPass(run, f);
         }
-        // position (the vertex bytes start as zeros: what is not there stays 0)
-        {
-            const u8* src = nullptr;
-            if (f.posMode == 1) {
-                src = in;
-                in += f.posBytes;
-            } else if (f.posMode) {
-                u32 index = f.posMode == 2 ? *in : rd16(in, be);
-                in += posIndex;
-                if ((f.posMode == 2 && index == 0xFF) || (f.posMode == 3 && index == 0xFFFF)) {
-                    gStats.skipped++;  // GX skips such a vertex; kept here (rare)
-                }
-                src = at(pos, index, f.posBytes);
-            }
-            if (src) {
-                posRead(out, src, f.posScale);
-            }
+        if (f.posMode) {
+            gStats.skipped += f.posPass[order](run, f.pos, pos);
+        } else {
+            noPositionPass(run);
         }
-        // normal (binormal, tangent)
         if (f.nrmMode) {
-            // normal, then binormal and tangent: the three sit one after the
-            // other from offNormal (offBt = offNormal + 12)
-            u8* o = out + f.offNormal;
-            const u32 cs = f.nrmCs, comps = f.nrmComps;
-            if (f.nrmMode == 1) {
-                nrmRead(o, in, f.nrmScale);
-                in += comps * cs;
-            } else if (f.nbt3) {
-                // three indices: normal, binormal, tangent, each the part of its element
-                for (u32 part = 0; part < 3; part++) {
-                    u32 index = f.nrmMode == 2 ? *in : rd16(in, be);
-                    in += nrmIndex;
-                    if (const u8* src = at(nrm, index, 9 * cs)) {
-                        nrmPartRead(o + 12 * part, src + part * 3 * cs, f.nrmScale);
-                    }
-                }
-            } else {
-                u32 index = f.nrmMode == 2 ? *in : rd16(in, be);
-                in += nrmIndex;
-                if (const u8* src = at(nrm, index, comps * cs)) {
-                    nrmRead(o, src, f.nrmScale);
-                }
-            }
+            f.nrmPass[order](run, f.nrm, nrm);
         }
         for (int k = 0; k < 2; k++) {
-            if (!f.clrMode[k]) {
-                continue;
+            if (f.clrMode[k]) {
+                f.clrPass[k][order](run, f.clr[k], *clr[k]);
             }
-            u8 rgba[4] = {0, 0, 0, 255};
-            if (f.clrMode[k] == 1) {
-                color(in, f.clrFormat[k], be, rgba);
-                in += f.clrBytes[k];
-            } else {
-                u32 index = f.clrMode[k] == 2 ? *in : rd16(in, be);
-                in += indexSize(f.clrMode[k]);
-                const u8* src = at(clr[k], index, f.clrBytes[k]);
-                color(src ? src : kZero, f.clrFormat[k], false, rgba);
-            }
-            memcpy(out + f.offColor[k], rgba, 4);
         }
         for (u32 j = 0; j < f.texCount; j++) {
             const u32 i = f.texList[j];
-            const u8* src = nullptr;
-            if (f.texMode[i] == 1) {
-                src = in;
-                in += f.texBytes[i];
-            } else {
-                u32 index = f.texMode[i] == 2 ? *in : rd16(in, be);
-                in += indexSize(f.texMode[i]);
-                src = at(tex[i], index, f.texBytes[i]);
-            }
-            if (src) {
-                texRead[i](out + f.offTex[i], src, f.texScale[i]);
-            }
+            f.texPass[i][order](run, f.tex[i], *tex[i]);
         }
     }
 
@@ -996,7 +1225,7 @@ void draw(u8 op, u32 count, const u8* data, bool be)
     // triangle was a few percent)
     u32 first = (u32) c->indices.size();
     u32 primitive = RE4_GX_TRIANGLES;
-    std::vector<u16>& ix = c->indices;
+    auto& ix = c->indices;
     const u32 kind = op & 0xF8;
     size_t added = 0;
     switch (kind) {
@@ -1362,8 +1591,10 @@ void cpWrite(u8 reg, u32 value)
         gGp.vatC[reg & 7] = value;
     } else if ((reg & 0xF0) == 0xA0) {
         gGp.arrayBase[reg & 15] = value;
+        gArraysKept &= ~(1u << (reg & 15));
     } else if ((reg & 0xF0) == 0xB0) {
         gGp.arrayStride[reg & 15] = value;
+        gArraysKept &= ~(1u << (reg & 15));
     }
 }
 
@@ -1661,9 +1892,11 @@ size_t command(const u8* p, size_t n, size_t* need, bool be, int depth)
 }
 
 // The GP's input from the FIFO: worked through as soon as a command is
-// complete.
+// complete. The bytes gRead..gEnd of gStream are still to work through (its
+// size is the room): an insert into a vector for every value the CPU puts was
+// a few percent of the core's time on the OUYA.
 std::vector<u8> gStream;
-size_t gRead;
+size_t gRead, gEnd;
 size_t gNeed = 1;
 
 }  // namespace
@@ -1674,7 +1907,7 @@ void drain()
 {
     for (;;) {
         size_t need = 1;
-        const size_t avail = gStream.size() - gRead;
+        const size_t avail = gEnd - gRead;
         const u8 op = avail ? gStream[gRead] : 0;
         const bool isDraw = op >= 0x80 && op < 0xC0 && avail >= 3;
         const u32 count = isDraw ? rd16(gStream.data() + gRead + 1, true) : 0;
@@ -1686,11 +1919,11 @@ void drain()
         remember(op, used, count, isDraw ? vertexSize(op & 7) : 0);
         gRead += used;
     }
-    if (gRead == gStream.size()) {
-        gStream.clear();
-        gRead = 0;
+    if (gRead == gEnd) {
+        gRead = gEnd = 0;
     } else if (gRead >= 4096) {
-        gStream.erase(gStream.begin(), gStream.begin() + (long) gRead);
+        memmove(gStream.data(), gStream.data() + gRead, gEnd - gRead);
+        gEnd -= gRead;
         gRead = 0;
     }
 }
@@ -1698,9 +1931,27 @@ void drain()
 void feed(const uint8_t* bytes, size_t n)
 {
     gStats.bytes += (u32) n;
-    gFifoBytes += (double) n;
-    gStream.insert(gStream.end(), bytes, bytes + n);
-    if (gStream.size() - gRead >= gNeed) {
+    gFifoBytes += n;
+    if (gStream.size() - gEnd < n) {
+        gStream.resize(std::max(gStream.size() * 2, gEnd + n + 4096));
+    }
+    u8* w = gStream.data() + gEnd;
+    switch (n) {  // the values the CPU puts: copies of a known size, no call
+    case 1:
+        w[0] = bytes[0];
+        break;
+    case 2:
+        memcpy(w, bytes, 2);
+        break;
+    case 4:
+        memcpy(w, bytes, 4);
+        break;
+    default:
+        memcpy(w, bytes, n);
+        break;
+    }
+    gEnd += n;
+    if (gEnd - gRead >= gNeed) {
         drain();
     }
 }

@@ -8,6 +8,11 @@
 
 namespace re4gx {
 
+// Only for gx_fifo.cpp and gx_decode.cpp (both in libre4_platform.so): hidden,
+// so that the calls between them are direct (not through the PLT; each value
+// the CPU puts into the FIFO passes feed())
+#pragma GCC visibility push(hidden)
+
 // gx_fifo.cpp -------------------------------------------------------------
 
 // Game memory at a physical address as the graphics processor sees it: MEM1
@@ -35,6 +40,8 @@ void peToken(uint16_t token, bool interrupt);
 void feed(const uint8_t* bytes, size_t n);
 // Works through what has arrived (a command cut off waits for its bytes).
 void drain();
+
+#pragma GCC visibility pop
 
 }  // namespace re4gx
 

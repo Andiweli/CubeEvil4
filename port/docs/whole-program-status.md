@@ -25,7 +25,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 32-bit-Kernprozess | ✅ 20.10.2026 (Branch `claude/re4-32bit-kernprozess`, Release **0.40.0-alpha**): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Retroid ✅ (erzwungen mit `-CoreProcess`: Spiel, Filme, Ton, Laden/Speichern, Debug-Menü, 30 FPS), **Tester-Gerät ✅** (nur 32 bit, Android 14: das Spiel läuft, Projektinhaber 20.10.2026; ohne Bericht). Offen: Leistungszahlen vom Tester-Gerät, Raumklang mit Spatializer („32 bit: der Kern als eigener Prozess“) |
 | Hotfix 0.40.1-alpha | 20.10.2026 (Branch `claude/re4-luis-hotfix`, vom Stand `548b0f24` des Kernprozess-Branches): Patch 0087, Absturz auf 64 bit, wenn ein Ganado Luis in der Hütte packt (Abschnitt „Absturz, wenn ein Ganado Luis in der Hütte packt“); Touch-Tasten nach einem Tippen auch bei einem „Geister-Controller“ (21.10.2026, Abschnitt „Touch-Bedienung bleibt ohne Controller versteckt“). Cloud ✅, **Gerätetest offen** |
 | Menü mehrsprachig, 0.41.0-alpha | 21.10.2026 (Branch `claude/re4-menu-sprachen`, enthält den Hotfix): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache (weitere liefert der Projektinhaber); Touchsteuerung Auto/Erzwingen/Unterdrücken, Komfortsteuerung. Cloud ✅, **Gerätetest offen** |
-| OUYA | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): Bestandsaufnahme (`ouya-machbarkeit.md`): drei Hürden (Android 4.1 mit NDK r23c, nur OpenGL ES 2.0, Leistung). **Entscheidungen des Projektinhabers:** erst die Kern-Probe O1, später eine eigene OUYA-App. **O1 gebaut, Cloud ✅** (`host/probe.cpp`, `whole_build_android.sh --ouya`, `ouya-probe.ps1`; Abschnitt „OUYA: Kern-Probe O1“), **NDK-r23c-Build und Gerätelauf offen** |
+| OUYA | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): Bestandsaufnahme (`ouya-machbarkeit.md`): drei Hürden (Android 4.1 mit NDK r23c, nur OpenGL ES 2.0, Leistung). **Entscheidungen des Projektinhabers:** erst die Kern-Probe O1, später eine eigene OUYA-App. **O1 gebaut und auf der OUYA gemessen** (`host/probe.cpp`, `whole_build_android.sh --ouya`, `ouya-probe.ps1`; Abschnitt „OUYA: Kern-Probe O1“): r100 10,6 Bilder/s, Kern 94 ms je Bild, davon gut 60 % GX-Umrechnung. **Schritt A** (GX-Umrechnung schneller, gleiche Ausgabe) in der Cloud ✅ (−37 % bzw. −56 %), **auf der OUYA offen**; danach B (Umrechnung im eigenen Thread) |
 | Hauptbranch `master` | 20.10.2026: alle Branches bis Alpha 4 (`claude/re4-start-controls`) und der 32-bit-Kernprozess bis zum zweiten Retroid-Lauf (`22aac6bf`) zusammengeführt, **ohne den Raumklang** (`claude/re4-dpl2-raumklang`, Wunsch des Projektinhabers: erst nach seinem Test). Das Release **0.40.0-alpha** (mit Raumklang, versionCode 60) und alles danach liegt im Branch `claude/re4-32bit-kernprozess`; dort weiterarbeiten oder ihn später ganz übernehmen |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
@@ -5581,6 +5581,30 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
   auch im Spielcode); fand den `ai.cpp`-Fehler, den `fabsf`-Fehler nicht (der Ersatz-Sysroot liest
   `<math.h>` nicht früher). Stand: 1200 Einheiten, 0 mit Fehlern, 0 Aufrufe jünger als Android 4.1. `whole_build_android.sh` gibt bei Fehlern jetzt die
   ersten fünf vollständig aus (Einbindungskette, Hinweise des Compilers).
+- **Schritt A: GX-Umrechnung schneller (21.10.2026, Entscheidung des Projektinhabers „erst A, dann
+  B“; B = die Umrechnung in einen eigenen Thread):** gleiche Ausgabe Bit für Bit (Prüfsumme
+  `re4probe_gx_fingerprint` unverändert: zufällige Formate, direkt/Index 8/Index 16, Indizes
+  außerhalb, NBT/NBT3, Farben, Listen und FIFO), nur schneller:
+  - Punktschleife in **Durchgängen je Eigenschaft** (`gx_decode.cpp`, `draw()`): erst die
+    Matrix-Indizes von bis zu 64 Punkten, dann deren Positionen, Normalen, Farben,
+    Texturkoordinaten, je mit einer Funktion für Format, Komponentenzahl, Index-Art und
+    Byte-Reihenfolge (Vorlage `attributePass`, `nbt3Pass`, `colorPass`), gewählt beim Wechsel des
+    Formats (`choosePasses`), nicht mehr je Punkt und Eigenschaft über einen Funktionszeiger.
+    Die Durchgänge schreiben jedes Byte (was eine Eigenschaft nicht setzt: 0), daher
+    **kein Nullfüllen** mehr: weder der Punkte und Indizes eines Bildes (7 MB im Wald von r100,
+    eigene Zuteilung `Uninitialized` für `Chunk::vertices/indices/ops`) noch je Punkt.
+  - Datenfelder (GXSetArray) einmal aufgelöst und gemerkt, bis das Spiel sie neu setzt
+    (`array()`, `cpWrite`); nur Felder im MEM1 (ein Fenster von Port-Speicher kann später
+    seinen Nachbarn bekommen). Format-Abfrage ohne Aufruf (`format()` inline).
+  - **Eingang vom FIFO** (`feed`): eigener Puffer statt `std::vector::insert` je Wert;
+    `re4_gx_put_f32/s8/s16/s32` rufen sich nicht mehr gegenseitig auf (je Wert zwei Aufrufe
+    weniger über die PLT), `re4gx::*` aus `gx_internal.h` unsichtbar außerhalb der Bibliothek
+    (direkte Aufrufe zwischen `gx_fifo.cpp` und `gx_decode.cpp`).
+  - Messung (`RE4_GX_BENCH=200`, i686 -O2, Median aus 9 Läufen): dorfartiges Bild mit
+    120 000 Punkten **2,43 → 1,54 ms** (−37 %); neu `re4probe_gx_bench_fifo`: 8000 Punkte, die
+    die CPU Wert für Wert schickt (Effekte, Anzeigen), **0,80 → 0,35 ms** (−56 %). Auf der OUYA
+    sollte der Gewinn größer sein (dort kosteten Nullfüllen und Kopien mehr, siehe Profil);
+    **auf der OUYA noch nicht gemessen.**
 
 ## Aufbau
 

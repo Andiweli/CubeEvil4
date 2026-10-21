@@ -90,6 +90,14 @@ arbeitet wie heute. Die drei freien Kerne des Tegra 3 helfen nur, wenn
 Decoder oder Ton auf eigene Threads gehen. Die GPU-Last bei 640×480 ohne MSAA
 ist ganz offen.
 
+**Gemessen (21.10.2026, Kern-Probe O1):** r100 10,6 Bilder/s (Kern 94 ms je
+Bild), Dorf r101 13,7 (72 ms); gut 60 % davon die GX-Umrechnung, die Spiellogik
+etwa 13 % (Status-Datei, Abschnitt „OUYA: Kern-Probe O1“). Entscheidung des
+Projektinhabers: **erst die Umrechnung schneller machen (A, gleiche Ausgabe Bit
+für Bit), dann in einen eigenen Thread verlegen (B, wie Dolphins „Dual Core“)**.
+A ist gebaut (Cloud: −37 % für Modell-Listen, −56 % für Werte, die die CPU
+einzeln schickt), auf der OUYA noch nicht gemessen.
+
 ## Vorschlag: in Stufen, erst messen
 
 | Stufe | Inhalt | Wo | Ergebnis |
@@ -102,7 +110,7 @@ Entscheidungen des Projektinhabers (21.10.2026): **erst die Kern-Probe O1**;
 die OUYA bekommt später **eine eigene App** (die Haupt-App bleibt bei Android 6.0
 und GLES 3); eine OUYA hängt per ADB am Windows-PC.
 
-## Stufe O1: die Kern-Probe (21.10.2026, Cloud gebaut und geprüft, Gerät offen)
+## Stufe O1: die Kern-Probe (21.10.2026, Cloud gebaut und geprüft, auf der OUYA gemessen)
 
 **Was sie ist:** `port/whole/host/probe.cpp`, ein kleines Programm (`re4_probe`),
 das den Spielkern wie der Kernprozess lädt und laufen lässt, aber ohne Bild. Es
@@ -153,5 +161,6 @@ Android-4.1-Zweige mit `-D__ANDROID__ -D__ANDROID_API__=16` für ARM übersetzt
 und mit einem nachgebauten `adb` (eine „OUYA“ neben einem „Retroid“) durchgespielt:
 OUYA erkannt, Befehle, Bericht, `senden.zip`.
 
-**Nicht geprüft:** der Build mit dem NDK r23c (in der Cloud gesperrt:
-`dl.google.com`), Windows PowerShell 5.1, alles auf der OUYA.
+**Nicht geprüft (Stand des ersten Entwurfs):** der Build mit dem NDK r23c (in
+der Cloud gesperrt: `dl.google.com`), Windows PowerShell 5.1, alles auf der OUYA.
+Inzwischen auf dem Windows-PC gebaut und auf der OUYA gemessen (Status-Datei).

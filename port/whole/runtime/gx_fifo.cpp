@@ -105,7 +105,7 @@ void toMemory(const u8* bytes, int n)
     gPiSet = gPi[5];
 }
 
-void put(const u8* bytes, int n)
+inline void put(const u8* bytes, int n)
 {
     if (linked()) {
         re4gx::feed(bytes, (size_t) n);
@@ -233,26 +233,33 @@ void re4_gx_put_u32(unsigned int v)
     put(b, 4);
 }
 
+// each with a put() of its own: one call less for every value the game puts
+// (a call between exported functions goes through the PLT)
 void re4_gx_put_s8(signed char v)
 {
-    re4_gx_put_u8((unsigned char) v);
+    const u8 b = (u8) v;
+    put(&b, 1);
 }
 
 void re4_gx_put_s16(short v)
 {
-    re4_gx_put_u16((unsigned short) v);
+    const u8 b[2] = {(u8) ((u16) v >> 8), (u8) v};
+    put(b, 2);
 }
 
 void re4_gx_put_s32(int v)
 {
-    re4_gx_put_u32((unsigned int) v);
+    const u32 u = (u32) v;
+    const u8 b[4] = {(u8) (u >> 24), (u8) (u >> 16), (u8) (u >> 8), (u8) u};
+    put(b, 4);
 }
 
 void re4_gx_put_f32(float v)
 {
-    u32 bits;
-    memcpy(&bits, &v, 4);
-    re4_gx_put_u32(bits);
+    u32 u;
+    memcpy(&u, &v, 4);
+    const u8 b[4] = {(u8) (u >> 24), (u8) (u >> 16), (u8) (u >> 8), (u8) u};
+    put(b, 4);
 }
 
 void* re4_gx_register_block(unsigned int paddr)
