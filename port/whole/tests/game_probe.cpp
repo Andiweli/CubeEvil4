@@ -2,7 +2,8 @@
 // test "math": checks of what only exists inside game units -- the inline
 // fabsf of math_sub.h, the EmRoutineSetW macro of em.h (patch 0023), the
 // big-endian views of re4_whole_prelude.h and the length of __FILE__; for the
-// test "partner" SetSubDamage on Luis (patch 0087).
+// test "partner" SetSubDamage on Luis (patch 0087); for the test "route"
+// getNearPoint from a position far outside the room (patch 0088).
 #include "types.h"
 #include "math_sub.h"
 #include "em.h"
@@ -17,6 +18,7 @@
 #include "light.h"
 #include "pl14.h"
 #include "pl_sub.h"
+#include "route_ck.h"
 
 #include <new>
 #include <stdlib.h>
@@ -285,5 +287,45 @@ extern "C" int re4probe_luis_damage(void)
     if (luis->r_no_0 != 4) bad |= 4;
     if (luis->pEmCatch != (cEm*) catcher) bad |= 8;
     if (memcmp(analysis, &luis->analysis, sizeof(cAnalysis)) != 0) bad |= 0x10;
+    return bad;
+}
+
+// Stack garbage where the next call keeps its locals (route test): a float-like pattern, as the
+// tester's report had in getNearPoint's idx[].
+__attribute__((noinline)) static void probeDirtyStack(void)
+{
+    volatile int fill[256];
+    for (int i = 0; i < 256; i++) {
+        fill[i] = 0x46464646;
+    }
+}
+
+// getNearPoint (patch 0088) over route data with three points in MEM1 (host order, as the port
+// loads it): a position near point 1 finds it; a position 2e8 away is out of reach of all three,
+// which leaves the sorted list empty (the original then reads pt[garbage]). Returns a bit mask of
+// faults: 1 near (mode 1) not point 1, 2 far (mode 1) not -1, 4 far (mode 0, the clear-line
+// search) not -1.
+extern "C" int re4probe_route_far(void)
+{
+    RTP* rtp = (RTP*) (unsigned long) 0x82E10000ul;
+    RTP_POINT* pt = (RTP_POINT*) ((u8*) rtp + 0x20);
+    auto keep = pG->Rtp;
+    Vec near = {900.0f, 0.0f, 0.0f};
+    Vec far = {0.0f, 2.0e8f, 0.0f};
+    int bad = 0;
+
+    memset(rtp, 0, 0x80);
+    rtp->ID = 0x32525450;
+    rtp->nPoint = 3;
+    rtp->pPoint = 0x20;
+    pt[1].pos.x = 1000.0f;
+    pt[2].pos.x = 5000.0f;
+    pG->Rtp = rtp;
+    if (getNearPoint(&near, 1, 0) != 1) bad |= 1;
+    probeDirtyStack();
+    if (getNearPoint(&far, 1, 0) != -1) bad |= 2;
+    probeDirtyStack();
+    if (getNearPoint(&far, 0, 0) != -1) bad |= 4;
+    pG->Rtp = keep;
     return bad;
 }

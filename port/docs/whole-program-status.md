@@ -27,6 +27,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | Menü mehrsprachig, 0.41.0-alpha | 21.10.2026 (Branch `claude/re4-menu-sprachen`, enthält den Hotfix): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache (weitere liefert der Projektinhaber); Touchsteuerung Auto/Erzwingen/Unterdrücken, Komfortsteuerung. Cloud ✅, **Gerätetest offen** |
 | Hauptbranch `master` | 21.10.2026: steht auf **0.41.0-alpha** (`0394c644`, versionCode 62): alle Branches bis Alpha 4, der 32-bit-Kernprozess mit Raumklang (0.40.0-alpha, `548b0f24`), der Luis-Hotfix und die Menü-Sprachen; jeweils ohne Zusammenführung nachgezogen (Wunsch des Projektinhabers). Die Release-Markierungen `0.40.0-alpha` und `0.41.0-alpha` zeigen noch auf ältere Stände (aus der Cloud nicht umsetzbar, GitHub verweigert das Hochladen von Markierungen); umsetzen am PC mit `git tag -f` und `git push -f origin <Markierung>` |
 | Menü in 10 Sprachen | 21.10.2026 (Branch `claude/re4-start-controls`, vom `master`-Stand `0394c644`): Spanisch, Französisch, Italienisch, Portugiesisch (Brasilien), Russisch, Arabisch (von rechts nach links), Chinesisch (vereinfacht), Hindi zu Englisch und Deutsch; Sprache auch je App wählbar (Android 13+). Cloud ✅, **Gerätetest offen** |
+| Absturz Wegesuche r11c (64 bit) | 21.10.2026 (Branch `claude/re4-start-controls`): Patch 0088 fängt ihn ab und meldet, wessen Position außerhalb lag; die eigentliche Ursache zeigt erst ein Bericht mit Fehlerprotokoll. Cloud ✅, **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5541,6 +5542,38 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     Studio), auf dem Gerät (Menü in jeder Sprache: passt alles in die Spalten, Arabisch
     gespiegelt, Sprachwechsel bei laufendem Spiel).
 
+- **Absturz beim Wegesuchen der Ganados (64 bit, Hütte r11c): abgefangen mit Patch 0088
+  (21.10.2026, Branch `claude/re4-start-controls`).** Tester-Bericht
+  `cubeevil4-report-20261021-091210.zip` (Samsung Galaxy M23 „m23xq“, Android 14, 64 bit, App
+  0.41.0-alpha-core, Kern im App-Prozess; derselbe Tester wie beim Absturz von Patch 0086, also in
+  der Belagerung der Hütte mit Luis als Partner): zweimal hintereinander etwa eine Minute nach dem
+  Start „signal 11, fault address 0x4e399b6e0“, pc `getNearPoint`, über `RouteCkToEm` ←
+  `em10RouteCk` ← `cEm10::move` (ein Ganado sucht den Weg zum Partner). Fehlerprotokoll war aus
+  (`log.txt` leer).
+  - **Ursache in `getNearPoint`:** die zehn nächsten Wegpunkte kommen sortiert in `idx[]`
+    (nicht vorbelegt) und `dist[]` (1e16). Ein Punkt weiter als 1e8 (Abstand² über 1e16) kommt nie
+    hinein; liegen weniger als zehn Punkte so nah, behalten die Einträge dahinter ihren
+    Stack-Inhalt, und die Suche nach freier Sicht liest `pt[idx]`. Die Fehladresse passt genau:
+    mit `pt` in MEM1 ist `idx` ≈ 0x4609…–0x4639…, als Gleitkommazahl 8800–11900, also eine
+    liegengebliebene Koordinate auf dem Stack. Auslöser ist eine Position weiter als 100 000 m
+    von allen Wegpunkten: die des Ganados oder die von Luis (`getNearInfo(pTo)`), unendlich oder
+    riesig. Woher sie auf 64 bit kommt, zeigt der Bericht nicht (kein Protokoll); die Klassen von
+    Luis und Partner passen (`cSubLuis` und `cSubChar` erben einfach von `cEm`, `pos` liegt in
+    `cEm`), `EmCatchSubSet`/`EmCatchMotionMove` greifen nur auf `cEm`-Mitglieder zu.
+  - **Patch 0088:** nur die gefüllten Einträge durchsuchen, keiner: -1 („kein Wegpunkt“; jeder
+    Aufrufer geht dann direkt aufs Ziel). Mit Positionen im Raum sind immer alle gefüllt, dort
+    ändert sich nichts. „check: route: the partner (id 0x4, type …) at (x y z): N of the M route
+    points of room r11c lie within 1e8 …“ nennt bis zu viermal, wessen Position es war (Spieler,
+    Partner oder welcher Gegner mit id/type), damit der nächste Bericht mit Fehlerprotokoll die
+    eigentliche Ursache zeigt.
+  - **Neuer Laufzeittest `route`** (`game_probe.cpp` `re4probe_route_far`): drei Wegpunkte in
+    MEM1, eine Position nahe Punkt 1 findet ihn, eine 2e8 entfernte gibt in beiden Arten -1 (vor
+    jedem Aufruf ein Stack voller 0x46464646 wie im Bericht).
+  - **Geprüft (Cloud):** `whole_build.sh i686 armhf`: 0 Baufehler, alle Prüfungen bestanden,
+    `runtime-test route: ok` auf beiden; aarch64 läuft noch (Ergebnis folgt). **Nicht getestet:**
+    auf dem Gerät; die eigentliche Ursache (wessen Position) zeigt erst ein Bericht mit
+    eingeschaltetem Fehlerprotokoll.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -5729,6 +5762,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0085 `dvd.cpp` | Der Start ohne Bild-Takt (Wunsch des Projektinhabers, 19.10.2026: kürzerer schwarzer Bildschirm): `cDvd::readProcMain` wartet nach jedem Schritt einer Lesung ein Bild (`TaskSleep(1)`); bis die erste `title.dat` gelesen ist, folgt der nächste Schritt sofort, solange nichts unterwegs ist (0x02000000 DVD, 0x01000000 ARAM), nach je 64 Schritten ein Bild (`runtime/dvd.cpp re4_dvd_boot_fast`); das Ende meldet `re4_dvd_read_done` (Name der Lesung). Danach und mit `RE4_DVD_BOOT_FAST=0` wie im Original. Prüfung: `runtime-test dvdq` (1 / 1 / 14 Bilder) |
 | 0086 `pl14.cpp`, `emmine.cpp`, `obj1b.cpp` | `GetWepTargetList2` legt für jeden Trefferbereich mit `YAT_FLAG_THROUGH`, den die Schusslinie kreuzt, einen Eintrag mehr an als `max` (bis 0x14). `isTarget` (Luis, `TARGET_WK list[2]`), der Treffer der Mine und der des Speers (je ein `TARGET_WK`) hatten nur Platz für `max`: der Eintrag dahinter überschrieb den Wachwert des Stack-Schutzes (Absturz „stack corruption detected“ bei Luis' erstem Schuss in der Hütte r11c, zwei Tester, 20.10.2026). Jetzt je 0x14 Einträge; die Aufrufer lesen weiter Eintrag 0 und 1 |
 | 0087 `pl_sub.cpp`, `em10.cpp` | Luis (`cSubLuis`) ist kein `cSubChar`: `SetSubDamage` schreibt für ihn über `cSubChar::m_MotTbl2[0]` / das erste Byte von `m_MotBase`, auf der GameCube sein `m_pFunc` (0x584) und `status` (0x58C, 0x40 = `F_KARAMI`); auf LP64 andere Stellen, `m_pFunc` blieb 0 (Absturz, wenn ein Ganado Luis in der Hütte r11c packt, Tester 20.10.2026). Jetzt für id 4 über Luis' eigene Mitglieder; `subem10_NeckHang_Luis` zählt `m_Work0` wie die GameCube in Luis' `routine.pos.y`. Das Bit `F_KARAMI` (von 0024 gestrichen) setzt Luis' Dank-Satz nach dem Packen wieder in Gang |
+| 0088 `route_ck.cpp` | `getNearPoint` sortiert die zehn nächsten Wegpunkte in `idx[]`/`dist[]` (Anfang: Stack-Inhalt bzw. 1e16). Ein Punkt weiter als 1e8 kommt nie hinein; liegen weniger als zehn (bzw. `nPoint`) Punkte so nah, behalten die Einträge dahinter ihren Stack-Inhalt, und die Suche nach freier Sicht liest `pt[Müll]` (Absturz weit über 4 GB in `getNearPoint` aus `RouteCkToEm`/`em10RouteCk`, Tester Samsung Galaxy M23, 64 bit, Hütte r11c, 21.10.2026). Jetzt nur die gefüllten Einträge; keiner: -1 („kein Wegpunkt“, jeder Aufrufer geht dann direkt aufs Ziel). Positionen im Raum füllen alle, dort ändert sich nichts. Wessen Position es war (Spieler, Partner, welcher Gegner), meldet „check: route: …“ bis zu viermal. Prüfung: `runtime-test route` |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

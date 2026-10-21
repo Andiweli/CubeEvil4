@@ -954,6 +954,7 @@ int re4probe_debug_mode(int set);
 void re4probe_stale_list(int set);
 int re4probe_light05(void);
 int re4probe_luis_damage(void);
+int re4probe_route_far(void);
 }
 
 static unsigned bitsOf(float f)
@@ -1439,6 +1440,19 @@ static void testPartner()
     report("partner", ok);
 }
 
+// A Ganado looks for its way from or to a position far outside the room (route_ck getNearPoint,
+// patch 0088, game_probe.cpp): no route point instead of a read through stack garbage
+static void testRoute()
+{
+    bool ok = true;
+    int r = re4probe_route_far();
+    CHECK(r == 0);
+    if (r != 0) {
+        re4_log("  route: faults 0x%x (1 near point, 2 far mode 1, 4 far mode 0)", r);
+    }
+    report("route", ok);
+}
+
 int re4_runtime_tests()
 {
     gFailures = 0;
@@ -1453,6 +1467,7 @@ int re4_runtime_tests()
     testTasks();
     testLight();
     testPartner();
+    testRoute();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);
