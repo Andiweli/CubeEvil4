@@ -5722,8 +5722,26 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
     `RE4_GX_PREFETCH=1`; 60 Läufe von `--runtime-test` und `--core-test` mit Thread ohne
     Fehler; `ndk23_check.sh` 1201 Einheiten ohne Fehler; Trockenlauf von `ouya-probe.ps1`
     (Standard jetzt `r100-gp`, `r101-gp`, `r100-schnell-gp`, `r100-schnell-gp-ohnevorladen`,
-    mit Grafik-Thread immer `RE4_GX_TEXTURE_CHECK=sampled`). **Auf der OUYA noch nicht
-    gemessen.**
+    mit Grafik-Thread immer `RE4_GX_TEXTURE_CHECK=sampled`).
+- **Fünfte Messung auf der OUYA (21.10.2026, Stand `f20e4b5`):** r100-gp 21,7 Bilder/s,
+  r101-gp 22,0, r100-schnell-gp 28,4, ohne Vorausladen 29,7: **nicht besser als die vierte**.
+  Vergleichbar über die Läufe ist die Zeit des Grafik-Threads **je Punkt** (die Läufe zeigen
+  verschiedene Teile des Raums: 70 000–100 000 Punkte je Bild, in schweren Abschnitten
+  gp 64–73 ms und 13–15 Bilder/s): in allen Läufen der vierten und fünften Messung
+  **367–399 ns je Punkt**; mit Vorausladen 397 statt 380 (schadet auf dem Tegra 3, wieder
+  ausgebaut). Die Stichproben-Prüfung der Texturen nahm `hashBytes` aus dem Profil, je Punkt
+  änderte sich kaum (das Hashen fiel wohl vor allem beim Laden und im Titel an, die das Profil
+  mitzählt, die Werte je Bild nicht). Der inline geschriebene Eingang rief die C-Bibliothek
+  (`memcpy` mit unbekannter Länge) für jeden Wert: `put` jetzt immer eingefaltet
+  (`always_inline`, Länge bekannt, ein Speicherbefehl), `toMemory` außerhalb (geprüft am
+  ARM-Maschinencode: etwa 20 Befehle je Wert, kein Aufruf). **Folgerung:** der Decoder ist
+  auf der OUYA durch die Speicheranbindung begrenzt (die Kopie der Probe schafft dort etwa
+  300 MB/s), nicht durchs Rechnen: 3–4 MB Punktdaten je Bild schreiben, Felder und Listen
+  lesen. Nennenswert schneller nur mit weniger Bytes je Punkt (die Formate der GameCube
+  unverändert weitergeben und auf der GPU umrechnen statt 40 Bytes Gleitkomma je Punkt)
+  und ohne zusätzliche Kopien zwischen Kern und Renderer.
+  `ouya-probe.ps1` zeigt jetzt „Grafik-Thread je Punkt“ (ns) und misst wieder
+  `r100-schnell-gp-ohnekopie` statt `-ohnevorladen`.
 
 ## Aufbau
 

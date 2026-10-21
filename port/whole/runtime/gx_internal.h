@@ -66,7 +66,7 @@ extern bool gThreaded;
 extern uint8_t* gRingAt;
 extern uint8_t* gRingStop;
 void ringPutSlow(const uint8_t* bytes, size_t n);
-inline void ringPut(const uint8_t* bytes, size_t n)
+__attribute__((always_inline)) inline void ringPut(const uint8_t* bytes, size_t n)
 {
     if ((size_t) (gRingStop - gRingAt) >= n) {
         memcpy(gRingAt, bytes, n);

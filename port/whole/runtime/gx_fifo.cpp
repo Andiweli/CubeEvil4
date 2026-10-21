@@ -90,7 +90,8 @@ u32 gPiSet = 0xFFFFFFFF;  // PI write pointer as this file last wrote it
 u32 gWrite;               // byte-exact physical write position
 bool gOverflow;
 
-void toMemory(const u8* bytes, int n)
+// out of line: put()'s path to the GP stays a few instructions
+__attribute__((noinline)) void toMemory(const u8* bytes, int n)
 {
     if (gPi[5] != gPiSet) {
         // the library attached another FIFO (GXSetCPUFifo): start at its pointer
@@ -113,7 +114,10 @@ void toMemory(const u8* bytes, int n)
     gPiSet = gPi[5];
 }
 
-inline void put(const u8* bytes, int n)
+// inlined into each re4_gx_put_*: `n` is then known and the copy into the GP
+// thread's ring a plain store (not inlined, a memcpy call of the C library for
+// every value: the OUYA, 21.10.2026)
+__attribute__((always_inline)) inline void put(const u8* bytes, int n)
 {
     if (linked()) {
         if (re4gx::gThreaded) {

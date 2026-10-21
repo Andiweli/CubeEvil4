@@ -26,9 +26,7 @@ Drei Schritte:
                      (RE4_GX_TEXTURE_CHECK=sampled, nur fuer die OUYA).
        ...-ohnekopie die Grafikpakete werden nur abgenommen, nicht kopiert (wie --no-copy):
                      zeigt, wie sehr die Kopie die Speicherbandbreite belastet
-       ...-ohnevorladen  ohne das Vorausladen der Punktdaten (sonst mit Grafik-Thread
-                     RE4_GX_PREFETCH=1): zeigt, was es auf der OUYA bringt
-     Standard: r100-gp, r101-gp, r100-schnell-gp, r100-schnell-gp-ohnevorladen (r100 ohne
+     Standard: r100-gp, r101-gp, r100-schnell-gp, r100-schnell-gp-ohnekopie (r100 ohne
      Thread: 10,6 Bilder/s, Messung vom 21.10.2026; mit -Runs r100,... wieder dabei).
      Jeder Lauf dauert -Seconds Sekunden (Standard 240). Die Test-Tastenfolge der
      PC-Pruefung fuehrt durch Speicherkarten-Dialog und Titel in den Raum; danach geht
@@ -83,9 +81,8 @@ param(
     [string]$CacheDir = '',
     [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'RE4-OUYA-Probe'),
     [int]$Seconds = 240,
-    [ValidateSet('r100', 'r101', 'r100-schnell', 'r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnekopie',
-        'r100-schnell-gp-ohnevorladen')]
-    [string[]]$Runs = @('r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnevorladen'),
+    [ValidateSet('r100', 'r101', 'r100-schnell', 'r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnekopie')]
+    [string[]]$Runs = @('r100-gp', 'r101-gp', 'r100-schnell-gp', 'r100-schnell-gp-ohnekopie'),
     [switch]$SkipBuild,
     [switch]$SkipSetup,
     [switch]$SkipData,
@@ -328,9 +325,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         # the GX decoder on a thread of its own (port/whole/runtime/gx_thread.cpp), textures
         # checked by samples from frame to frame (gx_decode.cpp: 18 % of its time otherwise)
         if ($gp) { $settings += 'RE4_GX_THREAD=1'; $settings += 'RE4_GX_TEXTURE_CHECK=sampled' }
-        # the vertex data asked for ahead (gx_decode.cpp), except in the run that shows its worth
-        $noPrefetch = $run -like '*-ohnevorladen'
-        if ($gp -and -not $noPrefetch) { $settings += 'RE4_GX_PREFETCH=1' }
+
         $copyArg = ''
         if ($runNoCopy) { $copyArg = ' --no-copy' }
         # where the game's thread spends its time (port/tools/probe_profile.py names the functions)
@@ -341,7 +336,6 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
         $label = if ($fast) { 'ohne Bremse' } else { 'Echtzeit' }
         if ($gp) { $label += ', Grafik-Thread' }
         if ($runNoCopy) { $label += ', ohne Kopie' }
-        if ($noPrefetch) { $label += ', ohne Vorausladen' }
         Say "4. Lauf $run ($label): $Seconds s ..."
         $writer = New-Object System.IO.StreamWriter($log, $false, (New-Object System.Text.UTF8Encoding($false)))
         $resultLines = @()
@@ -369,7 +363,7 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
             Invoke-Adb shell rm "$profileRemote.gp" | Out-Null
         }
         $text = Get-Content -LiteralPath $log -Encoding UTF8
-        $entry = @{ run = $run; fast = $fast; gp = $gp; noCopy = $runNoCopy; noPrefetch = $noPrefetch; log = $text }
+        $entry = @{ run = $run; fast = $fast; gp = $gp; noCopy = $runNoCopy; log = $text }
         foreach ($set in @('play', 'loop', 'all')) {
             $line = $resultLines | Where-Object { $_ -match "^probe-result: set=$set " } | Select-Object -First 1
             if ($line) { $entry[$set] = Read-Result $line }
@@ -412,7 +406,6 @@ foreach ($entry in $results.Values) {
     $mode = if ($entry.fast) { 'ohne Bremse: so schnell der Kern kann' } else { 'Echtzeit wie im Spiel' }
     if ($entry.gp) { $mode += '; Grafik-Decoder auf eigenem Thread' }
     if ($entry.noCopy) { $mode += '; Grafikpakete nicht kopiert' }
-    if ($entry.noPrefetch) { $mode += '; ohne Vorausladen der Punktdaten' }
     Say "Lauf $($entry.run) ($mode)"
     $failed = $entry.log | Where-Object { $_ -match '^probe: (FAILED|HANG|CRASH)|^probe: the game (ended|failed)' } | Select-Object -First 3
     foreach ($f in $failed) { Say "   PROBLEM: $($f -replace '^probe: ', '')" }
@@ -433,6 +426,10 @@ foreach ($entry in $results.Values) {
     Say "   Rechenzeit des Kerns je Bild:    $($r.core_cpu_ms) ms$(if (-not $entry.fast) { ' (verfuegbar: 33,3 ms)' })"
     if ($r.gx_thread -eq '1') {
         Say "   Rechenzeit des Grafik-Threads:   $($r.gp_cpu_ms) ms je Bild (auf einem anderen Prozessorkern, neben dem Kern)"
+        # per vertex: comparable between runs that show different parts of the room
+        if ([double]$r.vertices -gt 0) {
+            Say "   Grafik-Thread je Punkt:          $([math]::Round([double]$r.gp_cpu_ms * 1000000 / [double]$r.vertices)) ns"
+        }
     } elseif ($entry.gp) {
         Say '   PROBLEM: der Grafik-Thread war nicht an (alter Build?).'
     }

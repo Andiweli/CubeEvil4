@@ -916,27 +916,8 @@ struct Run {  // vertices of one draw: in the stream, in the chunk
     u32 count;
 };
 
-// An indexed attribute's element kAhead vertices on is asked for from memory
-// while the vertices before it are converted (__builtin_prefetch: a hint, the
-// output stays the same). On the OUYA most of the decoder's time went into
-// waiting for those elements (the line profile of the GP thread, 21.10.2026);
-// on the PC the hints only cost (RE4_GX_BENCH +8 %, the data is in the cache).
-// On with RE4_GX_PREFETCH=1 (the OUYA runs; the app as it was until measured).
-const u32 kAhead = 4;
-bool gPrefetch = [] {
-    const char* v = getenv("RE4_GX_PREFETCH");
-    return v && *v && *v != '0';
-}();
-
-template <unsigned Mode, bool BE>
-inline void prefetchElement(const Array& array, const u8* in)
-{
-    const u32 index = Mode == 2 ? *in : rd16(in, BE);
-    __builtin_prefetch((const void*) ((uintptr_t) array.base + (uintptr_t) index * array.stride));
-}
-
 // Returns the indices 0xFF / 0xFFFF it met (GX skips such a vertex, kept here)
-template <unsigned Format, unsigned Comps, unsigned Mode, bool BE, bool Ahead>
+template <unsigned Format, unsigned Comps, unsigned Mode, bool BE>
 u32 attributePass(const Run& r, const Attr& a, const Array& arr)
 {
     const unsigned cs = Format <= 1 ? 1 : Format <= 3 ? 2 : 4;
@@ -946,17 +927,9 @@ u32 attributePass(const Run& r, const Attr& a, const Array& arr)
     const u8* in = r.in + a.inAt;
     u8* out = r.out + a.outAt;
     u32 marked = 0;
-    if (Ahead && Mode != 1 && array.base) {
-        for (u32 v = 0; v < kAhead && v < count; v++) {
-            prefetchElement<Mode, BE>(array, in + v * inSize);
-        }
-    }
     for (u32 v = 0; v < count; v++, in += inSize, out += stride) {
         const u8* src = in;
         if (Mode != 1) {
-            if (Ahead && v + kAhead < count) {
-                prefetchElement<Mode, BE>(array, in + kAhead * inSize);
-            }
             const u32 index = Mode == 2 ? *in : rd16(in, BE);
             marked += Mode == 2 ? index == 0xFF : index == 0xFFFF;
             src = at(array, index, bytes);
@@ -1026,25 +999,16 @@ u32 colorPass(const Run& r, const Attr& a, const Array& arr)
     return 0;
 }
 
-template <unsigned Format, unsigned Comps, unsigned Mode>
-Pass attributePassFor(bool be)
-{
-    if (gPrefetch) {
-        return be ? attributePass<Format, Comps, Mode, true, true> : attributePass<Format, Comps, Mode, false, true>;
-    }
-    return be ? attributePass<Format, Comps, Mode, true, false> : attributePass<Format, Comps, Mode, false, false>;
-}
-
 template <unsigned Format, unsigned Comps>
 Pass attributePassFor(unsigned mode, bool be)
 {
     switch (mode) {
     case 1:
-        return be ? attributePass<Format, Comps, 1, true, false> : attributePass<Format, Comps, 1, false, false>;
+        return be ? attributePass<Format, Comps, 1, true> : attributePass<Format, Comps, 1, false>;
     case 2:
-        return attributePassFor<Format, Comps, 2>(be);
+        return be ? attributePass<Format, Comps, 2, true> : attributePass<Format, Comps, 2, false>;
     default:
-        return attributePassFor<Format, Comps, 3>(be);
+        return be ? attributePass<Format, Comps, 3, true> : attributePass<Format, Comps, 3, false>;
     }
 }
 
@@ -1257,13 +1221,6 @@ void draw(u8 op, u32 count, const u8* data, bool be)
         run.in = data + (size_t) v * f.inSize;
         run.out = c->vertices.data() + base + (size_t) v * f.stride;
         run.count = count - v < kRun ? count - v : kRun;
-        // the run's vertex bytes asked for from memory before the passes write them
-        // (the chunk's buffers are megabytes, written once a frame: not in the cache)
-        if (gPrefetch) {
-            for (u32 at = 0; at < run.count * f.stride; at += 32) {
-                __builtin_prefetch(run.out + at, 1);
-            }
-        }
         if (f.anyMatrix) {
             matrixPass(run, f);
         }
