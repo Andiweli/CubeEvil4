@@ -19,6 +19,8 @@
 #                              and the .gci the core test exported (GameCube byte order)
 #   re4_core_remote_test       (32 bit) the core in a process of its own: the app's side
 #                              against re4_coreproc (frames, sound, controller, card, a crash)
+#   re4_probe                  (32 bit) the core without a picture (host/probe.cpp, the OUYA
+#                              probe) with the entry of that check: frames, GX chunks, sound
 #   save_layout.py --check     the byte-order table of the save files
 #                              (runtime/save_layout.inc) still fits the game headers
 #   re4_format_compare         the Formatumwandler against the app's checked
@@ -144,6 +146,23 @@ for t in "${targets[@]}"; do
             echo "  re4_core_remote_test ${mode#--}: exit $code | $(echo "$out" | grep -E '^core-remote-test' | tr '\n' ' ')"
             [ "$code" -ne 0 ] && { echo "$out" | tail -n 30 | sed 's/^/    /'; status=1; }
         done
+    fi
+    # the core without a picture (host/probe.cpp, step O1 of port/docs/ouya-machbarkeit.md), with
+    # the entry of the core process check instead of the game: frames counted, GX chunks taken
+    # and copied, the sound read in real time, the summary line the PC script reads
+    if [ -x "$build/re4_probe" ]; then
+        out=$(cd "$build" && RE4_CORE_TEST_ENTRY=remote timeout 120 "${run[@]}" ./re4_probe --seconds 4 --report 2 2>&1)
+        code=$?
+        result=$(echo "$out" | grep -E '^probe-result: set=all ')
+        value() { echo "$result" | grep -oE " $1=[0-9.]+" | cut -d= -f2 | cut -d. -f1; }
+        frames=$(value frames)
+        vertices=$(value vertices)
+        sound=$(value sound_from_game_pct)
+        echo "  re4_probe (test entry): exit $code | frames ${frames:-?}, fps $(value fps), vertices per chunk ${vertices:-?}, sound from the game ${sound:-?} %"
+        if [ "$code" -ne 0 ] || [ "${frames:-0}" -lt 100 ] || [ "${vertices:-0}" -lt 1 ] || [ "${sound:-0}" -lt 50 ]; then
+            echo "$out" | grep -v '^map: ' | tail -n 30 | sed 's/^/    /'
+            status=1
+        fi
     fi
     if command -v llvm-dwarfdump > /dev/null; then
         out=$(python3 "$root/port/tools/save_layout.py" "$build" --check 2>&1)

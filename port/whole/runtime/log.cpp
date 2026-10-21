@@ -7,6 +7,7 @@
 #include <mutex>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #ifdef __ANDROID__
 #include <android/log.h>
@@ -49,6 +50,17 @@ extern "C" void re4_log(const char* fmt, ...)
     remember(fmt, copy);
     va_end(copy);
 #ifdef __ANDROID__
+    // RE4_LOG_STDERR=1: also on stderr, one line per call (the core probe
+    // host/probe.cpp started over adb keeps the whole log with its output)
+    static const bool toStderr = getenv("RE4_LOG_STDERR") && strcmp(getenv("RE4_LOG_STDERR"), "1") == 0;
+    if (toStderr) {
+        char line[1024];
+        va_list again;
+        va_copy(again, ap);
+        vsnprintf(line, sizeof(line), fmt, again);
+        va_end(again);
+        fprintf(stderr, "[re4] %s\n", line);
+    }
     __android_log_vprint(ANDROID_LOG_INFO, "re4", fmt, ap);
 #else
     fputs("[re4] ", stderr);

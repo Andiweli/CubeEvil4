@@ -1,6 +1,5 @@
 #include "stack_context.h"
 #include <cstdlib>
-#include <cfenv>
 #include <stdexcept>
 #include <system_error>
 #ifdef _WIN32
@@ -28,6 +27,22 @@ extern "C" void* make_fcontext(void* stackTop, std::size_t size, void (*entry)(T
 #include <cstdint>
 #else
 #error "A tested stack context backend is required for this platform"
+#endif
+#if !defined(_WIN32) && defined(__ANDROID__) && defined(__arm__) && __ANDROID_API__ < 21
+// Android 4.x (API 16, the OUYA) has no fenv functions on ARM: the context
+// switch keeps the FPSCR itself, as fegetenv/fesetenv do there.
+namespace {
+using FloatEnv = unsigned;
+inline void getFloatEnv(FloatEnv* env) { __asm__ volatile("vmrs %0, fpscr" : "=r"(*env)); }
+inline void setFloatEnv(const FloatEnv* env) { __asm__ volatile("vmsr fpscr, %0" : : "r"(*env)); }
+}
+#elif !defined(_WIN32)
+#include <cfenv>
+namespace {
+using FloatEnv = std::fenv_t;
+inline void getFloatEnv(FloatEnv* env) { std::fegetenv(env); }
+inline void setFloatEnv(const FloatEnv* env) { std::fesetenv(env); }
+}
 #endif
 #ifndef _WIN32
 // The whole-program port on 64 bit (port/whole/runtime/game_window.cpp): game
@@ -64,8 +79,8 @@ struct StackContext::Impl {
         std::terminate(); // A context entry must always yield before completion.
     }
 #else
-    std::fenv_t floatingPoint{};
-    std::fenv_t callerFloatingPoint{};
+    FloatEnv floatingPoint{};
+    FloatEnv callerFloatingPoint{};
     void* mapping = MAP_FAILED;
     std::size_t mappingBytes = 0;
 #ifdef RE4_UCONTEXT
@@ -92,7 +107,7 @@ struct StackContext::Impl {
         context = CreateFiberEx(bytes, bytes, FIBER_FLAG_FLOAT_SWITCH, start, this);
         if (!context) throw std::system_error(static_cast<int>(GetLastError()), std::system_category(), "CreateFiberEx");
 #else
-        std::fegetenv(&floatingPoint);
+        getFloatEnv(&floatingPoint);
         const auto rawPage = sysconf(_SC_PAGESIZE);
         if (rawPage <= 0) throw std::runtime_error("Cannot query page size");
         const auto page = static_cast<std::size_t>(rawPage);
@@ -155,8 +170,8 @@ void StackContext::resume() {
     impl_->caller = GetCurrentFiber();
     SwitchToFiber(impl_->context);
 #else
-    std::fegetenv(&impl_->callerFloatingPoint);
-    std::fesetenv(&impl_->floatingPoint);
+    getFloatEnv(&impl_->callerFloatingPoint);
+    setFloatEnv(&impl_->floatingPoint);
 #ifdef RE4_UCONTEXT
     swapcontext(&impl_->callerContext, &impl_->self_);
 #else
@@ -168,8 +183,8 @@ void StackContext::yield() {
 #ifdef _WIN32
     SwitchToFiber(impl_->caller);
 #else
-    std::fegetenv(&impl_->floatingPoint);
-    std::fesetenv(&impl_->callerFloatingPoint);
+    getFloatEnv(&impl_->floatingPoint);
+    setFloatEnv(&impl_->callerFloatingPoint);
 #ifdef RE4_UCONTEXT
     swapcontext(&impl_->self_, &impl_->callerContext);
 #else

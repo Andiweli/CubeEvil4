@@ -98,9 +98,58 @@ ist ganz offen.
 | O2 GLES-2-Renderer | GLES-2-Weg der GX-Nachbildung wie oben, prüfbar in der Cloud mit llvmpipe (GLES 2 erzwingen) | Cloud | Titel und r100 als Bild auf dem PC |
 | O3 OUYA-APK | eigener Flavor (z. B. `ouya`: nur `armeabi-v7a`, `minSdk 16`, immer Kernprozess, eigene App-ID), Java-Versionsabfragen, Disc-Import ohne SAF, Tastenbelegung | Cloud + OUYA | erster Test auf dem Gerät |
 
-Offene Entscheidungen des Projektinhabers vor dem Start:
+Entscheidungen des Projektinhabers (21.10.2026): **erst die Kern-Probe O1**;
+die OUYA bekommt später **eine eigene App** (die Haupt-App bleibt bei Android 6.0
+und GLES 3); eine OUYA hängt per ADB am Windows-PC.
 
-1. OUYA überhaupt, und wenn ja: zuerst nur O1 (Messung)?
-2. Eigene APK/eigener Flavor für die OUYA (Vorschlag), damit die Haupt-App bei
-   Android 6.0 und GLES 3 bleibt?
-3. Steht eine OUYA mit ADB am Windows-PC bereit?
+## Stufe O1: die Kern-Probe (21.10.2026, Cloud gebaut und geprüft, Gerät offen)
+
+**Was sie ist:** `port/whole/host/probe.cpp`, ein kleines Programm (`re4_probe`),
+das den Spielkern wie der Kernprozess lädt und laufen lässt, aber ohne Bild. Es
+übernimmt die Rolle der App: nimmt jedes GX-Paket des Kerns ab und kopiert es so,
+wie der Kernprozess es in den gemeinsamen Speicher kopiert (`--no-copy`: nur
+abnehmen), liest den Ton in Echtzeit mit 32 kHz und misst alle 5 s: Spielbilder je
+Sekunde, Bildzeiten, Rechenzeit des Spiel-Threads je Bild, Leerlauf (Warten auf
+das nächste Halbbild), Prozessor gesamt, GX-Menge und Kopierzeit, Ton, Speicher,
+Takt jedes Prozessorkerns. Am Ende eine Zusammenfassung über die Zeit, in der Leon
+frei war (ohne Zwischensequenz, ohne Menü), sonst über die Hauptschleife des
+Raums: `probe-result: key=value ...`.
+
+**Auf der OUYA:** `port/scripts/ouya-probe.ps1` (Windows) baut in WSL mit dem NDK
+r23c (`whole_setup_linux.sh --ouya`, `whole_build_android.sh --ouya`), legt Disc 1
+als Ordner an (einmalig, `RE4-OUYA-Daten` neben dem Repository), kopiert alles
+unter der ADB-Sperre nach `/data/local/tmp/re4-ouya` und misst drei Läufe mit der
+Tastenfolge der PC-Prüfung: r100 in Echtzeit, r101 (Dorf) in Echtzeit, r100 ohne
+Bremse (`RE4_VI_FAST=1`: so schnell der Kern kann). Bericht auf Deutsch in
+`Desktop\RE4-OUYA-Probe\bericht.txt`, alles zusammen in `senden.zip`. Mit
+`-Serial` läuft dieselbe Probe auch auf dem Retroid (Vergleich).
+
+**Was Android 4.1 anders macht** (Quelltext des Linkers von Android 4.1.2,
+`bionic/linker/linker.c`, und die Symbollisten von Bionic nachgelesen):
+
+| Punkt | Android 4.1 | Lösung |
+|---|---|---|
+| Hash-Tabelle | nur `DT_HASH` (ohne stürzt die Suche mit Division durch 0 ab) | `-Wl,--hash-style=both` für API < 23 (`CMakeLists.txt`), `whole_build_android.sh --ouya` prüft jede Datei |
+| Symbolsuche | erst die Bibliothek selbst, dann ihre direkten `DT_NEEDED`; `dlsym(handle)` nur in der Bibliothek selbst | Probe sucht in `libre4_main.so` und `libre4_platform.so`; Module brauchen beide direkt (geprüft); nur `re4_strstr`/`re4_strrchr` stehen doppelt in beiden (harmlos) |
+| Bibliotheken je Prozess | höchstens 128 (`SO_MAX`) | Probe: etwa 10 + geladene Module; in einer App mit Zygote (60–80 Systembibliotheken) zu knapp: auf der OUYA immer Kernprozess |
+| Suchpfad | `LD_LIBRARY_PATH`, dann `/system/lib`; schon geladene Bibliotheken nach Dateiname | Probe lädt `libc++_shared`, Plattform und Kern mit Pfad; das Skript setzt `LD_LIBRARY_PATH` |
+| Adressen | Kernel 3.1 (vermutlich, die Adresskarte im Log zeigt es): positionsunabhängige Programme knapp unter `0x80000000` (2/3 des Adressraums), der Heap zufällig bis 32 MB dahinter, also womöglich in MEM1 | Probe startet sich einmal ohne Adress-Zufall neu (`ADDR_NO_RANDOMIZE`) und belegt alles unter `0x83000000` vorab (`host/low_memory.h`); die Adresskarte steht im Log |
+| fehlende Funktionen (API 21) | `fegetenv`/`fesetenv` (ARM), `dl_iterate_phdr` (ARM), `__libc_current_sigrtmin` | `port/src/stack_context.cpp` sichert das FPSCR selbst (`vmrs`/`vmsr`), `os_thread.cpp` findet die Spielbibliothek über `dladdr` und ihre Programmköpfe, `watch.cpp` nimmt Signal 32 + 6 (nur Diagnose) |
+| gemeinsamer Speicher | weder `memfd_create` (Kernel 3.17) noch `ASharedMemory` (API 26) | für O1 nicht nötig; für die OUYA-App (O3) `/dev/ashmem` |
+
+Der Abgleich der Bibliotheken des armhf-Builds gegen die Bionic-Listen
+(Android 11, mit API-Stufen) fand sonst nur glibc-eigene Namen (`__errno_location`,
+`fopen64`, `backtrace`, …), die der Android-Build nicht benutzt. Fehlende
+Funktionen im Spielcode würde `whole_stub_check.py --android` als neue Platzhalter
+melden.
+
+**Geprüft (Cloud):** `whole_build.sh i686 armhf` grün, dazu die Probe mit dem
+Test-Einstieg des Kernprozess-Tests auf i686 und armhf (qemu): Bilder gezählt,
+GX-Pakete abgenommen und kopiert, Ton gelesen, Zusammenfassung; die neuen
+Android-4.1-Zweige mit `-D__ANDROID__ -D__ANDROID_API__=16` für ARM übersetzt
+(FPSCR-Befehle im Objekt); `ouya-probe.ps1` mit PowerShell 7 auf Syntax geprüft
+und mit einem nachgebauten `adb` (eine „OUYA“ neben einem „Retroid“) durchgespielt:
+OUYA erkannt, Befehle, Bericht, `senden.zip`.
+
+**Nicht geprüft:** der Build mit dem NDK r23c (in der Cloud gesperrt:
+`dl.google.com`), Windows PowerShell 5.1, alles auf der OUYA.

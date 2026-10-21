@@ -25,7 +25,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 32-bit-Kernprozess | ✅ 20.10.2026 (Branch `claude/re4-32bit-kernprozess`, Release **0.40.0-alpha**): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Retroid ✅ (erzwungen mit `-CoreProcess`: Spiel, Filme, Ton, Laden/Speichern, Debug-Menü, 30 FPS), **Tester-Gerät ✅** (nur 32 bit, Android 14: das Spiel läuft, Projektinhaber 20.10.2026; ohne Bericht). Offen: Leistungszahlen vom Tester-Gerät, Raumklang mit Spatializer („32 bit: der Kern als eigener Prozess“) |
 | Hotfix 0.40.1-alpha | 20.10.2026 (Branch `claude/re4-luis-hotfix`, vom Stand `548b0f24` des Kernprozess-Branches): Patch 0087, Absturz auf 64 bit, wenn ein Ganado Luis in der Hütte packt (Abschnitt „Absturz, wenn ein Ganado Luis in der Hütte packt“); Touch-Tasten nach einem Tippen auch bei einem „Geister-Controller“ (21.10.2026, Abschnitt „Touch-Bedienung bleibt ohne Controller versteckt“). Cloud ✅, **Gerätetest offen** |
 | Menü mehrsprachig, 0.41.0-alpha | 21.10.2026 (Branch `claude/re4-menu-sprachen`, enthält den Hotfix): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache (weitere liefert der Projektinhaber); Touchsteuerung Auto/Erzwingen/Unterdrücken, Komfortsteuerung. Cloud ✅, **Gerätetest offen** |
-| OUYA (Prüfung) | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): nur Bestandsaufnahme, nichts gebaut, nichts am Gerät geprüft (`ouya-machbarkeit.md`). Drei Hürden: Android 4.1 (NDK r23c nötig), nur OpenGL ES 2.0 (eigener GLES-2-Weg der GX-Nachbildung), Leistung (Kern auf dem Retroid schon 14–20 ms je Spielbild). Vorschlag: erst Kern-Probe O1 ohne Bild auf der OUYA; **Entscheidung des Projektinhabers offen** |
+| OUYA | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): Bestandsaufnahme (`ouya-machbarkeit.md`): drei Hürden (Android 4.1 mit NDK r23c, nur OpenGL ES 2.0, Leistung). **Entscheidungen des Projektinhabers:** erst die Kern-Probe O1, später eine eigene OUYA-App. **O1 gebaut, Cloud ✅** (`host/probe.cpp`, `whole_build_android.sh --ouya`, `ouya-probe.ps1`; Abschnitt „OUYA: Kern-Probe O1“), **NDK-r23c-Build und Gerätelauf offen** |
 | Hauptbranch `master` | 20.10.2026: alle Branches bis Alpha 4 (`claude/re4-start-controls`) und der 32-bit-Kernprozess bis zum zweiten Retroid-Lauf (`22aac6bf`) zusammengeführt, **ohne den Raumklang** (`claude/re4-dpl2-raumklang`, Wunsch des Projektinhabers: erst nach seinem Test). Das Release **0.40.0-alpha** (mit Raumklang, versionCode 60) und alles danach liegt im Branch `claude/re4-32bit-kernprozess`; dort weiterarbeiten oder ihn später ganz übernehmen |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
@@ -5488,6 +5488,46 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     Bild, FPS-Anzeige „30 FPS (Spiel) · 60 Hz“. Ob nach der Wahl auf den Bildschirm getippt
     wurde, zeigt das Protokoll nicht: der Wechsel der Einstellung stand nicht darin. Jetzt
     schreibt `TouchControls.setMode` „touch controls: setting auto/force/suppress“.
+
+
+### OUYA: Kern-Probe O1 (21.10.2026, Branch `claude/adoring-mendel-vclbu8`)
+
+Entscheidungen des Projektinhabers (21.10.2026): erst messen, wie schnell der Kern auf der
+OUYA läuft (Stufe O1 aus `port/docs/ouya-machbarkeit.md`), später eine eigene OUYA-App
+(die Haupt-App bleibt bei Android 6.0 und GLES 3). Einzelheiten, Linker-Unterschiede von
+Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
+
+- **Probe** `port/whole/host/probe.cpp` (`re4_probe`, 32 bit; Linux und Android): lädt den
+  Kern wie der Kernprozess (alles unter `0x83000000` vorab belegt, einmal ohne Adress-Zufall
+  neu gestartet), spielt mit den Test-Schaltern der PC-Prüfung, nimmt GX-Pakete ab (und
+  kopiert sie wie der Kernprozess), liest den Ton in Echtzeit und misst alle 5 s; am Ende
+  `probe-result: set=play|loop|all ...`. Exit 0 gemessen, 2 Laden/Start, 3 Stillstand, 4 Spiel
+  beendet.
+- **Build für Android 4.1:** `whole_setup_linux.sh --ouya` (NDK r23c nach
+  `/opt/android-ndk-r23c`), `whole_build_android.sh --ouya [--stage DIR]` (android-16,
+  armeabi-v7a, Ordner `whole-android-ouya`; prüft `DT_HASH`, kein TLS-Segment, keine gepackten
+  Relokationen, nur erlaubte `NEEDED`; legt Kern, Module, `libc++_shared.so`, `re4_probe` und
+  `libre4_coreproc.so` flach in `port/build/ouya-probe`). `CMakeLists.txt`: für API < 23
+  `-Wl,--hash-style=both`, Ziel `re4_probe`.
+- **Plattformschicht für API 16** (keine neuen Patches, `src/` unverändert):
+  `port/src/stack_context.cpp` sichert beim Thread-Wechsel das FPSCR selbst, wo `fegetenv`/
+  `fesetenv` fehlen (ARM unter API 21); `runtime/os_thread.cpp` `re4_valid_port_ptr` ohne
+  `dl_iterate_phdr` über `dladdr` und die Programmköpfe; `runtime/watch.cpp` Signal 32 + 6
+  statt `SIGRTMIN + 6`; `runtime/log.cpp` `RE4_LOG_STDERR=1` schreibt das Protokoll auf
+  Android zusätzlich nach stderr (die Probe über adb).
+- **PC:** `port/scripts/ouya-probe.ps1` (unter `Global\Retroid_ADB_Exclusive`): Build in WSL,
+  Disc 1 als Ordner (`RE4-OUYA-Daten` neben dem Repository), alles nach
+  `/data/local/tmp/re4-ouya`, Läufe `r100` (Echtzeit), `r101` (Dorf, Echtzeit), `r100-schnell`
+  (`RE4_VI_FAST=1`), Bericht in `Desktop\RE4-OUYA-Probe`, `senden.zip`. `-Serial` für den
+  Retroid als Vergleich.
+- **`whole_build.sh`:** neue Prüfung `re4_probe (test entry)` mit dem Einstieg des
+  Kernprozess-Tests (`RE4_CORE_TEST_ENTRY=remote`, 4 s): Bilder, GX-Pakete, Ton.
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf` grün (mit der neuen Probe-Prüfung); die
+  Android-4.1-Zweige mit `-D__ANDROID__ -D__ANDROID_API__=16` für ARM übersetzt; Abgleich der
+  undefinierten Symbole des armhf-Builds gegen die Bionic-Listen mit API-Stufen (nur die drei
+  Stellen oben betrafen den Android-Build); `ouya-probe.ps1` mit PowerShell 7 geparst und mit
+  einem nachgebauten `adb` durchgespielt. **Nicht geprüft:** NDK r23c (in der Cloud gesperrt),
+  Windows PowerShell 5.1, OUYA.
 
 ## Aufbau
 

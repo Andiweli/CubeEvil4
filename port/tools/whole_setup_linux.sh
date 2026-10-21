@@ -13,10 +13,16 @@
 #   --android   also the Android NDK r28c (28.2.13676358, the version of the
 #               app) under /opt/android-ndk-r28c for whole_build_android.sh;
 #               downloads about 700 MB from dl.google.com once
+#   --ouya      the Android NDK r23c (23.2.8568313, the last one for Android
+#               4.1, API 16: the OUYA) under /opt/android-ndk-r23c for
+#               whole_build_android.sh --ouya (port/docs/ouya-machbarkeit.md);
+#               about 700 MB once
 set -euo pipefail
 
 android=0
 [ "${1:-}" = "--android" ] && android=1
+ouya=0
+[ "${1:-}" = "--ouya" ] && { ouya=1; android=1; }
 
 need=()
 # libc++-dev: whole_libcxx_check.py (the NDK's C++ library, checked in the Linux build)
@@ -49,15 +55,17 @@ if [ ${#need[@]} -gt 0 ]; then
 fi
 
 if [ "$android" -eq 1 ]; then
-  ndk=/opt/android-ndk-r28c
-  if ! grep -q '^Pkg.Revision *= *28.2.13676358' "$ndk/source.properties" 2>/dev/null; then
-    echo "Android-NDK r28c wird geladen (einmalig, etwa 700 MB) ..."
+  name=r28c revision=28.2.13676358
+  [ "$ouya" -eq 1 ] && { name=r23c; revision=23.2.8568313; }
+  ndk=/opt/android-ndk-$name
+  if ! grep -q "^Pkg.Revision *= *$revision" "$ndk/source.properties" 2>/dev/null; then
+    echo "Android-NDK $name wird geladen (einmalig, etwa 700 MB) ..."
     tmp=$(mktemp -d)
-    curl -fL --retry 3 -o "$tmp/ndk.zip" https://dl.google.com/android/repository/android-ndk-r28c-linux.zip
+    curl -fL --retry 3 -o "$tmp/ndk.zip" "https://dl.google.com/android/repository/android-ndk-$name-linux.zip"
     rm -rf "$ndk"
     unzip -q "$tmp/ndk.zip" -d /opt
     rm -rf "$tmp"
-    grep -q '^Pkg.Revision *= *28.2.13676358' "$ndk/source.properties" || {
+    grep -q "^Pkg.Revision *= *$revision" "$ndk/source.properties" || {
       echo "FEHLER: unerwartetes NDK in $ndk" >&2
       exit 1
     }

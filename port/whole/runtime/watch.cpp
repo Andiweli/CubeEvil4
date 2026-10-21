@@ -51,7 +51,13 @@ volatile unsigned gHits;  // every hit, logged or not (runtime test)
 
 int watchSignal()
 {
+#if defined(__ANDROID__) && __ANDROID_API__ < 21
+    // Android 4.x (API 16, the OUYA): no __libc_current_sigrtmin; the kernel's
+    // first real-time signal is 32 (only for diagnosis, re4_watch_write)
+    return 32 + 6;
+#else
     return SIGRTMIN + 6;
+#endif
 }
 
 // "libre4_main.so+0x23095c (MotionMoveCore+0x338)"
