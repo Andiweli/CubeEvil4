@@ -29,7 +29,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | Menü in 10 Sprachen | 21.10.2026 (Branch `claude/re4-start-controls`, vom `master`-Stand `0394c644`): Spanisch, Französisch, Italienisch, Portugiesisch (Brasilien), Russisch, Arabisch (von rechts nach links), Chinesisch (vereinfacht), Hindi zu Englisch und Deutsch; Sprache auch je App wählbar (Android 13+). Cloud ✅, **Gerätetest offen** |
 | Absturz Wegesuche r11c (64 bit) | 21.10.2026 (Branch `claude/re4-start-controls`): Patch 0088 fängt ihn ab und meldet, wessen Position außerhalb lag; die eigentliche Ursache zeigt erst ein Bericht mit Fehlerprotokoll. Cloud ✅, **Gerätetest offen** |
 | 0.41.1-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 63): Fehlerprotokoll auf jedem Handy (der Kern schreibt `core-log.txt` selbst, `logcat-status.txt`, „Error log: on/off“ im Bericht), Patch 0088, Menü in 10 Sprachen. Cloud ✅, Retroid ✅ (Deutsch, Protokoll), Samsung-Tester offen |
-| 0.41.2-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 64): Patch 0089, die Gondel in r10f setzte Leon und Ashley auf Plätze aus gesicherten Registern (Ursache der Wegsuche-Abstürze). Cloud: siehe Abschnitt, **Gerätetest offen** |
+| 0.41.2-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 64): Patch 0089, die Gondel in r10f setzte Leon und Ashley auf Plätze aus gesicherten Registern (Ursache der Wegsuche-Abstürze). Cloud ✅, **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5668,7 +5668,8 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   - **Version** `0.41.2-alpha`, `versionCode` 64; Releasetext
     `port/android-decomp/docs/releases/v0.41.2-alpha.md`.
   - **Geprüft (Cloud):** `r10f.cpp` mit -O2 für aarch64 und armhf übersetzt (ohne Patch 0 Zugriffe
-    auf `posA`/`posB`, mit Patch 4); `whole_build.sh i686 armhf aarch64` läuft. **Nicht getestet:** auf dem Gerät (die Gondel in r10f mit
+    auf `posA`/`posB`, mit Patch 4); `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle
+    Prüfungen bestanden (114 Module laden, Laufzeit-, Kern- und Kernprozess-Tests). **Nicht getestet:** auf dem Gerät (die Gondel in r10f mit
     Ashley: beide kommen auf ihren Plätzen an, keine „check: route“-Meldung mehr).
 
 ## Aufbau
