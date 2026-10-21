@@ -5667,6 +5667,10 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     Daten, harmlos).
   - **Version** `0.41.2-alpha`, `versionCode` 64; Releasetext
     `port/android-decomp/docs/releases/v0.41.2-alpha.md`.
+  - **Gerätelauf (Retroid, Projektinhaber, 21.10.2026, Stand `32f686e5`, beide Kerne neu gebaut,
+    64 bit, `-Manual`, 56 s):** Spielstand in r113 geladen, Spieler frei, kein Absturz, keine
+    „check: route“-Meldung. Die Gondel in r10f lief dabei nicht (kein Spielstand davor auf dem
+    Retroid); erster Durchlauf hatte die ADB-Sperre belegt (`ouya-probe.ps1` der OUYA-Sitzung).
   - **Geprüft (Cloud):** `r10f.cpp` mit -O2 für aarch64 und armhf übersetzt (ohne Patch 0 Zugriffe
     auf `posA`/`posB`, mit Patch 4); `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle
     Prüfungen bestanden (114 Module laden, Laufzeit-, Kern- und Kernprozess-Tests). **Nicht getestet:** auf dem Gerät (die Gondel in r10f mit
