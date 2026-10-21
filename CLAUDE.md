@@ -21,6 +21,10 @@
   `E:\Development\Android\RE4-Discdata`; Ergebnisse liegen auf dem Desktop in
   `RE4-Kern-App` bzw. `RE4-Kern-Pruefung`). Entscheidung des
   Projektinhabers, 15.10.2026.
+- Bei jedem neuen Alpha-Release die Änderungen gleich im Chat mitschicken, kurz
+  und knackig (englisch, für Tester: Fixed / New / Changed, je ein Satz pro Punkt);
+  der Releasetext in `port/android-decomp/docs/releases/` bleibt genauso kurz
+  (Entscheidung des Projektinhabers, 21.10.2026).
 - Am Ende jedes Meilensteins den fertigen Startprompt für den nächsten
   Meilenstein als Codeblock zum Kopieren ausgeben. Er nennt den Branch, die
   empfohlene Intelligenzstufe und ob die Arbeit in der Cloud oder lokal auf dem
