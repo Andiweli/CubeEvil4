@@ -5720,6 +5720,35 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     Waffenverbesserung und Kopfschuss geschickt hat (Entscheidung des Projektinhabers,
     21.10.2026).
 
+- **Gegner- und Menü-Spur im Fehlerprotokoll (Wunsch des Projektinhabers, 21.10.2026: „schreiben
+  wir mehr ins Protokoll“; die Spielstände des Testers lagen hinter den Stellen), Branch
+  `claude/re4-start-controls`.** `runtime/state_trace.cpp` schreibt immer (auch ohne
+  `RE4_TRACE`) je Änderung eine Zeile in `core-log.txt`:
+  - `em: + s12 0x1a/3 set 5 hp 300 at (x y z) in r209` (ein Gegner erscheint, `be_flag` Bit 0),
+    `em: - s12 … after N frames` (er ist weg); beim Betreten eines Raums alle seine Gegner.
+    Für die Burghalle (Nachrücken, Verschwinden).
+  - `em: hit s12 0x1a/3 hp 300 -> 100 part 5 wep 0x10 r 1/16/0/0` mit getroffenem Teil
+    (`dmg.m_pDamageYarare->parts_no`, 5 = Kopf) und Waffe (`dmg.m_Wep`), bei Ganados (ids
+    0x10–0x1F) dazu `Be_flg`, Waffenart, Klasse, Parasit und `cEm::flag`, also alles, wonach
+    `em10DmSetWep*`/`em10LostHead` über den Kopf entscheiden; danach 90 Bilder lang jeder
+    Routinenwechsel (`em: s12 r 2/4/0/0`) und `em: s12 head lost` (Bit 0x80 von `Be_flg`). Für
+    den Kopfschuss im Ritual-Raum.
+  - `em: s12 hidden` / `shown` (`be_flag` Bit 1, höchstens 20 je Leben) und `em: s12 jumps
+    (…) -> (…)` (mehr als 3000 in einem Bild).
+  - `pad: menu frame N rep 0x… stick (x y) c (x y) buttons 0x…`: jede Cursor-Bewegung in einem
+    Untermenü (Inventar, Händler, Karte) mit ihrer Ursache, Steuerkreuz (0x0000000f), linker Stick
+    ab 30 (0x000f0000) oder C-Stick ab 10 (0x00f00000), und den Werten beider Sticks. Für die
+    springende Auswahl beim Waffenverbessern.
+  - Mengen: höchstens 1500 Gegner- und 600 Menü-Zeilen je 1800 Bilder (etwa eine Minute), danach
+    eine Zeile „… left out“; keine Obergrenze je Lauf, die Datei selbst hat 2 × 4 MB. Kosten: ein
+    Durchgang über die Gegner-Plätze je Bild (Vergleiche, keine Ausgabe ohne Änderung).
+  - **Neuer Laufzeittest `enemylog`** (`game_probe.cpp` `re4probe_enemy_log`): zwei künstliche
+    Gegner-Plätze in MEM1; erwartet werden die acht Zeilen von Erscheinen, Kopftreffer,
+    Routinenwechsel, Kopfverlust, Verstecken, Sprung, Verschwinden und C-Stick im Untermenü.
+  - **Geprüft (Cloud):** die geänderten Dateien mit den i686-Einstellungen ohne Fehler übersetzt;
+    `whole_build.sh i686 armhf aarch64` läuft (Ergebnis folgt). **Nicht getestet:** auf dem Gerät (Menge der Zeilen in einer
+    langen Sitzung).
+
 ## Aufbau
 
 | Ergebnis | Inhalt |

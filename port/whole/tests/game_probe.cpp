@@ -3,7 +3,8 @@
 // fabsf of math_sub.h, the EmRoutineSetW macro of em.h (patch 0023), the
 // big-endian views of re4_whole_prelude.h and the length of __FILE__; for the
 // test "partner" SetSubDamage on Luis (patch 0087); for the test "route"
-// getNearPoint from a position far outside the room (patch 0088).
+// getNearPoint from a position far outside the room (patch 0088); for the test
+// "enemylog" the enemy and menu lines of the error log (state_trace.cpp).
 #include "types.h"
 #include "math_sub.h"
 #include "em.h"
@@ -19,6 +20,8 @@
 #include "pl14.h"
 #include "pl_sub.h"
 #include "route_ck.h"
+#include "em10.h"
+#include "joy.h"
 
 #include <new>
 #include <stdlib.h>
@@ -328,4 +331,73 @@ extern "C" int re4probe_route_far(void)
     if (getNearPoint(&far, 0, 0) != -1) bad |= 4;
     pG->Rtp = keep;
     return bad;
+}
+
+extern "C" void re4_state_trace_enemy_frame(unsigned n);
+
+// The error log's enemy and menu lines (state_trace.cpp enemyLog / menuLog) over two fake works
+// of EmMgr in MEM1: slot 1 becomes a Ganado (0x1a type 3) of room r209, is hit on the head (part
+// 5, weapon 0x10), changes its routine, loses its head, is hidden, jumps and goes; then the C
+// stick moves the cursor of a sub screen. The test reads the lines from the log's tail.
+extern "C" void re4probe_enemy_log(void)
+{
+    u8* works = (u8*) (unsigned long) 0x82E20000ul;
+    const u32 stride = (u32) sizeof(cEm10);
+    cEm* keepArray = EmMgr.pArray;
+    u32 keepCount = EmMgr.nArray, keepSize = EmMgr.size;
+    u8 keepStep = pG->Rno0;
+    u16 keepRoom = pG->room_id;
+    JOY keepJoy = Joy[0];
+    int keepSub = StaFlagChk(pG, STA_SUB_SCRN) != 0;
+
+    memset(works, 0, 2 * stride);
+    EmMgr.pArray = (cEm*) works;
+    EmMgr.nArray = 2;
+    EmMgr.size = stride;
+    pG->Rno0 = 3;
+    pG->room_id = 0x209;
+    StaFlagOff(pG, STA_SUB_SCRN);
+    cEm* e = (cEm*) (works + stride);
+    re4_state_trace_enemy_frame(1000);  // the new array: no line
+    e->be_flag = 1 | 2;
+    e->id = 0x1A;
+    e->type = 3;
+    e->emset_no = 5;
+    e->hp = 300;
+    e->pos.x = 100.0f;
+    e->pos.z = 200.0f;
+    e->r_no_0 = 1;
+    re4_state_trace_enemy_frame(1001);  // em: + s1
+    e->hp = 100;
+    e->hitInfo.parts_no = 5;
+    e->dmg.m_pDamageYarare = &e->hitInfo;
+    e->dmg.m_Wep = 0x10;
+    e->r_no_0 = 2;
+    e->r_no_1 = 4;
+    EM10_WK(e)->Be_flg = 0x4000;
+    re4_state_trace_enemy_frame(1002);  // em: hit s1
+    e->r_no_1 = 9;
+    re4_state_trace_enemy_frame(1003);  // em: s1 r 2/9/0/0
+    EM10_WK(e)->Be_flg |= 0x80;
+    re4_state_trace_enemy_frame(1004);  // em: s1 head lost
+    e->be_flag &= ~2u;
+    re4_state_trace_enemy_frame(1005);  // em: s1 hidden
+    e->pos.x = 5000.0f;
+    re4_state_trace_enemy_frame(1006);  // em: s1 jumps
+    e->be_flag = 0;
+    re4_state_trace_enemy_frame(1007);  // em: - s1
+    StaFlagOn(pG, STA_SUB_SCRN);
+    Joy[0].rep = 0x00100000;
+    Joy[0].substickX = 12;
+    re4_state_trace_enemy_frame(1008);  // pad: menu frame 1008
+    Joy[0] = keepJoy;
+    if (!keepSub) {
+        StaFlagOff(pG, STA_SUB_SCRN);
+    }
+    pG->Rno0 = keepStep;
+    pG->room_id = keepRoom;
+    EmMgr.pArray = keepArray;
+    EmMgr.nArray = keepCount;
+    EmMgr.size = keepSize;
+    re4_state_trace_enemy_frame(1009);  // the old array again: starts over without a line
 }

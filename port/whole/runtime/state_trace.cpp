@@ -85,9 +85,22 @@
 //                          (test-core-app.ps1 -WeaponTrace)
 //
 // Always logged (the memory card, M10): the end of the boot card check with
-// the options then in force, and a save loaded from the card.
+// the options then in force, and a save loaded from the card. Since
+// 21.10.2026 also the enemies and the menu cursor, one line per change (the
+// testers' error log, core-log.txt; enemyLog / menuLog below):
+//
+//   em: + s12 0x1a/3 set 5 hp 300 at (x y z) in r209    a work comes alive
+//   em: - s12 0x1a/3 hp 0 r 3/1/0/0 at (x y z) after 812 frames
+//   em: hit s12 0x1a/3 hp 300 -> 100 part 5 wep 0x10 r 1/16/0/0
+//       [Ganados, ids 0x10..0x1f: Be_flg, weapon kind, class, parasite core, cEm::flag]
+//   em: s12 r 2/4/0/0                       its routine, for 90 frames after a hit
+//   em: s12 head lost                       a Ganado's Be_flg bit 0x80 (em10LostHead)
+//   em: s12 hidden / shown                  be_flag bit1 (drawn)
+//   em: s12 jumps (x y z) -> (x y z)        more than 3000 in one frame
+//   pad: menu frame N rep 0x.. stick (x y) c (x y)   the cursor moves in a sub screen
 #include "types.h"
 #include "em.h"
+#include "em10.h"
 #include "global.h"
 #include "player.h"
 #include "cam_ctrl.h"
@@ -478,6 +491,183 @@ void weaponLine(unsigned n)
 }
 std::atomic<unsigned> g_playerHits(0);  // re4_core_player_hits
 
+// --- the enemies and the menu cursor for the error log (21.10.2026) ----------------------------
+// A tester's reports of enemies that keep coming or vanish (castle hall r208), a head that does
+// not burst (ritual room r209) and a menu cursor that moves by itself (the merchant's tune-up)
+// had no word of it in the log. One line per change; at most kWindowLines lines in kWindowFrames
+// frames (about a minute), so that a flood cannot push everything else out of core-log.txt
+// (2 x 4 MB): the late part of a long session counts as much as the start.
+const unsigned kSlots = 512, kFollowFrames = 90, kWindowFrames = 1800, kWindowLines = 1500, kMenuWindowLines = 600;
+
+struct EnemySeen {
+    bool alive;
+    bool shown;
+    bool headLost;
+    u8 id, type;
+    s16 hp;
+    u8 r[4];
+    Vec pos;
+    unsigned born;
+    unsigned follow;    // frames left to log routine changes (after a hit)
+    unsigned visLines;  // hidden / shown lines of this life
+};
+
+EnemySeen g_seen[kSlots];
+const cEm* g_seenArray;
+u32 g_seenCount;
+u16 g_seenRoom;
+
+bool isGanado(const cEm* e)
+{
+    return e->id >= 0x10 && e->id <= 0x1F;
+}
+
+// A line within the window's budget (true), else counted and left out, said once per window.
+struct LineWindow {
+    unsigned start, lines, skipped;
+    bool take(unsigned n, unsigned limit, const char* what)
+    {
+        if (n - start >= kWindowFrames) {
+            if (skipped) {
+                re4_log("%s: %u lines left out in the last %u frames (more than %u)", what, skipped,
+                        kWindowFrames, limit);
+            }
+            start = n;
+            lines = skipped = 0;
+        }
+        if (lines < limit) {
+            lines++;
+            return true;
+        }
+        skipped++;
+        return false;
+    }
+};
+
+LineWindow g_enemyWindow, g_menuWindow;
+unsigned g_enemyFrame;  // the frame enemyLine counts for
+
+bool enemyLine()
+{
+    return g_enemyWindow.take(g_enemyFrame, kWindowLines, "em");
+}
+
+void enemyHit(unsigned slot, const cEm* e, const EnemySeen& was)
+{
+    const YARARE_INFO* part = e->dmg.m_pDamageYarare;
+    char ganado[96] = "";
+    if (isGanado(e)) {
+        const FREE_EM10* w = EM10_WK(e);
+        snprintf(ganado, sizeof ganado, " flg 0x%08x wt %u cls %u core %u f 0x%08x", (unsigned) w->Be_flg,
+                 (unsigned) w->Wep_type, (unsigned) w->Ganado, w->pCore ? 1u : 0u, (unsigned) e->flag);
+    }
+    re4_log("em: hit s%u 0x%02x/%u hp %d -> %d part %d wep 0x%02x r %u/%u/%u/%u%s", slot, (unsigned) e->id,
+            (unsigned) e->type, (int) was.hp, (int) e->hp, live(part) ? (int) part->parts_no : -1,
+            (unsigned) e->dmg.m_Wep, (unsigned) e->r_no_0, (unsigned) e->r_no_1, (unsigned) e->r_no_2,
+            (unsigned) e->r_no_3, ganado);
+}
+
+void enemyLog(unsigned n, GLOBAL_WK* g)
+{
+    const cEm* arr = EmMgr.pArray;
+    u32 count = EmMgr.nArray, stride = EmMgr.size;
+    if (g->Rno0 != 3 || !live(arr) || stride == 0 || count > kSlots) {
+        return;
+    }
+    g_enemyFrame = n;
+    // a new room (or a new array): the works start over without a line each
+    if (arr != g_seenArray || count != g_seenCount || g->room_id != g_seenRoom) {
+        memset(g_seen, 0, sizeof g_seen);
+        g_seenArray = arr;
+        g_seenCount = count;
+        g_seenRoom = g->room_id;
+    }
+    for (u32 i = 0; i < count; i++) {
+        const cEm* e = (const cEm*) ((const u8*) arr + i * stride);
+        EnemySeen& s = g_seen[i];
+        bool alive = (e->be_flag & 1) && e->id != 0;
+        if (s.alive && (!alive || e->id != s.id)) {
+            if (enemyLine()) {
+                re4_log("em: - s%u 0x%02x/%u hp %d r %u/%u/%u/%u at (%.0f %.0f %.0f) after %u frames", (unsigned) i,
+                        (unsigned) s.id, (unsigned) s.type, (int) s.hp, (unsigned) s.r[0], (unsigned) s.r[1],
+                        (unsigned) s.r[2], (unsigned) s.r[3], (double) s.pos.x, (double) s.pos.y, (double) s.pos.z,
+                        n - s.born);
+            }
+            s.alive = false;
+        }
+        if (!alive) {
+            continue;
+        }
+        bool shown = (e->be_flag & 2) != 0;
+        bool headLost = isGanado(e) && (EM10_WK(e)->Be_flg & 0x80);
+        if (!s.alive) {
+            if (enemyLine()) {
+                re4_log("em: + s%u 0x%02x/%u set %u hp %d at (%.0f %.0f %.0f) in r%03x%s", (unsigned) i,
+                        (unsigned) e->id, (unsigned) e->type, (unsigned) e->emset_no, (int) e->hp, (double) e->pos.x,
+                        (double) e->pos.y, (double) e->pos.z, (unsigned) g->room_id, shown ? "" : ", hidden");
+            }
+            memset(&s, 0, sizeof s);
+            s.alive = true;
+            s.born = n;
+        } else {
+            if (e->hp != s.hp) {
+                if (enemyLine()) {
+                    enemyHit(i, e, s);
+                }
+                s.follow = kFollowFrames;
+            } else if (s.follow && (e->r_no_0 != s.r[0] || e->r_no_1 != s.r[1] || e->r_no_2 != s.r[2] ||
+                                    e->r_no_3 != s.r[3]) && enemyLine()) {
+                re4_log("em: s%u r %u/%u/%u/%u", (unsigned) i, (unsigned) e->r_no_0, (unsigned) e->r_no_1,
+                        (unsigned) e->r_no_2, (unsigned) e->r_no_3);
+            }
+            if (headLost && !s.headLost && enemyLine()) {
+                re4_log("em: s%u head lost", (unsigned) i);
+            }
+            if (shown != s.shown && s.visLines < 20 && enemyLine()) {
+                s.visLines++;
+                re4_log("em: s%u %s", (unsigned) i, shown ? "shown" : "hidden");
+            }
+            float dx = e->pos.x - s.pos.x, dy = e->pos.y - s.pos.y, dz = e->pos.z - s.pos.z;
+            if (dx * dx + dy * dy + dz * dz > 3000.0f * 3000.0f && enemyLine()) {
+                re4_log("em: s%u jumps (%.0f %.0f %.0f) -> (%.0f %.0f %.0f)", (unsigned) i, (double) s.pos.x,
+                        (double) s.pos.y, (double) s.pos.z, (double) e->pos.x, (double) e->pos.y, (double) e->pos.z);
+            }
+            if (s.follow) {
+                s.follow--;
+            }
+        }
+        s.id = e->id;
+        s.type = e->type;
+        s.hp = e->hp;
+        s.r[0] = e->r_no_0;
+        s.r[1] = e->r_no_1;
+        s.r[2] = e->r_no_2;
+        s.r[3] = e->r_no_3;
+        s.pos = e->pos;
+        s.shown = shown;
+        s.headLost = headLost;
+    }
+}
+
+// The cursor of a sub screen (inventory, merchant, map) moves on the repeat bits of the pad, the
+// cross (0x0000000f), the main stick from 30 units (0x000f0000) or the C stick from 10 units
+// (0x00f00000): which one, with both sticks' values.
+void menuLog(unsigned n, GLOBAL_WK* g)
+{
+    if (!StaFlagChk(g, STA_SUB_SCRN)) {
+        return;
+    }
+    const JOY& j = Joy[0];
+    u32 dir = j.rep & 0x00FF000Fu;
+    if (!dir) {
+        return;
+    }
+    if (g_menuWindow.take(n, kMenuWindowLines, "pad: menu")) {
+        re4_log("pad: menu frame %u rep 0x%08x stick (%d %d) c (%d %d) buttons 0x%04x", n, (unsigned) dir,
+                (int) j.stickX, (int) j.stickY, (int) j.substickX, (int) j.substickY, (unsigned) (j.on & 0xFFFF));
+    }
+}
+
 void frame(unsigned n)
 {
     trace(n);
@@ -539,6 +729,8 @@ void frame(unsigned n)
         re4_log("run: sub screen %s at frame %u", sub ? "open" : "closed", n);
     }
     subOpen = sub;
+    enemyLog(n, g);
+    menuLog(n, g);
     // hits on the player (life goes down in the game): a dark bar showed at the
     // bottom of the picture only then; the app records the pictures after a hit
     // (re4_core_player_hits, core_mode.cpp RE4_GX_DUMP_ON_HIT)
@@ -828,6 +1020,15 @@ extern "C" unsigned re4_core_player_hits(void)
 extern "C" long re4_trace_free_at(void)
 {
     return g_freeAt;
+}
+
+// The enemy and menu lines of one frame on their own (runtime test "enemylog", game_probe.cpp).
+extern "C" void re4_state_trace_enemy_frame(unsigned n)
+{
+    if (live(pG)) {
+        enemyLog(n, pG);
+        menuLog(n, pG);
+    }
 }
 
 // Reads the switches again (the app sets them after the library is loaded,

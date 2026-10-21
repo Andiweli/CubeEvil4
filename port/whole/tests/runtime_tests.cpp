@@ -955,6 +955,8 @@ void re4probe_stale_list(int set);
 int re4probe_light05(void);
 int re4probe_luis_damage(void);
 int re4probe_route_far(void);
+void re4probe_enemy_log(void);
+int re4_log_tail(char* out, int size);
 }
 
 static unsigned bitsOf(float f)
@@ -1453,6 +1455,34 @@ static void testRoute()
     report("route", ok);
 }
 
+// The error log's enemy and menu lines (state_trace.cpp, game_probe.cpp re4probe_enemy_log): a
+// Ganado appears, is hit on the head, changes its routine, loses its head, is hidden, jumps and
+// goes; the C stick moves a sub screen's cursor
+static void testEnemyLog()
+{
+    bool ok = true;
+    re4probe_enemy_log();
+    static char tail[24 * 130];
+    re4_log_tail(tail, sizeof tail);
+    const char* want[] = {
+        "em: + s1 0x1a/3 set 5 hp 300 at (100 0 200) in r209",
+        "em: hit s1 0x1a/3 hp 300 -> 100 part 5 wep 0x10 r 2/4/0/0 flg 0x00004000",
+        "em: s1 r 2/9/0/0",
+        "em: s1 head lost",
+        "em: s1 hidden",
+        "em: s1 jumps (100 0 200) -> (5000 0 200)",
+        "em: - s1 0x1a/3 hp 100 r 2/9/0/0 at (5000 0 200) after 6 frames",
+        "pad: menu frame 1008 rep 0x00100000 stick (0 0) c (12 0)",
+    };
+    for (const char* w : want) {
+        if (!strstr(tail, w)) {
+            ok = false;
+            re4_log("  enemylog: missing \"%s\"", w);
+        }
+    }
+    report("enemylog", ok);
+}
+
 // The error log's core file (log.cpp re4_log_file, CoreBridge.setLogFile): the lines remembered
 // before it, then every line with logcat's time; at the size limit (RE4_LOG_FILE_LIMIT here, 4 MB
 // in the app) the file becomes <file>.1 and starts anew; after "" nothing more
@@ -1532,6 +1562,7 @@ int re4_runtime_tests()
     testPartner();
     testRoute();
     testLogFile();
+    testEnemyLog();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);
