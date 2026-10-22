@@ -5910,8 +5910,10 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   Spiels (SELECT halten) die Handcannon geholt und ausgerüstet (`Wep15 MAGNUM prolog Ok`); beim
   Öffnen des Koffers `case: item 0x37 had no place at (0 0) turn 0 on the spare board; moved to
   (13 1) turn 0 in the case`. Auch das Debug-Menü gibt Gegenstände also ohne Platz (`construct`:
-  Ablagefeld, (0 0)), nicht nur der „Case Maker“. **Noch offen:** die Bestätigung im Bild (Marke an
-  der Waffe, kein „E“ auf der Karte) und die alten Spielstände 1 und 3.
+  Ablagefeld, (0 0)), nicht nur der „Case Maker“. Im Bild (Projektinhaber): die Handcannon liegt
+  sichtbar im Koffer, kein „E“ mehr in der Mitte und auf den anderen Seiten; ein geladener alter
+  Spielstand ebenso. **Noch offen:** ob die Marke an der Ecke der ausgerüsteten Waffe erscheint
+  (im Port noch nie gesehen).
 
 ### App-Menü: Bildformat „Gestreckt“, neue Reihenfolge, mehr Zeilenabstand (Wünsche des Projektinhabers, 22.10.2026)
 
