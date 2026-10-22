@@ -1587,13 +1587,14 @@ static void testMenuTouch()
         "touch: case: A on item 0x05 at (",
         "touch: case: cursor to (0 5) in the case, item 0x00",
         "touch: command 1 of 3: A",
-        "touch: command menu closed (a tap on the case)",
+        "touch: command menu closed (a tap beside it)",
         "touch: question option 0: A",
         "touch: tab 2 (swipe to the next)",
         "touch: tab 1 (swipe to the one before)",
         "touch: tab 3 (swipe to the next)",
         "touch: tab 0 (swipe to the one before)",
         "touch: swipe to the one before: no tab there",
+        "touch: swipe ignored in the zoomed map (the finger moves the map)",
     };
     for (const char* w : want) {
         if (!strstr(tail, w)) {

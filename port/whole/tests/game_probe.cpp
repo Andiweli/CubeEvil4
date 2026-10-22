@@ -679,6 +679,9 @@ extern "C" void re4_touch_sscrn(SUB_SCREEN* wk, Widget<SUB_SCREEN>* cur, SsPzzlM
                                 SsMapMain* map, SsFileMain* file);
 extern "C" void re4_core_touch(float u, float v);
 extern "C" void re4_core_swipe(int dir);
+extern "C" void re4_touch_item_keys(int curCol, int col, int n, int combine, u64* keys, int* count);
+extern "C" void re4_touch_file_keys(int mode, int cursor, int target, u64* keys, int* count);
+extern "C" int re4_touch_map_shift(const Mtx view, const Vec* at, f32 du, f32 dv, f32* wx, f32* wz);
 extern "C" void re4_core_set_letterbox(int off);
 extern "C" int re4_letterbox_open(void);
 
@@ -919,17 +922,29 @@ extern "C" int re4probe_menu_touch(void)
         };
         Widget<SUB_SCREEN>* mapW = (Widget<SUB_SCREEN>*) fmap;
         Widget<SUB_SCREEN>* itemW = (Widget<SUB_SCREEN>*) fitem;
+        static int wholeView;  // the map's whole view (MapEntire): swipes change the tab there
+        fmap->entire = (MapEntire*) (void*) &wholeView;
+        fmap->cur = (Widget<SUB_SCREEN>*) (void*) &wholeView;
+        // on the row: the chosen tab highlighted 6 frames, A in the 7th
+        auto rowA = [&](Widget<SUB_SCREEN>* cur) -> int {
+            for (int i = 1; i <= 12; i++) {
+                if (frame(cur) == kA) {
+                    return i;
+                }
+            }
+            return 0;
+        };
         re4_core_swipe(1);
         bad |= frame(main) != kB ? 0x4000 : 0;
         main->state = 1;  // the row has the focus (SsPzzlMain after PieceSelect mode 2)
-        bad |= frame(main) != kA || wk->menu_next != 2 ? 0x8000 : 0;
+        bad |= rowA(main) != 7 || wk->menu_next != 2 ? 0x8000 : 0;
         main->state = 0;
         // the map shows; to the right: the case again, counted from the map (B: the map's view)
         bad |= frame(mapW) != 0 ? 0x10000 : 0;
         re4_core_swipe(-1);
         bad |= frame(mapW) != kB ? 0x10000 : 0;
         fmap->state = 1;
-        bad |= frame(mapW) != kA || wk->menu_next != 1 ? 0x20000 : 0;
+        bad |= rowA(mapW) != 7 || wk->menu_next != 1 ? 0x20000 : 0;
         fmap->state = 0;
         // the case shows; two quick swipes to the left: the files, not the map (the second counts
         // from the tab the first goes to, and keeps its B)
@@ -939,7 +954,7 @@ extern "C" int re4probe_menu_touch(void)
         re4_core_swipe(1);
         bad |= frame(main) != 0 ? 0x40000 : 0;
         main->state = 1;
-        bad |= frame(main) != kA || wk->menu_next != 3 ? 0x80000 : 0;
+        bad |= rowA(main) != 7 || wk->menu_next != 3 ? 0x80000 : 0;
         main->state = 0;
         // the files never show here: after 90 frames the case counts again; to the right the key
         // items, and a swipe to the right on the way there or from them: nothing beyond them
@@ -949,13 +964,22 @@ extern "C" int re4probe_menu_touch(void)
         re4_core_swipe(-1);
         bad |= frame(main) != kB ? 0x100000 : 0;
         main->state = 1;
-        bad |= frame(main) != kA || wk->menu_next != 0 ? 0x100000 : 0;
+        bad |= rowA(main) != 7 || wk->menu_next != 0 ? 0x100000 : 0;
         main->state = 0;
         re4_core_swipe(-1);
         bad |= frame(main) != 0 ? 0x200000 : 0;
         bad |= frame(itemW) != 0 ? 0x200000 : 0;
         re4_core_swipe(-1);
         bad |= frame(itemW) != 0 ? 0x200000 : 0;
+        // the zoomed map (MapRead): a swipe does not change the tab (the finger moves the map)
+        static int zoomedView;
+        fmap->read = (MapRead*) (void*) &zoomedView;
+        fmap->cur = (Widget<SUB_SCREEN>*) (void*) &zoomedView;
+        for (int i = 0; i < 91; i++) {
+            frame(mapW);
+        }
+        re4_core_swipe(-1);
+        bad |= frame(mapW) != 0 || frame(mapW) != 0 ? 0x800000 : 0;
         // a swipe while the sub screen closes (Loop 0): no keys, the tab forgotten; a tap neither
         re4_core_swipe(1);
         wk->Loop = 0;
@@ -968,6 +992,49 @@ extern "C" int re4probe_menu_touch(void)
             bad |= 0x400000;
         }
         wk->Loop = 1;
+        // the presses for the key items and the files, the map's move under a finger
+        {
+            u64 keys[16];
+            int n = 0;
+            re4_touch_item_keys(0, 0, 0, 0, keys, &n);
+            bool ok = n == 1 && keys[0] == kA;
+            re4_touch_item_keys(0, 1, -2, 0, keys, &n);
+            ok = ok && n == 3 && keys[0] == 0x02000000ull && keys[1] == kLeft && keys[2] == kLeft;
+            re4_touch_item_keys(1, 0, 3, 0, keys, &n);
+            ok = ok && n == 4 && keys[0] == 0x01000000ull && keys[3] == 0x04000000ull;
+            re4_touch_item_keys(0, 1, 1, 1, keys, &n);  // combining: only within the row
+            ok = ok && n == 0;
+            re4_touch_file_keys(0, 2, 4, keys, &n);  // category row: down into the list, 2 down, A
+            ok = ok && n == 4 && keys[0] == 0x02000000ull && keys[2] == 0x02000000ull && keys[3] == kA;
+            re4_touch_file_keys(1, 3, 1, keys, &n);  // the list: 2 up, A
+            ok = ok && n == 3 && keys[0] == 0x01000000ull && keys[1] == 0x01000000ull && keys[2] == kA;
+            bad |= ok ? 0 : 0x1000000;
+            // a top-down map camera (up = -z, as mapCameraInit): the ground under the finger
+            // moves with it, right and down
+            Mtx view, moved;
+            Vec cam = {1000.0f, 8000.0f, 2000.0f}, at = {1000.0f, 0.0f, 2000.0f}, up2 = {0.0f, 0.0f, -1.0f};
+            C_MTXLookAt(view, &cam, &up2, &at);
+            f32 wx = 0.0f, wz = 0.0f;
+            const int shifted = re4_touch_map_shift(view, &at, 0.1f, 0.05f, &wx, &wz);
+            Vec cam2 = {cam.x + wx, cam.y, cam.z + wz}, at2 = {at.x + wx, at.y, at.z + wz};
+            C_MTXLookAt(moved, &cam2, &up2, &at2);
+            f32 u0 = 0, v0 = 0, u1 = 0, v1 = 0;
+            Vec q0, q1;
+            PSMTXMultVec(view, &at, &q0);
+            PSMTXMultVec(moved, &at, &q1);
+            const Mtx44& P = pG->Camera.ProjMat;
+            const f32 w0 = P[3][2] * q0.z + P[3][3], w1 = P[3][2] * q1.z + P[3][3];
+            u0 = 0.5f + 0.5f * (P[0][0] * q0.x + P[0][2] * q0.z) / w0;
+            v0 = 0.5f - 0.5f * (P[1][1] * q0.y + P[1][2] * q0.z) / w0;
+            u1 = 0.5f + 0.5f * (P[0][0] * q1.x + P[0][2] * q1.z) / w1;
+            v1 = 0.5f - 0.5f * (P[1][1] * q1.y + P[1][2] * q1.z) / w1;
+            const f32 eu = u1 - u0 - 0.1f, ev = v1 - v0 - 0.05f;
+            if (!shifted || eu > 0.001f || eu < -0.001f || ev > 0.001f || ev < -0.001f || !(wx < 0.0f) || !(wz < 0.0f)) {
+                bad |= 0x2000000;
+                re4_log("  menutouch: map shift %d (%.1f %.1f): the ground moved %.4f %.4f", shifted, (double) wx,
+                        (double) wz, (double) (u1 - u0), (double) (v1 - v0));
+            }
+        }
         pl->quit();
     }
     SubScreenWk = keepWk;

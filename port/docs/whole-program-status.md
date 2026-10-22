@@ -39,7 +39,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 0.43.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 68, Wunsch des Projektinhabers: alle Korrekturen aus diesem und dem zweiten Chat, Veröffentlichung durch ihn): Patches 0099 (Laser-Gang r318 auf 64 bit), 0100 (Gegenstände ohne Platz im Koffer, „E“-Marke in der Mitte), 0101 (Absturz am Aufzug r332), 0102 (`cCtrl::work` ausgerichtet: ARM32-Absturz in r222), 0103 (CRI-Tabellen ausgerichtet: Filmstart auf ARM32); App-Menü: Bildformat „Gestreckt“, mehr Zeilenabstand, „B einrasten (Touch)“, Gyro-Empfindlichkeit; GPU-Selbstprüfung der Filmfarben beim Start, die Zeilen der App auch im Protokoll des Kerns; Releasetext `port/android-decomp/docs/releases/v0.43.0-alpha.md`. Kern geprüft (lokal, WSL2, Stand mit 0100–0103): Builds i686, armhf, aarch64 mit allen Prüfungen 0 Fehler, Rundgang i686 126/126, armhf r222 und `set` 28/28. Cloud ✅ (Stand `844bdd25`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, GPU-Prüfung ok). Releasetext nachgeschärft (Waffen aus dem Debug-Menü, Reihenfolge des Bildformats). APK nicht gebaut, **Gerätetest offen** |
 | 0.43.1-alpha | **nicht veröffentlicht, in 0.44.0 aufgegangen** (Entscheidung des Projektinhabers). 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Wunsch des Projektinhabers): Patch 0104 (Absturz im Ton am Aufzug r332 → r331 nach Saddlers Ereignis), Shader der Brücke auf Mali (Uniform `refract` hieß wie die eingebaute GLSL-Funktion, Anbernic RG 477V), Gegner-Zeile beim Erscheinen mit Listeneintrag, `set` und `flag` (Dynamit-Frage); neues Werkzeug `tools/check_shaders_strict.sh` (alle Shader der Host-Prüfungen durch glslangValidator); Releasetext `port/android-decomp/docs/releases/v0.43.1-alpha.md`. Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; strenge Shader-Prüfung 165 Shader, 0 abgelehnt). APK nicht gebaut, **Gerätetest offen** |
 | Nach 0.43.1 (für 0.44.0) | 22.10.2026 (Branch `claude/re4-start-controls`, nach dem Stand `942a5c3`; **0.43.1 wird nicht veröffentlicht**, Entscheidung des Projektinhabers: alles zusammen mit 60 FPS als 0.44.0): Bildformat **„4:3 (ohne Balken)“** (Patch 0105, Anbernic RG 477V mit 4:3-Bildschirm), **Touch im Koffer** (Patch 0106, `runtime/menu_touch.cpp`: Reiter, Koffer-Cursor, Befehlsmenü, Ja/Nein-Frage per Fingertipp), Analyse 60 Bilder/s mit Zwischenbildern, Dynamit-Zeilen im Fehlerprotokoll (geworfen/explodiert aus dem zweiten Chat; Werfer am Posten, Zündschnur). Cloud ✅ (siehe die Abschnitte), **Gerätetest offen** |
-| 0.44.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Releasetext `port/android-decomp/docs/releases/v0.44.0-alpha.md`; **0.43.1 entfällt**, Entscheidung des Projektinhabers; Freigabe durch den Projektinhaber nach seinem Gerätetest 20:00): alles aus 0.43.1 (Patch 0104, Mali-Shader, Gegner- und Dynamit-Zeilen) plus **60 FPS (experimentell)** (Zwischenbilder im GX-Renderer, FPS-Anzeige mit Bildern auf dem Bildschirm), **„4:3 (ohne Balken)“** (Patch 0105 mit Schere, volle Bildhöhe), **Touch im Inventar** (Patch 0106: Koffer-Cursor, Befehlsmenü, Frage, Reiter per Wischen ohne Ring; Reiter per Tipp nach dem Gerätetest 20:09 ausgebaut), Bildformate kurz „4:3 (GC)“, „4:3“, „16:9“, „Gestreckt“, **Messer per Wischen** (`runtime/knife_swipe.cpp`), **Filmfarben auf Adreno 710** (Mischung ohne `a << 8`, Auswahl durch die GPU-Selbstprüfung). Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, strenge Shader-Prüfung 1119/0). Retroid ✅ (22.10.2026 19:40, 20:00 und 20:09): Koffer-Tipps, Messer per Wischen, 60 FPS (Stufe 1–2 ohne MSAA), das Spiel zeichnet ohne seine Balken (`picture: the game draws without its letterbox (r105)`). **Offen:** „4:3 (ohne Balken)“ auf einem echten 4:3-Gerät (Tester), Filmfarben auf dem Galaxy A36 |
+| 0.44.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Releasetext `port/android-decomp/docs/releases/v0.44.0-alpha.md`; **0.43.1 entfällt**, Entscheidung des Projektinhabers; Freigabe durch den Projektinhaber nach seinem Gerätetest 20:00): alles aus 0.43.1 (Patch 0104, Mali-Shader, Gegner- und Dynamit-Zeilen) plus **60 FPS (experimentell)** (Zwischenbilder im GX-Renderer, FPS-Anzeige mit Bildern auf dem Bildschirm), **„4:3 (ohne Balken)“** (Patch 0105 mit Schere, volle Bildhöhe), **Touch im Inventar** (Patch 0106: Koffer-Cursor, Befehlsmenü, Frage, Schlüssel/Schätze, Akten per Tipp, Karte per Finger verschieben, Reiter per Wischen ohne Ring mit richtiger Hervorhebung; Reiter per Tipp nach dem Gerätetest 20:09 ausgebaut), Bildformate kurz „4:3 (GC)“, „4:3“, „16:9“, „Gestreckt“, **Messer per Wischen** (`runtime/knife_swipe.cpp`), **Filmfarben auf Adreno 710** (Mischung ohne `a << 8`, Auswahl durch die GPU-Selbstprüfung). Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, strenge Shader-Prüfung 1119/0). Retroid ✅ (22.10.2026 19:40, 20:00 und 20:09): Koffer-Tipps, Messer per Wischen, 60 FPS (Stufe 1–2 ohne MSAA), das Spiel zeichnet ohne seine Balken (`picture: the game draws without its letterbox (r105)`). **Offen:** „4:3 (ohne Balken)“ auf einem echten 4:3-Gerät (Tester), Filmfarben auf dem Galaxy A36 |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5942,6 +5942,44 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
 - **Nicht getestet:** echte Spielbilder (dafür R3-Folgen vom Retroid, `pull-gx-dumps.ps1`, dann in der
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
+
+### Gerätetest 22.10.2026 20:30 (Retroid): Hervorhebung beim Wischen; Schlüssel, Akten und Karte per Touch (Cloud)
+
+- **Befund:** das Wischen landet beim richtigen Reiter, aber oben blinkt kurz ein falscher auf (der
+  alte Reiter, aus dem Koffer „Exit“). Ursache: die App setzte `menu_next` und drückte A im Bild, in
+  dem die Reiterleiste den Fokus bekam; die Hervorhebung zeichnet das Spiel nur bei einem Druck aufs
+  Steuerkreuz neu (`sscrnMainMenu` → `idMainMenu`), sie blieb also auf dem alten Reiter (oder auf
+  „Exit“, wohin das B aus dem Koffer die Leiste setzt), bis der neue Bildschirm erschien.
+  **Behoben:** hat die Leiste den Fokus, setzt die App `menu_next`, die Hervorhebung wie `idMainMenu`
+  (`showTab`, Einheiten 0–4 von `IDC_SSCRN_MAIN_MENU`) und den Ton 0xA, hält das 6 Bilder und drückt
+  erst dann A. Im gezoomten Kartenbild wechselt ein Wischen den Reiter nicht (dort verschiebt der
+  Finger die Karte); in der Gesamtansicht schon.
+- **Neu (Wünsche des Projektinhabers):**
+  - **Schlüssel/Schätze** (`ss_item.cpp`): ein Tipp auf einen Gegenstand einer der beiden Reihen
+    (Einheiten `frameMarkNo` von `IdNum`/`IDC_SSCRN_1`, nur sichtbare) fährt den Cursor wie das
+    Steuerkreuz hin (hoch/runter für die Reihe, links/rechts für den Gegenstand, ein Druck je Bild),
+    ein Tipp auf den Gegenstand unter dem Cursor ist A (Befehlsmenü); beim Kombinieren nur in der
+    Reihe; das Befehlsmenü (`ItemCommand`, gleicher Aufbau wie `PieceCommand`, Einträge ab `id[4]`)
+    und seine Frage (hoch/runter) wie im Koffer, ein Tipp auf einen Gegenstand schließt es (B).
+  - **Akten** (`ss_file.cpp`): ein Tipp auf eine Zeile der Liste (Namens-Einheiten 0x21–0x25 von
+    `IDC_SSCRN_FAR_1`, eine Zeilenhöhe) öffnet diese Akte: aus der Kategoriezeile hinunter in die
+    Liste, hoch/runter zur Zeile, A (noch nicht gefundene Akte: der Fehlerton des Spiels).
+  - **Karte** (`ss_map.cpp`, gezoomte Ansicht `MapRead`): ein gezogener Finger verschiebt die Karte
+    mit (`re4_core_drag`, Kernprozess-Nachricht 27 `kDrag`, App `CoreBridge.drag` bei jeder Bewegung
+    nach der Tipp-Schwelle, als Bruchteil des Spielbilds). Die Kamera wandert wie bei
+    `mapCameraMove` (Position und Ziel in x/z, `CameraSetOrientationUp`), so weit, dass der Boden
+    unter dem Finger mitgeht (aus Ansicht und Projektion der Kartenkamera im Kartenausschnitt
+    `SsMapWork::vp`).
+  - Die Drücke gehen je einer pro Bild hinaus (`Key.trg` und `Key.rep` wie ein frischer Druck) und
+    hören auf, sobald der Bildschirm wechselt oder gewischt wird.
+- **Tests:** `menutouch`: auf der Leiste A erst im 7. Bild mit dem richtigen Reiter (alle vier
+  Wechsel); Wischen im gezoomten Kartenbild ohne Tasten; Tastenfolgen für Schlüssel (Reihe wechseln
+  plus links, rechts, A, beim Kombinieren nichts in der anderen Reihe) und Akten (aus der
+  Kategoriezeile, hoch, runter, A); Karte: mit einer Draufsicht-Kamera wie `mapCameraInit` wandert
+  der Boden unter dem Finger genau um dessen Weg (±0,001). Kernprozess-Test: `re4ipc_drag` kommt an.
+  i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; App übersetzt und gelinkt.
+- **Nicht getestet:** am Gerät; die Trefferflächen der Schlüssel-Einheiten und der Akten-Zeilen
+  kommen aus den Disc-Daten (in der Cloud nicht prüfbar).
 
 ### Reiter per Wischen wieder eingebaut, kürzere Bildformate (Wünsche des Projektinhabers, 22.10.2026, Cloud)
 

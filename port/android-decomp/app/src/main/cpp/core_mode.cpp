@@ -88,6 +88,7 @@ struct CoreApi {
   void (*touch)(float, float){};  // optional (cores since 22.10.2026): a tap on the picture
   void (*swipe)(int){};           // optional (cores since 22.10.2026): a swipe across it
   void (*slash)(float){};         // optional (cores since 22.10.2026): the knife by a swipe
+  void (*drag)(float, float){};   // optional (cores since 22.10.2026): a dragged finger (the map)
   int (*cardList)(Re4CardFile *, int){};
   int (*cardFree)(void){};
   int (*cardName)(int, char *, int){};
@@ -413,6 +414,7 @@ void loadCore(JNIEnv *env) {
   api.touch = reinterpret_cast<void (*)(float, float)>(dlsym(api.main, "re4_core_touch"));
   api.swipe = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_swipe"));
   api.slash = reinterpret_cast<void (*)(float)>(dlsym(api.main, "re4_core_slash"));
+  api.drag = reinterpret_cast<void (*)(float, float)>(dlsym(api.main, "re4_core_drag"));
   api.cardList = reinterpret_cast<int (*)(Re4CardFile *, int)>(dlsym(api.main, "re4_core_card_list"));
   api.cardFree = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_card_free_blocks"));
   api.cardName = reinterpret_cast<int (*)(int, char *, int)>(dlsym(api.main, "re4_core_card_file_name"));
@@ -1509,6 +1511,7 @@ void useCoreProcess(const std::string &why) {
   api.touch = re4ipc_touch;
   api.swipe = re4ipc_swipe;
   api.slash = re4ipc_slash;
+  api.drag = re4ipc_drag;
   api.cardList = re4ipc_card_list;
   api.cardFree = re4ipc_card_free_blocks;
   api.cardName = re4ipc_card_file_name;
@@ -1644,6 +1647,14 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_tap(JNIEnv *
 // screen), -1 to the right.
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_swipe(JNIEnv *, jclass, jint dir) {
   if (api.swipe) api.swipe(dir > 0 ? 1 : -1);
+}
+
+// A finger dragged across the picture (CoreActivity.watchTap), its way in pixels since the last
+// call: to the core as fractions of the game's picture (the map moves with it).
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_drag(JNIEnv *, jclass, jfloat dx, jfloat dy) {
+  const int w = picW.load(), h = picH.load();
+  if (!api.drag || w <= 0 || h <= 0 || !(dx == dx) || !(dy == dy)) return;
+  api.drag(dx / static_cast<float>(w), dy / static_cast<float>(h) * picRows.load());
 }
 
 // A swipe while playing (CoreActivity.watchTap, the menu's switch "Knife by Swipe"): the knife
