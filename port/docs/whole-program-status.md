@@ -5814,6 +5814,40 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Berichte Galaxy A36 (Filmfarben, 0.42.1, 22.10.2026 14:28) und Galaxy S10 (langsam, 0.41.2, 21.10.2026 23:24)
+
+- **A36 (SM-A366B, Snapdragon 6 Gen 3, Adreno 710, Treiber 0800.58, Android 16, 64 bit):** der
+  Vorfilm läuft im richtigen Takt (2278 Bilder in 76 s, nichts ausgelassen, 0 CRI-Fehler), 0
+  Shader-Fehler, die Programme kommen teils aus dem Programm-Speicher. Die Farben rechnet also die
+  GPU anders. Der Film-Shader (`sofdec.cpp` `setTevPrm`, vier TEV-Stufen) ist der einzige mit einem
+  negativen Farbregister (C0 = −111, 0, −138, 68), einer Verdopplung negativer Zwischenwerte und
+  Grün über den Alpha-Weg (Stufe 3 mischt APREV in G). Nachgerechnet (Python, alle Formeln des
+  Shaders): 16-bit-Überlauf, Verschieben negativer Zahlen, logisches statt arithmetisches
+  Rechtsschieben ergeben andere Bilder; eine fehlende Begrenzung der Farbwerte (ivec3-`clamp`) gäbe
+  grüne helle Flächen und harte Stufen, ohne Bildschirmfoto nicht sicher. **Neu: GPU-Selbstprüfung**
+  (`gx_selfcheck.cpp`, einmal je Lauf vor dem Renderer, auf einem eigenen Renderer bei Stufe 1): acht
+  Testfarben (Y, U, V) durch die Film-Stufen nach 1, 2, 3 und 4 Stufen, zurückgelesen und mit der
+  Rechnung des Shaders auf der CPU verglichen; Log-Zeile `GPU check (movie colours): ok, 32 of 32
+  pixels …` oder die falschen Pixel mit Wert und Sollwert. Der nächste Bericht des A36 zeigt damit,
+  welche Stufe falsch rechnet. Baukasten für solche Chunks jetzt gemeinsam
+  (`gx_chunk_builder.h`, aus `tools/test_gx_gl.cpp`).
+- **S10 (SM-G970F, Exynos 9820, Mali-G76, Android 10, 64 bit; Stufe 1, ohne MSAA):** in ruhigen
+  Szenen 33,5 ms je Bild (30 Bilder/s, 19–30 ms Leerlauf), in r100 mit Gegnern 38–46 ms, davon
+  10–20 ms **Warten auf den Renderer**: die Grafik ist hier der Engpass (≈ 22–26 Bilder/s). Ob GPU
+  oder Prozessor des Render-Threads, sagt 0.41.2 nicht: auf Android 10 nimmt die App kein logcat auf,
+  die Zeilen des Renderers (`RE4GX`, `RE4Core`: GX-Statistik, GPU-Zeit, Render-Thread) fehlen im
+  Bericht. **Neu:** die App schreibt ihre Zeilen zusätzlich in die Log-Datei des Kerns
+  (`re4gx::LogTo`, `re4_log_file_line` in `runtime/log.cpp`), damit auch Berichte von Android 10 und
+  älter sie enthalten. Vorschlag an den Tester: Tiefenschärfe im App-Menü aus (auf dem Retroid +19 %
+  GPU-Arbeit), mit 0.43.0 einen neuen Bericht nach einigen Minuten im Dorf.
+- **Geprüft (Cloud):** `gx_gl_check` (llvmpipe): `GPU check (movie colours): ok, 32 of 32`, 0 Fehler;
+  absichtlich verfälschter Shader (negative Werte vor der Verdopplung auf 0) → 28 von 32 Pixeln als
+  falsch gemeldet, mit Wert und Sollwert. `re4decomp_link_check` übersetzt `core_mode.cpp` mit den
+  Änderungen (nur die bekannten fehlenden `re4ipc`-Teile des Host-Links, auch ohne die Änderung).
+  `whole_build.sh i686 armhf aarch64` mit `re4_log_file_line`: 0 Baufehler, alle Tests 0 Fehler.
+  **Nicht getestet:** auf einem Gerät (Prüfung auf dem Retroid und dem A36, Log-Zeilen der App in
+  `core-log.txt`).
+
 ### Das „E“ mitten im Untermenü (Projektinhaber, 22.10.2026, Retroid, 0.42.1; Berichte 13:42 und 13:48, R3-Mitschnitt)
 
 - **Bild:** ein kursives „E“ und ein durchsichtiges Rechteck mitten im Koffer, das „E“ bleibt an

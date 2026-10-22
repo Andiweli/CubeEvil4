@@ -170,6 +170,18 @@ extern "C" void re4_log(const char* fmt, ...)
     va_end(ap);
 }
 
+// A line of the app (its renderer and core mode, gx_gl.cpp re4gx::LogTo) into the log file only:
+// logcat has it under the app's tag already, and Android 10 and older give the app no logcat to
+// record, so the error report has only this file (Galaxy S10 tester, 21.10.2026).
+extern "C" void re4_log_file_line(const char* text)
+{
+    std::lock_guard<std::mutex> lock(gFileLock);
+    if (gFile < 0 || !text) {
+        return;
+    }
+    writeLine(text, (int) strlen(text));
+}
+
 // The remembered lines, oldest first, '\n'-separated; returns the length.
 extern "C" int re4_log_tail(char* out, int size)
 {

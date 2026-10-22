@@ -16,6 +16,7 @@
 // (tests).
 #include "core_scene.h"
 #include "gx_gl.h"
+#include "gx_selfcheck.h"
 #include "re4_card_files.h"
 #include "re4_core_client.h"
 #include "re4_cpu_info.h"
@@ -54,7 +55,7 @@
 
 namespace {
 
-#define LOG(...) __android_log_print(ANDROID_LOG_INFO, "RE4Core", __VA_ARGS__)
+#define LOG(...) re4gx::LogTo("RE4Core", __VA_ARGS__)
 
 struct CoreApi {
   void *main{};
@@ -415,6 +416,8 @@ void loadCore(JNIEnv *env) {
   api.gameThread = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_game_thread"));
   api.freeAt = reinterpret_cast<long (*)(void)>(dlsym(api.main, "re4_trace_free_at"));
   api.logFile = reinterpret_cast<void (*)(const char *)>(dlsym(api.main, "re4_log_file"));
+  // the app's lines (renderer, core mode) also into the core's log file (cores since 22.10.2026)
+  re4gx::SetLogCopy(reinterpret_cast<void (*)(const char *)>(dlsym(api.main, "re4_log_file_line")));
   if (!ok) {
     LOG("%s", api.error.c_str());
     api.main = nullptr;
@@ -962,6 +965,13 @@ bool drawGx() {
       scale = std::max(1, std::min(3, (rows + 168) / 336) - 1);
     }
     replayGx(scale);
+    // once per run: does this GPU compute the movie colours like the GameCube (gx_selfcheck.cpp;
+    // the Galaxy A36 showed them green and brown)? Before the renderer, on a renderer of its own.
+    static bool gpuChecked = false;
+    if (!gpuChecked) {
+      gpuChecked = true;
+      LOG("%s", re4gx::MovieColourCheck(nullptr).c_str());
+    }
     gx = std::make_unique<re4gx::GxRenderer>();
     re4gx::GxOptions options;
     options.samples = std::max(1, optSamples.load());
@@ -1355,6 +1365,7 @@ void useCoreProcess(const std::string &why) {
     api.logFile(nullptr);
     api.logFile = nullptr;
   }
+  re4gx::SetLogCopy(nullptr);
   api.error.clear();
   if (lib.find("!/") != std::string::npos) {
     api.error = "the core process needs the app's libraries extracted (this APK keeps them packed)";

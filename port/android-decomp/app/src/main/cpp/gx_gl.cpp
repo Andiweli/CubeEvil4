@@ -35,12 +35,37 @@
 
 #ifdef __ANDROID__
 #include <android/log.h>
-#define GXLOG(...) __android_log_print(ANDROID_LOG_INFO, "RE4GX", __VA_ARGS__)
-#else
-#define GXLOG(...) (std::fprintf(stderr, "[RE4GX] " __VA_ARGS__), std::fputc('\n', stderr))
 #endif
+#include <atomic>
+#include <cstdarg>
+
+#define GXLOG(...) re4gx::LogTo("RE4GX", __VA_ARGS__)
 
 namespace re4gx {
+
+namespace {
+std::atomic<void (*)(const char *)> gLogCopy{nullptr};
+} // namespace
+
+void SetLogCopy(void (*copy)(const char *line)) { gLogCopy = copy; }
+
+void LogTo(const char *tag, const char *fmt, ...) {
+  char text[4096];
+  va_list ap;
+  va_start(ap, fmt);
+  std::vsnprintf(text, sizeof(text), fmt, ap);
+  va_end(ap);
+#ifdef __ANDROID__
+  __android_log_write(ANDROID_LOG_INFO, tag, text);
+#else
+  std::fprintf(stderr, "[%s] %s\n", tag, text);
+#endif
+  if (auto copy = gLogCopy.load()) {
+    char line[sizeof(text) + 32];
+    std::snprintf(line, sizeof(line), "%s: %s", tag, text);
+    copy(line);
+  }
+}
 
 namespace {
 
