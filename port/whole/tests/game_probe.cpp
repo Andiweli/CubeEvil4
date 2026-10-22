@@ -27,6 +27,14 @@
 #include "sce_at.h"
 #include "area.h"
 #include "puzzle.h"
+#include "item.h"
+#include "main.h"
+#include "camera.h"
+#include "view.h"
+#include "id_sys.h"
+#include "sscrn.h"
+#include "ss_main.h"
+#include "ss_pzzl.h"
 #include "db_log.h"
 
 #include <new>
@@ -626,6 +634,247 @@ extern "C" int re4probe_case_free_place(void)
             }
         }
         pl->quit();
+    }
+    ItemMgr.m_pItem = keepItems;
+    ItemMgr.m_array_num = keepNum;
+    pG->pl_type = keepType;
+    return bad;
+}
+
+// Touch in the attache case (runtime/menu_touch.cpp, patch 0106): the camera of sscrnCameraInit,
+// IDSystem's screen matrix as IDSystem::move sets it, a case board of 10 x 6 with the handgun
+// and the spray at (-500 300 0), and fake widgets of the case screen
+// (open as for an item pick-up, so without the tab row). The taps: a cell moves the cursor, the
+// same piece again is A; an entry of the command menu is selected, again A; a tap on the case
+// closes the menu (B); the question: the other option is left/right, the selected one A; an id
+// unit's quad. Bits of the result: each failed step.
+extern "C" int re4_touch_board_cell(pzlBoard* b, f32 u, f32 v, int* x, int* y);
+extern "C" int re4_touch_unit_hit(const ID_UNIT* unit, f32 u, f32 v);
+extern "C" void re4_touch_sscrn(SUB_SCREEN* wk, Widget<SUB_SCREEN>* cur, SsPzzlMain* pzzl, SsItemMain* item,
+                                SsMapMain* map, SsFileMain* file);
+extern "C" void re4_core_touch(float u, float v);
+
+namespace {
+
+const f32 kTan10 = 0.17632698f;  // tan(10 degrees): half the sub screen's 20 degree fov
+
+// the place of a world point (z 0) in the picture as the sub screen camera shows it
+void worldUv(f32 x, f32 y, f32* u, f32* v)
+{
+    *u = 0.5f + 0.5f * x / (5000.0f * kTan10 * 4.0f / 3.0f);
+    *v = 0.5f - 0.5f * y / (5000.0f * kTan10);
+}
+
+// an id unit (anchor in the middle) at (x, y) of the id space (+-320 x +-240, y up)
+void probeUnit(ID_UNIT* u, f32 x, f32 y, f32 w, f32 h)
+{
+    memset(u, 0, sizeof(*u));
+    u->be_flag = 0x0D;
+    PSMTXIdentity(u->mat);
+    u->mat[0][3] = x;
+    u->mat[1][3] = y;
+    u->ver[0].x = -w / 2;
+    u->ver[0].y = h / 2;
+    u->ver[1].x = w / 2;
+    u->ver[1].y = h / 2;
+    u->ver[2].x = w / 2;
+    u->ver[2].y = -h / 2;
+    u->ver[3].x = -w / 2;
+    u->ver[3].y = -h / 2;
+}
+
+f32 unitU(f32 x) { return 0.5f + x / 640.0f; }
+f32 unitV(f32 y) { return 0.5f - y / 480.0f; }
+
+// one tap, one frame of the sub screen task: Key.trg afterwards
+u64 tapFrame(SsPzzlMain* main, f32 u, f32 v)
+{
+    Key.trg = 0;
+    re4_core_touch(u, v);
+    re4_touch_sscrn(&SubScreenWk, main, main, 0, 0, 0);
+    return Key.trg;
+}
+
+} // namespace
+
+extern "C" int re4probe_menu_touch(void)
+{
+    const u64 kA = 0x80000000ull, kB = 0x40000000ull, kLeft = 0x08000000ull;
+    static cItem items[2];
+    memset(items, 0, sizeof(items));
+    items[0].id = 0x23;
+    items[0].x = 2;
+    items[0].y = 1;
+    items[1].id = 0x05;
+    items[1].x = 6;
+    items[1].y = 3;
+    for (int i = 0; i < 2; i++) {
+        items[i].num = 1;
+        items[i].flags = 1;
+        items[i].board = 1;
+    }
+    cItem* keepItems = ItemMgr.m_pItem;
+    s32 keepNum = ItemMgr.m_array_num;
+    u8 keepType = pG->pl_type;
+    CAMERA keepCam = pG->Camera;
+    SUB_SCREEN keepWk = SubScreenWk;
+    KEY keepKey = Key;
+    Mtx keepScrn;
+    PSMTXCopy(IDSystem::m_scrn_mat, keepScrn);
+    const int keepSeStop = DbgFlagChk(pG, DBG_SE_STOP) != 0;
+    DbgFlagOn(pG, DBG_SE_STOP);  // no sound system here: SndCall returns at once
+    ItemMgr.m_pItem = items;
+    ItemMgr.m_array_num = 2;
+    pG->pl_type = 0;
+    if (pLog == 0) {
+        LogInit();
+    }
+
+    Vec eye = {0.0f, 0.0f, 5000.0f}, up = {0.0f, 1.0f, 0.0f}, at = {0.0f, 0.0f, 0.0f};
+    C_MTXPerspective(pG->Camera.ProjMat, 20.0f, 1.3333334f, ZNEAR, ZFAR);
+    C_MTXLookAt(pG->Camera.v_mat, &eye, &up, &at);
+    PSMTXIdentity(IDSystem::m_scrn_mat);
+    IDSystem::m_scrn_mat[2][3] = -240.0f / kTan10;
+
+    int bad = 0;
+    alignas(16) static unsigned char playerMem[sizeof(pzlPlayer)];
+    memset(playerMem, 0, sizeof(playerMem));
+    pzlPlayer* pl = (pzlPlayer*) playerMem;
+    if (!pl->init(0)) {
+        bad |= 1;
+    } else {
+        pzlBoard* b = pl->boardPtr();
+        PSMTXIdentity(*b->orientation());
+        (*b->orientation())[0][3] = -500.0f;
+        (*b->orientation())[1][3] = 300.0f;
+        pl->m_p_active_board = b;
+        b->m_cur_x = 0;
+        b->m_cur_y = 0;
+        // a cell of the spray (its piece's place, as pzlPlayer::init put it)
+        int sx = -1, sy = -1;
+        for (int cy = 0; cy < b->size_y() && sx < 0; cy++) {
+            for (int cx = 0; cx < b->size_x() && sx < 0; cx++) {
+                pzlPiece* p = b->getPiece(cx, cy);
+                if (p && p->item && p->item->id == 0x05) {
+                    sx = cx;
+                    sy = cy;
+                }
+            }
+        }
+        if (sx < 0) {
+            bad |= 1;
+            sx = 6;
+            sy = 3;
+        }
+        re4_log("menutouch: the spray at (%d %d)", sx, sy);
+        // its cell's middle: local (100 sx + 50, -(100 sy + 50)), the board at (-500 300 0)
+        const f32 sprayX = -500.0f + 100.0f * sx + 50.0f, sprayY = 300.0f - 100.0f * sy - 50.0f;
+        f32 u, v;
+        int x = -1, y = -1;
+        worldUv(sprayX, sprayY, &u, &v);
+        if (!re4_touch_board_cell(b, u, v, &x, &y) || x != sx || y != sy) {
+            re4_log("  menutouch: cell (%d %d), want (%d %d)", x, y, sx, sy);
+            bad |= 2;
+        }
+        // id unit quad
+        ID_UNIT unit;
+        probeUnit(&unit, 100.0f, 50.0f, 40.0f, 20.0f);
+        if (!re4_touch_unit_hit(&unit, unitU(110.0f), unitV(45.0f)) || re4_touch_unit_hit(&unit, unitU(130.0f), unitV(50.0f))) {
+            bad |= 4;
+        }
+
+        // the case screen's widgets, never constructed (their code lives in the Sscrn module)
+        alignas(16) static unsigned char mainMem[sizeof(SsPzzlMain)], selMem[sizeof(PieceSelect)],
+            cmdMem[sizeof(PieceCommand)], combMem[sizeof(PieceCombine)];
+        memset(mainMem, 0, sizeof(mainMem));
+        memset(selMem, 0, sizeof(selMem));
+        memset(cmdMem, 0, sizeof(cmdMem));
+        memset(combMem, 0, sizeof(combMem));
+        SsPzzlMain* main = (SsPzzlMain*) mainMem;
+        PieceSelect* sel = (PieceSelect*) selMem;
+        PieceCommand* cmd = (PieceCommand*) cmdMem;
+        main->select = sel;
+        main->command = cmd;
+        main->combine = (PieceCombine*) combMem;
+        main->cur = sel;
+        SUB_SCREEN* wk = &SubScreenWk;
+        wk->Loop = 1;
+        wk->open_flag = SS_OPEN_PZZL;
+        wk->puzzlePlayer = pl;
+        wk->board_size = wk->board_next = 0;
+        wk->pzzl_debug_open = 0;
+        wk->item_make_open = 0;
+        wk->cursor_flag = 0;
+
+        // a cell: the cursor moves; the same piece again: A
+        if (tapFrame(main, u, v) != 0 || b->m_cur_x != sx || b->m_cur_y != sy || !(wk->cursor_flag & 1)) {
+            bad |= 8;
+        }
+        if (tapFrame(main, u, v) != kA) {
+            bad |= 0x10;
+        }
+        // no tap: nothing
+        Key.trg = 0;
+        re4_touch_sscrn(wk, main, main, 0, 0, 0);
+        if (Key.trg != 0) {
+            bad |= 0x20;
+        }
+        // an empty cell (0 5): the cursor moves, no A
+        worldUv(-500.0f + 50.0f, 300.0f - 550.0f, &u, &v);
+        if (b->getPiece(0, 5) || tapFrame(main, u, v) != 0 || b->m_cur_x != 0 || b->m_cur_y != 5) {
+            bad |= 0x40;
+        }
+
+        // the command menu: three entries at y 40, 0, -40 of the id space
+        ID_UNIT entries[6], sub[11];
+        for (int i = 0; i < 3; i++) {
+            probeUnit(&entries[2 * i], 200.0f, 40.0f - 40.0f * i, 80.0f, 30.0f);
+            probeUnit(&entries[2 * i + 1], 200.0f, 40.0f - 40.0f * i, 60.0f, 20.0f);
+            cmd->id[6 + 2 * i] = &entries[2 * i];
+            cmd->id[7 + 2 * i] = &entries[2 * i + 1];
+        }
+        cmd->num = 3;
+        cmd->mode = 0;
+        wk->cmd_menu_no = 0;
+        main->cur = cmd;
+        if (tapFrame(main, unitU(200.0f), unitV(0.0f)) != 0 || wk->cmd_menu_no != 1) {
+            bad |= 0x80;
+        }
+        if (tapFrame(main, unitU(205.0f), unitV(-5.0f)) != kA || wk->cmd_menu_no != 1) {
+            bad |= 0x100;
+        }
+        // a tap on the case closes the menu
+        worldUv(sprayX, sprayY, &u, &v);
+        if (tapFrame(main, u, v) != kB) {
+            bad |= 0x200;
+        }
+        // the question (discard: option 0 yes, 1 no, 1 selected)
+        for (int i = 0; i < 11; i++) {
+            probeUnit(&sub[i], -1000.0f, -1000.0f, 1.0f, 1.0f);
+            cmd->sub[i] = &sub[i];
+        }
+        probeUnit(&sub[5], 150.0f, -100.0f, 60.0f, 30.0f);
+        probeUnit(&sub[7], 250.0f, -100.0f, 60.0f, 30.0f);
+        cmd->mode = 2;
+        cmd->subSel = 1;
+        if (tapFrame(main, unitU(150.0f), unitV(-100.0f)) != kLeft) {
+            bad |= 0x400;
+        }
+        cmd->subSel = 0;
+        if (tapFrame(main, unitU(150.0f), unitV(-100.0f)) != kA) {
+            bad |= 0x800;
+        }
+        if (tapFrame(main, unitU(0.0f), unitV(200.0f)) != 0) {
+            bad |= 0x1000;
+        }
+        pl->quit();
+    }
+    SubScreenWk = keepWk;
+    Key = keepKey;
+    pG->Camera = keepCam;
+    PSMTXCopy(keepScrn, IDSystem::m_scrn_mat);
+    if (!keepSeStop) {
+        DbgFlagOff(pG, DBG_SE_STOP);
     }
     ItemMgr.m_pItem = keepItems;
     ItemMgr.m_array_num = keepNum;

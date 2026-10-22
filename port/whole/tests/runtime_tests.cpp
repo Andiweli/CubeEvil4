@@ -961,6 +961,7 @@ void re4probe_death_log(void);
 int re4probe_arc(void);
 int re4probe_partner_damage(void);
 int re4probe_case_free_place(void);
+int re4probe_menu_touch(void);
 int re4_log_tail(char* out, int size);
 }
 
@@ -1557,6 +1558,35 @@ static void testCaseFreePlace()
     report("casefree", ok);
 }
 
+// Taps in the attache case (runtime/menu_touch.cpp, patch 0106; game_probe.cpp
+// re4probe_menu_touch): cursor, A on the piece under it, the command menu, its question
+static void testMenuTouch()
+{
+    bool ok = true;
+    int bad = re4probe_menu_touch();
+    if (bad) {
+        re4_log("  menutouch: failed checks 0x%x", bad);
+        ok = false;
+    }
+    static char tail[24 * 160];
+    re4_log_tail(tail, sizeof tail);
+    const char* want[] = {
+        "touch: case: cursor to (", ") in the case, item 0x05",
+        "touch: case: A on item 0x05 at (",
+        "touch: case: cursor to (0 5) in the case, item 0x00",
+        "touch: command 1 of 3: A",
+        "touch: command menu closed (a tap on the case)",
+        "touch: question option 0: A",
+    };
+    for (const char* w : want) {
+        if (!strstr(tail, w)) {
+            ok = false;
+            re4_log("  menutouch: missing \"%s\"", w);
+        }
+    }
+    report("menutouch", ok);
+}
+
 // The processor lines of the performance log (re4_cpu_info.h): the layout of a phone with two kinds
 // of cores and of one with three, and a thread's processor time per picture (it computes here)
 static void testCpuInfo()
@@ -1687,6 +1717,7 @@ int re4_runtime_tests()
     testCpuInfo();
     testPartnerDamage();
     testCaseFreePlace();
+    testMenuTouch();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);
