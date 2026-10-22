@@ -5815,6 +5815,68 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Meldung eines Testers (22.10.2026): Dynamit-Ganados fehlen in Kapitel 1-2 vor der Fischfarm
+
+Frage des Testers: „Did you know about the absence of the Ganados carrying explosives—the ones
+that don't appear in Chapter 1-2, right before you reach the fish-processing area?“ Untersucht in
+der Cloud (Code und vorhandene Berichte, ohne Disc-Daten). **Ergebnis: kein Port-Fehler gefunden;
+eher ein Unterschied des Prototyps, aber nicht bewiesen.**
+
+- **Räume im Prototyp:** r107 ist die Fischfarm (Fische id 0x27 auf Seehöhe, `src/st1/r107.cpp:71-83`;
+  kein Gegnerskript, alles aus der Gegnerliste). r104 ist der Bereich davor („Steinbruch“): die Tür
+  r104→r107 braucht Schlüssel 0xA6 oder seine Hälften 0xA4 + 0xA5 (`r104.cpp:181-185`, `:436-468`),
+  erster Händler (`:690`). Gegner in r104 nur per Skript: 12 Ganados nach Ereignis s00 (Liste
+  0xF0–0xFB und 0xFE, `:746-757`), drei stürmen bei Fläche 0xE herein (0xF2/0xFC/0xFD, `:223-231`),
+  vier Nachschub-Wellen 0xD9–0xE4 (`:78`). Kapitel 1-1 endet in r106 (`r106.cpp:375`), 1-2 in r105
+  (`r105.cpp:582`). r104, r106, r107 lesen die Gegnerliste `etc/emleon00.esl` (`stage.cpp:85`).
+- **Ob ein Ganado Dynamit trägt, steht nur in der Gegnerliste:** Bit 0x00020000 von `flag`
+  („Weapon Bomb“ im Listen-Editor, `src/t_emlist/t_emlist.cpp:34`) gibt `Wep_type = 9` in die Hand
+  (`em10.cpp:18101-18106`), mit 0x2000 („Pickup waist“) als Ersatz am Gürtel (`:18590`), 0x10000
+  („Weapon Mugen“) = unbegrenzt nachnehmen. Feste Werfer: `set` 0x24/0x25/0x2B starten FixBomber
+  (Routine 0x50, `em10.cpp:3077-3091`, Ablauf `:9850`); der Editor nennt 0x24 **„R106 Fix Bomber“**
+  (`t_emlist.cpp:190`). `r106_ctrlEm0/1` schicken die Ganados 0x8F und 0x8C auf feste Posten
+  (`r106.cpp:239-266`), dort übergibt Goto-Art 1 an FixBomber (`em10.cpp:6894-6899`). Hinweis: dieser
+  Stand hat seine festen Dynamit-Werfer wohl in r106 (Ende 1-1), nicht in r104.
+- **Nichts im Code entfernt Dynamit:** keine Schwierigkeits-, Szenario- oder Raumprüfung löscht
+  0x20000 (`Game_level` ändert nur Zeiten). `type`, `set`, `flag`, `Guard_r` kommen 1:1 aus der Liste
+  (`em_set.cpp:57-77`). Ein Werfer wirft nur, wenn zwei Bahnen 5000 Einheiten vor ihm frei sind
+  (`em10BombThrowScaCk`, `:26612`); kommt Leon in `Guard_r`, wird er ein normaler Ganado, behält aber
+  das Dynamit (`:9897`).
+- **Port-Seite:** der Formatumwandler der Gegnerliste dreht genau die mehrbytigen Felder
+  (`formats_room.cpp:424-436`), der Spielstand trägt die Liste mit richtiger Byte-Tabelle
+  (`save_layout.inc`). Kein Patch berührt `em_set.cpp`, `emwep.cpp`, `obj08.cpp`; die Patches an em10
+  (0023, 0087) und r104 (0091) betreffen keine Waffen. Dynamit-Ganados funktionieren in anderen Räumen,
+  auch auf 64 bit (Trefferzeilen mit `wt 9`: rep112803 r223, rep125155/rep134431 r21x/r22x,
+  rep200158 r3xx). Keine Zeile „Em set failed“, „SetWeapon() ModelInit failed“ oder „setEm failed“ in
+  allen Berichten. Alter, behobener 64-bit-Fehler in r107: bis 0.38.0 passte `em12.drs` nicht in den
+  Speicher, alle Ganados id 0x12 der Fischfarm fehlten (Regel für das Speicherende, Abschnitt
+  „Neustart M12 (18.10.2026, Cloud)“) – nur wichtig, falls der Tester eine alte Version hatte.
+- **Bericht mit r104:** nur `rep134850` (Retroid, 0.42.1, 64 bit, „File 01 r104“): nach s00/s01 alle
+  12 Ganados ohne Fehler (Liste 240–251, 254), zehn Waffen (id 0x42), fünf davon am Gürtel; 1,85 s
+  später eine neue Waffe in einer rechten Hand – so entsteht eine Waffe nur bei „Pickup waist“ +
+  „Weapon Mugen“, genau wie bei FixBomber mit leerer Hand. Vielleicht läuft also doch ein Werfer in
+  r104; welche Waffe es war, zeigt das Protokoll nicht (keine Trefferzeile, Lauf nach 25 s zu Ende).
+- **Was es entscheidet (offen):**
+  1. Gegnerliste am PC auslesen (Disc-Daten, ohne Build), PowerShell:
+     ```powershell
+     $f = Get-ChildItem -Recurse -Filter emleon00.esl E:\Development\Android\RE4-Discdata | Select-Object -First 1
+     $b = [IO.File]::ReadAllBytes($f.FullName)
+     for ($i = 0; $i -lt $b.Length / 32; $i++) { $o = $i * 32
+       $room = $b[$o+0x18] * 256 + $b[$o+0x19]
+       if ($room -in 0x104,0x106,0x107 -and $b[$o+1] -ne 0) {
+         $flag = ([uint32]$b[$o+4] -shl 24) -bor ([uint32]$b[$o+5] -shl 16) -bor ([uint32]$b[$o+6] -shl 8) -bor $b[$o+7]
+         '{0:X2} r{1:X3} id {2:X2} type {3} set {4:X2} flag {5:X8} alive {6} bomb {7}' -f $i,$room,$b[$o+1],$b[$o+2],$b[$o+3],$flag,($b[$o] -band 1),(($flag -band 0x20000) -ne 0) } }
+     ```
+     Keine `bomb True`-Zeile für r104 → Unterschied des Prototyps (kein Fehler, nichts zu tun).
+     `bomb True` bei Listennummern außerhalb 0xF0–0xFB/0xFE → sie gehören zu den Stürmern oder
+     Wellen und kommen erst später. `bomb True` bei den 12 ersten → der Tester hat sie übersehen
+     oder sie warfen nicht; dann Wurf-Freiraum und `Guard_r` am Gerät prüfen.
+  2. Oder am Gerät: „File 01 r104“ laden, jeden Ganado einmal treffen; die Zeilen `em: hit` zeigen
+     `wt 9` und `f` mit Bit 0x20000.
+  3. Verbesserung fürs Protokoll (noch nicht gemacht): `em->set` und `em->flag` in die
+     Gegner-Zeile beim Erscheinen schreiben (`port/whole/runtime/state_trace.cpp:638`), dann
+     beantworten Berichte solche Fragen allein.
+
 ### Bericht SCV40 (0.43.0, 22.10.2026 21:55): der Aufzug nach Saddler, jetzt Abbruch im Ton
 
 - Patch 0101 wirkt: der Aufzug von r332 fährt, der Raumwechsel nach r331 kommt
