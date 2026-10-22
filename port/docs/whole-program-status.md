@@ -5812,6 +5812,38 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Bericht Galaxy A30s (0.42.0, 22.10.2026 05:53): durchgehend 10–15 Bilder/s
+
+- **Gerät:** Samsung SM-A307G (Galaxy A30s, Exynos 7904: zwei schnelle Kerne Cortex-A73 1,8 GHz,
+  sechs langsame A53 1,6 GHz; **Mali-G71 MP2**), Android 11, 64-bit-Prozess, Kern im
+  App-Prozess. Einstellungen schon am unteren Ende (Auflösung 1, keine Kantenglättung, keine
+  Tiefenschärfe, Anisotropie 1), Bildschirm 720×1560 bei 60 Hz. GPU-Zeit nicht messbar (seit
+  0.42.0 auf Mali aus). Kein Absturz, kein Fehler im Protokoll.
+- **Spielbilder je Sekunde** (aus den `pad: frame`-Zeilen; 30 = volle Geschwindigkeit): Titel und
+  Wald (r120, r100) 27–30; **Dorf (r101) 10–25, oft 10–13**; r103 wieder um 24. Das passt zur
+  Meldung.
+- **Der Kern** braucht im Wald 34–37 ms je Spielbild bei 0–6 ms Leerlauf (Grenze 33,3 ms): er
+  allein schafft knapp 27–29 Bilder/s. Auf dem Retroid (Snapdragon 865) waren es 33,3 ms mit
+  13–19 ms Leerlauf.
+- **Der Renderer** (der Zeichen-Thread der App) braucht im Dorf 40–74 ms je Spielbild für 450–890
+  Zeichenbefehle (700–1100 Uniform-Blöcke, 1,1–2,2 MB, 100–150 Programmwechsel, 360–815
+  Textur-Bindungen); der Kern wartet dann 10–34 ms je Bild auf ihn. Auf dem Retroid waren es 4–6
+  ms bei 500–900 Befehlen, also etwa zehnmal schneller. Ob der Grafikchip (Mali-G71 MP2, ein
+  sehr kleiner Chip) oder der Prozessor im Treiber die Zeit braucht, zeigt der Bericht nicht.
+- **Neu im Protokoll** (für den nächsten Bericht eines schwachen Geräts): `re4_cpu_info.h`
+  (`port/whole/runtime/`, nur Kopfdatei, von Kern und App benutzt). Einmal die Kerne des Geräts
+  (`processor: 8 cores: 0-5 at most 1586 MHz, 6-7 at most 1794 MHz`), dazu in der Kern-Zeile
+  `GX core: … ; N ms of processor time each, on fast/middle/slow cores a/b/c %, last on core K at
+  M MHz` und eine neue Zeile `GX render thread: N ms of processor time per chunk of M ms run, on
+  fast/middle/slow cores …`. Rechenzeit gleich Laufzeit: der Thread rechnet (beim Renderer: der
+  Treiber); deutlich weniger: er wartet (beim Renderer: auf den Grafikchip). Der Anteil auf den
+  langsamen Kernen zeigt, ob Android die beiden vollen Threads auf die schnellen Kerne legt
+  (auf diesem Gerät gibt es nur zwei). Neuer Laufzeittest `cpuinfo`.
+- **Mögliche Schritte** (Entscheidung des Projektinhabers offen): je nach Messung die beiden
+  Threads auf die schnellen Kerne legen; im Renderer weniger GL-Aufrufe je Zeichenbefehl
+  (Texturen und Uniform-Blöcke zusammenfassen); im Kern den GX-Decoder (Punkte umrechnen, auf
+  dem Retroid ein Drittel der Kernzeit) beschleunigen.
+
 ### Drei Berichte mit Video (0.41.3, 22.10.2026): Aufrüsten beim Händler, unsichtbarer Biss
 
 Meldung des Projektinhabers zu den drei SCV40-Berichten (11:28, 12:51, 13:44) mit einem Video:
