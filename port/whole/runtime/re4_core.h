@@ -273,6 +273,9 @@ int re4_core_start_entry(int (*entry)(void));
 /* Internal: fills `out` from the game state (runtime/core_bridge.cpp, game
  * flags); called once per game frame by the core's frame hook. */
 void re4_bridge_capture(Re4CoreSnapshot* out);
+/* Internal: the faces' shapes in the snapshot (morph) on or off; off unless RE4_VIEW=bridge or
+ * RE4_BRIDGE_SHAPES=1 (only the bridge view draws them). */
+void re4_bridge_shapes(int on);
 /* Internal (formats.cpp): the disc source of a converted archive entry that
  * starts at `addr`; 0 when no archive the converter saw holds it. */
 int re4_formats_locate(const void* addr, Re4CoreSource* out);

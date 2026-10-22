@@ -1,0 +1,24 @@
+# cSubChar::moveDamage (routine 1) runs the partner's damage handler pAuxDm, which SetSubBulldozer
+# sets to objBull.cpp Sub_dm_bull(cEm* pEm) while Ashley drives the bulldozer (r30f). The decompiled
+# call passes no argument, as the original did: on the GameCube r3 still held `this` (Ashley) from
+# the member call. In the port the handler got whatever the first argument register held; on ARM64
+# the handler's own address, so pEm->setStatus wrote into libre4_main.so's code (SIGSEGV in
+# cEm::setStatus, SCV40 tester 22.10.2026, 0.41.3: "when Ashley gets carried away the game
+# crashes"). The call passes `this` now. The other partner handlers (pAux: pAux(this);
+# m_pFunc of SetSubDamage: em10/em2b/obj13 handlers use SUB_CHAR(), not their parameter) were
+# checked the same day.
+--- a/src/game/pl_npc.cpp
++++ b/src/game/pl_npc.cpp
+@@ -1878,7 +1878,11 @@
+ void cSubChar::moveDamage()
+ {
+     if (pAuxDm) {
+-        ((void (*)()) pAuxDm)();
++        /* PORT (patch 0098): the handler takes the partner (objBull.cpp Sub_dm_bull(cEm*)); the
++           original call passes nothing, on the GameCube r3 still held `this`. On ARM64 the first
++           argument register held the handler's own address: setStatus wrote into the code (SIGSEGV
++           when Ashley was hit on the bulldozer, r30f, SCV40 tester 22.10.2026). */
++        ((void (*)(cEm*)) pAuxDm)(this);
+         return;
+     }
+     void* m = 0;   // declared after the handler test: `li r30, 0` in the switch block

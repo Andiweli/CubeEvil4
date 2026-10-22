@@ -959,6 +959,7 @@ int re4probe_route_far(void);
 void re4probe_enemy_log(void);
 void re4probe_death_log(void);
 int re4probe_arc(void);
+int re4probe_partner_damage(void);
 int re4_log_tail(char* out, int size);
 }
 
@@ -1524,6 +1525,12 @@ static void testArc()
     report("arc", bad == 0);
 }
 
+// Ashley's damage handler on the bulldozer gets Ashley (patch 0098, game_probe.cpp)
+static void testPartnerDamage()
+{
+    report("partnerdmg", re4probe_partner_damage() == 0);
+}
+
 // The processor lines of the performance log (re4_cpu_info.h): the layout of a phone with two kinds
 // of cores and of one with three, and a thread's processor time per picture (it computes here)
 static void testCpuInfo()
@@ -1652,6 +1659,7 @@ int re4_runtime_tests()
     testDeathLog();
     testArc();
     testCpuInfo();
+    testPartnerDamage();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);

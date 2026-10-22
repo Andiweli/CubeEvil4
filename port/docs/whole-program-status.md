@@ -35,7 +35,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | Fehlersuche Teil 1 (Code) | 22.10.2026 (Branch `claude/re4-start-controls`): Werkzeuge `port/tools/scan/` (ungesetzte Werte, Byte-Reihenfolge, Lage lokaler Variablen), Patches 0091–0093 (r221, Ziel-Überblendung der Waffen, r104, Krauser, Debug-Editoren auf R1). Abschnitt „Fehlersuche mit Werkzeugen“. Cloud ✅ (i686, armhf, aarch64), **Gerätetest offen**; Teil 2 siehe nächste Zeile |
 | Fehlersuche Teil 2 (Raum-Rundgang) | 22.10.2026 (lokal, WSL2, Branch `claude/re4-start-controls`): Rundgang über alle 126 Räume mit Eingaben, mehreren Räumen gleichzeitig und Bericht (`room_tour_report.py`), Prüf-Build mit Sanitizern (`RE4_SANITIZE`, `--sanitize`), aarch64 unter qemu (`--aarch64`). i686 126/126, i686 mit ASan+UBSan 126/126 (nach den Korrekturen), aarch64 unter qemu noch nicht fertig (96 von 126 ohne Fehler). Behoben: `__rlwimi`-Nachbau (5-Bit-Felder), Patch 0096 (Mischart `blend_mode` 5), Patch 0097 (Effekt-Bereich 255 auf 64 bit), leere EVS-/ITM-Tabellen. Abschnitt „Fehlersuche mit Werkzeugen, Teil 2“. **Gerätetest offen** |
 | 0.42.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 66, vorbereitet auf Wunsch des Projektinhabers, Veröffentlichung durch ihn): Patches 0091–0093 (Fehlersuche Teil 1), 0094 (Aufrüsten beim Händler), 0095 (Biss des Regenerators am Boden, Fehler des Prototyps), keine GPU-Zeitmessung auf Mali (Absturz im Treiber, moto g72); Releasetext `port/android-decomp/docs/releases/v0.42.0-alpha.md`. Cloud ✅, **Gerätetest offen** |
-| 0.42.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 67, Wunsch des Projektinhabers: der A30s-Tester soll mit der neuen Messung noch einmal testen): Rechenzeit und Kern-Art von Kern- und Zeichen-Thread im Protokoll (`re4_cpu_info.h`, „Bericht Galaxy A30s“); dazu aus dem Raum-Rundgang (Fehlersuche Teil 2, gemischt in `889b40fb`) die Patches 0096 und 0097, `__rlwimi`/`__rlwinm` mit 5-Bit-Feldern und die leeren EVS/ITM-Tabellen; Releasetext `port/android-decomp/docs/releases/v0.42.1-alpha.md`. Cloud ✅ (gemischter Stand `4b97350d`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler), **Gerätetest offen** |
+| 0.42.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 67, Wunsch des Projektinhabers: der A30s-Tester soll mit der neuen Messung noch einmal testen): Rechenzeit und Kern-Art von Kern- und Zeichen-Thread im Protokoll (`re4_cpu_info.h`, „Bericht Galaxy A30s“); dazu aus dem Raum-Rundgang (Fehlersuche Teil 2, gemischt in `889b40fb`) die Patches 0096 und 0097, `__rlwimi`/`__rlwinm` mit 5-Bit-Feldern und die leeren EVS/ITM-Tabellen; nach dem SCV40-Bericht 16:21 Patch 0098 (Bulldozer) und keine Formen mehr in der Zustandsbrücke (Absturz beim Laden); Releasetext `port/android-decomp/docs/releases/v0.42.1-alpha.md`. Cloud ✅ (gemischter Stand `4b97350d`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler), **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5814,6 +5814,33 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Bericht SCV40 (0.41.3, 22.10.2026 16:21): Absturz auf dem Bulldozer, Absturz beim Laden
+
+Meldung: „When Ashley gets carried away by a zombie, the game crashes. Also, the game sometimes
+crashes when loading from a checkpoint.“ Gerät wie zuvor (Samsung SCV40, Android 10, 64 bit).
+`crash-system.txt` enthält vier Abstürze, zwei Arten:
+
+- **16:07 und 16:15, r30f (Insel, Bulldozer):** SIGSEGV (Schreibzugriff auf Code) in
+  `cEm::setStatus`, gerufen von `Sub_dm_bull`, Ashleys Schadens-Handler während der Fahrt. Ein
+  Ganado packt oder trifft Ashley auf dem Bulldozer, `damageCheck` setzt Routine 1, `moveDamage`
+  ruft `pAuxDm()` ohne Argument, der Handler nimmt sein erstes Argument als Ashley: auf ARM64 die
+  eigene Adresse (Fehleradresse 0xfa163698 = `Sub_dm_bull` bei 0xfa163218 + 0x480, wo `status` auf 64 bit liegt). **Behoben mit Patch 0098**
+  (Aufruf mit `this`, wie r3 auf der GameCube). Dieselbe Fehlerart wie 0091 (Wert aus einem
+  Register); die Werkzeuge der Fehlersuche sahen sie nicht, weil ein Aufruf ohne Argument kein
+  ungesetzter Wert ist. Suche über alle Funktionen, die als `void (*)()` gespeichert und ohne
+  Argument gerufen werden: nur dieser Handler liest sein Argument (die übrigen sind
+  Zeichen-Rückrufe mit eigenem Argument-Feld).
+- **15:07 und 15:40 (beim Laden):** SIGSEGV in `HermiteInterpolation` ← `CalculateShape_new` ←
+  `re4_bridge_capture`: die Zustandsbrücke rechnete in jedem Spielbild die laufenden Formen
+  (Gesichter) aller lebenden Modelle nach; beim Laden oder Weitermachen zeigt die Formliste eines
+  noch lebenden Modells schon auf freigegebenen, neu belegten Speicher. Das Spiel zeichnet ein
+  solches Modell nicht, die Brücke las es trotzdem. **Behoben:** die Brücke rechnet Formen nur
+  noch für ihre eigene Ansicht (`RE4_VIEW=bridge`, `RE4_BRIDGE_SHAPES=1`,
+  `re4_bridge_shapes`), die GX-Ansicht braucht sie nicht. Spart nebenbei Rechenzeit im Kern.
+  Kerntest `morph` prüft beides (ohne Brücken-Ansicht keine Formen, mit ihnen wie bisher).
+- Das „Luis-Hütten“-Problem (0087), an das der Tester dachte, ist ein anderer Weg (Luis statt
+  Ashley, `SetSubDamage`), aber dieselbe Familie: Partner-Rückrufe, die auf 64 bit anders laufen.
+
 ### Bericht Galaxy A30s (0.42.0, 22.10.2026 05:53): durchgehend 10–15 Bilder/s
 
 - **Gerät:** Samsung SM-A307G (Galaxy A30s, Exynos 7904: zwei schnelle Kerne Cortex-A73 1,8 GHz,
@@ -6283,6 +6310,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0095 `em36.cpp` | **Fehler des Prototyps** (Entscheidung des Projektinhabers, 22.10.2026: solche Fehler werden behoben). Ein Regenerator ohne Beine beißt vom Boden (Routine 1/0x14 `D_Catch`, Halten in 1/0x15 `D_CatchHit` mit `plem36_D_CatchHit`). Leons Seite prüfte die Routine des Bisses im Stehen (1/0xB): Leon wurde im ersten Bild losgelassen, der Biss lief unsichtbar weiter (Leben bis 1, „SHAKE OFF“, dann der tödliche Biss). Jetzt 0x15. `port/tools/scan/catch_scan.py` prüft alle Halte-Rückrufe so |
 | 0096 `trans.cpp` | `commonModelTrans` nimmt die Mischart aus `bl[info->blend_mode]`, einer Tabelle mit 5 Zeilen; Modelle in r20a, r20b, r216 und r31d haben `blend_mode` 5 (Sanitizer-Rundgang 22.10.2026, global-buffer-overflow). Die GameCube liest dahinter die ersten vier Wörter von `funcLightParam` (`trans_lit.cpp`, Adressen von `lightSetConstant` … `lightSetSpotlight`); `GXSetBlendMode` behält davon Bit 0 und die unteren 3/3/4 Bit: kein Mischen, Logik-Op 12. Der Port ergänzt diese sechste Zeile; vorher las er die Konstanten, die clang dahinter legte |
 | 0097 `esp_app.cpp` | `EffAreaUpdate` setzt je Effekt-Bereich, in dem Leon steht, `1 << area_no`; Bereiche mit Nummer 255 (r102, r103, r119, r120, r227) setzen auf der GameCube (`slw`: untere 6 Bit, 32–63 ergeben 0) und auf armv7 nichts, auf aarch64 (`lslv`, modulo 32) und x86 Bit 31: die Effekte von Bereich 31 liefen dort an. Der Port schreibt die Regel der GameCube aus (Sanitizer-Rundgang 22.10.2026) |
+| 0098 `pl_npc.cpp` | `cSubChar::moveDamage` ruft Ashleys Schadens-Handler `pAuxDm` ohne Argument auf; `SetSubBulldozer` setzt ihn auf `objBull.cpp` `Sub_dm_bull(cEm*)` (Ashley am Steuer des Bulldozers, r30f). Auf der GameCube stand in r3 noch `this`; auf ARM64 die Adresse des Handlers selbst: `setStatus` schrieb in den Code (SIGSEGV, SCV40-Tester 22.10.2026, zweimal). Jetzt mit `this`; die übrigen Partner-Handler (`pAux(this)`, `m_pFunc` von `SetSubDamage`/`EmCatchSubSet`: em10, em2b, obj13 lesen `SUB_CHAR()`) geprüft. Test `partnerdmg` |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

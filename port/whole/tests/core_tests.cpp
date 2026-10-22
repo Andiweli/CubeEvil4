@@ -492,6 +492,11 @@ void testBridge()
         unsigned char* mem = (unsigned char*) (unsigned long) 0x82500000u;
         memset(mem, 0, 0x4000);
         re4probe_shape_setup(mem);
+        re4_bridge_capture(&gSnap);  // without the bridge view: no shapes
+        for (unsigned i = 0; i < gSnap.nModels; i++) {
+            CHECK(gSnap.models[i].address != 0x82500000u || gSnap.nMorph == 0);
+        }
+        re4_bridge_shapes(1);
         re4_bridge_capture(&gSnap);
         re4probe_shape_restore();
         bool found = false;
@@ -521,6 +526,7 @@ void testBridge()
         const unsigned behind[2] = { 0x10, 1 };
         memcpy(mem + 0x3600 + 3 * 8, behind, sizeof(behind));
         re4_bridge_capture(&gSnap);
+        re4_bridge_shapes(0);
         re4probe_shape_restore();
         found = false;
         for (unsigned i = 0; i < gSnap.nModels && !found; i++) {
