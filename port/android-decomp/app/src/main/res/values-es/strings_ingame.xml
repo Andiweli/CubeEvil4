@@ -13,6 +13,7 @@
     <string name="ingame_texture_filter">Filtro de texturas</string>
     <string name="ingame_picture">Formato de imagen</string>
     <string name="ingame_original_43">4:3 (original)</string>
+    <string name="ingame_stretched">Estirada</string>
     <string name="ingame_other_options">Otras opciones</string>
     <string name="ingame_dof">Profundidad de campo</string>
     <string name="ingame_fps_display">Mostrar FPS abajo a la izquierda</string>

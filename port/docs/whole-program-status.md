@@ -5814,6 +5814,19 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### App-Menü: Bildformat „Gestreckt“, neue Reihenfolge, mehr Zeilenabstand (Wünsche des Projektinhabers, 22.10.2026)
+
+- **Bildformat:** Reihenfolge jetzt „4:3 (Original)“, „16:9“, neu „Gestreckt“ (`ingame_stretched`
+  in allen zehn Sprachen). Die gespeicherten Werte bleiben (1 = 4:3, 0 = 16:9, Standard), neu 2:
+  dieselben Zeilen 56..391 der 448 wie bei 16:9, aber über den ganzen Bildschirm gezogen
+  (`core_mode.cpp`, `Present` mit Bildschirmbreite und -höhe). Die Zeile mit der Auflösung zählt
+  bei „Gestreckt“ wie bei 16:9 336 Zeilen.
+- **Zeilenabstand:** zwischen allen Zeilen des Menüs 4 dp Luft (eine unsichtbare Trennlinie der
+  `LinearLayout`, `SHOW_DIVIDER_MIDDLE`); die Abstände um die Überschriften bleiben dazu.
+- **Geprüft (Cloud):** Übersetzungsprüfung alle ok, alle Java-Quellen mit javac übersetzt,
+  `core_mode.cpp` ohne Fehler in der Syntaxprüfung für ARM64 und ARM32. **Nicht getestet:** auf dem
+  Gerät (Aussehen, „Gestreckt“ auf einem 20:9-Bildschirm).
+
 ### App-Menü: „B einrasten (Touch)“ und Gyro-Empfindlichkeit (Wünsche des Projektinhabers, 22.10.2026)
 
 - **B einrasten (Touch):** in der Touch-Zeile neben „L und R einrasten“ (unter „Unterdrücken“).

@@ -13,6 +13,7 @@
     <string name="ingame_texture_filter">टेक्सचर फ़िल्टर</string>
     <string name="ingame_picture">चित्र अनुपात</string>
     <string name="ingame_original_43">4:3 (मूल)</string>
+    <string name="ingame_stretched">खींचा हुआ</string>
     <string name="ingame_other_options">अन्य विकल्प</string>
     <string name="ingame_dof">डेप्थ ऑफ़ फ़ील्ड</string>
     <string name="ingame_fps_display">नीचे बाईं ओर FPS दिखाएँ</string>

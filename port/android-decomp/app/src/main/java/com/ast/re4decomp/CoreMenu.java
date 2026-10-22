@@ -86,6 +86,12 @@ final class CoreMenu extends Dialog {
     requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
     body = new LinearLayout(context);
     body.setOrientation(LinearLayout.VERTICAL);
+    // a little air between the lines (wish of the project owner, 22.10.2026: the menu looked squeezed)
+    android.graphics.drawable.GradientDrawable gap = new android.graphics.drawable.GradientDrawable();
+    gap.setSize(1, dp(4));
+    gap.setColor(0);
+    body.setDividerDrawable(gap);
+    body.setShowDividers(LinearLayout.SHOW_DIVIDER_MIDDLE);
     int pad = dp(16);
     body.setPadding(pad, pad, pad, pad);
     build();
@@ -306,9 +312,12 @@ final class CoreMenu extends Dialog {
         new int[] {1, 2, 4}, 1, maxSamples);
     choices(s(R.string.ingame_texture_filter), "anisotropy", new String[] {s(R.string.ingame_off), "2×", "4×", "8×", "16×"},
         new int[] {1, 2, 4, 8, 16}, 1, maxAnisotropy);
-    choices(s(R.string.ingame_picture), "aspect", new String[] {"16:9", s(R.string.ingame_original_43)},
-        new int[] {0, 1}, 0, 0);
-    // the check boxes in the choices' columns: the first under "16:9", the second under the third
+    // 4:3 (original), 16:9, Stretched (the whole screen); the stored values stay 1, 0 and the new 2
+    // (wish of the project owner, 22.10.2026)
+    choices(s(R.string.ingame_picture), "aspect",
+        new String[] {s(R.string.ingame_original_43), "16:9", s(R.string.ingame_stretched)},
+        new int[] {1, 0, 2}, 0, 0);
+    // the check boxes in the choices' columns: the first under "4:3", the second under the third
     LinearLayout other = labelledRow(s(R.string.ingame_other_options));
     checkBox(other, s(R.string.ingame_dof), graphics.getBoolean("dof", true), 2,
         (b, on) -> {

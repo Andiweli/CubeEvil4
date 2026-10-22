@@ -1196,7 +1196,7 @@ bool drawGx() {
   glDisable(GL_SCISSOR_TEST);
   glClearColor(0, 0, 0, 1);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  // the menu's picture format (1: 4:3, 0: 16:9), else RE4_GX_ASPECT
+  // the menu's picture format (1: 4:3, 0: 16:9, 2: stretched), else RE4_GX_ASPECT
   const char *aspect = getenv("RE4_GX_ASPECT");
   const int format = optAspect.load();
   if (format == 1 || (format < 0 && aspect && std::string(aspect) == "4:3")) {
@@ -1210,10 +1210,13 @@ bool drawGx() {
     gx->Present((width - boxW) / 2, (height - picH) / 2, boxW, picH);
   } else {
     // full screen: the game letterboxes everything (rows 56..391 of its 448,
-    // on a 4:3 television exactly 16:9); those rows fill a 16:9 box
+    // on a 4:3 television exactly 16:9); those rows fill a 16:9 box, or with
+    // "Stretched" (2, wish of the project owner, 22.10.2026) the whole screen
     const unsigned top = xh * 56 / 448, rows = xh * 336 / 448;
     int boxW = width, boxH = width * 9 / 16;
-    if (boxH > height) {
+    if (format == 2) {
+      boxH = height;
+    } else if (boxH > height) {
       boxH = height;
       boxW = height * 16 / 9;
     }
@@ -1755,7 +1758,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_cardNote(
 }
 
 // The picture options: scale 0 (automatic) or 1-4, samples 1/2/4, anisotropy
-// 1-16, aspect 0 (16:9) or 1 (4:3). Applied at the next picture while the game runs.
+// 1-16, aspect 0 (16:9), 1 (4:3) or 2 (stretched). Applied at the next picture while the game runs.
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setGraphics(JNIEnv *, jclass, jint scale,
                                                                                jint samples, jint anisotropy,
                                                                                jint aspect) {
@@ -1766,7 +1769,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setGraphics(
   optAspect = aspect;
   if (rebuild) optSerial++;
   LOG("picture options: scale %d, %d samples, anisotropy %d, %s", scale, samples, anisotropy,
-      aspect == 1 ? "4:3" : "16:9");
+      aspect == 1 ? "4:3" : aspect == 2 ? "stretched" : "16:9");
 }
 
 // {most samples, strongest anisotropy, scale, samples, anisotropy in use}; null before the renderer started.
