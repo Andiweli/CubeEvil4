@@ -1,0 +1,61 @@
+# The merchant's tune-up (ss_shop.cpp LvUpConfirm::move) wrote the four weapon levels through
+# TuneLevel, a structure of four 4-bit bitfields laid over cItem::lv (u16). The rest of the game
+# reads the levels as nibbles of the value (fire << 12 | firing speed << 8 | reload << 4 |
+# capacity: LvUpItemSelect, LvUpConfirm::init, ItemMgr). Big-endian compilers give the first
+# bitfield the top bits, ARM and x86 the bottom ones: every tune-up landed on other levels
+# (firepower on the capacity, firing speed on the reload speed and back), so the upgrade seemed not
+# to work and a reload level could pass its table (no reload any more). Testers' reports
+# 22.10.2026 (0.41.3: "upgrading the weapon did not work", "after an upgrade I could not reload").
+# The levels are written as the value now, with a log line per tune-up (`shop: tune-up ...`).
+# Found again by port/tools/scan/view_scan.py (`bits`). Weapons tuned before keep their mixed
+# levels.
+--- a/src/Sscrn/ss_shop.cpp
++++ b/src/Sscrn/ss_shop.cpp
+@@ -2526,33 +2526,21 @@
+     if (msg == 0x17 && (result = cMes.GetSelectMessage(1)) != 0) {
+         switch (result) {
+         case 1: {
+-            TuneLevel* t;
+-
+-            t = (TuneLevel*) &sw->m_p_item->lv;
+-            // COMPILER-DIFF: 12 (combine). The target keeps `extsb` before `addi -1; clrlwi 24; slwi 12`; our
+-            // combine strips the sign extension under the u8 truncation when both are one expression.
++            /* PORT (patch 0094): the four levels as the nibbles the rest of the game reads (fire << 12 |
++               mag << 8 | speed << 4 | ex, item.h). The original wrote them through TuneLevel, a 4-bit
++               bitfield view of the u16: big-endian the first field is the top nibble, on ARM and x86
++               the bottom one, so a tune-up landed on another level (firepower on the capacity, the
++               firing speed on the reload, a reload level past its table: no reload any more). */
+             {
+-                int v = (s8) sw->m_level_no[0];
+-                t->fire = (u8) (v - 1);
+-            }
+-            // Byte first, item pointer second in every nibble: the `lbz` between the previous `sth`
+-            // and the next `lwz item` keeps local-alloc's fake lifetimes of the four item-pointer
+-            // qtys apart (all r11; adjacent `sth; lwz` alternates r11/r10), and the LUID puts the
+-            // `lbz` first where sched2 ties (nibble 4).
+-            {
+-                int v = (s8) sw->m_level_no[1];
+-                t = (TuneLevel*) &sw->m_p_item->lv;
+-                t->mag = v - 1;
+-            }
+-            {
+-                int v = (s8) sw->m_level_no[2];
+-                t = (TuneLevel*) &sw->m_p_item->lv;
+-                t->speed = v - 1;
+-            }
+-            {
+-                int v = (s8) sw->m_level_no[3];
+-                t = (TuneLevel*) &sw->m_p_item->lv;
+-                t->ex = v - 1;
++                cItem* it = sw->m_p_item;
++                int f = (s8) sw->m_level_no[0] - 1;
++                int g = (s8) sw->m_level_no[1] - 1;
++                int s = (s8) sw->m_level_no[2] - 1;
++                int e = (s8) sw->m_level_no[3] - 1;
++
++                it->lv = (u16) ((f & 0xF) << 12 | (g & 0xF) << 8 | (s & 0xF) << 4 | (e & 0xF));
++                re4_log("shop: tune-up of item 0x%02x: levels %d/%d/%d/%d (firepower, firing speed, reload, "
++                        "capacity), %d pesetas", (unsigned) it->id, f + 1, g + 1, s + 1, e + 1, (int) sw->m_lv_cost);
+             }
+             if (sw->m_level_type == 3 || sw->m_level_type == 4) {
+                 cItem* item = sw->m_p_item;

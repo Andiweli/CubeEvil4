@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <algorithm>
 #include <string>
 #include <sys/mman.h>
 #include <time.h>
@@ -449,6 +450,14 @@ int main(int argc, char** argv)
     setenv("RE4_CORE_IPC_CHECK", "1", 1);
     setenv("RE4_CORE_IPC_SEGMENT", "4096", 1);
     setenv("RE4_REMOTE_TEST_CARD", card, 1);
+    // the error log's core file (CoreLog / CoreBridge.setLogFile): the core process writes it
+    // itself, from its environment
+    const std::string logFile = std::string(crashFile) + ".core-log.txt";
+    unlink(logFile.c_str());
+    unlink((logFile + ".1").c_str());
+    if (!missing && !crash) {
+        setenv("RE4_LOG_FILE", logFile.c_str(), 1);
+    }
     re4ipc::Spawn spawn;
     spawn.program = missing ? std::string("/nonexistent-re4/re4_coreproc") : program;
     spawn.name = "re4-core-test";
@@ -467,6 +476,14 @@ int main(int argc, char** argv)
         mainRun(modules, gci);
     }
     re4ipc::shutdown(5000);
+    if (!missing && !crash) {
+        const std::vector<unsigned char> bytes = readFile(logFile.c_str());
+        const std::string log(bytes.begin(), bytes.end());
+        CHECK(log.find("--- core log, process ") != std::string::npos);
+        CHECK(log.find("ready (pid ") != std::string::npos);
+        fprintf(stderr, "core-remote-test log file: %u bytes, %u lines\n", (unsigned) log.size(),
+                (unsigned) std::count(log.begin(), log.end(), '\n'));
+    }
     fprintf(stderr, "core-remote-test %s: %d failed\n", missing ? "missing" : crash ? "crash" : "main", gFailures);
     return gFailures ? 1 : 0;
 }

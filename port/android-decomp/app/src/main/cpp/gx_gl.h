@@ -155,4 +155,10 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
+// The renderer's and the core mode's log lines: to logcat under `tag` and, once SetLogCopy gave a
+// place, also as "tag: text" there (core_mode.cpp: the core's log file; Android 10 and older give
+// the app no logcat to record, the error report then has only that file).
+void LogTo(const char *tag, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+void SetLogCopy(void (*copy)(const char *line));
+
 } // namespace re4gx

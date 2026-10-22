@@ -29,6 +29,7 @@
 
 #include "re4_core.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 extern GLOBAL_WK* pG;
@@ -39,6 +40,24 @@ extern "C" int re4_dvd_inserted_disc(void);
 extern "C" int re4_valid_port_ptr(const void* p);
 
 namespace {
+
+// The faces' running shapes (CalculateShape_new per model info) only for the bridge view
+// (RE4_VIEW=bridge, RE4_BRIDGE_SHAPES=1, re4_bridge_shapes): the GX view draws what the game's own
+// trans.cpp computes. While a room is loaded or a checkpoint continued, a live model's shape list
+// can already point at freed and reused memory; the game draws no such model, but the bridge read
+// it every frame (SIGSEGV in HermiteInterpolation from re4_bridge_capture, SCV40 tester, two
+// crashes on loading, 22.10.2026). -1: not decided yet.
+int gShapes = -1;
+
+bool shapesWanted()
+{
+    if (gShapes < 0) {
+        const char* view = getenv("RE4_VIEW");
+        const char* shapes = getenv("RE4_BRIDGE_SHAPES");
+        gShapes = (view && strcmp(view, "bridge") == 0) || (shapes && *shapes == '1');
+    }
+    return gShapes != 0;
+}
 
 bool inMem1(const void* p)
 {
@@ -196,7 +215,7 @@ void captureModel(Re4CoreSnapshot* s, cModel* m, u8 manager, u32 slot)
         re4_formats_locate(info->model_addr, &mi.bin);
         re4_formats_locate(info->tpl_addr, &mi.tpl);
         // a running shape: the positions as trans.cpp makes them before skinning
-        if ((info->be_flag & 2) && live(d) && inMem1(d->vtxOrig) && d->nVtx != 0) {
+        if (shapesWanted() && (info->be_flag & 2) && live(d) && inMem1(d->vtxOrig) && d->nVtx != 0) {
             bool shaped = false;
             for (int k = 0; k < 5; k++) {
                 shaped = shaped || inMem1(info->shape[k].data);
@@ -255,6 +274,11 @@ extern "C" void re4_scroll_placed(void* obj, int blk, int index)
     n.bin = inMem1(m->pModelInfo) ? (const void*) m->pModelInfo->model_addr : 0;
     n.blk = (s16) blk;
     n.index = (u16) index;
+}
+
+extern "C" void re4_bridge_shapes(int on)
+{
+    gShapes = on ? 1 : 0;
 }
 
 extern "C" void re4_bridge_capture(Re4CoreSnapshot* s)

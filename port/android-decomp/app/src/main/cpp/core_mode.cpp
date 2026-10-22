@@ -16,8 +16,10 @@
 // (tests).
 #include "core_scene.h"
 #include "gx_gl.h"
+#include "gx_selfcheck.h"
 #include "re4_card_files.h"
 #include "re4_core_client.h"
+#include "re4_cpu_info.h"
 #include "re4_gx_frame.h"
 #include "re4_gx_frame_io.h"
 
@@ -53,7 +55,7 @@
 
 namespace {
 
-#define LOG(...) __android_log_print(ANDROID_LOG_INFO, "RE4Core", __VA_ARGS__)
+#define LOG(...) re4gx::LogTo("RE4Core", __VA_ARGS__)
 
 struct CoreApi {
   void *main{};
@@ -90,6 +92,7 @@ struct CoreApi {
   unsigned (*frameCount)(void){};
   int (*gameThread)(void){};
   long (*freeAt)(void){};  // optional: the frame the player became free in the room (state_trace.cpp), -1 not yet
+  void (*logFile)(const char *){};  // optional (cores since 21.10.2026): the core's lines into a file
 } api;
 
 // The core in a process of its own (useCoreProcess): why, for the report; "" in this process.
@@ -412,6 +415,9 @@ void loadCore(JNIEnv *env) {
   api.frameCount = reinterpret_cast<unsigned (*)(void)>(dlsym(api.main, "re4_core_frame_count"));
   api.gameThread = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_game_thread"));
   api.freeAt = reinterpret_cast<long (*)(void)>(dlsym(api.main, "re4_trace_free_at"));
+  api.logFile = reinterpret_cast<void (*)(const char *)>(dlsym(api.main, "re4_log_file"));
+  // the app's lines (renderer, core mode) also into the core's log file (cores since 22.10.2026)
+  re4gx::SetLogCopy(reinterpret_cast<void (*)(const char *)>(dlsym(api.main, "re4_log_file_line")));
   if (!ok) {
     LOG("%s", api.error.c_str());
     api.main = nullptr;
@@ -480,6 +486,8 @@ unsigned gxChunks = 0;
 // timing of the GX view since the last log line
 std::chrono::steady_clock::time_point gxSince;
 double gxRunMs = 0, gxRunMax = 0;
+long long gxRunCpuNs = 0;        // the render thread's processor time in Run since the last line
+unsigned gxRunOnKind[3] = {};    // where Run ended: slow, middle, fast cores (re4_cpu_info.h)
 unsigned gxRunCount = 0, gxFrames = 0, gxDraws = 0;
 re4gx::GxStats gxWork;  // the counters at the last log line
 // GX dumps for the diagnosis (RE4_GX_DUMP_DIR); -1: settings not read yet
@@ -941,6 +949,8 @@ bool drawGx() {
     gxDraws = 0;
     gxRunMs = gxRunMax = 0;
     gxRunCount = gxFrames = 0;
+    gxRunCpuNs = 0;
+    gxRunOnKind[0] = gxRunOnKind[1] = gxRunOnKind[2] = 0;
     gxSince = std::chrono::steady_clock::now();
     int scale = optScale.load();
     if (scale < 1 || scale > 4) {
@@ -955,6 +965,13 @@ bool drawGx() {
       scale = std::max(1, std::min(3, (rows + 168) / 336) - 1);
     }
     replayGx(scale);
+    // once per run: does this GPU compute the movie colours like the GameCube (gx_selfcheck.cpp;
+    // the Galaxy A36 showed them green and brown)? Before the renderer, on a renderer of its own.
+    static bool gpuChecked = false;
+    if (!gpuChecked) {
+      gpuChecked = true;
+      LOG("%s", re4gx::MovieColourCheck(nullptr).c_str());
+    }
     gx = std::make_unique<re4gx::GxRenderer>();
     re4gx::GxOptions options;
     options.samples = std::max(1, optSamples.load());
@@ -994,11 +1011,15 @@ bool drawGx() {
         scale, gx->Samples(), maxSamples,
         gx->Samples() > 1 ? (gx->TiledMsaa() ? " on the tiles" : " in own buffers") : "", gx->Anisotropy(),
         maxAnisotropy, gx->HalfDof() ? "half" : "full", cached ? cache : "off");
+    char layout[256];
+    re4cpu::GetLayout().Describe(layout, sizeof(layout));
+    LOG("processor: %s", layout);
   }
   // one chunk per displayed frame: every picture the game makes is shown (a
   // renderer slower than the game slows the game down, the core waits for it,
   // instead of skipping pictures)
   const auto now = std::chrono::steady_clock::now();
+  const long long cpuNow = re4cpu::ThreadNs();
   if (gxSince.time_since_epoch().count() == 0) gxSince = now;
   gxFrames++;
   // diagnosis (RE4_GX_DUMP_DIR, RE4_GX_DUMP_EVERY seconds, at most 6): the
@@ -1130,6 +1151,8 @@ bool drawGx() {
     gxRunMs += ms;
     gxRunMax = std::max(gxRunMax, ms);
     gxRunCount++;
+    gxRunCpuNs += re4cpu::ThreadNs() - cpuNow;
+    gxRunOnKind[re4cpu::GetLayout().Kind(sched_getcpu())]++;
     if (bench.measuring) {
       bench.runMs += ms;
       bench.runCount++;
@@ -1157,11 +1180,21 @@ bool drawGx() {
             (s.programSwitches - gxWork.programSwitches) / n, (s.textureBinds - gxWork.textureBinds) / n,
             (s.stateChanges - gxWork.stateChanges) / n, s.streamWaits - gxWork.streamWaits,
             s.streamSwitches - gxWork.streamSwitches, s.streamSplits - gxWork.streamSplits, gpu);
+        // the render thread's processor time in Run: about the run time when the thread computes
+        // (driver calls), less when it waits for the GPU; and the kind of core it got
+        const int cpu = sched_getcpu();
+        const unsigned khz = cpu >= 0 ? re4cpu::CurrentKHz(cpu) : 0;
+        LOG("GX render thread: %.1f ms of processor time per chunk of %.1f ms run, on fast/middle/slow cores "
+            "%.0f/%.0f/%.0f %%, now on core %d at %u MHz",
+            gxRunCpuNs / 1e6 / n, gxRunMs / n, gxRunOnKind[2] * 100.0 / n, gxRunOnKind[1] * 100.0 / n,
+            gxRunOnKind[0] * 100.0 / n, cpu, khz / 1000);
       }
       gxWork = s;
       gxDraws = s.draws;
       gxRunMs = gxRunMax = 0;
       gxRunCount = gxFrames = 0;
+      gxRunCpuNs = 0;
+      gxRunOnKind[0] = gxRunOnKind[1] = gxRunOnKind[2] = 0;
       gxSince = now;
     }
   }
@@ -1173,7 +1206,7 @@ bool drawGx() {
   glDisable(GL_SCISSOR_TEST);
   glClearColor(0, 0, 0, 1);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  // the menu's picture format (1: 4:3, 0: 16:9), else RE4_GX_ASPECT
+  // the menu's picture format (1: 4:3, 0: 16:9, 2: stretched), else RE4_GX_ASPECT
   const char *aspect = getenv("RE4_GX_ASPECT");
   const int format = optAspect.load();
   if (format == 1 || (format < 0 && aspect && std::string(aspect) == "4:3")) {
@@ -1187,10 +1220,13 @@ bool drawGx() {
     gx->Present((width - boxW) / 2, (height - picH) / 2, boxW, picH);
   } else {
     // full screen: the game letterboxes everything (rows 56..391 of its 448,
-    // on a 4:3 television exactly 16:9); those rows fill a 16:9 box
+    // on a 4:3 television exactly 16:9); those rows fill a 16:9 box, or with
+    // "Stretched" (2, wish of the project owner, 22.10.2026) the whole screen
     const unsigned top = xh * 56 / 448, rows = xh * 336 / 448;
     int boxW = width, boxH = width * 9 / 16;
-    if (boxH > height) {
+    if (format == 2) {
+      boxH = height;
+    } else if (boxH > height) {
       boxH = height;
       boxW = height * 16 / 9;
     }
@@ -1324,6 +1360,12 @@ void useCoreProcess(const std::string &why) {
   }
   re4ipc::configure(spawn);
   if (crashFd >= 0) re4ipc::setCrashFd(crashFd);
+  // the core process writes the core's log file (RE4_LOG_FILE from this process's environment)
+  if (api.logFile) {
+    api.logFile(nullptr);
+    api.logFile = nullptr;
+  }
+  re4gx::SetLogCopy(nullptr);
   api.error.clear();
   if (lib.find("!/") != std::string::npos) {
     api.error = "the core process needs the app's libraries extracted (this APK keeps them packed)";
@@ -1727,7 +1769,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_cardNote(
 }
 
 // The picture options: scale 0 (automatic) or 1-4, samples 1/2/4, anisotropy
-// 1-16, aspect 0 (16:9) or 1 (4:3). Applied at the next picture while the game runs.
+// 1-16, aspect 0 (16:9), 1 (4:3) or 2 (stretched). Applied at the next picture while the game runs.
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setGraphics(JNIEnv *, jclass, jint scale,
                                                                                jint samples, jint anisotropy,
                                                                                jint aspect) {
@@ -1738,7 +1780,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setGraphics(
   optAspect = aspect;
   if (rebuild) optSerial++;
   LOG("picture options: scale %d, %d samples, anisotropy %d, %s", scale, samples, anisotropy,
-      aspect == 1 ? "4:3" : "16:9");
+      aspect == 1 ? "4:3" : aspect == 2 ? "stretched" : "16:9");
 }
 
 // {most samples, strongest anisotropy, scale, samples, anisotropy in use}; null before the renderer started.
@@ -1761,6 +1803,19 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setCrashFile
   // the core process writes its crashes there as well (it gets its own copy of the file)
   if (!coreProcessWhy.empty()) re4ipc::setCrashFd(fd);
   if (old >= 0) close(old);
+}
+
+// The core's own log file (CoreLog, "Record the error log"): its lines straight into the file,
+// without logcat (a tester's Samsung recorded nothing through logcat, 21.10.2026); "" stops it.
+// The core process takes the file from the environment when it starts (RE4_LOG_FILE).
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setLogFile(JNIEnv *env, jclass, jstring path) {
+  const auto file = text(env, path);
+  if (file.empty()) {
+    unsetenv("RE4_LOG_FILE");
+  } else {
+    setenv("RE4_LOG_FILE", file.c_str(), 1);
+  }
+  if (coreProcessWhy.empty() && api.logFile) api.logFile(file.empty() ? nullptr : file.c_str());
 }
 
 // Game frames so far (one per PADRead), -1 without the core's counter.

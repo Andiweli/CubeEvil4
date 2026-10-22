@@ -16,3 +16,7 @@ int __android_log_print(int prio, const char* tag, const char* fmt, ...)
     va_end(ap);
     return n;
 }
+int __android_log_write(int prio, const char* tag, const char* text)
+{
+    return fprintf(stderr, "[%d %s] %s\n", prio, tag, text);
+}

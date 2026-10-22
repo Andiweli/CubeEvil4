@@ -274,6 +274,11 @@ void convertItemModels(Blob& b, const Part&)
         swap16(b, ids + 4 + i * 8, 2);
         swap32(b, ids + 4 + i * 8 + 4);
     }
+    if (n == 0) {
+        // no items: cItmSys::DataLoad reads the BIN and TPL tables only for the ids (never their
+        // counts); r215's pack has none and a BIN table offset of 0, the header itself
+        return;
+    }
     Sections s;
     s.add(ids);
     s.add(bins);

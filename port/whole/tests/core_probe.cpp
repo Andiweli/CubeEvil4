@@ -1051,8 +1051,15 @@ extern "C" int re4probe_movie_test(void)
         re4_log("  movie header: %d x %d", info.width, info.height);
         failed |= 0x1;
     }
-    MWS_PLY_CPRM_SFD cprm;
-    memset(&cprm, 0, sizeof(cprm));
+    // with the 0x0C bytes the game keeps after it (sofdec.h AP_OBJ pad_48): the CRI side reads the
+    // creation parameters as 0x30 bytes (MWSFD_CRPRM, buffmt at 0x24); without them the sanitizer
+    // build stopped at the read past the test's 0x24 bytes (22.10.2026)
+    struct {
+        MWS_PLY_CPRM_SFD prm;
+        u8 more[0xC];
+    } area;
+    memset(&area, 0, sizeof(area));
+    MWS_PLY_CPRM_SFD& cprm = area.prm;
     cprm.ftype = 1;
     cprm.max_bps = 8000000;
     cprm.nfrm_pool_wk = 4;

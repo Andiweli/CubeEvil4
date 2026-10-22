@@ -1,0 +1,26 @@
+# SceAtExecRoomJump (room changes made by scripts: the elevators of sce_com.cpp, r120, r221, r225,
+# r30a, r30b, r316, r331) builds a door area on the stack and fills only the destination (stage,
+# room, part, position, angle, no exit function). key_id, key_flg, key_se, open_se, fade_eff and
+# the rest were whatever the stack held: on the GameCube harmless, in the port key_id 1 or 2 with
+# its unlock flag clear made sceAtFunc_door start the locked-door task sceInLock with &w. The task
+# ran a frame later, when the frame of SceAtExecRoomJump and the stack of the elevator task were
+# gone: SIGSEGV in sceInLock reading w->door.key_id (fault address = &w + 0x6E; SCV40 tester,
+# 0.42.1, 22.10.2026, r332, the elevator after event r332s10, after 11.5 hours of play). The room
+# change did not happen either. The area starts zeroed now: an unlocked door, the default fade
+# (fade_eff 0) and the destination's first door sound (open_se 0). A latent bug of the original
+# code (an uninitialised local, also in the prototype), which the port's stack contents expose.
+--- a/src/game/sce_at.cpp
++++ b/src/game/sce_at.cpp
+@@ -2585,6 +2585,12 @@
+ {
+     SCE_AT_DATA w;
+ 
++    /* PORT (patch 0101): the original fills only the destination: key_id, key_flg, key_se,
++       open_se, fade_eff and the rest came from the stack. On the GameCube that was harmless; in
++       the port key_id 1 or 2 made sceAtFunc_door start the locked-door task with &w, which ran
++       after this frame had gone (SIGSEGV in sceInLock, the elevator of r332, SCV40 tester
++       22.10.2026). An unlocked door with the default fade and door sound now. */
++    memset(&w, 0, sizeof(w));
+     w.country.reset();
+     w.door.next_stage_no = room >> 8;
+     w.door.next_room_no = room;

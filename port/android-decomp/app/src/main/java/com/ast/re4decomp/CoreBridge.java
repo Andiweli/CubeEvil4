@@ -115,13 +115,16 @@ public final class CoreBridge {
   /**
    * The picture options: scale 0 (automatic) or 1-4 (EFB resolution
    * multiple), samples 1/2/4 (multisampling), anisotropy 1-16, aspect 0
-   * (16:9) or 1 (4:3); applied at the next picture while the game runs.
+   * (16:9), 1 (4:3) or 2 (stretched over the whole screen); applied at the
+   * next picture while the game runs.
    */
   public static native void setGraphics(int scale, int samples, int anisotropy, int aspect);
   /** {most samples, strongest anisotropy, scale, samples, anisotropy in use}; null before the first picture. */
   public static native int[] graphicsInfo();
   /** Where a crash writes where it happened (the error log's folder). */
   public static native void setCrashFile(String path);
+  /** The core's own log file (its lines without logcat; the error log's folder), "" stops it. */
+  public static native void setLogFile(String path);
   /** Game frames so far (one per controller read), -1 without the counter. */
   public static native long gameFrames();
   /** The game stands without a pause for `seconds`: where its thread is, into the error log. */

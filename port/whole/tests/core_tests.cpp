@@ -55,6 +55,7 @@ extern "C" void re4probe_shape_restore(void);
 extern "C" int re4probe_ax_test(void);
 extern "C" int re4probe_axfx_test(void);
 extern "C" int re4probe_movie_test(void);
+extern "C" int re4_formats_entry_status(const void* entry);
 extern "C" int re4probe_card_test(void);
 
 namespace {
@@ -491,6 +492,11 @@ void testBridge()
         unsigned char* mem = (unsigned char*) (unsigned long) 0x82500000u;
         memset(mem, 0, 0x4000);
         re4probe_shape_setup(mem);
+        re4_bridge_capture(&gSnap);  // without the bridge view: no shapes
+        for (unsigned i = 0; i < gSnap.nModels; i++) {
+            CHECK(gSnap.models[i].address != 0x82500000u || gSnap.nMorph == 0);
+        }
+        re4_bridge_shapes(1);
         re4_bridge_capture(&gSnap);
         re4probe_shape_restore();
         bool found = false;
@@ -520,6 +526,7 @@ void testBridge()
         const unsigned behind[2] = { 0x10, 1 };
         memcpy(mem + 0x3600 + 3 * 8, behind, sizeof(behind));
         re4_bridge_capture(&gSnap);
+        re4_bridge_shapes(0);
         re4probe_shape_restore();
         found = false;
         for (unsigned i = 0; i < gSnap.nModels && !found; i++) {
@@ -788,6 +795,70 @@ void testEvent()
     report("event", ok);
 }
 
+// Empty tables the game never reads (the room tour, 22.10.2026): an event bundle without events
+// whose table offset is the tools' fill 0xCDCDCDCD (EventMgr::SetEvs; r101, r111, r400 ...) and an
+// item pack without items whose BIN and TPL table offsets are 0 (cItmSys::DataLoad; r215). The
+// converters stopped at the tables and left both entries big-endian; both count as converted now.
+void testEmptyTables()
+{
+    bool ok = true;
+    unsigned char* arc = (unsigned char*) (unsigned long) 0x82340000u;
+    memset(arc, 0, 0x100);
+    put32be(arc + 0x00, 2);
+    put32be(arc + 0x10, 0x20);
+    put32be(arc + 0x14, 0x40);
+    memcpy(arc + 0x18, "EVS\0", 4);
+    memcpy(arc + 0x1C, "ITM\0", 4);
+    put32be(arc + 0x24, 0xCDCDCDCDu);  // EVS: no events, the table offset is fill
+    unsigned char* itm = arc + 0x40;
+    put32be(itm + 0x00, 3);
+    put32be(itm + 0x04, 0x10);  // the id table: no ids
+    Header h = { 0, 0x80, 0, 0, 0, 0, 0, 0 };
+    re4_formats_part_loaded("em/empty.das", 0, 0, &h, 0x82340000u);
+    CHECK(re4_formats_entry_status(arc + 0x20) == 1);
+    CHECK(re4_formats_entry_status(itm) == 1);
+    CHECK(get32(itm) == 3 && get32(itm + 4) == 0x10 && get32(itm + 8) == 0);
+    report("empty tables", ok);
+}
+
+// An effect model whose motion slot holds a texture with its zero bytes stored as 0x20, as r10b's
+// effect model 0x7c (st1/r10b.das #7, the room tour 22.10.2026): EFF version 0xB with one effect
+// model (id 0x7c, motion table of one entry). The motion converter read 175 joints from it and
+// stopped; the entry counts as converted now, the texture stays as it is.
+void testEffectTextureMotion()
+{
+    bool ok = true;
+    unsigned char* arc = (unsigned char*) (unsigned long) 0x82350000u;
+    memset(arc, 0, 0x100);
+    put32be(arc + 0x00, 1);
+    put32be(arc + 0x10, 0x20);
+    memcpy(arc + 0x14, "EFF", 4);
+    unsigned char* eff = arc + 0x20;
+    put32be(eff + 0x00, 0xB);
+    put32be(eff + 0x14, 0x30);  // effect model ids
+    put32be(eff + 0x2C, 0x40);  // effect models
+    put32be(eff + 0x30, 1);
+    put16be(eff + 0x34, 0x7C);
+    put32be(eff + 0x40, 1);
+    put32be(eff + 0x44, 0x10);  // the model entry at 0x50
+    unsigned char* efm = eff + 0x50;
+    put32be(efm + 0x00, 4);
+    put32be(efm + 0x0C, 0x20);  // motion table at 0x70
+    put32be(efm + 0x20, 1);
+    put32be(efm + 0x24, 0x10);  // "motion" 0 at 0x80
+    unsigned char* tex = efm + 0x30;
+    memset(tex, 0x20, 0x40);
+    put32be(tex + 0x00, 0x2020AF30u);  // TPL magic, zeros as 0x20
+    put32be(tex + 0x04, 0x20202001u);
+    put32be(tex + 0x08, 0x2020200Cu);
+    Header h = { 0, 0xE0, 0, 0, 0, 0, 0, 0 };
+    re4_formats_part_loaded("em/efm.das", 0, 0, &h, 0x82350000u);
+    CHECK(re4_formats_entry_status(eff) == 1);
+    CHECK(get32(eff) == 0xB && get32(efm + 0x0C) == 0x20 && get32(efm + 0x20) == 1 && get32(efm + 0x24) == 0x10);
+    CHECK(tex[0] == 0x20 && tex[1] == 0x20 && tex[2] == 0xAF && tex[3] == 0x30);
+    report("effect texture motion", ok);
+}
+
 // A model (BIN, version 0x20010801) with four vertices and a shape table of
 // two shapes that name the same delta list (vertex 2: +0x74, -1, +3).
 void testMorph()
@@ -1036,6 +1107,8 @@ int re4_core_tests()
     testSound();
     testCamera();
     testEvent();
+    testEmptyTables();
+    testEffectTextureMotion();
     testMorph();
     {
         int failed = re4probe_ax_test();

@@ -25,6 +25,10 @@
   `E:\Development\Android\RE4-OUYA-Daten`, Ergebnisse auf dem Desktop in
   `RE4-OUYA-Probe`), damit `RE4-Fixed` auf seinem Branch bleibt (Entscheidung des
   Projektinhabers, 21.10.2026).
+- Nach jeder Änderung, die in die App gehört, die Befehle zum Abgleich mit
+  GitHub und zum Bauen mitschicken: `git pull`, Kern-Build in WSL, dann Android
+  Studio; Vorlage und Hinweise in `port/docs/lokal-bauen.md` (Wunsch des
+  Projektinhabers, 22.10.2026).
 - Bei jedem neuen Alpha-Release die Änderungen gleich im Chat mitschicken, kurz
   und knackig (englisch, für Tester: Fixed / New / Changed, je ein Satz pro Punkt);
   der Releasetext in `port/android-decomp/docs/releases/` bleibt genauso kurz
@@ -95,6 +99,10 @@ Dann ausführen, Absturzstelle finden, beheben, wiederholen.
   GLES3-Renderer, Controller, Tonausgabe und die geprüften Big-Endian-Leser
   (als Vergleich für die Formatumwandler).
 - Disc-Daten sind big-endian: beim Laden umwandeln, nie stillschweigend annehmen.
+- Fehler des Prototyps (Originalcode, der die SHA1-Prüfsumme trifft), die das
+  fertige Spiel nicht hat, werden behoben: als Patch in `port/whole/patches/`,
+  im Patch-Kopf als „a bug of the prototype“ gekennzeichnet (Entscheidung des
+  Projektinhabers, 22.10.2026).
 - Keine Spieldateien und keine Disc-Images ins Repository.
 
 ## Testen

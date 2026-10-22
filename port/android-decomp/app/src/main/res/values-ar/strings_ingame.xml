@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Arabic (العربية): the texts of values/strings_ingame.xml, same names and placeholders.
+     Written right to left: a text that begins with Latin letters or a file name starts with the
+     right-to-left mark &#x200F; (else Android lays the whole line out left to right); the
+     left-to-right mark &#x200E; keeps "1280 × 672" and ".gci" in their order. The FPS display
+     stays left to right (CoreActivity). tools/check_translations.py checks all three. -->
+<resources>
+    <string name="ingame_title">خيارات CubeEvil4</string>
+    <string name="ingame_hint">&#x200F;SELECT (ضغطة قصيرة) = هذه القائمة  ·  SELECT (ضغطة مطوّلة) = قائمة التصحيح في اللعبة</string>
+    <string name="ingame_back">العودة إلى اللعبة</string>
+
+    <string name="ingame_graphics">الرسومات</string>
+    <string name="ingame_resolution">الدقة</string>
+    <string name="ingame_auto">تلقائي</string>
+    <string name="ingame_antialiasing">تنعيم الحواف</string>
+    <string name="ingame_off">إيقاف</string>
+    <string name="ingame_texture_filter">تصفية الخامات</string>
+    <string name="ingame_picture">نسبة الأبعاد</string>
+    <string name="ingame_original_43">4:3 (الأصلية)</string>
+    <string name="ingame_stretched">ممتدة</string>
+    <string name="ingame_other_options">خيارات أخرى</string>
+    <string name="ingame_dof">عمق الميدان</string>
+    <string name="ingame_fps_display">عرض FPS أسفل اليسار</string>
+    <string name="ingame_resolution_line">الدقة: %1$d&#x200E; × &#x200E;%2$d بكسل (المستوى %3$d) · الشاشة %4$d&#x200E; × &#x200E;%5$d · تُطبَّق عند إغلاق القائمة. المستويات الأعلى تتطلب أداءً أعلى.</string>
+    <string name="ingame_resolution_line_auto">الدقة: %1$d&#x200E; × &#x200E;%2$d بكسل (المستوى %3$d، تلقائي) · الشاشة %4$d&#x200E; × &#x200E;%5$d · تُطبَّق عند إغلاق القائمة. المستويات الأعلى تتطلب أداءً أعلى.</string>
+
+    <string name="ingame_controls">التحكم</string>
+    <string name="ingame_touch_controls">التحكم باللمس</string>
+    <string name="ingame_touch_auto">تلقائي</string>
+    <string name="ingame_touch_force">دائمًا</string>
+    <string name="ingame_touch_suppress">إخفاء</string>
+    <string name="ingame_comfort">تحكم مريح</string>
+    <string name="ingame_gyro">التصويب بالجيروسكوب</string>
+    <string name="ingame_gyro_none">التصويب بالجيروسكوب (لا يوجد جيروسكوب)</string>
+    <string name="ingame_touch_help">تلقائي: تظهر الأزرار دون يد تحكم، وتُظهرها لمسة على الشاشة، ويُخفيها الضغط على أي زر. دائمًا: تظهر دائمًا. إخفاء: مخفية ما دامت يد التحكم متصلة. MENU = SELECT. التثبيت: لمسة تُبقي L أو R أو B مضغوطًا حتى اللمسة التالية (مع تثبيت B يركض ليون دائمًا).</string>
+    <string name="ingame_alternate">تحكم بديل</string>
+    <string name="ingame_latch">تثبيت L و R (اللمس)</string>
+    <string name="ingame_latch_b">تثبيت B (اللمس)</string>
+    <string name="ingame_gyro_sensitivity">حساسية الجيروسكوب</string>
+    <string name="ingame_alternate_help">التحكم البديل: L1 = السكين، L2 = التصويب (بالعصا اليمنى)، R1 = الحقيبة (الأسلحة/العلاج)، R2 = إطلاق النار / استخدام السكين، Y = الخريطة. A و B و X (آشلي) و START كما كانت.</string>
+
+    <string name="ingame_card">بطاقة الذاكرة (الفتحة A)</string>
+    <string name="ingame_card_help">تصدير ملفات الحفظ واستيرادها بصيغة &#x200E;.gci (لـ Dolphin أو GameCube).</string>
+    <string name="ingame_card_busy">بطاقة الذاكرة قيد الاستخدام (اللعبة تحفظ أو تحمّل) أو أن اللعبة ما زالت تُحمَّل – أغلق القائمة وافتحها مجددًا بعد لحظات.</string>
+    <string name="ingame_card_none">لا توجد بطاقة ذاكرة.</string>
+    <string name="ingame_export">تصدير ملفات الحفظ (&#x200E;.gci)</string>
+    <string name="ingame_import">استيراد ملفات الحفظ (&#x200E;.gci)</string>
+
+    <string name="ingame_log">سجل الأخطاء</string>
+    <string name="ingame_log_help">يسجّل تقريرًا للتطبيق (حتى بعد تعطّله أو توقّفه عن الاستجابة). يحتوي التقرير على سجل هذا التشغيل والتشغيل السابق.</string>
+    <string name="ingame_log_record">تسجيل سجل الأخطاء</string>
+    <string name="ingame_log_capture">&#x200F;R3 = التقاط الرسومات</string>
+    <string name="ingame_report_send">إرسال التقرير …</string>
+    <string name="ingame_report_save">حفظ التقرير …</string>
+
+    <string name="ingame_source">الشيفرة المصدرية</string>
+    <string name="ingame_source_line">المزيد عن هذه النسخة المنقولة على %1$s</string>
+    <string name="ingame_no_browser">لا يوجد متصفح على هذا الجهاز</string>
+
+    <string name="ingame_fps_none">-- FPS (اللعبة)</string>
+    <string name="ingame_fps">%1$d FPS (اللعبة)</string>
+
+    <string name="ingame_core_not_started">لم تبدأ نواة اللعبة:\n%1$s</string>
+    <string name="ingame_core_stopped">توقفت نواة اللعبة:\n%1$s</string>
+    <string name="ingame_send_report">إرسال التقرير</string>
+    <string name="ingame_quit">خروج</string>
+    <string name="ingame_end_question">هل تريد إنهاء اللعبة؟ (سيضيع التقدم غير المحفوظ.)</string>
+    <string name="ingame_end">إنهاء</string>
+    <string name="ingame_continue">متابعة</string>
+    <string name="ingame_no_debug_menu">لا تحتوي هذه النواة على قائمة تصحيح بعد</string>
+    <string name="ingame_no_menu">لا تحتوي هذه النواة على قائمة بعد</string>
+    <string name="ingame_no_file_picker">لا توجد أداة لاختيار الملفات على هذا الجهاز</string>
+    <string name="ingame_report_saved">تم حفظ التقرير</string>
+    <string name="ingame_failed">لم ينجح ذلك: %1$s</string>
+    <string name="ingame_card_unreadable">تتعذّر قراءة بطاقة الذاكرة الآن.</string>
+    <!-- "number of exported files: N" fits every count -->
+    <plurals name="ingame_exported">
+        <item quantity="zero">عدد الملفات المُصدَّرة: %1$d.</item>
+        <item quantity="one">عدد الملفات المُصدَّرة: %1$d.</item>
+        <item quantity="two">عدد الملفات المُصدَّرة: %1$d.</item>
+        <item quantity="few">عدد الملفات المُصدَّرة: %1$d.</item>
+        <item quantity="many">عدد الملفات المُصدَّرة: %1$d.</item>
+        <item quantity="other">عدد الملفات المُصدَّرة: %1$d.</item>
+    </plurals>
+    <string name="ingame_imported">تم الاستيراد: %1$s</string>
+    <string name="ingame_import_no_space">لا توجد مساحة على البطاقة لـ %1$s</string>
+    <string name="ingame_import_busy">اللعبة تستخدم البطاقة: %1$s</string>
+    <string name="ingame_import_no_card">لا توجد بطاقة ذاكرة: %1$s</string>
+    <string name="ingame_import_bad">ليس ملفًا لهذه اللعبة أو أنه تالف: %1$s (%2$s)</string>
+    <string name="ingame_import_exists">&#x200F;%1$s موجود على البطاقة بالفعل. هل تريد استبداله؟</string>
+    <string name="ingame_replace">استبدال</string>
+    <string name="ingame_skip">تخطي</string>
+    <string name="ingame_report_chooser">إرسال تقرير الأخطاء</string>
+    <string name="ingame_report_failed">تعذّر إنشاء التقرير: %1$s</string>
+    <string name="ingame_capture_saved">تم حفظ لقطة الرسومات</string>
+</resources>

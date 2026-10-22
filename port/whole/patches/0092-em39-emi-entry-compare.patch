@@ -1,0 +1,18 @@
+# em39 (Krauser) looks for its next EMI point of type 0xE and, on a retry, skips the points that
+# match the last one in bytes 1 and 3 (sub, pad_3): `*(u32*) e & 0x00FF00FF` on two 4-byte EMI
+# heads, a GameCube word view. In host order the mask picked type and state (bytes 0 and 2), so
+# every point of the same state matched (bug hunt 22.10.2026, port/tools/scan/view_scan.py). The
+# words are read as on the GameCube now (RE4_BE).
+--- a/src/em39/em39.cpp
++++ b/src/em39/em39.cpp
+@@ -7263,7 +7263,9 @@
+         if (w->Old_no != -1 && retry) {
+             u32 ofs = w->Old_no * 0x40 + 8;
+ 
+-            if ((*(u32*) ((u32) EM39_EMI + ofs) & 0x00FF00FF) == (*(u32*) e & 0x00FF00FF)) {
++            /* PORT (patch 0092): the mask picks bytes 1 and 3 (sub, pad_3) of the two entries as the
++               GameCube reads the word; in host order it picked type and state */
++            if ((RE4_BE(u32, 1, (u8*) ((u32) EM39_EMI + ofs)) & 0x00FF00FF) == (RE4_BE(u32, 1, e) & 0x00FF00FF)) {
+                 continue;
+             }
+         }

@@ -7,6 +7,7 @@ import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.hardware.input.InputManager;
@@ -88,7 +89,11 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   static final String ALT_CONTROLS = "alternateControls";
   // the menu's switch "Latch L and R" of the touch controls (CoreTouch.setLatch; off: held while touched)
   static final String TOUCH_LATCH = "touchLatchLR";
-  /** The menu's picture options: scale (0 auto, 1-4), samples, anisotropy, aspect (0 16:9, 1 4:3). */
+  // the menu's switch "Latch B" of the touch controls (CoreTouch.setLatchB; on: Leon keeps running)
+  static final String TOUCH_LATCH_B = "touchLatchB";
+  // the menu's slider of gyro aiming (GyroAim.setSensitivity, a float, 1 = as before)
+  static final String GYRO_SENSITIVITY = "gyroSensitivity";
+  /** The menu's picture options: scale (0 auto, 1-4), samples, anisotropy, aspect (0 16:9, 1 4:3, 2 stretched). */
   static final String GRAPHICS_PREFS = "core_graphics";
   private static final int REQUEST_EXPORT_ALL = 2, REQUEST_IMPORT = 3, REQUEST_REPORT = 4;
   /** SELECT held this long: the game's debug menu. */
@@ -107,6 +112,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   private String startProblem = "";
   private String settings = "";
   private volatile boolean destroyed;
+  // the language at the start or the last change (onConfigurationChanged)
+  private String shownLanguage = "";
   // the menu (SELECT) and the debug menu (SELECT held)
   private CoreMenu menu;
   private boolean menuSupported, tools, selectDown, selectHeld;
@@ -149,6 +156,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     if (settings == null) settings = "";
     // the error log of this run (the one before is kept for the report)
     CoreLog.start(this, settings);
+    shownLanguage = language();
+    Log.i(TAG, "app menu: " + shownLanguage);
     // linked shader programs kept between runs (no compile stutter the second time)
     String programs = "RE4_GX_PROGRAM_CACHE=" + new File(getCacheDir(), "gx-programs").getAbsolutePath();
     String coreSettings = settings.isEmpty() ? programs : settings + ";" + programs;
@@ -192,13 +201,17 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     fpsView.setTextColor(Color.WHITE);
     fpsView.setBackgroundColor(0x60000000);
     fpsView.setPadding(8, 2, 8, 2);
+    // bottom left and left to right in every language, Arabic too (the menu's switch says so)
+    fpsView.setTextDirection(View.TEXT_DIRECTION_LTR);
     root.addView(fpsView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,
-        FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START));
+        FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.LEFT));
     showFps(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("fps", false));
     // the touch controls above everything
     touchControls = new TouchControls(this, input, touchMode(inputPrefs), touchHost);
     touchControls.setLatch(inputPrefs.getBoolean(TOUCH_LATCH, false));
+    touchControls.setLatchB(inputPrefs.getBoolean(TOUCH_LATCH_B, false));
     gyroAim = new GyroAim(this, main);
+    gyroAim.setSensitivity(inputPrefs.getFloat(GYRO_SENSITIVITY, 1f));
     gyroAim.setEnabled(inputPrefs.getBoolean(GYRO_AIM, false));
     root.addView(touchControls.view(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
         FrameLayout.LayoutParams.MATCH_PARENT));
@@ -416,7 +429,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     boolean paused = CoreBridge.pause(true, 800);
     audio.stop();
     stopVibrator();
-    Log.i(TAG, "menu open" + (paused ? ", the game stands" : ", the game did not stop yet (loading?)"));
+    Log.i(TAG, "menu open" + (paused ? ", the game stands" : ", the game did not stop yet (loading?)")
+        + " (" + language() + ")");
     menu = new CoreMenu(this, menuHost, tools, surface.getWidth(), surface.getHeight());
     menu.setOnDismissListener(d -> {
       menu = null;
@@ -478,6 +492,18 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       touchControls.setLatch(on);
       send();
       Log.i(TAG, "touch controls: L and R " + (on ? "latch on a tap" : "held while touched"));
+    }
+
+    @Override public void latchBChanged(boolean on) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(TOUCH_LATCH_B, on).apply();
+      touchControls.setLatchB(on);
+      send();
+      Log.i(TAG, "touch controls: B " + (on ? "latches on a tap" : "held while touched"));
+    }
+
+    @Override public void gyroSensitivityChanged(float value) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putFloat(GYRO_SENSITIVITY, value).apply();
+      gyroAim.setSensitivity(value);
     }
 
     @Override public void alternateChanged(boolean on) {
@@ -1033,6 +1059,21 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     releaseAll();
     surface.onPause();
     super.onPause();
+  }
+
+  /** "language de" / "language ar, right to left": the menu's language (the phone's or the app's own). */
+  private String language() {
+    boolean rtl = getResources().getConfiguration().getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
+    return "language " + Locale.getDefault().toLanguageTag() + (rtl ? ", right to left" : "");
+  }
+
+  /** A new language keeps the game running (configChanges locale|layoutDirection); the log says so. */
+  @Override
+  public void onConfigurationChanged(Configuration config) {
+    super.onConfigurationChanged(config);
+    String now = language();
+    if (!now.equals(shownLanguage)) Log.i(TAG, "configuration changed, the game keeps running: " + now);
+    shownLanguage = now;
   }
 
   @Override

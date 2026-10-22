@@ -1,0 +1,31 @@
+# commonModelTrans sets the blend of every model part from bl[info->blend_mode], a table of five
+# rows; models in r20a, r20b and r216 have blend_mode 5 (the sanitizer build of the room tour,
+# 22.10.2026: global-buffer-overflow 0 bytes after bl). The GameCube then reads the 16 bytes after
+# the table in .data (bl.1179 at 0x8026D6D8, size 0x50): the start of trans_lit.cpp's funcLightParam,
+# four function addresses. GXSetBlendMode keeps bit 0 of the mode (4-byte aligned: 0) and the low
+# bits of the others: no blending, logic op 12, factors 0. Clang keeps bl among other constants of
+# the library, so the port read whatever came next (an odd first word: blending with arbitrary
+# factors). The port adds that sixth row as the GameCube sees it.
+--- a/src/game/trans.cpp
++++ b/src/game/trans.cpp
+@@ -1018,12 +1018,19 @@ void ModelRender(cModel* m)
+ // depth pass, which skips alpha.
+ void commonModelTrans(cModel* m, cModelInfo* info, Mtx viewMat, int flag)
+ {
+-    static int bl[5][4] = {
++    /* PORT (patch 0096): a sixth row for blend_mode 5, what the GameCube reads behind the table: the
++       first four words of trans_lit.cpp's funcLightParam, the addresses of lightSetConstant,
++       lightSetLinear, lightSetQuadratic and lightSetSpotlight (0x801AF974 0x801AFA58 0x801AFB08
++       0x801AFC1C). GXSetBlendMode keeps bit 0 of the mode and the low 3, 3 and 4 bits of the
++       others: no blending, logic op 12. Clang puts other constants there (found by the sanitizer
++       build in r20a, r20b, r216) */
++    static int bl[6][4] = {
+         {1, 4, 5, 0},
+         {1, 4, 1, 0},
+         {1, 1, 1, 0},
+         {1, 2, 1, 0},
+         {0, 1, 0, 0},
++        {0, 0, 0, 12},
+     };
+     Mtx mv;
+     GxWork* gx = GXWORK();

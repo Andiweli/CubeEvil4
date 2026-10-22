@@ -1,0 +1,83 @@
+# Three places where the original took a value from a processor register the C code never sets
+# (bug hunt 22.10.2026, clang -Wuninitialized over the prepared tree, port/tools/scan): the port
+# had an unset local there.
+# - r221 (the insect boss's room, st2): the scene of each of the four gas bombs calls
+#   SceEventStart(evNo); the original passes the constant 0 (the decompiler set it in case 0 only,
+#   for the instruction order of the matching build). Cases 1..3 passed an unset value, not 0:
+#   enemies, objects, effects and damage did not go into event mode for the scene.
+# - cMot3::set (pl_class.cpp, the aim blend of the handgun, knife, grenade, rocket launcher ...):
+#   the interpolation length `b` read through a pin of its incoming register r9, which the port
+#   drops: any length.
+# - r104 (village house): the "already opened" tasks of the shelves and boxes take the number as
+#   their task argument; the original declares no parameter and forwards r3. Returning to the room
+#   posed a random shelf / box (or none: SceExit).
+--- a/src/st2/r221.cpp
++++ b/src/st2/r221.cpp
+@@ -1251,7 +1251,10 @@
+     // into the argument move after sched1 and deletes the set; its only effect is to take the
+     // post-RsfSet issue slot in sched1 so that eff2's `li` is issued later there (its live length
+     // drops below the high's priority), while sched2 still puts `li eff2` right after the `bl`.
+-    int evNo;
++    /* PORT (patch 0091): 0 for every case, the constant the original passes (see above); set in
++       case 0 only, the other cases called SceEventStart with an unset value: not 0, so the
++       enemies, objects, effects and damage did not stop for the scene */
++    int evNo = 0;
+ 
+     switch ((u32) no) {
+     case 0:
+--- a/src/game/pl_class.cpp
++++ b/src/game/pl_class.cpp
+@@ -1695,8 +1695,9 @@
+     // any mask written on `b`. Reading the incoming register through a pin gives the
+     // zero_extendqisi2 no LOG_LINK to fold through (and no CC clobber: sched1 weight 0, so it
+     // is ranked like the original's insn).
+-    register int rb asm("r9");
+-    int mode = (u8) rb;
++    /* PORT (patch 0091): the original read `b` from its incoming register r9 through a pin; the
++       port drops pins, `rb` was unset and the weapons' aim blends got any interpolation length */
++    int mode = b;
+ 
+     m_pEm = m;
+     m_Rate = 0.0f;
+--- a/src/st1/r104.cpp
++++ b/src/st1/r104.cpp
+@@ -101,10 +101,10 @@
+ static void r104_checkBgmPlay();
+ static void r104_execEmDash();
+ void r104_openBox_main(int no, int opened);
+-static void r104_openedBox();
++static void r104_openedBox(int no);
+ static void r104_openBox(int no);
+ void r104_openShelf_main(int no, int opened);
+-static void r104_openedShelf();
++static void r104_openedShelf(int no);
+ static void r104_openShelf(int no);
+ void cPatrol104_getNextTarget(cPatrol104* p, Vec* out);
+ void cPatrol104_init(cPatrol104* p, R104PatrolData* d);
+@@ -270,10 +270,10 @@
+ }
+ 
+ // Item-event "already opened": pose box `no` open (no comes in r3 untouched, see the note).
+-static void r104_openedBox()
+-{
+-    int no; // uninitialised in the original: the item event passes `no` in r3 and the void-parameter
+-            // helper forwards whatever r3 holds (the target is `li r4,1; bl` with r3 untouched)
++static void r104_openedBox(int no)  /* PORT (patch 0091): `no` as the parameter it arrives in */
++{
++    // the original declares no parameter: the item event passes `no` in r3 and this helper forwards
++    // whatever r3 holds (the target is `li r4,1; bl` with r3 untouched); in the port an unset local
+     r104_openBox_main(no, 1);
+ }
+ 
+@@ -326,9 +326,8 @@
+ }
+ 
+ // Item-event "already opened": pose shelf `no` open.
+-static void r104_openedShelf()
+-{
+-    int no; // same as r104_openedBox
++static void r104_openedShelf(int no)  /* PORT (patch 0091): as r104_openedBox */
++{
+     r104_openShelf_main(no, 1);
+ }
+ 

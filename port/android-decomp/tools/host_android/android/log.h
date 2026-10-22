@@ -7,6 +7,7 @@ enum { ANDROID_LOG_VERBOSE = 2, ANDROID_LOG_DEBUG = 3, ANDROID_LOG_INFO = 4, AND
 extern "C" {
 #endif
 int __android_log_print(int prio, const char* tag, const char* fmt, ...);
+int __android_log_write(int prio, const char* tag, const char* text);
 int __android_log_vprint(int prio, const char* tag, const char* fmt, va_list ap);
 #ifdef __cplusplus
 }

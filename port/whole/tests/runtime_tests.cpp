@@ -23,6 +23,7 @@
 //          through PADRead, and the coverage log of GetDataExt (patch 0025)
 //   tasks  the game's own task scheduler (scheduler.cpp: TaskExec, TaskSleep,
 //          TaskExit, iTaskExec) on the OS thread emulation, plus VI retraces
+#include "re4_cpu_info.h"
 #include "re4_gx_frame.h"
 #include "re4_runtime.h"
 #include "re4_ppc.h"
@@ -992,6 +993,13 @@ int re4probe_debug_mode(int set);
 void re4probe_stale_list(int set);
 int re4probe_light05(void);
 int re4probe_luis_damage(void);
+int re4probe_route_far(void);
+void re4probe_enemy_log(void);
+void re4probe_death_log(void);
+int re4probe_arc(void);
+int re4probe_partner_damage(void);
+int re4probe_case_free_place(void);
+int re4_log_tail(char* out, int size);
 }
 
 static unsigned bitsOf(float f)
@@ -1477,6 +1485,224 @@ static void testPartner()
     report("partner", ok);
 }
 
+// A Ganado looks for its way from or to a position far outside the room (route_ck getNearPoint,
+// patch 0088, game_probe.cpp): no route point instead of a read through stack garbage
+static void testRoute()
+{
+    bool ok = true;
+    int r = re4probe_route_far();
+    CHECK(r == 0);
+    if (r != 0) {
+        re4_log("  route: faults 0x%x (1 near point, 2 far mode 1, 4 far mode 0)", r);
+    }
+    report("route", ok);
+}
+
+// The error log's enemy and menu lines (state_trace.cpp, game_probe.cpp re4probe_enemy_log): a
+// Ganado appears, is hit on the head, changes its routine, loses its head, is hidden, jumps and
+// goes; the C stick moves a sub screen's cursor
+static void testEnemyLog()
+{
+    bool ok = true;
+    re4probe_enemy_log();
+    static char tail[24 * 130];
+    re4_log_tail(tail, sizeof tail);
+    const char* want[] = {
+        "em: + s1 0x1a/3 set 5 hp 300 at (100 0 200) in r209",
+        "em: hit s1 0x1a/3 hp 300 -> 100 part 5 wep 0x10 r 2/4/0/0 flg 0x00004000",
+        "em: s1 r 2/9/0/0",
+        "em: s1 head lost",
+        "em: s1 hidden",
+        "em: s1 jumps (100 0 200) -> (5000 0 200)",
+        "em: - s1 0x1a/3 hp 100 r 2/9/0/0 at (5000 0 200) after 6 frames",
+        "pad: menu frame 1008 rep 0x00100000 stick (0 0) c (12 0)",
+    };
+    for (const char* w : want) {
+        if (!strstr(tail, w)) {
+            ok = false;
+            re4_log("  enemylog: missing \"%s\"", w);
+        }
+    }
+    report("enemylog", ok);
+}
+
+// Leon's side of a death in the error log (state_trace.cpp playerLog, game_probe.cpp
+// re4probe_death_log): the room starts running, the death demo with the scene areas hit,
+// Leon's position not a number, the continue; an enemy at NaN (tester report 22.10.2026, r21d)
+static void testDeathLog()
+{
+    bool ok = true;
+    re4probe_death_log();
+    static char tail[24 * 160];
+    re4_log_tail(tail, sizeof tail);
+    const char* want[] = {
+        "room: r21d runs (frame 2001), Leon at (100 0 200) facing 0.50, life 1200/1200, weapon 0x02",
+        "die: r21d after 2 frames, life 1200, Leon at (100 0 200); scene areas hit: 0x05 0x13",
+        "die: area 0x05 id 0 on 1 trg 1: floor 0 height 2000, (0 0) (1000 0) (1000 1000) (0 1000), for 1",
+        "pl: Leon's position is not a number in r21d (frame 2004, 3 frames after the room started)",
+        "room: r21d runs (frame 2006), Leon at (100 0 200) facing 0.50, life 1200/1200, weapon 0x02, continue after a death",
+        "em: + s1 0x2d/0 set 0 hp 100 at (0 0 0) in r21d",
+        "em: s1 position is not a number, last at (0 0 0)",
+    };
+    for (const char* w : want) {
+        if (!strstr(tail, w)) {
+            ok = false;
+            re4_log("  deathlog: missing \"%s\"", w);
+        }
+    }
+    report("deathlog", ok);
+}
+
+// The insects' wall step with the port's vector functions stays a number (re4_acosf, game_probe.cpp
+// re4probe_arc: the bits name what failed)
+static void testArc()
+{
+    int bad = re4probe_arc();
+    if (bad) {
+        re4_log("  arc: failed checks 0x%x", bad);
+    }
+    report("arc", bad == 0);
+}
+
+// Ashley's damage handler on the bulldozer gets Ashley (patch 0098, game_probe.cpp)
+static void testPartnerDamage()
+{
+    report("partnerdmg", re4probe_partner_damage() == 0);
+}
+
+// Items without a place in the case get the first free one (patch 0100, game_probe.cpp): the moves
+// in the log, the places in the items
+static void testCaseFreePlace()
+{
+    bool ok = true;
+    int bad = re4probe_case_free_place();
+    if (bad) {
+        re4_log("  casefree: failed checks 0x%x", bad);
+        ok = false;
+    }
+    static char tail[24 * 160];
+    re4_log_tail(tail, sizeof tail);
+    const char* want[] = {
+        "case: item 0x2a had no place at (2 1) turn 0 in the case; moved to (11 1) turn 0 in the case",
+        "case: item 0x04 had no place at (40 2) turn 0 in the case; moved to (17 0) turn 0 in the case",
+    };
+    for (const char* w : want) {
+        if (!strstr(tail, w)) {
+            ok = false;
+            re4_log("  casefree: missing \"%s\"", w);
+        }
+    }
+    report("casefree", ok);
+}
+
+// The processor lines of the performance log (re4_cpu_info.h): the layout of a phone with two kinds
+// of cores and of one with three, and a thread's processor time per picture (it computes here)
+static void testCpuInfo()
+{
+    bool ok = true;
+    char text[256];
+    re4cpu::Layout a30;  // Galaxy A30s: six slow, two fast cores
+    a30.count = 8;
+    for (int i = 0; i < 8; i++) {
+        a30.maxKHz[i] = i < 6 ? 1586000 : 1794000;
+    }
+    a30.slowest = 1586000;
+    a30.fastest = 1794000;
+    a30.Describe(text, sizeof(text));
+    ok &= strcmp(text, "8 cores: 0-5 at most 1586 MHz, 6-7 at most 1794 MHz") == 0;
+    ok &= a30.Kind(0) == 0 && a30.Kind(7) == 2;
+    re4cpu::Layout sd;  // Snapdragon 865 (Retroid): four slow, three middle, one fast
+    sd.count = 8;
+    for (int i = 0; i < 8; i++) {
+        sd.maxKHz[i] = i < 4 ? 1804800 : i < 7 ? 2419200 : 2841600;
+    }
+    sd.slowest = 1804800;
+    sd.fastest = 2841600;
+    ok &= sd.Kind(3) == 0 && sd.Kind(5) == 1 && sd.Kind(7) == 2;
+    re4cpu::Layout alike;  // clocks not readable: every core counts as fast
+    alike.count = 4;
+    ok &= alike.Kind(1) == 2;
+    alike.Describe(text, sizeof(text));
+    ok &= strcmp(text, "4 cores, clocks not readable") == 0;
+    re4cpu::ThreadUse use;
+    use.Picture();
+    volatile double x = 0;
+    for (int i = 0; i < 2000000; i++) {
+        x = x + i * 0.5;
+    }
+    use.Picture();
+    ok &= use.pictures == 1 && use.cpuNs > 0;
+    use.Describe(text, sizeof(text));
+    ok &= strstr(text, "ms of processor time each") != nullptr && use.pictures == 0;
+    if (!ok) {
+        re4_log("  cpuinfo: %s", text);
+    }
+    report("cpuinfo", ok);
+}
+
+// The error log's core file (log.cpp re4_log_file, CoreBridge.setLogFile): the lines remembered
+// before it, then every line with logcat's time; at the size limit (RE4_LOG_FILE_LIMIT here, 4 MB
+// in the app) the file becomes <file>.1 and starts anew; after "" nothing more
+static void testLogFile()
+{
+    bool ok = true;
+    char dir[] = "/tmp/re4-log-file-XXXXXX";
+    CHECK(mkdtemp(dir) != nullptr);
+    const std::string path = std::string(dir) + "/core-log.txt";
+    re4_log("log file: a line before the file");
+    setenv("RE4_LOG_FILE_LIMIT", "4096", 1);
+    re4_log_file(path.c_str());
+    unsetenv("RE4_LOG_FILE_LIMIT");
+    for (int i = 0; i < 80; i++) {
+        re4_log("log file: line %d of 80", i);
+    }
+    re4_log_file("");
+    re4_log("log file: a line after it");
+    auto read = [](const std::string& name) {
+        std::string text;
+        if (FILE* f = fopen(name.c_str(), "rb")) {
+            char buffer[4096];
+            size_t n;
+            while ((n = fread(buffer, 1, sizeof(buffer), f)) > 0) {
+                text.append(buffer, n);
+            }
+            fclose(f);
+        }
+        return text;
+    };
+    const std::string now = read(path), before = read(path + ".1");
+    CHECK(!before.empty() && !now.empty());
+    CHECK(before.size() <= 4096 && now.size() <= 4096);
+    CHECK(before.find("--- core log, process ") != std::string::npos);
+    CHECK(before.find("log file: a line before the file") != std::string::npos);
+    CHECK(now.find("log file: line 79 of 80") != std::string::npos);
+    CHECK((before + now).find("a line after it") == std::string::npos);
+    // "10-21 14:03:07.512 " in front of every line
+    int lines = 0, stamped = 0;
+    for (size_t at = 0; at < now.size();) {
+        size_t end = now.find('\n', at);
+        if (end == std::string::npos) {
+            end = now.size();
+        }
+        const std::string line = now.substr(at, end - at);
+        lines++;
+        if (line.size() > 19 && line[2] == '-' && line[5] == ' ' && line[8] == ':' && line[11] == ':' &&
+            line[14] == '.' && line[18] == ' ') {
+            stamped++;
+        }
+        at = end + 1;
+    }
+    CHECK(lines > 0 && stamped == lines);
+    if (!ok) {
+        re4_log("  log file: %u + %u bytes, %d lines, %d with the time", (unsigned) before.size(),
+                (unsigned) now.size(), lines, stamped);
+    }
+    unlink((path + ".1").c_str());
+    unlink(path.c_str());
+    rmdir(dir);
+    report("logfile", ok);
+}
+
 int re4_runtime_tests()
 {
     gFailures = 0;
@@ -1491,6 +1717,14 @@ int re4_runtime_tests()
     testTasks();
     testLight();
     testPartner();
+    testRoute();
+    testLogFile();
+    testEnemyLog();
+    testDeathLog();
+    testArc();
+    testCpuInfo();
+    testPartnerDamage();
+    testCaseFreePlace();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);

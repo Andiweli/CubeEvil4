@@ -1,0 +1,23 @@
+# A bug of the prototype (Nov 2004 debug build; the code matches the GameCube SHA1). A Regenerator
+# (em36) that lost its legs bites from the floor: routine 1/0x14 (D_Catch) hits, 1/0x15
+# (D_CatchHit) holds Leon with plem36_D_CatchHit, the button mash against the bite. The player side
+# checked the standing bite's routine 1/0xB instead, so Leon was let go in the first frame (no hold
+# motion, no camera) while the enemy kept biting: life down every frame to 1, "SHAKE OFF" shown,
+# then the kill bite. Tester's report and video 22.10.2026 (0.41.3, r307, s9 in 1/0x15 for 155
+# frames, Leon 1380 -> 1). Fixed to 0x15, the routine that installs the callback (the final game
+# holds Leon here). Decision of the project owner 22.10.2026: prototype bugs that the final game
+# does not have are fixed. port/tools/scan/catch_scan.py checks all grab callbacks this way.
+--- a/src/em36/em36.cpp
++++ b/src/em36/em36.cpp
+@@ -2687,7 +2687,10 @@
+         pl->r_no_2++;
+     case 1:
+         EmCatchMotionMove(pl, 1.0f, 1.0f);
+-        if (pPL->pEmCatch->r_no_0 != 1 || pPL->pEmCatch->r_no_1 != 0xB) {
++        /* PORT (patch 0095, a bug of the prototype): the floor bite runs as routine 1/0x15 (D_CatchHit);
++           the check was the standing bite's 0xB, so Leon was let go in the first frame while the
++           Regenerator kept biting (life down to 1, the mash prompt shown, no hold) */
++        if (pPL->pEmCatch->r_no_0 != 1 || pPL->pEmCatch->r_no_1 != 0x15) {
+             SndStop(pl->m_Work1, 0);
+             VibSetClearType(1);
+             EndPlDamage();

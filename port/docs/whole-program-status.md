@@ -26,7 +26,17 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | Hotfix 0.40.1-alpha | 20.10.2026 (Branch `claude/re4-luis-hotfix`, vom Stand `548b0f24` des Kernprozess-Branches): Patch 0087, Absturz auf 64 bit, wenn ein Ganado Luis in der Hütte packt (Abschnitt „Absturz, wenn ein Ganado Luis in der Hütte packt“); Touch-Tasten nach einem Tippen auch bei einem „Geister-Controller“ (21.10.2026, Abschnitt „Touch-Bedienung bleibt ohne Controller versteckt“). Cloud ✅, **Gerätetest offen** |
 | Menü mehrsprachig, 0.41.0-alpha | 21.10.2026 (Branch `claude/re4-menu-sprachen`, enthält den Hotfix): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache (weitere liefert der Projektinhaber); Touchsteuerung Auto/Erzwingen/Unterdrücken, Komfortsteuerung. Cloud ✅, **Gerätetest offen** |
 | OUYA | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): Bestandsaufnahme (`ouya-machbarkeit.md`): drei Hürden (Android 4.1 mit NDK r23c, nur OpenGL ES 2.0, Leistung). **Entscheidungen des Projektinhabers:** erst die Kern-Probe O1, später eine eigene OUYA-App. **O1 gebaut und auf der OUYA gemessen** (`host/probe.cpp`, `whole_build_android.sh --ouya`, `ouya-probe.ps1`; Abschnitt „OUYA: Kern-Probe O1“): r100 10,6 Bilder/s, Kern 94 ms je Bild, davon gut 60 % GX-Umrechnung. GX-Umrechnung schneller (A), auf eigenem Thread (B, `RE4_GX_THREAD=1`), Texturen per Stichprobe und **Kompaktformat der Punkte** (`RE4_GX_COMPACT=1`, nur OUYA): **O1 abgeschlossen**, r100 in Echtzeit 28,3 Bilder/s, Dorf 28,7, ohne Bremse 51 (Messung 21.10.2026). Nächster Schritt O2: GLES-2-Renderer für das Kompaktformat |
-| Hauptbranch `master` | 20.10.2026: alle Branches bis Alpha 4 (`claude/re4-start-controls`) und der 32-bit-Kernprozess bis zum zweiten Retroid-Lauf (`22aac6bf`) zusammengeführt, **ohne den Raumklang** (`claude/re4-dpl2-raumklang`, Wunsch des Projektinhabers: erst nach seinem Test). Das Release **0.40.0-alpha** (mit Raumklang, versionCode 60) und alles danach liegt im Branch `claude/re4-32bit-kernprozess`; dort weiterarbeiten oder ihn später ganz übernehmen |
+| Hauptbranch `master` | 21.10.2026: steht auf **0.41.0-alpha** (`0394c644`, versionCode 62): alle Branches bis Alpha 4, der 32-bit-Kernprozess mit Raumklang (0.40.0-alpha, `548b0f24`), der Luis-Hotfix und die Menü-Sprachen; jeweils ohne Zusammenführung nachgezogen (Wunsch des Projektinhabers). Die Release-Markierungen `0.40.0-alpha` und `0.41.0-alpha` zeigen noch auf ältere Stände (aus der Cloud nicht umsetzbar, GitHub verweigert das Hochladen von Markierungen); umsetzen am PC mit `git tag -f` und `git push -f origin <Markierung>` |
+| Menü in 10 Sprachen | 21.10.2026 (Branch `claude/re4-start-controls`, vom `master`-Stand `0394c644`): Spanisch, Französisch, Italienisch, Portugiesisch (Brasilien), Russisch, Arabisch (von rechts nach links), Chinesisch (vereinfacht), Hindi zu Englisch und Deutsch; Sprache auch je App wählbar (Android 13+). Cloud ✅, **Gerätetest offen** |
+| Absturz Wegesuche r11c (64 bit) | 21.10.2026 (Branch `claude/re4-start-controls`): Patch 0088 fängt ihn ab und meldet, wessen Position außerhalb lag; die eigentliche Ursache zeigt erst ein Bericht mit Fehlerprotokoll. Cloud ✅, **Gerätetest offen** |
+| 0.41.1-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 63): Fehlerprotokoll auf jedem Handy (der Kern schreibt `core-log.txt` selbst, `logcat-status.txt`, „Error log: on/off“ im Bericht), Patch 0088, Menü in 10 Sprachen. Cloud ✅, Retroid ✅ (Deutsch, Protokoll), Samsung-Tester offen |
+| 0.41.2-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 64): Patch 0089, die Gondel in r10f setzte Leon und Ashley auf Plätze aus gesicherten Registern (Ursache der Wegsuche-Abstürze). Cloud ✅, **Gerätetest offen** |
+| Todesschleife r21d (Insekten bei NaN) | 22.10.2026 (Branch `claude/re4-start-controls`): `acosf`/`asinf` des Spielcodes nehmen einen Wert knapp über ±1 als ±1 (Umschreibung `ARC_CALL`); vorher setzte der Wandschritt der Novistadore (em2d, auch em2c) sie auf etwa 30 % der schrägen Flächen auf NaN, die Stampfer in r21d töteten Leon sofort, auch nach jedem Weitermachen. Dazu Todes-, Raumstart- und NaN-Zeilen im Fehlerprotokoll (Abschnitt „Todesschleife in r21d“). Cloud ✅ (i686, armhf, aarch64), **Gerätetest offen** |
+| 0.41.3-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 65, Wunsch des Projektinhabers nach dem r21d-Bericht): Todesschleife r21d (`ARC_CALL`), Schießbude (Patch 0090), Gegner-, Menü-, Raum- und Todeszeilen im Fehlerprotokoll; Releasetext `port/android-decomp/docs/releases/v0.41.3-alpha.md`. Cloud ✅, **Gerätetest offen** |
+| Fehlersuche Teil 1 (Code) | 22.10.2026 (Branch `claude/re4-start-controls`): Werkzeuge `port/tools/scan/` (ungesetzte Werte, Byte-Reihenfolge, Lage lokaler Variablen), Patches 0091–0093 (r221, Ziel-Überblendung der Waffen, r104, Krauser, Debug-Editoren auf R1). Abschnitt „Fehlersuche mit Werkzeugen“. Cloud ✅ (i686, armhf, aarch64), **Gerätetest offen**; Teil 2 siehe nächste Zeile |
+| Fehlersuche Teil 2 (Raum-Rundgang) | 22.10.2026 (lokal, WSL2, Branch `claude/re4-start-controls`): Rundgang über alle 126 Räume mit Eingaben, mehreren Räumen gleichzeitig und Bericht (`room_tour_report.py`), Prüf-Build mit Sanitizern (`RE4_SANITIZE`, `--sanitize`), aarch64 unter qemu (`--aarch64`). i686 126/126, i686 mit ASan+UBSan 126/126 (nach den Korrekturen), aarch64 unter qemu 126/126 (auch mit UBSan), gleich beurteilt wie i686. Behoben: `__rlwimi`-Nachbau (5-Bit-Felder), Patch 0096 (Mischart `blend_mode` 5), Patch 0097 (Effekt-Bereich 255 auf 64 bit), leere EVS-/ITM-Tabellen. Abschnitt „Fehlersuche mit Werkzeugen, Teil 2“. **Gerätetest offen** |
+| 0.42.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 66, vorbereitet auf Wunsch des Projektinhabers, Veröffentlichung durch ihn): Patches 0091–0093 (Fehlersuche Teil 1), 0094 (Aufrüsten beim Händler), 0095 (Biss des Regenerators am Boden, Fehler des Prototyps), keine GPU-Zeitmessung auf Mali (Absturz im Treiber, moto g72); Releasetext `port/android-decomp/docs/releases/v0.42.0-alpha.md`. Cloud ✅, **Gerätetest offen** |
+| 0.42.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 67, Wunsch des Projektinhabers: der A30s-Tester soll mit der neuen Messung noch einmal testen): Rechenzeit und Kern-Art von Kern- und Zeichen-Thread im Protokoll (`re4_cpu_info.h`, „Bericht Galaxy A30s“); dazu aus dem Raum-Rundgang (Fehlersuche Teil 2, gemischt in `889b40fb`) die Patches 0096 und 0097, `__rlwimi`/`__rlwinm` mit 5-Bit-Feldern und die leeren EVS/ITM-Tabellen; nach dem SCV40-Bericht 16:21 Patch 0098 (Bulldozer) und keine Formen mehr in der Zustandsbrücke (Absturz beim Laden); Releasetext `port/android-decomp/docs/releases/v0.42.1-alpha.md`. Cloud ✅ (gemischter Stand `4b97350d`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler), **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5488,6 +5498,799 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
     Bild, FPS-Anzeige „30 FPS (Spiel) · 60 Hz“. Ob nach der Wahl auf den Bildschirm getippt
     wurde, zeigt das Protokoll nicht: der Wechsel der Einstellung stand nicht darin. Jetzt
     schreibt `TouchControls.setMode` „touch controls: setting auto/force/suppress“.
+- **App-Menü in zehn Sprachen (Wunsch des Projektinhabers, 21.10.2026), Branch
+  `claude/re4-start-controls` (vom `master`-Stand `0394c644`, 0.41.0-alpha).** Zu Englisch und
+  Deutsch kommen Spanisch (`values-es`), Französisch (`values-fr`), Italienisch (`values-it`),
+  Portugiesisch (`values-pt`, Wortwahl Brasilien, gilt auch für Portugal), Russisch (`values-ru`),
+  Arabisch (`values-ar`), Chinesisch vereinfacht (`values-zh`; Android nimmt sie für zh-Hans,
+  China und Singapur; Taiwan und Hongkong mit traditionellen Zeichen bleiben Englisch, bis eine
+  `values-zh-rTW` kommt) und Hindi (`values-hi`). Übersetzt von Claude; Muttersprachler unter den
+  Testern sollten drüberschauen (vor allem Arabisch, Hindi, Chinesisch).
+  - **Schriften:** das Menü nutzt Androids Textfelder, jedes Handy bringt die Schriften für
+    Kyrillisch, Arabisch, Chinesisch und Devanagari mit. Die Kapitälchen der Überschriften
+    (`CoreMenu.smallCaps`) lassen Schriften ohne Groß/Klein unverändert; Android setzt den
+    Buchstabenabstand bei verbundenen Schriften (Arabisch, Devanagari) selbst aus.
+  - **Arabisch von rechts nach links:** `android:supportsRtl` war schon an, die Zeilen des Menüs
+    spiegeln sich (Beschriftung rechts, Knöpfe links), der Fokus des Steuerkreuzes folgt. Texte,
+    die mit lateinischen Buchstaben oder einem Dateinamen beginnen (`SELECT …`, `R3 = …`,
+    `%1$s ist schon auf der Karte`), beginnen mit der Marke U+200F, sonst legt Android die ganze
+    Zeile links-nach-rechts an; „1280 × 672“ und „.gci“ tragen U+200E, sonst tauschen die Zahlen
+    die Plätze bzw. der Punkt wandert hinter „gci“. Mit dem Unicode-Algorithmus für gemischte
+    Schreibrichtungen (Paket `python-bidi`) nachgeprüft: zwölf Zeilen in richtiger Reihenfolge.
+    Die Mehrzahl „Dateien exportiert“ als „Anzahl der exportierten Dateien: N“ (passt zu allen
+    sechs arabischen Mehrzahlformen). Die FPS-Anzeige bleibt unten links und links-nach-rechts
+    (`CoreActivity`: `Gravity.LEFT`, `TEXT_DIRECTION_LTR`; vorher `START`, das wäre unter
+    Arabisch nach rechts gewandert, obwohl der Schalter „unten links“ sagt). Die Versionsnummer
+    neben dem Titel bekommt ihren Abstand als Innenrand am Anfang statt zweier Leerzeichen
+    (`CoreMenu`), damit er auch rechts-nach-links zwischen Titel und Nummer liegt.
+  - **Mehrzahl:** Russisch one/few/many/other, Arabisch zero/one/two/few/many/other,
+    Spanisch/Französisch/Italienisch/Portugiesisch one/many/other, Hindi one/other, Chinesisch
+    other. Französisch mit geschütztem Leerzeichen vor „:“ und „?“, geschrieben `\u00A0`
+    (Androids Ressourcen-Bau macht aus dem Zeichen selbst ein normales Leerzeichen).
+  - **Sprache je App (Android 13 und neuer):** `res/xml/locales_config.xml` mit
+    `android:localeConfig` im Manifest: unter Einstellungen → Apps → CubeEvil4 → Sprache lässt
+    sich die Menüsprache unabhängig von der Handy-Sprache wählen (ohne Wahl gilt die
+    Handy-Sprache wie bisher). `CoreActivity` hat `locale|layoutDirection` in `configChanges`:
+    ein Sprachwechsel (Handy oder App) startet das laufende Spiel nicht neu (der Kern lässt sich
+    im selben Prozess nicht neu starten); das Menü zeigt die neue Sprache beim nächsten Öffnen.
+    Protokoll: „app menu: language de“ beim Start, „menu open, … (language ar, right to left)“
+    bei jedem Öffnen, „configuration changed, the game keeps running: language …“ beim Wechsel.
+  - **Prüfwerkzeug** `check_translations.py` erweitert: kein `@` oder `?` am Textanfang (Android
+    hielte es für einen Verweis), kein Sonder-Leerzeichen wie U+00A0 als Zeichen selbst; für
+    Arabisch (und andere Rechts-nach-links-Sprachen) Anfang rechts-nach-links (FPS-Anzeige
+    ausgenommen), U+200E bei „N × M“ und „.gci“;
+    `locales_config.xml` nennt genau Englisch und die Sprachen mit Datei. Gegenprobe mit
+    absichtlich fehlerhaften Kopien (fehlende Marke U+200F, fehlende U+200E bei „×“ und „.gci“,
+    `?` am Anfang, Apostroph, Sprache in der Liste ohne Datei, Datei ohne Listeneintrag,
+    geschütztes Leerzeichen als Zeichen): alle acht gemeldet.
+  - **Geprüft (Cloud):** `check_translations.py`: alle neun Sprachen 69 Texte, 1 Mehrzahl, ok;
+    alle Java-Dateien der App gegen Android 15 übersetzt, ohne Fehler und ohne neue Warnung;
+    `tools/test_host.sh`: Java-Tests bestanden, nativ 40 von 42 wie bisher (die bekannten
+    `enemy_feedback_tests` und `inventory_case_contracts`). **Nicht getestet:**
+    Android-Ressourcen-Bau (kein `aapt2` in der Cloud, Googles Server gesperrt; prüft Android
+    Studio), auf dem Gerät (Menü in jeder Sprache: passt alles in die Spalten, Arabisch
+    gespiegelt, Sprachwechsel bei laufendem Spiel).
+
+- **Absturz beim Wegesuchen der Ganados (64 bit, Hütte r11c): abgefangen mit Patch 0088
+  (21.10.2026, Branch `claude/re4-start-controls`).** Tester-Bericht
+  `cubeevil4-report-20261021-091210.zip` (Samsung Galaxy M23 „m23xq“, Android 14, 64 bit, App
+  0.41.0-alpha-core, Kern im App-Prozess; derselbe Tester wie beim Absturz von Patch 0086, also in
+  der Belagerung der Hütte mit Luis als Partner): zweimal hintereinander etwa eine Minute nach dem
+  Start „signal 11, fault address 0x4e399b6e0“, pc `getNearPoint`, über `RouteCkToEm` ←
+  `em10RouteCk` ← `cEm10::move` (ein Ganado sucht den Weg zum Partner). Fehlerprotokoll war aus
+  (`log.txt` leer).
+  - **Ursache in `getNearPoint`:** die zehn nächsten Wegpunkte kommen sortiert in `idx[]`
+    (nicht vorbelegt) und `dist[]` (1e16). Ein Punkt weiter als 1e8 (Abstand² über 1e16) kommt nie
+    hinein; liegen weniger als zehn Punkte so nah, behalten die Einträge dahinter ihren
+    Stack-Inhalt, und die Suche nach freier Sicht liest `pt[idx]`. Die Fehladresse passt genau:
+    mit `pt` in MEM1 ist `idx` ≈ 0x4609…–0x4639…, als Gleitkommazahl 8800–11900, also eine
+    liegengebliebene Koordinate auf dem Stack. Auslöser ist eine Position weiter als 100 000 m
+    von allen Wegpunkten: die des Ganados oder die von Luis (`getNearInfo(pTo)`), unendlich oder
+    riesig. Woher sie auf 64 bit kommt, zeigt der Bericht nicht (kein Protokoll); die Klassen von
+    Luis und Partner passen (`cSubLuis` und `cSubChar` erben einfach von `cEm`, `pos` liegt in
+    `cEm`), `EmCatchSubSet`/`EmCatchMotionMove` greifen nur auf `cEm`-Mitglieder zu.
+  - **Patch 0088:** nur die gefüllten Einträge durchsuchen, keiner: -1 („kein Wegpunkt“; jeder
+    Aufrufer geht dann direkt aufs Ziel). Mit Positionen im Raum sind immer alle gefüllt, dort
+    ändert sich nichts. „check: route: the partner (id 0x4, type …) at (x y z): N of the M route
+    points of room r11c lie within 1e8 …“ nennt bis zu viermal, wessen Position es war (Spieler,
+    Partner oder welcher Gegner mit id/type), damit der nächste Bericht mit Fehlerprotokoll die
+    eigentliche Ursache zeigt.
+  - **Zweiter Bericht, derselbe Fehler über Ashley** (`cubeevil4-report-20261021-203112.zip`,
+    Samsung Galaxy S9+ „SCV40“, Android 10, 64 bit, **App 0.41.0**, also noch ohne 0088): im
+    Absturzpuffer des Systems (`previous/crash-system.txt`) 20:16 „SIGSEGV, fault addr
+    0xfffffffa814f00a0“, `getNearPoint+412` ← `RouteCkToPos+456` ← **`cSubChar::analyze+588`** ←
+    `cSubChar::moveCore` ← `emMove`: Ashley sucht ihren Weg zu einem Ziel, das mehr als 1e8 von
+    allen Wegpunkten weg liegt (Register x27/x28 = 1.6e7/1e6, die Abstandsgrenzen aus `analyze`).
+    Ziele dort: `pAnotherRoute->pos` (EMI, Typ 0xB, ohne Zeiger), `m_TargetPos` (SubCharMoveTo),
+    `m_PlActPos` (Warteplatz an Kanten) oder `pPL->pos`; welches, zeigt der Bericht nicht. Das
+    Protokoll dieses Laufs fehlt: der Tester startete danach zweimal neu, die App behält nur den
+    letzten und den vorletzten Lauf (danach r10f geladen, ohne Absturz). Zwei ältere Abstürze im
+    selben Puffer (19:24, 19:31, `cSubLuis::move+136`, pc 0) stammen von einer APK mit gepackten
+    Bibliotheken, also vor 0.40.0 (Patch 0087). Patch 0088 fängt auch den Weg über
+    `RouteCkToPos` ab; die Meldung nennt dort „a position“ (eine Kopie des Ziels) mit den
+    Koordinaten.
+  - **Neuer Laufzeittest `route`** (`game_probe.cpp` `re4probe_route_far`): drei Wegpunkte in
+    MEM1, eine Position nahe Punkt 1 findet ihn, eine 2e8 entfernte gibt in beiden Arten -1 (vor
+    jedem Aufruf ein Stack voller 0x46464646 wie im Bericht).
+  - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle Prüfungen
+    bestanden, `runtime-test route: ok` auf allen drei (mit der Meldung „check: route: a position
+    … at (0 2e+08 0): 0 of the 3 route points …“). **Gegenprobe** (aarch64 ohne 0088): der
+    Laufzeittest stürzt ab, „signal 11, fault address 0x4e7456480“ in `re4probe_route_far`,
+    fast dieselbe Adresse wie im Bericht (0x4e399b6e0). **Nicht getestet:** auf dem Gerät; die
+    eigentliche Ursache (wessen Position) zeigt erst ein Bericht mit eingeschaltetem
+    Fehlerprotokoll.
+
+- **0.41.1-alpha: Fehlerprotokoll auf jedem Handy (Wunsch des Projektinhabers, 21.10.2026: die
+  Tester sollen ab sofort damit protokollieren), Branch `claude/re4-start-controls`.** Die Version
+  enthält auch Patch 0088 und die Menü-Sprachen (Entscheidung des Projektinhabers: „als 0.41.1“).
+  - **Anlass:** Das Fehlerprotokoll ist seit M11 ab Werk an; beim Samsung-Tester (Galaxy M23)
+    war `log.txt` trotzdem zweimal leer (Bericht zu 0.38.2 und `…-20261021-091210.zip`), beim
+    POCO-Tester nicht. Die App lässt `logcat` mitschreiben; endet es (oder schreibt es nichts),
+    stand das bisher nirgends: seine Meldungen gingen in eine nie gelesene Leitung.
+  - **Kern schreibt selbst:** `re4_log_file` (`runtime/log.cpp`) schreibt jede Zeile von
+    `re4_log` zusätzlich direkt in `logs/core-log.txt` (Zeit wie `logcat`, jede Zeile sofort per
+    `write`, ab 4 MB wird die Datei zu `core-log.txt.1`, also höchstens 2 × 4 MB); zuerst die
+    gemerkten Zeilen davor (bis 24, die der Anzeige). Die App gibt den Pfad über
+    `CoreBridge.setLogFile` (`core_mode.cpp`, `CoreLog.start` und der Menü-Schalter, „“ beendet
+    es); der eigene Kernprozess (32 bit) bekommt ihn über die geerbte Umgebung (`RE4_LOG_FILE`,
+    `coreproc.cpp`), im App-Prozess schließt `useCoreProcess` die Datei dann. Kosten: im Schnitt
+    etwa 3 Zeilen je Sekunde (450–700 Zeilen je Retroid-Lauf), je Zeile wenige Mikrosekunden.
+  - **`logcat` überwacht:** ein Faden liest, was `logcat` sagt, und schreibt beim Ende Dauer,
+    Rückgabewert und Meldung in `logs/logcat-status.txt` (dazu jeden Start mit dem Befehl);
+    endet der erste Versuch (main/system/crash), startet ein zweiter nur mit `-b main`.
+  - **Bericht:** `device.txt`/`device-now.txt` mit „Error log: on (logcat running/not running,
+    …)“ oder „off“; `device.txt` jetzt nach dem Start der Aufzeichnung.
+  - **Version** `0.41.1-alpha`, `versionCode` 63; Releasetext
+    `port/android-decomp/docs/releases/v0.41.1-alpha.md`.
+  - **Neue Prüfungen:** `runtime-test logfile` (Zeile davor und alle danach mit Zeitstempel,
+    Wechsel auf `.1` bei `RE4_LOG_FILE_LIMIT=4096`, beide Dateien höchstens so groß, nach „“ nichts
+    mehr); `re4_core_remote_test main` prüft, dass der Kernprozess die Datei selbst schreibt
+    (Kopfzeile und „ready (pid …)“).
+  - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle Prüfungen
+    bestanden (`runtime-test logfile: ok` und `route: ok` auf allen drei; der Kernprozess schreibt
+    seine Datei selbst, i686 und armhf je 32 Zeilen). Ein zusätzlicher Lauf von
+    `re4_core_remote_test` während des armhf/aarch64-Baus meldete einmal Tonaussetzer
+    (`stats[4]`, Volllast); danach in Ruhe dreimal ohne Fehler. Inhalt von 0.41.1 gegen
+    `master` (0.41.0) geprüft: Menü-Sprachen, Patch 0088, Fehlerprotokoll; der neue Branch
+    `claude/adoring-mendel-vclbu8` (OUYA-Machbarkeit, nur Dokument) gehört nicht zur App.
+    Alle Java-Dateien gegen Android 15 übersetzt (ohne neue
+    Warnung), `core_mode.cpp` für ARM32 und ARM64 mit Ersatz-Headern ohne Fehler und Warnungen.
+    **Nicht getestet:** auf einem Gerät, vor allem auf dem Samsung des Testers (ob `logcat` dort
+    endet oder nur schweigt, zeigt `logcat-status.txt`; die Zeilen des Kerns stehen auf jeden Fall
+    in `core-log.txt`, die der Java-Seite nur, wenn `logcat` läuft).
+  - **Gerätelauf (Retroid, Projektinhaber, 21.10.2026, Stand `3d28b414`, beide Kerne neu gebaut,
+    64 bit, `-Manual`, 78 s):** Spielstand in r105 geladen, Spieler frei, Menü auf Deutsch
+    („app menu: language de-AT“, „menu open … (language de-AT)“), alle Zeilen in ihren Spalten;
+    kein Absturz, keine „check: route“-Meldung. Fehlerbericht aus dem Menü
+    (`cubeevil4-report-20261021-150722.zip`): `logs/core-log.txt` 22 KB mit Kopfzeile,
+    Zeitstempeln und den Zeilen vor dem Start, `logcat-status.txt` „logcat started …“ ohne Ende,
+    `log.txt` 36 KB, „Error log: on (logcat running …)“ in `device.txt` und `device-now.txt`.
+    **Nicht getestet:** andere Sprachen und der Sprachwechsel bei laufendem Spiel, das Samsung
+    des Testers, der 32-bit-Kernprozess auf dem Gerät.
+
+- **Ursache gefunden: die Gondel in r10f (Patch 0089, 21.10.2026, Branch
+  `claude/re4-start-controls`, 0.41.2-alpha).** Zwei Berichte mit 0.41.1:
+  - `cubeevil4-report-20261021-103813.zip` (Galaxy M23): in beiden Läufen nach dem Laden in r10f,
+    A an der Gondel, Zwischensequenz (Tiefenschärfe aus), START, danach viermal „check: route:
+    the partner (id 0x3, type 0) at (-1469.6 -2.32037e+35 -2346.42): 0 of the 83 route points of
+    room r10f …“, kein Absturz mehr. Ashleys Höhe ist als Bitmuster 0xFA32C13x, eine Adresse in
+    `libre4_main.so` (geladen bei 0xFA000000). `log.txt` in beiden Läufen leer, obwohl
+    `logcat-status.txt` „started“ ohne Ende zeigt: auf diesem Samsung schreibt `logcat` still
+    nichts; `core-log.txt` (25 und 37 KB) hat alles.
+  - `cubeevil4-report-20261021-203815.zip` (Galaxy S9+, 0.41.1): r10f geladen, keine Meldung
+    (Gondel in diesem Lauf nicht benutzt), `log.txt` und `core-log.txt` gefüllt.
+  - **Ursache:** `r10f_GondolaGetOn`/`r10f_GondolaGetOff` lesen die Plätze von Leon (`posA`) und
+    Ashley (`posB`) über eine Struktur-Sicht auf das lokale Zeigerfeld `mot`, also hinter `mot`
+    auf dem Stapel, wo der Original-Compiler die beiden Felder ablegte (eine Nachbildung seines
+    Codes, Kommentar in `r10f.cpp`). clang speichert `posA`/`posB` bei -O2 gar nicht (nie beim
+    Namen benutzt; in der aarch64- und der armhf-Übersetzung von `r10f.cpp` 0 Zugriffe auf ihre
+    Konstanten), die Sicht liest gesicherte Register: Gleitkomma-Register für x/z, ein Zeiger in
+    die Daten von `libre4_main.so` für y. Betroffen waren also alle Geräte (32 und 64 bit), Leon
+    wie Ashley; Leons Fehlplatz fiel nicht auf (die Gondel setzt ihn danach selbst), Ashleys
+    unendlich ferne Höhe ließ ihre Wegsuche abstürzen (vor 0088).
+  - **Patch 0089:** die vier Aufrufe nehmen `&posA[side]`/`&posB[side]` selbst. Nach dem Patch
+    4 Zugriffe auf die Konstanten. Die Suche nach weiteren Sichten dieser Art über lokale Felder
+    (`((T*) local)->feld[…]`) in `src/` fand sonst nur `t_esp.cpp` (`SeqCountView` über echte
+    Daten, harmlos).
+  - **Version** `0.41.2-alpha`, `versionCode` 64; Releasetext
+    `port/android-decomp/docs/releases/v0.41.2-alpha.md`.
+  - **Gerätelauf (Retroid, Projektinhaber, 21.10.2026, Stand `32f686e5`, beide Kerne neu gebaut,
+    64 bit, `-Manual`, 56 s):** Spielstand in r113 geladen, Spieler frei, kein Absturz, keine
+    „check: route“-Meldung. Die Gondel in r10f lief dabei nicht (kein Spielstand davor auf dem
+    Retroid); erster Durchlauf hatte die ADB-Sperre belegt (`ouya-probe.ps1` der OUYA-Sitzung).
+  - **Geprüft (Cloud):** `r10f.cpp` mit -O2 für aarch64 und armhf übersetzt (ohne Patch 0 Zugriffe
+    auf `posA`/`posB`, mit Patch 4); `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle
+    Prüfungen bestanden (114 Module laden, Laufzeit-, Kern- und Kernprozess-Tests). **Nicht getestet:** auf dem Gerät (die Gondel in r10f mit
+    Ashley: beide kommen auf ihren Plätzen an, keine „check: route“-Meldung mehr).
+
+- **Zwei Berichte eines Testers mit 0.41.2 (Xiaomi 11 Lite 5G NE „lisa“, Android 14, 64 bit,
+  GameSir G8, Menü auf Portugiesisch; `cubeevil4-report-20261021-150324.zip` und
+  `…-150829.zip`, derselbe Lauf 14:38–15:08 und derselbe vorige 11:32–12:56).**
+  Seine Angaben: Burghalle beim Hebel: Ganados mit Sicheln tauchen immer wieder auf oder
+  verschwinden; Schießbude: Ashleys Schreie, Texturfehler im Hintergrund, Holzziele tauchen
+  immer wieder auf; Waffenverbesserung: Auswahl springt von selbst.
+  - **Schießbude (r22c): Ursache gefunden, Patch 0090.** Im Protokoll beider Läufe „game:
+    cEmMark::setNextInst() ERR 300“, im vorigen Lauf danach (12:56:43) der Absturz `cEmMark::move`
+    → pc 0 (`crash.txt`). Ursache siehe Patch 0090 (Zieltyp und nächster Befehl aus dem falschen
+    Byte der Skriptwörter). Vor dem Patch liest das aarch64-Modul `ldrb w9, [x9, #0x3]`, danach
+    `ldr w9, [x9]` und speichert dessen niedrigstes Byte (`strb w9` nach `r_no_0`); `init` liest
+    das Wort `flag` (`ldr w1, [x8, #0x4]`). `whole_build.sh i686 armhf aarch64`: 0 Baufehler,
+    alle Prüfungen bestanden. **Nicht getestet:** die Schießbude auf dem Gerät.
+    Ashleys Schreie und der Texturfehler: mit Typ 0 für alle Ziele lief die Schießbude anders als
+    im Original (Ashley-Tafeln, Trefferwirkungen `R22cHitEffect`); ob beides mit 0090 verschwindet,
+    zeigt erst der nächste Versuch (Bildschirmfoto des Hintergrunds erbeten).
+  - **Burghalle (r208):** im Protokoll entstehen in r208 Ganados in Gruppen (14:43:19, 14:43:35,
+    14:43:43, 14:44:14, 14:44:25, 14:47:04 sechs auf einmal, 14:48:08, 14:48:32, 14:48:48), ohne
+    Fehlermeldung des Spiels oder des Ports. Ob das das Nachrücken des Originals ist oder ein
+    Fehler (Verschwinden), lässt sich daraus nicht sagen. Offen: Video oder genaue Stelle, Vergleich
+    mit Dolphin; sonst im Raum-Rundgang (10b) prüfen.
+  - **Waffenverbesserung (Händler, 15:05:40–15:06):** im Kern-Protokoll nur Tasten (A in schneller
+    Folge), keine Stick-Werte; die App zeigte in diesem Lauf neunmal die Touch-Tasten, weil der
+    Bildschirm berührt wurde (Klemm-Controller GameSir G8, Einstellung Auto). Ursache offen:
+    Stick-Rauschen des Controllers, versehentliche Berührungen oder ein Fehler im Menü. Nachfrage
+    beim Tester (passiert es mit Touch Controls auf „Suppress“ und ohne den Stick zu berühren?).
+  - **Sonst:** `logcat` läuft auf diesem Xiaomi, `log.txt` und `core-log.txt` gefüllt.
+  - **Nachgereicht ohne Protokoll (derselbe Tester):** im Raum, in dem die roten Ganados ihr
+    Ritual halten, überlebt ein schwarz gekleideter Gegner eine Granate; verfolgt und am Kopf
+    getroffen, platzt sein Kopf nicht („Fehler in seiner Animation“). Offen: im Original platzt
+    ein Kopf nur bei einem zufälligen kritischen Treffer oder mit der Plaga; ob der Zustand nach
+    der Granate das im Port verhindert, braucht einen Bericht direkt nach der Szene (Raum,
+    Gegnertyp) und den Vergleich mit dem Original/Dolphin.
+  - **Dritter Bericht** (`cubeevil4-report-20261021-154756.zip`, derselbe Lauf bis 15:47, ohne
+    Beschreibung): r205, r204 (13 Ganados beim Betreten), r209 (Ritual-Raum: Ereignis
+    `r209s00`, Modul em1a, 8 Ganados; 15:19–15:27, zweimal betreten), r20a, Speichern um 15:30,
+    danach fast nur das App-Menü und einmal kurz das Debug-Menü. Kein Absturz, keine Meldung
+    des Spiels oder des Ports. Zum Kopfschuss enthält das Protokoll nichts: Treffer und Zustände
+    der Gegner zeichnet der Kern nicht auf (Spur gibt es nur für die Waffe, `RE4_TRACE_WEAPON`).
+    Weiter: Spielstände des Testers (.gci) zum Nachspielen oder eine Gegner-Spur im Protokoll.
+  - **0.41.3** (Patch 0090) erst, wenn der Tester brauchbare Protokolle zu Burghalle,
+    Waffenverbesserung und Kopfschuss geschickt hat (Entscheidung des Projektinhabers,
+    21.10.2026).
+
+- **Gegner- und Menü-Spur im Fehlerprotokoll (Wunsch des Projektinhabers, 21.10.2026: „schreiben
+  wir mehr ins Protokoll“; die Spielstände des Testers lagen hinter den Stellen), Branch
+  `claude/re4-start-controls`.** `runtime/state_trace.cpp` schreibt immer (auch ohne
+  `RE4_TRACE`) je Änderung eine Zeile in `core-log.txt`:
+  - `em: + s12 0x1a/3 set 5 hp 300 at (x y z) in r209` (ein Gegner erscheint, `be_flag` Bit 0),
+    `em: - s12 … after N frames` (er ist weg); beim Betreten eines Raums alle seine Gegner.
+    Für die Burghalle (Nachrücken, Verschwinden).
+  - `em: hit s12 0x1a/3 hp 300 -> 100 part 5 wep 0x10 r 1/16/0/0` mit getroffenem Teil
+    (`dmg.m_pDamageYarare->parts_no`, 5 = Kopf) und Waffe (`dmg.m_Wep`), bei Ganados (ids
+    0x10–0x1F) dazu `Be_flg`, Waffenart, Klasse, Parasit und `cEm::flag`, also alles, wonach
+    `em10DmSetWep*`/`em10LostHead` über den Kopf entscheiden; danach 90 Bilder lang jeder
+    Routinenwechsel (`em: s12 r 2/4/0/0`) und `em: s12 head lost` (Bit 0x80 von `Be_flg`). Für
+    den Kopfschuss im Ritual-Raum.
+  - `em: s12 hidden` / `shown` (`be_flag` Bit 1, höchstens 20 je Leben) und `em: s12 jumps
+    (…) -> (…)` (mehr als 3000 in einem Bild).
+  - `pad: menu frame N rep 0x… stick (x y) c (x y) buttons 0x…`: jede Cursor-Bewegung in einem
+    Untermenü (Inventar, Händler, Karte) mit ihrer Ursache, Steuerkreuz (0x0000000f), linker Stick
+    ab 30 (0x000f0000) oder C-Stick ab 10 (0x00f00000), und den Werten beider Sticks. Für die
+    springende Auswahl beim Waffenverbessern.
+  - Mengen: höchstens 1500 Gegner- und 600 Menü-Zeilen je 1800 Bilder (etwa eine Minute), danach
+    eine Zeile „… left out“; keine Obergrenze je Lauf, die Datei selbst hat 2 × 4 MB. Kosten: ein
+    Durchgang über die Gegner-Plätze je Bild (Vergleiche, keine Ausgabe ohne Änderung).
+  - **Neuer Laufzeittest `enemylog`** (`game_probe.cpp` `re4probe_enemy_log`): zwei künstliche
+    Gegner-Plätze in MEM1; erwartet werden die acht Zeilen von Erscheinen, Kopftreffer,
+    Routinenwechsel, Kopfverlust, Verstecken, Sprung, Verschwinden und C-Stick im Untermenü.
+  - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle Prüfungen
+    bestanden, `runtime-test enemylog: ok` auf allen drei. **Nicht getestet:** auf dem Gerät (Menge der Zeilen in einer
+    langen Sitzung).
+
+### Todesschleife in r21d: die Insekten stehen bei NaN (Tester-Bericht 22.10.2026, Branch `claude/re4-start-controls`)
+
+- **Bericht** (`cubeevil4-report-20261022-030337.zip`, Samsung SCV40, Android 10, **64 bit im
+  App-Prozess**, 0.41.2, Sprache Indonesisch; vom Projektinhaber als „El Gigante“ geschickt):
+  r220 → r223 → r224 (El Gigante, em2b, zweimal gestorben, Weitermachen normal) → r21d
+  (Novistadore em2d, die Stampfer). In r21d: Tod um 02:54:28 (drei Sekunden vorher die einzige
+  Zeile `LIMIT_ANGLE: angle nan is not finite`, die nur einmal je Lauf kommt), Weitermachen normal;
+  Tod um 03:02:46, danach **nach jedem Weitermachen 40 ms nach dem Raumstart sofort wieder
+  `--DIEDEMO START!!`** (03:02:56, 03:03:05, 03:03:32), bis der Tester den Bericht schickte.
+  Nach dem zweiten Tod lud das Weitermachen die Handgranate (`wep19`), beim Betreten von r21d
+  und nach dem ersten Tod die Pistole: der Zwischenstand stammte vom Gitter-Schalter
+  (`r21d_checkFence` speichert mit `GameSave.save(pSaveData, -1)` den Platz, nachdem die
+  Stampfer losgelaufen sind). Ab da laufen die Stampfer schon beim Raumstart
+  (`r21d_initFence`), und `R21D_TRAP_HIT` tötet Leon, sobald die Szenenfläche `hitAtNo` eines
+  Stampfers in diesem Bild getroffen ist, **von wem auch immer** (`SceAtCheck` prüft Spieler,
+  Partner und Gegner; Novistadore 0x2D sind nicht ausgenommen). Die alten Systemabstürze in
+  `crash-system.txt` (cSubLuis, getNearPoint, ScenarioMove) sind von früheren Versionen.
+- **Ursache:** Der Wandschritt der Novistadore (`em2dSetWallMatrix2`, gleich in em2c, dem
+  Insekten-Boss in r221) rechnet `sum.y = sinf(acosf(PSVECDotProduct(&nrm, &w->wallNrm))) * 700`
+  und addiert das zur Position. Beide Vektoren sind Einheitsvektoren derselben Fläche. Auf der
+  GameCube macht `PSVECNormalize` (`frsqrte` und ein Newton-Schritt) sie etwas **zu kurz**, ihr
+  Skalarprodukt bleibt unter 1. Der Port nimmt `C_VECNormalize` (`1/sqrtf`, richtig gerundet),
+  das Ergebnis ist manchmal ein letztes Bit **zu lang**, das Skalarprodukt 1,0000001,
+  `acosf` NaN, die Position des Insekts NaN. Versuch (`gcc`, 2 Mio. zufällige Flächen, alle vier
+  Messpunkte auf derselben Fläche): NaN bei **30,1 %** mit den Funktionen des Ports, **0,2 %**
+  mit nachgebildetem `frsqrte` (Tabelle aus Dolphin, größter Fehler der Schätzung 2^-12,4) und
+  dem Newton-Schritt; schon die Neigung (0,1 1 −0,05) trifft es. Eine Position aus NaN liegt in
+  **jeder** Vierecksfläche (`areaHitCheck_xz4` weist nur ab, alle Vergleiche mit NaN sind
+  falsch), also auch in den Stampfer-Flächen: Leon stirbt im ersten Bild, in dem ein Insekt
+  sich auf eine schräge Fläche setzt, nach dem Weitermachen also gleich am Anfang. Auf der
+  GameCube würde ein Insekt bei NaN `LIMIT_ANGLE` endlos laufen lassen; dass das Spiel dort nicht
+  hängt, passt zu den kurzen Einheitsvektoren. Dass die Stampfer-Flächen Gegner zählen, ist aus
+  dem Bericht nicht belegt (die Flächendaten liegen nur auf der Disc); belegt sind NaN-Winkel,
+  Zwischenstand und Schleife.
+- **Behoben:** `whole_prepare.py` schreibt alle 42 `acosf(`/`asinf(` des Spielcodes zu
+  `re4_acosf(`/`re4_asinf(` um (Prelude): ein Wert höchstens 1e-5 jenseits von ±1 gilt als ±1
+  (das Insekt rückt 0 statt etwa 0,2 Einheiten ab), weiter draußen bleibt NaN wie im Original.
+  Gewählt statt eines nachgebildeten `PSVECNormalize`, weil es nur Werte ändert, die sonst NaN
+  wären; das nachgebildete `frsqrte` (näher an der GameCube, ändert aber jede Normalisierung)
+  bleibt eine Möglichkeit für später. Jeder Eingriff zählt mit (`math: acosf/asinf of 1.00000012
+  taken as 1 (N times so far …)`, beim ersten Mal und bei jeder Zehnerpotenz).
+- **Mehr im Fehlerprotokoll** (`runtime/state_trace.cpp`, immer an):
+  - `room: r21d runs (frame N), Leon at (x y z) facing a, life 1200/1200, weapon 0x02[, continue
+    after a death]`: jeder Raumstart, mit dem Zwischenstand nach einem Tod.
+  - `die: r21d after N frames, life L[, partner life P], Leon at (x y z); scene areas hit: 0x05 …`
+    und je getroffener Fläche (höchstens 8) `die: area 0x05 id … on … trg …: Form, for 1|2|8[,
+    moves with a model]`: wodurch ein Raumskript tötet.
+  - `pl: Leon's position is not a number in r21d (…)` und `em: s12 position is not a number,
+    last at (x y z)`.
+  - Die Zeilen „sub screen open/closed“ und „player hit“ hörten nach je 40 je Lauf auf (im Bericht
+    um 02:38 schon verbraucht); jetzt höchstens 120 je Minute wie die Gegnerzeilen.
+  - `run: area …` (Flächenliste der PC-Prüfung) nennt jetzt auch, wer die Fläche auslöst (`for`).
+- **Tests:** Laufzeittest `deathlog` (`game_probe.cpp` `re4probe_death_log`: künstlicher Spieler und
+  eine Fläche in MEM1, Raumstart, Tod mit den Flächen 0x05 und 0x13, Leon bei NaN, Weitermachen,
+  ein Gegner bei NaN) und `arc` (`re4probe_arc`: der Wandschritt mit den Vektorfunktionen des
+  Ports und der Neigung (0,1 1 −0,05): Skalarprodukt über 1, Ergebnis eine Zahl; knapp über ±1
+  ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
+
+### Bericht SCV40 (0.42.1, 22.10.2026 20:01): Spiel durchgespielt, ein Absturz am Aufzug in r332
+
+- Der Tester hat das Spiel durchgespielt (Spielstände nach 9:25 und 11:33 Stunden, r316/r331). Ein
+  Absturz um 19:52 in r332, 23 s nach dem Ende von Ereignis r332s10, beim Aufzug: SIGSEGV in
+  `sceInLock` (Aufgabe für eine verschlossene Tür), gestartet über `TaskExec_hook`, Fehleradresse =
+  Argument + 0x6E (`door.key_id`), das Argument zeigte in einen Stapel, der nicht mehr da war.
+- **Ursache:** `SceAtExecRoomJump` (Raumwechsel aus Skripten: die Aufzüge von `sce_com.cpp`, r120,
+  r221, r225, r30a, r30b, r316, r331) baut eine Tür-Fläche als lokale Variable und füllt nur das
+  Ziel; `key_id`, `key_flg`, `key_se`, `open_se`, `fade_eff` blieben Stapel-Reste. Auf der GameCube
+  harmlos, im Port war `key_id` 1 oder 2: `sceAtFunc_door` startete `sceInLock` mit `&w`, die
+  Aufgabe lief ein Bild später, als der Stapel schon weg war. Auch der Raumwechsel wäre nicht
+  gekommen. **Behoben mit Patch 0101:** die Fläche beginnt mit Nullen (offene Tür, normale
+  Blende, erstes Türgeräusch des Ziels). Ein schlummernder Fehler des Originalcodes (nicht gesetzte
+  lokale Variable, auch im Prototyp), den erst die anderen Stapelinhalte des Ports zeigen. Suche
+  nach weiteren lokalen `SCE_AT_DATA` und Aufgaben mit Zeigern auf lokale Variablen: kein Fall.
+- Die übrigen Abstürze in `crash-system.txt` (15:07, 15:40 Formen der Brücke; 16:07–16:21
+  Bulldozer) sind die schon behobenen aus 0.41.3 (0098, Brücken-Formen).
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` mit 0101: 0 Baufehler, alle Tests 0
+  Fehler, die Zeile steht im vorbereiteten Baum. **Nicht getestet:** der Aufzug auf dem Gerät (der
+  Absturz hing vom Stapelinhalt ab, also nicht jedes Mal).
+
+### Berichte Galaxy A36 (Filmfarben, 0.42.1, 22.10.2026 14:28) und Galaxy S10 (langsam, 0.41.2, 21.10.2026 23:24)
+
+- **A36 (SM-A366B, Snapdragon 6 Gen 3, Adreno 710, Treiber 0800.58, Android 16, 64 bit):** der
+  Vorfilm läuft im richtigen Takt (2278 Bilder in 76 s, nichts ausgelassen, 0 CRI-Fehler), 0
+  Shader-Fehler, die Programme kommen teils aus dem Programm-Speicher. Die Farben rechnet also die
+  GPU anders. Der Film-Shader (`sofdec.cpp` `setTevPrm`, vier TEV-Stufen) ist der einzige mit einem
+  negativen Farbregister (C0 = −111, 0, −138, 68), einer Verdopplung negativer Zwischenwerte und
+  Grün über den Alpha-Weg (Stufe 3 mischt APREV in G). Nachgerechnet (Python, alle Formeln des
+  Shaders): 16-bit-Überlauf, Verschieben negativer Zahlen, logisches statt arithmetisches
+  Rechtsschieben ergeben andere Bilder; eine fehlende Begrenzung der Farbwerte (ivec3-`clamp`) gäbe
+  grüne helle Flächen und harte Stufen, ohne Bildschirmfoto nicht sicher. **Neu: GPU-Selbstprüfung**
+  (`gx_selfcheck.cpp`, einmal je Lauf vor dem Renderer, auf einem eigenen Renderer bei Stufe 1): acht
+  Testfarben (Y, U, V) durch die Film-Stufen nach 1, 2, 3 und 4 Stufen, zurückgelesen und mit der
+  Rechnung des Shaders auf der CPU verglichen; Log-Zeile `GPU check (movie colours): ok, 32 of 32
+  pixels …` oder die falschen Pixel mit Wert und Sollwert. Der nächste Bericht des A36 zeigt damit,
+  welche Stufe falsch rechnet. Baukasten für solche Chunks jetzt gemeinsam
+  (`gx_chunk_builder.h`, aus `tools/test_gx_gl.cpp`).
+- **S10 (SM-G970F, Exynos 9820, Mali-G76, Android 10, 64 bit; Stufe 1, ohne MSAA):** in ruhigen
+  Szenen 33,5 ms je Bild (30 Bilder/s, 19–30 ms Leerlauf), in r100 mit Gegnern 38–46 ms, davon
+  10–20 ms **Warten auf den Renderer**: die Grafik ist hier der Engpass (≈ 22–26 Bilder/s). Ob GPU
+  oder Prozessor des Render-Threads, sagt 0.41.2 nicht: auf Android 10 nimmt die App kein logcat auf,
+  die Zeilen des Renderers (`RE4GX`, `RE4Core`: GX-Statistik, GPU-Zeit, Render-Thread) fehlen im
+  Bericht. **Neu:** die App schreibt ihre Zeilen zusätzlich in die Log-Datei des Kerns
+  (`re4gx::LogTo`, `re4_log_file_line` in `runtime/log.cpp`), damit auch Berichte von Android 10 und
+  älter sie enthalten. Vorschlag an den Tester: Tiefenschärfe im App-Menü aus (auf dem Retroid +19 %
+  GPU-Arbeit), mit 0.43.0 einen neuen Bericht nach einigen Minuten im Dorf.
+- **Geprüft (Cloud):** `gx_gl_check` (llvmpipe): `GPU check (movie colours): ok, 32 of 32`, 0 Fehler;
+  absichtlich verfälschter Shader (negative Werte vor der Verdopplung auf 0) → 28 von 32 Pixeln als
+  falsch gemeldet, mit Wert und Sollwert. `re4decomp_link_check` übersetzt `core_mode.cpp` mit den
+  Änderungen (nur die bekannten fehlenden `re4ipc`-Teile des Host-Links, auch ohne die Änderung).
+  `whole_build.sh i686 armhf aarch64` mit `re4_log_file_line`: 0 Baufehler, alle Tests 0 Fehler.
+  **Geprüft (Retroid, Adreno 650, 22.10.2026):** `GPU check (movie colours): ok, 32 of 32 pixels`,
+  30 ms beim Start; die Filme dort richtig. **Nicht getestet:** das A36 und die Log-Zeilen der App
+  in `core-log.txt` eines Berichts.
+
+### Das „E“ mitten im Untermenü (Projektinhaber, 22.10.2026, Retroid, 0.42.1; Berichte 13:42 und 13:48, R3-Mitschnitt)
+
+- **Bild:** ein kursives „E“ und ein durchsichtiges Rechteck mitten im Koffer, das „E“ bleibt an
+  derselben Stelle auf allen Seiten (Schlüssel, Akten, Karte). Mitschnitt (`gx_chunk_render`,
+  jedes Zeichnen einzeln weggelassen): Zeichnen 138 ist das „E“ (Textur 18×17 C4 aus
+  `ss_cmmn.dat`), Zeichnen 131 das Rechteck (Kachel ±200 × ±100 um den Weltursprung, Farbe
+  `ffffff20`).
+- **Was es ist:** die Ausrüstungsmarke. `ss_pzzl.cpp` `pzzlEquipDisp` setzt die Marke (IdSub
+  0x30, `IDC_SSCRN_ETC`) an die Ecke der ausgerüsteten Waffe im Koffer und zeichnet um die Waffe
+  einen Rahmen (`pieceFrameDisp` Art 3). Beim Schließen läuft `sscrn_pzzl_out` weiter und lässt
+  die Marke mit dem Koffer aus dem Bild gleiten; sie bleibt „sichtbar“, aber außerhalb.
+- **Ursache:** die ausgerüstete Waffe hatte keinen Platz im Koffer. Beide Spielstände
+  (r105 nach 26 Minuten mit dem Killer7, `weapon 0x06`; r104 nach 13 Minuten mit der Handcannon (0x37),
+  `weapon 0x0f`; Munitionsanzeige „EMPTY“ bzw. „01“, im Koffer nur die Pistole mit 2 Schuss) haben
+  Gegenstände, die `pzlPlayer::init` nicht an ihren gespeicherten Platz legen kann (Log:
+  `game: pzlPlayer::pzlPlayer() Can't locate piece.`; das Spiel-Log zeigt jede Meldung nur dreimal,
+  es können mehr sein). Das Teil liegt dann nirgends, sein Modell wird nie platziert (Matrix im
+  Ursprung): Marke und Rahmen landen in der Bildmitte und gleiten beim Schließen nicht mit.
+  Solche Waffen so früh im Spiel gibt wahrscheinlich der „Case Maker“ des Debug-Builds (`ss_debug.cpp`:
+  Inventar-Sätze `ItemMgr.setUp`, Koffergröße), den R1 im Koffer bis 0.41.3 unsichtbar öffnete
+  (Patch 0093 seit 0.42.0); dort ersetzt links/rechts das Inventar und ändert die Koffergröße.
+  Die Spielstände sind vom 20.10.2026.
+- **Behoben mit Patch 0100:** `pzlPlayer::init` legt erst alle Teile an ihre Plätze, danach die
+  ohne Platz an die erste freie Stelle (im Koffer, sonst im Ablagefeld; wie gespeichert, sonst
+  gedreht wie `PutInCase`) und schreibt `case: item 0x2a had no place at (2 1) turn 0 in the case;
+  moved to (11 1) turn 0 in the case`. Der Koffer speichert die Anordnung in jedem Bild, der
+  Gegenstand behält den neuen Platz (nach dem nächsten Speichern auch im Spielstand). Ohne freie
+  Stelle bleibt es beim Original-Fehler; eine Waffe ohne Platz bekommt dann keine Marke
+  (`pzzlEquipDisp`). Für gültige Spielstände ändert sich nichts (der Zweig läuft nur, wenn ein Teil
+  nicht passt).
+- **Tests:** Laufzeittest `casefree` (`game_probe.cpp` `re4probe_case_free_place`): kleiner Koffer
+  mit Pistole und Spray an den Plätzen eines neuen Spiels, ein Killer7 auf dem Platz der Pistole,
+  Pistolenmunition außerhalb des Koffers; danach liegen alle vier im Koffer, Pistole und Spray
+  unverändert, Killer7 bei (11 1), Munition bei (17 0), beide Zeilen im Log.
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` mit 0100: 0 Baufehler, `casefree: ok` auf
+  allen drei, alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler.
+- **Geprüft (Retroid, 22.10.2026, logcat des Projektinhabers):** neues Spiel, über das Debug-Menü des
+  Spiels (SELECT halten) die Handcannon geholt und ausgerüstet (`Wep15 MAGNUM prolog Ok`); beim
+  Öffnen des Koffers `case: item 0x37 had no place at (0 0) turn 0 on the spare board; moved to
+  (13 1) turn 0 in the case`. Auch das Debug-Menü gibt Gegenstände also ohne Platz (`construct`:
+  Ablagefeld, (0 0)), nicht nur der „Case Maker“. Im Bild (Projektinhaber): die Handcannon liegt
+  sichtbar im Koffer, kein „E“ mehr in der Mitte und auf den anderen Seiten; ein geladener alter
+  Spielstand ebenso. Bildschirmfoto 15:36: nach dem Ausrüsten des Killer7 im
+  Koffer steht das „E“ an seiner linken oberen Ecke mit dem hellen Rahmen um die Waffe, wie im
+  Original. Die Waffe aus dem Debug-Menü (`t_option.cpp` → `cItemMgr::debugWeapon`: `get` ohne
+  Platz, dann `m_pWep`) zeigte es nach Angabe des Projektinhabers erst nach erneutem Ausrüsten;
+  im normalen Spiel rüstet man nur über den Koffer aus. Beim nächsten Öffnen des Koffers bleibt das „E“ an
+  der Waffe (Projektinhaber). Erledigt.
+
+### App-Menü: Bildformat „Gestreckt“, neue Reihenfolge, mehr Zeilenabstand (Wünsche des Projektinhabers, 22.10.2026)
+
+- **Bildformat:** Reihenfolge jetzt „4:3 (Original)“, „16:9“, neu „Gestreckt“ (`ingame_stretched`
+  in allen zehn Sprachen). Die gespeicherten Werte bleiben (1 = 4:3, 0 = 16:9, Standard), neu 2:
+  dieselben Zeilen 56..391 der 448 wie bei 16:9, aber über den ganzen Bildschirm gezogen
+  (`core_mode.cpp`, `Present` mit Bildschirmbreite und -höhe). Die Zeile mit der Auflösung zählt
+  bei „Gestreckt“ wie bei 16:9 336 Zeilen.
+- **Zeilenabstand:** zwischen allen Zeilen des Menüs 4 dp Luft (eine unsichtbare Trennlinie der
+  `LinearLayout`, `SHOW_DIVIDER_MIDDLE`); die Abstände um die Überschriften bleiben dazu.
+- **Geprüft (Cloud):** Übersetzungsprüfung alle ok, alle Java-Quellen mit javac übersetzt,
+  `core_mode.cpp` ohne Fehler in der Syntaxprüfung für ARM64 und ARM32. **Nicht getestet:** auf dem
+  Gerät (Aussehen, „Gestreckt“ auf einem 20:9-Bildschirm).
+
+### App-Menü: „B einrasten (Touch)“ und Gyro-Empfindlichkeit (Wünsche des Projektinhabers, 22.10.2026)
+
+- **B einrasten (Touch):** in der Touch-Zeile neben „L und R einrasten“ (unter „Unterdrücken“).
+  Ein Antippen hält B (Laufen) bis zum nächsten Antippen, Leon läuft also ohne Finger auf B;
+  aus: B wie bisher nur gedrückt, solange der Finger darauf ist. `CoreTouch.setLatchB`
+  (unabhängig von L/R), Einstellung `touchLatchB`, beim Umschalten und beim Zurücksetzen (Pause,
+  Steuerung ausgeblendet, Editor) wird B losgelassen; RetroTouch zeigt das eingerastete B stärker.
+  Hilfetext in allen Sprachen um B ergänzt. Neue Prüfungen in `tests/CoreTouchTests.java`.
+- **Gyro-Empfindlichkeit:** Schieberegler rechts neben dem Gyro-Haken, nur bedienbar, solange
+  Gyro-Zielen an ist; 0,5× bis 3× in Schritten von 0,25 (1× = wie bisher, der Wert steht daneben).
+  `GyroAim.setSensitivity` multipliziert die gefilterten Drehraten (die Totzone von 0,006 rad/s
+  bleibt vor der Multiplikation), Einstellung `gyroSensitivity`. Mit dem Controller: Steuerkreuz
+  hoch/runter auf den Regler, links/rechts verstellt ihn. Der Haken heißt jetzt kürzer
+  „Gyro-Aiming“ / „Gyro-Zielen“ (Platz, Vorschlag des Projektinhabers; zh ohne „使用“), die
+  übrigen Sprachen waren schon kurz.
+- Neue Texte `ingame_latch_b`, `ingame_gyro_sensitivity` (Beschreibung des Reglers für
+  Bedienungshilfen) in allen zehn Sprachen; `tools/check_translations.py`: alle ok.
+- **Geprüft (Cloud):** `CoreTouchTests` 260 Prüfungen bestanden; alle Java-Quellen der App mit
+  javac gegen die Android-Bibliothek übersetzt (0 Fehler). **Nicht getestet:** auf dem Gerät
+  (Aussehen der Zeilen in allen Sprachen, Regler mit dem Controller).
+
+### Rückmeldungen zu 0.42.1 (22.10.2026): Laser-Gang r318, Filmfarben auf dem Galaxy A36
+
+- **Laser-Gang (SCV40 = Galaxy S9, Snapdragon 845, Adreno 630, 64 bit; Bericht 17:34 und Video):**
+  Leon geht durch r318, die Wand-Emitter zeigen kurze schräge Strahlen, Leon wird zerschnitten
+  (`run: player hit, life 1580 -> 0`, zweimal, bei x ≈ -12 700, in den Szenenflächen 5 und 6),
+  danach „Continue“. Die Muster 0 und 1 sind im Original ohne Ausweich-Taste (Modus 2: ausweichen
+  durch Abstand halten, jeder Treffer des Strahls tötet). Ursache: der Strahl wurde auf 64 bit vom
+  falschen Anfangspunkt gezeichnet (Patch 0099), der Treffertest nahm den richtigen Strahl. Die
+  Effekt-Sicht `R318EspView` dahinter ist seit 0074 richtig. Suche nach weiteren festen Abständen
+  im vorbereiteten 64-bit-Baum: übrig sind Datenpuffer von der Disc (Teile-Daten `part + 0x20`,
+  Tabellen, Texturen), `cAtariInfo::m_flag` (+0x1A, ohne Zeiger davor) und `ESP1B_WK` (gleiche
+  Lage auf 32 und 64 bit, nachgerechnet): kein weiterer Fall.
+- **Filmfarben (Galaxy A36, Snapdragon 6 Gen 3, Adreno 710; zwei Bildschirmfotos, kein Bericht):**
+  der Vorfilm (opening.sfd) mit verfälschten Farben: helle Flächen grün, dunkle braun, dazwischen
+  türkis, mit harten Stufen. Die Filme laufen über die GX-Nachbildung (CRI zeichnet Y, U und V als
+  I8-Texturen und rechnet die Farbe mit TEV-Stufen und Konstanten). Grün in hellen Flächen passt zu
+  Farbanteilen (U, V), die zu klein ankommen; die harten Stufen zu einem Überlauf in der
+  Ganzzahl-Rechnung des TEV-Shaders. Auf dem Retroid (Adreno 650) sind die Filme richtig, von anderen
+  Geräten keine solche Meldung. Ohne
+  Bericht des A36 (GPU-Treiber, Shader-Fehler) nicht weiter eingrenzbar. **Offen.**
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` mit 0099 (Stand `1453b41b`): 0 Baufehler,
+  alle Tests 0 Fehler; `RE4_OFS` bestätigt beim Bauen für i686 und armhf den GameCube-Abstand 0x70.
+  **Nicht getestet:** der Laser-Gang auf dem Gerät.
+
+### Bericht SCV40 (0.41.3, 22.10.2026 16:21): Absturz auf dem Bulldozer, Absturz beim Laden
+
+Meldung: „When Ashley gets carried away by a zombie, the game crashes. Also, the game sometimes
+crashes when loading from a checkpoint.“ Gerät wie zuvor (Samsung SCV40, Android 10, 64 bit).
+`crash-system.txt` enthält vier Abstürze, zwei Arten:
+
+- **16:07 und 16:15, r30f (Insel, Bulldozer):** SIGSEGV (Schreibzugriff auf Code) in
+  `cEm::setStatus`, gerufen von `Sub_dm_bull`, Ashleys Schadens-Handler während der Fahrt. Ein
+  Ganado packt oder trifft Ashley auf dem Bulldozer, `damageCheck` setzt Routine 1, `moveDamage`
+  ruft `pAuxDm()` ohne Argument, der Handler nimmt sein erstes Argument als Ashley: auf ARM64 die
+  eigene Adresse (Fehleradresse 0xfa163698 = `Sub_dm_bull` bei 0xfa163218 + 0x480, wo `status` auf 64 bit liegt). **Behoben mit Patch 0098**
+  (Aufruf mit `this`, wie r3 auf der GameCube). Dieselbe Fehlerart wie 0091 (Wert aus einem
+  Register); die Werkzeuge der Fehlersuche sahen sie nicht, weil ein Aufruf ohne Argument kein
+  ungesetzter Wert ist. Suche über alle Funktionen, die als `void (*)()` gespeichert und ohne
+  Argument gerufen werden: nur dieser Handler liest sein Argument (die übrigen sind
+  Zeichen-Rückrufe mit eigenem Argument-Feld).
+- **15:07 und 15:40 (beim Laden):** SIGSEGV in `HermiteInterpolation` ← `CalculateShape_new` ←
+  `re4_bridge_capture`: die Zustandsbrücke rechnete in jedem Spielbild die laufenden Formen
+  (Gesichter) aller lebenden Modelle nach; beim Laden oder Weitermachen zeigt die Formliste eines
+  noch lebenden Modells schon auf freigegebenen, neu belegten Speicher. Das Spiel zeichnet ein
+  solches Modell nicht, die Brücke las es trotzdem. **Behoben:** die Brücke rechnet Formen nur
+  noch für ihre eigene Ansicht (`RE4_VIEW=bridge`, `RE4_BRIDGE_SHAPES=1`,
+  `re4_bridge_shapes`), die GX-Ansicht braucht sie nicht. Spart nebenbei Rechenzeit im Kern.
+  Kerntest `morph` prüft beides (ohne Brücken-Ansicht keine Formen, mit ihnen wie bisher).
+- Das „Luis-Hütten“-Problem (0087), an das der Tester dachte, ist ein anderer Weg (Luis statt
+  Ashley, `SetSubDamage`), aber dieselbe Familie: Partner-Rückrufe, die auf 64 bit anders laufen.
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` (Stand `811297e2`): 0 Baufehler, alle
+  Tests 0 Fehler, neu `partnerdmg` und der Kerntest `bridge` mit und ohne Formen. **Nicht
+  getestet:** auf dem Gerät (Bulldozer r30f, Laden und Weitermachen).
+
+### Bericht Galaxy A30s (0.42.0, 22.10.2026 05:53): durchgehend 10–15 Bilder/s
+
+- **Gerät:** Samsung SM-A307G (Galaxy A30s, Exynos 7904: zwei schnelle Kerne Cortex-A73 1,8 GHz,
+  sechs langsame A53 1,6 GHz; **Mali-G71 MP2**), Android 11, 64-bit-Prozess, Kern im
+  App-Prozess. Einstellungen schon am unteren Ende (Auflösung 1, keine Kantenglättung, keine
+  Tiefenschärfe, Anisotropie 1), Bildschirm 720×1560 bei 60 Hz. GPU-Zeit nicht messbar (seit
+  0.42.0 auf Mali aus). Kein Absturz, kein Fehler im Protokoll.
+- **Spielbilder je Sekunde** (aus den `pad: frame`-Zeilen; 30 = volle Geschwindigkeit): Titel und
+  Wald (r120, r100) 27–30; **Dorf (r101) 10–25, oft 10–13**; r103 wieder um 24. Das passt zur
+  Meldung.
+- **Der Kern** braucht im Wald 34–37 ms je Spielbild bei 0–6 ms Leerlauf (Grenze 33,3 ms): er
+  allein schafft knapp 27–29 Bilder/s. Auf dem Retroid (Snapdragon 865) waren es 33,3 ms mit
+  13–19 ms Leerlauf.
+- **Der Renderer** (der Zeichen-Thread der App) braucht im Dorf 40–74 ms je Spielbild für 450–890
+  Zeichenbefehle (700–1100 Uniform-Blöcke, 1,1–2,2 MB, 100–150 Programmwechsel, 360–815
+  Textur-Bindungen); der Kern wartet dann 10–34 ms je Bild auf ihn. Auf dem Retroid waren es 4–6
+  ms bei 500–900 Befehlen, also etwa zehnmal schneller. Ob der Grafikchip (Mali-G71 MP2, ein
+  sehr kleiner Chip) oder der Prozessor im Treiber die Zeit braucht, zeigt der Bericht nicht.
+- **Neu im Protokoll** (für den nächsten Bericht eines schwachen Geräts): `re4_cpu_info.h`
+  (`port/whole/runtime/`, nur Kopfdatei, von Kern und App benutzt). Einmal die Kerne des Geräts
+  (`processor: 8 cores: 0-5 at most 1586 MHz, 6-7 at most 1794 MHz`), dazu in der Kern-Zeile
+  `GX core: … ; N ms of processor time each, on fast/middle/slow cores a/b/c %, last on core K at
+  M MHz` und eine neue Zeile `GX render thread: N ms of processor time per chunk of M ms run, on
+  fast/middle/slow cores …`. Rechenzeit gleich Laufzeit: der Thread rechnet (beim Renderer: der
+  Treiber); deutlich weniger: er wartet (beim Renderer: auf den Grafikchip). Der Anteil auf den
+  langsamen Kernen zeigt, ob Android die beiden vollen Threads auf die schnellen Kerne legt
+  (auf diesem Gerät gibt es nur zwei). Neuer Laufzeittest `cpuinfo`.
+- **Mögliche Schritte** (Entscheidung des Projektinhabers offen): je nach Messung die beiden
+  Threads auf die schnellen Kerne legen; im Renderer weniger GL-Aufrufe je Zeichenbefehl
+  (Texturen und Uniform-Blöcke zusammenfassen); im Kern den GX-Decoder (Punkte umrechnen, auf
+  dem Retroid ein Drittel der Kernzeit) beschleunigen.
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle Tests 0 Fehler, neuer
+  Test `cpuinfo` auf allen drei; `core_mode.cpp` ohne Fehler in einer Syntaxprüfung mit clang für
+  ARM64 und ARM32 (Android-Kopfdateien als Platzhalter). **Nicht getestet:** die neuen Zeilen auf
+  einem Gerät (kommen mit der nächsten Version).
+
+### Drei Berichte mit Video (0.41.3, 22.10.2026): Aufrüsten beim Händler, unsichtbarer Biss
+
+Meldung des Projektinhabers zu den drei SCV40-Berichten (11:28, 12:51, 13:44) mit einem Video:
+das Aufrüsten einer Waffe wirkte nicht, nach einem Aufrüsten ging das Nachladen nicht mehr, und in
+*431 griff ein Gegner Leon an, ohne dass seine Bewegung zu sehen war.
+
+- **Aufrüsten (Port-Fehler, behoben mit Patch 0094):** `LvUpConfirm::move` schrieb die Stufen über
+  die Bitfeld-Sicht `TuneLevel`; auf ARM und x86 liegen die Felder in umgekehrter Reihenfolge. Wer
+  die Feuerkraft kaufte, bekam Kapazität (und umgekehrt), Schussgeschwindigkeit und Nachladen
+  tauschten ebenso. Damit „wirkt“ das Aufrüsten nicht, und Feuerkraft/Kapazität und Nachladen
+  stehen auf Stufen, die die Waffe so nie hatte. Zwei Wege zu „kein Nachladen“: ein späterer
+  Kauf kann die Kapazität wieder senken (das Magazin hält dann mehr, als erlaubt ist, und gilt als
+  voll), oder die gekaufte Schussgeschwindigkeit landet als Nachlade-Stufe über der Tabelle (drei
+  Stufen, `PlReloadEndTbl`). Welcher es beim Tester war, zeigt das Protokoll nicht: das Aufrüsten
+  schrieb noch keine Zeile. `view_scan.py` kennt diese Fehlerart
+  jetzt (`bits`); der Lauf über den ganzen Spielcode findet nur `TuneLevel` (die übrigen Bitfelder,
+  `db_cam.h`, `snd.h`, werden nie als ganzes Wort gelesen). **Bereits aufgerüstete Waffen in
+  vorhandenen Spielständen behalten ihre vertauschten Stufen**; ein weiterer Kauf setzt alle vier
+  Stufen neu aus den angezeigten Werten.
+- **Unsichtbarer Biss (Fehler des Prototyps, behoben mit Patch 0095):** in r307 (13:44:03) ein Regenerator
+  (s9, em36 Typ 0) ohne Beine im Kriech-Zustand; ab 13:44:13 99 Bilder lang je 14 Schaden (Leon
+  1380 → 1). Der Gegner läuft in Routine 1/0x14 (`D_Catch`) und 1/0x15 (`D_CatchHit`, 155 Bilder),
+  dem Biss am Boden. Leons Seite (`plem36_D_CatchHit`) prüft aber, ob der Gegner noch in 1/0xB
+  (dem Biss im Stehen) ist: das ist nie der Fall, Leon wird im ersten Bild losgelassen, die
+  Gegner-Bewegung und die Kamera fehlen, der Biss trifft weiter, „SHAKE OFF“ bleibt stehen. Der
+  Code trifft die SHA1-Prüfsumme, also derselbe Fehler auf der GameCube-Debug-Fassung (das
+  Verkaufsspiel hat ihn behoben). **Entscheidung des Projektinhabers (22.10.2026): Fehler des
+  Prototyps, die das fertige Spiel nicht hat, werden behoben** (Regel in `CLAUDE.md`). Patch 0095
+  prüft jetzt 1/0x15. Neues Werkzeug `port/tools/scan/catch_scan.py`: vergleicht bei allen
+  Gegnern die Routine, die ein Halte-Rückruf prüft, mit den Routinen, die ihn setzen (18
+  Prüfungen). Nur 0095 war ein Fehler; em10 (Luis im Würgegriff prüft 0x34 statt 0x35) und em39
+  (Krausers Tritt prüft 0x1B statt 0x2D) verknüpfen mit `&&` und lassen erst los, wenn der Gegner
+  die Routinen-Gruppe 1 verlässt; dort kommen diese Nummern nicht vor (Schaden 22/6, Tod 6/2
+  Einträge): ohne Wirkung, nicht geändert.
+- Sonst in den Berichten nichts Neues (siehe den Abschnitt „Drei Berichte des SCV40-Testers“).
+
+**Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` mit 0094 und (zweiter Lauf) 0095: 0
+Baufehler, die Patches gelten in allen drei Bäumen, 114 Module ohne offene Verweise, Laufzeit-,
+Kern-, Kernprozess-, Format- und Filmtests 0 Fehler. **Nicht getestet:** das Aufrüsten und der
+Biss am Boden auf dem Gerät (kein Test im Cloud-Lauf erreicht den Händler oder r307).
+
+### Drei Berichte des SCV40-Testers mit 0.41.3 (22.10.2026 11:28, 12:51, 13:44)
+
+- Samsung SCV40 (Android 10, 64 bit), ohne Beschreibung. Etwa zweieinhalb Stunden Spiel von r220
+  bis r306 (Erzmine mit Lore r223/r21b, Statuen-Jagd r226, Salazars Thronsaal r228, Insel r300);
+  der zweite und dritte Bericht sind derselbe Lauf.
+- **Kein Absturz, keine Todesschleife, keine ungültige Position** (`pl:`/`em: … not a number`),
+  keine `check:`-Zeile. In r21d zwei Tode durch die Stampfer mit voller Lebensenergie, Leon jeweils
+  innerhalb der Stampfer-Fläche (`die: area 0x06` / `0x14`, „for 1“: die Flächen zählen nur den
+  Spieler); das Weitermachen am Gitter-Zwischenstand lief normal weiter. `math: acosf/asinf …
+  taken as 1` in r21d über 100-mal: die Korrektur aus 0.41.3 greift dort laufend.
+- Sonstige Tode mit Leben 0 ohne Auffälligkeit (r223 dreimal, Lore r21b zweimal, r226, r228
+  fünfmal beim Boss). Mehrfache Raumstarts in r228 und r300 ohne Tod: „Retry“ aus dem Menü
+  (`--DOORDEMO START!!` ohne `--CONTINUE SELECT!!`).
+- Menü-Cursor: alle 1747 Bewegungen kamen vom Steuerkreuz oder vom linken Stick mit passendem
+  Ausschlag, keine vom C-Stick, keine ohne Eingabe.
+- Ergebnis: nichts zu beheben; offen, ob der Tester etwas Bestimmtes zeigen wollte.
+
+### Bericht moto g72 (0.41.3, 21.10.2026 18:13): Absturz im Mali-Grafiktreiber
+
+- **Gerät:** Motorola moto g72 (Android 13, 64 bit im App-Prozess, **Mali-G57 MC2**, MT6789).
+  Sitzungen 18:04–18:07 (r208, die Burghalle: Raumstart mit 27 Gegnern, zwei Treffer auf s20,
+  Leon 1200 → 480 → 1, dann vom Tester beendet) und 18:11–18:13 (r214, Inventar). Die neuen
+  Zeilen kommen an (`em:`, `room:`, `pad: menu`, `math: acosf/asinf of 1.00000012 taken as 1`
+  in r214: die Korrektur von 0.41.3 greift). Zur Burghalle in 25 Sekunden kein Verschwinden
+  (`em: -`), zu kurz für den gemeldeten Fehler.
+- **`crash-system.txt`:** 18 Abstürze des Geräts seit 20.10.2026, davon 10 (alle Versionen bis
+  0.41.3, zuletzt 17:50 nach einer Stunde Spiel) mit derselben Stelle: SIGSEGV an Adresse 0 in
+  `libGLES_mali.so`, aufgerufen von `re4gx::GxRenderer::Impl::TimerPool::Collect` (GPU-Zeitmessung
+  über `GL_EXT_disjoint_timer_query`, `glGetIntegerv(GL_GPU_DISJOINT_EXT)` /
+  `glGetQueryObjectuiv`). Die übrigen 8 sind ältere Kernfehler vom 20.10. (behoben seitdem).
+- **Behoben (App, `gx_gl.cpp` `TimerInit`):** auf Mali-Grafikchips (`GL_RENDERER` enthält „Mali“)
+  keine Zeitmessung mehr, eine Zeile `GPU time: off on … (its driver crashes in timer queries)`.
+  Die Messung dient nur der Diagnose (GPU-Zeit im Protokoll, GPU-Messlauf); Adreno (Retroid)
+  misst weiter. Geprüft: Syntaxprüfung von `gx_gl.cpp` mit clang (Android-Kopfdatei als
+  Platzhalter). **Nicht getestet:** auf einem Mali-Gerät.
+
+### Fehlersuche mit Werkzeugen, Teil 1: der Code (22.10.2026, Cloud, Branch `claude/re4-start-controls`)
+
+Auftrag des Projektinhabers: die Fehlerarten der letzten Berichte vorab im ganzen Spielcode suchen
+(Teil 2, der automatische Raum-Rundgang am PC, folgt). Die letzten fünf Fehler waren nur einmal
+reine 64-bit-Fehler (0087); sonst ein ungesetzter Wert (0088), eine Annahme über die Lage lokaler
+Variablen (0089), die Byte-Reihenfolge (0090) und Rundung (r21d). Neue Werkzeuge in
+`port/tools/scan/`, beide über die Übersetzungsbefehle eines Builds (`whole-armhf`):
+
+- **`uninit_scan.py`**: clangs Warnungen für ungesetzte Werte (70 Meldungen, 44 Stellen) und der
+  statische Analysator (Pfad für Pfad; 387 Meldungen, davon 269 Null-Zeiger und 23 Teilungen durch
+  0, die auf der GameCube genauso wären; 61 Stellen außerhalb der Werkzeug-Module geprüft).
+- **`view_scan.py`** (libclang): Sichten mit anderer Breite auf ein Objekt an fester Stelle
+  (`((u8*) p)[3]` über einem `s32`, auch über Zeigerwerte, die `whole_byte_views.py` nicht sah)
+  und die Adresse einer lokalen Variable über die Variable hinaus (als Zahl, als größerer Typ,
+  Zeigerrechnung). Selbsttest: findet 0089, 0090 und 0063 im Originalcode wieder. 43 Funde.
+- **Gleitkomma:** nach `acosf`/`asinf` (`ARC_CALL`) keine weitere Stelle: `SQRTF` gibt bei Werten
+  ≤ 1e-5 schon im Original 0 zurück, die `sqrtf` der Bibliothek nehmen nur Abstände (Summen von
+  Quadraten).
+
+**Behoben:**
+- Patch 0091: r221 (`SceEventStart` mit ungesetztem Wert in drei der vier Gasbomben-Szenen, im Raum
+  des Insekten-Bosses, in dem der r21d-Tester vorher sechsmal starb; ob das die Ursache war, ist
+  nicht belegt), `cMot3::set` (Überblendlänge der Ziel-Bewegungen aller Waffen aus einem
+  weggelassenen Register), r104 (geöffnete Regale/Kisten beim Wiederkommen).
+- Patch 0092: Krauser (em39) verglich bei der Wahl seines nächsten Punkts die falschen Bytes.
+- Patch 0093: **Debug-Editoren auf R1** im Gegenstand- und Koffer-Bildschirm (Z der GameCube):
+  unsichtbar, aber mit dem Steuerkreuz und A wirksam (Gegenstände geben/entfernen, ganzes Inventar
+  ersetzen, Koffergröße, Peseten). Jetzt nur mit `RE4_DEBUG_HUD=1`. Antwort auf die Frage des
+  Projektinhabers, ob die Debug-Fassung Fehler macht, ohne dass jemand das Debug-Menü öffnet:
+  diese beiden schon (seltsame Inventar- oder Menü-Effekte von Testern passen dazu, belegt ist es
+  nicht). Sonst ist im normalen Spiel nichts davon erreichbar: L+START ersetzt (0061), Pads 2–4
+  „kein Controller“, Debug-Schalter beim Start aus, START+Z zeigt nur das (ausgeblendete) Protokoll.
+
+**Geprüft, unbedenklich** (Original-Verhalten, Fehlalarm oder ein Weg, den das Spiel nicht
+nimmt): `est.cpp` `eff1` (im Original genauso ungesetzt verglichen, nur Treffereffekte), `item.cpp`
+`sz` (nur bei 0 Einträgen), `em_wrap.cpp` `beginEvent/endEvent` (nicht aufgerufen), `ss_pzzl.cpp`
+`n` (toter Wert), `r332.cpp` (`strstr` einer Konstanten), `route_ck.cpp` (0088 hält die gefüllten
+Einträge), `math_sub.cpp` `Matrix2AxisAngle` (`v3` später gesetzt), `motion.cpp` (Werte aus der
+Tabellen-Funktion), `ctrl14`, `pl_push`, `foot_shadow`, `ik`, `cam_motion`, `cockpit`, `obj09`,
+`obj1b`, `r20e`, `ss_map`, `dvd`, die ungesetzten `GXColor` der Filter und Schatten (`GXSetChanAmbColor`; die Kanäle nehmen die Umgebungsfarbe dort von den Eckpunkten, `GXSetChanCtrl(…, GX_SRC_VTX, …)`),
+Schleifen-Variablen (`card.cpp`, `r202.cpp`, `ss_shop.cpp`, `esp08.cpp`); Byte-Sichten: die
+Bewegungsfolgen (`motion.cpp`: der Umwandler lässt Byte 2 als Byte, der Mischtabellen-Kopf ist ein
+`u32`), `shape.cpp`, `r117.cpp` (geprüfte Port-Zeilen), EMI-Typ-Bytes, `sce_at.cpp`; die Adressen
+lokaler Variablen als Zahl (`libgpu.cpp`, `r209.cpp`, `sce_at.cpp`, `r21d.cpp` `setReset`: die
+Aufgaben-Stapel liegen unter 4 GB, AArch64 erweitert 32-bit-Argumente mit Nullen).
+Nur in Entwickler-Werkzeugen: `dbmodule.cpp` `Draw_tile` (Farbe rückwärts), `t_rck`, `t_flag`,
+`db_light`, `t_*`.
+
+**Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` mit 0091–0093: 0 Baufehler, alle Patches
+gelten, 114 Module ohne offene Verweise, Laufzeit-, Kern-, Kernprozess-, Format- und Filmtests 0
+Fehler. **Nicht getestet:** die Stellen auf dem Gerät (r221 Gasbomben, Zielen mit Waffen, r104
+Wiederkommen, Krauser, R1 im Inventar).
+
+### Fehlersuche mit Werkzeugen, Teil 2: der Raum-Rundgang (22.10.2026, lokal am Windows-PC in WSL2, Branch `claude/re4-start-controls`)
+
+Auftrag des Projektinhabers (vorgezogener Teil von 10b): jeden Raum mit den Disc-Daten über die
+Raumauswahl laden, eine Weile laufen lassen und Abstürze, ungültige Positionen („not a number“),
+`check:`-Hinweise und Hänger sammeln; dazu ein Prüf-Build mit Sanitizern; erst i686, dann ARM64
+unter qemu.
+
+**Werkzeuge:**
+- **Rundgang** (`whole_r100_check.sh --rooms LISTE`, Windows: `test-r100-core.ps1 -Rooms all`):
+  mehrere Räume gleichzeitig (`--tour-jobs`, Standard: halb so viele wie Prozessorkerne), je
+  6000 Bilder ab der Hauptschleife (vorher 1500, ohne Eingaben). Sobald Leon frei ist, zweimal
+  dieselbe Folge (laufen, A, drehen, rennen, zielen und fünf Schüsse beim Drehen, Karte auf und zu,
+  rückwärts, Kurve, Messer, Y und START mit B); solange er nicht frei ist, ab Bild 1500 A, A+B, L+R
+  und START (Funksprüche und Hinweise, Reaktionstasten in Ereignissen, Söldner-Menü).
+  `--tour-script none` lässt ihn stehen. Neu `port/tools/room_tour_report.py`: eine Zeile je Raum,
+  dann **Fehler** (Absturz mit Bibliothek, Versatz und Funktion; Stillstand mit Rückverfolgung;
+  Raum startet nicht; `not a number` und `LIMIT_ANGLE … not finite`; Todesschleife = mindestens
+  zwei Tode höchstens 120 Bilder nach dem Raumstart; AddressSanitizer) und **Hinweise** mit den
+  Räumen, in denen sie vorkamen (`check:`, UBSan, Spiel-Heap voll, Umwandler, Stubs, Meldungen des
+  Spiels, Gegner-Sprünge, Tode, Raumwechsel, Räume ohne freien Leon, acosf/asinf-Schutz).
+  Einzelheiten in `rundgang-einzelheiten.txt`, alle Protokolle in `rundgang-logs.tar.gz`, je
+  Raum das Ergebnis in `rundgang.json`; ein Rundgang eines anderen Ziels wird mit dem letzten
+  i686-Rundgang verglichen (`room_tour_report.py --compare`).
+- **Prüf-Build mit Sanitizern** (`RE4_SANITIZE=address,undefined port/tools/whole_build.sh i686`,
+  Ordner `whole-i686-O2-san`; im Rundgang `--sanitize`, Windows `-Sanitize`): AddressSanitizer
+  hält beim ersten Zugriff außerhalb einer globalen Variable, einer lokalen Variable oder eines
+  Blocks des C-Heaps an (mit Datei und Zeile), UndefinedBehaviorSanitizer nennt jeden undefinierten
+  Rechenschritt einmal je Lauf. Ausgelassen (Begründung in `port/whole/CMakeLists.txt`): vptr,
+  function, return, null, nonnull-attribute, pointer-overflow, object-size (`PG_OFS`,
+  `&((GLOBAL_WK*) 0)->f`), alignment (über 100 Stellen der Tonbibliothek, erlaubt wie auf der
+  GameCube), float-cast-overflow (durch `-fno-strict-float-cast-overflow` festgelegt).
+  `port/src/stack_context.cpp` meldet ASan jeden Stapelwechsel (nur im Sanitizer-Build). ASan-
+  Optionen: kein Leck- und ODR-Test, die eigene Absturzbehandlung des Ports, keine „Fake Stacks“
+  (je Spiel-Stapel 11 MB: der 32-bit-Adressraum lief voll, r106; lokale Variablen lagen außerhalb
+  von `VALID_PTR`, das Spiel meldete tausendfach `cLight::getNormal() INVALED PTR`).
+- **ARM64 unter qemu** (`--aarch64`, Windows `-Arm64`): mit `QEMU_RESERVED_VA` = 4 GB. Ohne das
+  bleiben neben qemus eigenen Bereichen 53919 Seiten über 4 GB unreserviert, und ein später
+  geladenes Gegner-Modul (em23 in r100) landete dort (`re4_check_game_address` hält an); das
+  betrifft nur qemu, auf Android lädt die App selbst.
+  `whole_build.sh` startet aarch64 jetzt ebenso (im UBSan-Build stürzte sonst der Laufzeittest in
+  `Yz2DecodeExec` an einer gekürzten Adresse ab); geprüft mit dem normalen und dem UBSan-Build,
+  alle Prüfungen 0 Fehler.
+- **Sanitizer auf 64 bit:** nur UBSan (`--sanitize` wählt das selbst). ASan geht nicht: auf
+  x86_64 liegt sein Schattenspeicher (0x7FFF8000–0x8FFF6FFF) über MEM1, unter qemu-aarch64 stürzt
+  schon ein Dreizeiler mit GCCs `libasan` ab (clang hat für aarch64 keine Laufzeit), und in 4 GB
+  Gast-Adressraum ist für den Schatten ab 64 GB kein Platz. UBSan nimmt auf aarch64 GCCs
+  `libubsan` (gleicher Code).
+
+**Ergebnisse mit Disc-Daten** (126 Räume der Raumtabellen, je 6000 Bilder, i686 -O2):
+- **i686, erster Lauf:** 126 von 126 ohne Fehler. Leon war in 15 Räumen nie frei (dort liefen
+  keine Eingaben); dafür die Rückfall-Tasten.
+- **i686, zweiter Lauf** (mit Rückfall-Tasten, Patches 0096/0097, Stand `24656174`): **126 von 126
+  ohne Absturz, Stillstand, NaN oder Todesschleife**, gut 7 Minuten bei 8 Räumen gleichzeitig.
+  Leon starb in 44 Räumen (Weitermachen lief jedes Mal), wechselte in 15 Räumen durch eine Tür
+  oder ein Ereignis den Raum, war nur noch in r101, r206, r215, r227, r22b und r316 nie frei. Der
+  acosf/asinf-Schutz (r21d, 0.41.3) griff in 120 Räumen. Einziger `check:`-Hinweis: die bekannte
+  Formen-Tabelle in r229 (Patch 0064). Spiel-Heap voll nur `cDataSwap` (mit Rückfall auf ARAM) in
+  r206 und r226.
+- **i686 mit Sanitizern, erster Lauf:** 118 von 126; ASan fand `commonModelTrans` (unten, Patch
+  0096) in r20a, r20b, r216, r31d und lief in r106, r208, r210, r40a aus Speicher (Fake Stacks);
+  UBSan die Verschiebung um 255 (Patch 0097) und drei geprüfte Stellen (unten).
+  **Zweiter Lauf: 126 von 126**, keine ASan-Meldung, UBSan nur die zwei geprüften Feld-Überläufe.
+  Etwa 12 Minuten.
+- **aarch64 unter qemu** (Stand `24656174`, 14 Räume gleichzeitig, 3 bis 11 Minuten je Raum, zusammen knapp eine Stunde): **126 von 126 ohne Fehler**, und jeder Raum gleich beurteilt wie auf i686 (`--compare`: Fehler, `check:`-Hinweise, Tode, Raumwechsel). Nur der Engpass von `cDataSwap` (r206, r226) kam auf aarch64 nicht vor. **aarch64 mit UBSan** (`--aarch64 --sanitize`, gut eine Stunde): ebenfalls 126 von 126 und gleich beurteilt wie i686; UBSan meldet dieselben zwei geprüften Feld-Überläufe (Lore r21b, r203) wie auf i686, auf 64 bit nichts Eigenes. Danach armhf-Build mit allen Prüfungen unter qemu-arm: 0 Fehler.
+
+**Behoben:**
+- `re4_sdk_intrinsics.h` / `re4_cri_port.h`: `__rlwimi` und `__rlwinm` nehmen von Verschiebung und
+  Maskengrenzen nur die unteren 5 Bit, wie der Befehl. `GXBump.c` `__GXSetIndirectMask` übergibt
+  `~0xFF` als Verschiebung (auf der GameCube 0, 24, 31: das untere Byte von `bpMask`); x86 rechnete
+  eine leere Maske (das Register blieb 0x0F0000FF), ARM stimmte nur zufällig, für den Optimierer
+  undefiniert. Die GX-Nachbildung wertet dieses Register (Indirekt-Textur-Maske) nicht aus.
+- **Patch 0096** `trans.cpp`: Modelle mit `blend_mode` 5 (r20a, r20b, r216, r31d) lasen die
+  Mischart hinter der Tabelle `bl[5][4]`. Auf der GameCube stehen dort die Adressen der
+  Licht-Funktionen von `trans_lit.cpp` (`funcLightParam`): kein Mischen, Logik-Op 12; im Port
+  lagen dort andere Konstanten (ein ungerades erstes Wort hätte mit beliebigen Faktoren gemischt).
+- **Patch 0097** `esp_app.cpp`: Effekt-Bereiche mit Nummer 255 (r102, r103, r119, r120, r227)
+  setzten mit `1 << 255` auf aarch64 und x86 Bit 31 (Zahl modulo 32), auf GameCube und armv7 nichts:
+  auf 64-bit-Geräten liefen die Effekte von Bereich 31 dort an.
+- Formatumwandler: ein Ereignis-Bündel (`EVS`) ohne Ereignisse, dessen Tabellen-Zeiger das
+  Füllmuster 0xCDCDCDCD trägt (r101, r111, r400, r401, r407–r409), und ein Gegenstands-Paket
+  (`ITM`) ohne Gegenstände mit BIN-Tabelle bei 0 (r215, offen seit 17.10.2026) blieben
+  big-endian, weil der Umwandler Tabellen las, die das Spiel bei 0 Einträgen nie liest
+  (`EventMgr::SetEvs`, `cItmSys::DataLoad`). Jetzt umgewandelt; neuer Kerntest „empty tables“.
+  Für ihn liefert `re4_formats_entry_status` den Umwandlungsstand eines Archiv-Eintrags.
+- **r10b, Effekt-Block (`st1/r10b.das` Eintrag 7, nachgereicht am 22.10.2026):** blieb unvollständig
+  umgewandelt, weil der Umwandler bei 0xddfe0 Bewegungsdaten mit 175 Gelenken las, deren erstes auf
+  `+0x20202020` zeigte. Ursache in den Originaldaten: Effekt-Modell 0x7c hat in seiner
+  Bewegungs-Tabelle drei Einträge zu je 0x2040 Byte, die **Texturen** sind (TPL-Kennung `00 20 AF 30`,
+  ein Bild 128×128 CMPR, Daten ab 0x40), bei denen **jedes Null-Byte als 0x20 gespeichert ist**
+  (`20 20 af 30 20 20 20 01 20 20 20 0c …`). Kein anderes Archiv der Discs hat ein Effekt-Modell mit
+  Bewegungen. Das Spiel liest eine solche Bewegung nur für einen Effekt `ESP_EFM04` mit `Tool_flg` 8
+  (`esp_efm.cpp`, `EspGetEfmMotAddr` → `MotionSetCore`); auf der GameCube wären diese Daten genauso
+  unbrauchbar, r10b benutzt sie im Rundgang nicht. Der Umwandler (`formats_eff.cpp`) erkennt eine
+  Textur in einem Bewegungs-Platz jetzt an der TPL-Kennung (auch mit 0x20 statt 0), lässt sie
+  unverändert und meldet `effect model at 0x…: 3 of the 3 motions are textures (TPL magic 2020af30,
+  original data)`; der Block gilt als umgewandelt. Neuer Kerntest „effect texture motion“ (schlägt
+  ohne die Änderung fehl). Geprüft: Builds i686, armhf und aarch64 mit allen Prüfungen, r10b, r100 und r21d im Rundgang
+  ohne Fehler, `GetDataExt EFF` in r10b „umgewandelt ja“.
+- Prüfprogramme (nur Tests): `gx_probe.cpp` legte eine Palette von 16 Einträgen an, eine
+  TLUT-Ladung liest aber den ganzen Bereich (256 Einträge, wie die GameCube); `core_probe.cpp` gab
+  `mwPlyCalcWorkCprmSfd` nur die 0x24 Byte der Erzeugungsparameter, die CRI-Seite liest 0x30 (das
+  Spiel hält dahinter `AP_OBJ.pad_48` frei).
+
+**Geprüft, unbedenklich:** `objTrolley.cpp` (r21b): die Schleifen laufen über `pSat[0..4]` eines
+Felds mit 3 Einträgen und treffen `pEat[0..1]`, die lückenlos folgen (auch auf 64 bit), nur
+doppeltes Abschalten. `r203.cpp`: `em[3..8]` eines Felds mit 3 Einträgen überdecken `pt[]` und den
+Füllbereich, bleiben in den 0xAC Byte der Arbeit (auch auf 64 bit), und Gegnerwelle und Wandern
+kommen in getrennten Zweigen. Gegner s28 (`em21`) springt in 44 Räumen von (-32184 34 -32043) nach
+(-39510 34 -24090): überall dieselben Punkte, nach Spielverhalten aussehend, nicht weiter verfolgt.
+
+**Offen / nicht getestet:**
+- Die Spiel-Heaps liegen in MEM1 ohne Schutzzonen: Überläufe zwischen Spiel-Objekten sieht ASan
+  nicht. Ungesetzte Werte (MemorySanitizer) gehen nicht (bräuchte eine instrumentierte
+  C++-Bibliothek und 64 bit, dort liegt MEM1 im Weg).
+- Leon bleibt in r101, r206, r215, r227, r22b und r316 ohne Eingaben (Ereignis oder Untermenü bis
+  zum Ende); was nur beim echten Spielen passiert, prüft weiterhin 10b.
+- Patches 0096 und 0097 und die Umwandler-Korrektur sind nicht auf dem Gerät getestet.
 
 
 ### OUYA: Kern-Probe O1 (21.10.2026, Branch `claude/adoring-mendel-vclbu8`)
@@ -5780,6 +6583,14 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
   Zustandsbrücke (`captureModel`) 6 % (für die OUYA-App abschaltbar), Ton 6 %.
   **Nächster Schritt (Entscheidung des Projektinhabers): O2, der GLES-2-Renderer, der das
   Kompaktformat liest.**
+- **Abgleich mit der Haupt-App (22.10.2026):** der Branch der Haupt-App
+  (`claude/re4-start-controls`, 53 Commits seit dem Abzweig, Patches 0088–0101, Fehlerprotokoll,
+  Sanitizer-Build, Menü in 10 Sprachen) in den OUYA-Branch übernommen, nur in diese Richtung.
+  Konflikte von Hand: `stack_context.cpp` (die FPSCR-Sicherung der OUYA zusammen mit den
+  Stapel-Hinweisen für den Sanitizer), `CLAUDE.md`, die Übersichtstabelle hier. Geprüft:
+  `whole_build.sh` i686 und armhf grün (auch mit Grafik-Thread), `ndk23_check.sh` 1201
+  Einheiten ohne Fehler. Die OUYA wird eine **eigene App** (Wunsch des Projektinhabers); der
+  Kern bleibt gemeinsam, Neuerungen der Haupt-App kommen über solche Abgleiche herein.
 
 ## Aufbau
 
@@ -5860,6 +6671,7 @@ sie ersetzt.
 | Prelude: `Re4BeBytes2` | Byte-Array-Sicht `b[0]` = hohes, `b[1]` = niedriges Byte eines Halbworts, unabhängig von der Host-Reihenfolge (Patch 0016: `cItem::lv8`, `SND_RND::b`) |
 | CodeWarrior-`asm { … }`-Blöcke, die nur Register umkopieren (`mr`) und keine C-Variable ändern → `/* port: register pin */;` (`whole_asm_check.drop_register_pins`, seit M9) | Registerbindungen des Decompilats (Reihenfolge der Register wie im Original), ohne Wirkung auf das Ergebnis; clang kennt die Syntax nicht. Blöcke mit echten Befehlen bleiben und brechen den Build ab (dann Patch) |
 | Vorzeichenbehaftete 32-bit-Werte, die zu Zeigern werden (`port/whole/lp64_int_casts.json`, `lp64_int_casts`, zuletzt, M12): der Operand jeder gelisteten Umwandlung `(T*) x` → `RE4_ADDR32(x)` (Prelude: `(unsigned int) (x)`) | auf LP64 wird aus einem `int`/`s32` mit gesetztem Bit 31 die Adresse `0xFFFFFFFF8…` (Absturz in `primInit` auf dem Retroid, 17.10.2026: `(void*) pG->prim_cnt`); vorzeichenlos gelesen behält der Zeiger das Bitmuster von ILP32, auch bei Zahlen, die keine Adressen sind (`(void*) -1`, Aufgabenparameter). Liste von `port/tools/m12/int_cast_check.py` (libclang, 142 Stellen, dazu zwei in Makros von Hand: `EM3D_GUN_SHOT`, `R332_TASK_SET`); eine Stelle, die nicht wie gelistet gefunden wird, bricht den Build ab |
+| `acosf(` / `asinf(` im Spielcode (`src/` außer `src/lib`) → `re4_acosf(` / `re4_asinf(` (`ARC_CALL`, zuletzt, 22.10.2026; 42 Stellen) | Prelude: ein Wert höchstens 1e-5 über ±1 gilt als ±1, weiter draußen bleibt NaN wie auf der GameCube. Das Spiel nimmt den Winkel zweier Einheitsvektoren als `acosf` ihres Skalarprodukts; die GameCube normalisiert mit `frsqrte` und einem Newton-Schritt (etwas zu kurz), der Port mit `1/sqrtf` (`C_VECNormalize`, manchmal ein letztes Bit zu lang): Skalarprodukt 1,0000001, `acosf` NaN. Der erste Fall und jede Zehnerpotenz stehen im Protokoll (`math: acosf/asinf of … taken as 1`) |
 | `GXWGFifo.T = x` / `GXWGFifo->T = x` → `re4_gx_put_T(x)` (`GX_FIFO_STORE`, in `GXVert.h` als `re4_gx_put_##T`), Datei bekommt `#include "re4_gx_fifo.h"` | Die Schreibadresse `0xCC008000` des Grafikprozessors gibt es im Port nicht; der FIFO des Ports (`runtime/gx_fifo.cpp`) bekommt jeden Wert (G1) |
 
 Compiler-Schalter: `-std=gnu++11 -Wno-c++11-narrowing -fdelayed-template-parsing
@@ -5969,6 +6781,20 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0085 `dvd.cpp` | Der Start ohne Bild-Takt (Wunsch des Projektinhabers, 19.10.2026: kürzerer schwarzer Bildschirm): `cDvd::readProcMain` wartet nach jedem Schritt einer Lesung ein Bild (`TaskSleep(1)`); bis die erste `title.dat` gelesen ist, folgt der nächste Schritt sofort, solange nichts unterwegs ist (0x02000000 DVD, 0x01000000 ARAM), nach je 64 Schritten ein Bild (`runtime/dvd.cpp re4_dvd_boot_fast`); das Ende meldet `re4_dvd_read_done` (Name der Lesung). Danach und mit `RE4_DVD_BOOT_FAST=0` wie im Original. Prüfung: `runtime-test dvdq` (1 / 1 / 14 Bilder) |
 | 0086 `pl14.cpp`, `emmine.cpp`, `obj1b.cpp` | `GetWepTargetList2` legt für jeden Trefferbereich mit `YAT_FLAG_THROUGH`, den die Schusslinie kreuzt, einen Eintrag mehr an als `max` (bis 0x14). `isTarget` (Luis, `TARGET_WK list[2]`), der Treffer der Mine und der des Speers (je ein `TARGET_WK`) hatten nur Platz für `max`: der Eintrag dahinter überschrieb den Wachwert des Stack-Schutzes (Absturz „stack corruption detected“ bei Luis' erstem Schuss in der Hütte r11c, zwei Tester, 20.10.2026). Jetzt je 0x14 Einträge; die Aufrufer lesen weiter Eintrag 0 und 1 |
 | 0087 `pl_sub.cpp`, `em10.cpp` | Luis (`cSubLuis`) ist kein `cSubChar`: `SetSubDamage` schreibt für ihn über `cSubChar::m_MotTbl2[0]` / das erste Byte von `m_MotBase`, auf der GameCube sein `m_pFunc` (0x584) und `status` (0x58C, 0x40 = `F_KARAMI`); auf LP64 andere Stellen, `m_pFunc` blieb 0 (Absturz, wenn ein Ganado Luis in der Hütte r11c packt, Tester 20.10.2026). Jetzt für id 4 über Luis' eigene Mitglieder; `subem10_NeckHang_Luis` zählt `m_Work0` wie die GameCube in Luis' `routine.pos.y`. Das Bit `F_KARAMI` (von 0024 gestrichen) setzt Luis' Dank-Satz nach dem Packen wieder in Gang |
+| 0088 `route_ck.cpp` | `getNearPoint` sortiert die zehn nächsten Wegpunkte in `idx[]`/`dist[]` (Anfang: Stack-Inhalt bzw. 1e16). Ein Punkt weiter als 1e8 kommt nie hinein; liegen weniger als zehn (bzw. `nPoint`) Punkte so nah, behalten die Einträge dahinter ihren Stack-Inhalt, und die Suche nach freier Sicht liest `pt[Müll]` (Absturz weit über 4 GB in `getNearPoint` aus `RouteCkToEm`/`em10RouteCk`, Tester Samsung Galaxy M23, 64 bit, Hütte r11c, 21.10.2026). Jetzt nur die gefüllten Einträge; keiner: -1 („kein Wegpunkt“, jeder Aufrufer geht dann direkt aufs Ziel). Positionen im Raum füllen alle, dort ändert sich nichts. Wessen Position es war (Spieler, Partner, welcher Gegner), meldet „check: route: …“ bis zu viermal. Prüfung: `runtime-test route` |
+| 0089 `r10f.cpp` | Die Gondel (`r10f_GondolaGetOn`/`GetOff`) setzt Leon und Ashley über `&((R10fGondolaTbl*) mot)->posA[side]`/`->posB[side]`: eine Sicht auf das lokale `void* mot[2][3]`, die die Variablen `posA`/`posB` dahinter liest, wo CodeWarrior sie ablegte. clang legt sie anders ab und speichert sie bei -O2 gar nicht (nie beim Namen benutzt; armhf und aarch64 nachgeprüft: 0 Zugriffe auf ihre Konstanten); die Sicht liest gesicherte Register. Folge: Ashley nach der Gondel bei (-1469.6, -2.32e35, -2346.42), ihre Höhe die Bits einer Adresse in `libre4_main.so` (zwei Tester, 21.10.2026; mit 0.41.0 Absturz in `getNearPoint`). Jetzt `&posA[side]`/`&posB[side]` (nach dem Patch 4 Zugriffe) |
+| 0090 `em3e.cpp` | Die Schießbude (r22c) hält die Skripte ihrer Zieltafeln als `s32`-Felder `{time, flag, X, Y, Z, Befehle…}` im Modul, im Port in Host-Reihenfolge. `cEmMark::init(EmMarkData*)` nahm den Typ als Byte 7 (`EmMarkData::type`), `setNextInstruction` die nächste Routine als Byte 3 des Befehlsworts: auf der GameCube das niedrigste Byte, auf ARM das höchste (0). Folge: alle Ziele Typ 0 (keine Ashley-Tafeln), jede Tafel nach jedem Befehl wieder „begin“ (hochklappen), nie „end“, über ihr Skript hinaus („cEmMark::setNextInst() ERR 300“) und am Ende `emmark_tbl` hinter dem Feld (Absturz pc 0 aus `cEmMark::move`, Tester 21.10.2026). Jetzt das niedrigste Byte des Worts als Wert. `byte_views.json` kannte beide Stellen nicht (Struktur-Zeiger statt `(u8*) &skalar`, Struktur mit Byte-Feld über dem Wort); die Suche nach weiteren `((u8*) ptr)[n]` und Struktur-Sichten über eingebaute Zahlenfelder der Räume fand nur diese |
+| 0091 `r221.cpp`, `pl_class.cpp`, `r104.cpp` | Werte, die das Original aus einem Prozessor-Register nahm (Fehlersuche 22.10.2026, `uninit_scan.py`): r221 (Raum des Insekten-Bosses) ruft für die Szene jeder der vier Gasbomben `SceEventStart(evNo)`, das Original übergibt immer 0, gesetzt war es nur im ersten Fall: sonst gingen Gegner, Objekte, Effekte und Schaden nicht in den Szenen-Zustand. `cMot3::set` (Ziel-Überblendung von Pistole, Messer, Granate, Raketenwerfer …) las die Überblendlänge über eine Register-Bindung (`r9`), die der Port weglässt: beliebige Länge. r104: die „schon geöffnet“-Aufgaben der Regale und Kisten bekommen die Nummer als Aufgaben-Argument, das Original deklariert keinen Parameter; beim Wiederkommen stand ein zufälliges (oder kein) Regal offen |
+| 0092 `em39.cpp` | Krauser (em39) sucht seinen nächsten EMI-Punkt und überspringt bei einem zweiten Versuch die Punkte, die dem letzten in Byte 1 und 3 (`sub`, `pad_3`) gleichen: `*(u32*) e & 0x00FF00FF`, eine GameCube-Wortsicht; auf ARM/x86 verglich die Maske `type` und `state`. Jetzt `RE4_BE` (Fehlersuche 22.10.2026, `view_scan.py`) |
+| 0093 `ss_item.cpp`, `ss_pzzl.cpp` | Z (R1 am Controller, Y mit Alternate Controls) öffnete im Gegenstand-Bildschirm den „Item Maker“ (Steuerkreuz und A geben oder entfernen Gegenstände) und im Koffer den „Case Maker“ (Inventar-Sätze, die das ganze Inventar ersetzen, Koffergröße, Munition, Peseten) der Debug-Fassung, auch im normalen Spiel. Ihr Text ist Debug-Text, den die App ausblendet: unsichtbare Editoren auf dem Steuerkreuz. Jetzt nur mit sichtbaren Debug-Anzeigen (`RE4_DEBUG_HUD=1`, `re4_debug_hud_shown` in `runtime/state_trace.cpp`). Dazu `(u8) wk->debugMode` statt Byte 3 des Wortes (Fehlersuche 22.10.2026) |
+| 0094 `ss_shop.cpp` | Das Aufrüsten beim Händler (`LvUpConfirm::move`) schrieb die vier Waffenstufen über `TuneLevel`, vier 4-Bit-Bitfelder über `cItem::lv` (u16). Das übrige Spiel liest sie als Halbbytes des Werts (Feuerkraft << 12, Schussgeschwindigkeit << 8, Nachladen << 4, Kapazität, `item.h`). CodeWarrior legt das erste Bitfeld in die oberen Bits, clang auf ARM/x86 in die unteren: jedes Aufrüsten landete auf einer anderen Stufe (Feuerkraft ↔ Kapazität, Schussgeschwindigkeit ↔ Nachladen). Jetzt als Wert geschrieben, dazu eine Zeile `shop: tune-up of item …` im Protokoll (Tester-Berichte 22.10.2026; `view_scan.py` `bits` findet die Stelle) |
+| 0095 `em36.cpp` | **Fehler des Prototyps** (Entscheidung des Projektinhabers, 22.10.2026: solche Fehler werden behoben). Ein Regenerator ohne Beine beißt vom Boden (Routine 1/0x14 `D_Catch`, Halten in 1/0x15 `D_CatchHit` mit `plem36_D_CatchHit`). Leons Seite prüfte die Routine des Bisses im Stehen (1/0xB): Leon wurde im ersten Bild losgelassen, der Biss lief unsichtbar weiter (Leben bis 1, „SHAKE OFF“, dann der tödliche Biss). Jetzt 0x15. `port/tools/scan/catch_scan.py` prüft alle Halte-Rückrufe so |
+| 0096 `trans.cpp` | `commonModelTrans` nimmt die Mischart aus `bl[info->blend_mode]`, einer Tabelle mit 5 Zeilen; Modelle in r20a, r20b, r216 und r31d haben `blend_mode` 5 (Sanitizer-Rundgang 22.10.2026, global-buffer-overflow). Die GameCube liest dahinter die ersten vier Wörter von `funcLightParam` (`trans_lit.cpp`, Adressen von `lightSetConstant` … `lightSetSpotlight`); `GXSetBlendMode` behält davon Bit 0 und die unteren 3/3/4 Bit: kein Mischen, Logik-Op 12. Der Port ergänzt diese sechste Zeile; vorher las er die Konstanten, die clang dahinter legte |
+| 0097 `esp_app.cpp` | `EffAreaUpdate` setzt je Effekt-Bereich, in dem Leon steht, `1 << area_no`; Bereiche mit Nummer 255 (r102, r103, r119, r120, r227) setzen auf der GameCube (`slw`: untere 6 Bit, 32–63 ergeben 0) und auf armv7 nichts, auf aarch64 (`lslv`, modulo 32) und x86 Bit 31: die Effekte von Bereich 31 liefen dort an. Der Port schreibt die Regel der GameCube aus (Sanitizer-Rundgang 22.10.2026) |
+| 0098 `pl_npc.cpp` | `cSubChar::moveDamage` ruft Ashleys Schadens-Handler `pAuxDm` ohne Argument auf; `SetSubBulldozer` setzt ihn auf `objBull.cpp` `Sub_dm_bull(cEm*)` (Ashley am Steuer des Bulldozers, r30f). Auf der GameCube stand in r3 noch `this`; auf ARM64 die Adresse des Handlers selbst: `setStatus` schrieb in den Code (SIGSEGV, SCV40-Tester 22.10.2026, zweimal). Jetzt mit `this`; die übrigen Partner-Handler (`pAux(this)`, `m_pFunc` von `SetSubDamage`/`EmCatchSubSet`: em10, em2b, obj13 lesen `SUB_CHAR()`) geprüft. Test `partnerdmg` |
+| 0099 `r318.cpp` | 64 bit: der Laser-Gang zeichnet jeden Strahl von Teil 2 zu Teil 4 des Emitters und liest den Anfang bei `(u8*) parts + 0x70`, wo `cCoord::world` auf der GameCube und ILP32 liegt; auf LP64 liegt `world` bei 0x80, bei 0x70 stehen das Ende der lokalen Matrix und eine Hälfte von `pParent`. Die Strahlen erschienen woanders, als der Treffertest (Teile 2 und 4) sie sah: Leon wurde von unsichtbaren Strahlen zerschnitten (SCV40-Tester, 0.42.1, Video). Jetzt `RE4_OFS(cParts, world, 0x70)`. Die Suche von 0073 sah den Abstand nicht (er hängt an einem `Vec*`, der aus dem `cParts*` gewaschen ist) |
+| 0100 `puzzle.cpp`, `ss_pzzl.cpp` | Gegenstände, deren gespeicherter Platz im Koffer belegt ist oder außerhalb liegt (Spielstände, die der unsichtbare „Case Maker“ des Debug-Builds bis 0.41.3 verändert hat), lagen nirgends: unsichtbar, und als ausgerüstete Waffe standen Ausrüstungsmarke „E“ und Rahmen in der Bildmitte, auf allen Seiten des Untermenüs (Projektinhaber, 22.10.2026). `pzlPlayer::init` legt sie nach allen anderen an die erste freie Stelle (Koffer, sonst Ablagefeld; wie gespeichert, sonst gedreht), Log-Zeile `case: item … moved to …`; ohne freie Stelle der Original-Fehler. `pzzlEquipDisp`: keine Marke für eine Waffe ohne Platz. Laufzeittest `casefree` |
+| 0101 `sce_at.cpp` | `SceAtExecRoomJump` (Raumwechsel aus Skripten, die Aufzüge) baut eine Tür-Fläche auf dem Stapel und füllt nur das Ziel; `key_id` und die übrigen Felder waren Stapel-Reste. Im Port startete `key_id` 1/2 die Aufgabe `sceInLock` mit einem Zeiger auf die lokale Variable, die ein Bild später ins Leere griff (SIGSEGV am Aufzug in r332, SCV40-Tester, 0.42.1). Die Fläche beginnt jetzt mit Nullen (offene Tür, normale Blende). Schlummernder Fehler des Originalcodes |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

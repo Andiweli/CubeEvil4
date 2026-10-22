@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chinese, Simplified (简体中文; Android uses it for zh-Hans: China, Singapore): the texts of
+     values/strings_ingame.xml, same names and placeholders. -->
+<resources>
+    <string name="ingame_title">CubeEvil4 选项</string>
+    <string name="ingame_hint">SELECT（短按）= 本菜单  ·  SELECT（长按）= 游戏的调试菜单</string>
+    <string name="ingame_back">返回游戏</string>
+
+    <string name="ingame_graphics">图形</string>
+    <string name="ingame_resolution">分辨率</string>
+    <string name="ingame_auto">自动</string>
+    <string name="ingame_antialiasing">抗锯齿</string>
+    <string name="ingame_off">关</string>
+    <string name="ingame_texture_filter">纹理过滤</string>
+    <string name="ingame_picture">画面比例</string>
+    <string name="ingame_original_43">4:3（原始）</string>
+    <string name="ingame_stretched">拉伸</string>
+    <string name="ingame_other_options">其他选项</string>
+    <string name="ingame_dof">景深</string>
+    <string name="ingame_fps_display">在左下角显示 FPS</string>
+    <string name="ingame_resolution_line">分辨率：%1$d × %2$d 像素（等级 %3$d）· 屏幕 %4$d × %5$d · 关闭菜单后生效。等级越高，对性能要求越高。</string>
+    <string name="ingame_resolution_line_auto">分辨率：%1$d × %2$d 像素（等级 %3$d，自动）· 屏幕 %4$d × %5$d · 关闭菜单后生效。等级越高，对性能要求越高。</string>
+
+    <string name="ingame_controls">操作</string>
+    <string name="ingame_touch_controls">触屏操作</string>
+    <string name="ingame_touch_auto">自动</string>
+    <string name="ingame_touch_force">始终显示</string>
+    <string name="ingame_touch_suppress">隐藏</string>
+    <string name="ingame_comfort">便捷操作</string>
+    <string name="ingame_gyro">陀螺仪瞄准</string>
+    <string name="ingame_gyro_none">陀螺仪瞄准（无陀螺仪）</string>
+    <string name="ingame_touch_help">自动：未连接手柄时显示，轻触屏幕即显示，按下任意按键即隐藏。始终显示：一直显示。隐藏：连接手柄时隐藏。MENU = SELECT。锁定：轻触一次即保持按住 L、R 或 B，再次轻触松开（锁定 B 时里昂一直奔跑）。</string>
+    <string name="ingame_alternate">替代操作</string>
+    <string name="ingame_latch">锁定 L 和 R（触屏）</string>
+    <string name="ingame_latch_b">锁定 B（触屏）</string>
+    <string name="ingame_gyro_sensitivity">陀螺仪灵敏度</string>
+    <string name="ingame_alternate_help">替代操作：L1 = 小刀，L2 = 瞄准（用右摇杆瞄准），R1 = 物品栏（武器/回复），R2 = 射击 / 使用小刀，Y = 地图。A、B、X（阿什莉）和 START 保持不变。</string>
+
+    <string name="ingame_card">记忆卡（插槽 A）</string>
+    <string name="ingame_card_help">以 .gci 格式导出和导入存档（用于 Dolphin 或 GameCube）。</string>
+    <string name="ingame_card_busy">记忆卡正在使用中（游戏正在保存或读取），或者游戏仍在加载——请关闭菜单，稍后再打开。</string>
+    <string name="ingame_card_none">没有记忆卡。</string>
+    <string name="ingame_export">导出存档（.gci）</string>
+    <string name="ingame_import">导入存档（.gci）</string>
+
+    <string name="ingame_log">错误日志</string>
+    <string name="ingame_log_help">记录应用的报告（崩溃或卡死时也会记录）。报告包含本次和上一次运行的日志。</string>
+    <string name="ingame_log_record">记录错误日志</string>
+    <string name="ingame_log_capture">R3 = 图形捕获</string>
+    <string name="ingame_report_send">发送报告…</string>
+    <string name="ingame_report_save">保存报告…</string>
+
+    <string name="ingame_source">源代码</string>
+    <string name="ingame_source_line">关于此移植版的更多信息：%1$s</string>
+    <string name="ingame_no_browser">此设备上没有浏览器</string>
+
+    <string name="ingame_fps_none">-- FPS（游戏）</string>
+    <string name="ingame_fps">%1$d FPS（游戏）</string>
+
+    <string name="ingame_core_not_started">游戏核心未能启动：\n%1$s</string>
+    <string name="ingame_core_stopped">游戏核心已停止：\n%1$s</string>
+    <string name="ingame_send_report">发送报告</string>
+    <string name="ingame_quit">退出</string>
+    <string name="ingame_end_question">结束游戏？（未保存的进度将会丢失。）</string>
+    <string name="ingame_end">结束</string>
+    <string name="ingame_continue">继续</string>
+    <string name="ingame_no_debug_menu">此核心尚无调试菜单</string>
+    <string name="ingame_no_menu">此核心尚无菜单</string>
+    <string name="ingame_no_file_picker">此设备上没有文件选择器</string>
+    <string name="ingame_report_saved">报告已保存</string>
+    <string name="ingame_failed">操作失败：%1$s</string>
+    <string name="ingame_card_unreadable">目前无法读取记忆卡。</string>
+    <plurals name="ingame_exported">
+        <item quantity="other">已导出 %1$d 个文件。</item>
+    </plurals>
+    <string name="ingame_imported">已导入：%1$s</string>
+    <string name="ingame_import_no_space">记忆卡空间不足，无法导入 %1$s</string>
+    <string name="ingame_import_busy">游戏正在使用记忆卡：%1$s</string>
+    <string name="ingame_import_no_card">没有记忆卡：%1$s</string>
+    <string name="ingame_import_bad">不是本游戏的文件，或文件已损坏：%1$s（%2$s）</string>
+    <string name="ingame_import_exists">%1$s 已在记忆卡上。是否替换？</string>
+    <string name="ingame_replace">替换</string>
+    <string name="ingame_skip">跳过</string>
+    <string name="ingame_report_chooser">发送错误报告</string>
+    <string name="ingame_report_failed">无法生成报告：%1$s</string>
+    <string name="ingame_capture_saved">图形捕获已保存</string>
+</resources>

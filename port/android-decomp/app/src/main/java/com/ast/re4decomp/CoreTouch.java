@@ -18,7 +18,9 @@ import java.util.Set;
  * them, as real buttons; with the menu's "Latch L and R" (setLatch) a tap keeps
  * them pressed until the next tap: one thumb cannot hold R (ready the weapon)
  * and tap A (fire). Latching was the only way until 20.10.2026; since then a
- * switch, off unless chosen (decision of the project owner).
+ * switch, off unless chosen (decision of the project owner). "Latch B"
+ * (setLatchB, wish of the project owner, 22.10.2026) does the same for B: a
+ * tap keeps B (run) pressed, so Leon runs without a finger on B.
  *
  * The look zone reports how far a finger moved, not where it is. The C stick
  * is the way the finger went since it went down (LOOK_RANGE of the screen's
@@ -95,7 +97,7 @@ final class CoreTouch {
   interface Host {
     /** MENU went down or up: the app's SELECT. */
     void select(boolean down);
-    /** A tap latched L or R or let it go (RetroTouch shows a latched button stronger). */
+    /** A tap latched L, R or B or let it go (RetroTouch shows a latched button stronger). */
     void latched(String action, boolean on);
   }
 
@@ -103,6 +105,8 @@ final class CoreTouch {
   private final Host host;
   private boolean l, r;  // latched (only with latch)
   private boolean latch;
+  private boolean b;     // latched (only with latchB)
+  private boolean latchB;
   // the way the looking fingers went since the first of them went down (shares of the shorter side)
   private float lookX, lookY;
   private final Set<Integer> lookFingers = new HashSet<>();
@@ -153,6 +157,11 @@ final class CoreTouch {
       boolean on = L.equals(action) ? (l = !l) : (r = !r);
       input.touchButton(gcButton(action), on);
       host.latched(action, on);
+    } else if (latchB && B.equals(action)) {
+      if (!down) return;
+      b = !b;
+      input.touchButton(CoreInput.GC_B, b);
+      host.latched(B, b);
     } else {
       int bit = gcButton(action);
       if (bit != 0) input.touchButton(bit, down);
@@ -202,7 +211,9 @@ final class CoreTouch {
 
   boolean looking() { return !lookFingers.isEmpty(); }
 
-  boolean latched(String action) { return L.equals(action) ? l : R.equals(action) && r; }
+  boolean latched(String action) {
+    return L.equals(action) ? l : R.equals(action) ? r : B.equals(action) && b;
+  }
 
   /** The menu's switch: L and R latch by a tap (on) or are held while the finger is on them. */
   void setLatch(boolean on) {
@@ -213,6 +224,21 @@ final class CoreTouch {
   }
 
   boolean latch() { return latch; }
+
+  /** The menu's switch "Latch B": B latches by a tap (on) or is held while the finger is on it. */
+  void setLatchB(boolean on) {
+    if (on == latchB) return;
+    latchB = on;
+    releaseB();
+  }
+
+  boolean latchB() { return latchB; }
+
+  private void releaseB() {
+    if (b) host.latched(B, false);
+    b = false;
+    input.touchButton(CoreInput.GC_B, false);
+  }
 
   private void releaseLR() {
     if (l) host.latched(L, false);
@@ -229,15 +255,17 @@ final class CoreTouch {
     input.touchStick(true, 0, 0);
   }
 
-  /** Everything let go (pause, the controls hidden, the editor), L and R too. */
+  /** Everything let go (pause, the controls hidden, the editor), latched L, R and B too. */
   void reset() {
     lookFingers.clear();
     lookX = 0;
     lookY = 0;
     if (l) host.latched(L, false);
     if (r) host.latched(R, false);
+    if (b) host.latched(B, false);
     l = false;
     r = false;
+    b = false;
     input.touchClear();
   }
 }

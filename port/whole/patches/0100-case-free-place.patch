@@ -1,0 +1,122 @@
+# The equip mark "E" in the middle of the sub screen (tester and project owner, 22.10.2026, Retroid,
+# 0.42.1, two saves): the mark (IdSub 0x30/IDC_SSCRN_ETC) and its frame (pieceFrameDisp type 3) of
+# the equipped weapon sat in the middle of the attache case and stayed on the other pages (keys,
+# files, map). The equipped weapon (the Killer7 in one save, the Handcannon (0x37) in the other,
+# at 26 and 13 minutes of play: most likely from the debug build's case maker, which versions
+# before 0.42.0 opened unseen with R1 (patch 0093); its inventory sets and case sizes leave items
+# without a place) had no place in the case: pzlPlayer::init logged "Can't locate piece." and left
+# the piece nowhere, its model never placed (matrix at the origin), so pzzlEquipDisp put the mark
+# at the screen's middle. A placed mark leaves the screen with the case's slide-out
+# (sscrn_pzzl_out keeps it visible); this one stayed. The same items were unseen in the case.
+# - puzzle.cpp pzlPlayer::init: the pieces that do not fit at their saved place get the first free
+#   place after all others are in (re4CaseFreePlace: in the case, else on the spare board; as
+#   saved, else turned like PutInCase), with a "case: item … moved to …" line; the case screen
+#   saves the layout every frame, so the item keeps its new place. Without any free place the
+#   original error.
+# - ss_pzzl.cpp pzzlEquipDisp: an equipped weapon that has no place (neither in the case nor in
+#   the hand) gets no mark.
+--- a/src/game/puzzle.cpp
++++ b/src/game/puzzle.cpp
+@@ -814,6 +814,55 @@
+     eprintf(x, y, 0, 0, "%c", (b->cellState(x, y) & 1) ? '1' : '0');
+ }
+ 
++/* PORT (patch 0100): an item whose saved place in the case is taken or outside the case (a save
++   changed by the debug build's case maker, which versions before 0.42.0 opened unseen with R1:
++   its inventory sets and case sizes left items without a place) goes to the first free place:
++   in the case, else on the spare board; as saved, else turned like PutInCase. In the original
++   such a piece stayed nowhere: unseen, and when it was the equipped weapon the equip mark "E"
++   and its frame sat in the middle of the sub screen, on every page (tester 22.10.2026). */
++static int re4CaseFreePlace(pzlBoard* board, pzlBoard* space, pzlPiece* p)
++{
++    cItem* item = p->item;
++    const int turns[3] = {(s8) item->orient, 0, 1};
++    const f32 x = p->m_pos_x;
++    const f32 y = p->m_pos_y;
++    int k;
++    int t;
++    int row;
++    int col;
++
++    for (k = 0; k < 2; k++) {
++        pzlBoard* b = k == 0 ? board : space;
++
++        for (t = 0; t < 3; t++) {
++            if (t > 0 && turns[t] == turns[0]) {
++                continue;
++            }
++            p->orientation(turns[t]);
++            for (row = 0; row < b->size_y(); row++) {
++                for (col = 0; col < b->size_x(); col++) {
++                    p->set_ver0_x((f32) col);
++                    p->set_ver0_y((f32) row);
++                    if (b->putPiece(p)) {
++                        re4_log("case: item 0x%02x had no place at (%d %d) turn %d %s; moved to (%d %d) turn %d %s",
++                                item->id, item->x, item->y, item->orient, item->board ? "in the case" : "on the spare board",
++                                (int) (p->m_pos_x * 2.0f), (int) (p->m_pos_y * 2.0f), p->m_orientation,
++                                k == 0 ? "in the case" : "on the spare board");
++                        item->board = k == 0;
++                        return 1;
++                    }
++                }
++            }
++        }
++    }
++    p->orientation((s8) item->orient);
++    p->m_pos_x = x;
++    p->m_pos_y = y;
++    re4_log("case: item 0x%02x has no place at (%d %d) turn %d and no free place in the case or on the spare board",
++            item->id, item->x, item->y, item->orient);
++    return 0;
++}
++
+ // The switch is on an unsigned index with a `case 0` sharing the default label to get the original
+ // case tree. One `p` serves both piece loops so it gets r31 ahead of `item`. Item positions are
+ // stored halved (save() doubles them back).
+@@ -903,6 +952,10 @@
+             }
+         }
+     }
++    /* PORT (patch 0100): the pieces that do not fit at their saved place get a free place after
++       all others are in (re4CaseFreePlace); only without one the original error. */
++    u8 lost[0x100];
++    int nLost = 0;
+     for (i = 0; i < m_piece_max; i++) {
+         p = &m_piece[i];
+         // `!(bool)`: the flag test is `xori; andi.; bne` (the negated bool materialised).
+@@ -912,11 +965,17 @@
+         {
+             pzlBoard* b = p->item->board ? m_board : m_space;
+             if (b->putPiece(p) == 0) {
+-                p->item->board = 0;
+-                pLog->err(0, 0, "pzlPlayer::pzlPlayer() Can't locate piece.");
++                lost[nLost++] = (u8) i;
+             }
+         }
+     }
++    for (int k = 0; k < nLost; k++) {
++        p = &m_piece[lost[k]];
++        if (!re4CaseFreePlace(m_board, m_space, p)) {
++            p->item->board = 0;
++            pLog->err(0, 0, "pzlPlayer::pzlPlayer() Can't locate piece.");
++        }
++    }
+     m_p_active_board = m_board;
+     return 1;
+ }
+--- a/src/Sscrn/ss_pzzl.cpp
++++ b/src/Sscrn/ss_pzzl.cpp
+@@ -249,6 +249,13 @@
+         arm = 0;
+         break;
+     }
++    /* PORT (patch 0100): an equipped weapon without a place in the case (pzlPlayer::init found
++       none) has a model that was never placed: the mark and its frame sat in the middle of the
++       screen and stayed on the other pages (the case's slide-out takes a placed mark off the
++       screen). No mark for it. */
++    if (arm && !arm->isOnBoard() && !arm->isInHand()) {
++        arm = 0;
++    }
+     if (sw && arm) {
+         if (arm == pl->pieceInHand()) {
+             id[0]->be_flag &= ~8;

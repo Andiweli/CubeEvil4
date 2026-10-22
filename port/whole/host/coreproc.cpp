@@ -111,6 +111,7 @@ struct Core {
     long (*freeAt)(void);
     void (*addFrameHook)(void (*)(unsigned));
     void (*log)(const char*, ...);
+    void (*logFile)(const char*);
     int (*testEntry)(void);
 } core;
 
@@ -713,9 +714,15 @@ bool loadCore(std::string& problem)
     bind(core.frameCount, "re4_core_frame_count");
     bind(core.gameThread, "re4_core_game_thread");
     bind(core.freeAt, "re4_trace_free_at", false);
+    bind(core.logFile, "re4_log_file", false);
     if (!gMissing.empty()) {
         problem = "missing in libre4_main.so (core process): " + gMissing;
         return false;
+    }
+    // the app's error log: the core's lines into its file too (CoreBridge.setLogFile)
+    const char* logFile = getenv("RE4_LOG_FILE");
+    if (core.logFile && logFile && *logFile) {
+        core.logFile(logFile);
     }
 #if !defined(__ANDROID__)
     // the checks' entry instead of the game (tests/core_remote_probe.cpp, in libre4_host.so)

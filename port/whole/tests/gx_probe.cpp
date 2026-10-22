@@ -288,7 +288,11 @@ bool near(f32 a, f32 b)
     return a - b < 0.0001f && b - a < 0.0001f;
 }
 
-u16 sStaticPalette[16] __attribute__((aligned(32)));
+// 256 entries: a TLUT load reads the whole region of its TLUT name (GXLoadTlut writes the
+// region's loadTlut1, GX_TLUT_256 for names 0-15), not the object's entries, on the GameCube as in
+// gx_decode.cpp tlutLoad; with 16 entries the load read 480 bytes past the array (the sanitizer
+// build, 22.10.2026). Only the first 16 are set and checked.
+u16 sStaticPalette[256] __attribute__((aligned(32)));
 
 // A frame's end as the game's Render_done / Render_swap: the display copy,
 // then the VI switched to it (unless the game holds the picture, as with
