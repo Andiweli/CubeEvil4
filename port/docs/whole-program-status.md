@@ -6042,6 +6042,8 @@ noch nicht gesehen: dafür jetzt Dynamit-Zeilen im Fehlerprotokoll.**
   `em: s79 dynamite exploded at (x y z)` (Routine 2 nach der Explosion; „fell into the water“ bei
   Routine 4). Die Treffer-Zeilen, die Wurf (hp 1) und Explosion (hp 0) vorher ausgelöst hätten,
   entfallen dafür. Test `enemylog` (Laufzeittest) um Wurf und Explosion einer Waffe erweitert.
+  **Geprüft (Cloud, Stand nach dem Zusammenführen `68265621`):** `whole_build.sh i686 armhf aarch64`
+  0 Baufehler, alle Tests 0 Fehler, `enemylog: ok` auf allen drei, `enemy list tool: ok`.
 - **Offen:** auf dem Gerät „File 01 r104“ laden, in Sichtweite des erhöhten Wegs gehen
   (F7) und zur Fläche 0xE hinauf (FC/FD); wirft niemand, liegt ein Port-Fehler vor (dann
   `em10BombThrowScaCk`/`EatMgr.hitCheck` und die Sicht prüfen). Der nächste Tester-Bericht aus r104
