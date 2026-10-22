@@ -92,6 +92,12 @@ public final class CoreBridge {
    */
   public static native void gyro(float yaw, float pitch);
   /**
+   * A tap on the picture at (x, y) pixels of the surface (CoreActivity): the core uses it in the
+   * game's sub screens (runtime/menu_touch.cpp: tabs, the attache case, its command menu); cores
+   * before 22.10.2026 ignore it.
+   */
+  public static native void tap(float x, float y);
+  /**
    * The memory card's files, one tab-separated row each (index, name,
    * blocks, save, intact, room, chapter, times saved, play time, year,
    * month, day, hour, minute, comment 1, comment 2); null when the game
@@ -115,7 +121,8 @@ public final class CoreBridge {
   /**
    * The picture options: scale 0 (automatic) or 1-4 (EFB resolution
    * multiple), samples 1/2/4 (multisampling), anisotropy 1-16, aspect 0
-   * (16:9), 1 (4:3) or 2 (stretched over the whole screen); applied at the
+   * (16:9), 1 (4:3), 2 (stretched over the whole screen) or 3 (4:3 without
+   * the game's letterbox bars while playing); applied at the
    * next picture while the game runs.
    */
   public static native void setGraphics(int scale, int samples, int anisotropy, int aspect);

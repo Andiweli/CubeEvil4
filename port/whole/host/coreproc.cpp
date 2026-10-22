@@ -100,6 +100,8 @@ struct Core {
     int (*pause)(int, int);
     void (*debugMenu)(void);
     void (*setDof)(int);
+    void (*setLetterbox)(int);
+    void (*touch)(float, float);
     void (*gyro)(float, float);
     int (*cardList)(Re4CardFile*, int);
     int (*cardFree)(void);
@@ -705,6 +707,8 @@ bool loadCore(std::string& problem)
     bind(core.pause, "re4_core_pause");
     bind(core.debugMenu, "re4_core_debug_menu");
     bind(core.setDof, "re4_core_set_dof");
+    bind(core.setLetterbox, "re4_core_set_letterbox");
+    bind(core.touch, "re4_core_touch");
     bind(core.gyro, "re4_core_gyro");
     bind(core.cardList, "re4_core_card_list");
     bind(core.cardFree, "re4_core_card_free_blocks");
@@ -800,6 +804,16 @@ void serve()
         case kSetDof:
             core.setDof(h.a);
             break;
+        case kSetLetterbox:
+            core.setLetterbox(h.a);
+            break;
+        case kTouch: {
+            float u, v;
+            memcpy(&u, &h.a, 4);
+            memcpy(&v, &h.b, 4);
+            core.touch(u, v);
+            break;
+        }
         case kLogTail: {
             std::vector<char> text((size_t) (h.a > 0 && h.a < (1 << 20) ? h.a : 4096));
             core.logTail(text.data(), (int) text.size());

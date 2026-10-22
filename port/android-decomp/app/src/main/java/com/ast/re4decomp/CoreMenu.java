@@ -313,10 +313,11 @@ final class CoreMenu extends Dialog {
     choices(s(R.string.ingame_texture_filter), "anisotropy", new String[] {s(R.string.ingame_off), "2×", "4×", "8×", "16×"},
         new int[] {1, 2, 4, 8, 16}, 1, maxAnisotropy);
     // 4:3 (original), 16:9, Stretched (the whole screen); the stored values stay 1, 0 and the new 2
-    // (wish of the project owner, 22.10.2026)
+    // (wish of the project owner, 22.10.2026); 4:3 without the game's letterbox bars in play, 3
+    // (for 4:3 screens, Anbernic RG 477V report, 22.10.2026)
     choices(s(R.string.ingame_picture), "aspect",
-        new String[] {s(R.string.ingame_original_43), "16:9", s(R.string.ingame_stretched)},
-        new int[] {1, 0, 2}, 0, 0);
+        new String[] {s(R.string.ingame_original_43), s(R.string.ingame_43_no_bars), "16:9", s(R.string.ingame_stretched)},
+        new int[] {1, 3, 0, 2}, 0, 0);
     // the check boxes in the choices' columns: the first under "4:3", the second under the third
     LinearLayout other = labelledRow(s(R.string.ingame_other_options));
     checkBox(other, s(R.string.ingame_dof), graphics.getBoolean("dof", true), 2,
@@ -468,7 +469,8 @@ final class CoreMenu extends Dialog {
   private void showGraphics() {
     int chosen = graphics.getInt("scale", 0), scale = chosen;
     if (scale < 1 || scale > 4) scale = autoScale(screenWidth, screenHeight);
-    boolean original = graphics.getInt("aspect", 0) == 1;
+    int aspect = graphics.getInt("aspect", 0);
+    boolean original = aspect == 1 || aspect == 3;
     // the numbers as digits 0..9 in every language (Locale.ROOT)
     graphicsLine.setText(String.format(Locale.ROOT, s(chosen == 0 ? R.string.ingame_resolution_line_auto
         : R.string.ingame_resolution_line), 640 * scale, (original ? 448 : 336) * scale, scale, screenWidth, screenHeight));

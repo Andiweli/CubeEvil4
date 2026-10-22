@@ -1083,6 +1083,12 @@ void testPause()
     CHECK(re4_dof_enabled() == 0);
     re4_core_set_dof(1);
     CHECK(re4_dof_enabled() == 1);
+    // the picture format "4:3 without bars" (patch 0105 reads it)
+    CHECK(re4_letterbox_off() == 0);
+    re4_core_set_letterbox(1);
+    CHECK(re4_letterbox_off() == 1);
+    re4_core_set_letterbox(0);
+    CHECK(re4_letterbox_off() == 0);
     // SELECT held: the debug menu at the next frame, once
     CHECK(re4_debug_menu_request() == 0);
     re4_core_debug_menu();

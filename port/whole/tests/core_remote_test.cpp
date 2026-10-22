@@ -320,6 +320,7 @@ void mainRun(const char* modules, const char* gciPath)
     pad(0x0200);
     pad(0);
     re4ipc_set_dof(0);
+    re4ipc_set_letterbox(1);
     re4ipc_debug_menu();
     sleepMs(100);
     re4ipc_pause(0, 0);
@@ -329,6 +330,7 @@ void mainRun(const char* modules, const char* gciPath)
     CHECK(re4ipc_frame_count() > frames);
     CHECK(re4ipc_card_free_blocks() == RE4_CARD_BUSY);  // only while the game stands
     re4ipc_set_dof(1);
+    re4ipc_set_letterbox(0);
     r.run(0.5);
     // the end: START
     pad(0x1000);
@@ -344,6 +346,7 @@ void mainRun(const char* modules, const char* gciPath)
     CHECK(number(probe, "pad at ") > 0 && number(probe, "pad at ") != ~0u);
     CHECK(number(probe, "B frames ") == 1);
     CHECK(probe.find("dof changes 2 (now 1)") != std::string::npos);
+    CHECK(tail.find("remote-probe: letterbox changes 2 (now 0)") != std::string::npos);
     CHECK(number(probe, "debug menu ") == 1);
     unsigned checked, mismatches, snaps, snapMismatches;
     re4ipc::checkCounts(&checked, &mismatches, &snaps, &snapMismatches);

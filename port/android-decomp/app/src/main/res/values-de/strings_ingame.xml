@@ -13,6 +13,7 @@
     <string name="ingame_texture_filter">Texturfilter</string>
     <string name="ingame_picture">Bildformat</string>
     <string name="ingame_original_43">4:3 (Original)</string>
+    <string name="ingame_43_no_bars">4:3 (ohne Balken)</string>
     <string name="ingame_stretched">Gestreckt</string>
     <string name="ingame_other_options">Weitere Optionen</string>
     <string name="ingame_dof">Tiefenschärfe</string>

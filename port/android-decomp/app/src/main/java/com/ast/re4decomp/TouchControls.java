@@ -229,6 +229,26 @@ final class TouchControls implements CoreTouch.Host {
     }
   }
 
+  /**
+   * A point of the window on a shown control other than a look zone, or anywhere while the layout
+   * is edited: a tap there is no tap on the picture (CoreActivity.watchTap).
+   */
+  boolean onControl(float x, float y) {
+    if (!shown) return false;
+    if (editing || view.getWidth() <= 0) return true;
+    view.getLocationInWindow(where);
+    x -= where[0];
+    y -= where[1];
+    int w = view.getWidth(), h = view.getHeight();
+    for (RetroTouchControl c : view.getCurrentLayout().getControls()) {
+      if (c.getType() == RetroTouchControl.Type.LOOK_ZONE) continue;
+      float halfW = c.getWidth() * w * 0.5f, halfH = c.getHeight() * h * 0.5f;
+      float cx = c.getX() * w, cy = c.getY() * h;
+      if (x >= cx - halfW && x <= cx + halfW && y >= cy - halfH && y <= cy + halfH) return true;
+    }
+    return false;
+  }
+
   /** A point of the window inside a look zone of the current layout (as RetroTouch tests it). */
   private boolean inLookZone(float x, float y) {
     if (editing || view.getWidth() <= 0) return false;

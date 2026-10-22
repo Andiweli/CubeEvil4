@@ -61,6 +61,8 @@ enum MsgType : uint32_t {
     kCardImport = 20,  // a = replace, c = note size; payload: .gci -> a = result; text: note
     kHang = 21,        // a = seconds: where the game thread is, into the crash file (no reply)
     kCrashFile = 22,   // fd: the crash file (no reply)
+    kSetLetterbox = 23,  // a = off (no reply)
+    kTouch = 24,         // a, b = the tap's u, v as float bits (no reply)
 };
 
 struct MsgHeader {

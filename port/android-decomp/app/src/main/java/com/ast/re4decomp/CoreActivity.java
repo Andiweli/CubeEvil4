@@ -35,6 +35,7 @@ import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.TextView;
@@ -93,7 +94,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   static final String TOUCH_LATCH_B = "touchLatchB";
   // the menu's slider of gyro aiming (GyroAim.setSensitivity, a float, 1 = as before)
   static final String GYRO_SENSITIVITY = "gyroSensitivity";
-  /** The menu's picture options: scale (0 auto, 1-4), samples, anisotropy, aspect (0 16:9, 1 4:3, 2 stretched). */
+  /** The menu's picture options: scale (0 auto, 1-4), samples, anisotropy, aspect (0 16:9, 1 4:3, 2 stretched, 3 4:3 without bars). */
   static final String GRAPHICS_PREFS = "core_graphics";
   private static final int REQUEST_EXPORT_ALL = 2, REQUEST_IMPORT = 3, REQUEST_REPORT = 4;
   /** SELECT held this long: the game's debug menu. */
@@ -851,11 +852,56 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
    */
   @Override
   public boolean dispatchTouchEvent(MotionEvent e) {
+    watchTap(e);
     if (touchControls == null) return super.dispatchTouchEvent(e);
     touchControls.before(e);
     boolean taken = super.dispatchTouchEvent(e);
     touchControls.after(e);
     return taken;
+  }
+
+  // A tap on the picture beside the touch controls (one finger, short, hardly moved; wish of the
+  // project owner, 22.10.2026: the inventory by touch) goes to the core, which uses it while a sub
+  // screen of the game is open (runtime/menu_touch.cpp) and ignores it elsewhere.
+  private static final long TAP_MS = 500;
+  private int tapFinger = -1;
+  private float tapX, tapY;
+  private long tapTime;
+  private final int[] surfaceAt = new int[2];
+
+  private void watchTap(MotionEvent e) {
+    int i = e.getActionIndex();
+    switch (e.getActionMasked()) {
+      case MotionEvent.ACTION_DOWN:
+        boolean control = touchControls != null && touchControls.onControl(e.getX(), e.getY());
+        tapFinger = control ? -1 : e.getPointerId(0);
+        tapX = e.getX();
+        tapY = e.getY();
+        tapTime = e.getEventTime();
+        break;
+      case MotionEvent.ACTION_POINTER_DOWN:
+        tapFinger = -1;  // a second finger: no tap
+        break;
+      case MotionEvent.ACTION_MOVE: {
+        int k = tapFinger >= 0 ? e.findPointerIndex(tapFinger) : -1;
+        float slop = 2 * ViewConfiguration.get(this).getScaledTouchSlop();
+        if (k >= 0 && Math.hypot(e.getX(k) - tapX, e.getY(k) - tapY) > slop) tapFinger = -1;
+        break;
+      }
+      case MotionEvent.ACTION_UP:
+        if (tapFinger >= 0 && tapFinger == e.getPointerId(i) && e.getEventTime() - tapTime <= TAP_MS
+            && surface != null) {
+          surface.getLocationInWindow(surfaceAt);
+          CoreBridge.tap(e.getX(i) - surfaceAt[0], e.getY(i) - surfaceAt[1]);
+        }
+        tapFinger = -1;
+        break;
+      case MotionEvent.ACTION_CANCEL:
+        tapFinger = -1;
+        break;
+      default:
+        break;
+    }
   }
 
   @Override public void onInputDeviceAdded(int id) { touchControls.update(); }

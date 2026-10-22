@@ -629,6 +629,25 @@ int re4_dof_enabled(void)
     return gDofOn;
 }
 
+// The app's picture format "4:3 without bars" (Anbernic RG 477V report,
+// 22.10.2026: a 4:3 screen showed the game's letterbox): patch 0105
+// (src/game/main.cpp) asks every frame; the bars stay in events, sub screens
+// and wherever the game draws only between them (SYS_SCISSOR_ON).
+volatile int gLetterboxOff = 0;
+
+void re4_core_set_letterbox(int off)
+{
+    if (gLetterboxOff != (off != 0)) {
+        re4_log("core: letterbox bars %s while playing", off ? "off" : "on");
+    }
+    gLetterboxOff = off != 0;
+}
+
+int re4_letterbox_off(void)
+{
+    return gLetterboxOff;
+}
+
 // patch 0061 (src/game/game.cpp gameDebug), every game frame
 int re4_debug_menu_request(void)
 {

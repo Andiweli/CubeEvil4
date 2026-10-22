@@ -84,6 +84,8 @@ struct CoreApi {
   void (*debugMenu)(void){};
   void (*setDof)(int){};
   void (*gyro)(float, float){};  // optional (cores since 19.10.2026): gyro aiming
+  void (*setLetterbox)(int){};  // optional (cores since 22.10.2026): 4:3 without the bars
+  void (*touch)(float, float){};  // optional (cores since 22.10.2026): a tap on the picture
   int (*cardList)(Re4CardFile *, int){};
   int (*cardFree)(void){};
   int (*cardName)(int, char *, int){};
@@ -405,6 +407,8 @@ void loadCore(JNIEnv *env) {
   api.debugMenu = reinterpret_cast<void (*)(void)>(dlsym(api.main, "re4_core_debug_menu"));
   api.setDof = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_set_dof"));
   api.gyro = reinterpret_cast<void (*)(float, float)>(dlsym(api.main, "re4_core_gyro"));
+  api.setLetterbox = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_set_letterbox"));
+  api.touch = reinterpret_cast<void (*)(float, float)>(dlsym(api.main, "re4_core_touch"));
   api.cardList = reinterpret_cast<int (*)(Re4CardFile *, int)>(dlsym(api.main, "re4_core_card_list"));
   api.cardFree = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_card_free_blocks"));
   api.cardName = reinterpret_cast<int (*)(int, char *, int)>(dlsym(api.main, "re4_core_card_file_name"));
@@ -469,6 +473,20 @@ int gxMode = -1;  // -1 undecided, 0 bridge, 1 GX
 // the renderer anew at the next picture while the game runs (the core then
 // starts over with the full state); 0 scale: automatic
 std::atomic<int> optScale{0}, optSamples{1}, optAnisotropy{1}, optAspect{-1};
+int letterboxSent = -1;  // what the core was told last (drawGx; -1: nothing yet)
+// Where drawGx showed the last picture, for taps (CoreBridge.tap): left and top on the surface (y
+// down), size in pixels, and the part of the XFB's rows it shows (first and count, 0..1).
+std::atomic<int> picX{0}, picY{0}, picW{0}, picH{0};
+std::atomic<float> picTop{0.f}, picRows{1.f};
+
+void notePicture(int x, int y, int w, int h, float top, float rows) {
+  picX = x;
+  picY = y;
+  picW = w;
+  picH = h;
+  picTop = top;
+  picRows = rows;
+}
 // GPU step b (GxOptions::invalidate): off (it saved nothing on the Retroid) unless
 // RE4_GX_INVALIDATE=1; GPU step d2 (GxOptions::tiledMsaa, MSAA on the tiles with the EFB drawn
 // back after every pass): off (the Retroid lost Leon's hair and textures with it; decision of the
@@ -1206,10 +1224,16 @@ bool drawGx() {
   glDisable(GL_SCISSOR_TEST);
   glClearColor(0, 0, 0, 1);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  // the menu's picture format (1: 4:3, 0: 16:9, 2: stretched), else RE4_GX_ASPECT
+  // the menu's picture format (1: 4:3, 0: 16:9, 2: stretched, 3: 4:3 without the game's
+  // letterbox bars while playing, Anbernic RG 477V report 22.10.2026), else RE4_GX_ASPECT
   const char *aspect = getenv("RE4_GX_ASPECT");
   const int format = optAspect.load();
-  if (format == 1 || (format < 0 && aspect && std::string(aspect) == "4:3")) {
+  const int noBars = format == 3 ? 1 : 0;
+  if (api.setLetterbox && noBars != letterboxSent) {
+    api.setLetterbox(noBars);
+    letterboxSent = noBars;
+  }
+  if (format == 1 || format == 3 || (format < 0 && aspect && std::string(aspect) == "4:3")) {
     // the whole picture: 640 wide in a 4:3 frame of 480 lines (the XFB holds xh of them)
     int boxW = width, boxH = width * 3 / 4;
     if (boxH > height) {
@@ -1218,6 +1242,7 @@ bool drawGx() {
     }
     const int picH = boxH * static_cast<int>(xh) / 480;
     gx->Present((width - boxW) / 2, (height - picH) / 2, boxW, picH);
+    notePicture((width - boxW) / 2, (height - picH) / 2, boxW, picH, 0.f, 1.f);
   } else {
     // full screen: the game letterboxes everything (rows 56..391 of its 448,
     // on a 4:3 television exactly 16:9); those rows fill a 16:9 box, or with
@@ -1231,6 +1256,8 @@ bool drawGx() {
       boxW = height * 16 / 9;
     }
     gx->Present((width - boxW) / 2, (height - boxH) / 2, boxW, boxH, top, rows);
+    notePicture((width - boxW) / 2, (height - boxH) / 2, boxW, boxH, xh ? float(top) / float(xh) : 0.f,
+                xh ? float(rows) / float(xh) : 1.f);
   }
   return true;
 }
@@ -1392,6 +1419,8 @@ void useCoreProcess(const std::string &why) {
   api.debugMenu = re4ipc_debug_menu;
   api.setDof = re4ipc_set_dof;
   api.gyro = re4ipc_gyro;
+  api.setLetterbox = re4ipc_set_letterbox;
+  api.touch = re4ipc_touch;
   api.cardList = re4ipc_card_list;
   api.cardFree = re4ipc_card_free_blocks;
   api.cardName = re4ipc_card_file_name;
@@ -1512,6 +1541,17 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_pad(
   api.pad(&pad);
 }
 
+// A tap at (x, y) pixels of the surface (CoreActivity.watchTap): as a place in the game's picture
+// (0..1 across its width and down its 448 rows) to the core, which uses it in the sub screens.
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_tap(JNIEnv *, jclass, jfloat x, jfloat y) {
+  const int w = picW.load(), h = picH.load();
+  if (!api.touch || w <= 0 || h <= 0) return;
+  const float u = (x - static_cast<float>(picX.load())) / static_cast<float>(w);
+  const float inBox = (y - static_cast<float>(picY.load())) / static_cast<float>(h);
+  if (u < 0.f || u > 1.f || inBox < 0.f || inBox > 1.f) return;
+  api.touch(u, picTop.load() + inBox * picRows.load());
+}
+
 // The game's rumble motor (re4_core_rumble) for the vibrator (CoreActivity).
 extern "C" JNIEXPORT jint JNICALL Java_com_ast_re4decomp_CoreBridge_rumble(JNIEnv *, jclass) {
   return api.rumble ? static_cast<jint>(api.rumble()) : 0;
@@ -1627,6 +1667,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_gxDump(JNIEn
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_surfaceCreated(JNIEnv *, jclass) {
   if (auto *s = currentScene()) s->contextCreated();
   lastDraw = {};
+  letterboxSent = -1;
   // a new GL context: the renderer's objects are gone; the core starts over
   // (full state, every texture again) once chunks are taken again
   gx.reset();
@@ -1769,7 +1810,8 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_ast_re4decomp_CoreBridge_cardNote(
 }
 
 // The picture options: scale 0 (automatic) or 1-4, samples 1/2/4, anisotropy
-// 1-16, aspect 0 (16:9), 1 (4:3) or 2 (stretched). Applied at the next picture while the game runs.
+// 1-16, aspect 0 (16:9), 1 (4:3), 2 (stretched) or 3 (4:3 without the bars while playing).
+// Applied at the next picture while the game runs.
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setGraphics(JNIEnv *, jclass, jint scale,
                                                                                jint samples, jint anisotropy,
                                                                                jint aspect) {
@@ -1780,7 +1822,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setGraphics(
   optAspect = aspect;
   if (rebuild) optSerial++;
   LOG("picture options: scale %d, %d samples, anisotropy %d, %s", scale, samples, anisotropy,
-      aspect == 1 ? "4:3" : aspect == 2 ? "stretched" : "16:9");
+      aspect == 1 ? "4:3" : aspect == 2 ? "stretched" : aspect == 3 ? "4:3 without the bars" : "16:9");
 }
 
 // {most samples, strongest anisotropy, scale, samples, anisotropy in use}; null before the renderer started.

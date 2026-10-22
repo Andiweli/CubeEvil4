@@ -1,0 +1,34 @@
+# 4:3 screens (Anbernic RG 477V report, 0.42.1, 22.10.2026): the game paints two black bars over
+# rows 0..56 and 393..449 of its 512 x 448 picture at the end of every frame (cinesco.cpp
+# Draw_cinesco; only the debug switch DBG_CINESCO_OFF leaves them out), so a 4:3 screen showed the
+# letterbox, as a 4:3 television did. While the player plays, the game draws the whole height
+# below them (4:3 projection, camera.cpp; no scissor unless SYS_SCISSOR_ON: events,
+# SceEventStart, and rooms r10b / r11b). The app's picture format "4:3 without bars"
+# (re4_core_set_letterbox, runtime/core_api.cpp) leaves the bars out then: main loop (Rno0 3), no
+# sub screen, no event, no scissor. Everywhere else, and with every other picture format, they
+# stay as in the original.
+--- a/src/game/main.cpp
++++ b/src/game/main.cpp
+@@ -111,6 +111,7 @@
+ 
+ static void systemScreenInit();
+ extern "C" void re4_wait_interrupt();  /* port: runtime/vi.cpp */
++extern "C" int re4_letterbox_off(void);  /* port: runtime/core_api.cpp (patch 0105) */
+ 
+ // Program entry: systemStartInit, then on every soft reset restores the reset-keep block (pRK),
+ // starts the title task and runs the frame loop until systemResetCheck sees the next soft reset.
+@@ -184,7 +185,13 @@
+             cMes.Move();
+             cMes.Trans();
+             CinescoMove();
+-            if (!DbgFlagChk(pG, DBG_CINESCO_OFF)) {
++            /* PORT (patch 0105): the app's picture format "4:3 without bars" leaves the
++               letterbox out while the player plays (main loop, no sub screen, no event);
++               rooms and events that draw only between the bars (SYS_SCISSOR_ON) keep them
++               (Anbernic RG 477V report, 22.10.2026: a 4:3 screen) */
++            if (!DbgFlagChk(pG, DBG_CINESCO_OFF) &&
++                !(re4_letterbox_off() && pG->Rno0 == 3 && !StaFlagChk(pG, STA_SUB_SCRN) &&
++                  !StaFlagChk(pG, STA_EVENT) && !SysFlagChk(pG, SYS_SCISSOR_ON))) {
+                 Draw_cinesco();
+             }
+             FadeControl(1);

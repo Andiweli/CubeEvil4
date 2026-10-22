@@ -252,6 +252,17 @@ void re4_core_debug_menu(void);
  * the GX stream). re4_dof_enabled is what the patched game code reads. */
 void re4_core_set_dof(int on);
 int re4_dof_enabled(void);
+/* The picture format "4:3 without bars" (cores since 22.10.2026): off = 1
+ * leaves out the game's letterbox bars (cinesco.cpp Draw_cinesco, patch 0105)
+ * while the player plays: not in events, sub screens or rooms that draw only
+ * between the bars. re4_letterbox_off is what the patched game code reads. */
+void re4_core_set_letterbox(int off);
+int re4_letterbox_off(void);
+/* A tap on the picture (cores since 22.10.2026; runtime/menu_touch.cpp): u
+ * across the game's 512 x 448 picture, v down it, both 0..1. Used at the next
+ * game frame while a sub screen is open (tabs, the attache case and its
+ * command menu), ignored elsewhere. Any thread. */
+void re4_core_touch(float u, float v);
 /* Game frames so far (one per PADRead) and the game's host thread id: the
  * app notices a game that stands without a pause and samples where it is. */
 unsigned re4_core_frame_count(void);

@@ -22,6 +22,7 @@
     <string name="ingame_texture_filter">Texture filter</string>
     <string name="ingame_picture">Picture</string>
     <string name="ingame_original_43">4:3 (original)</string>
+    <string name="ingame_43_no_bars">4:3 (no bars)</string>
     <string name="ingame_stretched">Stretched</string>
     <string name="ingame_other_options">Other options</string>
     <string name="ingame_dof">Depth of field</string>

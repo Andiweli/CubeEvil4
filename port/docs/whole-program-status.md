@@ -5862,6 +5862,59 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   Kernprozess-Tests 0 Fehler (`enemylog: ok` auf allen drei); strenge Shader-Prüfung 0 abgelehnt.
   **Nicht getestet:** APK nicht gebaut, nichts auf dem Gerät.
 
+### Bildformat „4:3 ohne Balken“ (nach dem Anbernic-Bericht, 22.10.2026, Cloud)
+
+- **Neu im App-Menü:** Bildformat jetzt „4:3 (Original)“, **„4:3 (ohne Balken)“**, „16:9“, „Gestreckt“
+  (gespeicherter Wert 3, `ingame_43_no_bars` in allen zehn Sprachen). Gezeigt wird wie bei 4:3 das
+  ganze Bild (448 Zeilen in einem 4:3-Rahmen von 480, auf 1280×960 also oben und unten je 32 Pixel
+  frei wie bisher); dazu sagt die App dem Kern im Zeichen-Thread, wenn sich das Format ändert,
+  `re4_core_set_letterbox(1)` (im getrennten Kernprozess über `kSetLetterbox`).
+- **Kern:** Patch 0105 (`main.cpp`): `Draw_cinesco` fällt weg, solange der Schalter an ist und der
+  Spieler spielt (Hauptschleife `Rno0` 3, kein Untermenü, kein Ereignis, kein `SYS_SCISSOR_ON`).
+  In Ereignissen schneidet das Spiel das Bild auf die Zeilen zwischen den Balken zu
+  (`SceEventStart` setzt `SYS_SCISSOR_ON`, `Render` die Schere 0,56..), außerhalb wäre dort nichts
+  gezeichnet; darum bleiben die Balken dort, im Untermenü (Koffer, Karte, Händler) und in r10b/r11b
+  wie im Original. Beim Wechsel zwischen Spiel und Ereignis erscheinen/verschwinden die Balken ohne
+  Überblendung. Die Anzeigen (Lebensleiste, Munition) bleiben, wo das Spiel sie hinsetzt (im Band).
+- **Risiken (erst am Gerät zu sehen):** Dinge, die das Spiel nur zwischen den Balken erwartet:
+  Effekte, die per Schere auf das Band beschränkt sind (`filter09` Pause-Filter, `filter0b`
+  Überblendung der Untermenüs; beide nur beim Öffnen/Schließen von Menüs), Modelle, die oben oder
+  unten zu früh verschwinden (Sichtprüfung des Spiels), Kanten von Räumen.
+- **Tests:** Kern-Test `pause` prüft `re4_letterbox_off` (aus, an, aus); Kernprozess-Test:
+  `re4ipc_set_letterbox(1)` dann `(0)` kommt im Kernprozess an (`remote-probe: letterbox changes 2
+  (now 0)`). Alle Java-Quellen der App übersetzt gegen `android-all` 15 und RetroTouch (0 Fehler),
+  `core_mode.cpp` für den Host und armv7a ohne Fehler (aarch64 scheitert an der fehlenden
+  Ersatzdatei `android/dlext.h`, schon vorher), Übersetzungsprüfung alle ok.
+
+### 60 Bilder/s mit Zwischenbildern, ohne die Engine umzubauen (Frage des Projektinhabers, 22.10.2026, nur Analyse)
+
+- **Ausgangslage:** das Spiel rechnet 30 Bilder/s, alles in Bildern gezählt (Abschnitt „Touch-Steuerung
+  und 60 FPS“, 19.10.2026: `SetSystemVcnt(1)` ließe es doppelt so schnell laufen). Die App zeigt schon
+  jetzt 60 Bilder/s am Bildschirm, aber jedes Spielbild zweimal.
+- **Weg 1, Zwischenbild im GX-Renderer (empfohlen, wenn überhaupt):** jedes Spielbild kommt als Chunk
+  mit fertig aufgelösten Ecken, Indizes und den Matrizen (XF-Schreibzugriffe, `re4_gx_frame.h`). Liegen
+  Bild N und N+1 vor, kann der Renderer Bild N+1 ein zweites Mal abspielen, dabei jede Zeichnung, die es
+  in N genauso gab (gleiche Art, Textur, Zahl der Ecken, Matrix-Platz), mit den halbierten Matrizen und
+  Eckpunkten (die Figuren rechnet das Spiel auf der CPU, `CalcSk1`) zwischen N und N+1 zeichnen; neue
+  Zeichnungen (Partikel, Mündungsfeuer) erscheinen wie in N+1, 2D-Anzeigen ändern sich nicht. Kopien des
+  Bildes (Tiefenschärfe, Hitzeflimmern, Unschärfe) laufen beim Abspielen von selbst mit. Schnitte
+  (Kamera springt, Raumwechsel, Untermenü) erkennen und dort kein Zwischenbild. Kosten: doppelte
+  GPU-Arbeit (Retroid bei 3× um 20 ms je Bild: zu viel, bei 2× machbar), doppelte Arbeit des
+  Zeichen-Threads (Anbernic 6–7 ms: genug Luft), **+17 ms Verzögerung** (das Zwischenbild braucht das
+  nächste Spielbild). Risiken: falsch zugeordnete Zeichnungen „schwimmen“, Texturverschiebungen und
+  Effekte mit Zufallswerten flackern. Kein Eingriff in `src/`.
+- **Weg 2, Bewegungsschätzung aus zwei fertigen Bildern** (wie Fernseher oder „Frame Generation“):
+  braucht keinerlei Wissen über das Spiel, kostet auf Handy-GPUs aber viel und zeigt Fehler an Kanten
+  und an den Anzeigen; ebenfalls +17 ms.
+- **Weg 3, nur die Kamera mit 60 Bildern/s nachführen** (Umprojektion): Leon und die Gegner blieben bei
+  30 Bildern/s, bei RE4 folgt die Kamera Leon, er würde gegenüber dem Bild ruckeln. Nicht sinnvoll.
+- **Vorschlag:** Weg 1 als Schalter „Flüssige Bewegung (60 FPS, experimentell)“, in Schritten:
+  (1) in der Cloud im Werkzeug `gx_chunk_render` mit einer Folge aufeinanderfolgender GX-Aufzeichnungen
+  vom PC (`RE4_GX_DUMP`, mehrere Bilder hintereinander): Zwischenbilder als PNG, Zuordnung und
+  Schnitterkennung prüfen; (2) im Renderer der App hinter dem Schalter, Gerätetest auf dem Retroid und
+  einem schwächeren Handy. Aufwand etwa zwei bis drei Sitzungen. **Entscheidung des Projektinhabers
+  offen** (am 19.10.2026: „vorerst nicht“).
+
 ### Meldung eines Testers (22.10.2026): Dynamit-Ganados fehlen in Kapitel 1-2 vor der Fischfarm
 
 Frage des Testers: „Did you know about the absence of the Ganados carrying explosives—the ones
@@ -6655,6 +6708,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0102 `include/ctrl.h` | `cCtrl` (die kleinen Raum-Helfer von `ctrl.cpp`, 0x214 Byte) hat seinen Arbeitsbereich `work` bei 0x13, jede Art (`CTRL11_WK`, `CTRL12_FREE`, `CTRL14_FREE`, `LightCtrlWork`, `ctrl01`) liegt also an einer ungeraden Adresse. Die GameCube nimmt das mit `lwz`/`stw`; clang fasst auf armv7 zwei Zugriffe zu `strd`/`ldrd` zusammen (oder nimmt `ldm`/`stm`, `vldr`/`vstr`), die eine durch 4 teilbare Adresse brauchen: `GetCtrlDragon` (r222, der Burgsaal mit den Drachenköpfen) schrieb mit `strd` nach c+0x1F, SIGBUS im armhf-Rundgang (22.10.2026). Ein 64-bit-Kernel korrigiert das für 32-bit-Apps erst ab Linux 6.1, der 32-bit-Kern auf den Geräten stürzt also genauso ab. Der Port legt `work` ein Byte später (Füllbereich 7 statt 6 Byte, Objekt weiter 0x214); keine Disc-Datei und kein Spielstand enthält ein `cCtrl` |
 | 0103 `mpv_bdec.c`, `mpv_lib.c` | `UTY_MemcpyDword` (CRI) kopiert wortweise, beim Start des MPEG-Dekoders auch vier Byte-Tabellen (`mpvbdec_bitmsk`, `mpvbdec_zigzag`, `mpvbdec_dfl_iqm`, `mpv_clip_0_255_tbl`); ab 16 Wörtern nimmt der armv7-Build `ldm`/`stm`. Auf der GameCube liegen die Tabellen auf Wortgrenzen, im Port nur zufällig (die Ausrichtungs-Suche fand `mpvbdec_bitmsk` 2 Byte daneben): sonst würde jeder Filmstart auf dem 32-bit-Kern mit SIGBUS enden. Der Port richtet alle vier auf 4 Byte aus |
 | 0104 `snd.cpp` | `SndRoomBgmLoad` wartete beim Raumstart nur auf das Ausblenden des Musik-Platzes, den es lädt; die neuen Musik-Bänke liegen aber über denen beider Plätze des alten Raums. Nach Saddlers Ereignis blendete BGM 1 noch aus, als der Aufzug r331 erreichte: sein Sequenzer las die neue Bank (`SND SEQ data error : 07 63 00`, OSPanic, SCV40-Tester, 0.43.0). Der Port lädt Räume viel schneller als die Disc. Jetzt wartet es, bis kein Platz mehr ausblendet (nach 0059) |
+| 0105 `main.cpp` | Bildformat „4:3 ohne Balken“ (Anbernic RG 477V, 4:3-Bildschirm): `Draw_cinesco` malt die schwarzen Balken nicht, solange `re4_letterbox_off()` (App-Menü, `re4_core_set_letterbox`) gilt und der Spieler spielt (`Rno0` 3, kein Untermenü, kein Ereignis, kein `SYS_SCISSOR_ON`); sonst wie im Original |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

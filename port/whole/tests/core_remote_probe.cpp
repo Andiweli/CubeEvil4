@@ -42,6 +42,7 @@ extern "C" {
 unsigned PADRead(PadStatus* status);
 void PADControlMotor(long chan, unsigned cmd);
 int re4_dof_enabled(void);
+int re4_letterbox_off(void);
 int re4_debug_menu_request(void);
 void re4probe_gx_produce(void* fifo, void* xfb, int frames, int init);
 void AIInit(unsigned char* stack);
@@ -77,8 +78,8 @@ extern "C" __attribute__((visibility("default"))) int re4_coreproc_test_entry(vo
     double soundFrom = seconds();
     void* fifo = (void*) (unsigned long) 0x82800000u;
     void* xfb = (void*) (unsigned long) 0x82830000u;
-    unsigned frames = 0, padAt = 0, bFrames = 0, buttons = 0, dofChanges = 0, debugMenu = 0;
-    int dof = re4_dof_enabled();
+    unsigned frames = 0, padAt = 0, bFrames = 0, buttons = 0, dofChanges = 0, debugMenu = 0, letterboxChanges = 0;
+    int dof = re4_dof_enabled(), letterbox = re4_letterbox_off();
     for (; frames < 60000; frames++) {
         PadStatus pads[4];
         PADRead(pads);
@@ -106,6 +107,11 @@ extern "C" __attribute__((visibility("default"))) int re4_coreproc_test_entry(vo
             dofChanges++;
             dof = d;
         }
+        const int l = re4_letterbox_off();
+        if (l != letterbox) {
+            letterboxChanges++;
+            letterbox = l;
+        }
         if (re4_debug_menu_request()) {
             debugMenu++;
         }
@@ -115,6 +121,7 @@ extern "C" __attribute__((visibility("default"))) int re4_coreproc_test_entry(vo
         }
         usleep(3000);
     }
+    re4_log("remote-probe: letterbox changes %u (now %d)", letterboxChanges, letterbox);
     re4_log("remote-probe: frames %u, pad at %u, B frames %u, buttons 0x%04x, dof changes %u (now %d), debug menu %u, "
             "AI blocks %u",
             frames, padAt, bFrames, buttons, dofChanges, dof, debugMenu, blocks);
