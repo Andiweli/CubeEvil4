@@ -121,7 +121,10 @@ for t in "${targets[@]}"; do
             echo "  (qemu-aarch64 missing: aarch64 not executed)"
             continue
         fi
-        run=(env QEMU_LD_PREFIX=/usr/aarch64-linux-gnu qemu-aarch64)
+        # a guest space of 4 GB, as in the room tour (whole_r100_check.sh set_runner): qemu's own
+        # mappings leave holes above 4 GB that re4_host cannot reserve; with the UBSan runtime
+        # the yz2 test got such memory (WSL, 22.10.2026)
+        run=(env QEMU_LD_PREFIX=/usr/aarch64-linux-gnu QEMU_RESERVED_VA=0x100000000 qemu-aarch64)
     fi
     # the core test keeps the card of its memory card checks (RE4_CARD_TEST_FILE),
     # which port/tools/memcard_list.py then reads back
