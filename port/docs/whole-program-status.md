@@ -37,8 +37,9 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 0.42.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 66, vorbereitet auf Wunsch des Projektinhabers, Veröffentlichung durch ihn): Patches 0091–0093 (Fehlersuche Teil 1), 0094 (Aufrüsten beim Händler), 0095 (Biss des Regenerators am Boden, Fehler des Prototyps), keine GPU-Zeitmessung auf Mali (Absturz im Treiber, moto g72); Releasetext `port/android-decomp/docs/releases/v0.42.0-alpha.md`. Cloud ✅, **Gerätetest offen** |
 | 0.42.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 67, Wunsch des Projektinhabers: der A30s-Tester soll mit der neuen Messung noch einmal testen): Rechenzeit und Kern-Art von Kern- und Zeichen-Thread im Protokoll (`re4_cpu_info.h`, „Bericht Galaxy A30s“); dazu aus dem Raum-Rundgang (Fehlersuche Teil 2, gemischt in `889b40fb`) die Patches 0096 und 0097, `__rlwimi`/`__rlwinm` mit 5-Bit-Feldern und die leeren EVS/ITM-Tabellen; nach dem SCV40-Bericht 16:21 Patch 0098 (Bulldozer) und keine Formen mehr in der Zustandsbrücke (Absturz beim Laden); Releasetext `port/android-decomp/docs/releases/v0.42.1-alpha.md`. Cloud ✅ (gemischter Stand `4b97350d`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler), **Gerätetest offen** |
 | 0.43.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 68, Wunsch des Projektinhabers: alle Korrekturen aus diesem und dem zweiten Chat, Veröffentlichung durch ihn): Patches 0099 (Laser-Gang r318 auf 64 bit), 0100 (Gegenstände ohne Platz im Koffer, „E“-Marke in der Mitte), 0101 (Absturz am Aufzug r332), 0102 (`cCtrl::work` ausgerichtet: ARM32-Absturz in r222), 0103 (CRI-Tabellen ausgerichtet: Filmstart auf ARM32); App-Menü: Bildformat „Gestreckt“, mehr Zeilenabstand, „B einrasten (Touch)“, Gyro-Empfindlichkeit; GPU-Selbstprüfung der Filmfarben beim Start, die Zeilen der App auch im Protokoll des Kerns; Releasetext `port/android-decomp/docs/releases/v0.43.0-alpha.md`. Kern geprüft (lokal, WSL2, Stand mit 0100–0103): Builds i686, armhf, aarch64 mit allen Prüfungen 0 Fehler, Rundgang i686 126/126, armhf r222 und `set` 28/28. Cloud ✅ (Stand `844bdd25`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, GPU-Prüfung ok). Releasetext nachgeschärft (Waffen aus dem Debug-Menü, Reihenfolge des Bildformats). APK nicht gebaut, **Gerätetest offen** |
-| 0.43.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Wunsch des Projektinhabers): Patch 0104 (Absturz im Ton am Aufzug r332 → r331 nach Saddlers Ereignis), Shader der Brücke auf Mali (Uniform `refract` hieß wie die eingebaute GLSL-Funktion, Anbernic RG 477V), Gegner-Zeile beim Erscheinen mit Listeneintrag, `set` und `flag` (Dynamit-Frage); neues Werkzeug `tools/check_shaders_strict.sh` (alle Shader der Host-Prüfungen durch glslangValidator); Releasetext `port/android-decomp/docs/releases/v0.43.1-alpha.md`. Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; strenge Shader-Prüfung 165 Shader, 0 abgelehnt). APK nicht gebaut, **Gerätetest offen** |
+| 0.43.1-alpha | **nicht veröffentlicht, in 0.44.0 aufgegangen** (Entscheidung des Projektinhabers). 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Wunsch des Projektinhabers): Patch 0104 (Absturz im Ton am Aufzug r332 → r331 nach Saddlers Ereignis), Shader der Brücke auf Mali (Uniform `refract` hieß wie die eingebaute GLSL-Funktion, Anbernic RG 477V), Gegner-Zeile beim Erscheinen mit Listeneintrag, `set` und `flag` (Dynamit-Frage); neues Werkzeug `tools/check_shaders_strict.sh` (alle Shader der Host-Prüfungen durch glslangValidator); Releasetext `port/android-decomp/docs/releases/v0.43.1-alpha.md`. Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; strenge Shader-Prüfung 165 Shader, 0 abgelehnt). APK nicht gebaut, **Gerätetest offen** |
 | Nach 0.43.1 (für 0.44.0) | 22.10.2026 (Branch `claude/re4-start-controls`, nach dem Stand `942a5c3`; **0.43.1 wird nicht veröffentlicht**, Entscheidung des Projektinhabers: alles zusammen mit 60 FPS als 0.44.0): Bildformat **„4:3 (ohne Balken)“** (Patch 0105, Anbernic RG 477V mit 4:3-Bildschirm), **Touch im Koffer** (Patch 0106, `runtime/menu_touch.cpp`: Reiter, Koffer-Cursor, Befehlsmenü, Ja/Nein-Frage per Fingertipp), Analyse 60 Bilder/s mit Zwischenbildern, Dynamit-Zeilen im Fehlerprotokoll (geworfen/explodiert aus dem zweiten Chat; Werfer am Posten, Zündschnur). Cloud ✅ (siehe die Abschnitte), **Gerätetest offen** |
+| 0.44.0-alpha (vorbereitet) | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Releasetext `port/android-decomp/docs/releases/v0.44.0-alpha.md`; **0.43.1 entfällt**, Entscheidung des Projektinhabers): alles aus 0.43.1 (Patch 0104, Mali-Shader, Gegner- und Dynamit-Zeilen) plus **60 FPS (experimentell)** (Zwischenbilder im GX-Renderer), **„4:3 (ohne Balken)“** (Patch 0105, zweite Fassung mit Schere), **Touch im Koffer** (Patch 0106: Reiter auch auf der Karte, Wischen, Koffer, Befehlsmenü, Frage). Cloud ✅ (siehe die Abschnitte), Retroid: Koffer-Tipps ✅, Reiter/4:3 erste Fassung ❌ (behoben, ungetestet), **60 FPS und die Korrekturen ungetestet** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5889,11 +5890,64 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   `core_mode.cpp` für den Host und armv7a ohne Fehler (aarch64 scheitert an der fehlenden
   Ersatzdatei `android/dlext.h`, schon vorher), Übersetzungsprüfung alle ok.
 
+### 60 FPS (experimentell): Zwischenbilder im GX-Renderer (Entscheidung des Projektinhabers, 22.10.2026, Cloud)
+
+Das Spiel rechnet weiter 30 Bilder/s; die App zeigt zwischen zwei Spielbildern ein berechnetes
+Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse des Renderers
+(Abschnitt „60 Bilder/s mit Zwischenbildern … nur Analyse“).
+
+- **Schalter:** App-Menü „60 FPS (experimentell)“ unter den Grafikoptionen (`ingame_smooth60`, zehn
+  Sprachen), gespeichert als `smooth60`, beim Start und bei jeder Änderung `CoreBridge.setSmooth`
+  (`optSmooth` in `core_mode.cpp`). Aus: alles wie bisher.
+- **Renderer** (`gx_gl.cpp`, `GxRenderer::SetRecording`/`Interpolate`):
+  - Jeder echte `Run` notiert je Zeichnung: Kennung (`DrawSig`: Shader-Programm, Primitiv, Ecken-Layout
+    und -Zahl, Matrix-Indizes, Schlüssel der benutzten Texturen; Kopien nach Adresse), die
+    Positions- und Normalenzeilen, mit denen sie gezeichnet wurde (3 Zeilen, 30 bei Matrix-Indizes je
+    Ecke), die Projektion und die Lage (Verschiebung der Positionsmatrix im Kameraraum).
+  - `Interpolate(prev, next, t)` spielt `next` ein zweites Mal ab. Jede 3D-Zeichnung sucht ihre
+    Vorgängerin (gleiche Kennung; die erste noch freie, wenn sie nah genug liegt, sonst von den ersten
+    acht die nächste; „nah genug“: weniger als ein Viertel ihrer Entfernung plus 400 Einheiten).
+    Gefunden: Positions- und Normalenzeilen sowie Projektion werden zwischen beiden gemischt; haben
+    sich die Ecken selbst bewegt (die Figuren skinnt das Spiel auf der CPU), auch Positionen und
+    Normalen der Ecken (nicht bei mehr als 1500 Einheiten Abstand). 2D-Zeichnungen, Farben, Licht,
+    Nebel und Texturmatrizen bleiben wie in `next`. Nach jeder Zeichnung kommen die Zeilen aus dem
+    XF-Speicher zurück.
+  - Danach steht der Renderer **genau wie nach `prev`**: BP-, XF-Register, TEV-Farben, gebundene
+    Texturen, Paletten, Perspektive und der Autofokus werden zurückgesetzt; das Zwischenbild kopiert
+    das EFB in eigene Texturen (Effekte, die das letzte Bild einblenden, lesen danach weiter die echten
+    Kopien), vergisst keine Texturen, setzt nicht neu auf und zählt nicht als Bildstück; was es
+    hochlädt, lädt `Run(next)` nicht noch einmal.
+  - **Kein Zwischenbild** (dann `next` sofort): Bildstück, das neu aufsetzt, angehalten, schwarz oder
+    markiert ist; ohne Folgenummer; ohne 3D-Zeichnungen (Filme, Titel, 2D-Menüs); **Schnitt**: weniger
+    als die Hälfte der 3D-Zeichnungen gefunden oder mehr als 30 % davon um mehr als 20° gedreht.
+- **Takt** (`drawGx`): kommt Bildstück N+1, zeigt die App beim selben Bildschirmtakt das Zwischenbild
+  und hält N+1; beim nächsten Takt läuft N+1. So entstehen 60 verschiedene Bilder je Sekunde, alle
+  etwa 16,7 ms später als bisher. N bleibt bis zum Zwischenbild gehalten (seine Ecken); höchstens
+  zwei Plätze der Warteschlange. Bei Aufnahmen (GX-Dumps, R3-Folgen, Treffer-Bilder) kein
+  Zwischenbild; neuer Renderer, neue Fläche, Abzug: gehaltene Bildstücke zurück (`smoothDrop`).
+  **Abschaltung:** liegt die GPU im Schnitt mehr als 2,5 Durchläufe zurück (Zäune nach jedem Lauf,
+  geprüft mit jeder GX-Protokollzeile), aus bis zum nächsten neuen Renderer; Zeile
+  `60 FPS: the GPU does not keep up …`. Im Protokoll regelmäßig `60 FPS: N in-between pictures, M
+  cuts, … 3D draws matched so far; the GPU x Runs behind`.
+- **Kosten:** jedes Spielbild wird zweimal gezeichnet (doppelte GPU-Arbeit; Retroid bei 3× zu viel,
+  bei 2× wohl machbar), etwas mehr Arbeit im Zeichen-Thread; +16,7 ms Verzögerung.
+- **Tests (Cloud, llvmpipe):** `gx_gl_check` neu `TestInterpolation`: grüne Karte über ihre Matrix,
+  rote über ihre Ecken bewegt → im Zwischenbild beide genau auf halbem Weg; danach `Run(B)`
+  pixelgleich mit einem Renderer ohne Zwischenbild; 90° gedreht → Schnitt; t = 1 → das Bild B; ohne
+  Notizen oder ohne Folgenummer → nichts. `gx_chunk_render` mit `RE4_GX_INTERP=1`
+  (`RE4_GX_INTERP_T`): vor jedem Folgebild das Zwischenbild als `<name>-zw.ppm` und eine Zeile
+  (gezeigt/Schnitt, Zuordnungen); mit drei künstlichen Aufnahmen: Karte bei 264 → 272 (zw) → 280 →
+  288 (zw) → 296. Alle `gx_gl_check`-Prüfungen 0 Fehler, `core_mode.cpp` für Host und armv7a ohne
+  Fehler.
+- **Nicht getestet:** echte Spielbilder (dafür R3-Folgen vom Retroid, `pull-gx-dumps.ps1`, dann in der
+  Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
+  Spiel (Schwellen eventuell nachstellen).
+
 ### Gerätetest 22.10.2026 18:18 (Retroid, Stand mit 0105/0106) und Entscheidungen des Projektinhabers
 
 - **Entscheidung des Projektinhabers (22.10.2026):** 0.43.1 wird **nicht** veröffentlicht; stattdessen
-  kommt die experimentelle 60-FPS-Option dazu, alles zusammen später als **0.44.0**. Der Releasetext
-  `v0.43.1-alpha.md` bleibt als Vorlage liegen.
+  kommt die experimentelle 60-FPS-Option dazu, alles zusammen später als **0.44.0** (versionCode 69,
+  Releasetext `v0.44.0-alpha.md`; der Text von 0.43.1 ist darin aufgegangen und entfernt).
 - **Gegnerliste r104/r106/r107 (`emlist_dump.py`, Disc 1 G4BE08):** 10 Einträge mit Dynamit.
   - **r104 (vor der Fischfarm):** in der ersten Gruppe (0xF0–0xFB, 0xFE) **ein Werfer**: 0xF7
     „Homing Bomber“ (`set` 0x25, Dynamit mit Ersatz am Gürtel, unbegrenzt, „Roof on“, auf einem Dach

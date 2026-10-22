@@ -967,6 +967,105 @@ void TestOptions(bool poison, bool tiled, bool halfDof = true, int lose = 0) {
   r.Release();
 }
 
+// 60 FPS (experimental): the in-between picture of two chunks (GxRenderer::Interpolate). A green
+// card 1000 units away (80 pixels wide) moved by its position matrix (dx), a red one moved by its
+// vertices (as the game skins its figures), both in perspective; between A (dx -50: 16 pixels to
+// the left, red at 430..470) and B (dx +50, red at 450..490) the in-between picture shows them
+// halfway, Run(B) afterwards draws B as without it (the state put back), t = 1 draws B, and a
+// camera that turns 90 degrees is a cut.
+void InterpScene(Builder &b, std::uint32_t sequence, float dx, float red0, float turn, Re4GxChunk *out) {
+  Baseline(b);
+  b.flags = sequence == 1 ? RE4_GX_CHUNK_RESET | RE4_GX_CHUNK_XFB : RE4_GX_CHUNK_XFB;
+  DisplayCopy(b, true, kBlack);
+  const float n = 100.0f, f = 1000000.0f;
+  b.XfF(0x1020, {1.0f, 0.0f, 1.0f, 0.0f, -n / (f - n), -f * n / (f - n)});
+  b.Xf(0x1026, {0});
+  const float c = std::cos(turn), s = std::sin(turn);
+  b.XfF(0, {c, 0, s, dx, 0, 1, 0, 0, -s, 0, c, 0});
+  QuadAt(b, 280, 224, 360, 304, 1000.0f, kGreen);
+  b.XfF(0, {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0});
+  QuadAt(b, red0, 380, red0 + 40, 420, 1000.0f, kRed);
+  DisplayCopy(b, false, kBlack);
+  *out = b.Chunk();
+  out->sequence = sequence;
+}
+
+std::vector<std::uint8_t> XfbPixels(re4gx::GxRenderer &r) {
+  unsigned w = 0, h = 0;
+  const GLuint xfb = r.Xfb(&w, &h);
+  std::vector<std::uint8_t> px(static_cast<std::size_t>(w) * h * 4);
+  if (!xfb)
+    return px;
+  glBindFramebuffer(GL_FRAMEBUFFER, gReadFbo);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, xfb, 0);
+  glReadPixels(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h), GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+  return px;
+}
+
+void TestInterpolation() {
+  std::string error;
+  re4gx::GxRenderer r, plain;
+  Require(r.Init(1, &error), error.c_str());
+  Require(plain.Init(1, &error), error.c_str());
+  r.SetRecording(true);
+  Builder ba, bb, bc;
+  Re4GxChunk a, b, c;
+  InterpScene(ba, 1, -50.0f, 430.0f, 0.0f, &a);
+  InterpScene(bb, 2, 50.0f, 450.0f, 0.0f, &b);
+  InterpScene(bc, 3, 50.0f, 450.0f, 3.14159265f / 2, &c);
+  r.Run(a);
+  const GLuint xfbA = r.Xfb(nullptr, nullptr);
+  Check(Near(TexPixel(xfbA, 272, 264), 0, 255, 0) && Near(TexPixel(xfbA, 435, 400), 255, 0, 0),
+        "interpolation: picture A (green card at 264..344, red card at 430..470)");
+  const bool shown = r.Interpolate(a, b, 0.5f);
+  Check(shown, "interpolation: the in-between picture of A and B is shown");
+  const GLuint xfb = r.Xfb(nullptr, nullptr);
+  // A covers 264..344, B 296..376, the in-between picture 280..360
+  auto mid = TexPixel(xfb, 320, 264), left = TexPixel(xfb, 272, 264), right = TexPixel(xfb, 368, 264);
+  Check(Near(mid, 0, 255, 0) && Near(left, 0, 0, 0) && Near(right, 0, 0, 0),
+        "interpolation: the card moved by its matrix halfway (280..360)");
+  // red: A 430..470, B 450..490, in between 440..480
+  auto red = TexPixel(xfb, 460, 400), redA = TexPixel(xfb, 435, 400), redB = TexPixel(xfb, 485, 400);
+  Check(Near(red, 255, 0, 0) && Near(redA, 0, 0, 0) && Near(redB, 0, 0, 0),
+        "interpolation: the card moved by its vertices halfway (440..480)");
+  if (!Near(mid, 0, 255, 0) || !Near(red, 255, 0, 0))
+    Print("middle", mid), Print("left", left), Print("right", right), Print("red", red);
+  const auto &st = r.Stats();
+  Check(st.interpPictures == 1 && st.interpMatched == 2 && st.interpVertexBlends == 1,
+        "interpolation: both draws matched, one with blended vertices");
+  if (st.interpMatched != 2 || st.interpVertexBlends != 1)
+    std::fprintf(stderr, "  in-between: %u pictures, %u draws, %u matched, %u vertex blends\n", st.interpPictures,
+                 st.interpDraws, st.interpMatched, st.interpVertexBlends);
+  // Run(B) after it: the same picture as without the in-between one
+  r.Run(b);
+  plain.Run(a);
+  plain.Run(b);
+  const auto withPx = XfbPixels(r), withoutPx = XfbPixels(plain);
+  Check(withPx == withoutPx && !withPx.empty(), "interpolation: Run(B) afterwards draws B as without it");
+  Check(Near(TexPixel(r.Xfb(nullptr, nullptr), 368, 264), 0, 255, 0), "interpolation: picture B (green card at 296..376)");
+  // a camera that turns by 90 degrees: a cut, no in-between picture
+  Check(!r.Interpolate(b, c, 0.5f) && r.Stats().interpCuts == 1, "interpolation: a turn of 90 degrees is a cut");
+  r.Run(c);
+  // t = 1: the in-between picture is B (within rounding)
+  re4gx::GxRenderer one;
+  Require(one.Init(1, &error), error.c_str());
+  one.SetRecording(true);
+  one.Run(a);
+  Check(one.Interpolate(a, b, 1.0f), "interpolation at t = 1: shown");
+  const auto onePx = XfbPixels(one);
+  unsigned differ = 0;
+  for (std::size_t i = 0; i < onePx.size() && i < withoutPx.size(); i++)
+    differ += std::abs(static_cast<int>(onePx[i]) - static_cast<int>(withoutPx[i])) > 2;
+  Check(onePx.size() == withoutPx.size() && differ == 0, "interpolation at t = 1: the picture of B");
+  // not recorded, or not the next chunk: nothing drawn
+  Check(!plain.Interpolate(a, b, 0.5f), "interpolation: nothing without notes of the picture before");
+  Check(!one.Interpolate(a, c, 0.5f), "interpolation: nothing between chunks that do not follow each other");
+  Check(glGetError() == GL_NO_ERROR, "interpolation: no GL error");
+  r.Release();
+  plain.Release();
+  one.Release();
+}
+
 int main() {
   Context();
   glGenFramebuffers(1, &gReadFbo);
@@ -1016,6 +1115,7 @@ int main() {
     }
     TestOptions(poison != 0, true);
   }
+  TestInterpolation();
   // MSAA in its own buffers (the devices without the extensions, RE4_GX_MSAA_TILES=0)
   TestOptions(false, false);
   // the depth of field's blur at the full resolution as before GPU step e (GxOptions::halfDof)

@@ -46,7 +46,7 @@ android {
         // suffix), the error report and the start screen as it is ("0.41.0-alpha-core"). Numbering
         // since 0.40.0 (decision of the project owner, 20.10.2026): each alpha raises the middle
         // number, a hotfix the last; versionCode counts on
-        versionName '0.43.1-alpha'
+        versionName '0.44.0-alpha'
         externalNativeBuild { cmake { cppFlags '-std=c++17 -Wall -Wextra' } }
     }
     // classic: the app's own game modules (arm64-v8a), as before; since

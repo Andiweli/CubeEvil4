@@ -20,6 +20,11 @@
 //
 // RE4_GX_SAMPLES=2 (or 4): with MSAA, on the tiles where the GPU can (GPU step d;
 // RE4_GX_MSAA_TILES=0: in own buffers); a line on stderr says which.
+//
+// RE4_GX_INTERP=1 (60 FPS, experimental): before each chunk that follows the one before, the
+// in-between picture of the two (GxRenderer::Interpolate, RE4_GX_INTERP_T, default 0.5) as
+// OUTPUT_DIR/<name>-zw.ppm, with a line: shown or a cut, the 3D draws and how many were matched.
+// The real pictures must stay the same as without it.
 #include "gx_gl.h"
 #include "re4_gx_frame_io.h"
 
@@ -77,13 +82,20 @@ int main(int argc, char **argv) {
   glGenFramebuffers(1, &fbo);
   std::unique_ptr<re4gx::GxRenderer> renderer;
   uint32_t lastSequence = 0, lastFrame = 0;
+  const char *interpText = std::getenv("RE4_GX_INTERP");
+  const bool interp = interpText && *interpText == '1';
+  const char *interpTText = std::getenv("RE4_GX_INTERP_T");
+  const float interpT = interpTText ? static_cast<float>(std::atof(interpTText)) : 0.5f;
+  // the chunk run last (its vertices for the in-between picture)
+  std::unique_ptr<re4gxio::Loaded> previous;
   // RE4_GX_SCALE: the EFB resolution of the app (-Scale; 1 = the GameCube's);
   // the pictures then have that many times the pixels
   const char *scaleText = std::getenv("RE4_GX_SCALE");
   const int scale = scaleText && std::atoi(scaleText) >= 1 && std::atoi(scaleText) <= 4 ? std::atoi(scaleText) : 1;
   for (int i = 2; i < argc; i++) {
     const std::string path = argv[i];
-    re4gxio::Loaded loaded;
+    auto loadedHere = std::make_unique<re4gxio::Loaded>();
+    re4gxio::Loaded &loaded = *loadedHere;
     FILE *f = std::fopen(path.c_str(), "rb");
     const bool ok = f && re4gxio::Read(f, loaded);
     if (f)
@@ -123,6 +135,7 @@ int main(int argc, char **argv) {
       const char *full = std::getenv("RE4_GX_FULL_RESOLVE");
       options.fullResolve = full && *full == '1';
       renderer->SetOptions(options);
+      renderer->SetRecording(interp);
       std::string error;
       if (!renderer->Init(scale, &error)) {
         std::printf("%s: Renderer: %s\n", Stem(path).c_str(), error.c_str());
@@ -141,6 +154,32 @@ int main(int argc, char **argv) {
     const bool held = (chunk.flags & RE4_GX_CHUNK_HOLD) != 0;
     if (!follows)
       chunk.flags &= ~RE4_GX_CHUNK_HOLD;
+    if (interp && follows && previous) {
+      const re4gx::GxStats was = renderer->Stats();
+      const bool shown = renderer->Interpolate(previous->chunk, chunk, interpT);
+      const re4gx::GxStats &now = renderer->Stats();
+      std::printf("%s: Zwischenbild %s, %u 3D-Zeichenaufträge, %u zugeordnet, %u mit gemischten Ecken\n",
+                  Stem(path).c_str(), shown ? "gezeigt" : "nicht gezeigt (Schnitt)", now.interpDraws - was.interpDraws,
+                  now.interpMatched - was.interpMatched, now.interpVertexBlends - was.interpVertexBlends);
+      unsigned iw = 0, ih = 0;
+      const GLuint between = renderer->Xfb(&iw, &ih);
+      if (shown && between && iw && ih) {
+        iw *= static_cast<unsigned>(scale);
+        ih *= static_cast<unsigned>(scale);
+        std::vector<unsigned char> rgba(static_cast<std::size_t>(iw) * ih * 4);
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, between, 0);
+        glReadPixels(0, 0, static_cast<GLsizei>(iw), static_cast<GLsizei>(ih), GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+        const std::string file = out + "/" + Stem(path) + "-zw.ppm";
+        if (FILE *p = std::fopen(file.c_str(), "wb")) {
+          std::fprintf(p, "P6\n%u %u\n255\n", iw, ih);
+          for (unsigned y = 0; y < ih; y++)
+            for (unsigned x = 0; x < iw; x++)
+              std::fwrite(&rgba[(static_cast<std::size_t>(y) * iw + x) * 4], 1, 3, p);
+          std::fclose(p);
+        }
+      }
+    }
     const re4gx::GxStats before = renderer->Stats();
     renderer->Run(chunk);
     if (held)
@@ -183,6 +222,7 @@ int main(int argc, char **argv) {
         std::fclose(p);
       }
     }
+    previous = std::move(loadedHere);
   }
   if (renderer && std::getenv("RE4_GX_WORK")) {
     glFinish();

@@ -581,6 +581,19 @@ struct Bench {
 Bench bench;
 std::atomic<int> optDof{-1};  // the menu's depth of field (CoreBridge.setDof); -1 not set yet
 std::atomic<int> optSmooth{0};  // the menu's 60 FPS from in-between pictures (CoreBridge.setSmooth)
+// 60 FPS (experimental): the chunk run last, kept for the in-between picture after it (its
+// vertices), and the next one, whose in-between picture is on the screen and which runs at the
+// next refresh; off for this renderer when the GPU does not keep up
+const Re4GxChunk *smoothPrev = nullptr, *smoothNext = nullptr;
+bool smoothTooSlow = false;
+// The chunks the in-between pictures hold, back to the core (a new renderer, the switch off).
+void smoothDrop() {
+  if (smoothNext && api.gxRelease)
+    api.gxRelease(smoothNext);
+  if (smoothPrev && api.gxRelease)
+    api.gxRelease(smoothPrev);
+  smoothNext = smoothPrev = nullptr;
+}
 
 // A number from a file of the kernel (the GPU's clock and load, where the device lets an app read
 // them); -1 when it cannot.
@@ -961,10 +974,12 @@ bool drawGx() {
     // new picture options: the renderer anew, the core sends everything again
     gx->Release();
     gx.reset();
+    smoothDrop();
     if (api.gxDetach) api.gxDetach();
   }
   if (!gx) {
     optApplied = optSerial.load();
+    smoothTooSlow = false;
     // a new renderer counts from 0: the log's figures per chunk start over too
     gxWork = re4gx::GxStats();
     gxDraws = 0;
@@ -1059,6 +1074,7 @@ bool drawGx() {
     }
   }
   if (gxDumpEvery && !gxDumpWanted && !gxDumpSeriesLeft && gxDumpCount < 6 && now >= gxDumpNext) {
+    smoothDrop();
     api.gxDetach();
     gxDumpWanted = true;
     gxDumpNext = now + std::chrono::seconds(gxDumpEvery);
@@ -1072,6 +1088,7 @@ bool drawGx() {
         mkdir(gxDumpDir.c_str(), 0775);
       }
       if (!gxDumpDir.empty()) {
+        smoothDrop();
         api.gxDetach();
         gxDumpWanted = true;
         gxDumpSeriesWanted = true;
@@ -1098,66 +1115,99 @@ bool drawGx() {
       mkdir(gxDumpDir.c_str(), 0775);
     }
   }
-  if (const Re4GxChunk *chunk = api.gxAcquire()) {
+  // 60 FPS (experimental): records the draws while on; a chunk whose in-between picture is on
+  // the screen runs now (it was taken, dumped and counted at the refresh before)
+  const bool smoothOn = optSmooth.load() != 0 && !smoothTooSlow;
+  gx->SetRecording(smoothOn);
+  if (!smoothOn && smoothPrev) {
+    api.gxRelease(smoothPrev);
+    smoothPrev = nullptr;
+  }
+  const Re4GxChunk *deferred = smoothNext;
+  smoothNext = nullptr;
+  if (const Re4GxChunk *chunk = deferred ? deferred : api.gxAcquire()) {
     char path[512];
     path[0] = 0;
-    if (chunk->flags & RE4_GX_CHUNK_MARK) {
-      LOG("GX: a hit on the player marked (chunk %u)", gxChunks);
-      gxHitCount++;
-      if (gxHitDumps > 0) {
-        gxHitDumps--;
-        gxHitSeriesPending = true;
-      }
-      if (!gxDumpDir.empty()) {
-        gxHitShotsLeft = kGxHitShots;  // from this picture on
-        gxHitShotPart = 0;
-      }
-    } else if (gxHitSeriesPending && (chunk->flags & RE4_GX_CHUNK_RESET)) {
-      gxHitSeriesPending = false;
-      if (!gxDumpSeriesLeft && !gxDumpWanted && !gxDumpDir.empty() && gxDumpCount < 40) {
-        // this chunk starts over: a series from here (continued below)
-        gxDumpSeriesIndex = gxDumpCount++;
-        gxDumpSeriesPart = 0;
-        gxDumpSeriesLeft = kGxHitSeries;
-        gxDumpSeriesSequence = chunk->sequence - 1;
-      }
-    }
-    if (gxDumpWanted && (chunk->flags & RE4_GX_CHUNK_RESET)) {
-      gxDumpWanted = false;
-      if (gxDumpSeriesWanted) {
-        gxDumpSeriesWanted = false;
-        gxDumpSeriesIndex = gxDumpCount++;
-        gxDumpSeriesPart = 0;
-        gxDumpSeriesLeft = kGxDumpSeries;
-      } else {
-        std::snprintf(path, sizeof(path), "%s/gx-geraet-%02u.bin", gxDumpDir.c_str(), gxDumpCount++);
-      }
-    } else if (gxDumpSeriesLeft && chunk->sequence != gxDumpSeriesSequence + 1) {
-      LOG("GX dump series %02u ends after %u chunks (chunk sequence %u after %u)", gxDumpSeriesIndex,
-          gxDumpSeriesPart, chunk->sequence, gxDumpSeriesSequence);
-      gxDumpSeriesLeft = 0;
-    }
-    // a series also keeps each picture as this GPU drew it (gx-geraet-NN-KK.bmp):
-    // flicker the cloud renderer does not show is then this device's (FILES, M9)
     char seriesShot[512];
     seriesShot[0] = 0;
-    if (gxDumpSeriesLeft) {
-      std::snprintf(seriesShot, sizeof(seriesShot), "%s/gx-geraet-%02u-%02u.bmp", gxDumpDir.c_str(),
-                    gxDumpSeriesIndex, gxDumpSeriesPart);
-      std::snprintf(path, sizeof(path), "%s/gx-geraet-%02u-%02u.bin", gxDumpDir.c_str(), gxDumpSeriesIndex,
-                    gxDumpSeriesPart++);
-      gxDumpSeriesSequence = chunk->sequence;
-      gxDumpSeriesLeft--;
-    }
-    if (path[0]) {
-      if (FILE *f = std::fopen(path, "wb")) {
-        const bool ok = re4gxio::Write(f, *chunk, gxChunks);
-        std::fclose(f);
-        LOG("GX dump %s (%u draws, chunk %u)%s", path, chunk->draws, gxChunks, ok ? "" : ": write failed");
+    if (!deferred) {
+      if (chunk->flags & RE4_GX_CHUNK_MARK) {
+        LOG("GX: a hit on the player marked (chunk %u)", gxChunks);
+        gxHitCount++;
+        if (gxHitDumps > 0) {
+          gxHitDumps--;
+          gxHitSeriesPending = true;
+        }
+        if (!gxDumpDir.empty()) {
+          gxHitShotsLeft = kGxHitShots;  // from this picture on
+          gxHitShotPart = 0;
+        }
+      } else if (gxHitSeriesPending && (chunk->flags & RE4_GX_CHUNK_RESET)) {
+        gxHitSeriesPending = false;
+        if (!gxDumpSeriesLeft && !gxDumpWanted && !gxDumpDir.empty() && gxDumpCount < 40) {
+          // this chunk starts over: a series from here (continued below)
+          gxDumpSeriesIndex = gxDumpCount++;
+          gxDumpSeriesPart = 0;
+          gxDumpSeriesLeft = kGxHitSeries;
+          gxDumpSeriesSequence = chunk->sequence - 1;
+        }
+      }
+      if (gxDumpWanted && (chunk->flags & RE4_GX_CHUNK_RESET)) {
+        gxDumpWanted = false;
+        if (gxDumpSeriesWanted) {
+          gxDumpSeriesWanted = false;
+          gxDumpSeriesIndex = gxDumpCount++;
+          gxDumpSeriesPart = 0;
+          gxDumpSeriesLeft = kGxDumpSeries;
+        } else {
+          std::snprintf(path, sizeof(path), "%s/gx-geraet-%02u.bin", gxDumpDir.c_str(), gxDumpCount++);
+        }
+      } else if (gxDumpSeriesLeft && chunk->sequence != gxDumpSeriesSequence + 1) {
+        LOG("GX dump series %02u ends after %u chunks (chunk sequence %u after %u)", gxDumpSeriesIndex,
+            gxDumpSeriesPart, chunk->sequence, gxDumpSeriesSequence);
+        gxDumpSeriesLeft = 0;
+      }
+      // a series also keeps each picture as this GPU drew it (gx-geraet-NN-KK.bmp):
+      // flicker the cloud renderer does not show is then this device's (FILES, M9)
+      if (gxDumpSeriesLeft) {
+        std::snprintf(seriesShot, sizeof(seriesShot), "%s/gx-geraet-%02u-%02u.bmp", gxDumpDir.c_str(),
+                      gxDumpSeriesIndex, gxDumpSeriesPart);
+        std::snprintf(path, sizeof(path), "%s/gx-geraet-%02u-%02u.bin", gxDumpDir.c_str(), gxDumpSeriesIndex,
+                      gxDumpSeriesPart++);
+        gxDumpSeriesSequence = chunk->sequence;
+        gxDumpSeriesLeft--;
+      }
+      if (path[0]) {
+        if (FILE *f = std::fopen(path, "wb")) {
+          const bool ok = re4gxio::Write(f, *chunk, gxChunks);
+          std::fclose(f);
+          LOG("GX dump %s (%u draws, chunk %u)%s", path, chunk->draws, gxChunks, ok ? "" : ": write failed");
+        }
       }
     }
-    gx->Run(*chunk);
-    api.gxRelease(chunk);
+    // the in-between picture first when the switch is on and nothing records this chunk's picture;
+    // Run(chunk) then at the next refresh
+    bool between = false;
+    if (smoothOn && !deferred && smoothPrev && !path[0] && !seriesShot[0] && !gxHitShotsLeft) {
+      between = gx->Interpolate(*smoothPrev, *chunk, 0.5f);
+      if (between) {
+        api.gxRelease(smoothPrev);
+        smoothPrev = nullptr;
+        smoothNext = chunk;
+      }
+    }
+    if (!between) {
+      gx->Run(*chunk);
+      if (smoothPrev) {
+        api.gxRelease(smoothPrev);
+        smoothPrev = nullptr;
+      }
+      // kept while the switch is on: the in-between picture after it reads its vertices
+      if (smoothOn)
+        smoothPrev = chunk;
+      else
+        api.gxRelease(chunk);
+    }
     if (seriesShot[0]) {
       SaveShot(seriesShot);
     }
@@ -1209,6 +1259,19 @@ bool drawGx() {
             "%.0f/%.0f/%.0f %%, now on core %d at %u MHz",
             gxRunCpuNs / 1e6 / n, gxRunMs / n, gxRunOnKind[2] * 100.0 / n, gxRunOnKind[1] * 100.0 / n,
             gxRunOnKind[0] * 100.0 / n, cpu, khz / 1000);
+      }
+      // 60 FPS: how far the GPU lags behind (fences after every Run, the in-between ones too); more
+      // than 2.5 Runs on average: off for this renderer, the menu's switch stays (a lower
+      // resolution helps)
+      if (optSmooth.load() && !smoothTooSlow) {
+        const unsigned checks = s.behindChecks - gxWork.behindChecks;
+        const double behind = checks ? static_cast<double>(s.behindSum - gxWork.behindSum) / checks : 0.0;
+        LOG("60 FPS: %u in-between pictures, %u cuts, %u of %u 3D draws matched so far; the GPU %.1f Runs behind",
+            s.interpPictures, s.interpCuts, s.interpMatched, s.interpDraws, behind);
+        if (behind > 2.5) {
+          smoothTooSlow = true;
+          LOG("60 FPS: the GPU does not keep up, in-between pictures off until the renderer starts anew");
+        }
       }
       gxWork = s;
       gxDraws = s.draws;
@@ -1681,6 +1744,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_surfaceCreat
   // a new GL context: the renderer's objects are gone; the core starts over
   // (full state, every texture again) once chunks are taken again
   gx.reset();
+  smoothDrop();
   if (api.gxDetach) api.gxDetach();
 }
 

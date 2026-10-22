@@ -61,6 +61,9 @@ struct GxStats {
   unsigned long long behindSum = 0;
   unsigned behindChecks = 0;
   unsigned behindCount[9] = {};
+  // in-between pictures (60 FPS, Interpolate): shown, refused as a cut; their perspective draws,
+  // of them matched to a draw of the picture before, and draws with blended vertices
+  unsigned interpPictures = 0, interpCuts = 0, interpDraws = 0, interpMatched = 0, interpVertexBlends = 0;
 };
 
 // Picture options of the app's menu (M11), applied by Init: multisampling of
@@ -130,6 +133,16 @@ public:
   static void Limits(int *maxSamples, float *maxAnisotropy);
   // Runs one chunk (in sequence order).
   void Run(const Re4GxChunk &chunk);
+  // 60 FPS (experimental, decision of the project owner 22.10.2026): on, every Run notes how each
+  // of its draws was drawn (the position and normal matrices, the projection) for Interpolate.
+  void SetRecording(bool on);
+  // The picture between `prev`, the chunk run last (the caller still holds it: its vertices), and
+  // `next` at t (0 prev .. 1 next), into the XFB: `next` once more, every draw that matches one
+  // of `prev` with its matrices (and changed vertices, the figures the game skins on the CPU)
+  // blended. The renderer's state, EFB copies and the autofocus stay as after `prev`: Run(next)
+  // follows as without it. False when it is no picture to show (a cut of the camera, a chunk that
+  // starts over, held or black, nothing noted): run `next` at once.
+  bool Interpolate(const Re4GxChunk &prev, const Re4GxChunk &next, float t);
   // The latest display copy: an RGBA8 texture, GameCube row 0 at GL row 0;
   // 0 before the first display copy.
   GLuint Xfb(unsigned *width, unsigned *height) const;
