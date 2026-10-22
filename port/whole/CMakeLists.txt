@@ -59,6 +59,61 @@ endif()
 # effects, a few runtime functions; armhf (VFPv3) and x86 have none, so the 32/64-bit compare
 # on the PC could not see it (19.10.2026). whole_build.sh counts them in the aarch64 build.
 add_compile_options(-ffp-contract=off)
+# Check build with sanitizers (whole_build.sh RE4_SANITIZE=address,undefined: build folder
+# whole-<target>-O2-san; the room tour of the PC check, whole_r100_check.sh --sanitize).
+# AddressSanitizer stops at the first access outside a global, a local or a block of the C
+# library's heap, with where it happened (the game heaps in MEM1 have no guard zones);
+# UndefinedBehaviorSanitizer names each undefined operation once and goes on (a shift by 32 or
+# more, an array index past its end, a float that does not fit its integer, a bool that is
+# neither 0 nor 1 ...). Left out: vptr and function (the game converts between its object types
+# and calls task functions through TaskFunc on purpose), return (CodeWarrior code ends non-void
+# functions without a value, -fno-strict-return), null, nonnull-attribute and pointer-overflow
+# (offsetof-like address arithmetic, memcpy of 0 bytes from 0; a real access through 0 crashes
+# anyway; object-size takes PG_OFS, &((GLOBAL_WK*) 0)->f, for an access through 0:
+# AddressSanitizer checks the sizes), alignment (the SDK's sound library writes words to 2-byte
+# aligned DSP blocks, as the GameCube allows; over 100 places) and float-cast-overflow (the game's
+# code is built with
+# -fno-strict-float-cast-overflow: it clamps like the GameCube). The runtime is a shared
+# library (-shared-libsan): the modules are libraries of their own, loaded with dlopen and linked
+# with --no-undefined.
+set(RE4_SANITIZE "" CACHE STRING "sanitizers of a check build (-fsanitize=LIST; empty = none)")
+if(RE4_SANITIZE)
+    set(RE4_SANITIZE_FLAGS -fsanitize=${RE4_SANITIZE} -fno-omit-frame-pointer
+        -fno-sanitize=vptr,function,return,null,nonnull-attribute,returns-nonnull-attribute,pointer-overflow,object-size,alignment,float-cast-overflow)
+    # (line tables: file and line in the reports)
+    add_compile_options(${RE4_SANITIZE_FLAGS} -gline-tables-only)
+    # clang's runtime for the target, its folder in each program and library (no
+    # LD_LIBRARY_PATH needed). Ubuntu ships it for x86 only: for aarch64 the cross GCC's
+    # UndefinedBehaviorSanitizer runtime (libubsan1-arm64-cross, the same compiler-rt code; qemu
+    # finds it through QEMU_LD_PREFIX). AddressSanitizer does not run there: with GCC's libasan
+    # even a three-line program crashes under qemu-aarch64, and in a guest space of 4 GB
+    # (whole_r100_check.sh) its shadow at 64 GB has no room (22.10.2026). On x86_64 its shadow
+    # (0x7FFF8000-0x8FFF6FFF) lies where MEM1 has to be.
+    if(RE4_SANITIZE MATCHES "address")
+        set(san_lib asan)
+    else()
+        set(san_lib ubsan_standalone)
+    endif()
+    set(san_arch ${CMAKE_SYSTEM_PROCESSOR})
+    if(RE4_ARCH STREQUAL "i686")
+        set(san_arch i386)
+    elseif(RE4_ARCH STREQUAL "armv7")
+        set(san_arch armhf)
+    endif()
+    execute_process(COMMAND ${CMAKE_C_COMPILER} -print-file-name=libclang_rt.${san_lib}-${san_arch}.so
+        OUTPUT_VARIABLE san_path OUTPUT_STRIP_TRAILING_WHITESPACE)
+    set(san_gcc "${CMAKE_FIND_ROOT_PATH}/lib")
+    if(IS_ABSOLUTE "${san_path}")
+        get_filename_component(san_dir "${san_path}" DIRECTORY)
+        set(RE4_SANITIZE_LINK ${RE4_SANITIZE_FLAGS} -shared-libsan "-Wl,-rpath,${san_dir}")
+    elseif(NOT RE4_SANITIZE MATCHES "address" AND CMAKE_FIND_ROOT_PATH AND EXISTS "${san_gcc}/libubsan.so.1")
+        set(RE4_SANITIZE_LINK ${RE4_SANITIZE_FLAGS} -fno-sanitize-link-runtime "${san_gcc}/libubsan.so.1")
+    else()
+        message(FATAL_ERROR "RE4_SANITIZE=${RE4_SANITIZE}: libclang_rt.${san_lib}-${san_arch}.so not found "
+            "(clang's sanitizer runtime; on aarch64 only RE4_SANITIZE=undefined)")
+    endif()
+    add_link_options(${RE4_SANITIZE_LINK})
+endif()
 
 # --- prepared original sources -------------------------------------------------
 set(RE4_PREPARED "${CMAKE_CURRENT_BINARY_DIR}/prepared")
@@ -383,6 +438,10 @@ if(ANDROID)
     # the trial link must see the Android logging and loader libraries, or
     # their functions would be planned as stubs
     list(APPEND RE4_TARGET_FLAG -llog -ldl)
+endif()
+if(RE4_SANITIZE)
+    # likewise the sanitizer runtime (__asan_*, __ubsan_*)
+    list(APPEND RE4_TARGET_FLAG ${RE4_SANITIZE_LINK})
 endif()
 add_custom_command(
     OUTPUT "${RE4_GEN}/link_plan.stamp"

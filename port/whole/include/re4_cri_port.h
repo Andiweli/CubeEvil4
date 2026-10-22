@@ -74,6 +74,7 @@ static inline unsigned int __lwbrx(const void* p, int o)
 
 static inline unsigned int __rlwinm(unsigned int x, int sh, int mb, int me)
 {
+    sh &= 31;  /* a 5-bit field, as in __rlwimi */
     unsigned int rotated = sh ? (x << sh) | (x >> (32 - sh)) : x;
     return rotated & re4_ppc_mask(mb, me);
 }

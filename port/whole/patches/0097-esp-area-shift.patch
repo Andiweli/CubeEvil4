@@ -1,0 +1,19 @@
+# EffAreaUpdate sets one display bit per effect area Leon stands in: flag |= 1 << area_no. Areas
+# with number 255 (no display bit) exist in r102, r103, r119, r120 and r227 (the sanitizer build of
+# the room tour, 22.10.2026: shift exponent 255). The GameCube's slw takes the low 6 bits of the
+# count and gives 0 for 32..63, so such an area sets nothing; armv7 (low 8 bits) does the same, but
+# aarch64 (lslv, the count modulo 32) and x86 set bit 31, and EffSetAreaState(31, 1) switched on
+# the effects of area 31 there. The port writes the GameCube's rule out.
+--- a/src/game/esp_app.cpp
++++ b/src/game/esp_app.cpp
+@@ -353,7 +353,9 @@ void EffAreaUpdate()
+     ent = sys->Area_addr->ent;
+     for (i = 0; i < sys->Area_addr->num; i++, ent++) {
+         if (AreaHitCheck(&ent->area, &pos) == 1) {
+-            flag |= 1 << ent->area_no;
++            /* PORT (patch 0097): slw takes the low 6 bits of the count and gives 0 for 32..63; area
++               number 255 (no display bit) set bit 31 on aarch64 and x86, which take it modulo 32 */
++            flag |= (ent->area_no & 0x20) ? 0 : 1 << (ent->area_no & 0x1F);
+             if (ent->flag & 1) {
+                 StaFlagOn(pG, STA_CAMERA_IN_ROOM);
+             }

@@ -533,6 +533,12 @@ void convertEvs(Blob& b, const Part&)
     }
     u32 n = be32(b, 0);
     u32 tbl = be32(b, 4);
+    if (n == 0) {
+        // no events: SetEvs never reads the table, whose offset may be anything (seven rooms,
+        // r101 and r111 among them, carry an empty bundle with the fill 0xCDCDCDCD there)
+        swap32(b, 0, 2);
+        return;
+    }
     if (n > 256 || !fits(b, tbl, n * 8, "EvsEntry")) {
         return;
     }

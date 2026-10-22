@@ -55,6 +55,7 @@ extern "C" void re4probe_shape_restore(void);
 extern "C" int re4probe_ax_test(void);
 extern "C" int re4probe_axfx_test(void);
 extern "C" int re4probe_movie_test(void);
+extern "C" int re4_formats_entry_status(const void* entry);
 extern "C" int re4probe_card_test(void);
 
 namespace {
@@ -788,6 +789,32 @@ void testEvent()
     report("event", ok);
 }
 
+// Empty tables the game never reads (the room tour, 22.10.2026): an event bundle without events
+// whose table offset is the tools' fill 0xCDCDCDCD (EventMgr::SetEvs; r101, r111, r400 ...) and an
+// item pack without items whose BIN and TPL table offsets are 0 (cItmSys::DataLoad; r215). The
+// converters stopped at the tables and left both entries big-endian; both count as converted now.
+void testEmptyTables()
+{
+    bool ok = true;
+    unsigned char* arc = (unsigned char*) (unsigned long) 0x82340000u;
+    memset(arc, 0, 0x100);
+    put32be(arc + 0x00, 2);
+    put32be(arc + 0x10, 0x20);
+    put32be(arc + 0x14, 0x40);
+    memcpy(arc + 0x18, "EVS\0", 4);
+    memcpy(arc + 0x1C, "ITM\0", 4);
+    put32be(arc + 0x24, 0xCDCDCDCDu);  // EVS: no events, the table offset is fill
+    unsigned char* itm = arc + 0x40;
+    put32be(itm + 0x00, 3);
+    put32be(itm + 0x04, 0x10);  // the id table: no ids
+    Header h = { 0, 0x80, 0, 0, 0, 0, 0, 0 };
+    re4_formats_part_loaded("em/empty.das", 0, 0, &h, 0x82340000u);
+    CHECK(re4_formats_entry_status(arc + 0x20) == 1);
+    CHECK(re4_formats_entry_status(itm) == 1);
+    CHECK(get32(itm) == 3 && get32(itm + 4) == 0x10 && get32(itm + 8) == 0);
+    report("empty tables", ok);
+}
+
 // A model (BIN, version 0x20010801) with four vertices and a shape table of
 // two shapes that name the same delta list (vertex 2: +0x74, -1, +3).
 void testMorph()
@@ -1036,6 +1063,7 @@ int re4_core_tests()
     testSound();
     testCamera();
     testEvent();
+    testEmptyTables();
     testMorph();
     {
         int failed = re4probe_ax_test();

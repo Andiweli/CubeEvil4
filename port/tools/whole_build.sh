@@ -6,6 +6,9 @@
 #   RE4_JOBS=4 port/tools/whole_build.sh # at most 4 compile jobs (memory)
 #   RE4_OPT=2 port/tools/whole_build.sh  # optimised like the Android build
 #                                        # (build folders whole-<target>-O2)
+#   RE4_SANITIZE=address,undefined ...   # check build with sanitizers (CMakeLists.txt;
+#                                        # build folders whole-<target>-O2-san), the checks
+#                                        # below then run under them as well
 #
 # Per target: build (libre4_main.so, 114 module libraries, re4_host), then
 #   whole_stub_check.py        the generated stubs as port/whole/stubs-expected.txt lists them
@@ -44,19 +47,29 @@ targets=("$@")
 status=0
 # the runtime test checks the per-thread wait record of the hang search
 export RE4_WAIT_TRACE=1
+suffix="${RE4_OPT:+-O$RE4_OPT}${RE4_SANITIZE:+-san}"
+if [ -n "${RE4_SANITIZE:-}" ]; then
+    # no leak check (the game frees little before it ends), no ODR check (a module carries its own
+    # copies of shared units, CMakeLists.txt -Bsymbolic), the port's own crash handler for SIGSEGV,
+    # SIGBUS and SIGFPE (the core process test expects the signal), no fake stacks for returned
+    # frames (11 MB for each of the game's stacks: the 32-bit address space ran out in the room tour,
+    # r106); every report with its call chain
+    export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0:detect_odr_violation=0:detect_stack_use_after_return=0:handle_segv=0:handle_sigbus=0:handle_sigfpe=0}"
+    export UBSAN_OPTIONS="${UBSAN_OPTIONS:-print_stacktrace=1}"
+fi
 for t in "${targets[@]}"; do
-    name="whole-$t${RE4_OPT:+-O$RE4_OPT}"
+    name="whole-$t$suffix"
     build="$root/port/build/$name"
     log="$root/port/build/$name.log"
     mkdir -p "$root/port/build"
     cmake -S "$root/port/whole" -B "$build" -G Ninja \
-        -DCMAKE_TOOLCHAIN_FILE="$root/port/whole/cmake/linux-$t.cmake" -DRE4_OPT_LEVEL="${RE4_OPT:-}" \
+        -DCMAKE_TOOLCHAIN_FILE="$root/port/whole/cmake/linux-$t.cmake" -DRE4_OPT_LEVEL="${RE4_OPT:-}" -DRE4_SANITIZE="${RE4_SANITIZE:-}" \
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON > "$log" 2>&1 &&
         ninja -C "$build" -k 0 ${RE4_JOBS:+-j "$RE4_JOBS"} >> "$log" 2>&1
     code=$?
     failed=$(grep -c '^FAILED' "$log")
     errors=$(grep -E ': error:|fatal error:|ld.lld: error' "$log" | sort -u | wc -l)
-    echo "$t${RE4_OPT:+ -O$RE4_OPT}: $failed failed build steps, $errors distinct errors (log: port/build/$name.log)"
+    echo "$t${RE4_OPT:+ -O$RE4_OPT}${RE4_SANITIZE:+ sanitize=$RE4_SANITIZE}: $failed failed build steps, $errors distinct errors (log: port/build/$name.log)"
     grep -h '^link plan:' "$log" | tail -1 | sed 's/^/  /'
     if [ "$code" -ne 0 ] || [ "$failed" -ne 0 ] || [ "$errors" -ne 0 ]; then
         # a failed CMake configure (whole_prepare.py, patches) leaves the programs of
@@ -184,8 +197,8 @@ echo "compare tools self-test: exit $code | $(echo "$out" | tail -1)"
 # x86_64, frame by frame (port/tools/test_movie_compare.py), when both were built here
 built=" ${targets[*]} "
 if [[ "$built" == *" i686 "* && "$built" == *" x86_64 "* ]]; then
-    out=$(python3 "$root/port/tools/test_movie_compare.py" "$root/port/build/whole-i686${RE4_OPT:+-O$RE4_OPT}" \
-        "$root/port/build/whole-x86_64${RE4_OPT:+-O$RE4_OPT}" 2>&1)
+    out=$(python3 "$root/port/tools/test_movie_compare.py" "$root/port/build/whole-i686$suffix" \
+        "$root/port/build/whole-x86_64$suffix" 2>&1)
     code=$?
     echo "movie comparison i686 / x86_64: exit $code | $(echo "$out" | grep -E 'Vergleich|ERSTES|stimmen|Ende' | sed 's/^ *//' | tr '\n' ';')"
     [ "$code" -ne 0 ] && status=1
@@ -198,7 +211,7 @@ if python3 -c "import clang.cindex" 2> /dev/null; then
     echo "m12 check self-test: exit $code | $(echo "$out" | tail -1)"
     [ "$code" -ne 0 ] && { echo "$out" | grep -v ": ok" | sed 's/^/  /'; status=1; }
 fi
-first="$root/port/build/whole-${targets[0]}${RE4_OPT:+-O$RE4_OPT}"
+first="$root/port/build/whole-${targets[0]}$suffix"
 if [ -f "$first/compile_commands.json" ]; then
     python3 "$root/port/tools/whole_libcxx_check.py" "$first" || status=1
 fi

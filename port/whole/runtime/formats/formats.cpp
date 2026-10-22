@@ -474,6 +474,23 @@ using namespace re4fmt;
 // it found and whether the converter turned that entry into host order. Each
 // entry is reported once per load; RE4_COVERAGE_LOG=FILE also appends a
 // tab-separated line (archive, tag, number, address, status).
+// What the converter did with an archive entry (EntryStatus; 0 unknown): GetDataExt's coverage
+// line below, and the core tests.
+extern "C" int re4_formats_entry_status(const void* entry)
+{
+    u32 s = slotOf(entry);
+    for (u32 i = 0; i < kNotes; i++) {
+        const EntryNote& e = g_notes[(s + i) % kNotes];
+        if (e.addr == 0) {
+            break;
+        }
+        if (e.addr == entry) {
+            return e.status;
+        }
+    }
+    return 0;
+}
+
 extern "C" void re4_formats_get_data(const void* arc, const char* tag, int no, const void* entry)
 {
     if (entry == 0) {
@@ -489,20 +506,11 @@ extern "C" void re4_formats_get_data(const void* arc, const char* tag, int no, c
     if (nReported < 4096) {
         reported[nReported++] = entry;
     }
-    const char* status = "nein (unbekannter Eintrag)";
-    u32 s = slotOf(entry);
-    for (u32 i = 0; i < kNotes; i++) {
-        const EntryNote& e = g_notes[(s + i) % kNotes];
-        if (e.addr == 0) {
-            break;
-        }
-        if (e.addr == entry) {
-            status = e.status == kEntryConverted ? "ja"
-                     : e.status == kEntryIncomplete ? "nein (unvollständig)"
-                                                    : "nein (kein Umwandler)";
-            break;
-        }
-    }
+    int e = re4_formats_entry_status(entry);
+    const char* status = e == kEntryConverted    ? "ja"
+                         : e == kEntryIncomplete ? "nein (unvollständig)"
+                         : e == kEntryNoConverter ? "nein (kein Umwandler)"
+                                                  : "nein (unbekannter Eintrag)";
     const char* name = "?";
     int slot = archiveSlot(arc);
     if (slot >= 0) {
