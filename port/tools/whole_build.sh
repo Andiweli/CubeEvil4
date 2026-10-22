@@ -137,6 +137,12 @@ for t in "${targets[@]}"; do
         echo "  re4_host $check: exit $code | $(echo "$out" | grep -E 'self-test:|check-modules:|runtime-test|core-test' | tr '\n' ' ' | sed 's/\[re4\] //g')"
         [ "$code" -ne 0 ] && status=1
     done
+    # the GX decoder with its vertices on the core thread alone (RE4_GX_THREADS=0; the run above
+    # puts them on 3 more threads): the same chunks byte for byte
+    out=$(cd "$build" && RE4_GX_THREADS=0 timeout 300 "${run[@]}" ./re4_host --runtime-test 2>&1)
+    code=$?
+    echo "  re4_host --runtime-test, GX vertices on the core thread: exit $code | $(echo "$out" | grep -E 'runtime-test (gx|sections):|runtime-test: [0-9]+ failed' | tr '\n' ' ' | sed 's/\[re4\] //g')"
+    [ "$code" -ne 0 ] && status=1
     out=$(python3 "$root/port/tools/memcard_list.py" "$card" --expect-system --expect-save 0 2>&1)
     code=$?
     echo "  memcard_list.py (the card of the core test): exit $code | $(echo "$out" | grep -cE '^  file ') files, $(echo "$out" | grep -oE 'CRC[^;,]*' | tr '\n' ' ')"

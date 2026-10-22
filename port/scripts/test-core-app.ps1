@@ -144,6 +144,12 @@ Ergebnis in -OutDir (Standard: Desktop\RE4-Kern-App): bericht.txt, logcat.txt,
 bild-*.png, kern-build.log, apk-build.log, nach einem Absturz absturz-system.txt und
 absturz-stapel.txt. Bitte bericht.txt, logcat.txt und die Bilder schicken.
 
+Mehrere Kerne (Branch performance): Die Eckpunkte der Grafik rechnen Helfer-Threads um.
+-GxThreads N legt ihre Anzahl fest (0: alles auf dem Spiel-Thread wie bis 0.44; ohne Angabe
+Kerne minus 3, hoechstens 3). -GxJobCheck rechnet zur Fehlersuche jeden Zeichenauftrag
+zusaetzlich sofort um und meldet im Bericht "GX job check", wenn sich Speicher geaendert hat,
+bevor ein Helfer ihn las (kostet Leistung, nur zur Pruefung).
+
 Kernprozess (32 bit, port/docs/32bit-kernprozess.md): Auf 32-bit-Geraeten, bei denen der
 Java-Speicher von Android schon auf dem Speicher des Spiels (0x80000000) liegt (Android 14),
 laeuft der Spielkern in einem eigenen Prozess ohne Java (libre4_coreproc.so). -CoreProcess
@@ -193,7 +199,9 @@ param(
     [string]$GxReplay = '',
     [string]$GxReplaySeries = '00',
     [ValidateSet('auto', 'armeabi-v7a', 'arm64-v8a')][string]$Abi = 'auto',
-    [switch]$CoreProcess
+    [switch]$CoreProcess,
+    [int]$GxThreads = -1,
+    [switch]$GxJobCheck
 )
 $ErrorActionPreference = 'Stop'
 # -Manual: you play yourself, 30 minutes unless -Seconds is given (Q ends earlier)
@@ -456,6 +464,10 @@ if ($WeaponTrace) {
     $settings = if ($settings) { "$settings;RE4_TRACE_WEAPON=1" } else { 'RE4_TRACE_WEAPON=1' }
 }
 $settings = if ($settings) { "$settings;RE4_APP_TOOLS=1" } else { 'RE4_APP_TOOLS=1' }
+# the vertex threads of the GX decoder (gx_decode.cpp): how many, and the check that memory a
+# draw reads does not change before its batch
+if ($GxThreads -ge 0) { $settings = "$settings;RE4_GX_THREADS=$GxThreads" }
+if ($GxJobCheck) { $settings = "$settings;RE4_GX_JOB_CHECK=1" }
 if ($CoreProcess) {
     # the core in a process of its own also with MEM1 free (32 bit only; core_mode.cpp)
     if ($Abi -ne 'armeabi-v7a') { Say 'Hinweis: -CoreProcess wirkt nur mit 32 bit (-Abi armeabi-v7a).' }

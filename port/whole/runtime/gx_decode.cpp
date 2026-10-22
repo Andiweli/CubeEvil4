@@ -35,9 +35,13 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <pthread.h>
+#include <stdlib.h>
+#include <thread>
 #include <stdio.h>
 #include <string.h>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -195,10 +199,36 @@ u32 gCopySerial;
 
 // --- chunks -------------------------------------------------------------------
 
+// An allocator whose resize leaves new elements as they are: the vertex and index bytes of a
+// draw are all written by its conversion (convertVertices clears its own vertices first, on the
+// thread that converts them; the core thread clearing them made every cache line change cores).
+template <typename T>
+struct NoInit : std::allocator<T> {
+    template <typename U>
+    struct rebind {
+        typedef NoInit<U> other;
+    };
+    NoInit() = default;
+    template <typename U>
+    NoInit(const NoInit<U>&)
+    {
+    }
+    template <typename U>
+    void construct(U* p)
+    {
+        ::new ((void*) p) U;
+    }
+    template <typename U, typename... A>
+    void construct(U* p, A&&... a)
+    {
+        ::new ((void*) p) U(std::forward<A>(a)...);
+    }
+};
+
 struct Chunk {
     std::vector<u32> ops;
-    std::vector<u8> vertices;
-    std::vector<u16> indices;
+    std::vector<u8, NoInit<u8>> vertices;
+    std::vector<u16, NoInit<u16>> indices;
     std::vector<u8> blob;
     Re4GxChunk view;
     // ops.size() right after the last draw record (0: none); a draw that
@@ -447,6 +477,14 @@ void dropQueueLocked()
     gNeedReset = true;
 }
 
+// The vertex jobs (draw(), further down): workers started (-1: not decided yet), whether draws
+// become jobs (RE4_GX_THREADS, re4_gx_threads), and since the last "GX core" line the draws
+// handed out as batches and the draws converted at once.
+int gWorkers = -1;
+bool gJobsOn;
+u32 gJobCount, gJobInline;
+std::atomic<u32> gJobMicros(0);  // the time the batches took (any thread)
+
 // Timing for the log: game time per chunk (display copy to display copy) and
 // the part of it the core waited for a free slot (the renderer is behind).
 long long gBoundaryAt;
@@ -461,6 +499,7 @@ re4cpu::ThreadUse gCoreUse;           // processor time of the core thread per c
 // still takes chunks. Waits while every slot is queued or being read.
 void chunkBoundary(u32 xfb, u32 width, u32 height)
 {
+    re4gx::finishJobs();  // the chunk's vertices complete before it is queued
     const long long start = nowMs();
     if (gBoundaryAt && gWanted.load()) {
         gFrameMs += start - gBoundaryAt;
@@ -480,9 +519,12 @@ void chunkBoundary(u32 xfb, u32 width, u32 height)
             gCoreUse.Describe(use, sizeof(use));
             const long long idle = re4_idle_ns();
             re4_log("GX core: 600 chunks, %.1f ms each, of it %.1f ms waiting for the renderer, %.1f ms idle, "
-                    "%.0f KB FIFO, %.0f KB display lists, %.0f vertices; %s",
+                    "%.0f KB FIFO, %.0f KB display lists, %.0f vertices; %s; vertices: %.0f batches in %.1f ms on "
+                    "%d more threads (with the core thread's share), %.0f draws at once",
                     gFrameMs / 600.0, gWaitMs / 600.0, (idle - gIdleAt) / 1e6 / 600.0, gFifoBytes / 1024.0 / 600.0,
-                    gListBytes / 1024.0 / 600.0, gFifoVertices / 600.0, use);
+                    gListBytes / 1024.0 / 600.0, gFifoVertices / 600.0, use, gJobCount / 600.0,
+                    gJobMicros.exchange(0) / 1000.0 / 600.0, gJobsOn ? gWorkers : 0, gJobInline / 600.0);
+            gJobCount = gJobInline = 0;
             gIdleAt = idle;
             gTimedChunks = 0;
             gFrameMs = gWaitMs = 0;
@@ -892,11 +934,14 @@ void describe(u32 vat, Format& f)
 Format gFormat[8];
 bool gFormatValid[8];
 
+u32 gFormatSerial;  // formats described so far (the vertex jobs' snapshots)
+
 const Format& format(u32 vat)
 {
     if (!gFormatValid[vat]) {
         describe(vat, gFormat[vat]);
         gFormatValid[vat] = true;
+        gFormatSerial++;
     }
     return gFormat[vat];
 }
@@ -926,6 +971,7 @@ struct Array {
 Array gArray[16];
 bool gArrayValid[16];
 u32 gArrayGeneration;
+u32 gArraySerial;  // arrays resolved so far (the vertex jobs' snapshots)
 
 void arraysCurrent()
 {
@@ -943,6 +989,7 @@ const Array& array(u32 index)
         a.stride = gGp.arrayStride[index];
         a.base = re4gx::memorySpan(gGp.arrayBase[index], &a.limit);
         gArrayValid[index] = true;
+        gArraySerial++;
     }
     return gArray[index];
 }
@@ -953,7 +1000,7 @@ inline const u8* at(const Array& a, u32 index, u32 bytes)
     return a.base && offset < a.limit && bytes <= a.limit - offset ? a.base + offset : nullptr;
 }
 
-// Where each attribute of the vertices of one block comes from (draw(); the core thread only).
+// Where each attribute of the vertices of one block comes from (convertVertices; one per thread).
 const u32 kBlock = 128;
 struct VertexBlock {
     const u8* pos[kBlock];
@@ -961,46 +1008,35 @@ struct VertexBlock {
     const u8* clr[2][kBlock];
     const u8* tex[8][kBlock];
 };
-VertexBlock gBlock;
+VertexBlock gBlock;  // the core thread's
 
-// Decodes `count` vertices at `data` into the chunk, appends the indices.
-void draw(u8 op, u32 count, const u8* data, bool be)
+// The arrays a draw reads, as host memory at the time of the draw: positions, normals, colours
+// 0 and 1, texture coordinates 0-7 (not read: no memory).
+struct DrawArrays {
+    Array a[12];
+};
+
+// The vertices of one draw: `count` of them from the stream bytes at `in` (and the arrays) into
+// `out` (count * f.stride bytes, cleared here). First where each attribute of each vertex comes
+// from and the matrix indices, then each attribute of a block at once. Returns how many vertices
+// carry the index that skips them. Any thread (the vertex jobs).
+u32 convertVertices(const Format& f, const DrawArrays& arrays, const u8* in, u32 count, bool be, u8* out,
+                    VertexBlock& blk)
 {
-    gStats.draws++;
-    gStats.vertices += count;
-    gFifoVertices += count;
-    Chunk* c = chunk();
-    if (!c || count == 0) {
-        return;
-    }
-    u32 vat = op & 7;
-    const Format& f = format(vat);
-    // the arrays this format reads
-    static const Array kNone = {nullptr, 0, 0};
-    arraysCurrent();
-    const Array& pos = f.posMode >= 2 ? array(0) : kNone;
-    const Array& nrm = f.nrmMode >= 2 ? array(1) : kNone;
-    const Array* clr[2] = {f.clrMode[0] >= 2 ? &array(2) : &kNone, f.clrMode[1] >= 2 ? &array(3) : &kNone};
-    const Array* tex[8];
-    for (u32 j = 0; j < f.texCount; j++) {
-        const u32 i = f.texList[j];
-        tex[i] = f.texMode[i] >= 2 ? &array(4 + i) : &kNone;
-    }
-    // the vertices in blocks: first where each attribute of each vertex comes from (the stream or
-    // an array element) and the matrix indices, then each attribute of the whole block at once
-    const u32 base = (u32) c->vertices.size();
-    c->vertices.resize(base + (size_t) count * f.stride);
-    const u8* in = data;
+    const Array& pos = arrays.a[0];
+    const Array& nrm = arrays.a[1];
     const u32 stride = f.stride;
     const u32 posMode = f.posMode, nrmMode = f.nrmMode;
     const u32 posIndex = indexSize(posMode), nrmIndex = indexSize(nrmMode);
     const u32 posBytes = f.posBytes, nrmBytes = f.nrmComps * f.nrmCs, nrmCs = f.nrmCs;
     const bool nbt3 = f.nbt3, anyMatrix = f.anyMatrix;
     const int sb = be ? 1 : 0;
+    u32 skipped = 0;
+    memset(out, 0, (size_t) count * stride);  // what a vertex does not have stays 0
     for (u32 done = 0; done < count;) {
         const u32 n = count - done < kBlock ? count - done : kBlock;
-        u8* out = c->vertices.data() + base + (size_t) done * stride;
-        u8* o = out;
+        u8* first = out + (size_t) done * stride;
+        u8* o = first;
         for (u32 v = 0; v < n; v++, o += stride) {
             if (anyMatrix) {  // the matrix indices: the defaults, then those of the vertex
                 u8* matrix = o + f.offMatrix;
@@ -1014,19 +1050,19 @@ void draw(u8 op, u32 count, const u8* data, bool be)
             }
             // position (the vertex bytes start as zeros: what is not there stays 0)
             if (posMode == 1) {
-                gBlock.pos[v] = in;
+                blk.pos[v] = in;
                 in += posBytes;
             } else if (posMode) {
                 u32 index = posMode == 2 ? *in : rd16(in, be);
                 in += posIndex;
                 if ((posMode == 2 && index == 0xFF) || (posMode == 3 && index == 0xFFFF)) {
-                    gStats.skipped++;  // GX skips such a vertex; kept here (rare)
+                    skipped++;  // GX skips such a vertex; kept here (rare)
                 }
-                gBlock.pos[v] = at(pos, index, posBytes);
+                blk.pos[v] = at(pos, index, posBytes);
             }
             // normal (binormal, tangent: the three one after the other from offNormal)
             if (nrmMode == 1) {
-                gBlock.nrm[0][v] = in;
+                blk.nrm[0][v] = in;
                 in += nrmBytes;
             } else if (nbt3) {
                 // three indices: normal, binormal, tangent, each the part of its element
@@ -1034,117 +1070,88 @@ void draw(u8 op, u32 count, const u8* data, bool be)
                     u32 index = nrmMode == 2 ? *in : rd16(in, be);
                     in += nrmIndex;
                     const u8* src = at(nrm, index, 9 * nrmCs);
-                    gBlock.nrm[part][v] = src ? src + part * 3 * nrmCs : nullptr;
+                    blk.nrm[part][v] = src ? src + part * 3 * nrmCs : nullptr;
                 }
             } else if (nrmMode) {
                 u32 index = nrmMode == 2 ? *in : rd16(in, be);
                 in += nrmIndex;
-                gBlock.nrm[0][v] = at(nrm, index, nrmBytes);
+                blk.nrm[0][v] = at(nrm, index, nrmBytes);
             }
             for (int k = 0; k < 2; k++) {
                 if (f.clrMode[k] == 1) {
-                    gBlock.clr[k][v] = in;
+                    blk.clr[k][v] = in;
                     in += f.clrBytes[k];
                 } else if (f.clrMode[k]) {
                     u32 index = f.clrMode[k] == 2 ? *in : rd16(in, be);
                     in += indexSize(f.clrMode[k]);
-                    const u8* src = at(*clr[k], index, f.clrBytes[k]);
-                    gBlock.clr[k][v] = src ? src : kZero;
+                    const u8* src = at(arrays.a[2 + k], index, f.clrBytes[k]);
+                    blk.clr[k][v] = src ? src : kZero;
                 }
             }
             for (u32 j = 0; j < f.texCount; j++) {
                 const u32 i = f.texList[j];
                 if (f.texMode[i] == 1) {
-                    gBlock.tex[i][v] = in;
+                    blk.tex[i][v] = in;
                     in += f.texBytes[i];
                 } else {
                     u32 index = f.texMode[i] == 2 ? *in : rd16(in, be);
                     in += indexSize(f.texMode[i]);
-                    gBlock.tex[i][v] = at(*tex[i], index, f.texBytes[i]);
+                    blk.tex[i][v] = at(arrays.a[4 + i], index, f.texBytes[i]);
                 }
             }
         }
         // direct data in the stream's byte order, array elements in host order
         if (posMode) {
-            f.posBlock[posMode == 1 ? sb : 0](out, stride, gBlock.pos, n, f.posScale);
+            f.posBlock[posMode == 1 ? sb : 0](first, stride, blk.pos, n, f.posScale);
         }
         if (nrmMode == 1) {
-            f.nrmBlock[sb](out + f.offNormal, stride, gBlock.nrm[0], n, f.nrmScale);
+            f.nrmBlock[sb](first + f.offNormal, stride, blk.nrm[0], n, f.nrmScale);
         } else if (nbt3) {
             for (u32 part = 0; part < 3; part++) {
-                f.nrmPartBlock(out + f.offNormal + 12 * part, stride, gBlock.nrm[part], n, f.nrmScale);
+                f.nrmPartBlock(first + f.offNormal + 12 * part, stride, blk.nrm[part], n, f.nrmScale);
             }
         } else if (nrmMode) {
-            f.nrmBlock[0](out + f.offNormal, stride, gBlock.nrm[0], n, f.nrmScale);
+            f.nrmBlock[0](first + f.offNormal, stride, blk.nrm[0], n, f.nrmScale);
         }
         for (int k = 0; k < 2; k++) {
             if (f.clrMode[k]) {
-                f.clrBlock[k][f.clrMode[k] == 1 ? sb : 0](out + f.offColor[k], stride, gBlock.clr[k], n);
+                f.clrBlock[k][f.clrMode[k] == 1 ? sb : 0](first + f.offColor[k], stride, blk.clr[k], n);
             }
         }
         for (u32 j = 0; j < f.texCount; j++) {
             const u32 i = f.texList[j];
-            f.texBlock[i][f.texMode[i] == 1 ? sb : 0](out + f.offTex[i], stride, gBlock.tex[i], n, f.texScale[i]);
+            f.texBlock[i][f.texMode[i] == 1 ? sb : 0](first + f.offTex[i], stride, blk.tex[i], n, f.texScale[i]);
         }
         done += n;
     }
+    return skipped;
+}
 
-    // the draw: a draw right after another one (no state op between them) with the same
-    // primitive class, vertex layout and default matrices joins it: one renderer draw instead of
-    // one per GXBegin (a forest frame of r100 has about 16 000 GXBegins and 470 such runs). The
-    // triangle order stays.
-    const u32 kind = op & 0xF8;
-    const u32 primitive = kind == 0xA8 || kind == 0xB0 ? RE4_GX_LINES : kind == 0xB8 ? RE4_GX_POINTS : RE4_GX_TRIANGLES;
-    std::vector<u16>& ix = c->indices;
-    const u32 first = (u32) ix.size();
-    Re4GxDraw d;
-    d.primitive = primitive | (u32) (op & 0xF8) << 8 | vat << 16;
-    d.layout = f.layout;
-    d.stride = f.stride;
-    d.vertexOffset = base;
-    d.vertexCount = count;
-    d.indexOffset = first;
-    d.matrices[0] = f.defaults[0] | f.defaults[1] << 8 | f.defaults[2] << 16 | (u32) f.defaults[3] << 24;
-    d.matrices[1] = f.defaults[4] | f.defaults[5] << 8 | f.defaults[6] << 16 | (u32) f.defaults[7] << 24;
-    d.matrices[2] = f.defaults[8];
-    const u32 words = sizeof(Re4GxDraw) / 4;
-    Re4GxDraw last;
-    bool join = false;
-    if (c->lastDrawEnd && c->ops.size() == c->lastDrawEnd) {
-        memcpy(&last, &c->ops[c->lastDrawEnd - words], sizeof(last));
-        join = (last.primitive & 0xFF) == primitive && last.layout == d.layout && last.stride == d.stride &&
-               memcmp(last.matrices, d.matrices, sizeof(d.matrices)) == 0 &&
-               last.vertexOffset + last.vertexCount * last.stride == base && last.indexOffset + last.indexCount == first &&
-               last.vertexCount + count <= 0x10000;
-    }
-    // indices, relative to the first vertex of the (joined) draw: written in place (one insert per
-    // triangle was a few percent; adding the joined draw's vertices afterwards a pass more)
-    const u32 o = join ? last.vertexCount : 0;
-    size_t added = 0;
+// How many indices a draw of `count` vertices with the primitive `kind` (op & 0xF8) gets.
+size_t indexCount(u32 kind, u32 count)
+{
     switch (kind) {
     case 0x80:
     case 0x88:
-        added = (size_t) (count / 4) * 6;
-        break;
+        return (size_t) (count / 4) * 6;
     case 0x90:
-        added = (size_t) (count / 3) * 3;
-        break;
+        return (size_t) (count / 3) * 3;
     case 0x98:
     case 0xA0:
-        added = count >= 3 ? (size_t) (count - 2) * 3 : 0;
-        break;
+        return count >= 3 ? (size_t) (count - 2) * 3 : 0;
     case 0xA8:
-        added = (size_t) (count / 2) * 2;
-        break;
+        return (size_t) (count / 2) * 2;
     case 0xB0:
-        added = count >= 2 ? (size_t) (count - 1) * 2 : 0;
-        break;
+        return count >= 2 ? (size_t) (count - 1) * 2 : 0;
     default:
-        added = count;
-        break;
+        return count;
     }
-    ix.resize(first + added);
-    u16* w = ix.data() + first;
+}
+
+// The indices of such a draw at `w`, relative to the first vertex of the renderer draw it is part
+// of (`o`: the vertices of the draws it joins, before it). Any thread (the vertex jobs).
+void writeIndices(u32 kind, u32 count, u32 o, u16* w)
+{
     switch (kind) {
     case 0x80:  // quads
     case 0x88:  // quads (second encoding)
@@ -1203,7 +1210,388 @@ void draw(u8 op, u32 count, const u8* data, bool be)
         }
         break;
     }
+}
+
+// --- vertex jobs ------------------------------------------------------------------
+//
+// The vertices of the draws are converted on other cores (wish of the project owner, 22.10.2026:
+// on weak devices the core thread spends most of its time here, and it grows with the vertices of
+// a picture). The core thread decodes the commands in order as before; each draw gets its place in
+// the chunk at once (vertices, indices, the draw record), and converting its vertices becomes an
+// entry of a batch. Most draws are small (the forest of r100: about 8 vertices per GXBegin), so a
+// batch collects entries until kBatchVertices; worker threads take whole batches (and the core
+// thread, when it has to wait for them). A batch reads the arrays and display lists in game memory
+// a little after the command, as the GameCube's GP did while the CPU went on; all of them are done
+// (finishJobs) before the GP reports back to the game (draw done, tokens: the game may then change
+// what was drawn), before an EFB copy marks memory, before a chunk goes to the renderer, before a
+// display list is recorded into memory and before the chunk's buffers would move.
+// RE4_GX_THREADS=N: N workers (0: none, every draw on the core thread as before); by default up
+// to 3, leaving 3 cores to the game, the renderer and the sound.
+
+// The vertex format and arrays of a run of draws (copied: the registers change meanwhile).
+struct Snapshot {
+    Format f;
+    DrawArrays arrays;
+};
+struct DrawEntry {
+    const Snapshot* snap;
+    const u8* in;
+    u8* out;
+    u16* ix;
+    u32 count, kind, o;
+    bool be;
+    u64 result;  // RE4_GX_JOB_CHECK=1: a hash of its vertices converted when the draw came
+};
+// RE4_GX_JOB_CHECK=1 (diagnosis): every draw also converted at once on the core thread; a batch
+// whose result differs logs it (memory the draw reads changed between the command and the batch)
+bool gJobCheck;
+struct Batch {
+    u32 begin, end;  // entries
+};
+const u32 kJobs = 1024;              // batches between two finishJobs at most
+const u32 kEntries = 16384;          // draws ...
+const u32 kSnapshots = 2048;         // formats and arrays ...
+const size_t kJobBytes = 1u << 20;   // vertex bytes of FIFO draws kept for their batches (the stream moves on)
+const u32 kBatchVertices = 384;      // a batch is handed out from this many vertices on
+const u32 kBatchEntries = 64;        // ... or draws
+const int kMaxWorkers = 3;
+
+std::vector<Batch> gJobs;            // a ring; a place is used again after finishJobs
+std::vector<DrawEntry> gEntries;     // from 0 again after each finishJobs
+std::vector<Snapshot> gSnaps;
+std::vector<u8> gJobBytes;
+u32 gEntryUsed, gSnapUsed;
+size_t gJobBytesUsed;
+u32 gBatchBegin, gBatchVertices;     // the batch being filled: its first entry, its vertices
+int gSnapVat = -1;                   // the snapshot the last entry used: its format and arrays
+u32 gSnapFormat, gSnapArrays;
+u32 gJobBase;                        // batches handed out at the last finishJobs
+// (each on a cache line of its own: the core thread and the workers write them)
+alignas(64) std::atomic<u32> gJobsTail(0);     // batches handed out
+alignas(64) std::atomic<u32> gJobsNext(0);     // batches taken
+alignas(64) std::atomic<u32> gJobsDone(0);     // batches converted
+alignas(64) std::atomic<u32> gJobsSkipped(0);  // their vertices with the skip index
+alignas(64) std::atomic<int> gSleepers(0);
+alignas(64) std::atomic<int> gLooking(0);      // workers awake without a batch (handOut wakes none then)
+std::mutex gJobMutex;
+std::condition_variable gJobCv;
+
+bool jobWaiting()
+{
+    return (int32_t) (gJobsTail.load() - gJobsNext.load()) > 0;
+}
+
+// Takes one batch and converts its draws; false when none is waiting.
+bool runOneJob(VertexBlock& blk)
+{
+    u32 n = gJobsNext.load();
+    for (;;) {
+        if ((int32_t) (gJobsTail.load() - n) <= 0) {
+            return false;
+        }
+        if (gJobsNext.compare_exchange_weak(n, n + 1)) {
+            break;
+        }
+    }
+    const Batch b = gJobs[n % kJobs];
+    const auto start = std::chrono::steady_clock::now();
+    u32 skipped = 0;
+    for (u32 e = b.begin; e < b.end; e++) {
+        const DrawEntry& d = gEntries[e];
+        skipped += convertVertices(d.snap->f, d.snap->arrays, d.in, d.count, d.be, d.out, blk);
+        writeIndices(d.kind, d.count, d.o, d.ix);
+        if (gJobCheck && hashBytes(d.out, (size_t) d.count * d.snap->f.stride, 0) != d.result) {
+            re4_log("GX job check: a draw of %u vertices came out differently than when it came (entry %u): "
+                    "memory it reads changed meanwhile",
+                    d.count, e);
+        }
+    }
+    if (skipped) {
+        gJobsSkipped.fetch_add(skipped);
+    }
+    gJobMicros.fetch_add((u32) std::chrono::duration_cast<std::chrono::microseconds>(
+                             std::chrono::steady_clock::now() - start)
+                             .count());
+    gJobsDone.fetch_add(1);
+    return true;
+}
+
+inline void cpuRelax()
+{
+#if defined(__i386__) || defined(__x86_64__)
+    __builtin_ia32_pause();
+#elif defined(__arm__) || defined(__aarch64__)
+    __asm__ __volatile__("yield");
+#endif
+}
+
+void worker()
+{
+    pthread_setname_np(pthread_self(), "re4-gx-verts");  // in profiles (simpleperf) and crash reports
+    VertexBlock* blk = new VertexBlock;
+    for (;;) {
+        if (runOneJob(*blk)) {
+            continue;
+        }
+        // the batches of a picture come in bursts, a wake-up costs more than a batch: awake for
+        // 0.3 ms before sleeping
+        gLooking++;
+        bool found = false;
+        const auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(300);
+        while (!found) {
+            for (int i = 0; i < 256 && !found; i++) {
+                cpuRelax();
+                found = jobWaiting();
+            }
+            if (!found && std::chrono::steady_clock::now() > until) {
+                break;
+            }
+        }
+        gLooking--;
+        if (found) {
+            continue;
+        }
+        std::unique_lock<std::mutex> lock(gJobMutex);
+        gSleepers++;
+        gJobCv.wait(lock, [] { return jobWaiting(); });
+        gSleepers--;
+    }
+}
+
+void startWorkers(int want)
+{
+    if (gJobs.empty()) {
+        gJobs.resize(kJobs);
+        gEntries.resize(kEntries);
+        gSnaps.resize(kSnapshots);
+        gJobBytes.resize(kJobBytes);
+    }
+    want = std::min(want, kMaxWorkers);
+    while (gWorkers < want) {
+        std::thread(worker).detach();
+        gWorkers++;
+    }
+}
+
+// The workers wanted: RE4_GX_THREADS, else the cores minus 3 (at most 3).
+int defaultWorkers()
+{
+    const char* env = getenv("RE4_GX_THREADS");
+    const int want = env && *env ? atoi(env) : (int) std::thread::hardware_concurrency() - 3;
+    return std::max(0, std::min(want, kMaxWorkers));
+}
+
+// The workers the first time a draw needs them.
+void decideWorkers()
+{
+    gWorkers = 0;
+    const int want = defaultWorkers();
+    if (want > 0) {
+        startWorkers(want);
+    }
+    gJobsOn = want > 0;
+    const char* check = getenv("RE4_GX_JOB_CHECK");
+    gJobCheck = check && *check == '1';
+    re4_log("GX: the vertices of the draws converted on %d more threads (%u cores)", want,
+            std::thread::hardware_concurrency());
+}
+
+// Waits until the batches handed out are converted (the core thread takes some itself).
+void waitHandedOut()
+{
+    const u32 tail = gJobsTail.load();
+    if (tail == gJobBase) {
+        return;
+    }
+    while (runOneJob(gBlock)) {
+    }
+    while (gJobsDone.load() != tail) {
+        std::this_thread::yield();
+    }
+    gJobBase = tail;
+    gStats.skipped += gJobsSkipped.exchange(0);
+}
+
+// Hands out the batch being filled.
+void handOut()
+{
+    if (gBatchBegin == gEntryUsed) {
+        return;
+    }
+    if (gJobsTail.load() - gJobBase >= kJobs) {
+        waitHandedOut();  // the ring is full
+    }
+    const u32 tail = gJobsTail.load();
+    gJobs[tail % kJobs] = Batch{gBatchBegin, gEntryUsed};
+    gJobsTail.store(tail + 1);
+    gBatchBegin = gEntryUsed;
+    gBatchVertices = 0;
+    gJobCount++;
+    if (gLooking.load() == 0 && gSleepers.load() > 0) {
+        std::lock_guard<std::mutex> lock(gJobMutex);
+        gJobCv.notify_one();
+    }
+}
+
+}  // namespace
+
+namespace re4gx {
+
+void finishJobs()
+{
+    handOut();
+    waitHandedOut();
+    gEntryUsed = gBatchBegin = 0;
+    gSnapUsed = 0;
+    gSnapVat = -1;
+    gJobBytesUsed = 0;
+}
+
+}  // namespace re4gx
+
+namespace {
+
+// A draw's vertices as an entry of the batch being filled. False when its bytes do not fit the
+// store (converted at once then).
+bool addEntry(u32 vat, const Format& f, const DrawArrays& arrays, const u8* data, bool stable, u32 count, bool be,
+              u8* out, u16* ix, u32 kind, u32 o)
+{
+    const u8* in = data;
+    if (!stable) {
+        const size_t bytes = (size_t) count * f.inSize;
+        if (bytes > kJobBytes) {
+            return false;
+        }
+        if (gJobBytesUsed + bytes > kJobBytes) {
+            re4gx::finishJobs();
+        }
+        memcpy(gJobBytes.data() + gJobBytesUsed, data, bytes);
+        in = gJobBytes.data() + gJobBytesUsed;
+        gJobBytesUsed += bytes;
+    }
+    if (gEntryUsed == kEntries) {
+        re4gx::finishJobs();
+        if (!stable) {  // the store began anew
+            memcpy(gJobBytes.data(), data, (size_t) count * f.inSize);
+            in = gJobBytes.data();
+            gJobBytesUsed = (size_t) count * f.inSize;
+        }
+    }
+    if ((int) vat != gSnapVat || gSnapFormat != gFormatSerial || gSnapArrays != gArraySerial) {
+        if (gSnapUsed == kSnapshots) {
+            re4gx::finishJobs();
+            if (!stable) {
+                memcpy(gJobBytes.data(), data, (size_t) count * f.inSize);
+                in = gJobBytes.data();
+                gJobBytesUsed = (size_t) count * f.inSize;
+            }
+        }
+        Snapshot& sn = gSnaps[gSnapUsed++];
+        sn.f = f;
+        sn.arrays = arrays;
+        gSnapVat = (int) vat;
+        gSnapFormat = gFormatSerial;
+        gSnapArrays = gArraySerial;
+    }
+    DrawEntry& e = gEntries[gEntryUsed++];
+    e.snap = &gSnaps[gSnapUsed - 1];
+    e.in = in;
+    e.out = out;
+    e.ix = ix;
+    e.count = count;
+    e.kind = kind;
+    e.o = o;
+    e.be = be;
+    if (gJobCheck) {
+        std::vector<u8> now((size_t) count * f.stride);
+        convertVertices(f, arrays, in, count, be, now.data(), gBlock);
+        e.result = hashBytes(now.data(), now.size(), 0);
+    }
+    gBatchVertices += count;
+    if (gBatchVertices >= kBatchVertices || gEntryUsed - gBatchBegin >= kBatchEntries) {
+        handOut();
+    }
+    return true;
+}
+
+// Decodes `count` vertices at `data` into the chunk, appends the indices. `stable`: the bytes
+// stay where they are (a display list; the FIFO's stream moves on).
+void draw(u8 op, u32 count, const u8* data, bool be, bool stable)
+{
+    gStats.draws++;
+    gStats.vertices += count;
+    gFifoVertices += count;
+    Chunk* c = chunk();
+    if (!c || count == 0) {
+        return;
+    }
+    if (gWorkers < 0) {
+        decideWorkers();
+    }
+    u32 vat = op & 7;
+    const Format& f = format(vat);
+    // the arrays this format reads
+    static const Array kNone = {nullptr, 0, 0};
+    arraysCurrent();
+    DrawArrays arrays;
+    arrays.a[0] = f.posMode >= 2 ? array(0) : kNone;
+    arrays.a[1] = f.nrmMode >= 2 ? array(1) : kNone;
+    arrays.a[2] = f.clrMode[0] >= 2 ? array(2) : kNone;
+    arrays.a[3] = f.clrMode[1] >= 2 ? array(3) : kNone;
+    for (u32 i = 0; i < 8; i++) {
+        arrays.a[4 + i] = f.texMode[i] >= 2 ? array(4 + i) : kNone;
+    }
+    // the place of the vertices and indices in the chunk (batches write there: they must not move)
+    const u32 base = (u32) c->vertices.size();
+    const size_t vertexEnd = base + (size_t) count * f.stride;
+    const u32 kind = op & 0xF8;
+    std::vector<u16, NoInit<u16>>& ix = c->indices;
+    const u32 first = (u32) ix.size();
+    const size_t added = indexCount(kind, count);
+    if (vertexEnd > c->vertices.capacity() || first + added > ix.capacity()) {
+        re4gx::finishJobs();
+        c->vertices.reserve(std::max(vertexEnd, c->vertices.capacity() * 2));
+        ix.reserve(std::max(first + added, ix.capacity() * 2));
+    }
+    c->vertices.resize(vertexEnd);
+    ix.resize(first + added);
+
+    // the draw: a draw right after another one (no state op between them) with the same
+    // primitive class, vertex layout and default matrices joins it: one renderer draw instead of
+    // one per GXBegin (a forest frame of r100 has about 16 000 GXBegins and 470 such runs). The
+    // triangle order stays.
+    const u32 primitive = kind == 0xA8 || kind == 0xB0 ? RE4_GX_LINES : kind == 0xB8 ? RE4_GX_POINTS : RE4_GX_TRIANGLES;
+    Re4GxDraw d;
+    d.primitive = primitive | (u32) (op & 0xF8) << 8 | vat << 16;
+    d.layout = f.layout;
+    d.stride = f.stride;
+    d.vertexOffset = base;
+    d.vertexCount = count;
+    d.indexOffset = first;
     d.indexCount = (u32) added;
+    d.matrices[0] = f.defaults[0] | f.defaults[1] << 8 | f.defaults[2] << 16 | (u32) f.defaults[3] << 24;
+    d.matrices[1] = f.defaults[4] | f.defaults[5] << 8 | f.defaults[6] << 16 | (u32) f.defaults[7] << 24;
+    d.matrices[2] = f.defaults[8];
+    const u32 words = sizeof(Re4GxDraw) / 4;
+    Re4GxDraw last;
+    bool join = false;
+    if (c->lastDrawEnd && c->ops.size() == c->lastDrawEnd) {
+        memcpy(&last, &c->ops[c->lastDrawEnd - words], sizeof(last));
+        join = (last.primitive & 0xFF) == primitive && last.layout == d.layout && last.stride == d.stride &&
+               memcmp(last.matrices, d.matrices, sizeof(d.matrices)) == 0 &&
+               last.vertexOffset + last.vertexCount * last.stride == base && last.indexOffset + last.indexCount == first &&
+               last.vertexCount + count <= 0x10000;
+    }
+    // the vertices and the indices (relative to the first vertex of the joined draw): in a batch,
+    // or at once
+    const u32 o = join ? last.vertexCount : 0;
+    u8* out = c->vertices.data() + base;
+    u16* w = ix.data() + first;
+    if (!gJobsOn || !addEntry(vat, f, arrays, data, stable, count, be, out, w, kind, o)) {
+        gStats.skipped += convertVertices(f, arrays, data, count, be, out, gBlock);
+        writeIndices(kind, count, o, w);
+        gJobInline++;
+    }
     c->view.vertexCount += count;
     if (join) {
         last.vertexCount += count;
@@ -1575,6 +1963,9 @@ void efbCopy(u32 control)
     }
     u8* marker = re4gx::memory(dest, 32);
     if (marker) {
+        // the copy writes memory a draw before it may still read (a vertex job): as on the
+        // GameCube, those draws read it first
+        re4gx::finishJobs();
         u32 serial = ++gCopySerial;
         u32 check = serial ^ dest ^ 0x5A5A5A5Au;
         memcpy(marker, kCopyMagic, 8);
@@ -1601,13 +1992,16 @@ void bpWrite(u32 word)
         gTexturesDirty = true;
     }
     switch (reg) {
-    case 0x45:  // PE_DONE: everything before it is drawn
+    case 0x45:  // PE_DONE: everything before it is drawn (the vertex jobs read their memory)
+        re4gx::finishJobs();
         re4gx::peFinish();
         return;
     case 0x47:  // PE_TOKEN: the token register, no interrupt
+        re4gx::finishJobs();
         re4gx::peToken((u16) now, false);
         return;
     case 0x48:  // PE_TOKEN_INT
+        re4gx::finishJobs();
         re4gx::peToken((u16) now, true);
         return;
     case 0x64:  // TLUT source, loaded with 0x65
@@ -1744,7 +2138,7 @@ size_t command(const u8* p, size_t n, size_t* need, bool be, int depth)
         if (chunk()) {
             bindTextures();
         }
-        draw(op, count, p + 3, be);
+        draw(op, count, p + 3, be, depth > 0);
         return *need;
     }
     if (depth == 0) {
@@ -1888,10 +2282,37 @@ void re4_core_gx_detach(void)
     gCv.notify_all();
 }
 
+// Tests (gx_probe.cpp): the GP done with what came so far, as after GXDrawDone (the test then
+// writes memory a draw before read).
+void re4_gx_wait_jobs(void)
+{
+    re4gx::drain();
+    re4gx::finishJobs();
+}
+
+// Tests (runtime_tests.cpp): the vertex jobs on `n` workers (started as needed, at most 3), none
+// (0: every draw on the core thread) or as by default (-1). Returns the workers running.
+int re4_gx_threads(int n)
+{
+    re4gx::finishJobs();
+    if (gWorkers < 0) {
+        gWorkers = 0;
+    }
+    if (n < 0) {
+        n = defaultWorkers();
+    }
+    if (n > 0) {
+        startWorkers(n);
+    }
+    gJobsOn = n > 0;
+    return gWorkers;
+}
+
 // Tests (runtime_tests.cpp, gx_probe.cpp): what the GP has seen.
 void re4_gx_stats(unsigned out[11])
 {
     re4gx::drain();
+    re4gx::finishJobs();
     const u32 v[11] = {gStats.bytes, gStats.commands, gStats.bp, gStats.cp, gStats.xf, gStats.xfIndexed,
                        gStats.draws, gStats.vertices, gStats.calls, gStats.unknown, gStats.dlBytes};
     memcpy(out, v, sizeof(v));
@@ -1903,6 +2324,7 @@ void re4_gx_stats(unsigned out[11])
 void re4_gx_stats2(unsigned out[9])
 {
     re4gx::drain();
+    re4gx::finishJobs();
     const u32 v[9] = {gStats.xfbCopies, gStats.texCopies, gStats.tlutLoads, gStats.textures, gStats.textureBytes,
                       gStats.chunks, gStats.dropped, gStats.hostLists, gStats.skipped};
     memcpy(out, v, sizeof(v));
