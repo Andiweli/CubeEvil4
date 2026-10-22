@@ -5943,6 +5943,29 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Gerätetest 22.10.2026 19:40 (Retroid, Stand mit Messer per Wischen; Bericht und Logcat)
+
+- **Messer per Wischen ✅:** 7 Schnitte (`knife: slash 1 … 7 by a swipe`), Neigung von -0,77 bis
+  +0,79; je Schnitt L, dann L+A, dann L, wie geplant.
+- **60 FPS ✅ (Zwischenbilder entstehen):** bei Stufe 1 ohne MSAA `188 in-between pictures` auf 190
+  Spielbilder, 0 Schnitte, 78 % der 3D-Zeichnungen zugeordnet, GPU 2,3–2,9 ms je Spielbild, die
+  GPU 0,3–0,4 Durchläufe zurück; der Render-Thread braucht dabei 9–10 ms Prozessorzeit je Spielbild
+  (ohne 60 FPS 4–5 ms). Projektinhaber: flüssiger, aber am Retroid nur ohne MSAA und eine
+  Auflösungsstufe tiefer (bei Stufe 2 mit 4× MSAA braucht schon ein Bild 15–17 ms GPU; mit
+  Zwischenbild doppelt so viel). **Die FPS-Anzeige blieb bei 30:** sie zählt die Bilder des Spiels
+  (das Spiel bleibt bei 30). **Neu:** mit „60 FPS“ zeigt sie zusätzlich die Bilder auf dem
+  Bildschirm, Zwischenbilder mitgezählt: `30 FPS (Game) · 60 FPS (Screen)` (`ingame_fps_smooth`,
+  zehn Sprachen; `CoreBridge.pictures`, Zähler `picturesMade` in `drawGx`).
+- **„4:3 (no bars)“ am Retroid:** oben und unten blieb ein schwarzer Rand. Ursache: die App setzt das
+  Bild des Spiels (448 Zeilen) wie ein Fernseher in einen 4:3-Rahmen von 480 Zeilen; auf dem
+  1080 Pixel hohen Bildschirm bleiben oben und unten je 36 Pixel frei. **Neu:** in diesem Format
+  füllen die Zeilen die ganze Höhe, in ihrer eigenen Form 640 × 448 (10:7); auf Bildschirmen, die
+  schmaler sind, bis hinunter zu 4:3 (die Zeilen dann bis zu 7 % höher), damit ein 4:3-Bildschirm
+  ganz voll ist. „4:3 (Original)“ bleibt wie bisher. Ob das Spiel selbst ohne seine Balken zeichnet,
+  zeigt jetzt das Protokoll: `picture: the game draws without its letterbox (r105)` /
+  `… with its letterbox …` bei jedem Wechsel (höchstens 40; Laufzeit-Test `letterbox` prüft beide
+  Zeilen). Im Logcat des Tests war das Format nur rund 4 s lang im freien Spiel an.
+
 ### Filmfarben Galaxy A36: Ursache gefunden und behoben (Bericht 22.10.2026 19:30, 0.43.0, Cloud)
 
 - **Bericht** (SM-A366B, Adreno 710, Treiber 0800.58, 64 bit): die GPU-Selbstprüfung meldet

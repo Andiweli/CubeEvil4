@@ -59,6 +59,7 @@
 
     <string name="ingame_fps_none">-- FPS (игра)</string>
     <string name="ingame_fps">%1$d FPS (игра)</string>
+    <string name="ingame_fps_smooth">%1$d FPS (игра) · %2$d FPS (экран)</string>
 
     <string name="ingame_core_not_started">Ядро игры не запустилось:\n%1$s</string>
     <string name="ingame_core_stopped">Ядро игры остановилось:\n%1$s</string>

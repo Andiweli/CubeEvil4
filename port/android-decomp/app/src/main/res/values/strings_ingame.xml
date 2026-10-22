@@ -73,6 +73,7 @@
     <!-- the FPS display (the screen's rate follows, " · 60 Hz") -->
     <string name="ingame_fps_none">-- FPS (Game)</string>
     <string name="ingame_fps">%1$d FPS (Game)</string>
+    <string name="ingame_fps_smooth">%1$d FPS (Game) · %2$d FPS (Screen)</string>
 
     <!-- the app's messages in the game -->
     <string name="ingame_core_not_started">The game core did not start:\n%1$s</string>

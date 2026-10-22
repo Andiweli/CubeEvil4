@@ -59,6 +59,7 @@
 
     <string name="ingame_fps_none">-- FPS (गेम)</string>
     <string name="ingame_fps">%1$d FPS (गेम)</string>
+    <string name="ingame_fps_smooth">%1$d FPS (गेम) · %2$d FPS (स्क्रीन)</string>
 
     <string name="ingame_core_not_started">गेम कोर शुरू नहीं हुआ:\n%1$s</string>
     <string name="ingame_core_stopped">गेम कोर रुक गया:\n%1$s</string>

@@ -60,6 +60,7 @@
 
     <string name="ingame_fps_none">-- FPS（游戏）</string>
     <string name="ingame_fps">%1$d FPS（游戏）</string>
+    <string name="ingame_fps_smooth">%1$d FPS（游戏）· %2$d FPS（画面）</string>
 
     <string name="ingame_core_not_started">游戏核心未能启动：\n%1$s</string>
     <string name="ingame_core_stopped">游戏核心已停止：\n%1$s</string>

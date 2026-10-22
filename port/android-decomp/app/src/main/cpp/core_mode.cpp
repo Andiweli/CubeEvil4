@@ -583,6 +583,8 @@ struct Bench {
 Bench bench;
 std::atomic<int> optDof{-1};  // the menu's depth of field (CoreBridge.setDof); -1 not set yet
 std::atomic<int> optSmooth{0};  // the menu's 60 FPS from in-between pictures (CoreBridge.setSmooth)
+// pictures put on the screen so far, each once: the game's and the in-between ones (the FPS display)
+std::atomic<long long> picturesMade{0};
 // 60 FPS (experimental): the chunk run last, kept for the in-between picture after it (its
 // vertices), and the next one, whose in-between picture is on the screen and which runs at the
 // next refresh; off for this renderer when the GPU does not keep up
@@ -1197,10 +1199,12 @@ bool drawGx() {
         api.gxRelease(smoothPrev);
         smoothPrev = nullptr;
         smoothNext = chunk;
+        picturesMade++;
       }
     }
     if (!between) {
       gx->Run(*chunk);
+      picturesMade++;
       if (smoothPrev) {
         api.gxRelease(smoothPrev);
         smoothPrev = nullptr;
@@ -1302,7 +1306,20 @@ bool drawGx() {
     api.setLetterbox(noBars);
     letterboxSent = noBars;
   }
-  if (format == 1 || format == 3 || (format < 0 && aspect && std::string(aspect) == "4:3")) {
+  if (format == 3) {
+    // 4:3 without the bars: the picture's lines fill the height (device test 22.10.2026: in a 4:3
+    // frame of 480 lines thin bars stayed above and below on the Retroid), in their own shape
+    // 640 x 448 (10:7); on screens narrower than that down to 4:3, the lines a little taller, so a
+    // 4:3 screen is full
+    const double shape = std::min(10.0 / 7.0, std::max(4.0 / 3.0, double(width) / double(height)));
+    int boxW = width, boxH = static_cast<int>(width / shape + 0.5);
+    if (boxH > height) {
+      boxH = height;
+      boxW = static_cast<int>(height * shape + 0.5);
+    }
+    gx->Present((width - boxW) / 2, (height - boxH) / 2, boxW, boxH);
+    notePicture((width - boxW) / 2, (height - boxH) / 2, boxW, boxH, 0.f, 1.f);
+  } else if (format == 1 || (format < 0 && aspect && std::string(aspect) == "4:3")) {
     // the whole picture: 640 wide in a 4:3 frame of 480 lines (the XFB holds xh of them)
     int boxW = width, boxH = width * 3 / 4;
     if (boxH > height) {
@@ -1949,6 +1966,12 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setLogFile(J
     setenv("RE4_LOG_FILE", file.c_str(), 1);
   }
   if (coreProcessWhy.empty() && api.logFile) api.logFile(file.empty() ? nullptr : file.c_str());
+}
+
+// Pictures made for the screen so far: each game picture once, with "60 FPS" also the in-between
+// ones (the FPS display, CoreActivity.updateFps).
+extern "C" JNIEXPORT jlong JNICALL Java_com_ast_re4decomp_CoreBridge_pictures(JNIEnv *, jclass) {
+  return picturesMade.load();
 }
 
 // Game frames so far (one per PADRead), -1 without the core's counter.

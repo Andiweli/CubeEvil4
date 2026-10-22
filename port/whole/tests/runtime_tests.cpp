@@ -1608,7 +1608,15 @@ static void testLetterbox()
     if (bad) {
         re4_log("  letterbox: failed checks 0x%x", bad);
     }
-    report("letterbox", bad == 0);
+    // the changes in the error log (runtime/picture.cpp)
+    static char tail[24 * 160];
+    re4_log_tail(tail, sizeof tail);
+    const bool logged = strstr(tail, "picture: the game draws without its letterbox (r") &&
+                        strstr(tail, "picture: the game draws with its letterbox (r");
+    if (!logged) {
+        re4_log("  letterbox: the changes are not in the log");
+    }
+    report("letterbox", bad == 0 && logged);
 }
 
 // The knife by a swipe (runtime/knife_swipe.cpp; game_probe.cpp re4probe_knife_swipe): L until the

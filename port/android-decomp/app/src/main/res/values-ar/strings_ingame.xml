@@ -63,6 +63,7 @@
 
     <string name="ingame_fps_none">-- FPS (اللعبة)</string>
     <string name="ingame_fps">%1$d FPS (اللعبة)</string>
+    <string name="ingame_fps_smooth">%1$d FPS (اللعبة) · %2$d FPS (الشاشة)</string>
 
     <string name="ingame_core_not_started">لم تبدأ نواة اللعبة:\n%1$s</string>
     <string name="ingame_core_stopped">توقفت نواة اللعبة:\n%1$s</string>

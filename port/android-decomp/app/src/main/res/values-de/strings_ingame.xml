@@ -59,6 +59,7 @@
 
     <string name="ingame_fps_none">-- FPS (Spiel)</string>
     <string name="ingame_fps">%1$d FPS (Spiel)</string>
+    <string name="ingame_fps_smooth">%1$d FPS (Spiel) · %2$d FPS (Bild)</string>
 
     <string name="ingame_core_not_started">Der Spielkern ist nicht gestartet:\n%1$s</string>
     <string name="ingame_core_stopped">Der Spielkern wurde unerwartet beendet:\n%1$s</string>

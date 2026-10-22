@@ -60,6 +60,7 @@
 
     <string name="ingame_fps_none">-- FPS (jogo)</string>
     <string name="ingame_fps">%1$d FPS (jogo)</string>
+    <string name="ingame_fps_smooth">%1$d FPS (jogo) · %2$d FPS (tela)</string>
 
     <string name="ingame_core_not_started">O núcleo do jogo não foi iniciado:\n%1$s</string>
     <string name="ingame_core_stopped">O núcleo do jogo parou:\n%1$s</string>

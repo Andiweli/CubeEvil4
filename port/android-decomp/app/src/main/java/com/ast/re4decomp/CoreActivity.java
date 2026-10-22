@@ -139,7 +139,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   // ("30 FPS (Game) · 60 Hz": the game makes 30 pictures a second, as on the GameCube; a phone's
   // own counter shows the screen's rate, which is not the game's)
   private TextView fpsView;
-  private long fpsFrames = -1, fpsSince;
+  private long fpsFrames = -1, fpsPictures, fpsSince;
   // a game that stands without a pause (a hang): reported once per stand
   private long lastFrames = -1, framesSince;
   private boolean hangReported;
@@ -318,21 +318,30 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     return hz > 0 ? String.format(Locale.ROOT, " · %d Hz", Math.round(hz)) : "";
   }
 
-  /** The game's frames per second (one controller read per frame), counted over a second. */
+  /**
+   * The game's frames per second (one controller read per frame), counted over a second; with
+   * "60 FPS (experimental)" also the pictures on the screen, the in-between ones included (the game
+   * itself stays at 30; device test of the project owner, 22.10.2026).
+   */
   private void updateFps() {
     if (fpsView.getVisibility() != View.VISIBLE) return;
-    long now = SystemClock.uptimeMillis(), frames = CoreBridge.gameFrames();
+    long now = SystemClock.uptimeMillis(), frames = CoreBridge.gameFrames(), pictures = CoreBridge.pictures();
     if (frames < 0 || !resumed || menu != null || touchEditing) {
       fpsFrames = -1;  // the game stands: count anew afterwards
       return;
     }
     if (fpsFrames < 0) {
       fpsFrames = frames;
+      fpsPictures = pictures;
       fpsSince = now;
     } else if (now - fpsSince >= 1000) {
-      fpsView.setText(String.format(Locale.ROOT, getString(R.string.ingame_fps),
-          Math.round((frames - fpsFrames) * 1000.0 / (now - fpsSince))) + screenHz());
+      double seconds = (now - fpsSince) / 1000.0;
+      long game = Math.round((frames - fpsFrames) / seconds), shown = Math.round((pictures - fpsPictures) / seconds);
+      boolean smooth = getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("smooth60", false);
+      fpsView.setText((smooth ? String.format(Locale.ROOT, getString(R.string.ingame_fps_smooth), game, shown)
+          : String.format(Locale.ROOT, getString(R.string.ingame_fps), game)) + screenHz());
       fpsFrames = frames;
+      fpsPictures = pictures;
       fpsSince = now;
     }
   }
