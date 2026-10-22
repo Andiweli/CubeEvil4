@@ -89,7 +89,9 @@
 // 21.10.2026 also the enemies and the menu cursor, one line per change (the
 // testers' error log, core-log.txt; enemyLog / menuLog below):
 //
-//   em: + s12 0x1a/3 set 5 hp 300 at (x y z) in r209    a work comes alive
+//   em: + s12 0x1a/3 list 5 set 0x24 f 0x00020000 hp 300 at (x y z) in r209    a work comes alive
+//       [its entry of the enemy list (emset_no), cEm::set and cEm::flag from the list: for
+//        Ganados f bit 0x20000 = dynamite in the hand, 0x2000 = at the waist, 0x10000 = endless]
 //   em: - s12 0x1a/3 hp 0 r 3/1/0/0 at (x y z) after 812 frames
 //   em: hit s12 0x1a/3 hp 300 -> 100 part 5 wep 0x10 r 1/16/0/0
 //       [Ganados, ids 0x10..0x1f: Be_flg, weapon kind, class, parasite core, cEm::flag]
@@ -635,9 +637,10 @@ void enemyLog(unsigned n, GLOBAL_WK* g)
         bool headLost = isGanado(e) && (EM10_WK(e)->Be_flg & 0x80);
         if (!s.alive) {
             if (enemyLine()) {
-                re4_log("em: + s%u 0x%02x/%u set %u hp %d at (%.0f %.0f %.0f) in r%03x%s", (unsigned) i,
-                        (unsigned) e->id, (unsigned) e->type, (unsigned) e->emset_no, (int) e->hp, (double) e->pos.x,
-                        (double) e->pos.y, (double) e->pos.z, (unsigned) g->room_id, shown ? "" : ", hidden");
+                re4_log("em: + s%u 0x%02x/%u list %u set 0x%02x f 0x%08x hp %d at (%.0f %.0f %.0f) in r%03x%s",
+                        (unsigned) i, (unsigned) e->id, (unsigned) e->type, (unsigned) e->emset_no, (unsigned) e->set,
+                        (unsigned) e->flag, (int) e->hp, (double) e->pos.x, (double) e->pos.y, (double) e->pos.z,
+                        (unsigned) g->room_id, shown ? "" : ", hidden");
             }
             memset(&s, 0, sizeof s);
             s.alive = true;

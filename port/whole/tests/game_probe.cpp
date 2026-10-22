@@ -369,6 +369,8 @@ extern "C" void re4probe_enemy_log(void)
     e->id = 0x1A;
     e->type = 3;
     e->emset_no = 5;
+    e->set = 0x24;
+    e->flag = 0x00020000;
     e->hp = 300;
     e->pos.x = 100.0f;
     e->pos.z = 200.0f;

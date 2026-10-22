@@ -37,6 +37,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 0.42.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 66, vorbereitet auf Wunsch des Projektinhabers, Veröffentlichung durch ihn): Patches 0091–0093 (Fehlersuche Teil 1), 0094 (Aufrüsten beim Händler), 0095 (Biss des Regenerators am Boden, Fehler des Prototyps), keine GPU-Zeitmessung auf Mali (Absturz im Treiber, moto g72); Releasetext `port/android-decomp/docs/releases/v0.42.0-alpha.md`. Cloud ✅, **Gerätetest offen** |
 | 0.42.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 67, Wunsch des Projektinhabers: der A30s-Tester soll mit der neuen Messung noch einmal testen): Rechenzeit und Kern-Art von Kern- und Zeichen-Thread im Protokoll (`re4_cpu_info.h`, „Bericht Galaxy A30s“); dazu aus dem Raum-Rundgang (Fehlersuche Teil 2, gemischt in `889b40fb`) die Patches 0096 und 0097, `__rlwimi`/`__rlwinm` mit 5-Bit-Feldern und die leeren EVS/ITM-Tabellen; nach dem SCV40-Bericht 16:21 Patch 0098 (Bulldozer) und keine Formen mehr in der Zustandsbrücke (Absturz beim Laden); Releasetext `port/android-decomp/docs/releases/v0.42.1-alpha.md`. Cloud ✅ (gemischter Stand `4b97350d`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler), **Gerätetest offen** |
 | 0.43.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 68, Wunsch des Projektinhabers: alle Korrekturen aus diesem und dem zweiten Chat, Veröffentlichung durch ihn): Patches 0099 (Laser-Gang r318 auf 64 bit), 0100 (Gegenstände ohne Platz im Koffer, „E“-Marke in der Mitte), 0101 (Absturz am Aufzug r332), 0102 (`cCtrl::work` ausgerichtet: ARM32-Absturz in r222), 0103 (CRI-Tabellen ausgerichtet: Filmstart auf ARM32); App-Menü: Bildformat „Gestreckt“, mehr Zeilenabstand, „B einrasten (Touch)“, Gyro-Empfindlichkeit; GPU-Selbstprüfung der Filmfarben beim Start, die Zeilen der App auch im Protokoll des Kerns; Releasetext `port/android-decomp/docs/releases/v0.43.0-alpha.md`. Kern geprüft (lokal, WSL2, Stand mit 0100–0103): Builds i686, armhf, aarch64 mit allen Prüfungen 0 Fehler, Rundgang i686 126/126, armhf r222 und `set` 28/28. Cloud ✅ (Stand `844bdd25`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, GPU-Prüfung ok). Releasetext nachgeschärft (Waffen aus dem Debug-Menü, Reihenfolge des Bildformats). APK nicht gebaut, **Gerätetest offen** |
+| 0.43.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Wunsch des Projektinhabers): Patch 0104 (Absturz im Ton am Aufzug r332 → r331 nach Saddlers Ereignis), Shader der Brücke auf Mali (Uniform `refract` hieß wie die eingebaute GLSL-Funktion, Anbernic RG 477V), Gegner-Zeile beim Erscheinen mit Listeneintrag, `set` und `flag` (Dynamit-Frage); neues Werkzeug `tools/check_shaders_strict.sh` (alle Shader der Host-Prüfungen durch glslangValidator); Releasetext `port/android-decomp/docs/releases/v0.43.1-alpha.md`. Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; strenge Shader-Prüfung 165 Shader, 0 abgelehnt). APK nicht gebaut, **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5815,6 +5816,52 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Bericht Anbernic RG 477V (0.42.1, 22.10.2026 15:17): schwarze Ränder auf einem 4:3-Bildschirm, Shader auf Mali; Release 0.43.1-alpha
+
+- **Gerät:** Anbernic RG 477V (MediaTek k6897 = Dimensity 8300, Mali-G615 MC6, Treiber r44p1),
+  Android 14, 64 bit im App-Prozess, Bildschirm **1280×960 (4:3)**, 60/90/120 Hz (die App nimmt 60).
+  Kein Absturz (`crash.txt` leer), r100 flüssig (Renderer 6–7 ms je Bild, Kern 11–12 ms Rechenzeit,
+  30 Bilder/s). Der Tester hat im Menü zwischen 4:3 und 16:9 gewechselt (15:11:43–15:12:20) und die
+  Auflösung kurz auf 1× gestellt.
+- **Schwarze Ränder oben und unten (Bildschirmfoto, Einstellung „4:3 (Original)“):** das ist das
+  Original. Das Spiel malt am Ende jedes Bildes zwei schwarze Balken über die Zeilen 0–56 und
+  393–449 seines 512×448-Bildes (`cinesco.cpp` `Draw_cinesco`, aufgerufen in `main.cpp:186`, nur
+  der Debug-Schalter `DBG_CINESCO_OFF` lässt sie weg); auf einem 4:3-Fernseher sah RE4 so aus.
+  „16:9“ schneidet genau diese Zeilen 56..391 aus, auf einem 4:3-Bildschirm kommen die Ränder dann
+  von der App; „Gestreckt“ zieht sie über den ganzen Bildschirm (Figuren zu schmal).
+  **Befund für eine Lösung:** unter den Balken liegt echtes Bild. Im Spiel (ohne Ereignis) zeichnet
+  das Spiel die ganze Höhe (Projektion 4:3, `camera.cpp:98`; Schere nur, wenn `SYS_SCISSOR_ON`
+  gesetzt ist: in Ereignissen `SceEventStart`, `sce_com.cpp:124`, und in r10b/r11b). Ein Bildformat
+  „4:3 ohne Balken“ (Balken nur im Spiel weglassen, in Ereignissen und Menüs wie bisher) wäre klein;
+  siehe nächster Abschnitt.
+- **Shader der Brücke auf Mali:** `room 100: 0:14: S0022: Symbol 'refract' redeclared` beim
+  Neuaufbau des Renderers (Auflösung umgestellt). Der Raum-Shader der Zustandsbrücke
+  (`scene_gl.cpp`) hatte ein Uniform `refract`, den Namen einer eingebauten GLSL-Funktion; Adreno
+  und Mesa nehmen das hin, Mali (und der GLSL-Referenzübersetzer) nicht. Im GX-Bild ohne Folgen
+  (die Brücke zeichnet nur, solange GX nichts zeigt), behoben: `refractOn`.
+  Neues Werkzeug **`port/android-decomp/tools/check_shaders_strict.sh`**: baut
+  `tools/shader_dump_shim.c` (per `LD_PRELOAD` in die Host-GL-Prüfungen der App, schreibt jeden
+  Shader aus `glShaderSource`) und lässt jeden Shader durch `glslangValidator` (Paket
+  `glslang-tools`) übersetzen. Ergebnis: 165 verschiedene Shader (GX-Programme aus `gx_gl_check`,
+  Brücke, Tiefenschärfe, Helligkeit, Effekte), 0 abgelehnt. Gegenprobe: der Raum-Shader mit dem
+  alten Namen wird abgelehnt, in Zeile 14 wie auf dem Mali. `scene_gl_check`, `actor_gl_check`,
+  `environment_gl_check`, `m33_subscreen_gl_check` brauchen Disc-Daten (in der Cloud übersprungen);
+  `r100_distance_gl_check` baut mit clang 18 nicht (C++20-Erweiterung, alter Fehler, nicht im Skript).
+- Nebenbefund: nach dem Neuaufbau des Renderers zählt die GX-Statistik etwa 3 fehlende Texturen je
+  Bild für rund 3 Sekunden (282 in 94 Bildern, danach 21, dann keine): EFB-Kopien, die das Spiel
+  liest, bevor es sie im neuen Renderer wieder geschrieben hat (dann weiße Textur). Nur nach einem
+  Wechsel der Grafikoptionen; nicht behoben.
+- **Gegner-Zeile mit Dynamit-Merkmal** (Wunsch aus der Dynamit-Frage, `state_trace.cpp`): beim
+  Erscheinen jetzt `em: + s12 0x1a/3 list 5 set 0x24 f 0x00020000 hp 300 at (x y z) in r209`:
+  Listeneintrag (`emset_no`, bisher „set“ genannt), `cEm::set` und `cEm::flag` aus der Gegnerliste
+  (bei Ganados Bit 0x20000 Dynamit in der Hand, 0x2000 am Gürtel, 0x10000 unbegrenzt). Ein Bericht
+  aus r104 beantwortet die Dynamit-Frage damit allein. Tests `enemylog`/`deathlog` angepasst.
+- **Release 0.43.1-alpha** (versionCode 69): 0104, Mali-Shader, Gegner-Zeile; Releasetext
+  `port/android-decomp/docs/releases/v0.43.1-alpha.md`.
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle Laufzeit-, Kern- und
+  Kernprozess-Tests 0 Fehler (`enemylog: ok` auf allen drei); strenge Shader-Prüfung 0 abgelehnt.
+  **Nicht getestet:** APK nicht gebaut, nichts auf dem Gerät.
+
 ### Meldung eines Testers (22.10.2026): Dynamit-Ganados fehlen in Kapitel 1-2 vor der Fischfarm
 
 Frage des Testers: „Did you know about the absence of the Ganados carrying explosives—the ones
@@ -5873,9 +5920,9 @@ eher ein Unterschied des Prototyps, aber nicht bewiesen.**
      oder sie warfen nicht; dann Wurf-Freiraum und `Guard_r` am Gerät prüfen.
   2. Oder am Gerät: „File 01 r104“ laden, jeden Ganado einmal treffen; die Zeilen `em: hit` zeigen
      `wt 9` und `f` mit Bit 0x20000.
-  3. Verbesserung fürs Protokoll (noch nicht gemacht): `em->set` und `em->flag` in die
-     Gegner-Zeile beim Erscheinen schreiben (`port/whole/runtime/state_trace.cpp:638`), dann
-     beantworten Berichte solche Fragen allein.
+  3. Verbesserung fürs Protokoll: `em->set` und `em->flag` stehen seit 0.43.1 in der
+     Gegner-Zeile beim Erscheinen (`em: + … list N set 0x.. f 0x........`, Abschnitt „Bericht
+     Anbernic RG 477V“); ein Bericht aus r104 beantwortet die Frage damit allein.
 
 ### Bericht SCV40 (0.43.0, 22.10.2026 21:55): der Aufzug nach Saddler, jetzt Abbruch im Ton
 

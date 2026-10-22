@@ -1470,7 +1470,7 @@ static void testEnemyLog()
     static char tail[24 * 130];
     re4_log_tail(tail, sizeof tail);
     const char* want[] = {
-        "em: + s1 0x1a/3 set 5 hp 300 at (100 0 200) in r209",
+        "em: + s1 0x1a/3 list 5 set 0x24 f 0x00020000 hp 300 at (100 0 200) in r209",
         "em: hit s1 0x1a/3 hp 300 -> 100 part 5 wep 0x10 r 2/4/0/0 flg 0x00004000",
         "em: s1 r 2/9/0/0",
         "em: s1 head lost",
@@ -1503,7 +1503,7 @@ static void testDeathLog()
         "die: area 0x05 id 0 on 1 trg 1: floor 0 height 2000, (0 0) (1000 0) (1000 1000) (0 1000), for 1",
         "pl: Leon's position is not a number in r21d (frame 2004, 3 frames after the room started)",
         "room: r21d runs (frame 2006), Leon at (100 0 200) facing 0.50, life 1200/1200, weapon 0x02, continue after a death",
-        "em: + s1 0x2d/0 set 0 hp 100 at (0 0 0) in r21d",
+        "em: + s1 0x2d/0 list 0 set 0x00 f 0x00000000 hp 100 at (0 0 0) in r21d",
         "em: s1 position is not a number, last at (0 0 0)",
     };
     for (const char* w : want) {
