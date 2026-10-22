@@ -630,9 +630,9 @@ int re4_dof_enabled(void)
 }
 
 // The app's picture format "4:3 without bars" (Anbernic RG 477V report,
-// 22.10.2026: a 4:3 screen showed the game's letterbox): patch 0105
-// (src/game/main.cpp) asks every frame; the bars stay in events, sub screens
-// and wherever the game draws only between them (SYS_SCISSOR_ON).
+// 22.10.2026: a 4:3 screen showed the game's letterbox): patch 0105 asks every
+// frame through re4_letterbox_open (runtime/picture.cpp: in play only; the
+// bars and the scissor stay in events and sub screens).
 volatile int gLetterboxOff = 0;
 
 void re4_core_set_letterbox(int off)

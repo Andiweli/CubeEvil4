@@ -86,6 +86,7 @@ struct CoreApi {
   void (*gyro)(float, float){};  // optional (cores since 19.10.2026): gyro aiming
   void (*setLetterbox)(int){};  // optional (cores since 22.10.2026): 4:3 without the bars
   void (*touch)(float, float){};  // optional (cores since 22.10.2026): a tap on the picture
+  void (*swipe)(int){};           // optional (cores since 22.10.2026): a swipe across it
   int (*cardList)(Re4CardFile *, int){};
   int (*cardFree)(void){};
   int (*cardName)(int, char *, int){};
@@ -409,6 +410,7 @@ void loadCore(JNIEnv *env) {
   api.gyro = reinterpret_cast<void (*)(float, float)>(dlsym(api.main, "re4_core_gyro"));
   api.setLetterbox = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_set_letterbox"));
   api.touch = reinterpret_cast<void (*)(float, float)>(dlsym(api.main, "re4_core_touch"));
+  api.swipe = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_swipe"));
   api.cardList = reinterpret_cast<int (*)(Re4CardFile *, int)>(dlsym(api.main, "re4_core_card_list"));
   api.cardFree = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_card_free_blocks"));
   api.cardName = reinterpret_cast<int (*)(int, char *, int)>(dlsym(api.main, "re4_core_card_file_name"));
@@ -1421,6 +1423,7 @@ void useCoreProcess(const std::string &why) {
   api.gyro = re4ipc_gyro;
   api.setLetterbox = re4ipc_set_letterbox;
   api.touch = re4ipc_touch;
+  api.swipe = re4ipc_swipe;
   api.cardList = re4ipc_card_list;
   api.cardFree = re4ipc_card_free_blocks;
   api.cardName = re4ipc_card_file_name;
@@ -1550,6 +1553,12 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_tap(JNIEnv *
   const float inBox = (y - static_cast<float>(picY.load())) / static_cast<float>(h);
   if (u < 0.f || u > 1.f || inBox < 0.f || inBox > 1.f) return;
   api.touch(u, picTop.load() + inBox * picRows.load());
+}
+
+// A swipe across the picture (CoreActivity.watchTap): 1 to the left (the next tab of a sub
+// screen), -1 to the right.
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_swipe(JNIEnv *, jclass, jint dir) {
+  if (api.swipe) api.swipe(dir > 0 ? 1 : -1);
 }
 
 // The game's rumble motor (re4_core_rumble) for the vibrator (CoreActivity).

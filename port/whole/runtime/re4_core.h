@@ -253,9 +253,10 @@ void re4_core_debug_menu(void);
 void re4_core_set_dof(int on);
 int re4_dof_enabled(void);
 /* The picture format "4:3 without bars" (cores since 22.10.2026): off = 1
- * leaves out the game's letterbox bars (cinesco.cpp Draw_cinesco, patch 0105)
- * while the player plays: not in events, sub screens or rooms that draw only
- * between the bars. re4_letterbox_off is what the patched game code reads. */
+ * leaves out the game's letterbox (the scissor of Render to rows 56..392 and the
+ * bars of cinesco.cpp Draw_cinesco, patch 0105) while the player plays: not in
+ * events or sub screens. re4_letterbox_off is the switch, re4_letterbox_open
+ * (runtime/picture.cpp) what the patched game code reads. */
 void re4_core_set_letterbox(int off);
 int re4_letterbox_off(void);
 /* A tap on the picture (cores since 22.10.2026; runtime/menu_touch.cpp): u
@@ -263,6 +264,10 @@ int re4_letterbox_off(void);
  * game frame while a sub screen is open (tabs, the attache case and its
  * command menu), ignored elsewhere. Any thread. */
 void re4_core_touch(float u, float v);
+/* A swipe across the picture (cores since 22.10.2026): dir 1 the next tab of
+ * the sub screen (a swipe to the left), -1 the one before; ignored outside the
+ * normal inventory. Any thread. */
+void re4_core_swipe(int dir);
 /* Game frames so far (one per PADRead) and the game's host thread id: the
  * app notices a game that stands without a pause and samples where it is. */
 unsigned re4_core_frame_count(void);

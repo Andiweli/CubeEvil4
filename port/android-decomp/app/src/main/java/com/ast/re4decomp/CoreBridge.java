@@ -97,6 +97,8 @@ public final class CoreBridge {
    * before 22.10.2026 ignore it.
    */
   public static native void tap(float x, float y);
+  /** A swipe across the picture: 1 to the left (the next tab of the game's sub screen), -1 to the right. */
+  public static native void swipe(int dir);
   /**
    * The memory card's files, one tab-separated row each (index, name,
    * blocks, save, intact, room, chapter, times saved, play time, year,

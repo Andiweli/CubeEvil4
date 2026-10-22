@@ -909,6 +909,11 @@ void re4ipc_set_letterbox(int off)
     post(kSetLetterbox, off, 0, 0);
 }
 
+void re4ipc_swipe(int dir)
+{
+    post(kSwipe, dir, 0, 0);
+}
+
 void re4ipc_touch(float u, float v)
 {
     int32_t a, b;

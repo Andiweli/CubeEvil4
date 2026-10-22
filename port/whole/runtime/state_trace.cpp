@@ -97,6 +97,8 @@
 //       [Ganados, ids 0x10..0x1f: Be_flg, weapon kind, class, parasite core, cEm::flag]
 //   em: s12 r 2/4/0/0                       its routine, for 90 frames after a hit
 //   em: s12 head lost                       a Ganado's Be_flg bit 0x80 (em10LostHead)
+//   em: s12 at / leaves the dynamite post (list 247)   em10 R1 0x50 FixBomber (thrower)
+//   em: s12 lights a dynamite stick (2 so far)         its fuse (r_no_2 4), the first 5
 //   em: s12 hidden / shown                  be_flag bit1 (drawn)
 //   em: s12 jumps (x y z) -> (x y z)        more than 3000 in one frame
 //   em: s12 position is not a number, last at (x y z)
@@ -535,6 +537,8 @@ struct EnemySeen {
     unsigned born;
     unsigned follow;    // frames left to log routine changes (after a hit)
     unsigned visLines;  // hidden / shown lines of this life
+    bool post;          // a Ganado at its dynamite thrower post (R1 0x50 FixBomber)
+    u8 fuses;           // fuses it lit (lines for the first 5)
 };
 
 EnemySeen g_seen[kSlots];
@@ -659,6 +663,20 @@ void enemyLog(unsigned n, GLOBAL_WK* g)
             if (headLost && !s.headLost && enemyLine()) {
                 re4_log("em: s%u head lost", (unsigned) i);
             }
+            // the dynamite throwers (em10 R1 0x50 FixBomber, sets 0x24/0x25/0x2B): at the post,
+            // each fuse lit (r_no_2 4 before em10BombThrow), when they leave it (Guard_r)
+            const bool post = isGanado(e) && e->r_no_0 == 1 && e->r_no_1 == 0x50;
+            if (post != s.post && enemyLine()) {
+                re4_log("em: s%u %s the dynamite post (list %u)", (unsigned) i, post ? "at" : "leaves",
+                        (unsigned) e->emset_no);
+            }
+            if (post && e->r_no_2 == 4 && s.r[2] != 4) {
+                s.fuses++;
+                if (s.fuses <= 5 && enemyLine()) {
+                    re4_log("em: s%u lights a dynamite stick (%u so far)", (unsigned) i, (unsigned) s.fuses);
+                }
+            }
+            s.post = post;
             if (shown != s.shown && s.visLines < 20 && enemyLine()) {
                 s.visLines++;
                 re4_log("em: s%u %s", (unsigned) i, shown ? "shown" : "hidden");

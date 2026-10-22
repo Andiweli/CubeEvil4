@@ -38,7 +38,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 0.42.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 67, Wunsch des Projektinhabers: der A30s-Tester soll mit der neuen Messung noch einmal testen): Rechenzeit und Kern-Art von Kern- und Zeichen-Thread im Protokoll (`re4_cpu_info.h`, „Bericht Galaxy A30s“); dazu aus dem Raum-Rundgang (Fehlersuche Teil 2, gemischt in `889b40fb`) die Patches 0096 und 0097, `__rlwimi`/`__rlwinm` mit 5-Bit-Feldern und die leeren EVS/ITM-Tabellen; nach dem SCV40-Bericht 16:21 Patch 0098 (Bulldozer) und keine Formen mehr in der Zustandsbrücke (Absturz beim Laden); Releasetext `port/android-decomp/docs/releases/v0.42.1-alpha.md`. Cloud ✅ (gemischter Stand `4b97350d`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler), **Gerätetest offen** |
 | 0.43.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 68, Wunsch des Projektinhabers: alle Korrekturen aus diesem und dem zweiten Chat, Veröffentlichung durch ihn): Patches 0099 (Laser-Gang r318 auf 64 bit), 0100 (Gegenstände ohne Platz im Koffer, „E“-Marke in der Mitte), 0101 (Absturz am Aufzug r332), 0102 (`cCtrl::work` ausgerichtet: ARM32-Absturz in r222), 0103 (CRI-Tabellen ausgerichtet: Filmstart auf ARM32); App-Menü: Bildformat „Gestreckt“, mehr Zeilenabstand, „B einrasten (Touch)“, Gyro-Empfindlichkeit; GPU-Selbstprüfung der Filmfarben beim Start, die Zeilen der App auch im Protokoll des Kerns; Releasetext `port/android-decomp/docs/releases/v0.43.0-alpha.md`. Kern geprüft (lokal, WSL2, Stand mit 0100–0103): Builds i686, armhf, aarch64 mit allen Prüfungen 0 Fehler, Rundgang i686 126/126, armhf r222 und `set` 28/28. Cloud ✅ (Stand `844bdd25`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, GPU-Prüfung ok). Releasetext nachgeschärft (Waffen aus dem Debug-Menü, Reihenfolge des Bildformats). APK nicht gebaut, **Gerätetest offen** |
 | 0.43.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Wunsch des Projektinhabers): Patch 0104 (Absturz im Ton am Aufzug r332 → r331 nach Saddlers Ereignis), Shader der Brücke auf Mali (Uniform `refract` hieß wie die eingebaute GLSL-Funktion, Anbernic RG 477V), Gegner-Zeile beim Erscheinen mit Listeneintrag, `set` und `flag` (Dynamit-Frage); neues Werkzeug `tools/check_shaders_strict.sh` (alle Shader der Host-Prüfungen durch glslangValidator); Releasetext `port/android-decomp/docs/releases/v0.43.1-alpha.md`. Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; strenge Shader-Prüfung 165 Shader, 0 abgelehnt). APK nicht gebaut, **Gerätetest offen** |
-| Nach 0.43.1 (für 0.44.0) | 22.10.2026 (Branch `claude/re4-start-controls`, nach dem Release-Stand `942a5c3`): Bildformat **„4:3 (ohne Balken)“** (Patch 0105, Anbernic RG 477V mit 4:3-Bildschirm), **Touch im Koffer** (Patch 0106, `runtime/menu_touch.cpp`: Reiter, Koffer-Cursor, Befehlsmenü, Ja/Nein-Frage per Fingertipp), Analyse 60 Bilder/s mit Zwischenbildern (Entscheidung offen). Cloud ✅ (siehe die Abschnitte), **Gerätetest offen** |
+| Nach 0.43.1 (für 0.44.0) | 22.10.2026 (Branch `claude/re4-start-controls`, nach dem Stand `942a5c3`; **0.43.1 wird nicht veröffentlicht**, Entscheidung des Projektinhabers: alles zusammen mit 60 FPS als 0.44.0): Bildformat **„4:3 (ohne Balken)“** (Patch 0105, Anbernic RG 477V mit 4:3-Bildschirm), **Touch im Koffer** (Patch 0106, `runtime/menu_touch.cpp`: Reiter, Koffer-Cursor, Befehlsmenü, Ja/Nein-Frage per Fingertipp), Analyse 60 Bilder/s mit Zwischenbildern (Entscheidung offen). Cloud ✅ (siehe die Abschnitte), **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5872,6 +5872,8 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   `re4_core_set_letterbox(1)` (im getrennten Kernprozess über `kSetLetterbox`).
 - **Kern:** Patch 0105 (`main.cpp`): `Draw_cinesco` fällt weg, solange der Schalter an ist und der
   Spieler spielt (Hauptschleife `Rno0` 3, kein Untermenü, kein Ereignis, kein `SYS_SCISSOR_ON`).
+  **Diese erste Fassung reichte nicht** (Retroid 18:18: wie „4:3 (Original)“): `SYS_SCISSOR_ON` ist im
+  Spiel immer an; die zweite Fassung lässt auch die Schere weg (Abschnitt „Gerätetest 22.10.2026 18:18“).
   In Ereignissen schneidet das Spiel das Bild auf die Zeilen zwischen den Balken zu
   (`SceEventStart` setzt `SYS_SCISSOR_ON`, `Render` die Schere 0,56..), außerhalb wäre dort nichts
   gezeichnet; darum bleiben die Balken dort, im Untermenü (Koffer, Karte, Händler) und in r10b/r11b
@@ -5886,6 +5888,45 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   (now 0)`). Alle Java-Quellen der App übersetzt gegen `android-all` 15 und RetroTouch (0 Fehler),
   `core_mode.cpp` für den Host und armv7a ohne Fehler (aarch64 scheitert an der fehlenden
   Ersatzdatei `android/dlext.h`, schon vorher), Übersetzungsprüfung alle ok.
+
+### Gerätetest 22.10.2026 18:18 (Retroid, Stand mit 0105/0106) und Entscheidungen des Projektinhabers
+
+- **Entscheidung des Projektinhabers (22.10.2026):** 0.43.1 wird **nicht** veröffentlicht; stattdessen
+  kommt die experimentelle 60-FPS-Option dazu, alles zusammen später als **0.44.0**. Der Releasetext
+  `v0.43.1-alpha.md` bleibt als Vorlage liegen.
+- **Gegnerliste r104/r106/r107 (`emlist_dump.py`, Disc 1 G4BE08):** 10 Einträge mit Dynamit.
+  - **r104 (vor der Fischfarm):** in der ersten Gruppe (0xF0–0xFB, 0xFE) **ein Werfer**: 0xF7
+    „Homing Bomber“ (`set` 0x25, Dynamit mit Ersatz am Gürtel, unbegrenzt, „Roof on“, auf einem Dach
+    bei Höhe 3570, `Guard_r` 8000); bei den drei Stürmern der Fläche 0xE tragen 0xFC und 0xFD Dynamit
+    (laufen auf Leon zu), in den Wellen 0xD9–0xE4 trägt 0xDC Dynamit. Insgesamt 4 Dynamit-Ganados.
+  - r106: drei „R106 Fix Bomber“ (0x8D–0x8F) und ein Homing Bomber (0x90); r107 (Fischfarm): zwei
+    „Homing Bomber2“ (0xEA, 0xEB).
+  - **Ergebnis:** der Prototyp hat in r104 Dynamit-Ganados, auch gleich am Anfang (0xF7). Im Bericht
+    `rep134850` (r104) erschien 0xF7 (Liste 247) und bekam eine neue Waffe in die rechte Hand (so
+    nimmt ein Werfer das Dynamit vom Gürtel). Ob er im Port wirft, ist offen. **Neu im Protokoll:**
+    `em: s12 at the dynamite post (list 247)`, `em: s12 lights a dynamite stick (1 so far)`,
+    `em: s12 leaves the dynamite post` (em10 R1 0x50 FixBomber, Zündschnur bei `r_no_2` 4). Ein Bericht
+    aus r104 (eine Minute spielen, zum Dach mit dem Werfer schauen) beantwortet es.
+- **„4:3 (ohne Balken)“ sah aus wie „4:3 (Original)“:** im Bericht kam der Schalter im Kern an
+  (`core: letterbox bars off while playing`, Spieler frei in r105). Ursache: das Spiel schneidet das
+  Bild im Spiel **zweimal** zu: jeder Raumstart schaltet `SYS_SCISSOR_ON` ein (`game.cpp`
+  `gameRoomInit`, außer mit dem Debug-Schalter `DBG_SCISSOR_OFF`), `Render` zeichnet dann nur die
+  Zeilen 56..392 (`STA_SCISSOR`), die Balken von `Draw_cinesco` liegen darüber. Unter den Balken war
+  also nichts gezeichnet. **Behoben (Patch 0105 erweitert):** `re4_letterbox_open()`
+  (`runtime/picture.cpp`: Schalter an, Hauptschleife, kein Untermenü, kein Ereignis) lässt in `Render`
+  die Schere und in der Hauptschleife die Balken weg, wie die beiden Debug-Schalter des Spiels.
+  Die Lichtschein-Prüfung `esp0e` zählt weiter einen Rand von 56 Zeilen als verdeckt (Flag bleibt),
+  ein Lichtschein ganz oben verblasst also etwas früher.
+- **Reiter per Tipp:** der erste Tipp wechselte zur Karte (`touch: tab 2`, dann `ss_map.dat`), auf
+  der Karte reagierten die Reiter nicht, weil die erste Fassung dort absichtlich kein B gab. Jetzt
+  gibt sie auf der Karte B (aus der Zoom-Ansicht `MapRead` zur Reiterleiste, die Gesamtansicht
+  zoomt erst hinein), bis zu dreimal im Abstand von 12 Bildern, bis die Leiste den Fokus hat; der
+  Reiter wartet höchstens 45 Bilder. Ein Tipp auf den Reiter der eigenen Seite tut nichts.
+- **Neu: Wischen** (Wunsch des Projektinhabers): ein Finger, waagerecht, mindestens ein Achtel der
+  Bildbreite, höchstens 700 ms (`CoreActivity.watchTap`) → `re4_core_swipe` (getrennter Kernprozess
+  `kSwipe`): nach links der nächste Reiter, nach rechts der vorige, die vier Seiten im Ring
+  (Schlüssel, Koffer, Karte, Akten), nie „Beenden“. Hinweis: mit sichtbarer Touch-Steuerung bewegt
+  ein Wischen in der Look-Zone zugleich den C-Stick (im Untermenü bewegt er den Cursor).
 
 ### Touch im Koffer (Wunsch des Projektinhabers, 22.10.2026, Cloud)
 
@@ -6761,7 +6802,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0102 `include/ctrl.h` | `cCtrl` (die kleinen Raum-Helfer von `ctrl.cpp`, 0x214 Byte) hat seinen Arbeitsbereich `work` bei 0x13, jede Art (`CTRL11_WK`, `CTRL12_FREE`, `CTRL14_FREE`, `LightCtrlWork`, `ctrl01`) liegt also an einer ungeraden Adresse. Die GameCube nimmt das mit `lwz`/`stw`; clang fasst auf armv7 zwei Zugriffe zu `strd`/`ldrd` zusammen (oder nimmt `ldm`/`stm`, `vldr`/`vstr`), die eine durch 4 teilbare Adresse brauchen: `GetCtrlDragon` (r222, der Burgsaal mit den Drachenköpfen) schrieb mit `strd` nach c+0x1F, SIGBUS im armhf-Rundgang (22.10.2026). Ein 64-bit-Kernel korrigiert das für 32-bit-Apps erst ab Linux 6.1, der 32-bit-Kern auf den Geräten stürzt also genauso ab. Der Port legt `work` ein Byte später (Füllbereich 7 statt 6 Byte, Objekt weiter 0x214); keine Disc-Datei und kein Spielstand enthält ein `cCtrl` |
 | 0103 `mpv_bdec.c`, `mpv_lib.c` | `UTY_MemcpyDword` (CRI) kopiert wortweise, beim Start des MPEG-Dekoders auch vier Byte-Tabellen (`mpvbdec_bitmsk`, `mpvbdec_zigzag`, `mpvbdec_dfl_iqm`, `mpv_clip_0_255_tbl`); ab 16 Wörtern nimmt der armv7-Build `ldm`/`stm`. Auf der GameCube liegen die Tabellen auf Wortgrenzen, im Port nur zufällig (die Ausrichtungs-Suche fand `mpvbdec_bitmsk` 2 Byte daneben): sonst würde jeder Filmstart auf dem 32-bit-Kern mit SIGBUS enden. Der Port richtet alle vier auf 4 Byte aus |
 | 0104 `snd.cpp` | `SndRoomBgmLoad` wartete beim Raumstart nur auf das Ausblenden des Musik-Platzes, den es lädt; die neuen Musik-Bänke liegen aber über denen beider Plätze des alten Raums. Nach Saddlers Ereignis blendete BGM 1 noch aus, als der Aufzug r331 erreichte: sein Sequenzer las die neue Bank (`SND SEQ data error : 07 63 00`, OSPanic, SCV40-Tester, 0.43.0). Der Port lädt Räume viel schneller als die Disc. Jetzt wartet es, bis kein Platz mehr ausblendet (nach 0059) |
-| 0105 `main.cpp` | Bildformat „4:3 ohne Balken“ (Anbernic RG 477V, 4:3-Bildschirm): `Draw_cinesco` malt die schwarzen Balken nicht, solange `re4_letterbox_off()` (App-Menü, `re4_core_set_letterbox`) gilt und der Spieler spielt (`Rno0` 3, kein Untermenü, kein Ereignis, kein `SYS_SCISSOR_ON`); sonst wie im Original |
+| 0105 `main.cpp`, `trans.cpp` | Bildformat „4:3 (ohne Balken)“ (Anbernic RG 477V, 4:3-Bildschirm): solange `re4_letterbox_open()` (`runtime/picture.cpp`: Schalter des App-Menüs, Hauptschleife `Rno0` 3, kein Untermenü, kein Ereignis) gilt, keine Schere auf die Zeilen 56..392 in `Render` (die setzt jeder Raumstart, `SYS_SCISSOR_ON`) und kein `Draw_cinesco`; sonst wie im Original |
 | 0106 `ss_main.cpp` | Touch im Untermenü: `SubScreenTask` ruft je Bild vor `cur->move` `re4_touch_sscrn` (`runtime/menu_touch.cpp`) mit dem aktuellen Widget und den vier Haupt-Widgets (jetzt mit 0 vorbelegt, Händler und Funk legen keine an); ein Tipp der App wird zu Cursor und Tasten dieses Bildes (Reiter, Koffer-Cursor, Befehlsmenü, Frage) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,

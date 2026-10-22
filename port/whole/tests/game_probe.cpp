@@ -400,6 +400,12 @@ extern "C" void re4probe_enemy_log(void)
     re4_state_trace_enemy_frame(1005);  // em: s1 hidden
     e->pos.x = 5000.0f;
     re4_state_trace_enemy_frame(1006);  // em: s1 jumps
+    e->r_no_0 = 1;
+    e->r_no_1 = 0x50;
+    e->r_no_2 = 0;
+    re4_state_trace_enemy_frame(1006);  // em: s1 at the dynamite post
+    e->r_no_2 = 4;
+    re4_state_trace_enemy_frame(1006);  // em: s1 lights a dynamite stick
     e->be_flag = 0;
     re4_state_trace_enemy_frame(1007);  // em: - s1
     StaFlagOn(pG, STA_SUB_SCRN);
@@ -653,6 +659,9 @@ extern "C" int re4_touch_unit_hit(const ID_UNIT* unit, f32 u, f32 v);
 extern "C" void re4_touch_sscrn(SUB_SCREEN* wk, Widget<SUB_SCREEN>* cur, SsPzzlMain* pzzl, SsItemMain* item,
                                 SsMapMain* map, SsFileMain* file);
 extern "C" void re4_core_touch(float u, float v);
+extern "C" void re4_core_swipe(int dir);
+extern "C" void re4_core_set_letterbox(int off);
+extern "C" int re4_letterbox_open(void);
 
 namespace {
 
@@ -867,6 +876,46 @@ extern "C" int re4probe_menu_touch(void)
         if (tapFrame(main, unitU(0.0f), unitV(200.0f)) != 0) {
             bad |= 0x1000;
         }
+        // a swipe to the left in the normal inventory: the map (the tab after the case); B gives
+        // the row the focus, A then in the frame the row has it; to the right: the key items
+        wk->open_flag = SS_OPEN_NORMAL;
+        main->cur = sel;
+        main->state = 0;
+        sel->state = 0;
+        Key.trg = 0;
+        re4_core_swipe(1);
+        re4_touch_sscrn(wk, main, main, 0, 0, 0);
+        if (Key.trg != kB) {
+            bad |= 0x2000;
+        }
+        main->state = 1;  // the row has the focus (SsPzzlMain after PieceSelect mode 2)
+        Key.trg = 0;
+        re4_touch_sscrn(wk, main, main, 0, 0, 0);
+        if (Key.trg != kA || wk->menu_next != 2) {
+            bad |= 0x4000;
+        }
+        main->state = 0;
+        Key.trg = 0;
+        re4_core_swipe(-1);
+        re4_touch_sscrn(wk, main, main, 0, 0, 0);
+        main->state = 1;
+        Key.trg = 0;
+        re4_touch_sscrn(wk, main, main, 0, 0, 0);
+        if (Key.trg != kA || wk->menu_next != 0) {
+            bad |= 0x8000;
+        }
+        // a swipe while the sub screen closes (Loop 0): no keys, the tab forgotten
+        main->state = 0;
+        Key.trg = 0;
+        pl->m_p_active_board = b;
+        re4_core_swipe(1);
+        wk->Loop = 0;  // the sub screen closing: nothing, the tab forgotten
+        re4_touch_sscrn(wk, main, main, 0, 0, 0);
+        wk->Loop = 1;
+        re4_touch_sscrn(wk, main, main, 0, 0, 0);
+        if (Key.trg != 0) {
+            bad |= 0x10000;
+        }
         pl->quit();
     }
     SubScreenWk = keepWk;
@@ -879,5 +928,38 @@ extern "C" int re4probe_menu_touch(void)
     ItemMgr.m_pItem = keepItems;
     ItemMgr.m_array_num = keepNum;
     pG->pl_type = keepType;
+    return bad;
+}
+
+// The picture format "4:3 without bars" (patch 0105, runtime/picture.cpp): open only with the
+// switch on, in the main loop, without sub screen and event. Bits: each failed case.
+extern "C" int re4probe_letterbox(void)
+{
+    const u8 keepStep = pG->Rno0;
+    const int keepSub = StaFlagChk(pG, STA_SUB_SCRN) != 0, keepEvent = StaFlagChk(pG, STA_EVENT) != 0;
+    int bad = 0;
+    pG->Rno0 = 3;
+    StaFlagOff(pG, STA_SUB_SCRN);
+    StaFlagOff(pG, STA_EVENT);
+    re4_core_set_letterbox(0);
+    bad |= re4_letterbox_open() ? 1 : 0;
+    re4_core_set_letterbox(1);
+    bad |= re4_letterbox_open() ? 0 : 2;
+    StaFlagOn(pG, STA_EVENT);
+    bad |= re4_letterbox_open() ? 4 : 0;
+    StaFlagOff(pG, STA_EVENT);
+    StaFlagOn(pG, STA_SUB_SCRN);
+    bad |= re4_letterbox_open() ? 8 : 0;
+    StaFlagOff(pG, STA_SUB_SCRN);
+    pG->Rno0 = 2;
+    bad |= re4_letterbox_open() ? 0x10 : 0;
+    re4_core_set_letterbox(0);
+    pG->Rno0 = keepStep;
+    if (keepSub) {
+        StaFlagOn(pG, STA_SUB_SCRN);
+    }
+    if (keepEvent) {
+        StaFlagOn(pG, STA_EVENT);
+    }
     return bad;
 }

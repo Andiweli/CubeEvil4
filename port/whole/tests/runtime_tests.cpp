@@ -962,6 +962,7 @@ int re4probe_arc(void);
 int re4probe_partner_damage(void);
 int re4probe_case_free_place(void);
 int re4probe_menu_touch(void);
+int re4probe_letterbox(void);
 int re4_log_tail(char* out, int size);
 }
 
@@ -1477,7 +1478,9 @@ static void testEnemyLog()
         "em: s1 head lost",
         "em: s1 hidden",
         "em: s1 jumps (100 0 200) -> (5000 0 200)",
-        "em: - s1 0x1a/3 hp 100 r 2/9/0/0 at (5000 0 200) after 6 frames",
+        "em: s1 at the dynamite post (list 5)",
+        "em: s1 lights a dynamite stick (1 so far)",
+        "em: - s1 0x1a/3 hp 100 r 1/80/4/0 at (5000 0 200) after 6 frames",
         "pad: menu frame 1008 rep 0x00100000 stick (0 0) c (12 0)",
     };
     for (const char* w : want) {
@@ -1577,6 +1580,8 @@ static void testMenuTouch()
         "touch: command 1 of 3: A",
         "touch: command menu closed (a tap on the case)",
         "touch: question option 0: A",
+        "touch: tab 2 (swipe to the next)",
+        "touch: tab 0 (swipe to the one before)",
     };
     for (const char* w : want) {
         if (!strstr(tail, w)) {
@@ -1585,6 +1590,16 @@ static void testMenuTouch()
         }
     }
     report("menutouch", ok);
+}
+
+// The picture format "4:3 without bars" (patch 0105): when the letterbox stays away
+static void testLetterbox()
+{
+    const int bad = re4probe_letterbox();
+    if (bad) {
+        re4_log("  letterbox: failed checks 0x%x", bad);
+    }
+    report("letterbox", bad == 0);
 }
 
 // The processor lines of the performance log (re4_cpu_info.h): the layout of a phone with two kinds
@@ -1718,6 +1733,7 @@ int re4_runtime_tests()
     testPartnerDamage();
     testCaseFreePlace();
     testMenuTouch();
+    testLetterbox();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);
