@@ -5834,6 +5834,9 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   Ganzzahl-Rechnung des TEV-Shaders. Auf dem Retroid (Adreno 650) sind die Filme richtig, von anderen
   Geräten keine solche Meldung. Ohne
   Bericht des A36 (GPU-Treiber, Shader-Fehler) nicht weiter eingrenzbar. **Offen.**
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` mit 0099 (Stand `1453b41b`): 0 Baufehler,
+  alle Tests 0 Fehler; `RE4_OFS` bestätigt beim Bauen für i686 und armhf den GameCube-Abstand 0x70.
+  **Nicht getestet:** der Laser-Gang auf dem Gerät.
 
 ### Bericht SCV40 (0.41.3, 22.10.2026 16:21): Absturz auf dem Bulldozer, Absturz beim Laden
 
