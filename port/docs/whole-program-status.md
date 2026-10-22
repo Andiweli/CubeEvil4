@@ -32,7 +32,8 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 0.41.2-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 64): Patch 0089, die Gondel in r10f setzte Leon und Ashley auf Plätze aus gesicherten Registern (Ursache der Wegsuche-Abstürze). Cloud ✅, **Gerätetest offen** |
 | Todesschleife r21d (Insekten bei NaN) | 22.10.2026 (Branch `claude/re4-start-controls`): `acosf`/`asinf` des Spielcodes nehmen einen Wert knapp über ±1 als ±1 (Umschreibung `ARC_CALL`); vorher setzte der Wandschritt der Novistadore (em2d, auch em2c) sie auf etwa 30 % der schrägen Flächen auf NaN, die Stampfer in r21d töteten Leon sofort, auch nach jedem Weitermachen. Dazu Todes-, Raumstart- und NaN-Zeilen im Fehlerprotokoll (Abschnitt „Todesschleife in r21d“). Cloud ✅ (i686, armhf, aarch64), **Gerätetest offen** |
 | 0.41.3-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 65, Wunsch des Projektinhabers nach dem r21d-Bericht): Todesschleife r21d (`ARC_CALL`), Schießbude (Patch 0090), Gegner-, Menü-, Raum- und Todeszeilen im Fehlerprotokoll; Releasetext `port/android-decomp/docs/releases/v0.41.3-alpha.md`. Cloud ✅, **Gerätetest offen** |
-| Fehlersuche Teil 1 (Code) | 22.10.2026 (Branch `claude/re4-start-controls`): Werkzeuge `port/tools/scan/` (ungesetzte Werte, Byte-Reihenfolge, Lage lokaler Variablen), Patches 0091–0093 (r221, Ziel-Überblendung der Waffen, r104, Krauser, Debug-Editoren auf R1). Abschnitt „Fehlersuche mit Werkzeugen“. Cloud ✅ (i686, armhf, aarch64), **Gerätetest offen**; Teil 2 (Raum-Rundgang am PC) offen |
+| Fehlersuche Teil 1 (Code) | 22.10.2026 (Branch `claude/re4-start-controls`): Werkzeuge `port/tools/scan/` (ungesetzte Werte, Byte-Reihenfolge, Lage lokaler Variablen), Patches 0091–0093 (r221, Ziel-Überblendung der Waffen, r104, Krauser, Debug-Editoren auf R1). Abschnitt „Fehlersuche mit Werkzeugen“. Cloud ✅ (i686, armhf, aarch64), **Gerätetest offen**; Teil 2 siehe nächste Zeile |
+| Fehlersuche Teil 2 (Raum-Rundgang) | 22.10.2026 (lokal, WSL2, Branch `claude/re4-start-controls`): Rundgang über alle 126 Räume mit Eingaben, mehreren Räumen gleichzeitig und Bericht (`room_tour_report.py`), Prüf-Build mit Sanitizern (`RE4_SANITIZE`, `--sanitize`), aarch64 unter qemu (`--aarch64`). i686 126/126, i686 mit ASan+UBSan 126/126 (nach den Korrekturen), aarch64 unter qemu noch nicht fertig (96 von 126 ohne Fehler). Behoben: `__rlwimi`-Nachbau (5-Bit-Felder), Patch 0096 (Mischart `blend_mode` 5), Patch 0097 (Effekt-Bereich 255 auf 64 bit), leere EVS-/ITM-Tabellen. Abschnitt „Fehlersuche mit Werkzeugen, Teil 2“. **Gerätetest offen** |
 | 0.42.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 66, vorbereitet auf Wunsch des Projektinhabers, Veröffentlichung durch ihn): Patches 0091–0093 (Fehlersuche Teil 1), 0094 (Aufrüsten beim Händler), 0095 (Biss des Regenerators am Boden, Fehler des Prototyps), keine GPU-Zeitmessung auf Mali (Absturz im Treiber, moto g72); Releasetext `port/android-decomp/docs/releases/v0.42.0-alpha.md`. Cloud ✅, **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
@@ -5942,6 +5943,110 @@ gelten, 114 Module ohne offene Verweise, Laufzeit-, Kern-, Kernprozess-, Format-
 Fehler. **Nicht getestet:** die Stellen auf dem Gerät (r221 Gasbomben, Zielen mit Waffen, r104
 Wiederkommen, Krauser, R1 im Inventar).
 
+### Fehlersuche mit Werkzeugen, Teil 2: der Raum-Rundgang (22.10.2026, lokal am Windows-PC in WSL2, Branch `claude/re4-start-controls`)
+
+Auftrag des Projektinhabers (vorgezogener Teil von 10b): jeden Raum mit den Disc-Daten über die
+Raumauswahl laden, eine Weile laufen lassen und Abstürze, ungültige Positionen („not a number“),
+`check:`-Hinweise und Hänger sammeln; dazu ein Prüf-Build mit Sanitizern; erst i686, dann ARM64
+unter qemu.
+
+**Werkzeuge:**
+- **Rundgang** (`whole_r100_check.sh --rooms LISTE`, Windows: `test-r100-core.ps1 -Rooms all`):
+  mehrere Räume gleichzeitig (`--tour-jobs`, Standard: halb so viele wie Prozessorkerne), je
+  6000 Bilder ab der Hauptschleife (vorher 1500, ohne Eingaben). Sobald Leon frei ist, zweimal
+  dieselbe Folge (laufen, A, drehen, rennen, zielen und fünf Schüsse beim Drehen, Karte auf und zu,
+  rückwärts, Kurve, Messer, Y und START mit B); solange er nicht frei ist, ab Bild 1500 A, A+B, L+R
+  und START (Funksprüche und Hinweise, Reaktionstasten in Ereignissen, Söldner-Menü).
+  `--tour-script none` lässt ihn stehen. Neu `port/tools/room_tour_report.py`: eine Zeile je Raum,
+  dann **Fehler** (Absturz mit Bibliothek, Versatz und Funktion; Stillstand mit Rückverfolgung;
+  Raum startet nicht; `not a number` und `LIMIT_ANGLE … not finite`; Todesschleife = mindestens
+  zwei Tode höchstens 120 Bilder nach dem Raumstart; AddressSanitizer) und **Hinweise** mit den
+  Räumen, in denen sie vorkamen (`check:`, UBSan, Spiel-Heap voll, Umwandler, Stubs, Meldungen des
+  Spiels, Gegner-Sprünge, Tode, Raumwechsel, Räume ohne freien Leon, acosf/asinf-Schutz).
+  Einzelheiten in `rundgang-einzelheiten.txt`, alle Protokolle in `rundgang-logs.tar.gz`, je
+  Raum das Ergebnis in `rundgang.json`; ein Rundgang eines anderen Ziels wird mit dem letzten
+  i686-Rundgang verglichen (`room_tour_report.py --compare`).
+- **Prüf-Build mit Sanitizern** (`RE4_SANITIZE=address,undefined port/tools/whole_build.sh i686`,
+  Ordner `whole-i686-O2-san`; im Rundgang `--sanitize`, Windows `-Sanitize`): AddressSanitizer
+  hält beim ersten Zugriff außerhalb einer globalen Variable, einer lokalen Variable oder eines
+  Blocks des C-Heaps an (mit Datei und Zeile), UndefinedBehaviorSanitizer nennt jeden undefinierten
+  Rechenschritt einmal je Lauf. Ausgelassen (Begründung in `port/whole/CMakeLists.txt`): vptr,
+  function, return, null, nonnull-attribute, pointer-overflow, object-size (`PG_OFS`,
+  `&((GLOBAL_WK*) 0)->f`), alignment (über 100 Stellen der Tonbibliothek, erlaubt wie auf der
+  GameCube), float-cast-overflow (durch `-fno-strict-float-cast-overflow` festgelegt).
+  `port/src/stack_context.cpp` meldet ASan jeden Stapelwechsel (nur im Sanitizer-Build). ASan-
+  Optionen: kein Leck- und ODR-Test, die eigene Absturzbehandlung des Ports, keine „Fake Stacks“
+  (je Spiel-Stapel 11 MB: der 32-bit-Adressraum lief voll, r106; lokale Variablen lagen außerhalb
+  von `VALID_PTR`, das Spiel meldete tausendfach `cLight::getNormal() INVALED PTR`).
+- **ARM64 unter qemu** (`--aarch64`, Windows `-Arm64`): mit `QEMU_RESERVED_VA` = 4 GB. Ohne das
+  bleiben neben qemus eigenen Bereichen 53919 Seiten über 4 GB unreserviert, und ein später
+  geladenes Gegner-Modul (em23 in r100) landete dort (`re4_check_game_address` hält an); das
+  betrifft nur qemu, auf Android lädt die App selbst.
+- **Sanitizer auf 64 bit:** nur UBSan (`--sanitize` wählt das selbst). ASan geht nicht: auf
+  x86_64 liegt sein Schattenspeicher (0x7FFF8000–0x8FFF6FFF) über MEM1, unter qemu-aarch64 stürzt
+  schon ein Dreizeiler mit GCCs `libasan` ab (clang hat für aarch64 keine Laufzeit), und in 4 GB
+  Gast-Adressraum ist für den Schatten ab 64 GB kein Platz. UBSan nimmt auf aarch64 GCCs
+  `libubsan` (gleicher Code).
+
+**Ergebnisse mit Disc-Daten** (126 Räume der Raumtabellen, je 6000 Bilder, i686 -O2):
+- **i686, erster Lauf:** 126 von 126 ohne Fehler. Leon war in 15 Räumen nie frei (dort liefen
+  keine Eingaben); dafür die Rückfall-Tasten.
+- **i686, zweiter Lauf** (mit Rückfall-Tasten, Patches 0096/0097, Stand `24656174`): **126 von 126
+  ohne Absturz, Stillstand, NaN oder Todesschleife**, gut 7 Minuten bei 8 Räumen gleichzeitig.
+  Leon starb in 44 Räumen (Weitermachen lief jedes Mal), wechselte in 15 Räumen durch eine Tür
+  oder ein Ereignis den Raum, war nur noch in r101, r206, r215, r227, r22b und r316 nie frei. Der
+  acosf/asinf-Schutz (r21d, 0.41.3) griff in 120 Räumen. Einziger `check:`-Hinweis: die bekannte
+  Formen-Tabelle in r229 (Patch 0064). Spiel-Heap voll nur `cDataSwap` (mit Rückfall auf ARAM) in
+  r206 und r226.
+- **i686 mit Sanitizern, erster Lauf:** 118 von 126; ASan fand `commonModelTrans` (unten, Patch
+  0096) in r20a, r20b, r216, r31d und lief in r106, r208, r210, r40a aus Speicher (Fake Stacks);
+  UBSan die Verschiebung um 255 (Patch 0097) und drei geprüfte Stellen (unten).
+  **Zweiter Lauf: 126 von 126**, keine ASan-Meldung, UBSan nur die zwei geprüften Feld-Überläufe.
+  Etwa 12 Minuten.
+- **aarch64 unter qemu** (14 Räume gleichzeitig, gut 3 Minuten je Raum): beim Eintragen noch nicht fertig, die ersten 96 von 126 Räumen ohne Fehler; Ergebnis, Vergleich mit i686 und der UBSan-Lauf auf aarch64 folgen in einem eigenen Eintrag.
+
+**Behoben:**
+- `re4_sdk_intrinsics.h` / `re4_cri_port.h`: `__rlwimi` und `__rlwinm` nehmen von Verschiebung und
+  Maskengrenzen nur die unteren 5 Bit, wie der Befehl. `GXBump.c` `__GXSetIndirectMask` übergibt
+  `~0xFF` als Verschiebung (auf der GameCube 0, 24, 31: das untere Byte von `bpMask`); x86 rechnete
+  eine leere Maske (das Register blieb 0x0F0000FF), ARM stimmte nur zufällig, für den Optimierer
+  undefiniert. Die GX-Nachbildung wertet dieses Register (Indirekt-Textur-Maske) nicht aus.
+- **Patch 0096** `trans.cpp`: Modelle mit `blend_mode` 5 (r20a, r20b, r216, r31d) lasen die
+  Mischart hinter der Tabelle `bl[5][4]`. Auf der GameCube stehen dort die Adressen der
+  Licht-Funktionen von `trans_lit.cpp` (`funcLightParam`): kein Mischen, Logik-Op 12; im Port
+  lagen dort andere Konstanten (ein ungerades erstes Wort hätte mit beliebigen Faktoren gemischt).
+- **Patch 0097** `esp_app.cpp`: Effekt-Bereiche mit Nummer 255 (r102, r103, r119, r120, r227)
+  setzten mit `1 << 255` auf aarch64 und x86 Bit 31 (Zahl modulo 32), auf GameCube und armv7 nichts:
+  auf 64-bit-Geräten liefen die Effekte von Bereich 31 dort an.
+- Formatumwandler: ein Ereignis-Bündel (`EVS`) ohne Ereignisse, dessen Tabellen-Zeiger das
+  Füllmuster 0xCDCDCDCD trägt (r101, r111, r400, r401, r407–r409), und ein Gegenstands-Paket
+  (`ITM`) ohne Gegenstände mit BIN-Tabelle bei 0 (r215, offen seit 17.10.2026) blieben
+  big-endian, weil der Umwandler Tabellen las, die das Spiel bei 0 Einträgen nie liest
+  (`EventMgr::SetEvs`, `cItmSys::DataLoad`). Jetzt umgewandelt; neuer Kerntest „empty tables“.
+  Für ihn liefert `re4_formats_entry_status` den Umwandlungsstand eines Archiv-Eintrags.
+- Prüfprogramme (nur Tests): `gx_probe.cpp` legte eine Palette von 16 Einträgen an, eine
+  TLUT-Ladung liest aber den ganzen Bereich (256 Einträge, wie die GameCube); `core_probe.cpp` gab
+  `mwPlyCalcWorkCprmSfd` nur die 0x24 Byte der Erzeugungsparameter, die CRI-Seite liest 0x30 (das
+  Spiel hält dahinter `AP_OBJ.pad_48` frei).
+
+**Geprüft, unbedenklich:** `objTrolley.cpp` (r21b): die Schleifen laufen über `pSat[0..4]` eines
+Felds mit 3 Einträgen und treffen `pEat[0..1]`, die lückenlos folgen (auch auf 64 bit), nur
+doppeltes Abschalten. `r203.cpp`: `em[3..8]` eines Felds mit 3 Einträgen überdecken `pt[]` und den
+Füllbereich, bleiben in den 0xAC Byte der Arbeit (auch auf 64 bit), und Gegnerwelle und Wandern
+kommen in getrennten Zweigen. Gegner s28 (`em21`) springt in 44 Räumen von (-32184 34 -32043) nach
+(-39510 34 -24090): überall dieselben Punkte, nach Spielverhalten aussehend, nicht weiter verfolgt.
+
+**Offen / nicht getestet:**
+- r10b: Eintrag 7 (`EFF`) bleibt unvollständig umgewandelt; der Umwandler findet darin bei 0xddfe0
+  Bewegungsdaten mit 175 Gelenken, deren erstes auf `+0x20202020` (vier Leerzeichen) zeigt. Der
+  Raum läuft; was dort wirklich steht, ist nicht untersucht.
+- Die Spiel-Heaps liegen in MEM1 ohne Schutzzonen: Überläufe zwischen Spiel-Objekten sieht ASan
+  nicht. Ungesetzte Werte (MemorySanitizer) gehen nicht (bräuchte eine instrumentierte
+  C++-Bibliothek und 64 bit, dort liegt MEM1 im Weg).
+- Leon bleibt in r101, r206, r215, r227, r22b und r316 ohne Eingaben (Ereignis oder Untermenü bis
+  zum Ende); was nur beim echten Spielen passiert, prüft weiterhin 10b.
+- Patches 0096 und 0097 und die Umwandler-Korrektur sind nicht auf dem Gerät getestet.
+
 ## Aufbau
 
 | Ergebnis | Inhalt |
@@ -6139,6 +6244,8 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0093 `ss_item.cpp`, `ss_pzzl.cpp` | Z (R1 am Controller, Y mit Alternate Controls) öffnete im Gegenstand-Bildschirm den „Item Maker“ (Steuerkreuz und A geben oder entfernen Gegenstände) und im Koffer den „Case Maker“ (Inventar-Sätze, die das ganze Inventar ersetzen, Koffergröße, Munition, Peseten) der Debug-Fassung, auch im normalen Spiel. Ihr Text ist Debug-Text, den die App ausblendet: unsichtbare Editoren auf dem Steuerkreuz. Jetzt nur mit sichtbaren Debug-Anzeigen (`RE4_DEBUG_HUD=1`, `re4_debug_hud_shown` in `runtime/state_trace.cpp`). Dazu `(u8) wk->debugMode` statt Byte 3 des Wortes (Fehlersuche 22.10.2026) |
 | 0094 `ss_shop.cpp` | Das Aufrüsten beim Händler (`LvUpConfirm::move`) schrieb die vier Waffenstufen über `TuneLevel`, vier 4-Bit-Bitfelder über `cItem::lv` (u16). Das übrige Spiel liest sie als Halbbytes des Werts (Feuerkraft << 12, Schussgeschwindigkeit << 8, Nachladen << 4, Kapazität, `item.h`). CodeWarrior legt das erste Bitfeld in die oberen Bits, clang auf ARM/x86 in die unteren: jedes Aufrüsten landete auf einer anderen Stufe (Feuerkraft ↔ Kapazität, Schussgeschwindigkeit ↔ Nachladen). Jetzt als Wert geschrieben, dazu eine Zeile `shop: tune-up of item …` im Protokoll (Tester-Berichte 22.10.2026; `view_scan.py` `bits` findet die Stelle) |
 | 0095 `em36.cpp` | **Fehler des Prototyps** (Entscheidung des Projektinhabers, 22.10.2026: solche Fehler werden behoben). Ein Regenerator ohne Beine beißt vom Boden (Routine 1/0x14 `D_Catch`, Halten in 1/0x15 `D_CatchHit` mit `plem36_D_CatchHit`). Leons Seite prüfte die Routine des Bisses im Stehen (1/0xB): Leon wurde im ersten Bild losgelassen, der Biss lief unsichtbar weiter (Leben bis 1, „SHAKE OFF“, dann der tödliche Biss). Jetzt 0x15. `port/tools/scan/catch_scan.py` prüft alle Halte-Rückrufe so |
+| 0096 `trans.cpp` | `commonModelTrans` nimmt die Mischart aus `bl[info->blend_mode]`, einer Tabelle mit 5 Zeilen; Modelle in r20a, r20b, r216 und r31d haben `blend_mode` 5 (Sanitizer-Rundgang 22.10.2026, global-buffer-overflow). Die GameCube liest dahinter die ersten vier Wörter von `funcLightParam` (`trans_lit.cpp`, Adressen von `lightSetConstant` … `lightSetSpotlight`); `GXSetBlendMode` behält davon Bit 0 und die unteren 3/3/4 Bit: kein Mischen, Logik-Op 12. Der Port ergänzt diese sechste Zeile; vorher las er die Konstanten, die clang dahinter legte |
+| 0097 `esp_app.cpp` | `EffAreaUpdate` setzt je Effekt-Bereich, in dem Leon steht, `1 << area_no`; Bereiche mit Nummer 255 (r102, r103, r119, r120, r227) setzen auf der GameCube (`slw`: untere 6 Bit, 32–63 ergeben 0) und auf armv7 nichts, auf aarch64 (`lslv`, modulo 32) und x86 Bit 31: die Effekte von Bereich 31 liefen dort an. Der Port schreibt die Regel der GameCube aus (Sanitizer-Rundgang 22.10.2026) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
