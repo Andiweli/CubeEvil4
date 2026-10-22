@@ -33,7 +33,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | Todesschleife r21d (Insekten bei NaN) | 22.10.2026 (Branch `claude/re4-start-controls`): `acosf`/`asinf` des Spielcodes nehmen einen Wert knapp über ±1 als ±1 (Umschreibung `ARC_CALL`); vorher setzte der Wandschritt der Novistadore (em2d, auch em2c) sie auf etwa 30 % der schrägen Flächen auf NaN, die Stampfer in r21d töteten Leon sofort, auch nach jedem Weitermachen. Dazu Todes-, Raumstart- und NaN-Zeilen im Fehlerprotokoll (Abschnitt „Todesschleife in r21d“). Cloud ✅ (i686, armhf, aarch64), **Gerätetest offen** |
 | 0.41.3-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 65, Wunsch des Projektinhabers nach dem r21d-Bericht): Todesschleife r21d (`ARC_CALL`), Schießbude (Patch 0090), Gegner-, Menü-, Raum- und Todeszeilen im Fehlerprotokoll; Releasetext `port/android-decomp/docs/releases/v0.41.3-alpha.md`. Cloud ✅, **Gerätetest offen** |
 | Fehlersuche Teil 1 (Code) | 22.10.2026 (Branch `claude/re4-start-controls`): Werkzeuge `port/tools/scan/` (ungesetzte Werte, Byte-Reihenfolge, Lage lokaler Variablen), Patches 0091–0093 (r221, Ziel-Überblendung der Waffen, r104, Krauser, Debug-Editoren auf R1). Abschnitt „Fehlersuche mit Werkzeugen“. Cloud ✅ (i686, armhf, aarch64), **Gerätetest offen**; Teil 2 (Raum-Rundgang am PC) offen |
-| 0.42.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 66, vorbereitet auf Wunsch des Projektinhabers, Veröffentlichung durch ihn): Patches 0091–0093 (Fehlersuche Teil 1), keine GPU-Zeitmessung auf Mali (Absturz im Treiber, moto g72); Releasetext `port/android-decomp/docs/releases/v0.42.0-alpha.md`. Cloud ✅, **Gerätetest offen** |
+| 0.42.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 66, vorbereitet auf Wunsch des Projektinhabers, Veröffentlichung durch ihn): Patches 0091–0093 (Fehlersuche Teil 1), 0094 (Aufrüsten beim Händler), keine GPU-Zeitmessung auf Mali (Absturz im Treiber, moto g72); Releasetext `port/android-decomp/docs/releases/v0.42.0-alpha.md`. Cloud ✅, **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5812,6 +5812,41 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Drei Berichte mit Video (0.41.3, 22.10.2026): Aufrüsten beim Händler, unsichtbarer Biss
+
+Meldung des Projektinhabers zu den drei SCV40-Berichten (11:28, 12:51, 13:44) mit einem Video:
+das Aufrüsten einer Waffe wirkte nicht, nach einem Aufrüsten ging das Nachladen nicht mehr, und in
+*431 griff ein Gegner Leon an, ohne dass seine Bewegung zu sehen war.
+
+- **Aufrüsten (Port-Fehler, behoben mit Patch 0094):** `LvUpConfirm::move` schrieb die Stufen über
+  die Bitfeld-Sicht `TuneLevel`; auf ARM und x86 liegen die Felder in umgekehrter Reihenfolge. Wer
+  die Feuerkraft kaufte, bekam Kapazität (und umgekehrt), Schussgeschwindigkeit und Nachladen
+  tauschten ebenso. Damit „wirkt“ das Aufrüsten nicht, und Feuerkraft/Kapazität und Nachladen
+  stehen auf Stufen, die die Waffe so nie hatte. Zwei Wege zu „kein Nachladen“: ein späterer
+  Kauf kann die Kapazität wieder senken (das Magazin hält dann mehr, als erlaubt ist, und gilt als
+  voll), oder die gekaufte Schussgeschwindigkeit landet als Nachlade-Stufe über der Tabelle (drei
+  Stufen, `PlReloadEndTbl`). Welcher es beim Tester war, zeigt das Protokoll nicht: das Aufrüsten
+  schrieb noch keine Zeile. `view_scan.py` kennt diese Fehlerart
+  jetzt (`bits`); der Lauf über den ganzen Spielcode findet nur `TuneLevel` (die übrigen Bitfelder,
+  `db_cam.h`, `snd.h`, werden nie als ganzes Wort gelesen). **Bereits aufgerüstete Waffen in
+  vorhandenen Spielständen behalten ihre vertauschten Stufen**; ein weiterer Kauf setzt alle vier
+  Stufen neu aus den angezeigten Werten.
+- **Unsichtbarer Biss (Fehler des Prototyps, nicht behoben):** in r307 (13:44:03) ein Regenerator
+  (s9, em36 Typ 0) ohne Beine im Kriech-Zustand; ab 13:44:13 99 Bilder lang je 14 Schaden (Leon
+  1380 → 1). Der Gegner läuft in Routine 1/0x14 (`D_Catch`) und 1/0x15 (`D_CatchHit`, 155 Bilder),
+  dem Biss am Boden. Leons Seite (`plem36_D_CatchHit`) prüft aber, ob der Gegner noch in 1/0xB
+  (dem Biss im Stehen) ist: das ist nie der Fall, Leon wird im ersten Bild losgelassen, die
+  Gegner-Bewegung und die Kamera fehlen, der Biss trifft weiter, „SHAKE OFF“ bleibt stehen. Der
+  Code trifft die SHA1-Prüfsumme, also derselbe Fehler auf der GameCube-Debug-Fassung (das
+  Verkaufsspiel hat ihn behoben). Patch 0095 (`!= 0x15`) liegt bereit, aber nicht im Repository:
+  ob Fehler des Prototyps korrigiert werden, entscheidet der Projektinhaber.
+- Sonst in den Berichten nichts Neues (siehe den Abschnitt „Drei Berichte des SCV40-Testers“).
+
+**Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` mit 0094: 0 Baufehler, der Patch gilt in
+allen drei Bäumen, 114 Module ohne offene Verweise, Laufzeit-, Kern-, Kernprozess-, Format- und
+Filmtests 0 Fehler. **Nicht getestet:** das Aufrüsten auf dem Gerät (kein Test im Cloud-Lauf
+erreicht den Händler).
+
 ### Drei Berichte des SCV40-Testers mit 0.41.3 (22.10.2026 11:28, 12:51, 13:44)
 
 - Samsung SCV40 (Android 10, 64 bit), ohne Beschreibung. Etwa zweieinhalb Stunden Spiel von r220
@@ -6096,6 +6131,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0091 `r221.cpp`, `pl_class.cpp`, `r104.cpp` | Werte, die das Original aus einem Prozessor-Register nahm (Fehlersuche 22.10.2026, `uninit_scan.py`): r221 (Raum des Insekten-Bosses) ruft für die Szene jeder der vier Gasbomben `SceEventStart(evNo)`, das Original übergibt immer 0, gesetzt war es nur im ersten Fall: sonst gingen Gegner, Objekte, Effekte und Schaden nicht in den Szenen-Zustand. `cMot3::set` (Ziel-Überblendung von Pistole, Messer, Granate, Raketenwerfer …) las die Überblendlänge über eine Register-Bindung (`r9`), die der Port weglässt: beliebige Länge. r104: die „schon geöffnet“-Aufgaben der Regale und Kisten bekommen die Nummer als Aufgaben-Argument, das Original deklariert keinen Parameter; beim Wiederkommen stand ein zufälliges (oder kein) Regal offen |
 | 0092 `em39.cpp` | Krauser (em39) sucht seinen nächsten EMI-Punkt und überspringt bei einem zweiten Versuch die Punkte, die dem letzten in Byte 1 und 3 (`sub`, `pad_3`) gleichen: `*(u32*) e & 0x00FF00FF`, eine GameCube-Wortsicht; auf ARM/x86 verglich die Maske `type` und `state`. Jetzt `RE4_BE` (Fehlersuche 22.10.2026, `view_scan.py`) |
 | 0093 `ss_item.cpp`, `ss_pzzl.cpp` | Z (R1 am Controller, Y mit Alternate Controls) öffnete im Gegenstand-Bildschirm den „Item Maker“ (Steuerkreuz und A geben oder entfernen Gegenstände) und im Koffer den „Case Maker“ (Inventar-Sätze, die das ganze Inventar ersetzen, Koffergröße, Munition, Peseten) der Debug-Fassung, auch im normalen Spiel. Ihr Text ist Debug-Text, den die App ausblendet: unsichtbare Editoren auf dem Steuerkreuz. Jetzt nur mit sichtbaren Debug-Anzeigen (`RE4_DEBUG_HUD=1`, `re4_debug_hud_shown` in `runtime/state_trace.cpp`). Dazu `(u8) wk->debugMode` statt Byte 3 des Wortes (Fehlersuche 22.10.2026) |
+| 0094 `ss_shop.cpp` | Das Aufrüsten beim Händler (`LvUpConfirm::move`) schrieb die vier Waffenstufen über `TuneLevel`, vier 4-Bit-Bitfelder über `cItem::lv` (u16). Das übrige Spiel liest sie als Halbbytes des Werts (Feuerkraft << 12, Schussgeschwindigkeit << 8, Nachladen << 4, Kapazität, `item.h`). CodeWarrior legt das erste Bitfeld in die oberen Bits, clang auf ARM/x86 in die unteren: jedes Aufrüsten landete auf einer anderen Stufe (Feuerkraft ↔ Kapazität, Schussgeschwindigkeit ↔ Nachladen). Jetzt als Wert geschrieben, dazu eine Zeile `shop: tune-up of item …` im Protokoll (Tester-Berichte 22.10.2026; `view_scan.py` `bits` findet die Stelle) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

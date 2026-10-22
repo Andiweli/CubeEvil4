@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bug hunt (22.10.2026): two kinds of port bugs the compiler finds, in the game code of a build
+"""Bug hunt (22.10.2026): three kinds of port bugs the compiler finds, in the game code of a build
 (compile_commands.json, the prepared tree, src/ without src/lib).
 
 1. byte order (`order`): a pointer to an object cast to a pointer to a scalar of another width and
@@ -15,6 +15,10 @@
    pointer to a larger type (patch 0089: `(R10fGondolaTbl*) mot` read the locals behind `mot`
    where CodeWarrior put them), the address as a number (patch 0063: `(u32) &pos + 0x28`), or
    pointer arithmetic on the address of a variable that is no array.
+
+3. bitfields (`bits`): a pointer to a structure with bitfields cast from something else (patch
+   0094: TuneLevel, four 4-bit fields over the u16 weapon levels). MWCC gives the first bitfield
+   the top bits, clang on ARM and x86 the bottom ones, so the fields land elsewhere in the value.
 
     port/tools/scan/view_scan.py BUILD [--jobs N] [--pattern REGEX] [--out FILE]
 
@@ -263,6 +267,17 @@ def scan(job):
         if t.kind != K.POINTER:
             return
         pt = t.get_pointee().get_canonical()
+        # a bitfield structure laid over something else (patch 0094: TuneLevel's 4-bit fields over the
+        # u16 tune levels): big-endian the first field is the top bits, on ARM and x86 the bottom ones
+        if pt.kind == K.RECORD and (st.kind != K.POINTER or st.get_pointee().get_canonical() != pt):
+            fields = [f for f in pt.get_declaration().get_children()
+                      if f.kind == ci.CursorKind.FIELD_DECL and f.is_bitfield()]
+            if any(f.get_bitfield_width() % 8 for f in fields):
+                obj_name = st.get_pointee().spelling if st.kind == K.POINTER else st.spelling
+                out.append(f"bits\t{where(c)}\t{text_of(c, data)}\tbitfield view {pt.spelling} "
+                           f"({', '.join(f'{f.spelling}:{f.get_bitfield_width()}' for f in fields[:6])}) over "
+                           f"{obj_name}")
+            return
         if pt.kind not in scal or pt.get_size() <= 0:
             return
         if st.kind == K.POINTER:
