@@ -876,26 +876,28 @@ void TestUniformStream(re4gx::GxRenderer &r, const char *tag) {
   };
   unsigned switches = 0, splits = 0;
   bool right = true;
+  // a draw moves the square with its position matrix: one part of the XF block (XFM, 1 KB) goes to
+  // the stream per draw (until 22.10.2026 the whole block, 3.3 KB; then 700 and 1400 draws)
   for (int i = 0; i < 10; i++) {
-    const auto res = chunk(700, i == 0);
+    const auto res = chunk(2400, i == 0);
     right = right && res.first;
     switches += res.second.first;
     splits += res.second.second;
   }
-  std::snprintf(what, sizeof(what), "%s: uniform stream, chunks of 700 draws drawn right", tag);
+  std::snprintf(what, sizeof(what), "%s: uniform stream, chunks of 2400 draws drawn right", tag);
   Check(right, what);
   std::snprintf(what, sizeof(what), "%s: uniform stream switches between chunks (%u), none inside (%u)", tag,
                 switches, splits);
   Check(switches >= 8 && splits == 0, what);
-  const auto big = chunk(1400, false);
+  const auto big = chunk(5000, false);
   std::snprintf(what, sizeof(what), "%s: uniform stream, a chunk larger than a quarter drawn right", tag);
   Check(big.first, what);
   std::snprintf(what, sizeof(what), "%s: uniform stream, a chunk larger than a quarter switches inside (%u)", tag,
                 big.second.second);
   Check(big.second.second >= 1, what);
   // and back to chunks that fit: from a quarter's start again, none inside
-  const auto after = chunk(700, false);
-  std::snprintf(what, sizeof(what), "%s: uniform stream, after the large chunk one of 700 draws right, none inside",
+  const auto after = chunk(2400, false);
+  std::snprintf(what, sizeof(what), "%s: uniform stream, after the large chunk one of 2400 draws right, none inside",
                 tag);
   Check(after.first && after.second.first == 1 && after.second.second == 0, what);
 }
