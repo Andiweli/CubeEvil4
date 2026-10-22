@@ -37,7 +37,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 0.42.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 66, vorbereitet auf Wunsch des Projektinhabers, Veröffentlichung durch ihn): Patches 0091–0093 (Fehlersuche Teil 1), 0094 (Aufrüsten beim Händler), 0095 (Biss des Regenerators am Boden, Fehler des Prototyps), keine GPU-Zeitmessung auf Mali (Absturz im Treiber, moto g72); Releasetext `port/android-decomp/docs/releases/v0.42.0-alpha.md`. Cloud ✅, **Gerätetest offen** |
 | 0.42.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 67, Wunsch des Projektinhabers: der A30s-Tester soll mit der neuen Messung noch einmal testen): Rechenzeit und Kern-Art von Kern- und Zeichen-Thread im Protokoll (`re4_cpu_info.h`, „Bericht Galaxy A30s“); dazu aus dem Raum-Rundgang (Fehlersuche Teil 2, gemischt in `889b40fb`) die Patches 0096 und 0097, `__rlwimi`/`__rlwinm` mit 5-Bit-Feldern und die leeren EVS/ITM-Tabellen; nach dem SCV40-Bericht 16:21 Patch 0098 (Bulldozer) und keine Formen mehr in der Zustandsbrücke (Absturz beim Laden); Releasetext `port/android-decomp/docs/releases/v0.42.1-alpha.md`. Cloud ✅ (gemischter Stand `4b97350d`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler), **Gerätetest offen** |
 | 0.43.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 68, Wunsch des Projektinhabers: alle Korrekturen aus diesem und dem zweiten Chat, Veröffentlichung durch ihn): Patches 0099 (Laser-Gang r318 auf 64 bit), 0100 (Gegenstände ohne Platz im Koffer, „E“-Marke in der Mitte), 0101 (Absturz am Aufzug r332), 0102 (`cCtrl::work` ausgerichtet: ARM32-Absturz in r222), 0103 (CRI-Tabellen ausgerichtet: Filmstart auf ARM32); App-Menü: Bildformat „Gestreckt“, mehr Zeilenabstand, „B einrasten (Touch)“, Gyro-Empfindlichkeit; GPU-Selbstprüfung der Filmfarben beim Start, die Zeilen der App auch im Protokoll des Kerns; Releasetext `port/android-decomp/docs/releases/v0.43.0-alpha.md`. Kern geprüft (lokal, WSL2, Stand mit 0100–0103): Builds i686, armhf, aarch64 mit allen Prüfungen 0 Fehler, Rundgang i686 126/126, armhf r222 und `set` 28/28. Cloud ✅ (Stand `844bdd25`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, GPU-Prüfung ok). Releasetext nachgeschärft (Waffen aus dem Debug-Menü, Reihenfolge des Bildformats). APK nicht gebaut, **Gerätetest offen** |
-| 0.43.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Wunsch des Projektinhabers): Patch 0104 (Absturz im Ton am Aufzug r332 → r331 nach Saddlers Ereignis), Shader der Brücke auf Mali (Uniform `refract` hieß wie die eingebaute GLSL-Funktion, Anbernic RG 477V), Gegner-Zeile beim Erscheinen mit Listeneintrag, `set` und `flag` (Dynamit-Frage); neues Werkzeug `tools/check_shaders_strict.sh` (alle Shader der Host-Prüfungen durch glslangValidator); Releasetext `port/android-decomp/docs/releases/v0.43.1-alpha.md`. Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; strenge Shader-Prüfung 165 Shader, 0 abgelehnt). APK nicht gebaut, **Gerätetest offen** |
+| 0.43.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Wunsch des Projektinhabers): Patch 0104 (Absturz im Ton am Aufzug r332 → r331 nach Saddlers Ereignis), Shader der Brücke auf Mali (Uniform `refract` hieß wie die eingebaute GLSL-Funktion, Anbernic RG 477V), Gegner-Zeile beim Erscheinen mit Listeneintrag, `set` und `flag` (Dynamit-Frage), dazu Zeilen für geworfenes und explodiertes Dynamit (Abschnitt „Meldung eines Testers … Dynamit-Ganados“); neues Werkzeug `tools/check_shaders_strict.sh` (alle Shader der Host-Prüfungen durch glslangValidator); Releasetext `port/android-decomp/docs/releases/v0.43.1-alpha.md`. Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; strenge Shader-Prüfung 165 Shader, 0 abgelehnt). APK nicht gebaut, **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5919,8 +5919,10 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
 
 Frage des Testers: „Did you know about the absence of the Ganados carrying explosives—the ones
 that don't appear in Chapter 1-2, right before you reach the fish-processing area?“ Untersucht in
-der Cloud (Code und vorhandene Berichte, ohne Disc-Daten). **Ergebnis: kein Port-Fehler gefunden;
-eher ein Unterschied des Prototyps, aber nicht bewiesen.**
+der Cloud (Code und vorhandene Berichte), dann die Gegnerliste von den Disc-Abbildern ausgelesen
+(Projektinhaber, PC). **Ergebnis: der Prototyp hat Dynamit-Ganados in r104 (vier Einträge, siehe
+„Gegnerliste ausgelesen“ unten); kein Port-Fehler im Code gefunden. Ob sie auf dem Gerät werfen, ist
+noch nicht gesehen: dafür jetzt Dynamit-Zeilen im Fehlerprotokoll.**
 
 - **Räume im Prototyp:** r107 ist die Fischfarm (Fische id 0x27 auf Seehöhe, `src/st1/r107.cpp:71-83`;
   kein Gegnerskript, alles aus der Gegnerliste). r104 ist der Bereich davor („Steinbruch“): die Tür
@@ -5935,8 +5937,8 @@ eher ein Unterschied des Prototyps, aber nicht bewiesen.**
   („Weapon Mugen“) = unbegrenzt nachnehmen. Feste Werfer: `set` 0x24/0x25/0x2B starten FixBomber
   (Routine 0x50, `em10.cpp:3077-3091`, Ablauf `:9850`); der Editor nennt 0x24 **„R106 Fix Bomber“**
   (`t_emlist.cpp:190`). `r106_ctrlEm0/1` schicken die Ganados 0x8F und 0x8C auf feste Posten
-  (`r106.cpp:239-266`), dort übergibt Goto-Art 1 an FixBomber (`em10.cpp:6894-6899`). Hinweis: dieser
-  Stand hat seine festen Dynamit-Werfer wohl in r106 (Ende 1-1), nicht in r104.
+  (`r106.cpp:239-266`), dort übergibt Goto-Art 1 an FixBomber (`em10.cpp:6894-6899`). Die Vermutung,
+  die Werfer stünden in diesem Stand nur in r106, war falsch (siehe die Liste unten).
 - **Nichts im Code entfernt Dynamit:** keine Schwierigkeits-, Szenario- oder Raumprüfung löscht
   0x20000 (`Game_level` ändert nur Zeiten). `type`, `set`, `flag`, `Guard_r` kommen 1:1 aus der Liste
   (`em_set.cpp:57-77`). Ein Werfer wirft nur, wenn zwei Bahnen 5000 Einheiten vor ihm frei sind
@@ -5956,26 +5958,41 @@ eher ein Unterschied des Prototyps, aber nicht bewiesen.**
   später eine neue Waffe in einer rechten Hand – so entsteht eine Waffe nur bei „Pickup waist“ +
   „Weapon Mugen“, genau wie bei FixBomber mit leerer Hand. Vielleicht läuft also doch ein Werfer in
   r104; welche Waffe es war, zeigt das Protokoll nicht (keine Trefferzeile, Lauf nach 25 s zu Ende).
-- **Was es entscheidet (offen):**
-  1. Gegnerliste am PC auslesen (Disc-Daten, ohne Build). Der erste Befehl (nur PowerShell) fand
-     nichts: `RE4-Discdata` enthält die Disc-Abbilder, nicht entpackte Dateien. Dafür jetzt
-     `port/tools/emlist_dump.py` (liest `etc/*.esl` aus den Abbildern, einem mit Dolphin
-     entpackten Ordner oder der Datei selbst; Namen aus dem Listen-Editor des Spiels; Test
-     `test_emlist_dump.py` mit einem künstlichen Abbild, läuft in `whole_build.sh` mit):
-     ```powershell
-     cd E:\Development\Android\RE4-Fixed
-     git pull
-     wsl python3 port/tools/emlist_dump.py --data /mnt/e/Development/Android/RE4-Discdata --rooms 104,106,107
-     ```
-     Keine `DYNAMITE`-Zeile für r104 → Unterschied des Prototyps (kein Fehler, nichts zu tun).
-     `DYNAMITE` bei Listennummern außerhalb 0xF0–0xFB/0xFE → sie gehören zu den Stürmern oder
-     Wellen und kommen erst später. `DYNAMITE` bei den 12 ersten → der Tester hat sie übersehen
-     oder sie warfen nicht; dann Wurf-Freiraum und `Guard_r` am Gerät prüfen.
-  2. Oder am Gerät: „File 01 r104“ laden, jeden Ganado einmal treffen; die Zeilen `em: hit` zeigen
-     `wt 9` und `f` mit Bit 0x20000.
-  3. Verbesserung fürs Protokoll: `em->set` und `em->flag` stehen seit 0.43.1 in der
-     Gegner-Zeile beim Erscheinen (`em: + … list N set 0x.. f 0x........`, Abschnitt „Bericht
-     Anbernic RG 477V“); ein Bericht aus r104 beantwortet die Frage damit allein.
+- **Gegnerliste ausgelesen** (Projektinhaber am PC, 22.10.2026, mit dem neuen Werkzeug
+  `port/tools/emlist_dump.py`: liest `etc/*.esl` aus den Disc-Abbildern, einem mit Dolphin entpackten
+  Ordner oder der Datei selbst, Namen aus dem Listen-Editor des Spiels; Test `test_emlist_dump.py`
+  mit einem künstlichen Abbild, läuft in `whole_build.sh` mit). Aufruf:
+  `wsl python3 port/tools/emlist_dump.py --data /mnt/e/Development/Android/RE4-Discdata --rooms 104,106,107`
+  (der erste, reine PowerShell-Befehl fand nichts: `RE4-Discdata` enthält die Abbilder
+  `RE4_2004-11-25_Disc1.gcm` und Disc 2, beide mit derselben Liste). 69 Einträge, 10 mit Dynamit:
+  - **r104 (4):** `F7` „Homing Bomber“ (`set` 0x25, Dynamit am Gürtel, unbegrenzt), erscheint nach
+    s00 mit den ersten 12 und läuft als Streife (`r104_patrolData`) auf dem erhöhten Weg (Höhe 3570)
+    zwischen (18840 3570 −27700) und (24710 3570 −27760); `FC`, `FD` (Dynamit am Gürtel) stürmen mit
+    `F2` herein, wenn Leon Fläche 0xE erreicht (oben bei (33500 6720 −18000), `r104_execEmDash`);
+    `DC` in der zweiten Nachschub-Welle (`r104_resetData[1]`).
+  - **r106 (4):** drei „R106 Fix Bomber“ (`8D`, `8E`, `8F`) und ein „Homing Bomber“ (`90`), dazu
+    acht Bärenfallen (id 0x2A).
+  - **r107 (2):** zwei „Homing Bomber2“ (`EA`, `EB`, `set` 0x2B) unter den zwölf Ganados der
+    Fischfarm.
+  - Im Bericht `rep134850` (Retroid, 0.42.1) erscheint `F7` als s27 (Liste 247) bei
+    (18841 3530 −27711); die Waffe, die 1,85 s später in einer Hand auftaucht (s79), ist sein
+    Dynamit (FixBomber nimmt bei leerer Hand zuerst eine Stange vom Gürtel, Schritt 6/7). Ob er
+    wirft, zeigt der Bericht nicht (Lauf nach 25 s zu Ende).
+- **Wann ein Werfer wirft** (`em10_R1_FixBomber`, `em10.cpp:9850`): erst wenn er Leon gesehen hat
+  (Homing: `Be_flg` & 1), Leon vor ihm steht (in seinem Blick höchstens 2000 seitlich, 1000 bis
+  20000 voraus) und zwei Bahnen 5000 voraus in Höhe 2000 frei sind (`em10BombThrowScaCk`, Treffertest
+  der Szenerie mit `EatMgr.hitCheck`). Kommt Leon näher als `Guard_r` (F7: 8000), wird er ein
+  normaler Ganado mit Dynamit. Die Stürmer zünden über `em10IgnitionCk` (Leon näher als 15000 auf
+  dem Weg und gesehen).
+- **Neu im Fehlerprotokoll** (`state_trace.cpp`, für 0.43.1): `em: s79 dynamite thrown by s27 at
+  (x y z)` (eine Waffe, id 0x42, startet als Dynamit: `cEmWep::setBombThrow`, Routine 9) und
+  `em: s79 dynamite exploded at (x y z)` (Routine 2 nach der Explosion; „fell into the water“ bei
+  Routine 4). Die Treffer-Zeilen, die Wurf (hp 1) und Explosion (hp 0) vorher ausgelöst hätten,
+  entfallen dafür. Test `enemylog` (Laufzeittest) um Wurf und Explosion einer Waffe erweitert.
+- **Offen:** auf dem Gerät „File 01 r104“ laden, in Sichtweite des erhöhten Wegs gehen
+  (F7) und zur Fläche 0xE hinauf (FC/FD); wirft niemand, liegt ein Port-Fehler vor (dann
+  `em10BombThrowScaCk`/`EatMgr.hitCheck` und die Sicht prüfen). Der nächste Tester-Bericht aus r104
+  zeigt es mit den neuen Zeilen.
 
 ### Bericht SCV40 (0.43.0, 22.10.2026 21:55): der Aufzug nach Saddler, jetzt Abbruch im Ton
 
