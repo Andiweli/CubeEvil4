@@ -21,6 +21,10 @@
   `E:\Development\Android\RE4-Discdata`; Ergebnisse liegen auf dem Desktop in
   `RE4-Kern-App` bzw. `RE4-Kern-Pruefung`). Entscheidung des
   Projektinhabers, 15.10.2026.
+- Nach jeder Änderung, die in die App gehört, die Befehle zum Abgleich mit
+  GitHub und zum Bauen mitschicken: `git pull`, Kern-Build in WSL, dann Android
+  Studio; Vorlage und Hinweise in `port/docs/lokal-bauen.md` (Wunsch des
+  Projektinhabers, 22.10.2026).
 - Bei jedem neuen Alpha-Release die Änderungen gleich im Chat mitschicken, kurz
   und knackig (englisch, für Tester: Fixed / New / Changed, je ein Satz pro Punkt);
   der Releasetext in `port/android-decomp/docs/releases/` bleibt genauso kurz
