@@ -12,8 +12,8 @@
     <string name="ingame_off">Desactivado</string>
     <string name="ingame_texture_filter">Filtro de texturas</string>
     <string name="ingame_picture">Formato de imagen</string>
-    <string name="ingame_original_43">4:3 (original)</string>
-    <string name="ingame_43_no_bars">4:3 (sin franjas)</string>
+    <string name="ingame_original_43">4:3 (GC)</string>
+    <string name="ingame_43_no_bars">4:3</string>
     <string name="ingame_stretched">Estirada</string>
     <string name="ingame_other_options">Otras opciones</string>
     <string name="ingame_dof">Profundidad de campo</string>

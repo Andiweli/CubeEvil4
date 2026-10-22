@@ -316,7 +316,8 @@ final class CoreMenu extends Dialog {
         new int[] {1, 2, 4, 8, 16}, 1, maxAnisotropy);
     // 4:3 (original), 16:9, Stretched (the whole screen); the stored values stay 1, 0 and the new 2
     // (wish of the project owner, 22.10.2026); 4:3 without the game's letterbox bars in play, 3
-    // (for 4:3 screens, Anbernic RG 477V report, 22.10.2026)
+    // (for 4:3 screens, Anbernic RG 477V report, 22.10.2026). Short labels "4:3 (GC)", "4:3",
+    // "16:9", "Stretched" (wish of the project owner, 22.10.2026: no line breaks on small screens)
     choices(s(R.string.ingame_picture), "aspect",
         new String[] {s(R.string.ingame_original_43), s(R.string.ingame_43_no_bars), "16:9", s(R.string.ingame_stretched)},
         new int[] {1, 3, 0, 2}, 0, 0);

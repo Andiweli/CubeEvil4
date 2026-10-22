@@ -102,6 +102,8 @@ public final class CoreBridge {
    * before 22.10.2026 ignore it.
    */
   public static native void tap(float x, float y);
+  /** A swipe across the picture: 1 to the left (the next tab of the game's sub screen), -1 to the right. */
+  public static native void swipe(int dir);
   /**
    * A swipe while playing (CoreActivity, the menu's switch "Knife by Swipe"): the core draws the
    * knife and slashes (runtime/knife_swipe.cpp), `tilt` 1 straight up .. -1 straight down moves

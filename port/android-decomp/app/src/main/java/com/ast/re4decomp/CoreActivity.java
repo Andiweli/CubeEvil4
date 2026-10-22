@@ -884,12 +884,12 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
 
   // A tap on the picture beside the touch controls (one finger, short, hardly moved; wish of the
   // project owner, 22.10.2026: the inventory by touch) goes to the core, which uses it in the
-  // attache case (runtime/menu_touch.cpp) and ignores it elsewhere. A swipe (one finger, any
-  // direction, at least a sixth of the picture's shorter side, within 700 ms) draws the knife and
-  // slashes while playing, higher or lower by its slope (runtime/knife_swipe.cpp; wish of the
-  // project owner, 22.10.2026; the menu's switch "Knife by Swipe"); the core ignores it in sub
-  // screens. The sub screen's tabs by a tap or a swipe were taken out after the second device test
-  // (decision of the project owner, 22.10.2026).
+  // attache case (runtime/menu_touch.cpp) and ignores it elsewhere; a swipe (one finger, mostly
+  // sideways, at least an eighth of the picture's width, within 700 ms) changes the sub screen's
+  // tab (wish of the project owner after the first device test). A swipe in any direction, at
+  // least a sixth of the picture's shorter side, draws the knife and slashes while playing, higher
+  // or lower by its slope (runtime/knife_swipe.cpp; wish of the project owner, 22.10.2026; the
+  // menu's switch "Knife by Swipe"); the core ignores it in sub screens.
   private static final long TAP_MS = 500, SWIPE_MS = 700;
   private boolean knifeSwipe = true;
   private int tapFinger = -1;
@@ -927,6 +927,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
             surface.getLocationInWindow(surfaceAt);
             CoreBridge.tap(e.getX(i) - surfaceAt[0], e.getY(i) - surfaceAt[1]);
           } else if (time <= SWIPE_MS) {
+            if (Math.abs(dx) >= surface.getWidth() / 8f && Math.abs(dx) >= 2 * Math.abs(dy)) {
+              CoreBridge.swipe(dx < 0 ? 1 : -1);
+            }
             float length = (float) Math.hypot(dx, dy);
             if (knifeSwipe && length >= Math.min(surface.getWidth(), surface.getHeight()) / 6f) {
               CoreBridge.slash(-dy / length);

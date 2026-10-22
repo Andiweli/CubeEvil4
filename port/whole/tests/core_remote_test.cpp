@@ -322,6 +322,7 @@ void mainRun(const char* modules, const char* gciPath)
     re4ipc_set_dof(0);
     re4ipc_set_letterbox(1);
     re4ipc_touch(0.5f, 0.25f);
+    re4ipc_swipe(1);
     re4ipc_slash(-0.5f);
     re4ipc_debug_menu();
     sleepMs(100);
@@ -350,6 +351,7 @@ void mainRun(const char* modules, const char* gciPath)
     CHECK(probe.find("dof changes 2 (now 1)") != std::string::npos);
     CHECK(tail.find("remote-probe: letterbox changes 2 (now 0)") != std::string::npos);
     CHECK(tail.find("touch: taps on the picture reach the sub screens") != std::string::npos);
+    CHECK(tail.find("touch: swipes change the tab of the sub screen") != std::string::npos);
     CHECK(tail.find("knife: swipes draw the knife and slash") != std::string::npos);
     CHECK(number(probe, "debug menu ") == 1);
     unsigned checked, mismatches, snaps, snapMismatches;

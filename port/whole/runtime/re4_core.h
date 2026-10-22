@@ -264,6 +264,10 @@ int re4_letterbox_off(void);
  * game frame while a sub screen is open (tabs, the attache case and its
  * command menu), ignored elsewhere. Any thread. */
 void re4_core_touch(float u, float v);
+/* A swipe across the picture (cores since 22.10.2026): dir 1 the next tab of
+ * the sub screen (a swipe to the left), -1 the one before, nothing beyond the
+ * first and the last; ignored outside the normal inventory. Any thread. */
+void re4_core_swipe(int dir);
 /* A swipe while playing (cores since 22.10.2026, knife_swipe.cpp): Leon draws
  * the knife and slashes; tilt -1..1 how steep the swipe went (1 straight up,
  * -1 straight down) moves the slash up or down. Ignored in sub screens, events

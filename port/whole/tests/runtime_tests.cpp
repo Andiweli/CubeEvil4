@@ -1580,7 +1580,7 @@ static void testMenuTouch()
         re4_log("  menutouch: failed checks 0x%x", bad);
         ok = false;
     }
-    static char tail[24 * 160];
+    static char tail[64 * 160];
     re4_log_tail(tail, sizeof tail);
     const char* want[] = {
         "touch: case: cursor to (", ") in the case, item 0x05",
@@ -1589,6 +1589,11 @@ static void testMenuTouch()
         "touch: command 1 of 3: A",
         "touch: command menu closed (a tap on the case)",
         "touch: question option 0: A",
+        "touch: tab 2 (swipe to the next)",
+        "touch: tab 1 (swipe to the one before)",
+        "touch: tab 3 (swipe to the next)",
+        "touch: tab 0 (swipe to the one before)",
+        "touch: swipe to the one before: no tab there",
     };
     for (const char* w : want) {
         if (!strstr(tail, w)) {

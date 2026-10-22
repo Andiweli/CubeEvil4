@@ -1,5 +1,6 @@
 // Touch in the game's sub screens (wish of the project owner, 22.10.2026: pick the items of the
-// attache case with a finger), compiled with the game's flags into libre4_main.
+// attache case with a finger, change the tabs with a swipe), compiled with the game's flags into
+// libre4_main.
 //
 // The app hands a tap on the picture over (re4_core_touch: u across the game's picture, v down
 // it, 0..1; CoreActivity.watchTap only passes taps beside the touch controls). Patch 0106 calls
@@ -14,14 +15,23 @@
 //    2): a tap selects the option (left/right), a second tap is A. So nothing the game cannot
 //    undo (combine, discard, use) happens on a single tap.
 //
+// A swipe across the picture (re4_core_swipe; only in the normal inventory, open_flag 1) changes
+// the tab: a swipe to the left the one to the right, a swipe to the right the one to the left, in
+// the game's order (sscrnMainMenu: key items, attache case, map, files; the exit never). At the
+// ends nothing happens, and a swipe while a change is on its way counts from the tab it goes to
+// (device test 22.10.2026 20:09: with a ring and counting from the screen shown, quick swipes
+// seemed to jump to any tab). With the tab row focused: menu_next and A (sscrnMainMenu switches
+// like the cross and A); else B until the row has the focus, at most three times 12 frames apart
+// (the case only from its cursor with nothing on the spare board and nothing in hand, as B does
+// there; the key items and the files; the map from its zoomed view, its whole view zooms in on the
+// first B), and the tab at the frame the row has the focus (45 at most).
+//
 // Positions: the sub screen draws its id units through IDSystem::m_scrn_mat and the 3D case
 // through the camera of sscrnCameraInit, both with pG->Camera.ProjMat (4:3) over the whole
 // picture (640 x 448 while the sub screen is open; u and v do not depend on the width). A piece
 // in hand, the item examine, the key items, map and file screens themselves and the merchant are
-// not touched (their buttons as before). The tabs of the top row (by a tap, or a swipe across the
-// picture) were taken out after the second device test (decision of the project owner,
-// 22.10.2026: the tabs did not react to taps, swipes seemed to jump to any tab); the buttons
-// change them as before.
+// not touched (their buttons as before). A tap on the tabs of the top row was taken out after the
+// second device test (decision of the project owner, 22.10.2026: they did not react).
 #include "types.h"
 #include "global.h"
 #include "main.h"
@@ -45,11 +55,25 @@ namespace {
 const u64 kA = 0x80000000ull, kB = 0x40000000ull, kRight = 0x04000000ull, kLeft = 0x08000000ull;
 const f32 kCell = 100.0f;  // pzlGrid::size (ss_pzzl.cpp caseModelMove)
 const u32 kTapAgeMs = 400;
+const unsigned kTabFrames = 45;     // frames a tab waits for the row to get the focus
+const unsigned kTabPresses = 3;     // B at most this often for it (the map: zoom in, then to the row)
+const unsigned kTabPressGap = 12;   // frames between two of them (the map's zoom takes 10)
+const unsigned kGoingFrames = 90;   // frames a chosen tab counts as the base of the next swipe
 
 // the app's thread writes, the game's reads: the tap as float bits, when, counted
 volatile u32 gTapU, gTapV, gTapWhen, gTapSeq;
 u32 gTapSeen;
 bool gAnnounced;
+
+// a tab waiting for the row's focus (after B)
+struct Tab {
+    int no;  // -1: none
+    unsigned frames, presses, lastPress;
+};
+Tab gTab = {-1, 0, 0, 0};
+// the tab chosen last (A on the row) until its screen shows, for the next swipe
+int gGoing = -1;
+unsigned gGoingFrames;
 
 unsigned gLines;
 
@@ -285,13 +309,91 @@ void caseScreen(SUB_SCREEN* wk, SsPzzlMain* main, f32 u, f32 v)
     }
 }
 
+// The tab of the screen the player is in (0 key items, 1 attache case, 2 map, 3 files), -1 none.
+int screenTab(Widget<SUB_SCREEN>* cur, SsPzzlMain* pzzl, SsItemMain* item, SsMapMain* map, SsFileMain* file)
+{
+    if (pzzl && cur == pzzl) {
+        return 1;
+    }
+    if (item && cur == item) {
+        return 0;
+    }
+    if (map && cur == map) {
+        return 2;
+    }
+    if (file && cur == file) {
+        return 3;
+    }
+    return -1;
+}
+
+// B now gives the tab row the focus, as the player's B does: the case only from its cursor with
+// nothing in hand and nothing on the spare board (B else asks about the spare board); the key
+// items and the files from their main view; the map from its zoomed view (MapRead: B leaves to
+// the row) or the whole view (B zooms in first).
+bool backToRow(SUB_SCREEN* wk, Widget<SUB_SCREEN>* cur, SsPzzlMain* pzzl, SsItemMain* item, SsMapMain* map,
+               SsFileMain* file)
+{
+    if (pzzl && cur == pzzl) {
+        pzlPlayer* pl = wk->puzzlePlayer;
+        return pzzl->state == 0 && pzzl->cur == pzzl->select && pzzl->select->state == 0 && pl &&
+               !pl->pieceInHand() && pl->spacePtr()->getPieceNum() == 0;
+    }
+    if (map && cur == map) {
+        // MapRead / MapEntire are only declared here; their Widget base is at offset 0
+        const void* view = map->cur;
+        return map->state == 0 && (view == (const void*) map->read || view == (const void*) map->entire);
+    }
+    return (item && cur == item && item->state == 0) || (file && cur == file && file->state == 0);
+}
+
+// the swipe of the app (re4_core_swipe): -1 the tab before, 1 the next one
+volatile u32 gSwipeDir, gSwipeWhen, gSwipeSeq;
+u32 gSwipeSeen;
+
+// a new tab to go to (a swipe); a change on its way keeps its B presses and frames
+void wantTab(int k, const char* why)
+{
+    if (gTab.no < 0) {
+        gTab.frames = 0;
+        gTab.presses = 0;
+        gTab.lastPress = 0;
+    }
+    gTab.no = k;
+    if (line()) {
+        re4_log("touch: tab %d (%s)", k, why);
+    }
+}
+
+// A swipe in the normal inventory: the tab beside the one a change goes to, else beside the
+// screen shown; nothing beyond the ends.
+void swipeTab(int swipe, int here)
+{
+    const int from = gTab.no >= 0 ? gTab.no : gGoing >= 0 ? gGoing : here;
+    const int to = from + swipe;
+    if (from < 0 || to < 0 || to > 3) {
+        if (line()) {
+            re4_log("touch: swipe %s: no tab there", swipe > 0 ? "to the next" : "to the one before");
+        }
+        return;
+    }
+    if (to == here && gTab.no >= 0 && gTab.presses == 0) {
+        // back to the screen shown before the change began: nothing to do
+        gTab.no = -1;
+        if (line()) {
+            re4_log("touch: tab %d stays (the swipes cancel out)", here);
+        }
+        return;
+    }
+    wantTab(to, swipe > 0 ? "swipe to the next" : "swipe to the one before");
+}
+
 } // namespace
 
 // Patch 0106 (src/Sscrn/ss_main.cpp SubScreenTask), every frame before cur->move: the screens'
-// main widgets (0 outside the normal inventory; the key items, map and file screens unused since
-// the tabs were taken out).
-extern "C" void re4_touch_sscrn(SUB_SCREEN* wk, Widget<SUB_SCREEN>* cur, SsPzzlMain* pzzl, SsItemMain*, SsMapMain*,
-                                SsFileMain*)
+// main widgets (0 outside the normal inventory) to tell where the player is.
+extern "C" void re4_touch_sscrn(SUB_SCREEN* wk, Widget<SUB_SCREEN>* cur, SsPzzlMain* pzzl, SsItemMain* item,
+                                SsMapMain* map, SsFileMain* file)
 {
     bool tap = false;
     f32 u = 0.0f, v = 0.0f;
@@ -302,12 +404,71 @@ extern "C" void re4_touch_sscrn(SUB_SCREEN* wk, Widget<SUB_SCREEN>* cur, SsPzzlM
         v = value(__atomic_load_n(&gTapV, __ATOMIC_RELAXED));
         tap = nowMs() - __atomic_load_n(&gTapWhen, __ATOMIC_RELAXED) <= kTapAgeMs;
     }
-    if (!tap || !wk || !cur || wk->Loop != 1 || wk->pzzl_debug_open || wk->item_make_open) {
+    int swipe = 0;
+    const u32 swipeSeq = __atomic_load_n(&gSwipeSeq, __ATOMIC_ACQUIRE);
+    if (swipeSeq != gSwipeSeen) {
+        gSwipeSeen = swipeSeq;
+        if (nowMs() - __atomic_load_n(&gSwipeWhen, __ATOMIC_RELAXED) <= kTapAgeMs) {
+            swipe = (int) __atomic_load_n(&gSwipeDir, __ATOMIC_RELAXED) == 1 ? 1 : -1;
+        }
+    }
+    if (!wk || !cur || wk->Loop != 1 || wk->pzzl_debug_open || wk->item_make_open) {
+        gTab.no = -1;
+        gGoing = -1;
         return;
     }
-    if (pzzl && cur == pzzl && pzzl->state == 0 && (wk->open_flag == SS_OPEN_NORMAL || wk->open_flag == SS_OPEN_PZZL)) {
+    const bool row = (pzzl && cur == pzzl && pzzl->state == 1) || (item && cur == item && item->state == 1) ||
+                     (map && cur == map && map->state == 1) || (file && cur == file && file->state == 1);
+    const int here = screenTab(cur, pzzl, item, map, file);
+    if (gGoing >= 0 && (here == gGoing || ++gGoingFrames > kGoingFrames)) {
+        gGoing = -1;
+    }
+    if (swipe && wk->open_flag == SS_OPEN_NORMAL) {
+        swipeTab(swipe, here);
+        tap = false;
+    }
+    if (gTab.no >= 0) {
+        if (row) {
+            wk->menu_next = (u8) gTab.no;
+            Key.trg |= kA;
+            gGoing = gTab.no;
+            gGoingFrames = 0;
+            gTab.no = -1;
+            return;
+        }
+        // B until the row has the focus (the map's whole view zooms in first), a few frames
+        // apart so that each is a new press
+        if (gTab.presses < kTabPresses && (gTab.presses == 0 || gTab.frames - gTab.lastPress >= kTabPressGap) &&
+            backToRow(wk, cur, pzzl, item, map, file)) {
+            Key.trg |= kB;
+            gTab.presses++;
+            gTab.lastPress = gTab.frames;
+        }
+        if (++gTab.frames > kTabFrames) {
+            if (line()) {
+                re4_log("touch: tab %d dropped (the row did not get the focus)", gTab.no);
+            }
+            gTab.no = -1;
+        }
+        return;
+    }
+    if (tap && pzzl && cur == pzzl && pzzl->state == 0 && (wk->open_flag == SS_OPEN_NORMAL || wk->open_flag == SS_OPEN_PZZL)) {
         caseScreen(wk, pzzl, u, v);
     }
+}
+
+// The app (CoreBridge.swipe): a swipe across the picture, -1 to the right (the tab before), 1 to
+// the left (the next tab); any thread.
+extern "C" void re4_core_swipe(int dir)
+{
+    static bool announced;
+    if (!announced) {
+        announced = true;
+        re4_log("touch: swipes change the tab of the sub screen");
+    }
+    __atomic_store_n(&gSwipeDir, (u32) (dir > 0 ? 1 : 0), __ATOMIC_RELAXED);
+    __atomic_store_n(&gSwipeWhen, nowMs(), __ATOMIC_RELAXED);
+    __atomic_fetch_add(&gSwipeSeq, 1, __ATOMIC_RELEASE);
 }
 
 // The app (CoreBridge.tap): a tap on the picture, any thread.

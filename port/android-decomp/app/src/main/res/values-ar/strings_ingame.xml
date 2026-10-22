@@ -16,8 +16,8 @@
     <string name="ingame_off">إيقاف</string>
     <string name="ingame_texture_filter">تصفية الخامات</string>
     <string name="ingame_picture">نسبة الأبعاد</string>
-    <string name="ingame_original_43">4:3 (الأصلية)</string>
-    <string name="ingame_43_no_bars">4:3 (بدون أشرطة)</string>
+    <string name="ingame_original_43">&#x200F;4:3 (GC)</string>
+    <string name="ingame_43_no_bars">4:3</string>
     <string name="ingame_stretched">ممتدة</string>
     <string name="ingame_other_options">خيارات أخرى</string>
     <string name="ingame_dof">عمق الميدان</string>

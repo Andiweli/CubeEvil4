@@ -63,7 +63,7 @@ enum MsgType : uint32_t {
     kCrashFile = 22,   // fd: the crash file (no reply)
     kSetLetterbox = 23,  // a = off (no reply)
     kTouch = 24,         // a, b = the tap's u, v as float bits (no reply)
-    // 25: kSwipe, the sub screen's tabs by a swipe (taken out, 22.10.2026)
+    kSwipe = 25,         // a = 1 next tab, -1 the one before (no reply)
     kSlash = 26,         // a = the swipe's tilt as float bits (no reply)
 };
 

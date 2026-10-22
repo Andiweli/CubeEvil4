@@ -13,8 +13,8 @@
     <string name="ingame_off">关</string>
     <string name="ingame_texture_filter">纹理过滤</string>
     <string name="ingame_picture">画面比例</string>
-    <string name="ingame_original_43">4:3（原始）</string>
-    <string name="ingame_43_no_bars">4:3（无黑边）</string>
+    <string name="ingame_original_43">4:3 (GC)</string>
+    <string name="ingame_43_no_bars">4:3</string>
     <string name="ingame_stretched">拉伸</string>
     <string name="ingame_other_options">其他选项</string>
     <string name="ingame_dof">景深</string>

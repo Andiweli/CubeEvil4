@@ -678,6 +678,7 @@ extern "C" int re4_touch_unit_hit(const ID_UNIT* unit, f32 u, f32 v);
 extern "C" void re4_touch_sscrn(SUB_SCREEN* wk, Widget<SUB_SCREEN>* cur, SsPzzlMain* pzzl, SsItemMain* item,
                                 SsMapMain* map, SsFileMain* file);
 extern "C" void re4_core_touch(float u, float v);
+extern "C" void re4_core_swipe(int dir);
 extern "C" void re4_core_set_letterbox(int off);
 extern "C" int re4_letterbox_open(void);
 
@@ -894,9 +895,8 @@ extern "C" int re4probe_menu_touch(void)
         if (tapFrame(main, unitU(0.0f), unitV(200.0f)) != 0) {
             bad |= 0x1000;
         }
-        // the normal inventory: a tap on the tab row gives no keys (the tabs by touch were taken
-        // out, decision of the project owner, 22.10.2026); a tap while the sub screen closes
-        // (Loop 0) neither
+        // the normal inventory: a tap on the tab row gives no keys (taps on the tabs were taken
+        // out, decision of the project owner, 22.10.2026)
         wk->open_flag = SS_OPEN_NORMAL;
         main->cur = sel;
         main->state = 0;
@@ -905,10 +905,67 @@ extern "C" int re4probe_menu_touch(void)
         if (tapFrame(main, unitU(-200.0f), unitV(215.0f)) != 0) {
             bad |= 0x2000;
         }
+        // swipes (the tabs in the game's order: 0 key items, 1 case, 2 map, 3 files): to the left
+        // the map; B gives the row the focus, A then in the frame the row has it
+        alignas(8) static u8 mapMem[sizeof(SsMapMain)], itemMem[sizeof(SsItemMain)];
+        memset(mapMem, 0, sizeof mapMem);
+        memset(itemMem, 0, sizeof itemMem);
+        SsMapMain* fmap = (SsMapMain*) mapMem;
+        SsItemMain* fitem = (SsItemMain*) itemMem;
+        auto frame = [&](Widget<SUB_SCREEN>* cur) -> u64 {
+            Key.trg = 0;
+            re4_touch_sscrn(wk, cur, main, fitem, fmap, 0);
+            return Key.trg;
+        };
+        Widget<SUB_SCREEN>* mapW = (Widget<SUB_SCREEN>*) fmap;
+        Widget<SUB_SCREEN>* itemW = (Widget<SUB_SCREEN>*) fitem;
+        re4_core_swipe(1);
+        bad |= frame(main) != kB ? 0x4000 : 0;
+        main->state = 1;  // the row has the focus (SsPzzlMain after PieceSelect mode 2)
+        bad |= frame(main) != kA || wk->menu_next != 2 ? 0x8000 : 0;
+        main->state = 0;
+        // the map shows; to the right: the case again, counted from the map (B: the map's view)
+        bad |= frame(mapW) != 0 ? 0x10000 : 0;
+        re4_core_swipe(-1);
+        bad |= frame(mapW) != kB ? 0x10000 : 0;
+        fmap->state = 1;
+        bad |= frame(mapW) != kA || wk->menu_next != 1 ? 0x20000 : 0;
+        fmap->state = 0;
+        // the case shows; two quick swipes to the left: the files, not the map (the second counts
+        // from the tab the first goes to, and keeps its B)
+        bad |= frame(main) != 0 ? 0x40000 : 0;
+        re4_core_swipe(1);
+        bad |= frame(main) != kB ? 0x40000 : 0;
+        re4_core_swipe(1);
+        bad |= frame(main) != 0 ? 0x40000 : 0;
+        main->state = 1;
+        bad |= frame(main) != kA || wk->menu_next != 3 ? 0x80000 : 0;
+        main->state = 0;
+        // the files never show here: after 90 frames the case counts again; to the right the key
+        // items, and a swipe to the right on the way there or from them: nothing beyond them
+        for (int i = 0; i < 91; i++) {
+            frame(main);
+        }
+        re4_core_swipe(-1);
+        bad |= frame(main) != kB ? 0x100000 : 0;
+        main->state = 1;
+        bad |= frame(main) != kA || wk->menu_next != 0 ? 0x100000 : 0;
+        main->state = 0;
+        re4_core_swipe(-1);
+        bad |= frame(main) != 0 ? 0x200000 : 0;
+        bad |= frame(itemW) != 0 ? 0x200000 : 0;
+        re4_core_swipe(-1);
+        bad |= frame(itemW) != 0 ? 0x200000 : 0;
+        // a swipe while the sub screen closes (Loop 0): no keys, the tab forgotten; a tap neither
+        re4_core_swipe(1);
+        wk->Loop = 0;
+        bad |= frame(main) != 0 ? 0x400000 : 0;
+        wk->Loop = 1;
+        bad |= frame(main) != 0 ? 0x400000 : 0;
         wk->Loop = 0;
         worldUv(sprayX, sprayY, &u, &v);
         if (tapFrame(main, u, v) != 0) {
-            bad |= 0x4000;
+            bad |= 0x400000;
         }
         wk->Loop = 1;
         pl->quit();
