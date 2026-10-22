@@ -1002,14 +1002,15 @@ bool drawGx() {
       const int rows = std::min(height, width * 9 / 16);
       scale = std::max(1, std::min(3, (rows + 168) / 336) - 1);
     }
-    replayGx(scale);
     // once per run: does this GPU compute the movie colours like the GameCube (gx_selfcheck.cpp;
-    // the Galaxy A36 showed them green and brown)? Before the renderer, on a renderer of its own.
+    // the Galaxy A36 showed them green and brown)? Before any renderer, on a renderer of its own;
+    // on wrong pixels it picks a way of writing the TEV's lerp that this GPU computes right.
     static bool gpuChecked = false;
     if (!gpuChecked) {
       gpuChecked = true;
       LOG("%s", re4gx::MovieColourCheck(nullptr).c_str());
     }
+    replayGx(scale);
     gx = std::make_unique<re4gx::GxRenderer>();
     re4gx::GxOptions options;
     options.samples = std::max(1, optSamples.load());

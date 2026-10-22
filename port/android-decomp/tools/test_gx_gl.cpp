@@ -14,6 +14,7 @@
 //     swap tables, konst selections, indirect stages) all compile
 #include "gx_chunk_builder.h"
 #include "gx_gl.h"
+#include "gx_gl_shader.h"
 #include "gx_selfcheck.h"
 #include "gx_texture.h"
 #include "re4_gx_frame.h"
@@ -1066,6 +1067,146 @@ void TestInterpolation() {
   one.Release();
 }
 
+// The whole EFB (scale 1) as RGBA bytes.
+std::vector<std::uint8_t> Efb(re4gx::GxRenderer &r) {
+  glBindFramebuffer(GL_FRAMEBUFFER, gReadFbo);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, r.EfbColor(), 0);
+  std::vector<std::uint8_t> p(640 * 528 * 4);
+  glReadPixels(0, 0, 640, 528, GL_RGBA, GL_UNSIGNED_BYTE, p.data());
+  return p;
+}
+
+// 60 quads, each with a random TEV setup of one to four stages on registers, konstant and
+// rasterized colours (no textures): inputs above 127, every bias, scale, subtraction, clamping
+// and compare mode; every other row with linear fog.
+std::vector<std::uint8_t> TevMathScene(std::uint32_t seed, unsigned *shaderErrors) {
+  re4gx::GxRenderer r;
+  std::string error;
+  Require(r.Init(1, &error), error.c_str());
+  std::mt19937 rng(seed);
+  const auto reg = [](int lo, int hi, bool konst) {
+    return (static_cast<std::uint32_t>(lo) & 0x7FF) | (static_cast<std::uint32_t>(hi) & 0x7FF) << 12 |
+           (konst ? 1u << 23 : 0u);
+  };
+  const auto fogWord = [](float f) {
+    const std::uint32_t v = Bits(f);
+    return ((v >> 12) & 0x7FF) | ((v >> 23) & 0xFF) << 11 | (v >> 31) << 19;
+  };
+  static const unsigned colorIn[14] = {0, 1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15};
+  static const unsigned alphaIn[7] = {0, 1, 2, 3, 5, 6, 7};
+  static const unsigned konstSel[20] = {0, 1, 2, 3, 4, 5, 6, 7, 0x0C, 0x0D, 0x0E, 0x0F,
+                                        0x10, 0x11, 0x12, 0x13, 0x14, 0x19, 0x1E, 0x1F};
+  Builder b;
+  Baseline(b);
+  DisplayCopy(b, true, kBlack);
+  for (int q = 0; q < 60; q++) {
+    const unsigned stages = 1 + rng() % 4;
+    b.Bp(0x00, 1u << 4 | (stages - 1) << 10);
+    for (unsigned st = 0; st < stages; st++) {
+      const auto ci = [&] { return colorIn[rng() % 14]; };
+      const auto ai = [&] { return alphaIn[rng() % 7]; };
+      const unsigned common = (rng() % 4) << 16 | (rng() % 2) << 18 | (rng() % 2) << 19 | (rng() % 4) << 20 |
+                              (st + 1 == stages ? 0u : (rng() % 4) << 22);
+      b.Bp(0xC0 + 2 * st, ci() | ci() << 4 | ci() << 8 | ci() << 12 | common);
+      const unsigned commonA = (rng() % 4) << 16 | (rng() % 2) << 18 | (rng() % 2) << 19 | (rng() % 4) << 20 |
+                               (st + 1 == stages ? 0u : (rng() % 4) << 22);
+      b.Bp(0xC1 + 2 * st, ai() << 4 | ai() << 7 | ai() << 10 | ai() << 13 | commonA);
+    }
+    for (unsigned i = 0; i < 4; i++) {
+      b.Bp(0x28 + i, 0); // no textures, colour channel 0
+      const unsigned k0 = konstSel[rng() % 20], k0a = konstSel[rng() % 20], k1 = konstSel[rng() % 20],
+                     k1a = konstSel[rng() % 20];
+      b.Bp(0xF6 + 2 * i, (0 | 1 << 2) | k0 << 4 | k0a << 9 | k1 << 14 | k1a << 19);
+      b.Bp(0xF7 + 2 * i, (2 | 3 << 2) | (konstSel[rng() % 20]) << 4 | (konstSel[rng() % 20]) << 9 |
+                             (konstSel[rng() % 20]) << 14 | (konstSel[rng() % 20]) << 19);
+    }
+    for (int k = 0; k < 4; k++) {
+      // registers PREV, C0-C2 signed (-1024..1023), konstant colours bytes
+      b.Bp(0xE0 + 2 * k, reg(static_cast<int>(rng() % 2048) - 1024, static_cast<int>(rng() % 2048) - 1024, false));
+      b.Bp(0xE1 + 2 * k, reg(static_cast<int>(rng() % 2048) - 1024, static_cast<int>(rng() % 2048) - 1024, false));
+      b.Bp(0xE0 + 2 * k, reg(rng() % 256, rng() % 256, true));
+      b.Bp(0xE1 + 2 * k, reg(rng() % 256, rng() % 256, true));
+    }
+    if ((q / 10) % 2) {
+      b.Bp(0xEE, fogWord(1.0f));
+      b.Bp(0xF1, fogWord(0.0f) | 1u << 20 | 2u << 21); // orthographic, linear
+      b.Bp(0xF2, rng() & 0xFFFFFF);
+    } else {
+      b.Bp(0xF1, 0);
+    }
+    const std::uint8_t c[4] = {static_cast<std::uint8_t>(rng()), static_cast<std::uint8_t>(rng()),
+                               static_cast<std::uint8_t>(rng()), static_cast<std::uint8_t>(rng())};
+    const float x = static_cast<float>((q % 10) * 64), y = static_cast<float>((q / 10) * 64);
+    Quad(b, x, y, x + 60, y + 60, -0.1f - 0.013f * static_cast<float>(q), c);
+  }
+  r.Run(b.Chunk());
+  std::vector<std::uint8_t> p = Efb(r);
+  *shaderErrors += r.Stats().shaderErrors;
+  r.Release();
+  return p;
+}
+
+// The ways of writing the TEV's lerp (gx_gl_shader.h SetTevMath). The Galaxy A36 (Adreno 710)
+// computed a << 8 in 16 bits: written so on purpose, the movie check gives exactly that phone's six
+// wrong pixels (report 22.10.2026 19:30), and the check then picks the way without the shift. The
+// three real ways give the same pictures for random TEV setups.
+void TestTevMath() {
+  std::string detail, error;
+  re4gx::SetTevMath(re4gx::kTevMathBroken16);
+  const int bad = re4gx::MovieColourPixels(&detail, &error);
+  Check(bad == 6, "TEV math: a << 8 in 16 bits gives six wrong movie pixels, as on the Galaxy A36");
+  static const char *a36[6] = {
+      "4 stages, Y 128 U 128 V 128: 0 131 0 0, want 131 131 132 0",
+      "4 stages, Y 200 U 128 V 128: 0 215 0 0, want 215 215 216 0",
+      "4 stages, Y 235 U 128 V 128: 0 255 0 0, want 255 255 255 0",
+      "4 stages, Y 180 U 90 V 200: 0 148 116 0, want 255 148 116 0",
+      "4 stages, Y 100 U 200 V 60: 0 125 0 0, want 0 125 244 0",
+      "4 stages, Y 235 U 240 V 240: 0 121 0 0, want 255 121 255 0"};
+  bool same = true;
+  for (const char *w : a36)
+    same = same && detail.find(w) != std::string::npos;
+  Check(same, "TEV math: the same values as the Galaxy A36's report");
+  if (!same)
+    std::fprintf(stderr, "  emulated: %s\n", detail.c_str());
+  int wrong = -1;
+  const std::string line = re4gx::MovieColourCheck(&wrong);
+  std::fprintf(stderr, "  emulated A36: %s\n", line.c_str());
+  Check(wrong == 0 && re4gx::GetTevMath() == re4gx::kTevMathNoShift &&
+            line.find("in use: the lerp without the shift by 8 (the movies right)") != std::string::npos,
+        "TEV math: the check picks the lerp without the shift");
+  for (int mode : {re4gx::kTevMathShift, re4gx::kTevMathNoShift, re4gx::kTevMathFloat}) {
+    re4gx::SetTevMath(mode);
+    Check(re4gx::MovieColourPixels(nullptr, &error) == 0, "TEV math: the movie colours right in each way");
+  }
+  for (std::uint32_t seed : {1u, 2u, 3u, 4u}) {
+    unsigned errors = 0;
+    std::vector<std::uint8_t> picture[4];
+    for (int mode = re4gx::kTevMathShift; mode <= re4gx::kTevMathBroken16; mode++) {
+      re4gx::SetTevMath(mode);
+      picture[mode] = TevMathScene(seed, &errors);
+    }
+    Check(errors == 0, "TEV math: every shader compiles in each way");
+    // the scene draws, and the comparison would see the A36's way
+    int lit = 0, broken = 0;
+    for (std::size_t i = 0; i < picture[0].size(); i += 4) {
+      lit += picture[0][i] | picture[0][i + 1] | picture[0][i + 2] ? 1 : 0;
+      broken += std::memcmp(&picture[0][i], &picture[re4gx::kTevMathBroken16][i], 4) ? 1 : 0;
+    }
+    Check(lit > 60 * 60 * 20 && broken > 0, "TEV math: the random scene draws, the 16-bit way differs");
+    if (seed == 1)
+      std::fprintf(stderr, "  TEV math scene: %d lit pixels, %d differ with the A36's way\n", lit, broken);
+    for (int mode = re4gx::kTevMathNoShift; mode <= re4gx::kTevMathFloat; mode++) {
+      int differ = 0;
+      for (std::size_t i = 0; i < picture[0].size(); i++)
+        differ += picture[mode][i] != picture[0][i];
+      if (differ)
+        std::fprintf(stderr, "  seed %u, %s: %d bytes differ\n", seed, re4gx::TevMathName(mode), differ);
+      Check(differ == 0, "TEV math: random TEV setups, the same picture in each way");
+    }
+  }
+  re4gx::SetTevMath(re4gx::kTevMathShift);
+}
+
 int main() {
   Context();
   glGenFramebuffers(1, &gReadFbo);
@@ -1077,6 +1218,7 @@ int main() {
     std::fprintf(stderr, "%s\n", line.c_str());
     Check(wrong == 0, "GPU check: the movie colours as the GameCube computes them");
   }
+  TestTevMath();
   // twice: as the app runs it, and with the copy targets, the blur and the focus painted magenta
   // where the GPU may forget them (GPU step b): every picture must stay the same
   for (int poison = 0; poison < 2; poison++) {

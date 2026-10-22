@@ -5943,6 +5943,38 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Filmfarben Galaxy A36: Ursache gefunden und behoben (Bericht 22.10.2026 19:30, 0.43.0, Cloud)
+
+- **Bericht** (SM-A366B, Adreno 710, Treiber 0800.58, 64 bit): die GPU-Selbstprüfung meldet
+  `6 of 32 pixels wrong`, nur nach der **vierten** Film-Stufe; nach 1, 2 und 3 Stufen alles richtig.
+  Falsch: Rot immer 0, Blau 0, sobald der richtige Wert über 127 liegt (Grün stimmt).
+- **Ursache:** die vierte Stufe (`sofdec.cpp` `setTevPrm` Stufe 3: `lerp(CPREV, APREV, K3)`, K3 =
+  (0, 255, 0)) ist die einzige mit einem Eingang `a` ungleich 0. Der Shader rechnet die Mischung wie
+  die Hardware: `(a << 8) + (b - a) * c`. Der Treiber des Adreno 710 rechnet `a << 8` nur mit 16 Bit
+  (mit Vorzeichen): ab `a` = 128 wird der Wert negativ, nach der Begrenzung 0. Nachgerechnet
+  (Python und in der Cloud als absichtlich so geschriebener Shader): **genau die sechs gemeldeten
+  Pixel mit denselben Werten**. Rot und Blau laufen in dieser Stufe über `a` (c = 0), Grün über `b`
+  (c = 255, `a` dort klein): darum blieb Grün richtig, helle Flächen wurden grün.
+- **Behoben** (`gx_gl_shader.cpp`, `SetTevMath`): drei gleichwertige Schreibweisen der Mischung:
+  wie bisher (`a << 8`), **ohne die Verschiebung** (`a + (((b - a) * c, gerundet) >> 8)`: für jede
+  Eingabe dieselbe Zahl, weil `a * 256` ein Vielfaches von 256 ist) und in Gleitkomma (exakt, ganze
+  Zahlen unter 2^24); die Mischung des Nebels ebenso ohne `prev * 256`. Die GPU-Selbstprüfung beim
+  Start (`gx_selfcheck.cpp`) prüft erst die bisherige; mit falschen Pixeln die anderen, die erste
+  richtige gilt für alle danach erzeugten Shader (des ganzen Spiels, nicht nur der Filme). Zeile im
+  Protokoll z. B. `…; with the lerp without the shift by 8: 0 wrong; in use: the lerp without the
+  shift by 8 (the movies right)`. Geräte, die richtig rechnen (Retroid), bleiben bei der bisherigen.
+  Die Prüfung läuft jetzt vor jedem Renderer (auch vor `RE4_GX_REPLAY`).
+- **Tests (Cloud, llvmpipe):** `gx_gl_check` neu `TestTevMath`: Schreibweise „16 Bit wie das A36“
+  ergibt in der Film-Prüfung genau die sechs Pixel des Berichts (Zeichen für Zeichen), die
+  Selbstprüfung wählt dann „ohne Verschiebung“ (0 falsch); alle drei echten Schreibweisen geben die
+  Filmfarben richtig; 4 × 60 zufällige TEV-Einstellungen (1–4 Stufen, Register, Konstanten,
+  Eckfarben über 127, alle Bias-, Scale-, Subtraktions-, Begrenzungs- und Vergleichsarten, Nebel)
+  Byte für Byte gleich in allen drei Schreibweisen, die 16-Bit-Schreibweise weicht ab (108000 von
+  201600 Pixeln, die Prüfung sieht es). `gx_gl_check` 0 Fehler; strenge Shader-Prüfung 1119 Shader,
+  0 abgelehnt; `re4decomp_link_check` gelinkt.
+- **Nicht getestet:** auf dem A36 selbst (der nächste Bericht muss `in use: the lerp without the
+  shift by 8 (the movies right)` zeigen, die Filme richtig).
+
 ### Messer per Wischen (Wunsch des Projektinhabers, 22.10.2026, Cloud)
 
 Wunsch: das Messer (zücken und schneiden) auch mit einer Wischgeste. Kein Eingriff in `src/`, kein
