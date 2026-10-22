@@ -91,6 +91,10 @@ Dann ausführen, Absturzstelle finden, beheben, wiederholen.
   GLES3-Renderer, Controller, Tonausgabe und die geprüften Big-Endian-Leser
   (als Vergleich für die Formatumwandler).
 - Disc-Daten sind big-endian: beim Laden umwandeln, nie stillschweigend annehmen.
+- Fehler des Prototyps (Originalcode, der die SHA1-Prüfsumme trifft), die das
+  fertige Spiel nicht hat, werden behoben: als Patch in `port/whole/patches/`,
+  im Patch-Kopf als „a bug of the prototype“ gekennzeichnet (Entscheidung des
+  Projektinhabers, 22.10.2026).
 - Keine Spieldateien und keine Disc-Images ins Repository.
 
 ## Testen
