@@ -111,12 +111,6 @@ public final class CoreBridge {
    */
   public static native void slash(float tilt);
   /**
-   * A finger dragged across the picture, its way in pixels of the surface since the last call
-   * (CoreActivity): the core moves the map of its sub screen with it; cores before 22.10.2026
-   * ignore it.
-   */
-  public static native void drag(float dx, float dy);
-  /**
    * The memory card's files, one tab-separated row each (index, name,
    * blocks, save, intact, room, chapter, times saved, play time, year,
    * month, day, hour, minute, comment 1, comment 2); null when the game

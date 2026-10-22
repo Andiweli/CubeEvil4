@@ -1594,7 +1594,7 @@ static void testMenuTouch()
         "touch: tab 3 (swipe to the next)",
         "touch: tab 0 (swipe to the one before)",
         "touch: swipe to the one before: no tab there",
-        "touch: swipe ignored in the zoomed map (the finger moves the map)",
+        "touch: swipe kept until the screen shows",
     };
     for (const char* w : want) {
         if (!strstr(tail, w)) {

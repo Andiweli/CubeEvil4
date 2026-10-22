@@ -324,7 +324,6 @@ void mainRun(const char* modules, const char* gciPath)
     re4ipc_touch(0.5f, 0.25f);
     re4ipc_swipe(1);
     re4ipc_slash(-0.5f);
-    re4ipc_drag(0.01f, -0.02f);
     re4ipc_debug_menu();
     sleepMs(100);
     re4ipc_pause(0, 0);
@@ -354,7 +353,6 @@ void mainRun(const char* modules, const char* gciPath)
     CHECK(tail.find("touch: taps on the picture reach the sub screens") != std::string::npos);
     CHECK(tail.find("touch: swipes change the tab of the sub screen") != std::string::npos);
     CHECK(tail.find("knife: swipes draw the knife and slash") != std::string::npos);
-    CHECK(tail.find("touch: a dragged finger moves the map") != std::string::npos);
     CHECK(number(probe, "debug menu ") == 1);
     unsigned checked, mismatches, snaps, snapMismatches;
     re4ipc::checkCounts(&checked, &mismatches, &snaps, &snapMismatches);

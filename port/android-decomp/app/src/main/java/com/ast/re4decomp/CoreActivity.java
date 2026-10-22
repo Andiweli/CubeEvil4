@@ -889,14 +889,13 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   // tab (wish of the project owner after the first device test). A swipe in any direction, at
   // least a sixth of the picture's shorter side, draws the knife and slashes while playing, higher
   // or lower by its slope (runtime/knife_swipe.cpp; wish of the project owner, 22.10.2026; the
-  // menu's switch "Knife by Swipe"); the core ignores it in sub screens. Once a finger moved beyond
-  // the tap's slop, its way goes to the core as it moves (the map of the sub screen follows it;
-  // wish of the project owner, 22.10.2026).
+  // menu's switch "Knife by Swipe"); the core ignores it in sub screens. Dragging the map with a
+  // finger was taken out again (device test 22.10.2026 21:22: it kept swipes from leaving the map).
   private static final long TAP_MS = 500, SWIPE_MS = 700;
   private boolean knifeSwipe = true;
   private int tapFinger = -1;
   private boolean tapMoved;
-  private float tapX, tapY, dragX, dragY;
+  private float tapX, tapY;
   private long tapTime;
   private final int[] surfaceAt = new int[2];
 
@@ -909,8 +908,6 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
         tapMoved = false;
         tapX = e.getX();
         tapY = e.getY();
-        dragX = tapX;
-        dragY = tapY;
         tapTime = e.getEventTime();
         break;
       }
@@ -921,11 +918,6 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
         int k = tapFinger >= 0 ? e.findPointerIndex(tapFinger) : -1;
         float slop = 2 * ViewConfiguration.get(this).getScaledTouchSlop();
         if (k >= 0 && Math.hypot(e.getX(k) - tapX, e.getY(k) - tapY) > slop) tapMoved = true;
-        if (k >= 0 && tapMoved) {
-          CoreBridge.drag(e.getX(k) - dragX, e.getY(k) - dragY);
-          dragX = e.getX(k);
-          dragY = e.getY(k);
-        }
         break;
       }
       case MotionEvent.ACTION_UP:

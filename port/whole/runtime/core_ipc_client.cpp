@@ -914,14 +914,6 @@ void re4ipc_swipe(int dir)
     post(kSwipe, dir, 0, 0);
 }
 
-void re4ipc_drag(float du, float dv)
-{
-    int32_t a, b;
-    memcpy(&a, &du, 4);
-    memcpy(&b, &dv, 4);
-    post(kDrag, a, b, 0);
-}
-
 void re4ipc_slash(float tilt)
 {
     int32_t a;

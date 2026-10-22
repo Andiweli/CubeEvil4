@@ -39,7 +39,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 0.43.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 68, Wunsch des Projektinhabers: alle Korrekturen aus diesem und dem zweiten Chat, Veröffentlichung durch ihn): Patches 0099 (Laser-Gang r318 auf 64 bit), 0100 (Gegenstände ohne Platz im Koffer, „E“-Marke in der Mitte), 0101 (Absturz am Aufzug r332), 0102 (`cCtrl::work` ausgerichtet: ARM32-Absturz in r222), 0103 (CRI-Tabellen ausgerichtet: Filmstart auf ARM32); App-Menü: Bildformat „Gestreckt“, mehr Zeilenabstand, „B einrasten (Touch)“, Gyro-Empfindlichkeit; GPU-Selbstprüfung der Filmfarben beim Start, die Zeilen der App auch im Protokoll des Kerns; Releasetext `port/android-decomp/docs/releases/v0.43.0-alpha.md`. Kern geprüft (lokal, WSL2, Stand mit 0100–0103): Builds i686, armhf, aarch64 mit allen Prüfungen 0 Fehler, Rundgang i686 126/126, armhf r222 und `set` 28/28. Cloud ✅ (Stand `844bdd25`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, GPU-Prüfung ok). Releasetext nachgeschärft (Waffen aus dem Debug-Menü, Reihenfolge des Bildformats). APK nicht gebaut, **Gerätetest offen** |
 | 0.43.1-alpha | **nicht veröffentlicht, in 0.44.0 aufgegangen** (Entscheidung des Projektinhabers). 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Wunsch des Projektinhabers): Patch 0104 (Absturz im Ton am Aufzug r332 → r331 nach Saddlers Ereignis), Shader der Brücke auf Mali (Uniform `refract` hieß wie die eingebaute GLSL-Funktion, Anbernic RG 477V), Gegner-Zeile beim Erscheinen mit Listeneintrag, `set` und `flag` (Dynamit-Frage); neues Werkzeug `tools/check_shaders_strict.sh` (alle Shader der Host-Prüfungen durch glslangValidator); Releasetext `port/android-decomp/docs/releases/v0.43.1-alpha.md`. Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; strenge Shader-Prüfung 165 Shader, 0 abgelehnt). APK nicht gebaut, **Gerätetest offen** |
 | Nach 0.43.1 (für 0.44.0) | 22.10.2026 (Branch `claude/re4-start-controls`, nach dem Stand `942a5c3`; **0.43.1 wird nicht veröffentlicht**, Entscheidung des Projektinhabers: alles zusammen mit 60 FPS als 0.44.0): Bildformat **„4:3 (ohne Balken)“** (Patch 0105, Anbernic RG 477V mit 4:3-Bildschirm), **Touch im Koffer** (Patch 0106, `runtime/menu_touch.cpp`: Reiter, Koffer-Cursor, Befehlsmenü, Ja/Nein-Frage per Fingertipp), Analyse 60 Bilder/s mit Zwischenbildern, Dynamit-Zeilen im Fehlerprotokoll (geworfen/explodiert aus dem zweiten Chat; Werfer am Posten, Zündschnur). Cloud ✅ (siehe die Abschnitte), **Gerätetest offen** |
-| 0.44.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Releasetext `port/android-decomp/docs/releases/v0.44.0-alpha.md`; **0.43.1 entfällt**, Entscheidung des Projektinhabers; Freigabe durch den Projektinhaber nach seinem Gerätetest 20:00): alles aus 0.43.1 (Patch 0104, Mali-Shader, Gegner- und Dynamit-Zeilen) plus **60 FPS (experimentell)** (Zwischenbilder im GX-Renderer, FPS-Anzeige mit Bildern auf dem Bildschirm), **„4:3 (ohne Balken)“** (Patch 0105 mit Schere, volle Bildhöhe), **Touch im Inventar** (Patch 0106: Koffer-Cursor, Befehlsmenü, Frage, Schlüssel/Schätze, Akten per Tipp, Karte per Finger verschieben, Reiter per Wischen ohne Ring mit richtiger Hervorhebung; Reiter per Tipp nach dem Gerätetest 20:09 ausgebaut), Bildformate kurz „4:3 (GC)“, „4:3“, „16:9“, „Gestreckt“, **Messer per Wischen** (`runtime/knife_swipe.cpp`), **Filmfarben auf Adreno 710** (Mischung ohne `a << 8`, Auswahl durch die GPU-Selbstprüfung). Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, strenge Shader-Prüfung 1119/0). Retroid ✅ (22.10.2026 19:40, 20:00 und 20:09): Koffer-Tipps, Messer per Wischen, 60 FPS (Stufe 1–2 ohne MSAA), das Spiel zeichnet ohne seine Balken (`picture: the game draws without its letterbox (r105)`). **Offen:** „4:3 (ohne Balken)“ auf einem echten 4:3-Gerät (Tester), Filmfarben auf dem Galaxy A36 |
+| 0.44.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Releasetext `port/android-decomp/docs/releases/v0.44.0-alpha.md`; **0.43.1 entfällt**, Entscheidung des Projektinhabers; Freigabe durch den Projektinhaber nach seinem Gerätetest 20:00): alles aus 0.43.1 (Patch 0104, Mali-Shader, Gegner- und Dynamit-Zeilen) plus **60 FPS (experimentell)** (Zwischenbilder im GX-Renderer, FPS-Anzeige mit Bildern auf dem Bildschirm), **„4:3 (ohne Balken)“** (Patch 0105 mit Schere, volle Bildhöhe), **Touch im Inventar** (Patch 0106: Koffer-Cursor, Befehlsmenü, Frage, Schlüssel/Schätze, Akten per Tipp, Reiter per Wischen ohne Ring mit richtiger Hervorhebung auch aus dem Koffer und von der Karte; Reiter per Tipp nach dem Gerätetest 20:09 ausgebaut, Karte per Finger verschieben nach dem Gerätetest 21:22), Bildformate kurz „4:3 (GC)“, „4:3“, „16:9“, „Gestreckt“, **Messer per Wischen** (`runtime/knife_swipe.cpp`), **Filmfarben auf Adreno 710** (Mischung ohne `a << 8`, Auswahl durch die GPU-Selbstprüfung). Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, strenge Shader-Prüfung 1119/0). Retroid ✅ (22.10.2026 19:40, 20:00 und 20:09): Koffer-Tipps, Messer per Wischen, 60 FPS (Stufe 1–2 ohne MSAA), das Spiel zeichnet ohne seine Balken (`picture: the game draws without its letterbox (r105)`). **Offen:** „4:3 (ohne Balken)“ auf einem echten 4:3-Gerät (Tester), Filmfarben auf dem Galaxy A36 |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5943,6 +5943,49 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Gerätetest 22.10.2026 21:22 (Retroid): Karte ohne Finger-Verschieben, kein „Exit“-Aufblinken aus dem Koffer (Cloud)
+
+- **Befund des Projektinhabers (Bericht 21:22, Logcat):** von ganz links bis zur Karte geht das
+  Wischen, auf der Karte bleibt es stehen (im Bericht 20-mal `touch: swipe ignored in the zoomed map
+  (the finger moves the map)`: die Karte öffnet in der gezoomten Ansicht, dort hielt die Regel des
+  Finger-Verschiebens jedes Wischen fest). Aus dem Koffer blinkt vor der Karte und vor
+  Schlüssel/Schätze kurz „Exit“ gelb auf. Koffer-, Schlüssel- und Akten-Tipps sowie das Messer per
+  Wischen liefen (`slash 1` … `7`, `files: open row 1`, `key items: row 1`).
+- **Entscheidung des Projektinhabers (22.10.2026):** die Karte nicht mit dem Finger verschieben oder
+  zoomen; dafür von der Karte weiter zu den Akten und zurück wischen. **Ausgebaut:** `re4_core_drag`,
+  `re4_touch_map_shift` und die Kartenbewegung in `runtime/menu_touch.cpp`, Kernprozess-Nachricht 27
+  `kDrag` (`re4ipc_drag`, `coreproc`), App `CoreBridge.drag` und das Senden bei jeder
+  Fingerbewegung (`CoreActivity.watchTap`), die Ausnahme „kein Reiterwechsel in der gezoomten Karte“.
+  Ein Wischen wechselt jetzt in beiden Kartenansichten den Reiter (aus der gezoomten Ansicht führt
+  B direkt zur Leiste, aus der Gesamtansicht zoomt das erste B hinein).
+- **„Exit“ blinkt auf, Ursache:** das B aus dem Koffer (`PieceSelect` Zustand 0, `mode = 2`) setzt
+  `menu_next = 4`, und `SsPzzlMain::move` ruft im selben Bild `sscrnMainMenuInit(wk, 1)`: die
+  Hervorhebung liegt ein Bild lang auf „Exit“, bevor die App sie im nächsten Bild auf den
+  Ziel-Reiter setzte. **Behoben:** Patch 0106 ruft zusätzlich gleich nach `cur->move`, vor dem
+  Zeichnen (`IdSub.move`/`trans`), `re4_touch_sscrn_moved` auf; hat die Leiste in diesem Bild den
+  Fokus bekommen und wartet ein Reiter, setzt es `menu_next` und die Hervorhebung sofort (ohne
+  eigenen Ton, das B des Spiels hat ihn schon gespielt). Gilt für alle vier Bildschirme (die
+  anderen setzten die Hervorhebung ein Bild lang auf ihren eigenen Reiter). A kommt weiter nach 6
+  Bildern mit Hervorhebung.
+- **Dazu (aus dem Logcat 20:48 und 20:54, Stand davor):** `touch: tab 0 dropped (the row did not
+  get the focus)` nach schnellem Wischen über die Karte: die 45 Bilder Wartezeit liefen weiter,
+  während die Karte lud (über 1,5 s). Jetzt zählen die Bilder eines Wechsels (und die 90 Bilder, in
+  denen ein gewählter Reiter die Basis des nächsten Wischens ist) nur auf einem der vier
+  Bildschirme, nicht während ein Bildschirm lädt. Ein Wischen, während ein Bildschirm lädt und
+  kein Wechsel unterwegs ist (mit dem Steuerkreuz gewählt, oder das Untermenü öffnet), zählt vom
+  kommenden Bildschirm (höchstens 90 Bilder aufgehoben; Zeile `touch: swipe kept until the screen
+  shows`), statt mit `no tab there` verloren zu gehen.
+- **Tests:** `menutouch`: Wischen in der gezoomten Karte → B, A im 7. Bild mit den Akten; aus dem
+  Koffer → B, das Spiel setzt `menu_next` 4, nach `re4_touch_sscrn_moved` steht er auf 2, A im 6.
+  Bild; ohne wartenden Reiter ändert der Aufruf nichts; Wischen, während die gewählte Karte 120
+  Bilder lädt: keine Tasten, nicht verworfen, danach B und A mit dem Koffer; Wischen, während ein
+  mit dem Steuerkreuz gewählter Bildschirm lädt: aufgehoben, danach vom Koffer aus B und A mit der
+  Karte. Ohne Karten-Verschiebe-Test, Kernprozess-Test ohne `re4ipc_drag`. i686, armhf, aarch64
+  0 Baufehler, alle Tests 0 Fehler (`menutouch` ok); Patch 0106 auf das Original angewandt geprüft;
+  App-Java übersetzt, `re4decomp_link_check` gelinkt.
+- **Nicht getestet:** am Gerät (ob „Exit“ nicht mehr aufblinkt und die Karte in beide Richtungen
+  verlassen wird, prüft der Projektinhaber auf dem Retroid).
+
 ### Gerätetest 22.10.2026 20:30 (Retroid): Hervorhebung beim Wischen; Schlüssel, Akten und Karte per Touch (Cloud)
 
 - **Befund:** das Wischen landet beim richtigen Reiter, aber oben blinkt kurz ein falscher auf (der
@@ -7076,7 +7119,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0103 `mpv_bdec.c`, `mpv_lib.c` | `UTY_MemcpyDword` (CRI) kopiert wortweise, beim Start des MPEG-Dekoders auch vier Byte-Tabellen (`mpvbdec_bitmsk`, `mpvbdec_zigzag`, `mpvbdec_dfl_iqm`, `mpv_clip_0_255_tbl`); ab 16 Wörtern nimmt der armv7-Build `ldm`/`stm`. Auf der GameCube liegen die Tabellen auf Wortgrenzen, im Port nur zufällig (die Ausrichtungs-Suche fand `mpvbdec_bitmsk` 2 Byte daneben): sonst würde jeder Filmstart auf dem 32-bit-Kern mit SIGBUS enden. Der Port richtet alle vier auf 4 Byte aus |
 | 0104 `snd.cpp` | `SndRoomBgmLoad` wartete beim Raumstart nur auf das Ausblenden des Musik-Platzes, den es lädt; die neuen Musik-Bänke liegen aber über denen beider Plätze des alten Raums. Nach Saddlers Ereignis blendete BGM 1 noch aus, als der Aufzug r331 erreichte: sein Sequenzer las die neue Bank (`SND SEQ data error : 07 63 00`, OSPanic, SCV40-Tester, 0.43.0). Der Port lädt Räume viel schneller als die Disc. Jetzt wartet es, bis kein Platz mehr ausblendet (nach 0059) |
 | 0105 `main.cpp`, `trans.cpp` | Bildformat „4:3 (ohne Balken)“ (Anbernic RG 477V, 4:3-Bildschirm): solange `re4_letterbox_open()` (`runtime/picture.cpp`: Schalter des App-Menüs, Hauptschleife `Rno0` 3, kein Untermenü, kein Ereignis) gilt, keine Schere auf die Zeilen 56..392 in `Render` (die setzt jeder Raumstart, `SYS_SCISSOR_ON`) und kein `Draw_cinesco`; sonst wie im Original |
-| 0106 `ss_main.cpp` | Touch im Untermenü: `SubScreenTask` ruft je Bild vor `cur->move` `re4_touch_sscrn` (`runtime/menu_touch.cpp`) mit dem aktuellen Widget und den vier Haupt-Widgets (jetzt mit 0 vorbelegt, Händler und Funk legen keine an); ein Tipp der App wird zu Cursor und Tasten dieses Bildes (Koffer-Cursor, Befehlsmenü, Frage), ein Wischen zum Reiterwechsel (seit dem Gerätetest 22.10.2026 20:09 ohne Ring, Reiter per Tipp ausgebaut) |
+| 0106 `ss_main.cpp` | Touch im Untermenü: `SubScreenTask` ruft je Bild vor `cur->move` `re4_touch_sscrn` (`runtime/menu_touch.cpp`) mit dem aktuellen Widget und den vier Haupt-Widgets (jetzt mit 0 vorbelegt, Händler und Funk legen keine an); ein Tipp der App wird zu Cursor und Tasten dieses Bildes (Koffer-Cursor, Befehlsmenü, Frage), ein Wischen zum Reiterwechsel (seit dem Gerätetest 22.10.2026 20:09 ohne Ring, Reiter per Tipp ausgebaut); seit dem Gerätetest 21:22 dazu gleich nach `cur->move`, vor dem Zeichnen, `re4_touch_sscrn_moved`: die Hervorhebung des gewählten Reiters im Bild, in dem die Leiste den Fokus bekommt (aus dem Koffer blinkte sonst „Exit“) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
