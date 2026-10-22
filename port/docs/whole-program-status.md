@@ -5912,8 +5912,12 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   (13 1) turn 0 in the case`. Auch das Debug-Menü gibt Gegenstände also ohne Platz (`construct`:
   Ablagefeld, (0 0)), nicht nur der „Case Maker“. Im Bild (Projektinhaber): die Handcannon liegt
   sichtbar im Koffer, kein „E“ mehr in der Mitte und auf den anderen Seiten; ein geladener alter
-  Spielstand ebenso. **Noch offen:** ob die Marke an der Ecke der ausgerüsteten Waffe erscheint
-  (im Port noch nie gesehen).
+  Spielstand ebenso. Bildschirmfoto 15:36: nach dem Ausrüsten des Killer7 im
+  Koffer steht das „E“ an seiner linken oberen Ecke mit dem hellen Rahmen um die Waffe, wie im
+  Original. Die Waffe aus dem Debug-Menü (`t_option.cpp` → `cItemMgr::debugWeapon`: `get` ohne
+  Platz, dann `m_pWep`) zeigte es nach Angabe des Projektinhabers erst nach erneutem Ausrüsten;
+  im normalen Spiel rüstet man nur über den Koffer aus. **Noch offen:** ob das „E“ beim nächsten
+  Öffnen des Koffers an der Waffe bleibt.
 
 ### App-Menü: Bildformat „Gestreckt“, neue Reihenfolge, mehr Zeilenabstand (Wünsche des Projektinhabers, 22.10.2026)
 
