@@ -5916,8 +5916,8 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   Koffer steht das „E“ an seiner linken oberen Ecke mit dem hellen Rahmen um die Waffe, wie im
   Original. Die Waffe aus dem Debug-Menü (`t_option.cpp` → `cItemMgr::debugWeapon`: `get` ohne
   Platz, dann `m_pWep`) zeigte es nach Angabe des Projektinhabers erst nach erneutem Ausrüsten;
-  im normalen Spiel rüstet man nur über den Koffer aus. **Noch offen:** ob das „E“ beim nächsten
-  Öffnen des Koffers an der Waffe bleibt.
+  im normalen Spiel rüstet man nur über den Koffer aus. Beim nächsten Öffnen des Koffers bleibt das „E“ an
+  der Waffe (Projektinhaber). Erledigt.
 
 ### App-Menü: Bildformat „Gestreckt“, neue Reihenfolge, mehr Zeilenabstand (Wünsche des Projektinhabers, 22.10.2026)
 
