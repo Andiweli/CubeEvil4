@@ -678,7 +678,6 @@ extern "C" int re4_touch_unit_hit(const ID_UNIT* unit, f32 u, f32 v);
 extern "C" void re4_touch_sscrn(SUB_SCREEN* wk, Widget<SUB_SCREEN>* cur, SsPzzlMain* pzzl, SsItemMain* item,
                                 SsMapMain* map, SsFileMain* file);
 extern "C" void re4_core_touch(float u, float v);
-extern "C" void re4_core_swipe(int dir);
 extern "C" void re4_core_set_letterbox(int off);
 extern "C" int re4_letterbox_open(void);
 
@@ -895,46 +894,23 @@ extern "C" int re4probe_menu_touch(void)
         if (tapFrame(main, unitU(0.0f), unitV(200.0f)) != 0) {
             bad |= 0x1000;
         }
-        // a swipe to the left in the normal inventory: the map (the tab after the case); B gives
-        // the row the focus, A then in the frame the row has it; to the right: the key items
+        // the normal inventory: a tap on the tab row gives no keys (the tabs by touch were taken
+        // out, decision of the project owner, 22.10.2026); a tap while the sub screen closes
+        // (Loop 0) neither
         wk->open_flag = SS_OPEN_NORMAL;
         main->cur = sel;
         main->state = 0;
         sel->state = 0;
-        Key.trg = 0;
-        re4_core_swipe(1);
-        re4_touch_sscrn(wk, main, main, 0, 0, 0);
-        if (Key.trg != kB) {
+        pl->m_p_active_board = b;
+        if (tapFrame(main, unitU(-200.0f), unitV(215.0f)) != 0) {
             bad |= 0x2000;
         }
-        main->state = 1;  // the row has the focus (SsPzzlMain after PieceSelect mode 2)
-        Key.trg = 0;
-        re4_touch_sscrn(wk, main, main, 0, 0, 0);
-        if (Key.trg != kA || wk->menu_next != 2) {
+        wk->Loop = 0;
+        worldUv(sprayX, sprayY, &u, &v);
+        if (tapFrame(main, u, v) != 0) {
             bad |= 0x4000;
         }
-        main->state = 0;
-        Key.trg = 0;
-        re4_core_swipe(-1);
-        re4_touch_sscrn(wk, main, main, 0, 0, 0);
-        main->state = 1;
-        Key.trg = 0;
-        re4_touch_sscrn(wk, main, main, 0, 0, 0);
-        if (Key.trg != kA || wk->menu_next != 0) {
-            bad |= 0x8000;
-        }
-        // a swipe while the sub screen closes (Loop 0): no keys, the tab forgotten
-        main->state = 0;
-        Key.trg = 0;
-        pl->m_p_active_board = b;
-        re4_core_swipe(1);
-        wk->Loop = 0;  // the sub screen closing: nothing, the tab forgotten
-        re4_touch_sscrn(wk, main, main, 0, 0, 0);
         wk->Loop = 1;
-        re4_touch_sscrn(wk, main, main, 0, 0, 0);
-        if (Key.trg != 0) {
-            bad |= 0x10000;
-        }
         pl->quit();
     }
     SubScreenWk = keepWk;

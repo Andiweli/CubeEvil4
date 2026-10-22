@@ -74,7 +74,6 @@ void re4ipc_debug_menu(void);
 void re4ipc_set_dof(int on);
 void re4ipc_set_letterbox(int off);
 void re4ipc_touch(float u, float v);
-void re4ipc_swipe(int dir);
 void re4ipc_slash(float tilt);
 void re4ipc_gyro(float yaw, float pitch);
 int re4ipc_card_list(Re4CardFile* out, int max);

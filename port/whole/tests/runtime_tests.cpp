@@ -1589,8 +1589,6 @@ static void testMenuTouch()
         "touch: command 1 of 3: A",
         "touch: command menu closed (a tap on the case)",
         "touch: question option 0: A",
-        "touch: tab 2 (swipe to the next)",
-        "touch: tab 0 (swipe to the one before)",
     };
     for (const char* w : want) {
         if (!strstr(tail, w)) {
