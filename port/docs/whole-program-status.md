@@ -5866,8 +5866,9 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   falsch gemeldet, mit Wert und Sollwert. `re4decomp_link_check` übersetzt `core_mode.cpp` mit den
   Änderungen (nur die bekannten fehlenden `re4ipc`-Teile des Host-Links, auch ohne die Änderung).
   `whole_build.sh i686 armhf aarch64` mit `re4_log_file_line`: 0 Baufehler, alle Tests 0 Fehler.
-  **Nicht getestet:** auf einem Gerät (Prüfung auf dem Retroid und dem A36, Log-Zeilen der App in
-  `core-log.txt`).
+  **Geprüft (Retroid, Adreno 650, 22.10.2026):** `GPU check (movie colours): ok, 32 of 32 pixels`,
+  30 ms beim Start; die Filme dort richtig. **Nicht getestet:** das A36 und die Log-Zeilen der App
+  in `core-log.txt` eines Berichts.
 
 ### Das „E“ mitten im Untermenü (Projektinhaber, 22.10.2026, Retroid, 0.42.1; Berichte 13:42 und 13:48, R3-Mitschnitt)
 
@@ -5904,8 +5905,19 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   Pistolenmunition außerhalb des Koffers; danach liegen alle vier im Koffer, Pistole und Spray
   unverändert, Killer7 bei (11 1), Munition bei (17 0), beide Zeilen im Log.
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` mit 0100: 0 Baufehler, `casefree: ok` auf
-  allen drei, alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** auf dem
-  Gerät mit den beiden Spielständen (Marke an der Waffe, Killer7 bzw. Handcannon sichtbar im Koffer).
+  allen drei, alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler.
+- **Geprüft (Retroid, 22.10.2026, logcat des Projektinhabers):** neues Spiel, über das Debug-Menü des
+  Spiels (SELECT halten) die Handcannon geholt und ausgerüstet (`Wep15 MAGNUM prolog Ok`); beim
+  Öffnen des Koffers `case: item 0x37 had no place at (0 0) turn 0 on the spare board; moved to
+  (13 1) turn 0 in the case`. Auch das Debug-Menü gibt Gegenstände also ohne Platz (`construct`:
+  Ablagefeld, (0 0)), nicht nur der „Case Maker“. Im Bild (Projektinhaber): die Handcannon liegt
+  sichtbar im Koffer, kein „E“ mehr in der Mitte und auf den anderen Seiten; ein geladener alter
+  Spielstand ebenso. Bildschirmfoto 15:36: nach dem Ausrüsten des Killer7 im
+  Koffer steht das „E“ an seiner linken oberen Ecke mit dem hellen Rahmen um die Waffe, wie im
+  Original. Die Waffe aus dem Debug-Menü (`t_option.cpp` → `cItemMgr::debugWeapon`: `get` ohne
+  Platz, dann `m_pWep`) zeigte es nach Angabe des Projektinhabers erst nach erneutem Ausrüsten;
+  im normalen Spiel rüstet man nur über den Koffer aus. Beim nächsten Öffnen des Koffers bleibt das „E“ an
+  der Waffe (Projektinhaber). Erledigt.
 
 ### App-Menü: Bildformat „Gestreckt“, neue Reihenfolge, mehr Zeilenabstand (Wünsche des Projektinhabers, 22.10.2026)
 
