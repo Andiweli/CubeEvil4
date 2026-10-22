@@ -22,6 +22,7 @@
 #include "pl_npc.h"
 #include "route_ck.h"
 #include "em10.h"
+#include "emwep.h"
 #include "joy.h"
 #include "player.h"
 #include "sce_at.h"
@@ -352,11 +353,12 @@ extern "C" void re4_state_trace_enemy_frame(unsigned n);
 // The error log's enemy and menu lines (state_trace.cpp enemyLog / menuLog) over two fake works
 // of EmMgr in MEM1: slot 1 becomes a Ganado (0x1a type 3) of room r209, is hit on the head (part
 // 5, weapon 0x10), changes its routine, loses its head, is hidden, jumps and goes; then the C
-// stick moves the cursor of a sub screen. The test reads the lines from the log's tail.
+// stick moves the cursor of a sub screen; slot 0 is a weapon work (0x42) the Ganado throws as
+// dynamite and that explodes. The test reads the lines from the log's tail.
 extern "C" void re4probe_enemy_log(void)
 {
     u8* works = (u8*) (unsigned long) 0x82E20000ul;
-    const u32 stride = (u32) sizeof(cEm10);
+    const u32 stride = (u32) (sizeof(cEm10) > sizeof(cEmWep) ? sizeof(cEm10) : sizeof(cEmWep));
     cEm* keepArray = EmMgr.pArray;
     u32 keepCount = EmMgr.nArray, keepSize = EmMgr.size;
     u8 keepStep = pG->Rno0;
@@ -392,12 +394,27 @@ extern "C" void re4probe_enemy_log(void)
     e->r_no_1 = 4;
     EM10_WK(e)->Be_flg = 0x4000;
     re4_state_trace_enemy_frame(1002);  // em: hit s1
+    cEm* bomb = (cEm*) works;
+    bomb->be_flag = 1 | 2;
+    bomb->id = 0x42;
+    bomb->r_no_0 = 1;
+    bomb->r_no_1 = 3;
     e->r_no_1 = 9;
-    re4_state_trace_enemy_frame(1003);  // em: s1 r 2/9/0/0
+    re4_state_trace_enemy_frame(1003);  // em: s1 r 2/9/0/0, em: + s0 0x42/0
+    bomb->r_no_1 = 9;
+    bomb->hp = 1;
+    bomb->pos.x = 120.0f;
+    bomb->pos.y = 1500.0f;
+    bomb->pos.z = 210.0f;
+    EMWEP_WK(bomb)->pEm_old = e;
     EM10_WK(e)->Be_flg |= 0x80;
-    re4_state_trace_enemy_frame(1004);  // em: s1 head lost
+    re4_state_trace_enemy_frame(1004);  // em: s0 dynamite thrown by s1, em: s1 head lost
+    bomb->r_no_1 = 2;
+    bomb->hp = 0;
+    bomb->pos.x = 900.0f;
+    bomb->pos.y = 0.0f;
     e->be_flag &= ~2u;
-    re4_state_trace_enemy_frame(1005);  // em: s1 hidden
+    re4_state_trace_enemy_frame(1005);  // em: s0 dynamite exploded, em: s1 hidden
     e->pos.x = 5000.0f;
     re4_state_trace_enemy_frame(1006);  // em: s1 jumps
     e->r_no_0 = 1;

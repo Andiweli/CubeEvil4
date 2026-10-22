@@ -102,6 +102,9 @@
 //   em: s12 hidden / shown                  be_flag bit1 (drawn)
 //   em: s12 jumps (x y z) -> (x y z)        more than 3000 in one frame
 //   em: s12 position is not a number, last at (x y z)
+//   em: s79 dynamite thrown by s27 at (x y z)       a weapon work (0x42) starts flying as dynamite
+//   em: s79 dynamite exploded at (x y z)           (emwep.cpp routine 9 BombThrow; setLost after
+//       [or "fell into the water", "stopped (routine N)"]    the blast, setFall in water)
 //   pad: menu frame N rep 0x.. stick (x y) c (x y)   the cursor moves in a sub screen
 //
 // Since 22.10.2026 Leon's side of a death (playerLog below) and the sub screen and hit lines
@@ -114,6 +117,7 @@
 #include "types.h"
 #include "em.h"
 #include "em10.h"
+#include "emwep.h"
 #include "global.h"
 #include "player.h"
 #include "cam_ctrl.h"
@@ -606,6 +610,34 @@ void enemyHit(unsigned slot, const cEm* e, const EnemySeen& was)
             (unsigned) e->r_no_3, ganado);
 }
 
+// A weapon work (0x42) starts or ends its flight as dynamite (cEmWep::setBombThrow sets routine 9,
+// the blast setLost routine 2, water setFall routine 4); the thrower's slot from pEm_old. Testers
+// missed the dynamite Ganados in r104 (22.10.2026): these lines show whether they throw.
+void dynamiteLine(unsigned slot, const cEm* e, const cEm* arr, u32 count, u32 stride)
+{
+    if (e->r_no_1 == 9) {
+        const u8* by = (const u8*) EMWEP_WK(e)->pEm_old;
+        char who[24] = "";
+        if (by >= (const u8*) arr && by < (const u8*) arr + count * stride &&
+            (u32) (by - (const u8*) arr) % stride == 0) {
+            snprintf(who, sizeof who, " by s%u", (unsigned) ((by - (const u8*) arr) / stride));
+        }
+        re4_log("em: s%u dynamite thrown%s at (%.0f %.0f %.0f)", slot, who, (double) e->pos.x, (double) e->pos.y,
+                (double) e->pos.z);
+        return;
+    }
+    char what[32];
+    if (e->r_no_1 == 2) {
+        snprintf(what, sizeof what, "exploded");
+    } else if (e->r_no_1 == 4) {
+        snprintf(what, sizeof what, "fell into the water");
+    } else {
+        snprintf(what, sizeof what, "stopped (routine %u)", (unsigned) e->r_no_1);
+    }
+    re4_log("em: s%u dynamite %s at (%.0f %.0f %.0f)", slot, what, (double) e->pos.x, (double) e->pos.y,
+            (double) e->pos.z);
+}
+
 void enemyLog(unsigned n, GLOBAL_WK* g)
 {
     const cEm* arr = EmMgr.pArray;
@@ -650,7 +682,12 @@ void enemyLog(unsigned n, GLOBAL_WK* g)
             s.alive = true;
             s.born = n;
         } else {
-            if (e->hp != s.hp) {
+            // the throw sets hp 1, the blast hp 0: one dynamite line instead of a hit line
+            if (e->id == 0x42 && (e->r_no_1 == 9) != (s.r[1] == 9)) {
+                if (enemyLine()) {
+                    dynamiteLine(i, e, arr, count, stride);
+                }
+            } else if (e->hp != s.hp) {
                 if (enemyLine()) {
                     enemyHit(i, e, s);
                 }

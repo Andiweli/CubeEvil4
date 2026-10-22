@@ -1464,7 +1464,8 @@ static void testRoute()
 
 // The error log's enemy and menu lines (state_trace.cpp, game_probe.cpp re4probe_enemy_log): a
 // Ganado appears, is hit on the head, changes its routine, loses its head, is hidden, jumps and
-// goes; the C stick moves a sub screen's cursor
+// goes, a weapon work flies as dynamite and explodes (no hit lines for it); the C stick moves a
+// sub screen's cursor
 static void testEnemyLog()
 {
     bool ok = true;
@@ -1475,7 +1476,10 @@ static void testEnemyLog()
         "em: + s1 0x1a/3 list 5 set 0x24 f 0x00020000 hp 300 at (100 0 200) in r209",
         "em: hit s1 0x1a/3 hp 300 -> 100 part 5 wep 0x10 r 2/4/0/0 flg 0x00004000",
         "em: s1 r 2/9/0/0",
+        "em: + s0 0x42/0 list 0 set 0x00 f 0x00000000 hp 0 at (0 0 0) in r209",
+        "em: s0 dynamite thrown by s1 at (120 1500 210)",
         "em: s1 head lost",
+        "em: s0 dynamite exploded at (900 0 210)",
         "em: s1 hidden",
         "em: s1 jumps (100 0 200) -> (5000 0 200)",
         "em: s1 at the dynamite post (list 5)",
@@ -1488,6 +1492,10 @@ static void testEnemyLog()
             ok = false;
             re4_log("  enemylog: missing \"%s\"", w);
         }
+    }
+    if (strstr(tail, "em: hit s0")) {
+        ok = false;
+        re4_log("  enemylog: a hit line for the dynamite");
     }
     report("enemylog", ok);
 }
