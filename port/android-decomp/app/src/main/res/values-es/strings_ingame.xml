@@ -27,9 +27,11 @@
     <string name="ingame_comfort">Controles de comodidad</string>
     <string name="ingame_gyro">Apuntar con giroscopio</string>
     <string name="ingame_gyro_none">Apuntar con giroscopio (sin giroscopio)</string>
-    <string name="ingame_touch_help">Auto: visibles sin mando; un toque los muestra y un botón los oculta. Forzar: siempre visibles. Ocultar: ocultos mientras haya un mando conectado. MENU = SELECT. Fijar: un toque mantiene L o R hasta el siguiente toque.</string>
+    <string name="ingame_touch_help">Auto: visibles sin mando; un toque los muestra y un botón los oculta. Forzar: siempre visibles. Ocultar: ocultos mientras haya un mando conectado. MENU = SELECT. Fijar: un toque mantiene L, R o B hasta el siguiente toque (con B fijado, Leon corre siempre).</string>
     <string name="ingame_alternate">Controles alternativos</string>
     <string name="ingame_latch">Fijar L y R (táctil)</string>
+    <string name="ingame_latch_b">Fijar B (táctil)</string>
+    <string name="ingame_gyro_sensitivity">Sensibilidad del giroscopio</string>
     <string name="ingame_alternate_help">Controles alternativos: L1 = Cuchillo, L2 = Apuntar (con el stick derecho), R1 = Inventario (Armas/Curación), R2 = Disparar / usar el cuchillo, Y = Mapa. A, B, X (Ashley) y START como antes.</string>
 
     <string name="ingame_card">Tarjeta de memoria (ranura A)</string>

@@ -28,9 +28,11 @@
     <string name="ingame_comfort">Controles de conforto</string>
     <string name="ingame_gyro">Mirar com giroscópio</string>
     <string name="ingame_gyro_none">Mirar com giroscópio (sem giroscópio)</string>
-    <string name="ingame_touch_help">Auto: visíveis sem controle, um toque os mostra, um botão os oculta. Forçar: sempre visíveis. Ocultar: ocultos enquanto um controle estiver conectado. MENU = SELECT. Travar: um toque mantém L ou R pressionado até o próximo toque.</string>
+    <string name="ingame_touch_help">Auto: visíveis sem controle, um toque os mostra, um botão os oculta. Forçar: sempre visíveis. Ocultar: ocultos enquanto um controle estiver conectado. MENU = SELECT. Travar: um toque mantém L, R ou B pressionado até o próximo toque (com B travado, Leon corre sempre).</string>
     <string name="ingame_alternate">Controles alternativos</string>
     <string name="ingame_latch">Travar L e R (toque)</string>
+    <string name="ingame_latch_b">Travar B (toque)</string>
+    <string name="ingame_gyro_sensitivity">Sensibilidade do giroscópio</string>
     <string name="ingame_alternate_help">Controles alternativos: L1 = Faca, L2 = Mirar (com o analógico direito), R1 = Inventário (Armas/Cura), R2 = Atirar / usar a faca, Y = Mapa. A, B, X (Ashley) e START como antes.</string>
 
     <string name="ingame_card">Cartão de memória (slot A)</string>

@@ -27,9 +27,11 @@
     <string name="ingame_comfort">आसान नियंत्रण</string>
     <string name="ingame_gyro">जाइरो से निशाना लगाएँ</string>
     <string name="ingame_gyro_none">जाइरो से निशाना लगाएँ (जाइरोस्कोप नहीं है)</string>
-    <string name="ingame_touch_help">ऑटो: कंट्रोलर न होने पर दिखते हैं, स्क्रीन छूने पर दिखते हैं, कोई बटन दबाने पर छिप जाते हैं। हमेशा: हमेशा दिखते हैं। छिपाएँ: कंट्रोलर जुड़ा रहने तक छिपे रहते हैं। MENU = SELECT। लॉक: एक बार छूने पर L या R अगली बार छूने तक दबा रहता है।</string>
+    <string name="ingame_touch_help">ऑटो: कंट्रोलर न होने पर दिखते हैं, स्क्रीन छूने पर दिखते हैं, कोई बटन दबाने पर छिप जाते हैं। हमेशा: हमेशा दिखते हैं। छिपाएँ: कंट्रोलर जुड़ा रहने तक छिपे रहते हैं। MENU = SELECT। लॉक: एक बार छूने पर L, R या B अगली बार छूने तक दबा रहता है (B लॉक होने पर लियोन लगातार दौड़ता है)।</string>
     <string name="ingame_alternate">वैकल्पिक नियंत्रण</string>
     <string name="ingame_latch">L और R लॉक करें (टच)</string>
+    <string name="ingame_latch_b">B लॉक करें (टच)</string>
+    <string name="ingame_gyro_sensitivity">जाइरो संवेदनशीलता</string>
     <string name="ingame_alternate_help">वैकल्पिक नियंत्रण: L1 = चाकू, L2 = निशाना (दाएँ स्टिक से), R1 = इन्वेंटरी (हथियार/उपचार), R2 = फ़ायर / चाकू चलाएँ, Y = नक्शा। A, B, X (एश्ली) और START पहले जैसे।</string>
 
     <string name="ingame_card">मेमोरी कार्ड (स्लॉट A)</string>

@@ -20,15 +20,20 @@ import android.util.Log;
  * through the screen, a steering wheel). The filter is the first port's:
  * smoothed (35 % of each new reading), below 0.006 rad/s nothing, a reading
  * older than 150 ms or not a number: nothing. Switched by the menu ("Use
- * Gyro-Aiming"); off while the app is not in front.
+ * Gyro-Aiming"); off while the app is not in front. The menu's slider
+ * (setSensitivity, wish of the project owner, 22.10.2026) multiplies the
+ * filtered rates by MIN_SENSITIVITY..MAX_SENSITIVITY (1: as before).
  */
 final class GyroAim implements SensorEventListener {
   private final Activity activity;
   private final SensorManager sensors;
   private final Sensor gyroscope;
   private final Handler handler;
+  /** The slider's range and steps (1: the first port's gain). */
+  static final float MIN_SENSITIVITY = 0.5f, MAX_SENSITIVITY = 3f, SENSITIVITY_STEP = 0.25f;
   private boolean enabled, listening, resumed;
   private float yaw, pitch;
+  private volatile float sensitivity = 1f;
 
   GyroAim(Activity activity, Handler handler) {
     this.activity = activity;
@@ -41,6 +46,18 @@ final class GyroAim implements SensorEventListener {
   static boolean available(Context context) {
     SensorManager s = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
     return s != null && s.getDefaultSensor(Sensor.TYPE_GYROSCOPE) != null;
+  }
+
+  /** A stored value within the slider's range (1 for anything else). */
+  static float clampSensitivity(float value) {
+    if (Float.isNaN(value) || value < MIN_SENSITIVITY || value > MAX_SENSITIVITY) return 1f;
+    return Math.round(value / SENSITIVITY_STEP) * SENSITIVITY_STEP;
+  }
+
+  /** The menu's slider: the turn rates times `value`. */
+  void setSensitivity(float value) {
+    sensitivity = clampSensitivity(value);
+    Log.i(CoreActivity.TAG, "gyro aiming: sensitivity " + sensitivity);
   }
 
   /** The menu's switch. */
@@ -97,6 +114,7 @@ final class GyroAim implements SensorEventListener {
     }
     yaw += .35f * (y - yaw);
     pitch += .35f * (p - pitch);
-    CoreBridge.gyro(Math.abs(yaw) < .006f ? 0 : yaw, Math.abs(pitch) < .006f ? 0 : pitch);
+    float s = sensitivity;
+    CoreBridge.gyro(Math.abs(yaw) < .006f ? 0 : yaw * s, Math.abs(pitch) < .006f ? 0 : pitch * s);
   }
 }

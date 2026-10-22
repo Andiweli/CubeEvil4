@@ -5814,6 +5814,27 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### App-Menü: „B einrasten (Touch)“ und Gyro-Empfindlichkeit (Wünsche des Projektinhabers, 22.10.2026)
+
+- **B einrasten (Touch):** in der Touch-Zeile neben „L und R einrasten“ (unter „Unterdrücken“).
+  Ein Antippen hält B (Laufen) bis zum nächsten Antippen, Leon läuft also ohne Finger auf B;
+  aus: B wie bisher nur gedrückt, solange der Finger darauf ist. `CoreTouch.setLatchB`
+  (unabhängig von L/R), Einstellung `touchLatchB`, beim Umschalten und beim Zurücksetzen (Pause,
+  Steuerung ausgeblendet, Editor) wird B losgelassen; RetroTouch zeigt das eingerastete B stärker.
+  Hilfetext in allen Sprachen um B ergänzt. Neue Prüfungen in `tests/CoreTouchTests.java`.
+- **Gyro-Empfindlichkeit:** Schieberegler rechts neben dem Gyro-Haken, nur bedienbar, solange
+  Gyro-Zielen an ist; 0,5× bis 3× in Schritten von 0,25 (1× = wie bisher, der Wert steht daneben).
+  `GyroAim.setSensitivity` multipliziert die gefilterten Drehraten (die Totzone von 0,006 rad/s
+  bleibt vor der Multiplikation), Einstellung `gyroSensitivity`. Mit dem Controller: Steuerkreuz
+  hoch/runter auf den Regler, links/rechts verstellt ihn. Der Haken heißt jetzt kürzer
+  „Gyro-Aiming“ / „Gyro-Zielen“ (Platz, Vorschlag des Projektinhabers; zh ohne „使用“), die
+  übrigen Sprachen waren schon kurz.
+- Neue Texte `ingame_latch_b`, `ingame_gyro_sensitivity` (Beschreibung des Reglers für
+  Bedienungshilfen) in allen zehn Sprachen; `tools/check_translations.py`: alle ok.
+- **Geprüft (Cloud):** `CoreTouchTests` 260 Prüfungen bestanden; alle Java-Quellen der App mit
+  javac gegen die Android-Bibliothek übersetzt (0 Fehler). **Nicht getestet:** auf dem Gerät
+  (Aussehen der Zeilen in allen Sprachen, Regler mit dem Controller).
+
 ### Rückmeldungen zu 0.42.1 (22.10.2026): Laser-Gang r318, Filmfarben auf dem Galaxy A36
 
 - **Laser-Gang (SCV40 = Galaxy S9, Snapdragon 845, Adreno 630, 64 bit; Bericht 17:34 und Video):**

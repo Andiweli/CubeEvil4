@@ -23,6 +23,7 @@ import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import java.util.Locale;
 
@@ -59,6 +60,10 @@ final class CoreMenu extends Dialog {
     void alternateChanged(boolean on);
     /** The switch "Latch L and R" of the touch controls (the preferences hold it). */
     void latchChanged(boolean on);
+    /** The switch "Latch B" of the touch controls (the preferences hold it). */
+    void latchBChanged(boolean on);
+    /** The slider of gyro aiming: the turn rates times `value` (the preferences hold it). */
+    void gyroSensitivityChanged(float value);
   }
 
   private final Host host;
@@ -321,21 +326,58 @@ final class CoreMenu extends Dialog {
 
     heading(s(R.string.ingame_controls));
     // "Touch Controls": Auto, Force, Suppress in equal parts of the row, Latch L and R in the second
-    // line, a short note on the three (wishes of the project owner, 21.10.2026)
+    // line, a short note on the three (wishes of the project owner, 21.10.2026); Latch B under
+    // Suppress (22.10.2026)
     SharedPreferences input = getContext().getSharedPreferences(CoreActivity.INPUT_PREFS, Context.MODE_PRIVATE);
     touchModes(input);
     LinearLayout touchMore = labelledRow("", 3);
     checkBox(touchMore, s(R.string.ingame_latch), input.getBoolean(CoreActivity.TOUCH_LATCH, false), 2,
         (b, on) -> host.latchChanged(on));
+    checkBox(touchMore, s(R.string.ingame_latch_b), input.getBoolean(CoreActivity.TOUCH_LATCH_B, false), 1,
+        (b, on) -> host.latchBChanged(on));
     body.addView(text(s(R.string.ingame_touch_help), 12, false));
-    // "Comfort Controls": Alternate Controls and Gyro aiming, in the columns of the check boxes above
+    // "Comfort Controls": Alternate Controls and Gyro aiming, in the columns of the check boxes above;
+    // right of Gyro aiming its sensitivity, usable while it is on (wish of the project owner, 22.10.2026)
     LinearLayout comfort = labelledRow(s(R.string.ingame_comfort));
     checkBox(comfort, s(R.string.ingame_alternate), input.getBoolean(CoreActivity.ALT_CONTROLS, false), 2,
         (b, on) -> host.alternateChanged(on));
     boolean gyro = GyroAim.available(getContext());
+    LinearLayout sensitivityBox = new LinearLayout(getContext());
+    sensitivityBox.setGravity(Gravity.CENTER_VERTICAL);
+    SeekBar sensitivity = new SeekBar(getContext());
+    TextView sensitivityValue = text("", 14, false);
     CheckBox gyroBox = checkBox(comfort, s(gyro ? R.string.ingame_gyro : R.string.ingame_gyro_none),
-        gyro && input.getBoolean(CoreActivity.GYRO_AIM, false), 3, (b, on) -> host.gyroChanged(on));
+        gyro && input.getBoolean(CoreActivity.GYRO_AIM, false), 1, (b, on) -> {
+          host.gyroChanged(on);
+          sensitivity.setEnabled(on);
+          sensitivityValue.setEnabled(on);
+        });
     gyroBox.setEnabled(gyro);
+    int steps = Math.round((GyroAim.MAX_SENSITIVITY - GyroAim.MIN_SENSITIVITY) / GyroAim.SENSITIVITY_STEP);
+    float stored = GyroAim.clampSensitivity(input.getFloat(CoreActivity.GYRO_SENSITIVITY, 1f));
+    sensitivity.setMax(steps);
+    sensitivity.setProgress(Math.round((stored - GyroAim.MIN_SENSITIVITY) / GyroAim.SENSITIVITY_STEP));
+    sensitivity.setContentDescription(s(R.string.ingame_gyro_sensitivity));
+    sensitivityValue.setText(times(stored));
+    sensitivityValue.setMinWidth(dp(44));
+    sensitivity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+      @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+        float value = GyroAim.MIN_SENSITIVITY + progress * GyroAim.SENSITIVITY_STEP;
+        sensitivityValue.setText(times(value));
+        if (fromUser) host.gyroSensitivityChanged(value);
+      }
+
+      @Override public void onStartTrackingTouch(SeekBar bar) {}
+
+      @Override public void onStopTrackingTouch(SeekBar bar) {}
+    });
+    boolean gyroOn = gyroBox.isChecked();
+    sensitivity.setEnabled(gyroOn);
+    sensitivityValue.setEnabled(gyroOn);
+    sensitivityBox.addView(sensitivity, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+    sensitivityBox.addView(sensitivityValue, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT));
+    comfort.addView(sensitivityBox, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2));
     body.addView(text(s(R.string.ingame_alternate_help), 12, false));
 
     heading(s(R.string.ingame_card));
@@ -381,6 +423,16 @@ final class CoreMenu extends Dialog {
     source.setOnClickListener(v -> openSource());
     body.addView(source, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.WRAP_CONTENT));
+  }
+
+  /** "1×", "1.25×", "3×": the gyro's sensitivity, digits 0..9 in every language (Locale.ROOT). */
+  static String times(float value) {
+    String v = String.format(Locale.ROOT, "%.2f", value);
+    if (v.contains(".")) {
+      while (v.endsWith("0")) v = v.substring(0, v.length() - 1);
+      if (v.endsWith(".")) v = v.substring(0, v.length() - 1);
+    }
+    return v + "×";
   }
 
   /** The port's page (wish of the project owner, 19.10.2026). */

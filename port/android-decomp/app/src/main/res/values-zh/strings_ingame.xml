@@ -26,11 +26,13 @@
     <string name="ingame_touch_force">始终显示</string>
     <string name="ingame_touch_suppress">隐藏</string>
     <string name="ingame_comfort">便捷操作</string>
-    <string name="ingame_gyro">使用陀螺仪瞄准</string>
-    <string name="ingame_gyro_none">使用陀螺仪瞄准（无陀螺仪）</string>
-    <string name="ingame_touch_help">自动：未连接手柄时显示，轻触屏幕即显示，按下任意按键即隐藏。始终显示：一直显示。隐藏：连接手柄时隐藏。MENU = SELECT。锁定：轻触一次即保持按住 L 或 R，再次轻触松开。</string>
+    <string name="ingame_gyro">陀螺仪瞄准</string>
+    <string name="ingame_gyro_none">陀螺仪瞄准（无陀螺仪）</string>
+    <string name="ingame_touch_help">自动：未连接手柄时显示，轻触屏幕即显示，按下任意按键即隐藏。始终显示：一直显示。隐藏：连接手柄时隐藏。MENU = SELECT。锁定：轻触一次即保持按住 L、R 或 B，再次轻触松开（锁定 B 时里昂一直奔跑）。</string>
     <string name="ingame_alternate">替代操作</string>
     <string name="ingame_latch">锁定 L 和 R（触屏）</string>
+    <string name="ingame_latch_b">锁定 B（触屏）</string>
+    <string name="ingame_gyro_sensitivity">陀螺仪灵敏度</string>
     <string name="ingame_alternate_help">替代操作：L1 = 小刀，L2 = 瞄准（用右摇杆瞄准），R1 = 物品栏（武器/回复），R2 = 射击 / 使用小刀，Y = 地图。A、B、X（阿什莉）和 START 保持不变。</string>
 
     <string name="ingame_card">记忆卡（插槽 A）</string>

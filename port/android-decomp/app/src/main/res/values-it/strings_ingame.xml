@@ -27,9 +27,11 @@
     <string name="ingame_comfort">Comandi comfort</string>
     <string name="ingame_gyro">Mira con il giroscopio</string>
     <string name="ingame_gyro_none">Mira con il giroscopio (nessun giroscopio)</string>
-    <string name="ingame_touch_help">Auto: visibili senza controller, un tocco li mostra, un tasto li nasconde. Forza: sempre visibili. Nascondi: nascosti finché è collegato un controller. MENU = SELECT. Blocca: un tocco tiene premuto L o R fino al tocco successivo.</string>
+    <string name="ingame_touch_help">Auto: visibili senza controller, un tocco li mostra, un tasto li nasconde. Forza: sempre visibili. Nascondi: nascosti finché è collegato un controller. MENU = SELECT. Blocca: un tocco tiene premuto L, R o B fino al tocco successivo (con B bloccato Leon corre sempre).</string>
     <string name="ingame_alternate">Comandi alternativi</string>
     <string name="ingame_latch">Blocca L e R (touch)</string>
+    <string name="ingame_latch_b">Blocca B (touch)</string>
+    <string name="ingame_gyro_sensitivity">Sensibilità del giroscopio</string>
     <string name="ingame_alternate_help">Comandi alternativi: L1 = Coltello, L2 = Mira (con la levetta destra), R1 = Inventario (Armi/Cure), R2 = Spara / usa il coltello, Y = Mappa. A, B, X (Ashley) e START come prima.</string>
 
     <string name="ingame_card">Memory Card (slot A)</string>

@@ -102,6 +102,39 @@ public final class CoreTouchTests {
         && host.calls.equals(List.of("r false")));
     host.calls.clear();
 
+    // "Latch B" (22.10.2026): off, B is held while touched; on, a tap keeps B (run) pressed, the
+    // next tap lets go; L and R stay as they are; switching it off or a reset lets B go
+    check(!t.latchB());
+    t.action(CoreTouch.B, true);
+    check(in.pad()[0] == CoreInput.GC_B && !t.latched(CoreTouch.B));
+    t.action(CoreTouch.B, false);
+    check(in.pad()[0] == 0 && host.calls.isEmpty());
+    t.setLatchB(true);
+    check(t.latchB() && !t.latch());
+    t.action(CoreTouch.B, true);
+    t.action(CoreTouch.B, false);
+    check(in.pad()[0] == CoreInput.GC_B && t.latched(CoreTouch.B));
+    t.action(CoreTouch.A, true);
+    check(in.pad()[0] == (CoreInput.GC_B | CoreInput.GC_A));
+    t.action(CoreTouch.A, false);
+    t.action(CoreTouch.R, true);
+    t.action(CoreTouch.R, false);
+    check(in.pad()[0] == CoreInput.GC_B && !t.latched(CoreTouch.R));
+    t.action(CoreTouch.B, true);
+    t.action(CoreTouch.B, false);
+    check(in.pad()[0] == 0 && !t.latched(CoreTouch.B) && host.calls.equals(List.of("b true", "b false")));
+    host.calls.clear();
+    t.action(CoreTouch.B, true);
+    t.setLatchB(false);
+    check(!t.latchB() && in.pad()[0] == 0 && host.calls.equals(List.of("b true", "b false")));
+    host.calls.clear();
+    t.setLatchB(true);
+    t.action(CoreTouch.B, true);
+    t.reset();
+    check(in.pad()[0] == 0 && !t.latched(CoreTouch.B) && host.calls.equals(List.of("b true", "b false")));
+    t.setLatchB(false);
+    host.calls.clear();
+
     // the move stick is the control stick (raw, up positive)
     t.move(1, 0);
     check(in.pad()[1] == 101 && in.pad()[2] == 0);

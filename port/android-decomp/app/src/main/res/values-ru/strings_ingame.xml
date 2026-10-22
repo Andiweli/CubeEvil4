@@ -27,9 +27,11 @@
     <string name="ingame_comfort">Удобное управление</string>
     <string name="ingame_gyro">Прицеливание гироскопом</string>
     <string name="ingame_gyro_none">Прицеливание гироскопом (нет гироскопа)</string>
-    <string name="ingame_touch_help">Авто: кнопки видны без контроллера, касание экрана показывает их, нажатие кнопки скрывает. Всегда: кнопки видны всегда. Скрывать: кнопки скрыты, пока подключён контроллер. MENU = SELECT. Фиксация: касание удерживает L или R до следующего касания.</string>
+    <string name="ingame_touch_help">Авто: кнопки видны без контроллера, касание экрана показывает их, нажатие кнопки скрывает. Всегда: кнопки видны всегда. Скрывать: кнопки скрыты, пока подключён контроллер. MENU = SELECT. Фиксация: касание удерживает L, R или B до следующего касания (с фиксацией B Леон всё время бежит).</string>
     <string name="ingame_alternate">Альтернативное управление</string>
     <string name="ingame_latch">Фиксация L и R (сенсор)</string>
+    <string name="ingame_latch_b">Фиксация B (сенсор)</string>
+    <string name="ingame_gyro_sensitivity">Чувствительность гироскопа</string>
     <string name="ingame_alternate_help">Альтернативное управление: L1 = нож, L2 = прицеливание (правым стиком), R1 = инвентарь (оружие/лечение), R2 = выстрел / удар ножом, Y = карта. A, B, X (Эшли) и START — как раньше.</string>
 
     <string name="ingame_card">Карта памяти (слот A)</string>

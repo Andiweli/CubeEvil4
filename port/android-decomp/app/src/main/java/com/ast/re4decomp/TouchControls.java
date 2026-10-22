@@ -146,6 +146,9 @@ final class TouchControls implements CoreTouch.Host {
   /** The menu's switch "Latch L and R": a tap keeps L or R pressed until the next tap (off: held while touched). */
   void setLatch(boolean on) { touch.setLatch(on); }
 
+  /** The menu's switch "Latch B": a tap keeps B (run) pressed until the next tap (off: held while touched). */
+  void setLatchB(boolean on) { touch.setLatchB(on); }
+
   /**
    * Shown or hidden by the controllers present, the setting and the last touch (twice a second,
    * when a device changes, after a touch or a controller's use).

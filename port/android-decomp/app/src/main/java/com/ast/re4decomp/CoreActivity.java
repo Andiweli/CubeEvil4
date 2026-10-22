@@ -89,6 +89,10 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   static final String ALT_CONTROLS = "alternateControls";
   // the menu's switch "Latch L and R" of the touch controls (CoreTouch.setLatch; off: held while touched)
   static final String TOUCH_LATCH = "touchLatchLR";
+  // the menu's switch "Latch B" of the touch controls (CoreTouch.setLatchB; on: Leon keeps running)
+  static final String TOUCH_LATCH_B = "touchLatchB";
+  // the menu's slider of gyro aiming (GyroAim.setSensitivity, a float, 1 = as before)
+  static final String GYRO_SENSITIVITY = "gyroSensitivity";
   /** The menu's picture options: scale (0 auto, 1-4), samples, anisotropy, aspect (0 16:9, 1 4:3). */
   static final String GRAPHICS_PREFS = "core_graphics";
   private static final int REQUEST_EXPORT_ALL = 2, REQUEST_IMPORT = 3, REQUEST_REPORT = 4;
@@ -205,7 +209,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     // the touch controls above everything
     touchControls = new TouchControls(this, input, touchMode(inputPrefs), touchHost);
     touchControls.setLatch(inputPrefs.getBoolean(TOUCH_LATCH, false));
+    touchControls.setLatchB(inputPrefs.getBoolean(TOUCH_LATCH_B, false));
     gyroAim = new GyroAim(this, main);
+    gyroAim.setSensitivity(inputPrefs.getFloat(GYRO_SENSITIVITY, 1f));
     gyroAim.setEnabled(inputPrefs.getBoolean(GYRO_AIM, false));
     root.addView(touchControls.view(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
         FrameLayout.LayoutParams.MATCH_PARENT));
@@ -486,6 +492,18 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       touchControls.setLatch(on);
       send();
       Log.i(TAG, "touch controls: L and R " + (on ? "latch on a tap" : "held while touched"));
+    }
+
+    @Override public void latchBChanged(boolean on) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(TOUCH_LATCH_B, on).apply();
+      touchControls.setLatchB(on);
+      send();
+      Log.i(TAG, "touch controls: B " + (on ? "latches on a tap" : "held while touched"));
+    }
+
+    @Override public void gyroSensitivityChanged(float value) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putFloat(GYRO_SENSITIVITY, value).apply();
+      gyroAim.setSensitivity(value);
     }
 
     @Override public void alternateChanged(boolean on) {

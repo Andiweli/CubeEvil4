@@ -35,11 +35,13 @@
     <string name="ingame_touch_force">Force</string>
     <string name="ingame_touch_suppress">Suppress</string>
     <string name="ingame_comfort">Comfort Controls</string>
-    <string name="ingame_gyro">Use Gyro-Aiming</string>
-    <string name="ingame_gyro_none">Use Gyro-Aiming (no gyroscope)</string>
-    <string name="ingame_touch_help">Auto: shown without a controller, a tap shows them, a button hides them. Force: always shown. Suppress: hidden while a controller is connected. MENU = SELECT. Latch: a tap holds L or R until the next tap.</string>
+    <string name="ingame_gyro">Gyro-Aiming</string>
+    <string name="ingame_gyro_none">Gyro-Aiming (no gyroscope)</string>
+    <string name="ingame_touch_help">Auto: shown without a controller, a tap shows them, a button hides them. Force: always shown. Suppress: hidden while a controller is connected. MENU = SELECT. Latch: a tap holds L, R or B until the next tap (B latched: Leon keeps running).</string>
     <string name="ingame_alternate">Alternate Controls</string>
     <string name="ingame_latch">Latch L and R (Touch)</string>
+    <string name="ingame_latch_b">Latch B (Touch)</string>
+    <string name="ingame_gyro_sensitivity">Gyro sensitivity</string>
     <string name="ingame_alternate_help">Alternate Controls: L1 = Knife, L2 = Aim (aim with the right stick), R1 = Inventory (Weapons/Recovery), R2 = Fire / use the knife, Y = Map. A, B, X (Ashley) and START as before.</string>
 
     <!-- Memory card -->
