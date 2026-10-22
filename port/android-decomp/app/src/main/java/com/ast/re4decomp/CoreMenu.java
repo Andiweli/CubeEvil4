@@ -330,6 +330,14 @@ final class CoreMenu extends Dialog {
           graphics.edit().putBoolean("fps", on).apply();
           host.fpsChanged(on);
         });
+    // 60 FPS from in-between pictures of the renderer (experimental, decision of the project owner,
+    // 22.10.2026); the game itself stays at 30
+    LinearLayout smooth = labelledRow("");
+    checkBox(smooth, s(R.string.ingame_smooth60), graphics.getBoolean("smooth60", false), 5,
+        (b, on) -> {
+          graphics.edit().putBoolean("smooth60", on).apply();
+          CoreBridge.setSmooth(on);
+        });
     graphicsLine = text("", 12, false);
     body.addView(graphicsLine);
     showGraphics();

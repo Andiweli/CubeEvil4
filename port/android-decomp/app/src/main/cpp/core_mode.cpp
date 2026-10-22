@@ -580,6 +580,7 @@ struct Bench {
 };
 Bench bench;
 std::atomic<int> optDof{-1};  // the menu's depth of field (CoreBridge.setDof); -1 not set yet
+std::atomic<int> optSmooth{0};  // the menu's 60 FPS from in-between pictures (CoreBridge.setSmooth)
 
 // A number from a file of the kernel (the GPU's clock and load, where the device lets an app read
 // them); -1 when it cannot.
@@ -1733,6 +1734,12 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_debugMenu(JN
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setDof(JNIEnv *, jclass, jboolean on) {
   optDof = on ? 1 : 0;
   if (api.setDof) api.setDof(on ? 1 : 0);
+}
+
+// 60 FPS (experimental): in-between pictures of the renderer (drawGx).
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setSmooth(JNIEnv *, jclass, jboolean on) {
+  const int want = on ? 1 : 0;
+  if (optSmooth.exchange(want) != want) LOG("60 FPS from in-between pictures: %s", want ? "on" : "off");
 }
 
 // Gyro aiming (GyroAim.java): the turn rates to the core (cores since 19.10.2026; older ones: none).

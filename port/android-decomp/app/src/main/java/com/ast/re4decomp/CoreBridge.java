@@ -87,6 +87,11 @@ public final class CoreBridge {
    *  gameplay autofocus of the first Android port; on unless switched off. */
   public static native void setDof(boolean on);
   /**
+   * 60 FPS (experimental): the renderer draws an in-between picture of two game pictures at each
+   * second display refresh; the game itself stays at 30 pictures a second.
+   */
+  public static native void setSmooth(boolean on);
+  /**
    * Gyro aiming (GyroAim): the device's turn rates in rad/s about the screen's axes (yaw, pitch);
    * the core turns the aim by them while Leon aims a gun. 0, 0: still.
    */

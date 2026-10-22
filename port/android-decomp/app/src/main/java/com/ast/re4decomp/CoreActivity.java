@@ -216,7 +216,11 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     gyroAim.setEnabled(inputPrefs.getBoolean(GYRO_AIM, false));
     root.addView(touchControls.view(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
         FrameLayout.LayoutParams.MATCH_PARENT));
-    if (startProblem.isEmpty()) CoreBridge.setDof(getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("dof", true));
+    if (startProblem.isEmpty()) {
+      SharedPreferences g = getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE);
+      CoreBridge.setDof(g.getBoolean("dof", true));
+      CoreBridge.setSmooth(g.getBoolean("smooth60", false));
+    }
     setContentView(root);
     preferSixtyHz();
     surface.setFocusable(true);

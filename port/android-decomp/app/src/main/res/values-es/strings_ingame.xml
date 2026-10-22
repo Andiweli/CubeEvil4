@@ -18,6 +18,7 @@
     <string name="ingame_other_options">Otras opciones</string>
     <string name="ingame_dof">Profundidad de campo</string>
     <string name="ingame_fps_display">Mostrar FPS abajo a la izquierda</string>
+    <string name="ingame_smooth60">60 FPS (experimental)</string>
     <string name="ingame_resolution_line">Resolución: %1$d × %2$d píxeles (nivel %3$d) · pantalla %4$d × %5$d · se aplica al cerrar el menú. Los niveles más altos requieren más potencia.</string>
     <string name="ingame_resolution_line_auto">Resolución: %1$d × %2$d píxeles (nivel %3$d, Auto) · pantalla %4$d × %5$d · se aplica al cerrar el menú. Los niveles más altos requieren más potencia.</string>
 
