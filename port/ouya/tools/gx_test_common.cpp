@@ -176,7 +176,7 @@ void PutFloats(std::vector<std::uint8_t> &out, const std::uint8_t *vertex, std::
 
 } // namespace
 
-void ToFloatVertices(const Re4GxChunk &chunk, FloatChunk &storage, Re4GxChunk &out) {
+void ToFloatVertices(const Re4GxChunk &chunk, FloatChunk &storage, Re4GxChunk &out, bool dropAutofocus) {
   storage.ops.clear();
   storage.vertices.clear();
   std::uint32_t words[RE4_GX_COMPACT_ATTRS] = {};
@@ -233,7 +233,8 @@ void ToFloatVertices(const Re4GxChunk &chunk, FloatChunk &storage, Re4GxChunk &o
       at += 1 + n;
       continue;
     }
-    if (op != RE4_GX_OP_COMPACT_FORMAT)
+    const bool autofocus = op == RE4_GX_OP_BP && n >= 1 && (payload[0] >> 24) == 0x5A;
+    if (op != RE4_GX_OP_COMPACT_FORMAT && !(dropAutofocus && autofocus))
       storage.ops.insert(storage.ops.end(), chunk.ops + at, chunk.ops + at + 1 + n);
     at += 1 + n;
   }

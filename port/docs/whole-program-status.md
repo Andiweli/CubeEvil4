@@ -25,7 +25,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 32-bit-Kernprozess | ✅ 20.10.2026 (Branch `claude/re4-32bit-kernprozess`, Release **0.40.0-alpha**): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Retroid ✅ (erzwungen mit `-CoreProcess`: Spiel, Filme, Ton, Laden/Speichern, Debug-Menü, 30 FPS), **Tester-Gerät ✅** (nur 32 bit, Android 14: das Spiel läuft, Projektinhaber 20.10.2026; ohne Bericht). Offen: Leistungszahlen vom Tester-Gerät, Raumklang mit Spatializer („32 bit: der Kern als eigener Prozess“) |
 | Hotfix 0.40.1-alpha | 20.10.2026 (Branch `claude/re4-luis-hotfix`, vom Stand `548b0f24` des Kernprozess-Branches): Patch 0087, Absturz auf 64 bit, wenn ein Ganado Luis in der Hütte packt (Abschnitt „Absturz, wenn ein Ganado Luis in der Hütte packt“); Touch-Tasten nach einem Tippen auch bei einem „Geister-Controller“ (21.10.2026, Abschnitt „Touch-Bedienung bleibt ohne Controller versteckt“). Cloud ✅, **Gerätetest offen** |
 | Menü mehrsprachig, 0.41.0-alpha | 21.10.2026 (Branch `claude/re4-menu-sprachen`, enthält den Hotfix): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache (weitere liefert der Projektinhaber); Touchsteuerung Auto/Erzwingen/Unterdrücken, Komfortsteuerung. Cloud ✅, **Gerätetest offen** |
-| OUYA | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): Bestandsaufnahme (`ouya-machbarkeit.md`): drei Hürden (Android 4.1 mit NDK r23c, nur OpenGL ES 2.0, Leistung). **Entscheidungen des Projektinhabers:** erst die Kern-Probe O1, später eine eigene OUYA-App. **O1 gebaut und auf der OUYA gemessen** (`host/probe.cpp`, `whole_build_android.sh --ouya`, `ouya-probe.ps1`; Abschnitt „OUYA: Kern-Probe O1“): r100 10,6 Bilder/s, Kern 94 ms je Bild, davon gut 60 % GX-Umrechnung. GX-Umrechnung schneller (A), auf eigenem Thread (B, `RE4_GX_THREAD=1`), Texturen per Stichprobe und **Kompaktformat der Punkte** (`RE4_GX_COMPACT=1`, nur OUYA): **O1 abgeschlossen**, r100 in Echtzeit 28,3 Bilder/s, Dorf 28,7, ohne Bremse 51 (Messung 21.10.2026). Nächster Schritt O2: GLES-2-Renderer für das Kompaktformat |
+| OUYA | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): Bestandsaufnahme (`ouya-machbarkeit.md`): drei Hürden (Android 4.1 mit NDK r23c, nur OpenGL ES 2.0, Leistung). **Entscheidungen des Projektinhabers:** erst die Kern-Probe O1, später eine eigene OUYA-App. **O1 gebaut und auf der OUYA gemessen** (`host/probe.cpp`, `whole_build_android.sh --ouya`, `ouya-probe.ps1`; Abschnitt „OUYA: Kern-Probe O1“): r100 10,6 Bilder/s, Kern 94 ms je Bild, davon gut 60 % GX-Umrechnung. GX-Umrechnung schneller (A), auf eigenem Thread (B, `RE4_GX_THREAD=1`), Texturen per Stichprobe und **Kompaktformat der Punkte** (`RE4_GX_COMPACT=1`, nur OUYA): **O1 abgeschlossen**, r100 in Echtzeit 28,3 Bilder/s, Dorf 28,7, ohne Bremse 51 (Messung 21.10.2026). **O2 (22.10.2026, lokal):** GLES-2-Renderer in `port/ouya` (Kopie des GLES-3-Renderers, umgebaut; liest das Kompaktformat direkt), OUYA-GPU abgefragt; gegen GLES 3 geprüft mit 22 künstlichen Szenen und 54 echten Spielbildern (r100, r101): gleich bis auf Rundung; **auf der OUYA selbst noch nicht gezeichnet** |
 | Hauptbranch `master` | 21.10.2026: steht auf **0.41.0-alpha** (`0394c644`, versionCode 62): alle Branches bis Alpha 4, der 32-bit-Kernprozess mit Raumklang (0.40.0-alpha, `548b0f24`), der Luis-Hotfix und die Menü-Sprachen; jeweils ohne Zusammenführung nachgezogen (Wunsch des Projektinhabers). Die Release-Markierungen `0.40.0-alpha` und `0.41.0-alpha` zeigen noch auf ältere Stände (aus der Cloud nicht umsetzbar, GitHub verweigert das Hochladen von Markierungen); umsetzen am PC mit `git tag -f` und `git push -f origin <Markierung>` |
 | Menü in 10 Sprachen | 21.10.2026 (Branch `claude/re4-start-controls`, vom `master`-Stand `0394c644`): Spanisch, Französisch, Italienisch, Portugiesisch (Brasilien), Russisch, Arabisch (von rechts nach links), Chinesisch (vereinfacht), Hindi zu Englisch und Deutsch; Sprache auch je App wählbar (Android 13+). Cloud ✅, **Gerätetest offen** |
 | Absturz Wegesuche r11c (64 bit) | 21.10.2026 (Branch `claude/re4-start-controls`): Patch 0088 fängt ihn ab und meldet, wessen Position außerhalb lag; die eigentliche Ursache zeigt erst ein Bericht mit Fehlerprotokoll. Cloud ✅, **Gerätetest offen** |
@@ -6591,6 +6591,47 @@ Android 4.1 und Stufenplan in `ouya-machbarkeit.md`.
   `whole_build.sh` i686 und armhf grün (auch mit Grafik-Thread), `ndk23_check.sh` 1201
   Einheiten ohne Fehler. Die OUYA wird eine **eigene App** (Wunsch des Projektinhabers); der
   Kern bleibt gemeinsam, Neuerungen der Haupt-App kommen über solche Abgleiche herein.
+
+### OUYA: GLES-2-Renderer O2 (22.10.2026, lokal auf dem Windows-PC)
+
+Entscheidungen des Projektinhabers (22.10.2026): eigener Ordner **`port/ouya`** (dort auch die
+spätere OUYA-App), der GLES-3-Renderer der Haupt-App **kopiert und für GLES 2 umgebaut** (die
+Haupt-App bleibt unberührt), die OUYA-App O3 als **eigenes, schlankes Projekt**, Arbeit lokal
+(WSL mit Mesa, Disc-Daten, OUYA per ADB) statt in der Cloud. Einzelheiten und Messwerte der
+OUYA-GPU in `ouya-machbarkeit.md`, Abschnitt „Stufe O2“.
+
+- **OUYA-GPU abgefragt** (`port/ouya/tools/gles2_info.cpp`, `port/scripts/ouya-gpu-info.ps1`,
+  unter der ADB-Sperre): Tegra 3, 252 Vertex-`vec4` je Feld, 9 Varyings, 16 Attribute, Fragment
+  nur fp20 (ganze Zahlen genau bis 2^13 + 1), `lowp` Festkomma, nur 16-Bit-Tiefe ohne
+  Tiefen-Texturen, NPOT nur geklemmt, Mipmaps nur vollständig, keine Programm-Binärdaten,
+  Texturkoordinaten bei vielen Wiederholungen ungenau.
+- **Renderer** `port/ouya/app/src/main/cpp/gx_gl2.cpp`, `gx_gl2_shader.cpp` (Namensraum
+  `re4gx2`): TEV in Gleitkomma mit kleinen Zwischenwerten, Uniform-Felder je Programm nur bei
+  Änderung (Zeitstempel), das **Kompaktformat liest GL direkt** (GX-Typen als
+  `GL_BYTE`/`SHORT`, Nachkommabits im Vertex-Shader, fehlende Matrix-Plätze aus
+  `Re4GxDraw.matrices`), Texturkoordinaten mit nur einem Leser im Vertex-Shader auf die Textur
+  skaliert, Bildkopien lesen das EFB pixelgenau, Mipmaps: mit `APPLE_texture_max_level` wie GX,
+  sonst ergänzt (je 2×2 ein Original-Texel), Tiefenkopien über `NV_read_depth` (RE4 macht keine).
+  Weggelassen: MSAA, Autofokus (BP 0x5A gezählt), Uniform-Ring, GPU-Zeit, Programm-Binärdaten.
+- **Prüfung** (`port/ouya/tools/check.sh`: Build, `gx_gl2_check`, Übersetzung mit NDK r23c für
+  Android 4.1): 22 künstliche Szenen, der GLES-2-Renderer mit zufällig verteilten Kompakttypen
+  auf Mesa mit `MESA_GLES_VERSION_OVERRIDE=2.0`, der GLES-3-Renderer der Haupt-App als Vergleich
+  in einem eigenen Prozess; **alle bestanden** in drei Läufen (wie er läuft; mit der Rundung des
+  GLES-3-Renderers Bild für Bild gleich, außer einem Rundungs-Gleichstand x,5 an einer
+  Texel-Ecke; wie auf dem Tegra 3).
+- **Echte Spielbilder** (`port/ouya/tools/compare_frames.sh`: der Kern i686 aus `~/re4-ouya`
+  spielt r100 und r101 je 6000 Bilder mit `RE4_GX_COMPACT=1`, 30 Mitschnitte; dazu die 24
+  Gleitkomma-Mitschnitte der PC-Prüfung vom 18.10.): mit der Rundung des GLES-3-Renderers alle
+  gleich bis auf höchstens 0,06 % der Pixel (Gleitkomma-Mitschnitte: 0 Pixel), wie er läuft
+  höchstens 0,3 % (Logos, an Texel-Grenzen), Spielszenen 0,1 %; wie auf dem Tegra 3 bis 2,9 %
+  (in der Ferne: ergänzte Mipmap-Stufen, 16-Bit-Tiefe), mit bloßem Auge nicht zu unterscheiden.
+  Zwei Ursachen auf dem Weg gefunden: ohne Begrenzung der Mipmap-Kette sah ferneres Laub
+  anders aus (bis 123 Stufen; jetzt Begrenzung bzw. Original-Texel), und der Autofokus der
+  Haupt-App zeichnet bei nahem Fokus den Hintergrund weich (im Vergleich beiden genommen).
+- **Auf der OUYA (offen):** `port/scripts/ouya-gx-render.ps1` zeichnet die Mitschnitte mit
+  `gx_gl2_render` auf der OUYA-GPU, misst die Zeit je Bild und vergleicht die Bilder mit GLES 3.
+  Der erste Versuch brach ab: die OUYA war nicht mehr am PC (nur der Retroid); **noch nicht auf
+  dem Gerät gelaufen**.
 
 ## Aufbau
 

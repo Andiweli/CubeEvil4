@@ -65,6 +65,8 @@ struct GxCaps {
   bool readDepth = false;       // NV_read_depth: depth copies through the CPU without depth textures
   bool npotRepeat = false;      // non-power-of-two textures repeat and mirror (OES_texture_npot)
   bool npotMipmap = false;      // ... have mipmaps (OES_texture_npot, NV_texture_npot_2D_mipmap)
+  bool maxLevel = false;        // APPLE_texture_max_level: mipmap chains may stop early, as GX's
+                                // (else the missing levels are made; not on the Tegra 3)
   bool fragmentHigh = false;    // highp in fragment shaders
   int depthBits = 0;            // the EFB's
   int maxAttribs = 0, maxVertexUniforms = 0, maxVaryings = 0, maxTextureSize = 0;

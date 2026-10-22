@@ -53,7 +53,8 @@ prüfen).
 
 ## GLES-2-Weg der GX-Nachbildung (Stufe O2)
 
-Was auf der OUYA nicht 1:1 geht und wie es ersatzweise ginge:
+(Plan vom 21.10.2026; umgesetzt und mit den Messwerten der OUYA-GPU: Abschnitt „Stufe O2:
+der GLES-2-Renderer“ unten.) Was auf der OUYA nicht 1:1 geht und wie es ersatzweise ginge:
 
 - **TEV in Gleitkomma statt Ganzzahl.** fp20 im Fragment-Shader stellt ganze
   Zahlen nur bis 8192 genau dar. Werte (0..255, Register mit 11 bit) passen,
@@ -118,7 +119,7 @@ abgeschlossen**; der Kern reicht für die OUYA. Weiter mit O2.
 | Stufe | Inhalt | Wo | Ergebnis |
 |---|---|---|---|
 | **O1 Kern-Probe** | Der Kernprozess ohne Bild auf der OUYA: NDK r23c, Kern für `android-16`, `/dev/ashmem` statt `memfd`, per ADB nach `/data/local/tmp`, Disc-Ordner auf `/sdcard` oder USB-Stick, Tastenfolge wie `RE4_PAD_SCRIPT`, ohne Warten auf den Bildschirm (`RE4_VI_FAST=1`); misst Spielbilder je Sekunde mit GX-Decoder und Ton | Cloud (Code) + Windows-PC mit OUYA (Messung) | Zahl, die entscheidet: ab etwa 25 Bildern/s weiter, unter 15 eher nicht |
-| O2 GLES-2-Renderer | GLES-2-Weg der GX-Nachbildung wie oben, prüfbar in der Cloud mit llvmpipe (GLES 2 erzwingen) | Cloud | Titel und r100 als Bild auf dem PC |
+| O2 GLES-2-Renderer | GLES-2-Weg der GX-Nachbildung wie oben, prüfbar in der Cloud mit llvmpipe (GLES 2 erzwingen) | Cloud oder lokal (22.10.2026: lokal) | Titel und r100 als Bild auf dem PC: **erreicht** (22.10.2026, gleich mit GLES 3 bis auf Rundung); auf der OUYA-GPU noch offen |
 | O3 OUYA-APK | eigener Flavor (z. B. `ouya`: nur `armeabi-v7a`, `minSdk 16`, immer Kernprozess, eigene App-ID), Java-Versionsabfragen, Disc-Import ohne SAF, Tastenbelegung | Cloud + OUYA | erster Test auf dem Gerät |
 
 Entscheidungen des Projektinhabers (21.10.2026): **erst die Kern-Probe O1**;
@@ -179,3 +180,96 @@ OUYA erkannt, Befehle, Bericht, `senden.zip`.
 **Nicht geprüft (Stand des ersten Entwurfs):** der Build mit dem NDK r23c (in
 der Cloud gesperrt: `dl.google.com`), Windows PowerShell 5.1, alles auf der OUYA.
 Inzwischen auf dem Windows-PC gebaut und auf der OUYA gemessen (Status-Datei).
+
+## Stufe O2: der GLES-2-Renderer (22.10.2026)
+
+**Entscheidungen des Projektinhabers (22.10.2026):** der Code liegt in einem eigenen
+Ordner `port/ouya` (dort später auch die OUYA-App); der GLES-3-Renderer der Haupt-App
+wird **kopiert und für GLES 2 umgebaut** (die Haupt-App bleibt unberührt, Verbesserungen
+dort werden bei Bedarf von Hand nachgezogen); die OUYA-App (O3) wird ein **eigenes,
+schlankes Projekt** (nur ARM32, Android 4.1, Kern immer im eigenen Prozess, eigene App-ID,
+Java-Teile der Haupt-App, wo sie zu Android 4.1 passen); gearbeitet wird **lokal** auf dem
+Windows-PC (WSL mit Mesa, Disc-Daten, OUYA per ADB) statt in der Cloud.
+
+**Was die OUYA-Grafik wirklich kann** (gemessen 22.10.2026 mit
+`port/ouya/tools/gles2_info.cpp`, `port/scripts/ouya-gpu-info.ps1`; „NVIDIA Tegra 3“,
+OpenGL ES 2.0 16.05001):
+
+| Punkt | Tegra 3 | Folge für den Renderer |
+|---|---|---|
+| Vertex-Uniforms | 256 gemeldet, ein Feld bis 252 `vec4` (darüber „constant register limit“) | nur die Felder, die ein Shader liest; Lichter und Nachtransformations-Zeilen gepackt (höchstens etwa 180) |
+| Varyings | 15 gemeldet, nur 9 `vec4` linken | Texturkoordinaten als `vec2`/`vec3`, nur die gelesenen |
+| Attribute | 16 | nur die gelesenen (höchstens 17 im Gleitkomma-Punkt, praktisch unter 10) |
+| Fragment-Genauigkeit | `mediump` fp20 (13 Bit): ganze Zahlen genau bis 2^13 + 1 ... 2^14; `highp` übersetzt, rechnet aber auch nur so; `lowp` Festkomma in 1/256 | TEV in Gleitkomma mit kleinen Zwischenwerten; Texturen und Sampler `mediump` (in `lowp` würden manche der 255 Stufen zur nächsten) |
+| Texturkoordinaten | ab etwa 4 Wiederholungen einer 2048er-Textur jeder Texel falsch, auch unverändert durchgereicht | kein Unterschied zwischen „im Vertex-Shader skaliert“ und „im Fragment-Shader gerechnet“; weit wiederholte Texturen werden ungenau (zu prüfen am Bild) |
+| Tiefe | nur 16 Bit (`DEPTH_COMPONENT16`, `16_NONLINEAR_NV`), keine Tiefen-Texturen, kein 24 Bit | EFB-Tiefe als Renderbuffer 16 Bit nichtlinear; Tiefenkopien über `NV_read_depth` (RE4 macht keine: das Pixelformat Z24 setzt es nie, `main_sub.cpp`) |
+| Texturen ohne Zweierpotenz | nur mit `CLAMP_TO_EDGE`, Mipmaps erlaubt (`NV_texture_npot_2D_mipmap`) | Wiederholen/Spiegeln dort auf Klemmen (gezählt) |
+| Mipmaps | nur vollständige Ketten (kein `TEXTURE_MAX_LEVEL`) | fehlende Stufen werden ergänzt (je 2×2 ein Original-Texel, siehe unten) |
+| Sonstiges | `NV_shader_framebuffer_fetch`, `OES_vertex_array_object`, S3TC/DXT1, `EXT_texture_filter_anisotropic` (15), `NV_timer_query`; **keine** Programm-Binärdaten | Shader werden bei jedem Start neu übersetzt (Ruckler beim ersten Auftreten eines Effekts) |
+
+**Aufbau** (`port/ouya/app/src/main/cpp/gx_gl2.cpp`, `gx_gl2_shader.cpp`; Schnittstelle wie
+`re4gx::GxRenderer`, Namensraum `re4gx2`):
+
+- **TEV in Gleitkomma:** jede Größe eine ganze Zahl im `float`; `x & 255` als
+  `x - 256 floor(x/256)`, Verschieben als Multiplikation und `floor`, die Interpolation als
+  `a + (b - a) c'/256` (kleine Zwischenwerte statt bis 65 280); Vergleiche über 16/24 Bit
+  der Reihe nach (b, g, r) statt als große Zahl. Mit `highp` (Mesa) Bit für Bit wie der
+  GLES-3-Renderer, mit fp20 (OUYA) ist die Rundung der Interpolation nur ungefähr.
+- **Kompaktformat direkt:** GL liest die GX-Typen selbst (`GL_BYTE`/`SHORT`/...), der
+  Vertex-Shader skaliert mit den Nachkommabits (`uDequant`), Matrix-Indizes als Bytes;
+  Plätze, die der Punkt nicht trägt, aus `Re4GxDraw.matrices` (`uMtxDef`). Der
+  Gleitkomma-Punkt geht genauso.
+- **Uniforms je Programm:** GLES 2 hat keine gemeinsamen Blöcke; jede Änderung trägt einen
+  Zeitstempel, ein Programm lädt beim Zeichnen nur, was sich seit seinem letzten Mal
+  geändert hat (Matrix-Zeilen in Läufen).
+- **Texturkoordinaten:** liest nur eine Textur eine Koordinate, skaliert der Vertex-Shader
+  sie auf diese Textur (der Fragment-Shader liest ohne Rechnung); sonst und bei indirekten
+  Stufen der Festkomma-Weg (1/128 Texel) des GLES-3-Renderers in Gleitkomma.
+- **Bildkopien** lesen das EFB pixelgenau (`NEAREST`, wie die GameCube; linear würde mit den
+  fp20-Koordinaten der OUYA benachbarte Pixel einmischen).
+- **Mipmaps:** wo die GPU `APPLE_texture_max_level` hat (Mesa), endet die Kette wie bei GX;
+  sonst (Tegra 3) werden die fehlenden Stufen ergänzt, je 2×2 ein Original-Texel (ein
+  Mittelwert machte ausgeschnittenes Laub in der Ferne halb durchsichtig, und der
+  Alpha-Test dünnte es aus).
+- **Weggelassen:** MSAA, der Autofokus (Tiefenschärfe) der Haupt-App (die Markierung BP 0x5A
+  wird gezählt und übergangen), Uniform-Ring, GPU-Zeitmessung, Programm-Binärdaten.
+
+**Prüfung auf dem PC** (`port/ouya/tools/check.sh`; WSL oder Cloud, Mesa auf GLES 2.0
+gezwungen mit `MESA_GLES_VERSION_OVERRIDE=2.0`; der GLES-3-Renderer der Haupt-App läuft
+in einem eigenen Prozess als Vergleich):
+
+- `gx_gl2_check`: 22 künstliche Szenen (Grundformen, Seiten, Tiefe, Mischen, Alpha-Test,
+  TEV-Rechnung mit allen Skalen und Vorzeichen, Licht mit Spot, Kopien und Paletten, Nebel,
+  Kopierfilter, 64 zufällige TEV-Aufbauten ohne und mit indirekten Stufen, alle
+  Texturformate mit Mipmaps und Wiederholarten, Texturkoordinaten-Erzeugung mit
+  Projektion und Nachtransformation, Emboss, Matrizen je Punkt, Perspektive mit Nebel,
+  alle Kopierformate, Tiefenkopien, Punkte und Linien, Ziel-Alpha und Logik); der
+  GLES-2-Renderer bekommt die Punkte im Kompaktformat, zufällig auf alle Typen,
+  Nachkommabits und Komponentenzahlen verteilt. Drei Läufe: wie er läuft; mit der
+  Rundung des GLES-3-Renderers (1/128 Texel, Mesas `round()`: **Bild für Bild gleich**,
+  außer einer Zelle mit einem Rundungs-Gleichstand x,5 an einer Texel-Ecke); wie auf dem
+  Tegra 3 (16-Bit-Tiefe, keine Tiefen-Texturen, NPOT nur geklemmt, die Grenzwerte).
+- `gx_gl2_compare`: echte Spielbilder (Mitschnitte des Kerns, `RE4_GX_DUMP`) mit beiden
+  Renderern; die Autofokus-Markierung wird beiden genommen.
+- Der Renderer übersetzt mit dem NDK r23c für Android 4.1 (`-Wunguarded-availability`).
+
+**Ergebnisse (22.10.2026):**
+
+| Prüfung | wie er läuft | mit der Rundung von GLES 3 | wie auf dem Tegra 3 |
+|---|---|---|---|
+| 22 künstliche Szenen | bestanden | gleich (eine Zelle: Gleichstand x,5) | bestanden |
+| 24 Gleitkomma-Mitschnitte der PC-Prüfung (18.10.; Logos, Titel, r100) | ≤ 0,3 % der Pixel | 0 Pixel | ≤ 2,9 % |
+| 30 Kompakt-Mitschnitte (`compare_frames.sh`, r100 und r101 je 6000 Bilder, bis 137 000 Dreiecke und 921 Zeichenaufträge) | ≤ 0,13 % | ≤ 0,06 % | ≤ 2,7 % |
+
+(„Pixel“: mehr als 2 Stufen daneben.) Die Abweichungen „wie er läuft“ sitzen an Texel-Grenzen
+(der GLES-3-Renderer rundet Koordinaten auf 1/128 Texel), die „wie auf dem Tegra 3“ in der
+Ferne (ergänzte Mipmap-Stufen statt einer endenden Kette, 16-Bit-Tiefe); mit bloßem Auge
+sind die Bilder nicht zu unterscheiden.
+
+**Auf der OUYA:** `port/scripts/ouya-gx-render.ps1` (unter der ADB-Sperre) zeichnet die
+Mitschnitte mit `port/ouya/tools/gx_gl2_render.cpp` auf der OUYA-GPU, misst die Zeit je Bild
+(erster Lauf mit Texturen und Shader-Bau, dann wie die folgenden Bilder des Spiels) und
+vergleicht die Bilder mit GLES 3. **Noch nicht auf dem Gerät gelaufen** (beim ersten Versuch
+war die OUYA nicht mehr am PC). Offen danach: Leistung (Zeit je Bild, Zahl der
+GL-Aufrufe je Zeichenauftrag), Genauigkeit von fp20 und der Texturkoordinaten am Bild,
+Shader-Bau ohne Programm-Binärdaten (Ruckler), dann O3.

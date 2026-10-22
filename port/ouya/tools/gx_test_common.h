@@ -55,10 +55,12 @@ private:
 // gx_probe.cpp asFloatVertices): a chunk whose compact draws become float draws, without the
 // RE4_GX_OP_COMPACT_FORMAT ops; the GLES 3 renderer draws such a chunk. `storage` holds the new
 // ops and vertices; the chunk points into it and into `chunk`'s indices and blob.
+// dropAutofocus: without the core's markers of the main app's gameplay autofocus (BP 0x5A), which
+// the GLES 2 renderer leaves out
 struct FloatChunk {
   std::vector<std::uint32_t> ops;
   std::vector<std::uint8_t> vertices;
 };
-void ToFloatVertices(const Re4GxChunk &chunk, FloatChunk &storage, Re4GxChunk &out);
+void ToFloatVertices(const Re4GxChunk &chunk, FloatChunk &storage, Re4GxChunk &out, bool dropAutofocus = false);
 
 } // namespace ouyatest

@@ -517,20 +517,18 @@ struct GxRenderer::Impl {
 
   // A whole mipmap chain for GLES 2 (no TEXTURE_MAX_LEVEL): the levels below the last one GX gave,
   // each the 2x2 average of the one before.
+  // One texel of each 2x2, not their mean: GX samples its last level on in the distance, so the
+  // colours and the alpha a test cuts at stay those of that level (a mean turns cut-out foliage
+  // half transparent, and the alpha test then thins or thickens it far away; the r100 frames on
+  // the PC differed by up to 123 levels there).
   static void NextLevel(const std::vector<std::uint8_t> &in, unsigned w, unsigned h, std::vector<std::uint8_t> &out) {
     const unsigned ow = std::max(1u, w / 2), oh = std::max(1u, h / 2);
     out.assign(static_cast<std::size_t>(ow) * oh * 4, 0);
     for (unsigned y = 0; y < oh; y++)
-      for (unsigned x = 0; x < ow; x++)
-        for (unsigned c = 0; c < 4; c++) {
-          unsigned sum = 0;
-          for (unsigned dy = 0; dy < 2; dy++)
-            for (unsigned dx = 0; dx < 2; dx++) {
-              const unsigned sx = std::min(w - 1, x * 2 + dx), sy = std::min(h - 1, y * 2 + dy);
-              sum += in[(static_cast<std::size_t>(sy) * w + sx) * 4 + c];
-            }
-          out[(static_cast<std::size_t>(y) * ow + x) * 4 + c] = static_cast<std::uint8_t>((sum + 2) / 4);
-        }
+      for (unsigned x = 0; x < ow; x++) {
+        const unsigned sx = std::min(w - 1, x * 2), sy = std::min(h - 1, y * 2);
+        std::memcpy(&out[(static_cast<std::size_t>(y) * ow + x) * 4], &in[(static_cast<std::size_t>(sy) * w + sx) * 4], 4);
+      }
   }
 
   void Upload(const Re4GxTexture &t, const Re4GxChunk &chunk) {
@@ -576,9 +574,13 @@ struct GxRenderer::Impl {
       w = std::max(1u, w / 2);
       h = std::max(1u, h / 2);
     }
-    if (levels > 1) {
+    if (levels > 1 && caps.maxLevel) {
+      // the chain ends where GX's does (APPLE_texture_max_level): sampled as the GameCube does
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL_APPLE, static_cast<GLint>(levels - 1));
+    } else if (levels > 1) {
       // a mipmapped texture whose chain stops before 1x1 (lw x lh, the last level in rgba): the
-      // rest from the last level, or GLES 2 samples it black
+      // rest from the last level, or GLES 2 samples it black (GX stays at its last level: the
+      // distance gets a little softer here)
       while (lw > 1 || lh > 1) {
         NextLevel(rgba, lw, lh, smaller);
         rgba.swap(smaller);
@@ -1666,6 +1668,9 @@ struct GxRenderer::Impl {
     caps.readDepth = HasExtension(ext, "GL_NV_read_depth");
     caps.npotRepeat = !tegra3 && HasExtension(ext, "GL_OES_texture_npot");
     caps.npotMipmap = HasExtension(ext, "GL_OES_texture_npot") || HasExtension(ext, "GL_NV_texture_npot_2D_mipmap");
+    // RE4_GX2_MAKE_LEVELS=1 (tests): the missing mipmap levels made, as on the Tegra 3
+    const char *makeLevels = std::getenv("RE4_GX2_MAKE_LEVELS");
+    caps.maxLevel = !tegra3 && !(makeLevels && *makeLevels == '1') && HasExtension(ext, "GL_APPLE_texture_max_level");
     GLint range[2] = {}, precision = 0;
     glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_HIGH_FLOAT, range, &precision);
     caps.fragmentHigh = precision > 0;
@@ -1711,8 +1716,9 @@ bool GxRenderer::Init(int scale, std::string *error) {
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
   // copies read whole pixels, as the GameCube's (the GLES 3 renderer filters linearly at the
   // pixel centres: a coordinate a little off mixes in the neighbour, with the Tegra's fp20
-  // coordinates by up to a tenth of a pixel; the 2x2 box of half copies reads pixel centres too)
-  Impl::PlainParams(GL_NEAREST);
+  // coordinates by up to a tenth of a pixel; the 2x2 box of half copies reads pixel centres too);
+  // linearly with texelCoords, as the GLES 3 renderer (tests)
+  Impl::PlainParams(m.options.texelCoords ? GL_LINEAR : GL_NEAREST);
   glGenFramebuffers(1, &m.efbFbo);
   glBindFramebuffer(GL_FRAMEBUFFER, m.efbFbo);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m.efbColor, 0);
