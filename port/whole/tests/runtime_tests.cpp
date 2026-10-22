@@ -965,6 +965,7 @@ int re4probe_menu_touch(void);
 int re4probe_letterbox(void);
 int re4probe_knife_swipe(void);
 int re4probe_snd_bank(void);
+int re4probe_frame_sections(void);
 int re4_log_tail(char* out, int size);
 }
 
@@ -1635,6 +1636,22 @@ static void testSndBank()
     report("sndbank", bad == 0);
 }
 
+// The sections of a frame (patch 0108; state_trace.cpp, game_probe.cpp re4probe_frame_sections):
+// one line after 600 frames in a room, with the averages
+static void testFrameSections()
+{
+    re4probe_frame_sections();
+    static char tail[16 * 160];
+    re4_log_tail(tail, sizeof tail);
+    // (the tail keeps 120 characters of a line)
+    const bool ok = strstr(tail, "frame: 600 frames in r105: logic 2.0 ms, drawing 5.0 ms, rest 3.0 ms, frame end "
+                                 "1.0 ms, waiting 21.3 ms") != 0;
+    if (!ok) {
+        re4_log("  sections: the line is not in the log");
+    }
+    report("sections", ok);
+}
+
 // The knife by a swipe (runtime/knife_swipe.cpp; game_probe.cpp re4probe_knife_swipe): L until the
 // knife is out, L and A until it slashes, the swipe's tilt on the aim, a second swipe, the stops
 static void testKnifeSwipe()
@@ -1799,6 +1816,7 @@ int re4_runtime_tests()
     testLetterbox();
     testKnifeSwipe();
     testSndBank();
+    testFrameSections();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);

@@ -165,6 +165,9 @@ extern "C" unsigned re4_rnd_state(void);          // game/rnd.cpp (patch 0081)
 extern "C" unsigned re4_heap_fail_count(void);    // runtime/log.cpp (patch 0081)
 extern "C" void re4_gx_stats(unsigned out[11]);   // runtime/gx_decode.cpp
 extern "C" void re4_ai_set_block_hook(void (*hook)(void));  // runtime/ai.cpp
+extern u32 proc_tick[32];         // game/debug.cpp (patch 0108): ProcessTickGet of the last frame
+extern const char* proc_name[32];
+extern int proc_tick_idx_bak;
 extern "C" void re4_gx_stats2(unsigned out[9]);
 
 namespace {
@@ -883,6 +886,55 @@ void sndLog(unsigned n, GLOBAL_WK* g)
     g_sndPeak = 0;
 }
 
+// --- the sections of a frame (patch 0108) ---
+//
+//   frame: 600 frames in r105: logic 6.1 ms, drawing 9.8 ms, rest 2.0 ms, frame end 1.2 ms,
+//       waiting 14.2 ms (averages; the longest frame 41.0 ms)
+//
+// The game's own timing (main.cpp ProcessTickGet, wall time from the frame's start): logic = the
+// task scheduler (Leon, enemies, effects, cameras, the room), drawing = IdSys, Trans (the models'
+// GX commands, which the port's graphics decoder converts at once) up to SndWatcher, rest = text,
+// the cinema bars and the ordering table (more GX commands), frame end = Render_done and the
+// checks, waiting = for the retrace (the frame's pace). Every 600 frames of play (wishes of the
+// project owner, 22.10.2026: where a weak device's time goes).
+struct FrameSections {
+    double logic, drawing, rest, end, waiting, longest;
+    unsigned frames;
+};
+FrameSections g_sections;
+
+void sectionLog(unsigned n, GLOBAL_WK* g)
+{
+    // the last frame's marks: 4 setup, 5 TaskScheduler, 6 SndWatcher, 2 CPU, 3 draw remain, 0 total
+    if (proc_tick_idx_bak != 2 || !proc_name[5] || !proc_name[6] || strcmp(proc_name[5], "TaskScheduler") != 0 ||
+        strcmp(proc_name[6], "SndWatcher") != 0 || g->Rno0 != 3) {
+        return;
+    }
+    const double ms = 1000.0 / (162000000.0 / 4);  // OSGetTick: the bus clock / 4
+    const u32* t = proc_tick;
+    if (!(t[4] <= t[5] && t[5] <= t[6] && t[6] <= t[2] && t[2] <= t[3] && t[3] <= t[0])) {
+        return;
+    }
+    FrameSections& s = g_sections;
+    s.logic += (t[5] - t[4]) * ms;
+    s.drawing += (t[6] - t[5]) * ms;
+    s.rest += (t[2] - t[6]) * ms;
+    s.end += (t[3] - t[2]) * ms;
+    s.waiting += (t[0] - t[3]) * ms;
+    s.longest = t[0] * ms > s.longest ? t[0] * ms : s.longest;
+    if (++s.frames < 600) {
+        return;
+    }
+    if (g_runWindow.take(n, kRunWindowLines, "run")) {
+        const double f = s.frames;
+        re4_log("frame: %u frames in r%03x: logic %.1f ms, drawing %.1f ms, rest %.1f ms, frame end %.1f ms, "
+                "waiting %.1f ms (averages; the longest frame %.1f ms)",
+                s.frames, (unsigned) g->room_id, s.logic / f, s.drawing / f, s.rest / f, s.end / f, s.waiting / f,
+                s.longest);
+    }
+    s = FrameSections();
+}
+
 void frame(unsigned n)
 {
     trace(n);
@@ -943,6 +995,7 @@ void frame(unsigned n)
     }
     subOpen = sub;
     sndLog(n, g);
+    sectionLog(n, g);
     enemyLog(n, g);
     menuLog(n, g);
     playerLog(n, g);
@@ -1242,6 +1295,14 @@ extern "C" int re4_debug_hud_shown(void)
 extern "C" long re4_trace_free_at(void)
 {
     return g_freeAt;
+}
+
+// One frame's sections into the averages (runtime test "sections", game_probe.cpp).
+extern "C" void re4_trace_sections(unsigned n)
+{
+    if (live(pG)) {
+        sectionLog(n, pG);
+    }
 }
 
 // The sound request count before an audio frame and its counters (peak, over 64, full), for the

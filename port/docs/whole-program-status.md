@@ -5990,6 +5990,47 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
 - **Nicht getestet:** am Gerät (ob die Schreie jetzt kommen und ob die Zeile `sound:` in großen
   Kämpfen erscheint).
 
+### Schwächere Geräte, Schritt 1: Zeitaufteilung im Bericht, schnellerer GX-Decoder (Wunsch des Projektinhabers, 22.10.2026, Cloud)
+
+- **Ausgang:** Galaxy S7, moto e6s, Galaxy A30s und Galaxy S10 ruckeln; auf dem Gerät gingen zuletzt
+  68–71 % der Rechenzeit des Kerns in den GX-Decoder (Display-Listen und FIFO nach GLES3-Ecken
+  umwandeln, `gx_decode.cpp`). Die R3-Folgen des Retroid (r10a 23:32, r10b 23:35 zweimal) liegen in
+  `files/gx-dumps` und kommen nicht mit dem Bericht; holen mit `port/scripts/pull-gx-dumps.ps1`.
+- **Neue Zeile im Bericht (Patch 0108):** `frame: 600 frames in rNNN: logic … ms, drawing … ms, rest …
+  ms, frame end … ms, waiting … ms (averages; the longest frame … ms)`. Quelle ist die eigene
+  Zeitmessung des Spiels (`ProcessTickGet` in `main.cpp`, `proc_tick` in `debug.cpp`, Echtzeit):
+  logic = Aufgaben-Planer (Leon, Gegner, Effekte, Kamera, Raum), drawing = IdSys und Trans bis
+  `SndWatcher` (die GX-Befehle der Modelle, die der Decoder sofort umwandelt), rest = Texte,
+  Kinobalken, Sortierliste, frame end = `Render_done` und Prüfungen, waiting = Warten auf den
+  Bildtakt. Alle 600 Spielbilder (`Rno0` 3), über das Zeilenfenster `run`. Damit zeigt jeder
+  Bericht, ob ein Gerät an der Spiellogik oder am Zeichnen hängt.
+- **Decoder schneller, Ausgabe unverändert:**
+  - Eckpunkte in Blöcken zu 128: erst je Ecke nur die Quelladressen (Matrix-Bytes, direkte und
+    indizierte Attribute), dann je Attribut eine Lesefunktion für den ganzen Block. Die Lesefunktion
+    je Format (Zahlentyp, Komponenten, Byte-Reihenfolge; Farben je Farbformat) wählt `describe()`
+    einmal je Eckpunkt-Format (`posBlock`, `nrmBlock`, `nrmPartBlock` für NBT3, `texBlock`,
+    `clrBlock`), statt je Ecke und Attribut zu verzweigen.
+  - Array-Basis und -Schrittweite (`gGp.arrayBase/arrayStride`) werden nicht mehr bei jeder
+    Zeichnung neu nach Host-Adressen aufgelöst: Zwischenspeicher je Array, ungültig beim Schreiben
+    der CP-Register 0xA0/0xB0 und wenn `gx_fifo.cpp` ein neues Adressfenster vergibt
+    (`aliasGeneration`, einmal je Zeichnung und Matrix-Ladung geprüft, `arraysCurrent`).
+  - Indizes werden gleich mit dem Versatz einer angehängten Zeichnung geschrieben (vorher ein
+    zweiter Durchlauf).
+  - **Messung** (Host i686, `-O2`, `RE4_GX_BENCH=300`, 120 000 Ecken je Bild, Cloud-Rechner mit
+    Schwankungen): Streifen zu 20 Ecken 3,25 → 2,6–2,9 ms, Streifen zu 8 (wie der Wald von r100,
+    neu `RE4_GX_BENCH_STRIP=N`) 4,22 → 3,5–3,8 ms, also etwa 15 % weniger Decoder-Zeit. Danach
+    (perf): `draw` selbst 41 % (der Durchlauf je Ecke), `xfWrite` 8 %, die Lesefunktionen zusammen
+    15 %, `command` 4 %, `emit` 3 %. Am Gerät nicht gemessen.
+- **Größerer Hebel (Grundsatzentscheidung, offen):** den Decoder in einen eigenen Thread legen
+  (das Spiel schreibt weiter, der Decoder wandelt parallel um, mit Rückstand-Grenze wie der
+  GameCube-FIFO). Auf Mehrkern-Geräten würde damit ein Großteil der Decoder-Zeit vom Spielthread
+  verschwinden.
+- **Tests:** neuer Laufzeittest `sections` (`game_probe.cpp` `re4probe_frame_sections`: Marken bei 1,
+  3, 8, 11, 12 und 33,33 ms, ein Bild mit `Rno0` 2 zählt nicht, dann 600 Bilder in r105 → genau die
+  Zeile `frame: 600 frames in r105: logic 2.0 ms, drawing 5.0 ms, rest 3.0 ms, frame end 1.0 ms,
+  waiting 21.3 ms`). GX-Fingerabdruck (`gx`, 0x02524012c6419af2) unverändert, alle Laufzeittests 0
+  Fehler (i686 `-O2`). Ergebnis der drei Builds siehe unten.
+
 ### Gerätetest 22.10.2026 21:22 (Retroid): Karte ohne Finger-Verschieben, kein „Exit“-Aufblinken aus dem Koffer (Cloud)
 
 - **Befund des Projektinhabers (Bericht 21:22, Logcat):** von ganz links bis zur Karte geht das
@@ -7168,6 +7209,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0105 `main.cpp`, `trans.cpp` | Bildformat „4:3 (ohne Balken)“ (Anbernic RG 477V, 4:3-Bildschirm): solange `re4_letterbox_open()` (`runtime/picture.cpp`: Schalter des App-Menüs, Hauptschleife `Rno0` 3, kein Untermenü, kein Ereignis) gilt, keine Schere auf die Zeilen 56..392 in `Render` (die setzt jeder Raumstart, `SYS_SCISSOR_ON`) und kein `Draw_cinesco`; sonst wie im Original |
 | 0106 `ss_main.cpp` | Touch im Untermenü: `SubScreenTask` ruft je Bild vor `cur->move` `re4_touch_sscrn` (`runtime/menu_touch.cpp`) mit dem aktuellen Widget und den vier Haupt-Widgets (jetzt mit 0 vorbelegt, Händler und Funk legen keine an); ein Tipp der App wird zu Cursor und Tasten dieses Bildes (Koffer-Cursor, Befehlsmenü, Frage), ein Wischen zum Reiterwechsel (seit dem Gerätetest 22.10.2026 20:09 ohne Ring, Reiter per Tipp ausgebaut); seit dem Gerätetest 21:22 dazu gleich nach `cur->move`, vor dem Zeichnen, `re4_touch_sscrn_moved`: die Hervorhebung des gewählten Reiters im Bild, in dem die Leiste den Fokus bekommt (aus dem Koffer blinkte sonst „Exit“) |
 | 0107 `snd_drv.h` | Anfrage-Speicher des Tontreibers 256 statt 64 Plätze (`SND_REQ_MAX`, Anpassung des Ports, 22.10.2026): auf dem GameCube läuft der Ton-Takt des Spiels alle 5 ms mitten im Spielbild und nimmt die Anfragen dieser 5 ms; im Port laufen die Ton-Takte zwischen zwei Spielbildern (`vi.cpp` `re4_os_idle`), ein Speicher nimmt also alle Anfragen eines Spielbilds (jeder Raumklang je Bild, jeder neue Ton, jedes Stopp). Ein voller Speicher verweigert einen Ton stillschweigend; vermutete Ursache der stummen Todesschreie in großen Kämpfen (Gerätetest 22.10.2026 23:41). Die Zeile `sound: …` (`state_trace.cpp`) zählt Takte mit mehr als 64 Anfragen |
+| 0108 `debug.cpp` | `proc_tick` (die eigene Zeitmessung eines Spielbilds, `ProcessTickGet` in `main.cpp`) nicht mehr `static` (Anpassung des Ports, 22.10.2026): `runtime/state_trace.cpp` mittelt daraus die Abschnitte eines Bilds und schreibt alle 600 Spielbilder die Zeile `frame: … logic …, drawing …, rest …, frame end …, waiting …` in den Bericht (wohin die Zeit eines schwachen Geräts geht). Nur die Sichtbarkeit ändert sich, die Reihenfolge in `.bss` bleibt |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

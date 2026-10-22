@@ -1034,15 +1034,19 @@ extern "C" unsigned re4probe_gx_bench(void* fifo, void* mem, void* xfb, int fram
     for (uint32_t i = 0; i < 0x20000; i++) {  // arrays: positions, normals, texture coordinates, matrices
         m[i] = r.byte();
     }
-    // the list: 1500 strips of 20 vertices, a matrix load before each
+    // the list: 1500 strips of 20 vertices, a matrix load before each (RE4_GX_BENCH_STRIP=N:
+    // strips of N vertices, as many as make 30 000; the forest of r100 has about 8 per GXBegin)
+    const char* stripEnv = getenv("RE4_GX_BENCH_STRIP");
+    const int strip = stripEnv && atoi(stripEnv) >= 3 && atoi(stripEnv) <= 1000 ? atoi(stripEnv) : 20;
+    const int strips = 30000 / strip;
     const uint32_t listAt = 0x20000;
     Stream l = {m + listAt, 0};
-    for (int k = 0; k < 1500; k++) {
+    for (int k = 0; k < strips; k++) {
         l.u8_(0x20);
         l.u32_(r.below(64) << 16 | 11u << 12 | (r.below(8) * 12));
         l.u8_(0x98);
-        l.u16_(20);
-        for (int v = 0; v < 20; v++) {
+        l.u16_((u16) strip);
+        for (int v = 0; v < strip; v++) {
             l.u8_(r.below(8) * 3);
             l.u16_(r.below(2000));
             l.u16_(r.below(2000));

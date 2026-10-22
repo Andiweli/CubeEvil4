@@ -53,6 +53,7 @@ const u32 kAliasWindow = 0x00100000;
 const int kAliasSlots = 16;
 uintptr_t gAlias[kAliasSlots];  // host address of each window, 0 = free
 bool gAliasFullLogged;
+uint32_t gAliasGeneration;      // windows given out (re4gx::aliasGeneration)
 
 u32 aliasOf(uintptr_t pointer)
 {
@@ -66,6 +67,7 @@ u32 aliasOf(uintptr_t pointer)
         if (gAlias[s] == 0 && gAlias[s + 1] == 0) {
             gAlias[s] = window;
             gAlias[s + 1] = window + kAliasWindow;
+            gAliasGeneration++;
             return kAliasBase + (u32) s * kAliasWindow + (u32) (pointer - window);
         }
     }
@@ -149,6 +151,11 @@ uint8_t* memory(uint32_t physical, uint32_t size)
         return (uint8_t*) (gAlias[s] + offset);
     }
     return nullptr;
+}
+
+uint32_t aliasGeneration()
+{
+    return gAliasGeneration;
 }
 
 uint8_t* memorySpan(uint32_t physical, uint32_t* available)

@@ -1078,6 +1078,49 @@ extern "C" int re4probe_menu_touch(void)
 }
 
 extern "C" void re4_trace_snd_look(int reset, unsigned out[3]);
+extern "C" void re4_trace_sections(unsigned n);
+extern u32 proc_tick[32];
+extern const char* proc_name[32];
+extern int proc_tick_idx_bak;
+
+// The frame's sections (patch 0108, state_trace.cpp): 600 frames of 1 ms setup, 2 ms logic, 5 ms
+// drawing, 3 ms rest, 1 ms frame end and 21.3 ms waiting give one line with those averages; a
+// frame outside a room or without the scheduler's marks counts not. Bits: each failed case.
+extern "C" int re4probe_frame_sections(void)
+{
+    u32 keepTick[32];
+    const char* keepName[32];
+    memcpy(keepTick, proc_tick, sizeof keepTick);
+    memcpy(keepName, proc_name, sizeof keepName);
+    const int keepIdx = proc_tick_idx_bak;
+    const u8 keepStep = pG->Rno0;
+    const u16 keepRoom = pG->room_id;
+    const u32 ms = 40500;  // OSGetTick per millisecond
+    proc_tick[4] = 1 * ms;
+    proc_tick[5] = 3 * ms;
+    proc_tick[6] = 8 * ms;
+    proc_tick[2] = 11 * ms;
+    proc_tick[3] = 12 * ms;
+    proc_tick[0] = 33 * ms + ms / 3;
+    proc_name[5] = "TaskScheduler";
+    proc_name[6] = "SndWatcher";
+    proc_tick_idx_bak = 2;
+    pG->room_id = 0x105;
+    pG->Rno0 = 2;  // not in a room: not counted
+    for (unsigned i = 0; i < 700; i++) {
+        re4_trace_sections(i);
+    }
+    pG->Rno0 = 3;
+    for (unsigned i = 0; i < 600; i++) {
+        re4_trace_sections(1000 + i);
+    }
+    memcpy(proc_tick, keepTick, sizeof keepTick);
+    memcpy(proc_name, keepName, sizeof keepName);
+    proc_tick_idx_bak = keepIdx;
+    pG->Rno0 = keepStep;
+    pG->room_id = keepRoom;
+    return 0;
+}
 
 // The sound driver's request bank (patch 0107: 256 slots) and its count before an audio frame
 // (state_trace.cpp): 70 requests are over the GameCube's 64, a full bank counts as full; the

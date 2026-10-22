@@ -18,6 +18,9 @@ uint8_t* memory(uint32_t physical, uint32_t size);
 // The same for a run of bytes: the host address of `physical` and in
 // *available how many bytes from there on are memory (0 and NULL: none).
 uint8_t* memorySpan(uint32_t physical, uint32_t* available);
+// Counts the windows of port memory given out so far: what memorySpan answers for an address
+// only changes when this does (the decoder keeps its array spans until then).
+uint32_t aliasGeneration();
 
 // The address word of a display list call: the SDK writes the list pointer as
 // it is (GXCallDisplayList); on the GameCube the GP masks it to physical.
