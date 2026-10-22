@@ -5843,6 +5843,10 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   Threads auf die schnellen Kerne legen; im Renderer weniger GL-Aufrufe je Zeichenbefehl
   (Texturen und Uniform-Blöcke zusammenfassen); im Kern den GX-Decoder (Punkte umrechnen, auf
   dem Retroid ein Drittel der Kernzeit) beschleunigen.
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, alle Tests 0 Fehler, neuer
+  Test `cpuinfo` auf allen drei; `core_mode.cpp` ohne Fehler in einer Syntaxprüfung mit clang für
+  ARM64 und ARM32 (Android-Kopfdateien als Platzhalter). **Nicht getestet:** die neuen Zeilen auf
+  einem Gerät (kommen mit der nächsten Version).
 
 ### Drei Berichte mit Video (0.41.3, 22.10.2026): Aufrüsten beim Händler, unsichtbarer Biss
 
