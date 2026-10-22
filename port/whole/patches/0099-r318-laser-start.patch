@@ -1,0 +1,21 @@
+# 64-bit build: r318 (the laser corridor) draws each beam from the emitter's part 2 to part 4
+# (R318LaserCallBackFunc). The start is read at the fixed offset 0x70 into cParts, where cCoord::world
+# lies on the GameCube and ILP32; on LP64 world is at 0x80 and 0x70 holds the end of the local matrix
+# and half of pParent. The beams were drawn from a wrong point while the hit test (EmAtkLineHitCk on
+# parts 2 and 4) used the real beam: Leon was cut by beams that were not where they were shown (SCV40
+# tester, 0.42.1, 22.10.2026, video). Patch 0073's search (raw_offset_check.py) did not see this
+# offset: it is added to a Vec* the code laundered from the cParts* (`pa = q`). Now RE4_OFS. The
+# effect view behind it (R318EspView) has been right since patch 0074.
+--- a/src/st3/r318.cpp
++++ b/src/st3/r318.cpp
+@@ -229,7 +229,9 @@
+         q = p2;
+         pa = (Vec*) q;
+         asm("" : "+r"(q));
+-        pa = (Vec*) ((u8*) pa + 0x70);
++        /* PORT (patch 0099): cParts::world, 0x70 on the GameCube and ILP32, 0x80 on LP64 (from 0x70 the
++           beam started at the local matrix and pParent: drawn elsewhere than the hit test's beam) */
++        pa = (Vec*) ((u8*) pa + RE4_OFS(cParts, world, 0x70));
+         Vec* pb = &p4->world;
+         if (k != 2) {
+             pb = 0;

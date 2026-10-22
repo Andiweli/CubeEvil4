@@ -5814,6 +5814,27 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Rückmeldungen zu 0.42.1 (22.10.2026): Laser-Gang r318, Filmfarben auf dem Galaxy A36
+
+- **Laser-Gang (SCV40 = Galaxy S9, Snapdragon 845, Adreno 630, 64 bit; Bericht 17:34 und Video):**
+  Leon geht durch r318, die Wand-Emitter zeigen kurze schräge Strahlen, Leon wird zerschnitten
+  (`run: player hit, life 1580 -> 0`, zweimal, bei x ≈ -12 700, in den Szenenflächen 5 und 6),
+  danach „Continue“. Die Muster 0 und 1 sind im Original ohne Ausweich-Taste (Modus 2: ausweichen
+  durch Abstand halten, jeder Treffer des Strahls tötet). Ursache: der Strahl wurde auf 64 bit vom
+  falschen Anfangspunkt gezeichnet (Patch 0099), der Treffertest nahm den richtigen Strahl. Die
+  Effekt-Sicht `R318EspView` dahinter ist seit 0074 richtig. Suche nach weiteren festen Abständen
+  im vorbereiteten 64-bit-Baum: übrig sind Datenpuffer von der Disc (Teile-Daten `part + 0x20`,
+  Tabellen, Texturen), `cAtariInfo::m_flag` (+0x1A, ohne Zeiger davor) und `ESP1B_WK` (gleiche
+  Lage auf 32 und 64 bit, nachgerechnet): kein weiterer Fall.
+- **Filmfarben (Galaxy A36, Snapdragon 6 Gen 3, Adreno 710; zwei Bildschirmfotos, kein Bericht):**
+  der Vorfilm (opening.sfd) mit verfälschten Farben: helle Flächen grün, dunkle braun, dazwischen
+  türkis, mit harten Stufen. Die Filme laufen über die GX-Nachbildung (CRI zeichnet Y, U und V als
+  I8-Texturen und rechnet die Farbe mit TEV-Stufen und Konstanten). Grün in hellen Flächen passt zu
+  Farbanteilen (U, V), die zu klein ankommen; die harten Stufen zu einem Überlauf in der
+  Ganzzahl-Rechnung des TEV-Shaders. Auf dem Retroid (Adreno 650) sind die Filme richtig, von anderen
+  Geräten keine solche Meldung. Ohne
+  Bericht des A36 (GPU-Treiber, Shader-Fehler) nicht weiter eingrenzbar. **Offen.**
+
 ### Bericht SCV40 (0.41.3, 22.10.2026 16:21): Absturz auf dem Bulldozer, Absturz beim Laden
 
 Meldung: „When Ashley gets carried away by a zombie, the game crashes. Also, the game sometimes
@@ -6328,6 +6349,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0096 `trans.cpp` | `commonModelTrans` nimmt die Mischart aus `bl[info->blend_mode]`, einer Tabelle mit 5 Zeilen; Modelle in r20a, r20b, r216 und r31d haben `blend_mode` 5 (Sanitizer-Rundgang 22.10.2026, global-buffer-overflow). Die GameCube liest dahinter die ersten vier Wörter von `funcLightParam` (`trans_lit.cpp`, Adressen von `lightSetConstant` … `lightSetSpotlight`); `GXSetBlendMode` behält davon Bit 0 und die unteren 3/3/4 Bit: kein Mischen, Logik-Op 12. Der Port ergänzt diese sechste Zeile; vorher las er die Konstanten, die clang dahinter legte |
 | 0097 `esp_app.cpp` | `EffAreaUpdate` setzt je Effekt-Bereich, in dem Leon steht, `1 << area_no`; Bereiche mit Nummer 255 (r102, r103, r119, r120, r227) setzen auf der GameCube (`slw`: untere 6 Bit, 32–63 ergeben 0) und auf armv7 nichts, auf aarch64 (`lslv`, modulo 32) und x86 Bit 31: die Effekte von Bereich 31 liefen dort an. Der Port schreibt die Regel der GameCube aus (Sanitizer-Rundgang 22.10.2026) |
 | 0098 `pl_npc.cpp` | `cSubChar::moveDamage` ruft Ashleys Schadens-Handler `pAuxDm` ohne Argument auf; `SetSubBulldozer` setzt ihn auf `objBull.cpp` `Sub_dm_bull(cEm*)` (Ashley am Steuer des Bulldozers, r30f). Auf der GameCube stand in r3 noch `this`; auf ARM64 die Adresse des Handlers selbst: `setStatus` schrieb in den Code (SIGSEGV, SCV40-Tester 22.10.2026, zweimal). Jetzt mit `this`; die übrigen Partner-Handler (`pAux(this)`, `m_pFunc` von `SetSubDamage`/`EmCatchSubSet`: em10, em2b, obj13 lesen `SUB_CHAR()`) geprüft. Test `partnerdmg` |
+| 0099 `r318.cpp` | 64 bit: der Laser-Gang zeichnet jeden Strahl von Teil 2 zu Teil 4 des Emitters und liest den Anfang bei `(u8*) parts + 0x70`, wo `cCoord::world` auf der GameCube und ILP32 liegt; auf LP64 liegt `world` bei 0x80, bei 0x70 stehen das Ende der lokalen Matrix und eine Hälfte von `pParent`. Die Strahlen erschienen woanders, als der Treffertest (Teile 2 und 4) sie sah: Leon wurde von unsichtbaren Strahlen zerschnitten (SCV40-Tester, 0.42.1, Video). Jetzt `RE4_OFS(cParts, world, 0x70)`. Die Suche von 0073 sah den Abstand nicht (er hängt an einem `Vec*`, der aus dem `cParts*` gewaschen ist) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
