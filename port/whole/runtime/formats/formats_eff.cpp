@@ -257,11 +257,29 @@ void convertEffect(Blob& b, const Part&)
             u32 t = e + mot;
             u32 count = be32(b, t);
             if (fits(b, t + 4, count * 4, "EspEfmMotTbl offsets")) {
+                u32 textures = 0;
                 for (u32 k = 0; k < count && b.ok; k++) {
                     u32 m = t + be32(b, t + 4 + k * 4);
-                    if (seen.first(m)) {
-                        convertMotionAt(b, m);
+                    if (!seen.first(m)) {
+                        continue;
                     }
+                    // a texture in the motion slot (TPL magic 0x0020AF30): r10b's effect model 0x7c
+                    // has three 128x128 CMPR textures there whose zero bytes are stored as 0x20
+                    // (st1/r10b.das #7; original data). The game reads a motion only for an
+                    // ESP_EFM04 effect with Tool_flg 8 (esp_efm.cpp), and these would be no motion
+                    // on the GameCube either: left as they are
+                    u32 magic = fits(b, m, 4, "EspEfmMotTbl motion") ? be32(b, m) : 0;
+                    if (magic == 0x0020AF30u || magic == 0x2020AF30u) {
+                        textures++;
+                        continue;
+                    }
+                    convertMotionAt(b, m);
+                }
+                if (textures) {
+                    re4_log("formats: %s: effect model at 0x%x: %u of the %u motions are textures (TPL magic %08x, "
+                            "original data), left as they are",
+                            b.name, (unsigned) e, (unsigned) textures, (unsigned) count,
+                            (unsigned) be32(b, t + be32(b, t + 4)));
                 }
                 swap32(b, t, 1 + count);
             }

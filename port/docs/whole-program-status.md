@@ -6094,6 +6094,20 @@ unter qemu.
   big-endian, weil der Umwandler Tabellen las, die das Spiel bei 0 Einträgen nie liest
   (`EventMgr::SetEvs`, `cItmSys::DataLoad`). Jetzt umgewandelt; neuer Kerntest „empty tables“.
   Für ihn liefert `re4_formats_entry_status` den Umwandlungsstand eines Archiv-Eintrags.
+- **r10b, Effekt-Block (`st1/r10b.das` Eintrag 7, nachgereicht am 22.10.2026):** blieb unvollständig
+  umgewandelt, weil der Umwandler bei 0xddfe0 Bewegungsdaten mit 175 Gelenken las, deren erstes auf
+  `+0x20202020` zeigte. Ursache in den Originaldaten: Effekt-Modell 0x7c hat in seiner
+  Bewegungs-Tabelle drei Einträge zu je 0x2040 Byte, die **Texturen** sind (TPL-Kennung `00 20 AF 30`,
+  ein Bild 128×128 CMPR, Daten ab 0x40), bei denen **jedes Null-Byte als 0x20 gespeichert ist**
+  (`20 20 af 30 20 20 20 01 20 20 20 0c …`). Kein anderes Archiv der Discs hat ein Effekt-Modell mit
+  Bewegungen. Das Spiel liest eine solche Bewegung nur für einen Effekt `ESP_EFM04` mit `Tool_flg` 8
+  (`esp_efm.cpp`, `EspGetEfmMotAddr` → `MotionSetCore`); auf der GameCube wären diese Daten genauso
+  unbrauchbar, r10b benutzt sie im Rundgang nicht. Der Umwandler (`formats_eff.cpp`) erkennt eine
+  Textur in einem Bewegungs-Platz jetzt an der TPL-Kennung (auch mit 0x20 statt 0), lässt sie
+  unverändert und meldet `effect model at 0x…: 3 of the 3 motions are textures (TPL magic 2020af30,
+  original data)`; der Block gilt als umgewandelt. Neuer Kerntest „effect texture motion“ (schlägt
+  ohne die Änderung fehl). Geprüft: Builds i686, armhf und aarch64 mit allen Prüfungen, r10b, r100 und r21d im Rundgang
+  ohne Fehler, `GetDataExt EFF` in r10b „umgewandelt ja“.
 - Prüfprogramme (nur Tests): `gx_probe.cpp` legte eine Palette von 16 Einträgen an, eine
   TLUT-Ladung liest aber den ganzen Bereich (256 Einträge, wie die GameCube); `core_probe.cpp` gab
   `mwPlyCalcWorkCprmSfd` nur die 0x24 Byte der Erzeugungsparameter, die CRI-Seite liest 0x30 (das
@@ -6107,9 +6121,6 @@ kommen in getrennten Zweigen. Gegner s28 (`em21`) springt in 44 Räumen von (-32
 (-39510 34 -24090): überall dieselben Punkte, nach Spielverhalten aussehend, nicht weiter verfolgt.
 
 **Offen / nicht getestet:**
-- r10b: Eintrag 7 (`EFF`) bleibt unvollständig umgewandelt; der Umwandler findet darin bei 0xddfe0
-  Bewegungsdaten mit 175 Gelenken, deren erstes auf `+0x20202020` (vier Leerzeichen) zeigt. Der
-  Raum läuft; was dort wirklich steht, ist nicht untersucht.
 - Die Spiel-Heaps liegen in MEM1 ohne Schutzzonen: Überläufe zwischen Spiel-Objekten sieht ASan
   nicht. Ungesetzte Werte (MemorySanitizer) gehen nicht (bräuchte eine instrumentierte
   C++-Bibliothek und 64 bit, dort liegt MEM1 im Weg).

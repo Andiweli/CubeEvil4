@@ -821,6 +821,44 @@ void testEmptyTables()
     report("empty tables", ok);
 }
 
+// An effect model whose motion slot holds a texture with its zero bytes stored as 0x20, as r10b's
+// effect model 0x7c (st1/r10b.das #7, the room tour 22.10.2026): EFF version 0xB with one effect
+// model (id 0x7c, motion table of one entry). The motion converter read 175 joints from it and
+// stopped; the entry counts as converted now, the texture stays as it is.
+void testEffectTextureMotion()
+{
+    bool ok = true;
+    unsigned char* arc = (unsigned char*) (unsigned long) 0x82350000u;
+    memset(arc, 0, 0x100);
+    put32be(arc + 0x00, 1);
+    put32be(arc + 0x10, 0x20);
+    memcpy(arc + 0x14, "EFF", 4);
+    unsigned char* eff = arc + 0x20;
+    put32be(eff + 0x00, 0xB);
+    put32be(eff + 0x14, 0x30);  // effect model ids
+    put32be(eff + 0x2C, 0x40);  // effect models
+    put32be(eff + 0x30, 1);
+    put16be(eff + 0x34, 0x7C);
+    put32be(eff + 0x40, 1);
+    put32be(eff + 0x44, 0x10);  // the model entry at 0x50
+    unsigned char* efm = eff + 0x50;
+    put32be(efm + 0x00, 4);
+    put32be(efm + 0x0C, 0x20);  // motion table at 0x70
+    put32be(efm + 0x20, 1);
+    put32be(efm + 0x24, 0x10);  // "motion" 0 at 0x80
+    unsigned char* tex = efm + 0x30;
+    memset(tex, 0x20, 0x40);
+    put32be(tex + 0x00, 0x2020AF30u);  // TPL magic, zeros as 0x20
+    put32be(tex + 0x04, 0x20202001u);
+    put32be(tex + 0x08, 0x2020200Cu);
+    Header h = { 0, 0xE0, 0, 0, 0, 0, 0, 0 };
+    re4_formats_part_loaded("em/efm.das", 0, 0, &h, 0x82350000u);
+    CHECK(re4_formats_entry_status(eff) == 1);
+    CHECK(get32(eff) == 0xB && get32(efm + 0x0C) == 0x20 && get32(efm + 0x20) == 1 && get32(efm + 0x24) == 0x10);
+    CHECK(tex[0] == 0x20 && tex[1] == 0x20 && tex[2] == 0xAF && tex[3] == 0x30);
+    report("effect texture motion", ok);
+}
+
 // A model (BIN, version 0x20010801) with four vertices and a shape table of
 // two shapes that name the same delta list (vertex 2: +0x74, -1, +3).
 void testMorph()
@@ -1070,6 +1108,7 @@ int re4_core_tests()
     testCamera();
     testEvent();
     testEmptyTables();
+    testEffectTextureMotion();
     testMorph();
     {
         int failed = re4probe_ax_test();
