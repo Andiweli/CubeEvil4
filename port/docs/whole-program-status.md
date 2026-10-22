@@ -5815,6 +5815,25 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Bericht SCV40 (0.43.0, 22.10.2026 21:55): der Aufzug nach Saddler, jetzt Abbruch im Ton
+
+- Patch 0101 wirkt: der Aufzug von r332 fährt, der Raumwechsel nach r331 kommt
+  (`DOORDEMO START/END`, `GetDataExt DSE` ohne Absturz in `sceInLock`). Dann in r331 20 ms nach
+  `BGM0 seq 2 play`: `SND SEQ data error : 07 63 00` und `OSPanic … snd_seq2.cpp:60`, SIGABRT.
+- **Ursache:** beim Raumwechsel bittet `nextRoomBgmCheck` beide Musik-Plätze, die noch spielen,
+  auszublenden (`stop_req`), und setzt den Speicher für Musik-Bänke zurück: die Bänke des neuen
+  Raums liegen wieder ab `mram_base_addr_bgm`/`aram_base_addr_bgm` abwärts, über denen des alten
+  (r332: BGM1 bei MRAM 0x8039a180–0x8039c400; r331: BGM0 bei 0x8039af80–0x8039d200, ARAM ebenso
+  überlappend). `SndRoomBgmLoad` wartete nur auf den Platz, den es lädt. Nach Saddlers Ereignis
+  war BGM 0 schon aus (`SND: BGM 0 STOP` 21:41:00), BGM 1 blendete noch aus; die neue Bank
+  überschrieb seine Noten, sein Sequenzer las die neuen Bytes als MIDI. Ohne das Ereignis spielten
+  beide, das Warten auf Platz 0 deckte Platz 1 mit ab (0.42.1, 19:54: BGM 1 eine Sekunde vor BGM 0
+  aus). Der Port lädt einen Raum in Millisekunden, die Disc brauchte viel länger.
+- **Behoben mit Patch 0104:** `SndRoomBgmLoad` wartet, bis kein Musik-Platz mehr ausblendet (mit
+  der Unterbrechung aus Patch 0059).
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` mit 0104: 0 Baufehler, alle Tests 0
+  Fehler, die Zeile im vorbereiteten Baum. **Nicht getestet:** der Aufzug auf dem Gerät.
+
 ### Bericht SCV40 (0.42.1, 22.10.2026 20:01): Spiel durchgespielt, ein Absturz am Aufzug in r332
 
 - Der Tester hat das Spiel durchgespielt (Spielstände nach 9:25 und 11:33 Stunden, r316/r331). Ein
@@ -6526,6 +6545,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0101 `sce_at.cpp` | `SceAtExecRoomJump` (Raumwechsel aus Skripten, die Aufzüge) baut eine Tür-Fläche auf dem Stapel und füllt nur das Ziel; `key_id` und die übrigen Felder waren Stapel-Reste. Im Port startete `key_id` 1/2 die Aufgabe `sceInLock` mit einem Zeiger auf die lokale Variable, die ein Bild später ins Leere griff (SIGSEGV am Aufzug in r332, SCV40-Tester, 0.42.1). Die Fläche beginnt jetzt mit Nullen (offene Tür, normale Blende). Schlummernder Fehler des Originalcodes |
 | 0102 `include/ctrl.h` | `cCtrl` (die kleinen Raum-Helfer von `ctrl.cpp`, 0x214 Byte) hat seinen Arbeitsbereich `work` bei 0x13, jede Art (`CTRL11_WK`, `CTRL12_FREE`, `CTRL14_FREE`, `LightCtrlWork`, `ctrl01`) liegt also an einer ungeraden Adresse. Die GameCube nimmt das mit `lwz`/`stw`; clang fasst auf armv7 zwei Zugriffe zu `strd`/`ldrd` zusammen (oder nimmt `ldm`/`stm`, `vldr`/`vstr`), die eine durch 4 teilbare Adresse brauchen: `GetCtrlDragon` (r222, der Burgsaal mit den Drachenköpfen) schrieb mit `strd` nach c+0x1F, SIGBUS im armhf-Rundgang (22.10.2026). Ein 64-bit-Kernel korrigiert das für 32-bit-Apps erst ab Linux 6.1, der 32-bit-Kern auf den Geräten stürzt also genauso ab. Der Port legt `work` ein Byte später (Füllbereich 7 statt 6 Byte, Objekt weiter 0x214); keine Disc-Datei und kein Spielstand enthält ein `cCtrl` |
 | 0103 `mpv_bdec.c`, `mpv_lib.c` | `UTY_MemcpyDword` (CRI) kopiert wortweise, beim Start des MPEG-Dekoders auch vier Byte-Tabellen (`mpvbdec_bitmsk`, `mpvbdec_zigzag`, `mpvbdec_dfl_iqm`, `mpv_clip_0_255_tbl`); ab 16 Wörtern nimmt der armv7-Build `ldm`/`stm`. Auf der GameCube liegen die Tabellen auf Wortgrenzen, im Port nur zufällig (die Ausrichtungs-Suche fand `mpvbdec_bitmsk` 2 Byte daneben): sonst würde jeder Filmstart auf dem 32-bit-Kern mit SIGBUS enden. Der Port richtet alle vier auf 4 Byte aus |
+| 0104 `snd.cpp` | `SndRoomBgmLoad` wartete beim Raumstart nur auf das Ausblenden des Musik-Platzes, den es lädt; die neuen Musik-Bänke liegen aber über denen beider Plätze des alten Raums. Nach Saddlers Ereignis blendete BGM 1 noch aus, als der Aufzug r331 erreichte: sein Sequenzer las die neue Bank (`SND SEQ data error : 07 63 00`, OSPanic, SCV40-Tester, 0.43.0). Der Port lädt Räume viel schneller als die Disc. Jetzt wartet es, bis kein Platz mehr ausblendet (nach 0059) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
