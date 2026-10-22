@@ -5857,19 +5857,19 @@ eher ein Unterschied des Prototyps, aber nicht bewiesen.**
   „Weapon Mugen“, genau wie bei FixBomber mit leerer Hand. Vielleicht läuft also doch ein Werfer in
   r104; welche Waffe es war, zeigt das Protokoll nicht (keine Trefferzeile, Lauf nach 25 s zu Ende).
 - **Was es entscheidet (offen):**
-  1. Gegnerliste am PC auslesen (Disc-Daten, ohne Build), PowerShell:
+  1. Gegnerliste am PC auslesen (Disc-Daten, ohne Build). Der erste Befehl (nur PowerShell) fand
+     nichts: `RE4-Discdata` enthält die Disc-Abbilder, nicht entpackte Dateien. Dafür jetzt
+     `port/tools/emlist_dump.py` (liest `etc/*.esl` aus den Abbildern, einem mit Dolphin
+     entpackten Ordner oder der Datei selbst; Namen aus dem Listen-Editor des Spiels; Test
+     `test_emlist_dump.py` mit einem künstlichen Abbild, läuft in `whole_build.sh` mit):
      ```powershell
-     $f = Get-ChildItem -Recurse -Filter emleon00.esl E:\Development\Android\RE4-Discdata | Select-Object -First 1
-     $b = [IO.File]::ReadAllBytes($f.FullName)
-     for ($i = 0; $i -lt $b.Length / 32; $i++) { $o = $i * 32
-       $room = $b[$o+0x18] * 256 + $b[$o+0x19]
-       if ($room -in 0x104,0x106,0x107 -and $b[$o+1] -ne 0) {
-         $flag = ([uint32]$b[$o+4] -shl 24) -bor ([uint32]$b[$o+5] -shl 16) -bor ([uint32]$b[$o+6] -shl 8) -bor $b[$o+7]
-         '{0:X2} r{1:X3} id {2:X2} type {3} set {4:X2} flag {5:X8} alive {6} bomb {7}' -f $i,$room,$b[$o+1],$b[$o+2],$b[$o+3],$flag,($b[$o] -band 1),(($flag -band 0x20000) -ne 0) } }
+     cd E:\Development\Android\RE4-Fixed
+     git pull
+     wsl python3 port/tools/emlist_dump.py --data /mnt/e/Development/Android/RE4-Discdata --rooms 104,106,107
      ```
-     Keine `bomb True`-Zeile für r104 → Unterschied des Prototyps (kein Fehler, nichts zu tun).
-     `bomb True` bei Listennummern außerhalb 0xF0–0xFB/0xFE → sie gehören zu den Stürmern oder
-     Wellen und kommen erst später. `bomb True` bei den 12 ersten → der Tester hat sie übersehen
+     Keine `DYNAMITE`-Zeile für r104 → Unterschied des Prototyps (kein Fehler, nichts zu tun).
+     `DYNAMITE` bei Listennummern außerhalb 0xF0–0xFB/0xFE → sie gehören zu den Stürmern oder
+     Wellen und kommen erst später. `DYNAMITE` bei den 12 ersten → der Tester hat sie übersehen
      oder sie warfen nicht; dann Wurf-Freiraum und `Guard_r` am Gerät prüfen.
   2. Oder am Gerät: „File 01 r104“ laden, jeden Ganado einmal treffen; die Zeilen `em: hit` zeigen
      `wt 9` und `f` mit Bit 0x20000.

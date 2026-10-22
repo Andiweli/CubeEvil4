@@ -224,4 +224,10 @@ else
     echo "disc folder tool: FAILED (log: port/build/disc-folder-test.log)"
     status=1
 fi
+if python3 "$root/port/tools/test_emlist_dump.py" > "$root/port/build/emlist-dump-test.log" 2>&1; then
+    echo "enemy list tool: ok"
+else
+    echo "enemy list tool: FAILED (log: port/build/emlist-dump-test.log)"
+    status=1
+fi
 exit $status
