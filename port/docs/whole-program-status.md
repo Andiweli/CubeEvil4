@@ -5812,6 +5812,23 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Drei Berichte des SCV40-Testers mit 0.41.3 (22.10.2026 11:28, 12:51, 13:44)
+
+- Samsung SCV40 (Android 10, 64 bit), ohne Beschreibung. Etwa zweieinhalb Stunden Spiel von r220
+  bis r306 (Erzmine mit Lore r223/r21b, Statuen-Jagd r226, Salazars Thronsaal r228, Insel r300);
+  der zweite und dritte Bericht sind derselbe Lauf.
+- **Kein Absturz, keine Todesschleife, keine ungültige Position** (`pl:`/`em: … not a number`),
+  keine `check:`-Zeile. In r21d zwei Tode durch die Stampfer mit voller Lebensenergie, Leon jeweils
+  innerhalb der Stampfer-Fläche (`die: area 0x06` / `0x14`, „for 1“: die Flächen zählen nur den
+  Spieler); das Weitermachen am Gitter-Zwischenstand lief normal weiter. `math: acosf/asinf …
+  taken as 1` in r21d über 100-mal: die Korrektur aus 0.41.3 greift dort laufend.
+- Sonstige Tode mit Leben 0 ohne Auffälligkeit (r223 dreimal, Lore r21b zweimal, r226, r228
+  fünfmal beim Boss). Mehrfache Raumstarts in r228 und r300 ohne Tod: „Retry“ aus dem Menü
+  (`--DOORDEMO START!!` ohne `--CONTINUE SELECT!!`).
+- Menü-Cursor: alle 1747 Bewegungen kamen vom Steuerkreuz oder vom linken Stick mit passendem
+  Ausschlag, keine vom C-Stick, keine ohne Eingabe.
+- Ergebnis: nichts zu beheben; offen, ob der Tester etwas Bestimmtes zeigen wollte.
+
 ### Bericht moto g72 (0.41.3, 21.10.2026 18:13): Absturz im Mali-Grafiktreiber
 
 - **Gerät:** Motorola moto g72 (Android 13, 64 bit im App-Prozess, **Mali-G57 MC2**, MT6789).
