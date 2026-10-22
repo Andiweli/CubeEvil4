@@ -33,6 +33,9 @@
 #              ("206,300,401"), "set" (two rooms of every room program
 #              rel/stX_Y.rel) or "all" (every room of the game's room tables,
 #              src/game/roomdata.cpp)
+# --armhf      the ARM32 build (armeabi-v7a's code, the core on most devices)
+#              under qemu-arm instead of the 32-bit PC build (i686), for the
+#              room tour (slow)
 # --aarch64    the 64-bit ARM build (arm64-v8a's code) under qemu-aarch64
 #              instead of the 32-bit PC build (i686), for the room tour (slow)
 # --sanitize   the check build with sanitizers (RE4_SANITIZE, default
@@ -93,6 +96,7 @@ while [ $# -gt 0 ]; do
     --work) work="$2"; shift 2 ;;
     --arm) arm=1; shift ;;
     --lp64) host=x86_64; shift ;;
+    --armhf) host=armhf; shift ;;
     --aarch64) host=aarch64; shift ;;
     --sanitize) sanitize=1; shift ;;
     --no-build) build=0; shift ;;
@@ -263,7 +267,7 @@ bsuf="$opt${RE4_SANITIZE:+-san}"
 if [ -n "${RE4_SANITIZE:-}" ]; then
     # as whole_build.sh; the symbolizer turns addresses into file and line
     export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0:detect_odr_violation=0:detect_stack_use_after_return=0:handle_segv=0:handle_sigbus=0:handle_sigfpe=0}"
-    export UBSAN_OPTIONS="${UBSAN_OPTIONS:-print_stacktrace=1}"
+    export UBSAN_OPTIONS="${UBSAN_OPTIONS:-print_stacktrace=1:handle_segv=0:handle_sigbus=0:handle_sigfpe=0}"
     for s in llvm-symbolizer /usr/lib/llvm-18/bin/llvm-symbolizer /usr/bin/llvm-symbolizer-18; do
         if command -v "$s" > /dev/null; then
             export ASAN_SYMBOLIZER_PATH="${ASAN_SYMBOLIZER_PATH:-$(command -v "$s")}"
@@ -1188,7 +1192,15 @@ run_memcard() {
 # room loads, its opening event runs, then (once Leon is free) the tour's keys; the run ends after
 # --tour-frames frames of the main loop. --tour-jobs rooms run at once, each in a process of its
 # own; port/tools/room_tour_report.py reads their logs (bug hunt, part 2, 22.10.2026).
+# the rooms of LIST ("206,300", "set", "all", or mixed: "222,set"), each once, in order
 tour_list() {
+    local item
+    for item in $(echo "$1" | tr ',;' '  '); do
+        tour_list_item "$item"
+    done | tr ' ' '\n' | awk 'NF && !seen[$0]++' | tr '\n' ' '
+}
+
+tour_list_item() {
     case "$1" in
     set)
         # two rooms of each room program (the first and one further in)
@@ -1208,7 +1220,7 @@ for st in range(1, 5):
 print(" ".join(rooms))
 PY
         ;;
-    *) echo "$1" | tr ',;' '  ' ;;
+    *) echo "$1" ;;
     esac
 }
 
@@ -1342,9 +1354,10 @@ run_tour() {
         --json "$json" | tee -a "$report"
     code=${PIPESTATUS[0]}
     [ "$code" -ne 0 ] && overall=1
-    # the last tour of each build stays in the work folder; a tour of another target is compared
-    # with the last i686 tour (same keys, so the same rooms should give the same result)
-    cp -f "$json" "$work/rundgang-$host$bsuf.json"
+    # the results of each build stay in the work folder, room by room (a tour of a few rooms
+    # replaces only those); a tour of another target is compared with the i686 results (same keys,
+    # so the same rooms should give the same result)
+    python3 "$src/port/tools/room_tour_report.py" --merge "$json" "$work/rundgang-$host$bsuf.json"
     local ref="$work/rundgang-i686$opt.json"
     if [ "$host$bsuf" != "i686$opt" ] && [ -f "$ref" ]; then
         python3 "$src/port/tools/room_tour_report.py" --compare "$ref" "$json" --names "i686,$host$bsuf" |

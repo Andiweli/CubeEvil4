@@ -35,6 +35,8 @@ sofort, mit Datei und Zeile; etwa dreimal langsamer; mit -Arm64 nur UBSan, die
 Pruefung undefinierter Rechenschritte), -Arm64 den ARM64-Build unter qemu (wie
 arm64-v8a, aber viel langsamer, etwa eine Stunde fuer alle Raeume; der Bericht
 vergleicht danach mit dem letzten i686-Rundgang).
+-Arm32 nimmt den ARM32-Build unter qemu (wie armeabi-v7a, der Kern auf den meisten
+Geraeten; ebenfalls langsam, mit -Sanitize nur UBSan).
 
 Nachlade-Pruefung (-Reload WAFFE): statt Spiellauf, Filmen und Speicherkarte
 startet das Skript r100, gibt Leon die Waffe (15 = Super Magnum) wie das
@@ -76,6 +78,10 @@ Der Rundgang ueber alle Raeume mit dem Pruef-Build mit Sanitizern.
 Der Rundgang mit dem ARM64-Build unter qemu.
 
 .EXAMPLE
+.\port\scripts\test-r100-core.ps1 -Rooms all -Arm32
+Der Rundgang mit dem ARM32-Build unter qemu.
+
+.EXAMPLE
 .\port\scripts\test-r100-core.ps1 -Reload 15
 Die Nachlade-Pruefung mit der Super Magnum.
 Nur bauen und den Speicherkarten-Teil pruefen (Abschnitt 7, wenige Minuten).
@@ -110,6 +116,7 @@ param(
     [string]$TourScript = '',
     [switch]$Sanitize,
     [switch]$Arm64,
+    [switch]$Arm32,
     [int]$Reload = 0,
     [switch]$SkipSetup,
     [string]$Distro = ''
@@ -174,6 +181,7 @@ if ($TourJobs -gt 0) { $checkArgs += @('--tour-jobs', "$TourJobs") }
 if ($TourScript) { $checkArgs += @('--tour-script', $TourScript) }
 if ($Sanitize) { $checkArgs += '--sanitize' }
 if ($Arm64) { $checkArgs += '--aarch64' }
+if ($Arm32) { $checkArgs += '--armhf' }
 if ($Reload -gt 0) { $checkArgs += @('--reload', "$Reload") }
 Write-Host 'Pruefung laeuft (Build beim ersten Mal 10 bis 30 Minuten, danach schneller) ...'
 & wsl.exe @wslBase --exec bash "$repoWsl/port/tools/whole_r100_check.sh" @checkArgs

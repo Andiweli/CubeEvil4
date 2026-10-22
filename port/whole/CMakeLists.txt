@@ -78,8 +78,13 @@ add_compile_options(-ffp-contract=off)
 # with --no-undefined.
 set(RE4_SANITIZE "" CACHE STRING "sanitizers of a check build (-fsanitize=LIST; empty = none)")
 if(RE4_SANITIZE)
-    set(RE4_SANITIZE_FLAGS -fsanitize=${RE4_SANITIZE} -fno-omit-frame-pointer
-        -fno-sanitize=vptr,function,return,null,nonnull-attribute,returns-nonnull-attribute,pointer-overflow,object-size,alignment,float-cast-overflow)
+    set(san_off vptr,function,return,null,nonnull-attribute,returns-nonnull-attribute,pointer-overflow,object-size,float-cast-overflow)
+    # alignment only when asked for by name (RE4_SANITIZE=alignment): the search for misaligned
+    # floats and pointers, which armv7 reads with vldr / ldrd / ldm and which then fault (patch 0102)
+    if(NOT RE4_SANITIZE MATCHES "alignment")
+        string(APPEND san_off ",alignment")
+    endif()
+    set(RE4_SANITIZE_FLAGS -fsanitize=${RE4_SANITIZE} -fno-omit-frame-pointer -fno-sanitize=${san_off})
     # (line tables: file and line in the reports)
     add_compile_options(${RE4_SANITIZE_FLAGS} -gline-tables-only)
     # clang's runtime for the target, its folder in each program and library (no

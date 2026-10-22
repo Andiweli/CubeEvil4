@@ -55,7 +55,7 @@ if [ -n "${RE4_SANITIZE:-}" ]; then
     # frames (11 MB for each of the game's stacks: the 32-bit address space ran out in the room tour,
     # r106); every report with its call chain
     export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0:detect_odr_violation=0:detect_stack_use_after_return=0:handle_segv=0:handle_sigbus=0:handle_sigfpe=0}"
-    export UBSAN_OPTIONS="${UBSAN_OPTIONS:-print_stacktrace=1}"
+    export UBSAN_OPTIONS="${UBSAN_OPTIONS:-print_stacktrace=1:handle_segv=0:handle_sigbus=0:handle_sigfpe=0}"
 fi
 for t in "${targets[@]}"; do
     name="whole-$t$suffix"

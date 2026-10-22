@@ -27,8 +27,10 @@ guard (ARC_CALL). Each is listed once with the rooms it came from.
     port/tools/room_tour_report.py DIR --rooms "100 101 ..." [--details FILE] [--json FILE]
         [--title TEXT]
     port/tools/room_tour_report.py --compare A.json B.json [--names i686,aarch64]
+    port/tools/room_tour_report.py --merge NEW.json KEEP.json
 
---compare lists the rooms whose result differs between two tours (say i686 and aarch64).
+--compare lists the rooms of B whose result differs from A (say i686 and aarch64); --merge puts the
+rooms of a tour into the kept results of its build, replacing only those rooms.
 """
 
 import argparse
@@ -340,12 +342,13 @@ def compare(a_path, b_path, names):
     b = {r["room"]: r for r in json.loads(Path(b_path).read_text())}
     na, nb = names
     diff = 0
-    print(f"Vergleich der Rundgänge {na} / {nb}:")
-    for room in sorted(set(a) | set(b)):
-        x, y = a.get(room), b.get(room)
-        if not x or not y:
-            print(f"  r{room}: nur in {na if x else nb}")
-            diff += 1
+    missing = [room for room in sorted(b) if room not in a]
+    print(f"Vergleich der Rundgänge {na} / {nb} ({len(b) - len(missing)} Räume):")
+    if missing:
+        print(f"  ohne {na}-Ergebnis: {rooms_text(missing, 60)}")
+    for room in sorted(b):
+        x, y = a.get(room), b[room]
+        if not x:
             continue
         kx = [e[0] for e in x["errors"]]
         ky = [e[0] for e in y["errors"]]
@@ -359,6 +362,19 @@ def compare(a_path, b_path, names):
     return 1 if diff else 0
 
 
+def merge(new_path, keep_path):
+    """The rooms of a tour into the kept results of its build (a tour of a few rooms replaces only
+    those): the reference of --compare."""
+    keep = {}
+    if Path(keep_path).exists():
+        keep = {r["room"]: r for r in json.loads(Path(keep_path).read_text(encoding="utf-8"))}
+    for r in json.loads(Path(new_path).read_text(encoding="utf-8")):
+        keep[r["room"]] = r
+    rows = [keep[k] for k in sorted(keep)]
+    Path(keep_path).write_text(json.dumps(rows, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("dir", nargs="?", type=Path)
@@ -368,7 +384,10 @@ def main():
     ap.add_argument("--title", default="")
     ap.add_argument("--compare", nargs=2)
     ap.add_argument("--names", default="A,B")
+    ap.add_argument("--merge", nargs=2, metavar=("NEW", "KEEP"))
     args = ap.parse_args()
+    if args.merge:
+        return merge(*args.merge)
     if args.compare:
         return compare(*args.compare, args.names.split(",", 1))
     if not args.dir:
