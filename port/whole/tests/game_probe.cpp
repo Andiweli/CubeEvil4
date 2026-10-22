@@ -19,6 +19,7 @@
 #include "light.h"
 #include "pl14.h"
 #include "pl_sub.h"
+#include "pl_npc.h"
 #include "route_ck.h"
 #include "em10.h"
 #include "joy.h"
@@ -543,4 +544,25 @@ extern "C" int re4probe_arc(void)
     if (re4_acosf(half) != acosf(half) || re4_asinf(half) != asinf(half)) bad |= 16;
     if (re4_arc_clamp_count() - before != (dot > 1.0f ? 4u : 3u)) bad |= 32;
     return bad;
+}
+
+// Patch 0098: the partner's damage handler (pAuxDm, the bulldozer's Sub_dm_bull while Ashley drives)
+// gets the partner as its argument, as on the GameCube (r3 = this). A partner in plain memory:
+// moveDamage reads only pAuxDm before the call.
+static cEm* gPartnerDamageArg;
+
+static void probePartnerDamage(cEm* em)
+{
+    gPartnerDamageArg = em;
+}
+
+extern "C" int re4probe_partner_damage(void)
+{
+    alignas(16) static unsigned char mem[sizeof(cSubChar)];
+    memset(mem, 0, sizeof(mem));
+    cSubChar* sub = (cSubChar*) mem;
+    sub->pAuxDm = probePartnerDamage;
+    gPartnerDamageArg = 0;
+    sub->moveDamage();
+    return gPartnerDamageArg == (cEm*) sub ? 0 : 1;
 }
