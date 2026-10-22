@@ -5814,6 +5814,27 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Bericht SCV40 (0.42.1, 22.10.2026 20:01): Spiel durchgespielt, ein Absturz am Aufzug in r332
+
+- Der Tester hat das Spiel durchgespielt (Spielstände nach 9:25 und 11:33 Stunden, r316/r331). Ein
+  Absturz um 19:52 in r332, 23 s nach dem Ende von Ereignis r332s10, beim Aufzug: SIGSEGV in
+  `sceInLock` (Aufgabe für eine verschlossene Tür), gestartet über `TaskExec_hook`, Fehleradresse =
+  Argument + 0x6E (`door.key_id`), das Argument zeigte in einen Stapel, der nicht mehr da war.
+- **Ursache:** `SceAtExecRoomJump` (Raumwechsel aus Skripten: die Aufzüge von `sce_com.cpp`, r120,
+  r221, r225, r30a, r30b, r316, r331) baut eine Tür-Fläche als lokale Variable und füllt nur das
+  Ziel; `key_id`, `key_flg`, `key_se`, `open_se`, `fade_eff` blieben Stapel-Reste. Auf der GameCube
+  harmlos, im Port war `key_id` 1 oder 2: `sceAtFunc_door` startete `sceInLock` mit `&w`, die
+  Aufgabe lief ein Bild später, als der Stapel schon weg war. Auch der Raumwechsel wäre nicht
+  gekommen. **Behoben mit Patch 0101:** die Fläche beginnt mit Nullen (offene Tür, normale
+  Blende, erstes Türgeräusch des Ziels). Ein schlummernder Fehler des Originalcodes (nicht gesetzte
+  lokale Variable, auch im Prototyp), den erst die anderen Stapelinhalte des Ports zeigen. Suche
+  nach weiteren lokalen `SCE_AT_DATA` und Aufgaben mit Zeigern auf lokale Variablen: kein Fall.
+- Die übrigen Abstürze in `crash-system.txt` (15:07, 15:40 Formen der Brücke; 16:07–16:21
+  Bulldozer) sind die schon behobenen aus 0.41.3 (0098, Brücken-Formen).
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` mit 0101: 0 Baufehler, alle Tests 0
+  Fehler, die Zeile steht im vorbereiteten Baum. **Nicht getestet:** der Aufzug auf dem Gerät (der
+  Absturz hing vom Stapelinhalt ab, also nicht jedes Mal).
+
 ### Berichte Galaxy A36 (Filmfarben, 0.42.1, 22.10.2026 14:28) und Galaxy S10 (langsam, 0.41.2, 21.10.2026 23:24)
 
 - **A36 (SM-A366B, Snapdragon 6 Gen 3, Adreno 710, Treiber 0800.58, Android 16, 64 bit):** der
@@ -6460,6 +6481,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0098 `pl_npc.cpp` | `cSubChar::moveDamage` ruft Ashleys Schadens-Handler `pAuxDm` ohne Argument auf; `SetSubBulldozer` setzt ihn auf `objBull.cpp` `Sub_dm_bull(cEm*)` (Ashley am Steuer des Bulldozers, r30f). Auf der GameCube stand in r3 noch `this`; auf ARM64 die Adresse des Handlers selbst: `setStatus` schrieb in den Code (SIGSEGV, SCV40-Tester 22.10.2026, zweimal). Jetzt mit `this`; die übrigen Partner-Handler (`pAux(this)`, `m_pFunc` von `SetSubDamage`/`EmCatchSubSet`: em10, em2b, obj13 lesen `SUB_CHAR()`) geprüft. Test `partnerdmg` |
 | 0099 `r318.cpp` | 64 bit: der Laser-Gang zeichnet jeden Strahl von Teil 2 zu Teil 4 des Emitters und liest den Anfang bei `(u8*) parts + 0x70`, wo `cCoord::world` auf der GameCube und ILP32 liegt; auf LP64 liegt `world` bei 0x80, bei 0x70 stehen das Ende der lokalen Matrix und eine Hälfte von `pParent`. Die Strahlen erschienen woanders, als der Treffertest (Teile 2 und 4) sie sah: Leon wurde von unsichtbaren Strahlen zerschnitten (SCV40-Tester, 0.42.1, Video). Jetzt `RE4_OFS(cParts, world, 0x70)`. Die Suche von 0073 sah den Abstand nicht (er hängt an einem `Vec*`, der aus dem `cParts*` gewaschen ist) |
 | 0100 `puzzle.cpp`, `ss_pzzl.cpp` | Gegenstände, deren gespeicherter Platz im Koffer belegt ist oder außerhalb liegt (Spielstände, die der unsichtbare „Case Maker“ des Debug-Builds bis 0.41.3 verändert hat), lagen nirgends: unsichtbar, und als ausgerüstete Waffe standen Ausrüstungsmarke „E“ und Rahmen in der Bildmitte, auf allen Seiten des Untermenüs (Projektinhaber, 22.10.2026). `pzlPlayer::init` legt sie nach allen anderen an die erste freie Stelle (Koffer, sonst Ablagefeld; wie gespeichert, sonst gedreht), Log-Zeile `case: item … moved to …`; ohne freie Stelle der Original-Fehler. `pzzlEquipDisp`: keine Marke für eine Waffe ohne Platz. Laufzeittest `casefree` |
+| 0101 `sce_at.cpp` | `SceAtExecRoomJump` (Raumwechsel aus Skripten, die Aufzüge) baut eine Tür-Fläche auf dem Stapel und füllt nur das Ziel; `key_id` und die übrigen Felder waren Stapel-Reste. Im Port startete `key_id` 1/2 die Aufgabe `sceInLock` mit einem Zeiger auf die lokale Variable, die ein Bild später ins Leere griff (SIGSEGV am Aufzug in r332, SCV40-Tester, 0.42.1). Die Fläche beginnt jetzt mit Nullen (offene Tür, normale Blende). Schlummernder Fehler des Originalcodes |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
