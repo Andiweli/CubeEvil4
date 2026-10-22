@@ -5918,7 +5918,10 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   Original. Die Waffe aus dem Debug-Menü (`t_option.cpp` → `cItemMgr::debugWeapon`: `get` ohne
   Platz, dann `m_pWep`) zeigte es nach Angabe des Projektinhabers erst nach erneutem Ausrüsten;
   im normalen Spiel rüstet man nur über den Koffer aus. Beim nächsten Öffnen des Koffers bleibt das „E“ an
-  der Waffe (Projektinhaber). Erledigt.
+  der Waffe (Projektinhaber). Erledigt. Logcat 15:29–16:29 (Spielstand 3, r105): drei Gegenstände
+  aus dem Ablagefeld verlegt (0x2a Killer7 und 0x37 Handcannon in den Koffer, 0x03 Matilda auf eine
+  freie Stelle des Ablagefelds); nach dem Speichern um 15:36 und erneutem Laden um 16:29 keine
+  `case:`-Zeile mehr, die neuen Plätze stehen also im Spielstand.
 
 ### App-Menü: Bildformat „Gestreckt“, neue Reihenfolge, mehr Zeilenabstand (Wünsche des Projektinhabers, 22.10.2026)
 
