@@ -5840,6 +5840,9 @@ crashes when loading from a checkpoint.“ Gerät wie zuvor (Samsung SCV40, Andr
   Kerntest `morph` prüft beides (ohne Brücken-Ansicht keine Formen, mit ihnen wie bisher).
 - Das „Luis-Hütten“-Problem (0087), an das der Tester dachte, ist ein anderer Weg (Luis statt
   Ashley, `SetSubDamage`), aber dieselbe Familie: Partner-Rückrufe, die auf 64 bit anders laufen.
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` (Stand `811297e2`): 0 Baufehler, alle
+  Tests 0 Fehler, neu `partnerdmg` und der Kerntest `bridge` mit und ohne Formen. **Nicht
+  getestet:** auf dem Gerät (Bulldozer r30f, Laden und Weitermachen).
 
 ### Bericht Galaxy A30s (0.42.0, 22.10.2026 05:53): durchgehend 10–15 Bilder/s
 
