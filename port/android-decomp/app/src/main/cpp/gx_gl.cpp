@@ -5,6 +5,7 @@
 #include "re4_gx_frame.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -13,7 +14,9 @@
 #include <unordered_set>
 #include <vector>
 
+#include <dirent.h>
 #include <dlfcn.h>
+#include <unistd.h>
 
 #ifndef GL_MAP_PERSISTENT_BIT_EXT
 #define GL_MAP_PERSISTENT_BIT_EXT 0x0040
@@ -222,6 +225,40 @@ void StoreProgram(const std::string &path, std::uint64_t check, GLuint p) {
     std::remove(temp.c_str());
 }
 
+// Next to each program binary its ShaderKey (<hash>.key): GxRenderer::Prewarm makes the programs
+// this device used before ahead of their first draw. A key file whose struct size differs is
+// ignored.
+struct KeyFile {
+  char magic[4];
+  std::uint32_t bytes; // sizeof(ShaderKey)
+};
+
+void StoreKey(const std::string &path, const ShaderKey &k) {
+  if (access(path.c_str(), F_OK) == 0)
+    return;
+  const std::string temp = path + ".part";
+  FILE *f = std::fopen(temp.c_str(), "wb");
+  if (!f)
+    return;
+  KeyFile head{{'R', 'E', '4', 'K'}, static_cast<std::uint32_t>(sizeof(k))};
+  const bool ok = std::fwrite(&head, sizeof(head), 1, f) == 1 && std::fwrite(&k, sizeof(k), 1, f) == 1;
+  if (std::fclose(f) == 0 && ok)
+    std::rename(temp.c_str(), path.c_str());
+  else
+    std::remove(temp.c_str());
+}
+
+bool LoadKey(const std::string &path, ShaderKey *k) {
+  FILE *f = std::fopen(path.c_str(), "rb");
+  if (!f)
+    return false;
+  KeyFile head{};
+  const bool ok = std::fread(&head, sizeof(head), 1, f) == 1 && std::memcmp(head.magic, "RE4K", 4) == 0 &&
+                  head.bytes == sizeof(*k) && std::fread(k, sizeof(*k), 1, f) == 1;
+  std::fclose(f);
+  return ok;
+}
+
 struct Program {
   GLuint id = 0;
   GLint mtx = -1;
@@ -335,6 +372,16 @@ struct GxRenderer::Impl {
   std::uint32_t stateSig[10] = {};   // ApplyState's registers as last applied
   std::string programCache;          // folder of linked programs ("" = none)
   std::string driverTag;             // GL renderer and version: binaries only for this driver
+  // Prewarm: the cache's key files (read at its first call), the next one, its time so far
+  struct AheadKey {
+    ShaderKey key;
+    std::string stem; // the files' path without .bin/.key
+  };
+  bool aheadRead = false;
+  std::vector<AheadKey> ahead;
+  std::size_t aheadNext = 0;
+  double aheadMs = 0.0;
+  unsigned aheadLoaded = 0, aheadLinked = 0, aheadStale = 0;
   bool stateValid = false;
   GLuint unitTex[8] = {}, unitSampler[8] = {};
   bool unitsValid = false;
@@ -1743,6 +1790,37 @@ struct GxRenderer::Impl {
     return k;
   }
 
+  // A program's files in the cache without .bin/.key: a hash of both sources and the driver; in
+  // *check a second hash of the sources (in the binary's head).
+  std::string CacheStem(const std::string &vs, const std::string &fs, std::uint64_t *check) const {
+    std::uint64_t h = Fnv(driverTag.data(), driverTag.size());
+    h = Fnv(vs.data(), vs.size(), h);
+    h = Fnv(fs.data(), fs.size(), h ^ 0x5Au);
+    *check = Fnv(fs.data(), fs.size(), Fnv(vs.data(), vs.size(), 0x9E3779B97F4A7C15ull));
+    char name[32];
+    std::snprintf(name, sizeof(name), "/%016llx", static_cast<unsigned long long>(h));
+    return programCache + name;
+  }
+
+  // The cache's key files, once (Prewarm).
+  void ReadAhead() {
+    aheadRead = true;
+    DIR *dir = opendir(programCache.c_str());
+    if (!dir)
+      return;
+    std::unordered_set<ShaderKey, KeyHash, KeyEqual> seen;
+    while (const dirent *e = readdir(dir)) {
+      const std::string name = e->d_name;
+      if (name.size() != 20 || name.compare(16, 4, ".key") != 0)
+        continue;
+      AheadKey a;
+      a.stem = programCache + "/" + name.substr(0, 16);
+      if (LoadKey(a.stem + ".key", &a.key) && seen.insert(a.key).second)
+        ahead.push_back(a);
+    }
+    closedir(dir);
+  }
+
   const Program *ProgramFor(const ShaderKey &k) {
     auto it = programs.find(k);
     if (it != programs.end())
@@ -1753,13 +1831,7 @@ struct GxRenderer::Impl {
     std::string cachePath;
     std::uint64_t check = 0;
     if (!programCache.empty()) {
-      std::uint64_t h = Fnv(driverTag.data(), driverTag.size());
-      h = Fnv(vs.data(), vs.size(), h);
-      h = Fnv(fs.data(), fs.size(), h ^ 0x5Au);
-      check = Fnv(fs.data(), fs.size(), Fnv(vs.data(), vs.size(), 0x9E3779B97F4A7C15ull));
-      char name[32];
-      std::snprintf(name, sizeof(name), "/%016llx.bin", static_cast<unsigned long long>(h));
-      cachePath = programCache + name;
+      cachePath = CacheStem(vs, fs, &check) + ".bin";
       p.id = LoadProgram(cachePath, check);
       if (p.id)
         stats.programsLoaded++;
@@ -1769,6 +1841,8 @@ struct GxRenderer::Impl {
       if (p.id && !cachePath.empty())
         StoreProgram(cachePath, check, p.id);
     }
+    if (p.id && !cachePath.empty())
+      StoreKey(cachePath.substr(0, cachePath.size() - 4) + ".key", k);
     if (!p.id) {
       stats.shaderErrors++;
       if (stats.shaderErrors <= 4)
@@ -3137,6 +3211,51 @@ bool GxRenderer::SetProgramCache(const std::string &folder) {
   m.driverTag = std::string(renderer ? renderer : "") + "|" + (version ? version : "");
   m.programCache = folder;
   return true;
+}
+
+bool GxRenderer::Prewarm(double budgetMs) {
+  Impl &m = *impl_;
+  if (m.programCache.empty())
+    return false;
+  if (!m.aheadRead) {
+    m.ReadAhead();
+    if (!m.ahead.empty())
+      GXLOG("GX programs ahead of their first draw: %zu keys in the cache", m.ahead.size());
+  }
+  if (m.aheadNext >= m.ahead.size())
+    return false;
+  const auto start = std::chrono::steady_clock::now();
+  const std::uint32_t centroid = m.options.centroid && m.samples > 1 ? 1 : 0;
+  double ms = 0.0;
+  bool made = false;
+  while (m.aheadNext < m.ahead.size() && !(made && ms >= budgetMs)) {
+    const Impl::AheadKey &a = m.ahead[m.aheadNext++];
+    // another MSAA setting's program, or drawn already
+    if (a.key.centroid != centroid || m.programs.count(a.key))
+      continue;
+    const unsigned loaded = m.stats.programsLoaded;
+    m.ProgramFor(a.key);
+    made = true;
+    m.stats.programsAhead++;
+    if (m.stats.programsLoaded != loaded)
+      m.aheadLoaded++;
+    else
+      m.aheadLinked++;
+    // made under another name (the sources or the driver changed since): the old files go
+    std::uint64_t check = 0;
+    if (m.CacheStem(GxVertexShader(a.key), GxFragmentShader(a.key), &check) != a.stem) {
+      std::remove((a.stem + ".bin").c_str());
+      std::remove((a.stem + ".key").c_str());
+      m.aheadStale++;
+    }
+    ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+  }
+  m.aheadMs += ms;
+  if (m.aheadNext >= m.ahead.size())
+    GXLOG("GX programs ahead of their first draw: %u from the cache, %u linked anew (%u old files removed), "
+          "%.0f ms in all",
+          m.aheadLoaded, m.aheadLinked, m.aheadStale, m.aheadMs);
+  return m.aheadNext < m.ahead.size();
 }
 
 void GxRenderer::Release() {

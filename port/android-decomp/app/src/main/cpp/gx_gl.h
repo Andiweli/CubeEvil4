@@ -29,6 +29,7 @@ struct GxStats {
   unsigned chunks = 0, draws = 0, triangles = 0;
   unsigned programs = 0;         // shaders built
   unsigned programsLoaded = 0;   // of them taken from the program cache
+  unsigned programsAhead = 0;    // of them made before their first draw (Prewarm)
   unsigned textures = 0;         // textures decoded
   unsigned textureCopies = 0;    // EFB copies to a texture
   unsigned displayCopies = 0;    // EFB copies to the XFB
@@ -160,6 +161,13 @@ public:
   // from there next time instead of compiling (the stutter of a new effect);
   // false when the driver has no program binaries (nothing is kept then).
   bool SetProgramCache(const std::string &folder);
+  // The programs this device made before (the cache keeps their keys) and this renderer has not:
+  // takes them from the cache, or links them anew when the sources or the driver changed, until
+  // `budgetMs` is spent (at least one). The app calls it on display refreshes without a new chunk,
+  // so a new effect does not stop the picture while its programs are made (Retroid report
+  // 22.10.2026 23:42: a chunk of up to 435 ms in r10b while 61 programs were made). False when
+  // none are left.
+  bool Prewarm(double budgetMs);
   // Frees the GL objects (context current).
   void Release();
 

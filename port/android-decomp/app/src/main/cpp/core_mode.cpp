@@ -536,6 +536,9 @@ uint32_t gxDumpSeriesSequence = 0;
 // and the 3 after it as GX data (RE4_GX_DUMP_ON_HIT hits) and the next 24
 // pictures as shown (treffer-NN-KK.bmp), into RE4_GX_DUMP_FOLDER
 constexpr unsigned kGxHitSeries = 4, kGxHitShots = 24;
+// shader programs ahead of their first draw on a refresh without a chunk: until this much time is
+// spent (at least one; linking one anew took about 16 ms on the Retroid, one from the cache 1-2 ms)
+constexpr double kPrewarmMs = 4.0;
 int gxHitDumps = -1;  // hits still to record as GX data; -1: settings not read yet
 unsigned gxHitShotsLeft = 0, gxHitShotPart = 0, gxHitCount = 0;
 bool gxHitSeriesPending = false;  // the chunk after a marked one starts over: a series from there
@@ -1240,10 +1243,11 @@ bool drawGx() {
       const double seconds = std::chrono::duration<double>(now - gxSince).count();
       LOG("GX: %u chunks, %u draws (%u per chunk), run %.1f ms (max %.1f), shown %.1f/s, %u programs, %u textures, "
           "%u copies, %u held pictures, %u missing, %u shader errors, %u inexact dst alpha, %u programs from the cache, "
-          "base vertex %s, %u autofocus passes, %u EFB restores (MSAA on the tiles)",
+          "%u ahead of their first draw, base vertex %s, %u autofocus passes, %u EFB restores (MSAA on the tiles)",
           s.chunks, s.draws, gxRunCount ? (s.draws - gxDraws) / gxRunCount : 0, gxRunCount ? gxRunMs / gxRunCount : 0.0,
           gxRunMax, seconds > 0 ? gxFrames / seconds : 0.0, s.programs, s.textures, s.textureCopies, s.heldCopies,
-          s.missingTextures, s.shaderErrors, s.dstAlphaApprox, s.programsLoaded, gx->BaseVertex() ? "yes" : "no",
+          s.missingTextures, s.shaderErrors, s.dstAlphaApprox, s.programsLoaded, s.programsAhead,
+          gx->BaseVertex() ? "yes" : "no",
           s.autofocus, s.efbRestores);
       // the GL work per chunk since the last line, and the GPU time when the driver measures it
       if (gxRunCount) {
@@ -1288,6 +1292,11 @@ bool drawGx() {
       gxRunOnKind[0] = gxRunOnKind[1] = gxRunOnKind[2] = 0;
       gxSince = now;
     }
+  } else {
+    // a refresh without a new chunk (the game draws 30 pictures a second): the shader programs
+    // this device made before, ahead of their first draw, a few milliseconds' worth at a time
+    // (Retroid report 22.10.2026 23:42: chunks of up to 435 ms while r10b's effects made theirs)
+    gx->Prewarm(kPrewarmMs);
   }
   benchTick(now);
   unsigned xw = 0, xh = 0;

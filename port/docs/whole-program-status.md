@@ -6029,7 +6029,49 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   3, 8, 11, 12 und 33,33 ms, ein Bild mit `Rno0` 2 zählt nicht, dann 600 Bilder in r105 → genau die
   Zeile `frame: 600 frames in r105: logic 2.0 ms, drawing 5.0 ms, rest 3.0 ms, frame end 1.0 ms,
   waiting 21.3 ms`). GX-Fingerabdruck (`gx`, 0x02524012c6419af2) unverändert, alle Laufzeittests 0
-  Fehler (i686 `-O2`). Ergebnis der drei Builds siehe unten.
+  Fehler (i686 `-O2`); `whole_build.sh` i686, armhf, aarch64: 0 Baufehler, Kern- und Laufzeittests
+  0 Fehler (`ee81a44`). Am Gerät nicht getestet.
+
+### R3-Folgen des Retroid (22.10.2026 23:32/23:35) und Grafik-Programme vor dem ersten Zeichnen (Cloud)
+
+- **R3-Folgen:** drei Folgen zu 12 Bildern aus dem Bericht 23:42 (`pull-gx-dumps.ps1`, 155 MB):
+  r10a 23:32 (266 Zeichenaufträge, 64 000 Dreiecke), r10b 23:35:42 (788 Zeichenaufträge, 106 000
+  Dreiecke, 10 Kopien, 33 Shader, über dem See im Nebel), r10b 23:35:52 (150 Zeichenaufträge).
+  `gx_chunk_render` zeichnet sie wie der Retroid (mittlerer Unterschied 0,7–1,3 von 255 ab dem
+  zweiten Bild; das erste Bild jeder Folge ohne die EFB-Kopie des Bilds davor, wie erwartet). Kein
+  Grafikfehler darin. GL-Arbeit je Bild in r10b: 876 Uniform-Uploads mit 2,4 MB (der XF-Block je
+  Matrixwechsel), 96 Programmwechsel.
+- **Ursache der Hänger im Bericht 23:42 (Zeilen `GX:` alle 10 s):** die längsten Bildstücke fallen
+  genau mit neuen Shader-Programmen zusammen. 23:20:14 37 neu übersetzt, 8 aus dem Zwischenspeicher:
+  ein Bildstück 633 ms; 23:35:37 (r10b, der See) 22 neu, 39 aus dem Speicher: 435 ms; danach 171,
+  137, 71 ms, während weitere 70 Programme dazukamen. Übersetzen kostet auf dem Retroid etwa 16 ms
+  je Programm, Laden aus dem Speicher 1–2 ms. In 28 Minuten 529 Programme, davon 328 aus dem
+  Speicher: nach einem Update der App passen die gespeicherten Programme nicht mehr (die
+  Shader-Quellen ändern sich), alle werden beim ersten Auftauchen neu übersetzt; nach einem neuen
+  Renderer (zurück in die App, 23:16:18) wird alles neu geladen.
+- **Grafik-Programme vor dem ersten Zeichnen (`GxRenderer::Prewarm`, `gx_gl.cpp`):** neben jedem
+  Programm im Zwischenspeicher (`cache/gx-programs/<hash>.bin`) liegt jetzt sein Schlüssel
+  (`<hash>.key`, `ShaderKey`, auch für schon gespeicherte Programme beim nächsten Gebrauch). Ein neuer
+  Renderer liest beim ersten `Prewarm` alle Schlüssel und macht die Programme der Reihe nach: aus
+  dem Speicher, oder neu übersetzt, wenn sich Quellen oder Treiber geändert haben (dann werden die
+  alten Dateien gelöscht). Programme mit anderer MSAA-Einstellung (`centroid`) bleiben liegen. Die
+  App ruft es bei jedem Bildschirmtakt ohne neues Bildstück (das Spiel zeichnet 30 Bilder je
+  Sekunde, jeder zweite Takt ist frei), bis 4 ms (`kPrewarmMs`, mindestens ein Programm).
+  Protokoll: `GX programs ahead of their first draw: N keys in the cache`, am Ende `… M from the
+  cache, K linked anew (J old files removed), T ms in all`; die Zeile `GX:` zählt `… ahead of their
+  first draw`. Wirkung erst ab dem zweiten Start mit dieser Version (die Schlüssel entstehen beim
+  Gebrauch); danach auch nach jedem Update: die Programme werden auf dem Titelbild neu übersetzt
+  statt mitten im Spiel.
+- **Tests:** `gx_gl_check` neu `TestPrewarm`: 60 Programme aus zufälligen TEV-Einstellungen → 60
+  Binärdateien und 60 Schlüssel; ein Schlüssel unter altem Namen (Quellen geändert) → neuer Renderer
+  macht vor dem ersten Zeichnen alle 61 (60 aus dem Speicher, einer neu, die alten Dateien gelöscht),
+  ein Programm je Aufruf ohne Zeitbudget, dieselben Zeichnungen machen danach kein Programm mehr; mit
+  4× MSAA keins der einfachen. Alle `gx_gl_check`-Prüfungen 0 Fehler, Linkprüfung der App-Bibliothek
+  (`re4decomp_link_check`) ohne Fehler, `gx_gl.cpp` für ARM32/ARM64 und `core_mode.cpp` für ARM32
+  ohne Fehler (aarch64: fehlende Ersatzdatei `android/dlext.h`, schon vorher).
+- **Nicht getestet:** am Gerät (wie viele Hänger verschwinden, Dauer des Vorladens auf dem Titelbild).
+- **Möglicher nächster Schritt:** kleinere Uniform-Uploads (nur geänderte Matrixzeilen statt des
+  ganzen XF-Blocks, 2,4 MB je Bild in r10b) entlasten den Zeichen-Thread schwacher Geräte.
 
 ### Gerätetest 22.10.2026 21:22 (Retroid): Karte ohne Finger-Verschieben, kein „Exit“-Aufblinken aus dem Koffer (Cloud)
 

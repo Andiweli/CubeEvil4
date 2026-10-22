@@ -23,6 +23,8 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES3/gl3.h>
+#include <dirent.h>
+#include <unistd.h>
 
 #include <cmath>
 #include <cstdio>
@@ -1207,6 +1209,99 @@ void TestTevMath() {
   re4gx::SetTevMath(re4gx::kTevMathShift);
 }
 
+// The programs ahead of their first draw (GxRenderer::Prewarm, Retroid report 22.10.2026 23:42):
+// a renderer keeps each program's key next to its binary; a new renderer makes them all before any
+// draw, and the same draws then make none. A key under an old name (the sources changed) is
+// linked anew and its old files go.
+namespace {
+
+std::vector<std::string> CacheFiles(const std::string &dir, const char *ending) {
+  std::vector<std::string> names;
+  if (DIR *d = opendir(dir.c_str())) {
+    while (const dirent *e = readdir(d)) {
+      const std::string name = e->d_name;
+      if (name.size() > 4 && name.compare(name.size() - 4, 4, ending) == 0)
+        names.push_back(name);
+    }
+    closedir(d);
+  }
+  return names;
+}
+
+} // namespace
+
+void TestPrewarm() {
+  char folder[] = "/tmp/re4-prewarm-XXXXXX";
+  Require(mkdtemp(folder) != nullptr, "prewarm: a folder for the program cache");
+  const std::string dir = folder;
+  std::string error;
+  unsigned made = 0;
+  {
+    re4gx::GxRenderer r;
+    Require(r.Init(1, &error), error.c_str());
+    Check(r.SetProgramCache(dir), "prewarm: the driver keeps program binaries");
+    Check(!r.Prewarm(100.0), "prewarm: an empty cache, nothing to make");
+    TestShaderVariety(r);
+    made = r.Stats().programs;
+    r.Release();
+  }
+  const auto bins = CacheFiles(dir, ".bin"), keys = CacheFiles(dir, ".key");
+  Check(made > 10 && bins.size() == made && keys.size() == made, "prewarm: a binary and a key per program");
+  std::fprintf(stderr, "  prewarm: %u programs, %zu binaries, %zu keys\n", made, bins.size(), keys.size());
+  // a key under a name its sources no longer have: one of them, its alpha test changed
+  re4gx::ShaderKey old{};
+  {
+    FILE *f = std::fopen((dir + "/" + keys[0]).c_str(), "rb");
+    char head[8];
+    Require(f && std::fread(head, 8, 1, f) == 1 && std::fread(&old, sizeof(old), 1, f) == 1, "prewarm: a key file");
+    std::fclose(f);
+    old.alphaTest ^= 0x40;  // the logic of the two comparisons
+    f = std::fopen((dir + "/0123456789abcdef.key").c_str(), "wb");
+    Require(f && std::fwrite(head, 8, 1, f) == 1 && std::fwrite(&old, sizeof(old), 1, f) == 1, "prewarm: a key file");
+    std::fclose(f);
+    f = std::fopen((dir + "/0123456789abcdef.bin").c_str(), "wb");
+    Require(f && std::fwrite("RE4P", 4, 1, f) == 1, "prewarm: a binary");
+    std::fclose(f);
+  }
+  {
+    re4gx::GxRenderer r;
+    Require(r.Init(1, &error), error.c_str());
+    r.SetProgramCache(dir);
+    int calls = 0;
+    while (r.Prewarm(0.0) && calls < 10000)
+      calls++;
+    const re4gx::GxStats s = r.Stats();
+    Check(s.programsAhead == made + 1 && s.programsLoaded == made && s.programs == made + 1,
+          "prewarm: every program before the first draw, the cached ones from the cache, the old one linked anew");
+    Check(calls + 1 >= static_cast<int>(made), "prewarm: one program per call with no time to spend");
+    TestShaderVariety(r);
+    Check(r.Stats().programs == made + 1, "prewarm: the same draws make no program");
+    r.Release();
+  }
+  Check(access((dir + "/0123456789abcdef.key").c_str(), F_OK) != 0 &&
+            access((dir + "/0123456789abcdef.bin").c_str(), F_OK) != 0,
+        "prewarm: the old name's files removed");
+  Check(CacheFiles(dir, ".bin").size() == made + 1 && CacheFiles(dir, ".key").size() == made + 1,
+        "prewarm: the program linked anew kept under its name");
+  {
+    // MSAA: the shaders sample at a covered spot (centroid), the single-sampled keys stay as they are
+    re4gx::GxRenderer r;
+    re4gx::GxOptions o;
+    o.samples = 4;
+    r.SetOptions(o);
+    Require(r.Init(1, &error), error.c_str());
+    r.SetProgramCache(dir);
+    while (r.Prewarm(1000.0)) {
+    }
+    Check(r.Samples() == 1 || r.Stats().programsAhead == 0, "prewarm: no single-sampled program for MSAA");
+    r.Release();
+  }
+  for (const char *ending : {".bin", ".key"})
+    for (const std::string &name : CacheFiles(dir, ending))
+      std::remove((dir + "/" + name).c_str());
+  rmdir(folder);
+}
+
 int main() {
   Context();
   glGenFramebuffers(1, &gReadFbo);
@@ -1219,6 +1314,7 @@ int main() {
     Check(wrong == 0, "GPU check: the movie colours as the GameCube computes them");
   }
   TestTevMath();
+  TestPrewarm();
   // twice: as the app runs it, and with the copy targets, the blur and the focus painted magenta
   // where the GPU may forget them (GPU step b): every picture must stay the same
   for (int poison = 0; poison < 2; poison++) {
