@@ -18,8 +18,20 @@ Schritte:
 Ergebnis in -OutDir (Standard: Desktop\RE4-OUYA-Probe\gx2): bericht.txt, render.txt (Ausgabe
 auf der OUYA: Zeit je Bild), vergleich.txt, die Bilder als PPM.
 
+Messvarianten (-Probes, je ein Lauf mit RE4_GX2_PROBE, Ausgabe render-<variante>.txt; die
+Bilder sind dann falsch, verglichen wird nur der normale Lauf): flat (Fragment-Shader nur die
+Farbe), nocopy (ohne EFB-Kopien), nodraw (ohne glDrawElements), noupload (Punkte nur einmal
+hochgeladen), noattrib (Attribute nur bei neuem Format gesetzt), nouniform (Uniforms nur beim
+ersten Mal), simplevs (Vertex-Shader ohne Licht und Texturkoordinaten, mit flat), half (nur ein
+Viertel der Pixel: was eine kleinere Aufloesung spart), auch kombiniert ("flat+nocopy").
+-Only waehlt Bilder aus (Platzhalter).
+
 .EXAMPLE
 .\port\scripts\ouya-gx-render.ps1
+
+.EXAMPLE
+.\port\scripts\ouya-gx-render.ps1 -Only 'gx-r100-003073*','gx-r101-001201*' -Probes normal,flat,nocopy,nodraw
+Woher die Zeit kommt: dieselben Bilder normal und in den Messvarianten.
 #>
 param(
     [string]$Serial = '',
@@ -27,14 +39,20 @@ param(
     [string]$Frames = '~/re4-ouya/o2/frames-compact',
     [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'RE4-OUYA-Probe\gx2'),
     [int]$Repeat = 5,
+    [string[]]$Only = @(),
+    [string[]]$Probes = @('normal'),
+    [switch]$SkipCompare,
     [string]$Distro = ''
 )
 $ErrorActionPreference = 'Stop'
+# lists arrive as one text through powershell -File: split at the commas
+$Only = @($Only | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+$Probes = @($Probes | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $remote = '/data/local/tmp/re4-ouya/gx2'
 $stage = Join-Path $repo 'port\build\ouya-gx-render'
 New-Item -ItemType Directory -Force -Path $OutDir, $stage | Out-Null
-foreach ($pattern in @('bericht.txt', 'render.txt', 'vergleich.txt', '*.ppm')) {
+foreach ($pattern in @('bericht.txt', 'render*.txt', 'vergleich.txt', '*.ppm')) {
     Get-ChildItem -LiteralPath $OutDir -Filter $pattern -ErrorAction SilentlyContinue | Remove-Item
 }
 $report = Join-Path $OutDir 'bericht.txt'
@@ -84,6 +102,12 @@ if ((Invoke-Wsl "rm -rf $stageWsl/frames && mkdir -p $stageWsl/frames && cp $Fra
     throw "Keine Bilder in $Frames (erst port/ouya/tools/compare_frames.sh laufen lassen)."
 }
 $frameFiles = @(Get-ChildItem -LiteralPath (Join-Path $stage 'frames') -Filter 'gx-*.bin' | Sort-Object Name)
+if ($Only.Count) {
+    $chosen = @($frameFiles | Where-Object { $name = $_.Name; @($Only | Where-Object { $name -like $_ }).Count -gt 0 })
+    $frameFiles | Where-Object { $chosen -notcontains $_ } | Remove-Item
+    $frameFiles = $chosen
+    if (-not $frameFiles.Count) { throw "Kein Bild passt zu -Only $($Only -join ', ')." }
+}
 $megabytes = [math]::Round(($frameFiles | Measure-Object -Sum Length).Sum / 1MB, 1)
 Say "   $($frameFiles.Count) Bilder, $megabytes MB"
 
@@ -128,19 +152,29 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     Invoke-Adb push (Join-Path $stage 'gx_gl2_render') "$remote/gx_gl2_render" | Out-Null
     Invoke-Adb shell chmod 755 "$remote/gx_gl2_render" | Out-Null
     foreach ($file in $frameFiles) { Invoke-Adb push $file.FullName "$remote/frames/$($file.Name)" | Out-Null }
-    Say '   zeichnen ...'
     $names = ($frameFiles | ForEach-Object { "$remote/frames/$($_.Name)" }) -join ' '
-    $lines = Invoke-Adb shell "cd $remote && RE4_GX2_REPEAT=$Repeat ./gx_gl2_render out $names"
-    $lines | Set-Content -LiteralPath (Join-Path $OutDir 'render.txt') -Encoding UTF8
-    $lines | Where-Object { $_ -match '^(in all|device|gx_gl2_render|GPU)' } | ForEach-Object { Say "   $_" }
-    foreach ($file in $frameFiles) {
-        $stem = [IO.Path]::GetFileNameWithoutExtension($file.Name)
-        Invoke-Adb pull "$remote/out/$stem-ouya.ppm" (Join-Path $pictures "$stem-ouya.ppm") | Out-Null
+    foreach ($probe in $Probes) {
+        Say "   zeichnen ($probe) ..."
+        $setting = if ($probe -eq 'normal') { '' } else { "RE4_GX2_PROBE=$($probe -replace '\+', ',') " }
+        $lines = Invoke-Adb shell "cd $remote && $setting RE4_GX2_REPEAT=$Repeat ./gx_gl2_render out $names"
+        $file = if ($probe -eq 'normal') { 'render.txt' } else { "render-$probe.txt" }
+        $lines | Set-Content -LiteralPath (Join-Path $OutDir $file) -Encoding UTF8
+        $lines | Where-Object { $_ -match '^(in all|device|gx_gl2_render|GPU|RE4GX2)' } | ForEach-Object { Say "   $_" }
+        if ($probe -eq 'normal') {
+            foreach ($frame in $frameFiles) {
+                $stem = [IO.Path]::GetFileNameWithoutExtension($frame.Name)
+                Invoke-Adb pull "$remote/out/$stem-ouya.ppm" (Join-Path $pictures "$stem-ouya.ppm") | Out-Null
+            }
+        }
     }
     Invoke-Adb shell rm -r "$remote/frames" | Out-Null
 }
 
 # ---- 4. compare on the PC (WSL) -----------------------------------------------------------------
+if ($SkipCompare -or $Probes -notcontains 'normal') {
+    Say "Ergebnis: $OutDir"
+    return
+}
 Say '4. Vergleich mit dem GLES-3-Renderer der Haupt-App (WSL, Mesa) ...'
 $picturesWsl = ConvertTo-WslPath $pictures
 $compare = "mkdir -p $outWsl/pc && RE4_GX2_DEVICE=$picturesWsl ~/re4-ouya/o2/build/gx_gl2_compare $outWsl/pc " +

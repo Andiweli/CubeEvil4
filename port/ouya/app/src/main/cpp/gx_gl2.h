@@ -17,7 +17,7 @@
 // 22.10.2026): 16-bit depth only, no depth textures (depth copies read the depth back with
 // NV_read_depth, or are lost), non-power-of-two textures only clamped, mipmaps only complete
 // (the levels a GX texture leaves out are made here), 9 varying vec4, 252 vertex vec4, fp20 in
-// fragment shaders.
+// fragment shaders, at most 256 instructions per shader (measured 22.10.2026).
 //
 // Orientation as in the GLES 3 renderer: the EFB keeps GameCube rows (row 0 = top) at GL row 0;
 // Present flips the XFB.
@@ -43,6 +43,8 @@ struct GxStats {
   unsigned resets = 0;
   unsigned missingTextures = 0;  // bound keys the renderer did not have
   unsigned shaderErrors = 0;
+  unsigned leanShaders = 0;      // vertex shaders too long for the device, built again without the
+                                 // q = 0 special case of the texture coordinates
   unsigned dstAlphaApprox = 0;   // draws whose constant destination alpha is not 0 and not exact
   unsigned depthCopies = 0;      // EFB depth copies to a texture
   unsigned depthReadBacks = 0;   // of them made from the depth read back (no depth textures)
@@ -83,6 +85,17 @@ struct GxOptions {
   // renderer does (its integers), so both draw the same texels exactly; otherwise the vertex
   // shader scales them and the read takes them as they are (no arithmetic before it)
   bool texelCoords = false;
+  // measurements (RE4_GX2_PROBE, a comma list; the picture is wrong then): "flat" fragment
+  // shaders that only pass the colour on (what the TEV costs), "nocopy" EFB copies left out but
+  // their clear (what the copies cost), "nodraw" no glDrawElements (what the GL calls around
+  // the draws cost), "noupload" the vertices and indices of a chunk only uploaded the first time,
+  // "noattrib" attribute pointers only set when the format changes (not at each draw's first
+  // vertex), "nouniform" uniforms only the first time a program is used, "simplevs" vertex shaders
+  // without lighting and texture coordinates (with "flat")
+  bool probeFlat = false, probeNoCopy = false, probeNoDraw = false, probeNoUpload = false;
+  bool probeNoAttrib = false, probeNoUniform = false, probeSimpleVs = false;
+  // "half": the draws into a quarter of the EFB's pixels (what a lower resolution would save)
+  bool probeHalf = false;
 };
 
 class GxRenderer {

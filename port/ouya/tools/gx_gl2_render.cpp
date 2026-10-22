@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <ctime>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -73,6 +74,13 @@ double Ms(std::chrono::steady_clock::time_point a, std::chrono::steady_clock::ti
   return std::chrono::duration<double, std::milli>(b - a).count();
 }
 
+// the process's processor time (all threads, the driver's too) in ms
+double CpuMs() {
+  timespec t{};
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t);
+  return static_cast<double>(t.tv_sec) * 1000.0 + static_cast<double>(t.tv_nsec) / 1e6;
+}
+
 double Median(std::vector<double> v) {
   if (v.empty())
     return 0.0;
@@ -111,6 +119,13 @@ int main(int argc, char **argv) {
     std::fprintf(stderr, "no EGL/GLES 2 context\n");
     return 1;
   }
+  // the renderer's log lines (a shader that failed) with the rest of the output, not only in logcat
+  re4gx2::SetLogCopy([](const char *line) {
+    std::printf("%s\n", line);
+    std::fflush(stdout);
+  });
+  if (const char *probe = std::getenv("RE4_GX2_PROBE"))
+    std::printf("measurement: RE4_GX2_PROBE=%s (the pictures are wrong)\n", probe);
   const std::string out = argv[1];
   const char *tagText = std::getenv("RE4_GX2_TAG");
   const std::string tag = tagText && *tagText ? tagText : "ouya";
@@ -186,8 +201,9 @@ int main(int argc, char **argv) {
     std::vector<std::uint32_t> ops;
     Re4GxChunk steady;
     Steady(loaded.chunk, ops, steady);
-    std::vector<double> submit, total;
+    std::vector<double> submit, total, cpu;
     for (int r = 0; r < repeat; r++) {
+      const double c0 = CpuMs();
       auto s0 = std::chrono::steady_clock::now();
       renderer->Run(steady);
       auto s1 = std::chrono::steady_clock::now();
@@ -195,21 +211,23 @@ int main(int argc, char **argv) {
       auto s2 = std::chrono::steady_clock::now();
       submit.push_back(Ms(s0, s1));
       total.push_back(Ms(s0, s2));
+      cpu.push_back(CpuMs() - c0);
     }
     const re4gx2::GxStats &s = renderer->Stats();
     if (repeat)
       allSteady.push_back(Median(total));
     const unsigned runs = static_cast<unsigned>(repeat) + 1;
     std::printf("%s (frame %u%s): %u draws (%u compact), %u triangles, %u textures (%u levels made), %u copies, %u "
-                "shaders (%u new)%s%s; first run %.1f ms (%.1f to hand over); again %.1f ms to hand over, %.1f ms "
-                "with the GPU; per run %u uniform uploads, %u program switches, %u texture binds\n",
+                "shaders (%u new)%s%s%s; first run %.1f ms (%.1f to hand over); again %.1f ms to hand over, %.1f ms "
+                "with the GPU, %.1f ms processor; per run %u uniform uploads, %u program switches, %u texture binds\n",
                 Stem(path).c_str(), loaded.frame, follows ? ", follows" : "", first.draws - before.draws,
                 first.compactDraws - before.compactDraws, first.triangles - before.triangles,
                 first.textures - before.textures, first.mipmapsMade - before.mipmapsMade,
                 first.textureCopies - before.textureCopies, s.programs, first.programs - before.programs,
                 first.shaderErrors > before.shaderErrors ? ", SHADER ERRORS" : "",
+                first.leanShaders > before.leanShaders ? ", lean vertex shaders" : "",
                 first.missingTextures > before.missingTextures ? ", missing textures" : "", Ms(t0, t2), Ms(t0, t1),
-                Median(submit), Median(total), (s.uniformUploads - before.uniformUploads) / runs,
+                Median(submit), Median(total), Median(cpu), (s.uniformUploads - before.uniformUploads) / runs,
                 (s.programSwitches - before.programSwitches) / runs, (s.textureBinds - before.textureBinds) / runs);
     std::fflush(stdout);
     if (first.shaderErrors > before.shaderErrors)

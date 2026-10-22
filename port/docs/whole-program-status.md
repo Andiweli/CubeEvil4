@@ -25,7 +25,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 32-bit-Kernprozess | ✅ 20.10.2026 (Branch `claude/re4-32bit-kernprozess`, Release **0.40.0-alpha**): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Retroid ✅ (erzwungen mit `-CoreProcess`: Spiel, Filme, Ton, Laden/Speichern, Debug-Menü, 30 FPS), **Tester-Gerät ✅** (nur 32 bit, Android 14: das Spiel läuft, Projektinhaber 20.10.2026; ohne Bericht). Offen: Leistungszahlen vom Tester-Gerät, Raumklang mit Spatializer („32 bit: der Kern als eigener Prozess“) |
 | Hotfix 0.40.1-alpha | 20.10.2026 (Branch `claude/re4-luis-hotfix`, vom Stand `548b0f24` des Kernprozess-Branches): Patch 0087, Absturz auf 64 bit, wenn ein Ganado Luis in der Hütte packt (Abschnitt „Absturz, wenn ein Ganado Luis in der Hütte packt“); Touch-Tasten nach einem Tippen auch bei einem „Geister-Controller“ (21.10.2026, Abschnitt „Touch-Bedienung bleibt ohne Controller versteckt“). Cloud ✅, **Gerätetest offen** |
 | Menü mehrsprachig, 0.41.0-alpha | 21.10.2026 (Branch `claude/re4-menu-sprachen`, enthält den Hotfix): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache (weitere liefert der Projektinhaber); Touchsteuerung Auto/Erzwingen/Unterdrücken, Komfortsteuerung. Cloud ✅, **Gerätetest offen** |
-| OUYA | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): Bestandsaufnahme (`ouya-machbarkeit.md`): drei Hürden (Android 4.1 mit NDK r23c, nur OpenGL ES 2.0, Leistung). **Entscheidungen des Projektinhabers:** erst die Kern-Probe O1, später eine eigene OUYA-App. **O1 gebaut und auf der OUYA gemessen** (`host/probe.cpp`, `whole_build_android.sh --ouya`, `ouya-probe.ps1`; Abschnitt „OUYA: Kern-Probe O1“): r100 10,6 Bilder/s, Kern 94 ms je Bild, davon gut 60 % GX-Umrechnung. GX-Umrechnung schneller (A), auf eigenem Thread (B, `RE4_GX_THREAD=1`), Texturen per Stichprobe und **Kompaktformat der Punkte** (`RE4_GX_COMPACT=1`, nur OUYA): **O1 abgeschlossen**, r100 in Echtzeit 28,3 Bilder/s, Dorf 28,7, ohne Bremse 51 (Messung 21.10.2026). **O2 (22.10.2026, lokal):** GLES-2-Renderer in `port/ouya` (Kopie des GLES-3-Renderers, umgebaut; liest das Kompaktformat direkt), OUYA-GPU abgefragt; gegen GLES 3 geprüft mit 22 künstlichen Szenen und 54 echten Spielbildern (r100, r101): gleich bis auf Rundung; **auf der OUYA selbst noch nicht gezeichnet** |
+| OUYA | 21.10.2026 (Branch `claude/adoring-mendel-vclbu8`): Bestandsaufnahme (`ouya-machbarkeit.md`): drei Hürden (Android 4.1 mit NDK r23c, nur OpenGL ES 2.0, Leistung). **Entscheidungen des Projektinhabers:** erst die Kern-Probe O1, später eine eigene OUYA-App. **O1 gebaut und auf der OUYA gemessen** (`host/probe.cpp`, `whole_build_android.sh --ouya`, `ouya-probe.ps1`; Abschnitt „OUYA: Kern-Probe O1“): r100 10,6 Bilder/s, Kern 94 ms je Bild, davon gut 60 % GX-Umrechnung. GX-Umrechnung schneller (A), auf eigenem Thread (B, `RE4_GX_THREAD=1`), Texturen per Stichprobe und **Kompaktformat der Punkte** (`RE4_GX_COMPACT=1`, nur OUYA): **O1 abgeschlossen**, r100 in Echtzeit 28,3 Bilder/s, Dorf 28,7, ohne Bremse 51 (Messung 21.10.2026). **O2 (22.10.2026, lokal):** GLES-2-Renderer in `port/ouya` (Kopie des GLES-3-Renderers, umgebaut; liest das Kompaktformat direkt), OUYA-GPU abgefragt; gegen GLES 3 geprüft mit 22 künstlichen Szenen und 54 echten Spielbildern (r100, r101): gleich bis auf Rundung; **auf der OUYA gezeichnet: Bild richtig, aber langsam** (Wald und Dorf 200–390 ms je Bild, also 3–5 Bilder/s; ohne TEV und Licht noch 65–78 ms), Entscheidung des Projektinhabers offen |
 | Hauptbranch `master` | 21.10.2026: steht auf **0.41.0-alpha** (`0394c644`, versionCode 62): alle Branches bis Alpha 4, der 32-bit-Kernprozess mit Raumklang (0.40.0-alpha, `548b0f24`), der Luis-Hotfix und die Menü-Sprachen; jeweils ohne Zusammenführung nachgezogen (Wunsch des Projektinhabers). Die Release-Markierungen `0.40.0-alpha` und `0.41.0-alpha` zeigen noch auf ältere Stände (aus der Cloud nicht umsetzbar, GitHub verweigert das Hochladen von Markierungen); umsetzen am PC mit `git tag -f` und `git push -f origin <Markierung>` |
 | Menü in 10 Sprachen | 21.10.2026 (Branch `claude/re4-start-controls`, vom `master`-Stand `0394c644`): Spanisch, Französisch, Italienisch, Portugiesisch (Brasilien), Russisch, Arabisch (von rechts nach links), Chinesisch (vereinfacht), Hindi zu Englisch und Deutsch; Sprache auch je App wählbar (Android 13+). Cloud ✅, **Gerätetest offen** |
 | Absturz Wegesuche r11c (64 bit) | 21.10.2026 (Branch `claude/re4-start-controls`): Patch 0088 fängt ihn ab und meldet, wessen Position außerhalb lag; die eigentliche Ursache zeigt erst ein Bericht mit Fehlerprotokoll. Cloud ✅, **Gerätetest offen** |
@@ -6628,10 +6628,26 @@ OUYA-GPU in `ouya-machbarkeit.md`, Abschnitt „Stufe O2“.
   Zwei Ursachen auf dem Weg gefunden: ohne Begrenzung der Mipmap-Kette sah ferneres Laub
   anders aus (bis 123 Stufen; jetzt Begrenzung bzw. Original-Texel), und der Autofokus der
   Haupt-App zeichnet bei nahem Fokus den Hintergrund weich (im Vergleich beiden genommen).
-- **Auf der OUYA (offen):** `port/scripts/ouya-gx-render.ps1` zeichnet die Mitschnitte mit
-  `gx_gl2_render` auf der OUYA-GPU, misst die Zeit je Bild und vergleicht die Bilder mit GLES 3.
-  Der erste Versuch brach ab: die OUYA war nicht mehr am PC (nur der Retroid); **noch nicht auf
-  dem Gerät gelaufen**.
+- **Auf der OUYA** (22.10.2026, `port/scripts/ouya-gx-render.ps1`, 30 Kompakt-Mitschnitte;
+  Einzelheiten in `ouya-machbarkeit.md`, „Ergebnisse auf der OUYA“): **alle Bilder richtig**
+  (gegen GLES 3: 18 unter 5 % der Pixel, der Wald bis 20 % aus fp20, 16-Bit-Tiefe und ergänzten
+  Mipmap-Stufen; nebeneinander nicht zu unterscheiden). **Zeit je Bild** (Median / langsamstes):
+  erster Lauf 276 / 501 ms; mit gefaltetem TEV (Abschneiden, Runden, Klemmen nur, wo der
+  Wertebereich es braucht) und einem Programm je Kopier-Umwandlung 214 / 403 ms; mit gekürzten
+  Vertex-Shadern 210 / 377 ms (beim Wald gleich gemessen 408 → 270 ms; zwischen Läufen schwankt
+  dasselbe Bild um bis zu ein Drittel). Ein Viertel der Pixel: 105–129 ms Median.
+  Messvarianten (`RE4_GX2_PROBE`): der TEV kostet 50–80 % der Zeit, ohne TEV, Licht und
+  Texturkoordinaten brauchen Wald und Dorf noch 65–78 ms (höchstens 13–15 Bilder/s), alles um
+  die Zeichenaufrufe herum 13–24 ms. Shader-Bau etwa 120 ms je Programm (erstes schweres Bild
+  2–3,7 s). **Tegra-3-Grenze gefunden:** höchstens 256 Anweisungen je Shader; der Vertex-Shader
+  mit fünf Spot-Lichtern und fünf projektiven Texturkoordinaten brauchte 270 und fehlte im
+  Wald. Jetzt passt er (Bildausschnitt je Zeichenauftrag statt je Punkt, eine inverse Wurzel je
+  Licht, Nachtransformation als `dot` mit `vec4`); ist ein Vertex-Shader trotzdem zu lang,
+  zweiter Versuch ohne den Sonderfall q = 0 (`GxStats::leanShaders`, bisher nie nötig).
+  PC-Prüfung danach unverändert (künstliche Szenen alle bestanden; echte Bilder mit der Rundung
+  von GLES 3 höchstens 0,04 %, wie er läuft 0,18 %, wie auf dem Tegra 3 2,8 %).
+  **Entscheidung des Projektinhabers offen:** wie schnell die OUYA werden muss und was dafür
+  ungenauer werden darf (TEV-Näherung, Auflösung, Geometrie).
 
 ## Aufbau
 

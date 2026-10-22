@@ -109,7 +109,7 @@ GLuint Compile(GLenum type, const std::string &source, std::string *log) {
     char buffer[4096];
     glGetShaderInfoLog(s, sizeof(buffer), nullptr, buffer);
     if (log)
-      *log = buffer;
+      *log = std::string(type == GL_VERTEX_SHADER ? "vertex shader: " : "fragment shader: ") + buffer;
     glDeleteShader(s);
     return 0;
   }
@@ -140,7 +140,7 @@ GLuint Link(const std::string &vs, const std::string &fs, const char *const *att
     char buffer[4096];
     glGetProgramInfoLog(p, sizeof(buffer), nullptr, buffer);
     if (log)
-      *log = buffer;
+      *log = std::string("link: ") + buffer;
     glDeleteProgram(p);
     return 0;
   }
@@ -164,6 +164,7 @@ struct Program {
   GLint posTex[64] = {}, nrm[32] = {}, post[24] = {}, light[8] = {};
   GLint matAmb = -1, vp = -1, proj = -1, mtxDef = -1, dequant = -1, tcScale = -1;
   GLint colors = -1, konst = -1, alphaRef = -1, fog = -1, lodBias = -1, mapScale = -1, indScale = -1, indMtx = -1;
+  GLint colorsW = -1, konstW = -1;
   std::uint64_t seen = 0;
   float mtxDefSent[12] = {};
   bool mtxDefValid = false;
@@ -232,6 +233,7 @@ struct GxRenderer::Impl {
   float posTex[64][4] = {}, normal[32][4] = {}, post[64][4] = {}, light[8][5][4] = {};
   float matAmb[4][4] = {}, viewport[2][4] = {}, proj[2][4] = {};
   float colors[4][4] = {}, konst[4][4] = {}, alphaRef[4] = {0, 0, -1, 0}, fog[2][4] = {};
+  float colorsW[4][4] = {}, konstW[4][4] = {};
   float shaderAlpha = -1.0f; // the destination alpha the shader writes (ApplyState; -1: none)
   float lodBias[8] = {}, mapScale[8][4] = {}, coordSize[8][2] = {}, indScale[4][4] = {}, indMtx[6][4] = {};
   float dequant[12] = {};
@@ -243,15 +245,15 @@ struct GxRenderer::Impl {
 
   // GL objects
   GLuint efbFbo = 0, efbColor = 0, efbDepthTex = 0, efbDepthRb = 0;
-  GLuint xfbFbo = 0, xfbTex = 0;
+  GLuint xfbTex = 0;
   unsigned xfbWidth = 0, xfbHeight = 0;
   bool haveXfb = false;
   bool holdXfb = false;  // this chunk's display copy is not shown (RE4_GX_CHUNK_HOLD)
   bool viBlack = false;  // the VI shows black (RE4_GX_CHUNK_BLACK): Present draws black
   GLuint vbo = 0, ibo = 0, quadVbo = 0;
-  GLuint copyProgram = 0, presentProgram = 0, paletteProgram = 0;
+  GLuint presentProgram = 0, paletteProgram = 0;
+  std::unordered_map<GLuint, GLuint> targetFbos;  // by the texture they draw into
   GLint presentRows = -1;
-  GLint copyMode = -1, copyRect = -1, copySize = -1, copyHalf = -1, copyGain = -1;
   GLint paletteSize = -1, paletteKind = -1, paletteFormat = -1;
   GLuint whiteTex = 0;
   std::unordered_map<ShaderKey, Program, KeyHash, KeyEqual> programs;
@@ -275,6 +277,8 @@ struct GxRenderer::Impl {
   std::uint32_t attribMask = 0;  // enabled vertex attribute arrays (by location)
   AttrFormat attr[kAttrSources];
   std::uint32_t attrLayout = ~0u;  // the layout `attr` describes
+  std::uint32_t probeStride = 0;   // the "noattrib" measurement: the pointers' stride and program
+  const Program *probeProgram = nullptr;
   bool attrDirty = true;           // the compact format changed
 
   struct Bound {
@@ -383,14 +387,18 @@ struct GxRenderer::Impl {
     for (int i = 0; i < 4; i++)
       for (int c = 0; c < 4; c++)
         matAmb[i][c] = static_cast<float>((colorRegs[i] >> (24 - 8 * c)) & 255) / 255.0f;
-    viewport[0][0] = AsFloat(xfReg[0x1A]);
-    viewport[0][1] = AsFloat(xfReg[0x1B]);
-    viewport[0][2] = AsFloat(xfReg[0x1C]);
-    viewport[0][3] = AsFloat(xfReg[0x1D]);
-    viewport[1][0] = AsFloat(xfReg[0x1E]);
+    // the GX viewport (EFB pixels + 342) in x and y as factors on the clip coordinates (the vertex
+    // shader's gl_Position), worked out here, not per vertex (the Tegra 3 counts each
+    // instruction); depth as the registers say: the shader rounds it as the GLES 3 renderer does,
+    // pictures at the far end (z = w) stay in
+    const double w = kEfbWidth, h = kEfbHeight;
+    viewport[0][0] = static_cast<float>(AsFloat(xfReg[0x1A]) * 2.0 / w);
+    viewport[0][1] = static_cast<float>((AsFloat(xfReg[0x1D]) - 342.0) * 2.0 / w - 1.0);
+    viewport[0][2] = static_cast<float>(AsFloat(xfReg[0x1B]) * 2.0 / h);
+    viewport[0][3] = static_cast<float>((AsFloat(xfReg[0x1E]) - 342.0) * 2.0 / h - 1.0);
+    viewport[1][0] = AsFloat(xfReg[0x1C]);
     viewport[1][1] = AsFloat(xfReg[0x1F]);
-    viewport[1][2] = kEfbWidth;
-    viewport[1][3] = kEfbHeight;
+    viewport[1][2] = viewport[1][3] = 0.0f;
     for (int i = 0; i < 6; i++)
       proj[i / 4][i % 4] = AsFloat(xfReg[0x20 + i]);
     proj[1][2] = static_cast<float>(xfReg[0x26]);
@@ -430,6 +438,13 @@ struct GxRenderer::Impl {
       std::memcpy(konst, k, sizeof(k));
       std::memcpy(alphaRef, ref, sizeof(ref));
       std::memcpy(fog, f, sizeof(f));
+      // & 255: the TEV's inputs a, b, c read registers and konstants so (the shader then wraps
+      // only what its stages wrote)
+      for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 4; j++) {
+          colorsW[i][j] = static_cast<float>(tevColor[i][j] & 255);
+          konstW[i][j] = static_cast<float>(tevKonst[i][j] & 255);
+        }
       pixelStamp = Next();
     }
   }
@@ -602,8 +617,26 @@ struct GxRenderer::Impl {
   }
 
   void DeleteTexture(GLuint id) {
+    auto fbo = targetFbos.find(id);
+    if (fbo != targetFbos.end()) {
+      glDeleteFramebuffers(1, &fbo->second);
+      targetFbos.erase(fbo);
+    }
     glDeleteTextures(1, &id);
     texParams.erase(id);
+  }
+
+  // The framebuffer that draws into texture `target` (an EFB copy's or the XFB), made once.
+  GLuint TargetFbo(GLuint target) {
+    auto it = targetFbos.find(target);
+    if (it != targetFbos.end())
+      return it->second;
+    GLuint fbo = 0;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target, 0);
+    targetFbos[target] = fbo;
+    return fbo;
   }
 
   // A texture copy read through a palette (gx_gl.cpp PalettedCopy).
@@ -822,7 +855,9 @@ struct GxRenderer::Impl {
     stateValid = true;
     stats.stateChanges++;
     glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
-    glViewport(0, 0, kEfbWidth * scale, kEfbHeight * scale);
+    // (the "half" measurement: a quarter of the pixels)
+    const int div = options.probeHalf ? 2 : 1;
+    glViewport(0, 0, kEfbWidth * scale / div, kEfbHeight * scale / div);
     // scissor: registers in EFB pixels + 342, minus the scissor offset (BP 0x59, in 2 pixels)
     const int xoff = static_cast<int>(bp[0x59] & 0x3FF) * 2, yoff = static_cast<int>((bp[0x59] >> 10) & 0x3FF) * 2;
     const int x0 = std::max(0, static_cast<int>((bp[0x20] >> 12) & 0x7FF) - xoff);
@@ -830,7 +865,7 @@ struct GxRenderer::Impl {
     const int x1 = std::min(kEfbWidth, static_cast<int>((bp[0x21] >> 12) & 0x7FF) - xoff + 1);
     const int y1 = std::min(kEfbHeight, static_cast<int>(bp[0x21] & 0x7FF) - yoff + 1);
     glEnable(GL_SCISSOR_TEST);
-    glScissor(x0 * scale, y0 * scale, std::max(0, x1 - x0) * scale, std::max(0, y1 - y0) * scale);
+    glScissor(x0 * scale / div, y0 * scale / div, std::max(0, x1 - x0) * scale / div, std::max(0, y1 - y0) * scale / div);
     const std::uint32_t z = bp[0x40];
     if (z & 1) {
       static const GLenum func[8] = {GL_NEVER, GL_LESS, GL_EQUAL, GL_LEQUAL, GL_GREATER, GL_NOTEQUAL, GL_GEQUAL, GL_ALWAYS};
@@ -967,9 +1002,18 @@ struct GxRenderer::Impl {
     if (it != programs.end())
       return it->second.id ? &it->second : nullptr;
     Program p;
-    p.info = GxShaderInfo(k);
+    ShaderKey vk = k;
+    if (options.probeSimpleVs) {
+      // the position only: no lighting channels, no texture coordinates
+      vk.numChans = vk.numTexGens = vk.dualTex = 0;
+      std::memset(vk.chan, 0, sizeof(vk.chan));
+    }
+    p.info = GxShaderInfo(vk);
     std::string log;
-    const std::string vs = GxVertexShader(k, p.info), fs = GxFragmentShader(k, p.info);
+    std::string vs = GxVertexShader(vk, p.info);
+    const std::string fs = options.probeFlat
+                               ? "precision mediump float;\nvarying vec4 vColor0;\nvoid main() { gl_FragColor = vColor0; }\n"
+                               : GxFragmentShader(k, p.info);
     const char *names[kAttrSources];
     for (int a = 0; a < p.info.attribCount; a++)
       names[a] = GxAttributeName(p.info.attribs[a]);
@@ -977,6 +1021,14 @@ struct GxRenderer::Impl {
       log = "more vertex attributes than the device has";
     } else {
       p.id = Link(vs, fs, names, p.info.attribCount, &log);
+      // too many instructions for the device (Tegra 3: "C6002: Instruction limit of 256
+      // exceeded"): once more without what rarely matters
+      if (!p.id && log.compare(0, 14, "vertex shader:") == 0 && log.find("C6002") != std::string::npos) {
+        vs = GxVertexShader(vk, p.info, true);
+        p.id = Link(vs, fs, names, p.info.attribCount, &log);
+        if (p.id)
+          stats.leanShaders++;
+      }
     }
     static const bool logShaders = [] {
       const char *v = std::getenv("RE4_GX2_LOG_SHADERS");
@@ -1029,6 +1081,8 @@ struct GxRenderer::Impl {
     p.tcScale = Location(id, "uTcScale");
     p.colors = Location(id, "uColors");
     p.konst = Location(id, "uKonst");
+    p.colorsW = Location(id, "uColorsW");
+    p.konstW = Location(id, "uKonstW");
     p.alphaRef = Location(id, "uAlphaRef");
     p.fog = Location(id, "uFog");
     p.lodBias = Location(id, "uLodBias");
@@ -1098,6 +1152,10 @@ struct GxRenderer::Impl {
     if (pixelStamp > seen) {
       glUniform4fv(p.colors, 4, colors[0]);
       glUniform4fv(p.konst, 4, konst[0]);
+      if (p.colorsW >= 0)
+        glUniform4fv(p.colorsW, 4, colorsW[0]);
+      if (p.konstW >= 0)
+        glUniform4fv(p.konstW, 4, konstW[0]);
       glUniform4fv(p.alphaRef, 1, alphaRef);
       glUniform4fv(p.fog, 2, fog[0]);
       stats.uniformUploads += 4;
@@ -1256,7 +1314,8 @@ struct GxRenderer::Impl {
       current = p;
       stats.programSwitches++;
     }
-    Uniforms(*p, d);
+    if (!options.probeNoUniform || p->seen == 0)
+      Uniforms(*p, d);
     if (!unitsValid) {
       for (auto &u : unitTex)
         u = ~0u;
@@ -1267,11 +1326,17 @@ struct GxRenderer::Impl {
       if (key.texMaps & (1u << m))
         BindMap(m);
     // vertex attributes: pointers at this draw's first vertex
+    // (the "noattrib" measurement: from the start of the buffer, set again only with a new format)
+    const bool keep = options.probeNoAttrib && !attrDirty && d.layout == attrLayout && d.stride == probeStride &&
+                      p == probeProgram;
+    const std::uint32_t base = options.probeNoAttrib ? 0 : d.vertexOffset;
+    probeStride = d.stride;
+    probeProgram = p;
     if (attrDirty || d.layout != attrLayout)
       AttrFormats(d.layout);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    std::uint32_t mask = 0;
-    for (int a = 0; a < p->info.attribCount; a++) {
+    std::uint32_t mask = keep ? attribMask : 0;
+    for (int a = 0; !keep && a < p->info.attribCount; a++) {
       const AttrFormat &f = attr[p->info.attribs[a]];
       if (!f.present) {
         // the shader reads what the layout lacks: a constant 0
@@ -1280,7 +1345,7 @@ struct GxRenderer::Impl {
       }
       mask |= 1u << a;
       glVertexAttribPointer(static_cast<GLuint>(a), f.size, f.type, f.normalized, static_cast<GLsizei>(d.stride),
-                            reinterpret_cast<const void *>(static_cast<std::uintptr_t>(d.vertexOffset + f.offset)));
+                            reinterpret_cast<const void *>(static_cast<std::uintptr_t>(base + f.offset)));
     }
     for (GLuint a = 0; a < 16; a++) {
       const std::uint32_t bit = 1u << a;
@@ -1292,8 +1357,9 @@ struct GxRenderer::Impl {
     attribMask = mask;
     stats.attributeSetups++;
     const GLenum mode = primitive == RE4_GX_LINES ? GL_LINES : primitive == RE4_GX_POINTS ? GL_POINTS : GL_TRIANGLES;
-    glDrawElements(mode, static_cast<GLsizei>(d.indexCount), GL_UNSIGNED_SHORT,
-                   reinterpret_cast<const void *>(static_cast<std::uintptr_t>(d.indexOffset) * 2));
+    if (!options.probeNoDraw)
+      glDrawElements(mode, static_cast<GLsizei>(d.indexCount), GL_UNSIGNED_SHORT,
+                     reinterpret_cast<const void *>(static_cast<std::uintptr_t>(d.indexOffset) * 2));
     stats.draws++;
     if (compact)
       stats.compactDraws++;
@@ -1402,9 +1468,10 @@ struct GxRenderer::Impl {
     if (!toXfb)
       CopyMode(control, depth, &mode, &kind);
     const int ow = half ? std::max(1, w / 2) : w, oh = half ? std::max(1, h / 2) : h;
-    if (toXfb && holdXfb) {
+    if ((toXfb && holdXfb) || options.probeNoCopy) {
       // the VI stays on the picture before (RE4_GX_CHUNK_HOLD): only the clear of the EFB
-      stats.heldCopies++;
+      if (toXfb && holdXfb)
+        stats.heldCopies++;
       PlainState();
       glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
       ClearAfterCopy(control, x, y, w, h);
@@ -1414,7 +1481,7 @@ struct GxRenderer::Impl {
     if (toXfb) {
       if (!xfbTex || xfbWidth != static_cast<unsigned>(w) || xfbHeight != static_cast<unsigned>(h)) {
         if (xfbTex)
-          glDeleteTextures(1, &xfbTex);
+          DeleteTexture(xfbTex);
         glGenTextures(1, &xfbTex);
         glBindTexture(GL_TEXTURE_2D, xfbTex);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w * scale, h * scale, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
@@ -1466,19 +1533,27 @@ struct GxRenderer::Impl {
         return;
       }
     }
-    // render the EFB region into the target
-    glBindFramebuffer(GL_FRAMEBUFFER, xfbFbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target, 0);
+    // render the EFB region into the target (each target keeps a framebuffer of its own: a new
+    // attachment makes the driver check the framebuffer again)
+    const float gain = depth ? 1.0f : CopyFilterGain();
+    const CopyProgram *program = CopyProgramFor(toXfb ? 0 : mode, half, gain != 1.0f);
+    if (!program) {
+      glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
+      ClearAfterCopy(control, x, y, w, h);
+      return;
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, TargetFbo(target));
     glViewport(0, 0, tw * scale, th * scale);
-    glUseProgram(copyProgram);
+    glUseProgram(program->id);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depth ? efbDepthTex : efbColor);
-    glUniform1f(copyMode, static_cast<float>(toXfb ? 0 : mode));
-    glUniform4f(copyRect, static_cast<float>(x * scale), static_cast<float>(y * scale), static_cast<float>(w * scale),
-                static_cast<float>(h * scale));
-    glUniform2f(copySize, static_cast<float>(kEfbWidth * scale), static_cast<float>(kEfbHeight * scale));
-    glUniform1f(copyHalf, half ? 1.0f : 0.0f);
-    glUniform1f(copyGain, depth ? 1.0f : CopyFilterGain());
+    const float fw = static_cast<float>(kEfbWidth * scale), fh = static_cast<float>(kEfbHeight * scale);
+    glUniform4f(program->rect, static_cast<float>(x * scale) / fw, static_cast<float>(y * scale) / fh,
+                static_cast<float>(w * scale) / fw, static_cast<float>(h * scale) / fh);
+    if (program->texel >= 0)
+      glUniform2f(program->texel, 0.5f / fw, 0.5f / fh);
+    if (program->gain >= 0)
+      glUniform1f(program->gain, gain);
     DrawQuad();
     glBindFramebuffer(GL_FRAMEBUFFER, efbFbo);
     ClearAfterCopy(control, x, y, w, h);
@@ -1512,44 +1587,82 @@ struct GxRenderer::Impl {
 
   // --- programs of the renderer itself -------------------------------------------------------
 
+  // EFB to a copy (gx_gl.cpp kCopyFs), one program per conversion instead of a branch for each
+  // (on the Tegra 3 a copy costs its pixels times the shader's length: about 9 ms each with the
+  // branches): the source rectangle (the vertex shader maps it, normalised), optionally the 2x2
+  // box filter, the copy filter's gain, the copy format's conversion (CopyMode).
+  struct CopyProgram {
+    GLuint id = 0;
+    GLint rect = -1, texel = -1, gain = -1;
+  };
+  std::unordered_map<unsigned, CopyProgram> copyPrograms;
+
+  const CopyProgram *CopyProgramFor(int mode, bool half, bool gain) {
+    const unsigned key = static_cast<unsigned>(mode) | (half ? 1u : 0u) << 5 | (gain && mode < 12 ? 1u : 0u) << 6;
+    auto it = copyPrograms.find(key);
+    if (it != copyPrograms.end())
+      return it->second.id ? &it->second : nullptr;
+    static const char kCopyVs[] = "attribute vec2 aQuad;\nuniform vec4 rect;\nvarying vec2 vUv;\n"
+                                  "void main() {\n"
+                                  "  vUv = rect.xy + aQuad * rect.zw;\n"
+                                  "  gl_Position = vec4(aQuad * 2.0 - 1.0, 0.0, 1.0);\n"
+                                  "}\n";
+    std::string fs = std::string(kFragmentPrecision) +
+                     "uniform sampler2D src;\nuniform vec2 texel;\nuniform float gain;\nvarying vec2 vUv;\n"
+                     "void main() {\n";
+    fs += half ? "  vec4 c = 0.25 * (texture2D(src, vUv - texel) + texture2D(src, vUv + vec2(texel.x, -texel.y)) + "
+                 "texture2D(src, vUv + vec2(-texel.x, texel.y)) + texture2D(src, vUv + texel));\n"
+               : "  vec4 c = texture2D(src, vUv);\n";
+    if (key & 64)
+      fs += "  c.rgb = min(c.rgb * gain, vec3(1.0));\n";
+    if (mode == 3 || mode == 4)
+      fs += "  float y = clamp(0.257 * c.r + 0.504 * c.g + 0.098 * c.b + 16.0 / 255.0, 0.0, 1.0);\n";
+    if (mode >= 12)
+      fs += "  float z = floor(c.r * 16777215.0);\n"
+            "  float zh = floor(z / 65536.0) / 255.0, zm = mod(floor(z / 256.0), 256.0) / 255.0, "
+            "zl = mod(z, 256.0) / 255.0;\n";
+    static const char *conversion[17] = {
+        "c",
+        "vec4(floor(c.rgb * vec3(31.0, 63.0, 31.0) + 0.5) / vec3(31.0, 63.0, 31.0), 1.0)",
+        // NOLINTNEXTLINE: one entry
+        ("c.a >= 0.999 ? vec4(floor(c.rgb * 31.0 + 0.5) / 31.0, 1.0) : "
+         "vec4(floor(c * vec4(15.0, 15.0, 15.0, 7.0) + 0.5) / vec4(15.0, 15.0, 15.0, 7.0))"),
+        "vec4(y)",
+        "vec4(y, y, y, c.a)",
+        "vec4(c.r)",
+        "vec4(c.g)",
+        "vec4(c.b)",
+        "vec4(c.a)",
+        "vec4(c.g, c.g, c.g, c.r)",
+        "vec4(c.b, c.b, c.b, c.g)",
+        "vec4(c.r, c.r, c.r, c.a)",
+        "vec4(zh)",
+        "vec4(zm)",
+        "vec4(zl)",
+        "vec4(zm, zm, zm, zh)",
+        "vec4(zh, zm, zl, 1.0)"};
+    fs += std::string("  gl_FragColor = ") + conversion[std::max(0, std::min(16, mode))] + ";\n}\n";
+    const char *quad[] = {"aQuad"};
+    std::string log;
+    CopyProgram p;
+    p.id = Link(kCopyVs, fs, quad, 1, &log);
+    if (!p.id) {
+      GXLOG("copy shader (mode %d) failed: %s", mode, log.c_str());
+    } else {
+      glUseProgram(p.id);
+      glUniform1i(glGetUniformLocation(p.id, "src"), 0);
+      p.rect = glGetUniformLocation(p.id, "rect");
+      p.texel = glGetUniformLocation(p.id, "texel");
+      p.gain = glGetUniformLocation(p.id, "gain");
+      current = nullptr;
+    }
+    auto &slot = copyPrograms[key];
+    slot = p;
+    return slot.id ? &slot : nullptr;
+  }
+
   bool MakeUtilityPrograms(std::string *error) {
     const char *quad[] = {"aQuad"};
-    // EFB to a copy (gx_gl.cpp kCopyFs): the source rectangle, optionally the 2x2 box filter,
-    // the copy format's conversion; modes as floats (no integer uniforms needed)
-    const std::string copyFs =
-        std::string(kFragmentPrecision) +
-        "uniform sampler2D src;\nuniform float mode;\nuniform vec4 rect;\nuniform vec2 size;\nuniform float halfScale;\n"
-        "uniform float gain;\nvarying vec2 vUv;\n"
-        "vec4 fetch(vec2 p) { return texture2D(src, p / size); }\n"
-        "void main() {\n"
-        "  vec2 p = rect.xy + vUv * rect.zw;\n"
-        "  vec4 c = halfScale > 0.5 ? 0.25 * (fetch(p + vec2(-0.5, -0.5)) + fetch(p + vec2(0.5, -0.5)) + fetch(p + "
-        "vec2(-0.5, 0.5)) + fetch(p + vec2(0.5, 0.5))) : fetch(p);\n"
-        "  if (mode < 11.5) c.rgb = min(c.rgb * gain, vec3(1.0));\n"
-        "  float y = clamp(0.257 * c.r + 0.504 * c.g + 0.098 * c.b + 16.0 / 255.0, 0.0, 1.0);\n"
-        "  float z = floor(c.r * 16777215.0);\n"
-        "  float zh = floor(z / 65536.0) / 255.0, zm = mod(floor(z / 256.0), 256.0) / 255.0, zl = mod(z, 256.0) / 255.0;\n"
-        "  vec4 o;\n"
-        "  if (mode < 0.5) o = c;\n"
-        "  else if (mode < 1.5) o = vec4(floor(c.rgb * vec3(31.0, 63.0, 31.0) + 0.5) / vec3(31.0, 63.0, 31.0), 1.0);\n"
-        "  else if (mode < 2.5) o = c.a >= 0.999 ? vec4(floor(c.rgb * 31.0 + 0.5) / 31.0, 1.0) : "
-        "vec4(floor(c * vec4(15.0, 15.0, 15.0, 7.0) + 0.5) / vec4(15.0, 15.0, 15.0, 7.0));\n"
-        "  else if (mode < 3.5) o = vec4(y);\n"
-        "  else if (mode < 4.5) o = vec4(y, y, y, c.a);\n"
-        "  else if (mode < 5.5) o = vec4(c.r);\n"
-        "  else if (mode < 6.5) o = vec4(c.g);\n"
-        "  else if (mode < 7.5) o = vec4(c.b);\n"
-        "  else if (mode < 8.5) o = vec4(c.a);\n"
-        "  else if (mode < 9.5) o = vec4(c.g, c.g, c.g, c.r);\n"
-        "  else if (mode < 10.5) o = vec4(c.b, c.b, c.b, c.g);\n"
-        "  else if (mode < 11.5) o = vec4(c.r, c.r, c.r, c.a);\n"
-        "  else if (mode < 12.5) o = vec4(zh);\n"
-        "  else if (mode < 13.5) o = vec4(zm);\n"
-        "  else if (mode < 14.5) o = vec4(zl);\n"
-        "  else if (mode < 15.5) o = vec4(zm, zm, zm, zh);\n"
-        "  else o = vec4(zh, zm, zl, 1.0);\n"
-        "  gl_FragColor = o;\n"
-        "}\n";
     // a copy read through a palette (gx_gl.cpp kPaletteFs): one channel .r, two .a high .r low
     const std::string paletteFs =
         std::string(kFragmentPrecision) +
@@ -1569,18 +1682,10 @@ struct GxRenderer::Impl {
                                   "void main() { gl_FragColor = vec4(texture2D(src, vec2(vUv.x, rows.x + (1.0 - vUv.y) * "
                                   "rows.y)).rgb, 1.0); }\n";
     std::string log;
-    copyProgram = Link(kQuadVs, copyFs, quad, 1, &log);
-    if (!copyProgram) {
-      *error = "copy shader: " + log;
+    if (!CopyProgramFor(0, false, false)) {
+      *error = "copy shader";
       return false;
     }
-    glUseProgram(copyProgram);
-    glUniform1i(glGetUniformLocation(copyProgram, "src"), 0);
-    copyMode = glGetUniformLocation(copyProgram, "mode");
-    copyRect = glGetUniformLocation(copyProgram, "rect");
-    copySize = glGetUniformLocation(copyProgram, "size");
-    copyHalf = glGetUniformLocation(copyProgram, "halfScale");
-    copyGain = glGetUniformLocation(copyProgram, "gain");
     paletteProgram = Link(kQuadVs, paletteFs, quad, 1, &log);
     if (!paletteProgram) {
       *error = "palette shader: " + log;
@@ -1698,6 +1803,17 @@ bool GxRenderer::Init(int scale, std::string *error) {
   if (!error)
     error = &dummy;
   m.scale = std::max(1, scale);
+  if (const char *probe = std::getenv("RE4_GX2_PROBE")) {
+    const std::string p = std::string(",") + probe + ",";
+    m.options.probeFlat = m.options.probeFlat || p.find(",flat,") != std::string::npos;
+    m.options.probeNoCopy = m.options.probeNoCopy || p.find(",nocopy,") != std::string::npos;
+    m.options.probeNoDraw = m.options.probeNoDraw || p.find(",nodraw,") != std::string::npos;
+    m.options.probeNoUpload = m.options.probeNoUpload || p.find(",noupload,") != std::string::npos;
+    m.options.probeNoAttrib = m.options.probeNoAttrib || p.find(",noattrib,") != std::string::npos;
+    m.options.probeNoUniform = m.options.probeNoUniform || p.find(",nouniform,") != std::string::npos;
+    m.options.probeSimpleVs = m.options.probeSimpleVs || p.find(",simplevs,") != std::string::npos;
+    m.options.probeHalf = m.options.probeHalf || p.find(",half,") != std::string::npos;
+  }
   const char *tegra3 = std::getenv("RE4_GX2_TEGRA3");
   if (tegra3 && *tegra3 == '1')
     m.options.tegra3 = true;
@@ -1745,7 +1861,6 @@ bool GxRenderer::Init(int scale, std::string *error) {
   glClearColor(0, 0, 0, 0);
   glClearDepthf(1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  glGenFramebuffers(1, &m.xfbFbo);
   glGenBuffers(1, &m.vbo);
   glGenBuffers(1, &m.ibo);
   glGenBuffers(1, &m.quadVbo);
@@ -1784,9 +1899,11 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
   }
   // this chunk's vertices and indices
   glBindBuffer(GL_ARRAY_BUFFER, m.vbo);
-  glBufferData(GL_ARRAY_BUFFER, chunk.vertexBytes ? chunk.vertexBytes : 4, chunk.vertices, GL_STREAM_DRAW);
+  if (!m.options.probeNoUpload || m.stats.chunks == 1)
+    glBufferData(GL_ARRAY_BUFFER, chunk.vertexBytes ? chunk.vertexBytes : 4, chunk.vertices, GL_STREAM_DRAW);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.ibo);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, chunk.indexCount ? chunk.indexCount * 2 : 4, chunk.indices, GL_STREAM_DRAW);
+  if (!m.options.probeNoUpload || m.stats.chunks == 1)
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, chunk.indexCount ? chunk.indexCount * 2 : 4, chunk.indices, GL_STREAM_DRAW);
   glBindFramebuffer(GL_FRAMEBUFFER, m.efbFbo);
   // state other GL code of the app may have left
   glDisable(GL_POLYGON_OFFSET_FILL);
@@ -1921,11 +2038,17 @@ void GxRenderer::Release() {
   const GLuint textures[] = {m.efbColor, m.efbDepthTex, m.xfbTex, m.whiteTex};
   glDeleteTextures(4, textures);
   glDeleteRenderbuffers(1, &m.efbDepthRb);
-  const GLuint fbos[] = {m.efbFbo, m.xfbFbo};
-  glDeleteFramebuffers(2, fbos);
+  const GLuint fbos[] = {m.efbFbo};
+  glDeleteFramebuffers(1, fbos);
+  for (auto &f : m.targetFbos)
+    glDeleteFramebuffers(1, &f.second);
+  m.targetFbos.clear();
   const GLuint buffers[] = {m.vbo, m.ibo, m.quadVbo};
   glDeleteBuffers(3, buffers);
-  glDeleteProgram(m.copyProgram);
+  for (auto &p : m.copyPrograms)
+    if (p.second.id)
+      glDeleteProgram(p.second.id);
+  m.copyPrograms.clear();
   glDeleteProgram(m.paletteProgram);
   glDeleteProgram(m.presentProgram);
   const GxOptions options = m.options;

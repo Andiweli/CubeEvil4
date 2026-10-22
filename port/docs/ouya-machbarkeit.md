@@ -119,7 +119,7 @@ abgeschlossen**; der Kern reicht für die OUYA. Weiter mit O2.
 | Stufe | Inhalt | Wo | Ergebnis |
 |---|---|---|---|
 | **O1 Kern-Probe** | Der Kernprozess ohne Bild auf der OUYA: NDK r23c, Kern für `android-16`, `/dev/ashmem` statt `memfd`, per ADB nach `/data/local/tmp`, Disc-Ordner auf `/sdcard` oder USB-Stick, Tastenfolge wie `RE4_PAD_SCRIPT`, ohne Warten auf den Bildschirm (`RE4_VI_FAST=1`); misst Spielbilder je Sekunde mit GX-Decoder und Ton | Cloud (Code) + Windows-PC mit OUYA (Messung) | Zahl, die entscheidet: ab etwa 25 Bildern/s weiter, unter 15 eher nicht |
-| O2 GLES-2-Renderer | GLES-2-Weg der GX-Nachbildung wie oben, prüfbar in der Cloud mit llvmpipe (GLES 2 erzwingen) | Cloud oder lokal (22.10.2026: lokal) | Titel und r100 als Bild auf dem PC: **erreicht** (22.10.2026, gleich mit GLES 3 bis auf Rundung); auf der OUYA-GPU noch offen |
+| O2 GLES-2-Renderer | GLES-2-Weg der GX-Nachbildung wie oben, prüfbar in der Cloud mit llvmpipe (GLES 2 erzwingen) | Cloud oder lokal (22.10.2026: lokal) | Titel und r100 als Bild auf dem PC: **erreicht** (22.10.2026, gleich mit GLES 3 bis auf Rundung); auf der OUYA-GPU: **Bild richtig, aber langsam** (22.10.2026: Wald und Dorf 200–390 ms je Bild, leichte Räume 70–105 ms; Abschnitt „Ergebnisse auf der OUYA“); Entscheidung offen |
 | O3 OUYA-APK | eigener Flavor (z. B. `ouya`: nur `armeabi-v7a`, `minSdk 16`, immer Kernprozess, eigene App-ID), Java-Versionsabfragen, Disc-Import ohne SAF, Tastenbelegung | Cloud + OUYA | erster Test auf dem Gerät |
 
 Entscheidungen des Projektinhabers (21.10.2026): **erst die Kern-Probe O1**;
@@ -205,6 +205,8 @@ OpenGL ES 2.0 16.05001):
 | Tiefe | nur 16 Bit (`DEPTH_COMPONENT16`, `16_NONLINEAR_NV`), keine Tiefen-Texturen, kein 24 Bit | EFB-Tiefe als Renderbuffer 16 Bit nichtlinear; Tiefenkopien über `NV_read_depth` (RE4 macht keine: das Pixelformat Z24 setzt es nie, `main_sub.cpp`) |
 | Texturen ohne Zweierpotenz | nur mit `CLAMP_TO_EDGE`, Mipmaps erlaubt (`NV_texture_npot_2D_mipmap`) | Wiederholen/Spiegeln dort auf Klemmen (gezählt) |
 | Mipmaps | nur vollständige Ketten (kein `TEXTURE_MAX_LEVEL`) | fehlende Stufen werden ergänzt (je 2×2 ein Original-Texel, siehe unten) |
+| Shader-Länge | höchstens 256 Anweisungen je Shader („C6002: Instruction limit of 256 exceeded“; gemessen am Vertex-Shader mit fünf Spot-Lichtern und fünf projektiven Texturkoordinaten: 270) | Vertex-Shader sparsam (Bildausschnitt einmal je Zeichenauftrag gerechnet, eine inverse Wurzel je Licht, Nachtransformation als `dot` mit `vec4`); ist er trotzdem zu lang, ein zweiter Versuch ohne den Sonderfall q = 0 (gezählt als `leanShaders`) |
+| Shader-Bau | etwa 120 ms je Programm (gemessen 22.10.2026) | ein schweres Bild braucht 27–46 Programme: erster Durchlauf 2–3,7 s |
 | Sonstiges | `NV_shader_framebuffer_fetch`, `OES_vertex_array_object`, S3TC/DXT1, `EXT_texture_filter_anisotropic` (15), `NV_timer_query`; **keine** Programm-Binärdaten | Shader werden bei jedem Start neu übersetzt (Ruckler beim ersten Auftreten eines Effekts) |
 
 **Aufbau** (`port/ouya/app/src/main/cpp/gx_gl2.cpp`, `gx_gl2_shader.cpp`; Schnittstelle wie
@@ -225,8 +227,13 @@ OpenGL ES 2.0 16.05001):
 - **Texturkoordinaten:** liest nur eine Textur eine Koordinate, skaliert der Vertex-Shader
   sie auf diese Textur (der Fragment-Shader liest ohne Rechnung); sonst und bei indirekten
   Stufen der Festkomma-Weg (1/128 Texel) des GLES-3-Renderers in Gleitkomma.
+- **TEV gefaltet** (nach der ersten Messung auf der OUYA): der Generator kennt den
+  Wertebereich jedes Zwischenergebnisses und lässt Abschneiden, Runden und Klemmen weg, wo
+  sie nichts ändern; Farbregister und Konstanten kommen zusätzlich schon auf 8 Bit
+  abgeschnitten (`uColorsW`, `uKonstW`). Spart auf der OUYA gut ein Fünftel der Zeit je Bild.
 - **Bildkopien** lesen das EFB pixelgenau (`NEAREST`, wie die GameCube; linear würde mit den
-  fp20-Koordinaten der OUYA benachbarte Pixel einmischen).
+  fp20-Koordinaten der OUYA benachbarte Pixel einmischen); ein kleines Programm je
+  Umwandlung (Format, Halbierung, Faktor) und ein fester Framebuffer je Ziel-Textur.
 - **Mipmaps:** wo die GPU `APPLE_texture_max_level` hat (Mesa), endet die Kette wie bei GX;
   sonst (Tegra 3) werden die fehlenden Stufen ergänzt, je 2×2 ein Original-Texel (ein
   Mittelwert machte ausgeschnittenes Laub in der Ferne halb durchsichtig, und der
@@ -268,8 +275,60 @@ sind die Bilder nicht zu unterscheiden.
 
 **Auf der OUYA:** `port/scripts/ouya-gx-render.ps1` (unter der ADB-Sperre) zeichnet die
 Mitschnitte mit `port/ouya/tools/gx_gl2_render.cpp` auf der OUYA-GPU, misst die Zeit je Bild
-(erster Lauf mit Texturen und Shader-Bau, dann wie die folgenden Bilder des Spiels) und
-vergleicht die Bilder mit GLES 3. **Noch nicht auf dem Gerät gelaufen** (beim ersten Versuch
-war die OUYA nicht mehr am PC). Offen danach: Leistung (Zeit je Bild, Zahl der
-GL-Aufrufe je Zeichenauftrag), Genauigkeit von fp20 und der Texturkoordinaten am Bild,
-Shader-Bau ohne Programm-Binärdaten (Ruckler), dann O3.
+(erster Lauf mit Texturen und Shader-Bau, dann fünfmal wie die folgenden Bilder des Spiels:
+Zeit bis zur Übergabe, Zeit mit der GPU, Prozessorzeit des Prozesses samt Treiber) und
+vergleicht die Bilder mit GLES 3. `-Probes` misst dieselben Bilder in Varianten
+(`RE4_GX2_PROBE`, siehe `GxOptions` in `gx_gl2.h`), `-Only` wählt Bilder aus.
+
+### Ergebnisse auf der OUYA (22.10.2026, 30 Kompakt-Mitschnitte r100 und r101)
+
+**Das Bild stimmt:** alle 30 Bilder vollständig, ohne Shader-Fehler; gegen GLES 3 sind 18 unter
+5 % der Pixel daneben, der Rest 5–20 % (der Wald: fp20-Rundung, 16-Bit-Tiefe, ergänzte
+Mipmap-Stufen); nebeneinander mit bloßem Auge nicht zu unterscheiden.
+
+**Die Zeit je Bild** (Median der 30 Bilder / langsamstes; volle Auflösung 640×528):
+
+| Stand | volle Auflösung | ein Viertel der Pixel (`half`) |
+|---|---|---|
+| erster Lauf (Stand `81d2b5bf`) | 276 ms / 501 ms | – |
+| TEV gefaltet, Kopien mit eigenen Programmen | 214 ms / 403 ms | 105 ms / 226 ms |
+| Vertex-Shader gekürzt (Wald-Shader passt unter 256 Anweisungen) | 210 ms / 377 ms | 129 ms / 259 ms |
+
+Leichte Bilder (Logos, Titel, kleine Räume mit 20 000 Dreiecken) brauchen 15–105 ms, Wald und
+Dorf (90 000–137 000 Dreiecke, 450–920 Zeichenaufträge) 200–390 ms. Dasselbe Bild schwankt
+zwischen den Läufen um bis zu ein Drittel (der Wald r100-003073: 270 ms in einem kurzen Lauf,
+376–390 ms nach längerer Last; vermutlich Wärme und Taktsenkung, nicht geprüft); Unterschiede
+unter etwa 15 % zwischen zwei Läufen sagen daher nichts. Gleich gemessen (dieselben zwei
+Bilder nacheinander) brachte das Kürzen der Vertex-Shader beim Wald 408 → 270 ms.
+
+**Wohin die Zeit geht** (Messvarianten, drei schwere Bilder im selben Lauf: Wald
+r100-003073, r100-004123, Dorf r101-001201; ms je Bild):
+
+| Variante | Wald | r100-004123 | Dorf |
+|---|---|---|---|
+| normal | 390 | 268 | 306 |
+| Fragment-Shader nur Farbe (`flat`): ohne TEV | 143 | 60 | 150 |
+| ohne EFB-Kopien (`nocopy`) | 358 | 166 | 288 |
+| `flat` + `nocopy` | 138 | 38 | 145 |
+| dazu Vertex-Shader ohne Licht und Texturkoordinaten (`simplevs`) | 78 | 31 | 65 |
+| ohne die Zeichenaufrufe selbst (`nodraw`: Hochladen, Zustände, Uniforms, Kopien) | 21 | 13 | 24 |
+| ein Viertel der Pixel (`half`) | 263 | 140 | 228 |
+| `half` + `flat` | 152 | 41 | 144 |
+
+Daraus: der **TEV im Fragment-Shader** kostet 50–80 % der Zeit (bei einem Viertel der Pixel
+etwa die Hälfte davon); Licht und Texturkoordinaten im **Vertex-Shader** bis 80 ms; die
+**Geometrie selbst** (Punkte holen, Dreiecke aufbauen) mit leeren Shadern noch 20–60 ms; alles
+um die Zeichenaufrufe herum nur 13–24 ms; die Kopien meist 20–30 ms (r100-004123: 100 ms).
+Die Prozessorzeit (Treiber eingerechnet) liegt bei 20–110 ms je schwerem Bild, das Übergeben
+blockiert, bis die GPU nachkommt.
+
+**Shader-Bau:** etwa 120 ms je Programm, ein schweres Bild braucht beim ersten Mal 27–46
+Programme: 2–3,7 s (Programm-Binärdaten gibt es auf dem Tegra 3 nicht; nur ein eigener
+Vorrat übersetzter Shader beim Start oder Bau im Hintergrund hilft).
+
+**Einordnung:** für 30 Bilder/s hat ein Bild 33 ms. Schon ohne TEV, Licht und
+Texturkoordinaten brauchen Wald und Dorf auf der OUYA 65–78 ms, also höchstens 13–15
+Bilder/s; mit dem ganzen TEV 3–5 Bilder/s, in leichten Räumen 10–30. Ein schnellerer Weg
+müsste beim TEV ungenauer werden (Näherung statt Nachbildung auf die Stufe genau), die
+Auflösung senken und Geometrie sparen (das hieße: ins Spiel eingreifen, z. B. Sichtweite).
+**Entscheidung des Projektinhabers offen** (Stand 22.10.2026).

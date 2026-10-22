@@ -83,7 +83,9 @@ struct ShaderInfo {
 };
 
 ShaderInfo GxShaderInfo(const ShaderKey &key);
-std::string GxVertexShader(const ShaderKey &key, const ShaderInfo &info);
+// `lean`: without the GameCube's special case for texture coordinates with q = 0 (rare), for
+// devices whose vertex shader would be too long otherwise (the Tegra 3 takes 256 instructions)
+std::string GxVertexShader(const ShaderKey &key, const ShaderInfo &info, bool lean = false);
 // highp where the device has it in fragment shaders (GL_FRAGMENT_PRECISION_HIGH), else mediump
 std::string GxFragmentShader(const ShaderKey &key, const ShaderInfo &info);
 // The attribute name of a source ("aPos", ...).

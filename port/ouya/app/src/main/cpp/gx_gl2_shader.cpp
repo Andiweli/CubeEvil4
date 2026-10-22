@@ -6,6 +6,8 @@
 // and the fog mix are approximate.
 #include "gx_gl2_shader.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 
@@ -178,14 +180,22 @@ ShaderInfo GxShaderInfo(const ShaderKey &k) {
   s.fixedPoint = k.numIndStages > 0;
   for (int i = 0; i < 8; i++)
     s.coordMap[i] = -2;
+  // 0x100: the coordinate in 1/128 texels for the indirect stages: their lookups, the stages
+  // themselves (wrap, matrix), and a stage whose coordinate an indirect stage after it adds to
+  // (the other coordinates of such a shader read as without indirect stages: on the Tegra 3 a
+  // shader with five such coordinates passed the 256 instructions)
   std::uint32_t readers[8] = {};
+  auto indirectStage = [&](unsigned n) {
+    const std::uint32_t ind = n < k.numStages ? k.indCmd[n] : 0;
+    return ind != 0 && (ind & 3) < k.numIndStages;
+  };
   for (unsigned n = 0; n < k.numStages; n++) {
     const std::uint32_t order = k.order[n];
     const unsigned map = order & 7, coord = (order >> 3) & 7, enable = (order >> 6) & 1;
     if (coord < k.numTexGens && enable && (k.texMaps & (1u << map)))
       readers[coord] |= 1u << map;
-    // indirect stages read their coordinate for the wrap and the matrix
-    if (s.fixedPoint && coord < k.numTexGens)
+    const bool addedTo = indirectStage(n + 1) && ((k.indCmd[n + 1] >> 20) & 1);
+    if (coord < k.numTexGens && (indirectStage(n) || addedTo))
       readers[coord] |= 0x100;
   }
   if (s.fixedPoint)
@@ -198,12 +208,12 @@ ShaderInfo GxShaderInfo(const ShaderKey &k) {
     const std::uint32_t r = readers[i] & 0xFF;
     if (!readers[i])
       continue;
-    if (!s.fixedPoint && !k.texelCoords && r && (r & (r - 1)) == 0) {
+    if (!(readers[i] & 0x100) && !k.texelCoords && r && (r & (r - 1)) == 0) {
       int m = 0;
       while (!(r & (1u << m)))
         m++;
       s.coordMap[i] = m;
-    } else if (r || s.fixedPoint) {
+    } else {
       s.coordMap[i] = -1;
     }
   }
@@ -278,8 +288,10 @@ void Light(std::string &out, const ShaderKey &k, const ShaderInfo &s, int chan, 
             b + 1);
       } else if (attn == 3) { // spot
         Add(out, "      vec3 ldir = uLight[%d].xyz - pos;\n", b + 3);
-        Add(out, "      float dist2 = dot(ldir, ldir);\n      float dist = sqrt(dist2);\n");
-        Add(out, "      ldir = ldir / dist;\n");
+        // one inverse square root for the distance and the direction (sqrt and two divisions cost
+        // the Tegra 3 more instructions)
+        Add(out, "      float dist2 = dot(ldir, ldir);\n      float idist = inversesqrt(dist2);\n");
+        Add(out, "      float dist = dist2 * idist;\n      ldir *= idist;\n");
         Add(out, "      float at = max(0.0, dot(ldir, uLight[%d].xyz));\n", b + 4);
         Add(out,
             "      at = max(0.0, uLight[%d].x + uLight[%d].y * at + uLight[%d].z * at * at) / "
@@ -313,7 +325,7 @@ bool Reads(const ShaderInfo &s, int source) {
 
 } // namespace
 
-std::string GxVertexShader(const ShaderKey &k, const ShaderInfo &s) {
+std::string GxVertexShader(const ShaderKey &k, const ShaderInfo &s, bool lean) {
   std::string out = "precision highp float;\n";
   for (int a = 0; a < s.attribCount; a++) {
     const int src = s.attribs[a];
@@ -375,11 +387,10 @@ std::string GxVertexShader(const ShaderKey &k, const ShaderInfo &s) {
   else
     out += "  vec4 clip = vec4(uProj[0].x * pos.x + uProj[0].y * pos.z, uProj[0].z * pos.y + uProj[0].w * pos.z, "
            "uProj[1].x * pos.z + uProj[1].y, -pos.z);\n";
-  // GX viewport (EFB pixels + 342) to the GL viewport over the whole EFB; no flip
-  out += "  float W = uVp[1].z, H = uVp[1].w;\n";
-  out += "  gl_Position = vec4(((uVp[0].w - 342.0) * 2.0 / W - 1.0) * clip.w + uVp[0].x * 2.0 / W * clip.x,\n"
-         "                     ((uVp[1].x - 342.0) * 2.0 / H - 1.0) * clip.w + uVp[0].y * 2.0 / H * clip.y,\n"
-         "                     2.0 * (uVp[0].z * clip.z + uVp[1].y * clip.w) / 16777215.0 - clip.w, clip.w);\n"
+  // GX viewport (EFB pixels + 342) to the GL viewport over the whole EFB; no flip (uVp: the
+  // factors gx_gl2.cpp FillXfRegs works out)
+  out += "  gl_Position = vec4(uVp[0].x * clip.x + uVp[0].y * clip.w, uVp[0].z * clip.y + uVp[0].w * clip.w,\n"
+         "                     2.0 * (uVp[1].x * clip.z + uVp[1].y * clip.w) / 16777215.0 - clip.w, clip.w);\n"
          "  gl_PointSize = max(1.0, uProj[1].w);\n";
   // lighting channels
   out += "  vec4 col0 = vec4(1.0);\n  vec4 col1 = vec4(1.0);\n";
@@ -437,13 +448,12 @@ std::string GxVertexShader(const ShaderKey &k, const ShaderInfo &s) {
         out += "    if (dot(t, t) > 0.0) t = normalize(t);\n";
       const int pr = static_cast<int>(post & 63);
       const int r0 = PostSlot(s, pr), r1 = PostSlot(s, pr + 1), r2 = PostSlot(s, pr + 2);
-      Add(out,
-          "    t = vec3(dot(uPost[%d].xyz, t) + uPost[%d].w, dot(uPost[%d].xyz, t) + uPost[%d].w, "
-          "dot(uPost[%d].xyz, t) + uPost[%d].w);\n",
-          r0, r0, r1, r1, r2, r2);
+      Add(out, "    vec4 th = vec4(t, 1.0);\n");
+      Add(out, "    t = vec3(dot(uPost[%d], th), dot(uPost[%d], th), dot(uPost[%d], th));\n", r0, r1, r2);
     }
     // q = 0: the GameCube's special case; z = 1 then, so the fragment shader's division keeps it
-    out += "    if (t.z == 0.0) { t.xy = clamp(t.xy / 2.0, vec2(-1.0), vec2(1.0)); t.z = 1.0; }\n";
+    if (!lean)
+      out += "    if (t.z == 0.0) { t.xy = clamp(t.xy / 2.0, vec2(-1.0), vec2(1.0)); t.z = 1.0; }\n";
     Add(out, "    t%u = t;\n  }\n", i);
   }
   for (unsigned i = 0; i < k.numTexGens; i++) {
@@ -461,32 +471,9 @@ std::string GxVertexShader(const ShaderKey &k, const ShaderInfo &s) {
 
 namespace {
 
-const char *kColorIn[16] = {"prev.rgb",     "prev.aaa",     "c0.rgb",        "c0.aaa",       "c1.rgb",
-                            "c1.aaa",       "c2.rgb",       "c2.aaa",        "textemp.rgb",  "textemp.aaa",
-                            "rastemp.rgb",  "rastemp.aaa",  "vec3(255.0)",   "vec3(128.0)",  "konsttemp.rgb",
-                            "vec3(0.0)"};
-const char *kAlphaIn[8] = {"prev.a", "c0.a", "c1.a", "c2.a", "textemp.a", "rastemp.a", "konsttemp.a", "0.0"};
 const char *kDest[4] = {"prev", "c0", "c1", "c2"};
-const char *kKonstConst[8] = {"255.0", "223.0", "191.0", "159.0", "128.0", "96.0", "64.0", "32.0"};
+const int kKonstValue[8] = {255, 223, 191, 159, 128, 96, 64, 32};
 const char kChannel[4] = {'r', 'g', 'b', 'a'};
-
-std::string KonstColor(unsigned sel) {
-  if (sel < 8)
-    return std::string("vec3(") + kKonstConst[sel] + ")";
-  if (sel >= 0x0C && sel <= 0x0F)
-    return "uKonst[" + std::to_string(sel - 0x0C) + "].rgb";
-  if (sel >= 0x10)
-    return "uKonst[" + std::to_string(sel & 3) + "]." + std::string(3, kChannel[(sel - 0x10) >> 2]);
-  return "vec3(0.0)";
-}
-
-std::string KonstAlpha(unsigned sel) {
-  if (sel < 8)
-    return kKonstConst[sel];
-  if (sel >= 0x10)
-    return "uKonst[" + std::to_string(sel & 3) + "]." + std::string(1, kChannel[(sel - 0x10) >> 2]);
-  return "0.0";
-}
 
 std::string Swizzle(std::uint32_t table) {
   std::string s;
@@ -495,19 +482,162 @@ std::string Swizzle(std::uint32_t table) {
   return s;
 }
 
+// A value of a TEV stage: its GLSL expression (vec3 for colour, float for alpha), the range it
+// can take, and the constant it is, if one. The stage code leaves out what the range makes
+// needless: the wrap to 8 bits, the lerp with c = 0 or 255, the rounding of whole numbers, the
+// clamp (the Tegra 3 allows 256 instructions in a fragment shader, and the TEV was most of the
+// time of a frame there).
+struct Term {
+  std::string e;
+  double lo = -1024.0, hi = 1023.0;
+  int constant = -1;
+  bool whole = true;
+};
+
+std::string Number(double v) {
+  char buffer[32];
+  std::snprintf(buffer, sizeof(buffer), "%.10g", v);
+  std::string s = buffer;
+  if (s.find_first_of(".e") == std::string::npos)
+    s += ".0";
+  return s;
+}
+
+Term Constant(int v, bool vec) {
+  Term t;
+  t.e = vec ? "vec3(" + Number(v) + ")" : Number(v);
+  t.lo = t.hi = v;
+  t.constant = v;
+  return t;
+}
+
+Term Variable(const std::string &e, double lo, double hi) {
+  Term t;
+  t.e = e;
+  t.lo = lo;
+  t.hi = hi;
+  return t;
+}
+
+bool In8(const Term &t) { return t.lo >= 0.0 && t.hi <= 255.0; }
+
+// The value & 255 (inputs a, b, c): the value itself where its range allows, else `wrapped` (a
+// uniform the processor wrapped) or wrap8().
+Term Wrap(const Term &t, const std::string &wrapped) {
+  if (In8(t))
+    return t;
+  if (!wrapped.empty())
+    return Variable(wrapped, 0.0, 255.0);
+  return Variable("wrap8(" + t.e + ")", 0.0, 255.0);
+}
+
 // (d + bias) op lerp(a, b, c), scaled, with the hardware's rounding (gx_gl_shader.cpp Regular):
-// c widened to 0..256, a scale above one inside the lerp, a rounding bias before the division by
-// 256 (not with the halving scale). lerp / 256 = a + (b - a) c' / 256: whole numbers below 2^17.
-std::string RegularOp(const char *comp, unsigned bias, unsigned op, unsigned scale) {
-  static const char *biasStr[4] = {"", " + 128.0", " - 128.0", ""};
-  static const char *mul[4] = {"", " * 2.0", " * 4.0", ""};
-  const std::string c = comp;
-  const std::string d = "((tevin_d." + c + biasStr[bias] + ")" + mul[scale] + ")";
-  const std::string lerp = "((tevin_a." + c + " + (tevin_b." + c + " - tevin_a." + c + ") * ((tevin_c." + c +
-                           " + floor(tevin_c." + c + " / 128.0)) / 256.0))" + mul[scale] + ")";
-  const std::string rounded = "floor(" + lerp + (scale != 3 ? (op ? " + 0.49609375" : " + 0.5") : "") + ")";
-  const std::string v = "(" + d + (op ? " - " : " + ") + rounded + ")";
-  return scale == 3 ? "floor(" + v + " * 0.5)" : v;
+// c widened to 0..256 (c' = c + (c >= 128)), a scale above one inside the lerp, a rounding bias
+// before the division by 256 (not with the halving scale). lerp / 256 = a + (b - a) c' / 256.
+Term RegularOp(const Term &a, const Term &b, const Term &c, const Term &d, unsigned bias, unsigned op,
+               unsigned scale) {
+  const double mul = scale == 1 ? 2.0 : scale == 2 ? 4.0 : 1.0;
+  // the lerp, in the inputs' units: whole where it is a or b
+  Term lerp;
+  lerp.lo = std::min(a.lo, b.lo);
+  lerp.hi = std::max(a.hi, b.hi);
+  if (c.constant >= 0) {
+    const int cw = c.constant + (c.constant >= 128 ? 1 : 0);
+    const std::string f = Number(cw / 256.0);
+    if (cw == 0 || a.e == b.e) {
+      lerp = a;
+    } else if (cw == 256) {
+      lerp = b;
+    } else if (a.constant == 0) {
+      lerp.e = "(" + b.e + " * " + f + ")";
+      lerp.whole = false;
+    } else if (b.constant == 0) {
+      lerp.e = "(" + a.e + " * " + Number(1.0 - cw / 256.0) + ")";
+      lerp.whole = false;
+    } else {
+      lerp.e = "(" + a.e + " + (" + b.e + " - " + a.e + ") * " + f + ")";
+      lerp.whole = false;
+    }
+  } else if (a.e == b.e) {
+    lerp = a;
+  } else {
+    const std::string f = "((" + c.e + " + step(128.0, " + c.e + ")) * 0.00390625)";
+    if (a.constant == 0)
+      lerp.e = "(" + b.e + " * " + f + ")";
+    else if (b.constant == 0)
+      lerp.e = "(" + a.e + " - " + a.e + " * " + f + ")";
+    else
+      lerp.e = "(" + a.e + " + (" + b.e + " - " + a.e + ") * " + f + ")";
+    lerp.whole = false;
+  }
+  if (a.constant == 0 && b.constant == 0)
+    lerp = Constant(0, false), lerp.e = a.e;
+  // rounded: floor(lerp * mul + rounding); a whole lerp stays as it is
+  Term rounded;
+  rounded.lo = lerp.lo * mul;
+  rounded.hi = lerp.hi * mul;
+  if (lerp.constant == 0) {
+    rounded = lerp;
+  } else {
+    const std::string scaled = mul == 1.0 ? lerp.e : "(" + lerp.e + " * " + Number(mul) + ")";
+    if (lerp.whole)
+      rounded.e = scaled;
+    else
+      rounded.e = "floor(" + scaled + (scale != 3 ? (op ? " + 0.49609375" : " + 0.5") : "") + ")";
+  }
+  // D = (d + bias) * mul (not with the halving scale)
+  const double add = bias == 1 ? 128.0 : bias == 2 ? -128.0 : 0.0;
+  Term dd;
+  dd.lo = (d.lo + add) * mul;
+  dd.hi = (d.hi + add) * mul;
+  if (d.constant == 0 && add == 0.0) {
+    dd = d;
+  } else {
+    dd.e = add == 0.0 ? d.e : "(" + d.e + (add > 0 ? " + 128.0" : " - 128.0") + ")";
+    if (mul != 1.0)
+      dd.e = "(" + dd.e + " * " + Number(mul) + ")";
+    dd.constant = d.constant >= 0 ? static_cast<int>((d.constant + add) * mul) : -1;
+  }
+  Term v;
+  if (rounded.constant == 0) {
+    v = dd;
+  } else if (dd.constant == 0) {
+    v = rounded;
+    if (op) {
+      v.e = "-" + rounded.e;
+      v.lo = -rounded.hi;
+      v.hi = -rounded.lo;
+      v.constant = -1;
+    }
+  } else {
+    v.e = "(" + dd.e + (op ? " - " : " + ") + rounded.e + ")";
+    v.lo = op ? dd.lo - rounded.hi : dd.lo + rounded.lo;
+    v.hi = op ? dd.hi - rounded.lo : dd.hi + rounded.hi;
+    v.constant = -1;
+  }
+  v.whole = true;
+  if (scale == 3) {
+    v.e = "floor(" + v.e + " * 0.5)";
+    v.lo = std::floor(v.lo * 0.5);
+    v.hi = std::floor(v.hi * 0.5);
+    v.constant = -1;
+  }
+  return v;
+}
+
+// The clamp of a stage's result where its range needs it.
+Term Clamp(Term v, bool to8, bool vec) {
+  const double lo = to8 ? 0.0 : -1024.0, hi = to8 ? 255.0 : 1023.0;
+  if (v.lo >= lo && v.hi <= hi)
+    return v;
+  if (vec)
+    v.e = "clamp(" + v.e + ", vec3(" + Number(lo) + "), vec3(" + Number(hi) + "))";
+  else
+    v.e = "clamp(" + v.e + ", " + Number(lo) + ", " + Number(hi) + ")";
+  v.lo = std::max(v.lo, lo);
+  v.hi = std::min(v.hi, hi);
+  v.constant = -1;
+  return v;
 }
 
 const char *kColorCompare[8] = {"(tevin_a.r > tevin_b.r ? tevin_c.rgb : vec3(0.0))",
@@ -547,8 +677,9 @@ std::string GxFragmentShader(const ShaderKey &k, const ShaderInfo &s) {
   for (int m = 0; m < 8; m++)
     if (k.texMaps & (1u << m))
       Add(out, "uniform sampler2D s%d;\n", m);
-  out += "uniform vec4 uColors[4];\nuniform vec4 uKonst[4];\nuniform vec4 uAlphaRef;\nuniform vec4 uFog[2];\n"
-         "uniform vec4 uLodBias[2];\n";
+  // TEV registers and konstants, as they are and & 255 (wrapped by the processor)
+  out += "uniform vec4 uColors[4];\nuniform vec4 uColorsW[4];\nuniform vec4 uKonst[4];\nuniform vec4 uKonstW[4];\n"
+         "uniform vec4 uAlphaRef;\nuniform vec4 uFog[2];\nuniform vec4 uLodBias[2];\n";
   bool texel = false;
   for (unsigned i = 0; i < k.numTexGens; i++)
     texel = texel || s.coordMap[i] == -1;
@@ -560,7 +691,8 @@ std::string GxFragmentShader(const ShaderKey &k, const ShaderInfo &s) {
   for (unsigned i = 0; i < k.numTexGens; i++)
     if (s.coordMap[i] != -2)
       Add(out, "varying %s vTex%u;\n", s.projective[i] ? "vec3" : "vec2", i);
-  out += "vec4 wrap8(vec4 v) { return v - 256.0 * floor(v / 256.0); }\n"
+  out += "vec3 wrap8(vec3 v) { return v - 256.0 * floor(v * 0.00390625); }\n"
+         "float wrap8(float v) { return v - 256.0 * floor(v * 0.00390625); }\n"
          "vec2 trunc2(vec2 v) { return sign(v) * floor(abs(v)); }\n"
          "bool gt16(vec3 a, vec3 b) { return a.g > b.g || (a.g == b.g && a.r > b.r); }\n"
          "bool eq16(vec3 a, vec3 b) { return a.r == b.r && a.g == b.g; }\n"
@@ -585,8 +717,15 @@ std::string GxFragmentShader(const ShaderKey &k, const ShaderInfo &s) {
             m, m, m, Bias(static_cast<unsigned>(m)).c_str());
   out += "void main() {\n";
   out += "  vec4 prev = uColors[0];\n  vec4 c0 = uColors[1];\n  vec4 c1 = uColors[2];\n  vec4 c2 = uColors[3];\n";
-  out += "  vec4 rastemp = vec4(0.0);\n  vec4 textemp = vec4(0.0);\n  vec4 konsttemp = vec4(0.0);\n";
-  out += "  vec4 tevin_a, tevin_b, tevin_c, tevin_d;\n";
+  out += "  vec4 rastemp = vec4(0.0);\n  vec4 textemp = vec4(0.0);\n";
+  // what the stages leave in the registers (prev, c0, c1, c2; colour, alpha): range, written
+  double regLo[4][2], regHi[4][2];
+  bool regWritten[4][2] = {};
+  for (int r = 0; r < 4; r++)
+    for (int part = 0; part < 2; part++) {
+      regLo[r][part] = -1024.0;
+      regHi[r][part] = 1023.0;
+    }
   out += "  vec2 tevcoord = vec2(0.0);\n  float alphabump = 0.0;\n";
   out += "  vec4 ras0 = to8(clamp(vColor0, 0.0, 1.0));\n";
   out += "  vec4 ras1 = to8(clamp(vColor1, 0.0, 1.0));\n";
@@ -666,7 +805,7 @@ std::string GxFragmentShader(const ShaderKey &k, const ShaderInfo &s) {
     const std::string rswap = Swizzle(k.swap[ac & 3]);
     const std::string tswap = Swizzle(k.swap[(ac >> 2) & 3]);
     if (enable && (k.texMaps & (1u << map))) {
-      if (indirect || s.fixedPoint) {
+      if (indirect) {
         Add(out, "    textemp = texmap%u(tevcoord).%s;\n", map, tswap.c_str());
       } else if (hasCoord && s.coordMap[coord] == static_cast<int>(map)) {
         // read as the vertex shader scaled it
@@ -703,37 +842,113 @@ std::string GxFragmentShader(const ShaderKey &k, const ShaderInfo &s) {
       out += "    rastemp = vec4(0.0);\n";
       break;
     }
+    // the stage's inputs with what is known of them (Term): textures and rasterized colours are
+    // 0..255, registers what the stages before left (the processor wraps their first values,
+    // uColorsW), konstants unknown (uKonstW wrapped)
     const unsigned kc = k.konst[n] & 0xFF, ka = (k.konst[n] >> 8) & 0xFF;
-    Add(out, "    konsttemp = vec4(%s, %s);\n", KonstColor(kc).c_str(), KonstAlpha(ka).c_str());
-    Add(out, "    tevin_a = wrap8(vec4(%s, %s));\n", kColorIn[(cc >> 12) & 15], kAlphaIn[(ac >> 13) & 7]);
-    Add(out, "    tevin_b = wrap8(vec4(%s, %s));\n", kColorIn[(cc >> 8) & 15], kAlphaIn[(ac >> 10) & 7]);
-    Add(out, "    tevin_c = wrap8(vec4(%s, %s));\n", kColorIn[(cc >> 4) & 15], kAlphaIn[(ac >> 7) & 7]);
-    Add(out, "    tevin_d = vec4(%s, %s);\n", kColorIn[cc & 15], kAlphaIn[(ac >> 4) & 7]);
+    const bool texOn = enable && (k.texMaps & (1u << map));
+    const bool rasOn = chan == 0 || chan == 1 || chan == 5 || chan == 6;
+    auto reg = [&](unsigned r, int part, const char *swz, bool wrapped) {
+      Term t = Variable(std::string(kDest[r]) + "." + swz, regLo[r][part], regHi[r][part]);
+      return wrapped ? Wrap(t, regWritten[r][part] ? "" : "uColorsW[" + std::to_string(r) + "]." + swz) : t;
+    };
+    auto konst = [&](unsigned sel, bool vec, bool wrapped) {
+      if (sel < 8)
+        return Constant(kKonstValue[sel], vec);
+      if (vec && sel >= 0x0C && sel <= 0x0F) {
+        const std::string i = std::to_string(sel - 0x0C);
+        return wrapped ? Variable("uKonstW[" + i + "].rgb", 0.0, 255.0) : Variable("uKonst[" + i + "].rgb", -1024.0, 1023.0);
+      }
+      if (sel >= 0x10) {
+        const std::string i = std::to_string(sel & 3), c(vec ? 3 : 1, kChannel[(sel - 0x10) >> 2]);
+        return wrapped ? Variable("uKonstW[" + i + "]." + c, 0.0, 255.0) : Variable("uKonst[" + i + "]." + c, -1024.0, 1023.0);
+      }
+      return Constant(0, vec);
+    };
+    auto colorIn = [&](unsigned sel, bool wrapped) {
+      if (sel < 8)
+        return reg(sel / 2, sel & 1, sel & 1 ? "aaa" : "rgb", wrapped);
+      switch (sel) {
+      case 8: return texOn ? Variable("textemp.rgb", 0.0, 255.0) : Constant(255, true);
+      case 9: return texOn ? Variable("textemp.aaa", 0.0, 255.0) : Constant(255, true);
+      case 10: return rasOn ? Variable("rastemp.rgb", 0.0, 255.0) : Constant(0, true);
+      case 11: return rasOn ? Variable("rastemp.aaa", 0.0, 255.0) : Constant(0, true);
+      case 12: return Constant(255, true);
+      case 13: return Constant(128, true);
+      case 14: return konst(kc, true, wrapped);
+      default: return Constant(0, true);
+      }
+    };
+    auto alphaIn = [&](unsigned sel, bool wrapped) {
+      if (sel < 4)
+        return reg(sel, 1, "a", wrapped);
+      switch (sel) {
+      case 4: return texOn ? Variable("textemp.a", 0.0, 255.0) : Constant(255, false);
+      case 5: return rasOn ? Variable("rastemp.a", 0.0, 255.0) : Constant(0, false);
+      case 6: return konst(ka, false, wrapped);
+      default: return Constant(0, false);
+      }
+    };
+    const Term ca = colorIn((cc >> 12) & 15, true), cb = colorIn((cc >> 8) & 15, true),
+               cc3 = colorIn((cc >> 4) & 15, true), cd = colorIn(cc & 15, false);
+    const Term aa = alphaIn((ac >> 13) & 7, true), ab = alphaIn((ac >> 10) & 7, true),
+               ac3 = alphaIn((ac >> 7) & 7, true), ad = alphaIn((ac >> 4) & 7, false);
+    const bool colorCompare = ((cc >> 16) & 3) == 3, alphaCompare = ((ac >> 16) & 3) == 3;
+    if (colorCompare || alphaCompare) {
+      Add(out, "    vec4 tevin_a = vec4(%s, %s);\n", ca.e.c_str(), aa.e.c_str());
+      Add(out, "    vec4 tevin_b = vec4(%s, %s);\n", cb.e.c_str(), ab.e.c_str());
+      Add(out, "    vec4 tevin_c = vec4(%s, %s);\n", cc3.e.c_str(), ac3.e.c_str());
+    }
     {
       const unsigned b = (cc >> 16) & 3, op = (cc >> 18) & 1, clampOut = (cc >> 19) & 1, scale = (cc >> 20) & 3,
                      dest = (cc >> 22) & 3;
-      const std::string v = b == 3 ? std::string("(tevin_d.rgb + ") + kColorCompare[op | scale << 1] + ")"
-                                   : RegularOp("rgb", b, op, scale);
-      Add(out, "    %s.rgb = clamp(%s, %s);\n", kDest[dest], v.c_str(),
-          clampOut ? "vec3(0.0), vec3(255.0)" : "vec3(-1024.0), vec3(1023.0)");
+      Term v;
+      if (b == 3) {
+        v = Variable("(" + cd.e + " + " + kColorCompare[op | scale << 1] + ")", cd.lo, cd.hi + 255.0);
+      } else {
+        v = RegularOp(ca, cb, cc3, cd, b, op, scale);
+      }
+      v = Clamp(v, clampOut, true);
+      Add(out, "    %s.rgb = %s;\n", kDest[dest], v.e.c_str());
+      regLo[dest][0] = v.lo;
+      regHi[dest][0] = v.hi;
+      regWritten[dest][0] = true;
     }
     {
       const unsigned b = (ac >> 16) & 3, op = (ac >> 18) & 1, clampOut = (ac >> 19) & 1, scale = (ac >> 20) & 3,
                      dest = (ac >> 22) & 3;
-      const std::string v = b == 3 ? std::string("(tevin_d.a + ") + kAlphaCompare[op | scale << 1] + ")"
-                                   : RegularOp("a", b, op, scale);
-      Add(out, "    %s.a = clamp(%s, %s);\n", kDest[dest], v.c_str(), clampOut ? "0.0, 255.0" : "-1024.0, 1023.0");
+      Term v;
+      if (b == 3) {
+        v = Variable("(" + ad.e + " + " + kAlphaCompare[op | scale << 1] + ")", ad.lo, ad.hi + 255.0);
+      } else {
+        v = RegularOp(aa, ab, ac3, ad, b, op, scale);
+      }
+      v = Clamp(v, clampOut, false);
+      Add(out, "    %s.a = %s;\n", kDest[dest], v.e.c_str());
+      regLo[dest][1] = v.lo;
+      regHi[dest][1] = v.hi;
+      regWritten[dest][1] = true;
     }
     out += "  }\n";
   }
   if (k.numStages) {
     const unsigned cd = (k.colorEnv[k.numStages - 1] >> 22) & 3, ad = (k.alphaEnv[k.numStages - 1] >> 22) & 3;
-    if (cd)
+    if (cd) {
       Add(out, "  prev.rgb = %s.rgb;\n", kDest[cd]);
-    if (ad)
+      regLo[0][0] = regLo[cd][0];
+      regHi[0][0] = regHi[cd][0];
+    }
+    if (ad) {
       Add(out, "  prev.a = %s.a;\n", kDest[ad]);
+      regLo[0][1] = regLo[ad][1];
+      regHi[0][1] = regHi[ad][1];
+    }
   }
-  out += "  prev = wrap8(prev);\n";
+  // prev & 255, where it can be outside
+  if (!(regLo[0][0] >= 0.0 && regHi[0][0] <= 255.0))
+    out += "  prev.rgb = wrap8(prev.rgb);\n";
+  if (!(regLo[0][1] >= 0.0 && regHi[0][1] <= 255.0))
+    out += "  prev.a = wrap8(prev.a);\n";
   // alpha test
   {
     const unsigned f0 = k.alphaTest & 7, f1 = (k.alphaTest >> 3) & 7, logic = (k.alphaTest >> 6) & 3;
