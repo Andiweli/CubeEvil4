@@ -6056,7 +6056,8 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   dem Speicher, oder neu übersetzt, wenn sich Quellen oder Treiber geändert haben (dann werden die
   alten Dateien gelöscht). Programme mit anderer MSAA-Einstellung (`centroid`) bleiben liegen. Die
   App ruft es bei jedem Bildschirmtakt ohne neues Bildstück (das Spiel zeichnet 30 Bilder je
-  Sekunde, jeder zweite Takt ist frei), bis 4 ms (`kPrewarmMs`, mindestens ein Programm).
+  Sekunde, jeder zweite Takt ist frei), bis 4 ms (`kPrewarmMs`, mindestens ein Programm). Mit
+  „60 FPS“ (Zwischenbilder) ist kein Takt frei, dann nur bei Ladepausen und angehaltenem Bild.
   Protokoll: `GX programs ahead of their first draw: N keys in the cache`, am Ende `… M from the
   cache, K linked anew (J old files removed), T ms in all`; die Zeile `GX:` zählt `… ahead of their
   first draw`. Wirkung erst ab dem zweiten Start mit dieser Version (die Schlüssel entstehen beim
