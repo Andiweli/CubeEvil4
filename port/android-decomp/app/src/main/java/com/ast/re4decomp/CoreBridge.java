@@ -105,6 +105,12 @@ public final class CoreBridge {
   /** A swipe across the picture: 1 to the left (the next tab of the game's sub screen), -1 to the right. */
   public static native void swipe(int dir);
   /**
+   * A swipe while playing (CoreActivity, the menu's switch "Knife by Swipe"): the core draws the
+   * knife and slashes (runtime/knife_swipe.cpp), `tilt` 1 straight up .. -1 straight down moves
+   * the slash up or down; ignored in the game's sub screens and by cores before 22.10.2026.
+   */
+  public static native void slash(float tilt);
+  /**
    * The memory card's files, one tab-separated row each (index, name,
    * blocks, save, intact, room, chapter, times saved, play time, year,
    * month, day, hour, minute, comment 1, comment 2); null when the game

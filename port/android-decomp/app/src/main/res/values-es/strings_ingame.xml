@@ -36,6 +36,8 @@
     <string name="ingame_latch_b">Fijar B (táctil)</string>
     <string name="ingame_gyro_sensitivity">Sensibilidad del giroscopio</string>
     <string name="ingame_alternate_help">Controles alternativos: L1 = Cuchillo, L2 = Apuntar (con el stick derecho), R1 = Inventario (Armas/Curación), R2 = Disparar / usar el cuchillo, Y = Mapa. A, B, X (Ashley) y START como antes.</string>
+    <string name="ingame_knife_swipe">Cuchillo deslizando</string>
+    <string name="ingame_knife_swipe_help">Cuchillo deslizando: un deslizamiento rápido sobre la imagen saca el cuchillo y corta; desliza hacia arriba o hacia abajo para cortar alto o bajo.</string>
 
     <string name="ingame_card">Tarjeta de memoria (ranura A)</string>
     <string name="ingame_card_help">Exportar e importar partidas guardadas como .gci (para Dolphin o GameCube).</string>

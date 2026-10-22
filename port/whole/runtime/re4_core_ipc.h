@@ -64,6 +64,7 @@ enum MsgType : uint32_t {
     kSetLetterbox = 23,  // a = off (no reply)
     kTouch = 24,         // a, b = the tap's u, v as float bits (no reply)
     kSwipe = 25,         // a = 1 next tab, -1 the one before (no reply)
+    kSlash = 26,         // a = the swipe's tilt as float bits (no reply)
 };
 
 struct MsgHeader {

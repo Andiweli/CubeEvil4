@@ -39,7 +39,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 0.43.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 68, Wunsch des Projektinhabers: alle Korrekturen aus diesem und dem zweiten Chat, Veröffentlichung durch ihn): Patches 0099 (Laser-Gang r318 auf 64 bit), 0100 (Gegenstände ohne Platz im Koffer, „E“-Marke in der Mitte), 0101 (Absturz am Aufzug r332), 0102 (`cCtrl::work` ausgerichtet: ARM32-Absturz in r222), 0103 (CRI-Tabellen ausgerichtet: Filmstart auf ARM32); App-Menü: Bildformat „Gestreckt“, mehr Zeilenabstand, „B einrasten (Touch)“, Gyro-Empfindlichkeit; GPU-Selbstprüfung der Filmfarben beim Start, die Zeilen der App auch im Protokoll des Kerns; Releasetext `port/android-decomp/docs/releases/v0.43.0-alpha.md`. Kern geprüft (lokal, WSL2, Stand mit 0100–0103): Builds i686, armhf, aarch64 mit allen Prüfungen 0 Fehler, Rundgang i686 126/126, armhf r222 und `set` 28/28. Cloud ✅ (Stand `844bdd25`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, GPU-Prüfung ok). Releasetext nachgeschärft (Waffen aus dem Debug-Menü, Reihenfolge des Bildformats). APK nicht gebaut, **Gerätetest offen** |
 | 0.43.1-alpha | **nicht veröffentlicht, in 0.44.0 aufgegangen** (Entscheidung des Projektinhabers). 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Wunsch des Projektinhabers): Patch 0104 (Absturz im Ton am Aufzug r332 → r331 nach Saddlers Ereignis), Shader der Brücke auf Mali (Uniform `refract` hieß wie die eingebaute GLSL-Funktion, Anbernic RG 477V), Gegner-Zeile beim Erscheinen mit Listeneintrag, `set` und `flag` (Dynamit-Frage); neues Werkzeug `tools/check_shaders_strict.sh` (alle Shader der Host-Prüfungen durch glslangValidator); Releasetext `port/android-decomp/docs/releases/v0.43.1-alpha.md`. Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; strenge Shader-Prüfung 165 Shader, 0 abgelehnt). APK nicht gebaut, **Gerätetest offen** |
 | Nach 0.43.1 (für 0.44.0) | 22.10.2026 (Branch `claude/re4-start-controls`, nach dem Stand `942a5c3`; **0.43.1 wird nicht veröffentlicht**, Entscheidung des Projektinhabers: alles zusammen mit 60 FPS als 0.44.0): Bildformat **„4:3 (ohne Balken)“** (Patch 0105, Anbernic RG 477V mit 4:3-Bildschirm), **Touch im Koffer** (Patch 0106, `runtime/menu_touch.cpp`: Reiter, Koffer-Cursor, Befehlsmenü, Ja/Nein-Frage per Fingertipp), Analyse 60 Bilder/s mit Zwischenbildern, Dynamit-Zeilen im Fehlerprotokoll (geworfen/explodiert aus dem zweiten Chat; Werfer am Posten, Zündschnur). Cloud ✅ (siehe die Abschnitte), **Gerätetest offen** |
-| 0.44.0-alpha (vorbereitet) | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Releasetext `port/android-decomp/docs/releases/v0.44.0-alpha.md`; **0.43.1 entfällt**, Entscheidung des Projektinhabers): alles aus 0.43.1 (Patch 0104, Mali-Shader, Gegner- und Dynamit-Zeilen) plus **60 FPS (experimentell)** (Zwischenbilder im GX-Renderer), **„4:3 (ohne Balken)“** (Patch 0105, zweite Fassung mit Schere), **Touch im Koffer** (Patch 0106: Reiter auch auf der Karte, Wischen, Koffer, Befehlsmenü, Frage). Cloud ✅ (siehe die Abschnitte), Retroid: Koffer-Tipps ✅, Reiter/4:3 erste Fassung ❌ (behoben, ungetestet), **60 FPS und die Korrekturen ungetestet** |
+| 0.44.0-alpha (vorbereitet) | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Releasetext `port/android-decomp/docs/releases/v0.44.0-alpha.md`; **0.43.1 entfällt**, Entscheidung des Projektinhabers): alles aus 0.43.1 (Patch 0104, Mali-Shader, Gegner- und Dynamit-Zeilen) plus **60 FPS (experimentell)** (Zwischenbilder im GX-Renderer), **„4:3 (ohne Balken)“** (Patch 0105, zweite Fassung mit Schere), **Touch im Koffer** (Patch 0106: Reiter auch auf der Karte, Wischen, Koffer, Befehlsmenü, Frage). Dazu **Messer per Wischen** (`runtime/knife_swipe.cpp`, Schalter im App-Menü). Cloud ✅ (siehe die Abschnitte), Retroid: Koffer-Tipps ✅, Reiter/4:3 erste Fassung ❌ (behoben, ungetestet), **60 FPS und die Korrekturen ungetestet** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5942,6 +5942,57 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
 - **Nicht getestet:** echte Spielbilder (dafür R3-Folgen vom Retroid, `pull-gx-dumps.ps1`, dann in der
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
+
+### Messer per Wischen (Wunsch des Projektinhabers, 22.10.2026, Cloud)
+
+Wunsch: das Messer (zücken und schneiden) auch mit einer Wischgeste. Kein Eingriff in `src/`, kein
+Patch: die App drückt für das Spiel die Tasten, die ein Spieler drücken würde; die Messer-Routine
+des Spiels (`pl_knife.cpp`) macht den Rest (Bewegung, Treffer, Ton, Effekt).
+
+- **App:** `CoreActivity.watchTap`: ein Finger, höchstens 700 ms, mindestens ein Sechstel der kürzeren
+  Bildseite, in jede Richtung, nicht auf einem Bedienelement der Touch-Steuerung →
+  `CoreBridge.slash(tilt)` (`tilt` = Steigung des Wischens, 1 senkrecht nach oben, -1 nach unten;
+  getrennter Kernprozess `kSlash` = 26). Das waagerechte Wischen für die Reiter bleibt; der Kern
+  wertet im Untermenü nur das eine, im Spiel nur das andere. Schalter im App-Menü unter
+  „Komfortsteuerung“: **„Messer per Wischen“** (`ingame_knife_swipe`, zehn Sprachen, an; Vorgabe
+  `knifeSwipe` in `core_input`), mit einer Hilfezeile (`ingame_knife_swipe_help`).
+- **Kern** (`runtime/knife_swipe.cpp`, mit den Spiel-Flags in libre4_main; `re4_core_slash`): einmal
+  je Spielbild, bevor das Spiel den Controller liest (Bild-Haken in `PADRead`), legt er Tasten auf
+  Kanal 0 drauf (`re4_pad_add` in `runtime/pad.cpp`, neu: Tasten eines Bild-Hakens für genau dieses
+  Bild, L/R mit vollem Analogwert, A mit `analogA`):
+  - **L** (Messerhaltung, `joyLKamae`), bis das Messer draußen ist (`r_no_0` 0, `r_no_1` 0xB,
+    `r_no_2` 1). Nur, wo L das Messer zieht: Hauptschleife, kein Untermenü, kein Ereignis, Leon oder
+    Krauser, Spiel-Option „Messertaste“ (`CFG_KNIFE_MODE`) aus, Spieler in einer Lauf-Routine
+    (`r_no_1` 0–5, dort läuft `actionSelect`) oder das Messer schon draußen. Vorher **kein A**: in den
+    Lauf-Routinen ist A die Aktionstaste (Türen, Leitern, Gegenstände).
+  - dann **L und A** (Feuertaste, `joyFireOn`), bis der Schnitt beginnt (`r_no_2` 2). Im ersten
+    dieser Bilder setzt die Steigung die Höhe: die Mischung `m3r` (-1..1 für 45° nach unten .. oben;
+    beim Zücken aus der Neigung der Kamera) wandert um den Teil der Steigung über 0,35 (fast
+    waagerecht: gerader Schnitt), die Mitte des Zitterns (`cPlWep::pitch`, `m3r`·π/2) mit, wie der
+    Stick beide in `PlWepLockCtrl` bewegt (und wie `gyro.cpp`).
+  - **L allein**, solange der Schnitt schwingt, danach noch 10 Bilder: ein weiteres Wischen in dieser
+    Zeit schneidet sofort wieder, ohne neu zu zücken. Danach loslassen, das Spiel steckt das Messer weg.
+  - Abbruch (Tasten sofort weg): Untermenü, Ereignis, der Spieler verlässt die Messer-Routine
+    (Treffer, gepackt), Zeitgrenzen (Zücken 45 Bilder, Schnittbeginn 15, Schwung 60). Ein Wischen,
+    das nicht schneiden kann, oder eines älter als 400 ms verfällt.
+  - Protokoll: `knife: swipes draw the knife and slash`, `knife: slash N by a swipe (tilt -1.00)`,
+    `knife: swipe ignored (…)`, `knife: swipe slash stopped (…)`.
+- **Grenzen:** mit sichtbarer Touch-Steuerung bewegt ein schnelles Wischen in der Look-Zone zugleich
+  die Kamera (C-Stick) und schneidet; wer dort oft schnell schaut, schaltet den Schalter aus. Der
+  Schnitt selbst bleibt die Bewegung des Spiels (immer dieselbe Seite); die Richtung des Wischens
+  ändert nur die Höhe. Ada, Ashley, HUNK, Wesker: kein Messer auf L, Wischen ohne Wirkung. Mit der
+  Spiel-Option „Messertaste“ an: ohne Wirkung (Zeile im Protokoll).
+- **Tests (Cloud):** Laufzeit-Test `knifeswipe` (`game_probe.cpp` `re4probe_knife_swipe`: ein
+  künstlicher Leon wird Bild für Bild durch die Routine geführt wie `pl_knife.cpp`): Untermenü →
+  verworfen und nicht aufgehoben; aus dem Stand L, L, dann L+A mit `m3r` -1 und `pitch` -π/2 bei
+  senkrechtem Wischen, L im Schwung, zweites Wischen im Schwung → sofort L+A, gerade (0,2 → keine
+  Höhe), 10 Bilder L, dann nichts; Messer schon draußen → sofort L+A; getroffen → Tasten weg; Waffe
+  im Anschlag, Ashley, Messertaste → nichts; Spiel zieht nie → genau 45 Bilder L. Kernprozess-Test:
+  `re4ipc_slash` kommt an. i686, armhf, aarch64: 0 Baufehler, alle Tests 0 Fehler. App: alle
+  Java-Quellen gegen `android-all` und RetroTouch übersetzt (0 Fehler), `core_mode.cpp` für den
+  Host gebaut und gelinkt (der Link-Test `re4decomp_link_check` bekam dafür die Dateien des
+  Kernprozess-Clients, ohne sie fehlten alle `re4ipc_*`), Übersetzungsprüfung alle ok.
+- **Nicht getestet:** am Gerät (Gefühl der Geste, Schnitthöhe, Look-Zone).
 
 ### Gerätetest 22.10.2026 18:18 (Retroid, Stand mit 0105/0106) und Entscheidungen des Projektinhabers
 

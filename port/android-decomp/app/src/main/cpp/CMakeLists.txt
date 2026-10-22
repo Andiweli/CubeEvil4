@@ -269,7 +269,8 @@ else()
         if(JNI_INCLUDE_DIRS)
             enable_language(C)
             add_library(re4decomp_link_check SHARED android_bridge.cpp scene_gl.cpp event_focus_gl.cpp foot_shadow_gl.cpp environment_gl.cpp world_effects_gl.cpp actor_gl.cpp event_actor_gl.cpp event_mirror_gl.cpp
-                core_mode.cpp core_scene.cpp gx_gl.cpp gx_gl_shader.cpp gx_selfcheck.cpp gx_texture.cpp ../../../../tools/host_android/android_log.c)
+                core_mode.cpp core_scene.cpp gx_gl.cpp gx_gl_shader.cpp gx_selfcheck.cpp gx_texture.cpp
+                "${RE4_CORE_INCLUDE}/core_ipc.cpp" "${RE4_CORE_INCLUDE}/core_ipc_client.cpp" ../../../../tools/host_android/android_log.c)
             target_include_directories(re4decomp_link_check PRIVATE ${RE4_GLES_INCLUDE_DIR} "${RE4_CORE_INCLUDE}"
                 ../../../../tools/host_android ${JNI_INCLUDE_DIRS})
             target_link_libraries(re4decomp_link_check PRIVATE re4_platform ${RE4_EGL_LIBRARY} ${RE4_GLES_LIBRARY} dl)

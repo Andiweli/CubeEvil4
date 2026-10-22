@@ -914,6 +914,13 @@ void re4ipc_swipe(int dir)
     post(kSwipe, dir, 0, 0);
 }
 
+void re4ipc_slash(float tilt)
+{
+    int32_t a;
+    memcpy(&a, &tilt, 4);
+    post(kSlash, a, 0, 0);
+}
+
 void re4ipc_touch(float u, float v)
 {
     int32_t a, b;

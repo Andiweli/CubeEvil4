@@ -37,6 +37,8 @@
 #include "ss_main.h"
 #include "ss_pzzl.h"
 #include "db_log.h"
+#include "pad.h"
+#include "pl_wep.h"
 
 #include <new>
 #include <stdlib.h>
@@ -978,5 +980,129 @@ extern "C" int re4probe_letterbox(void)
     if (keepEvent) {
         StaFlagOn(pG, STA_EVENT);
     }
+    return bad;
+}
+
+extern "C" void re4_core_slash(float tilt);
+
+// The knife by a swipe (runtime/knife_swipe.cpp): the buttons it adds to the pad (pad.cpp
+// re4_pad_add) frame by frame, while the probe moves a fake Leon through the knife routine the way
+// pl_knife.cpp would. Bits: each failed case.
+extern "C" int re4probe_knife_swipe(void)
+{
+    const u16 kL = 0x0040, kLA = 0x0140;
+    cPlayer* keepPl = pPL;
+    const u8 keepStep = pG->Rno0, keepType = pG->pl_type;
+    const int keepSub = StaFlagChk(pG, STA_SUB_SCRN) != 0, keepEvent = StaFlagChk(pG, STA_EVENT) != 0;
+    const int keepKnifeKey = pSys && CfgFlagChk(pSys, CFG_KNIFE_MODE);
+    const f32 keepM3r = m3r;
+
+    cPlayer* pl = (cPlayer*) (unsigned long) 0x82E40000ul;
+    memset((void*) pl, 0, sizeof(cPlayer));
+    cPlWep* wep = (cPlWep*) (unsigned long) 0x82E30000ul;
+    memset((void*) wep, 0, sizeof(cPlWep));
+    pl->Wep = wep;
+    pPL = pl;
+    pG->Rno0 = 3;
+    pG->pl_type = 0;
+    StaFlagOff(pG, STA_SUB_SCRN);
+    StaFlagOff(pG, STA_EVENT);
+    if (pSys) {
+        CfgFlagOff(pSys, CFG_KNIFE_MODE);
+    }
+    m3r.setDelay(0.0f);
+    m3r.reset(0.0f);
+
+    PADStatus pads[4];
+    int bad = 0;
+    auto frame = [&]() -> u16 {
+        PADRead(pads);
+        return pads[0].button;
+    };
+
+    // a swipe in a sub screen: dropped, not kept for later
+    StaFlagOn(pG, STA_SUB_SCRN);
+    re4_core_slash(0.0f);
+    bad |= frame() != 0 ? 1 : 0;
+    StaFlagOff(pG, STA_SUB_SCRN);
+    bad |= frame() != 0 ? 1 : 0;
+
+    // standing (0/0), a swipe straight down: L until the knife is out (the trigger pressed fully)
+    re4_core_slash(-1.0f);
+    bad |= frame() != kL || pads[0].triggerLeft != 0xFF ? 2 : 0;
+    pl->r_no_1 = 0xB;  // the game draws the knife
+    bad |= frame() != kL ? 2 : 0;
+    // set: L and A, the slash aimed 45 degrees down
+    pl->r_no_2 = 1;
+    pl->r_no_3 = 4;
+    bad |= frame() != kLA ? 4 : 0;
+    bad |= (f32) m3r > -0.99f || wep->pitch > -1.5f ? 8 : 0;
+    // the slash swings: L alone
+    pl->r_no_2 = 2;
+    bad |= frame() != kL ? 0x10 : 0;
+    bad |= frame() != kL ? 0x10 : 0;
+    // a second, almost level swipe while it swings: slashes again once it ends, level
+    re4_core_slash(0.2f);
+    bad |= frame() != kL ? 0x20 : 0;
+    m3r.reset(0.0f);
+    wep->pitch = 0.0f;
+    pl->r_no_2 = 1;
+    bad |= frame() != kLA || (f32) m3r != 0.0f ? 0x20 : 0;
+    pl->r_no_2 = 2;
+    bad |= frame() != kL ? 0x20 : 0;
+    // the swing ends: L ten frames more, then nothing (the game puts the knife away)
+    pl->r_no_2 = 1;
+    for (int i = 0; i < 10; i++) {
+        bad |= frame() != kL ? 0x40 : 0;
+    }
+    bad |= frame() != 0 ? 0x40 : 0;
+
+    // the knife already out and set (L held on the controller): L and A at once; the player hurt
+    // (routine 1): the buttons stop at once
+    re4_core_slash(0.0f);
+    bad |= frame() != kLA ? 0x80 : 0;
+    pl->r_no_0 = 1;
+    bad |= frame() != 0 ? 0x80 : 0;
+
+    // aiming a gun (0/6): ignored
+    pl->r_no_0 = 0;
+    pl->r_no_1 = 6;
+    pl->r_no_2 = 0;
+    re4_core_slash(0.0f);
+    bad |= frame() != 0 ? 0x100 : 0;
+    // Ashley, the game's knife key option: ignored
+    pl->r_no_1 = 0;
+    pG->pl_type = 1;
+    re4_core_slash(0.0f);
+    bad |= frame() != 0 ? 0x200 : 0;
+    pG->pl_type = 0;
+    if (pSys) {
+        CfgFlagOn(pSys, CFG_KNIFE_MODE);
+        re4_core_slash(0.0f);
+        bad |= frame() != 0 ? 0x200 : 0;
+        CfgFlagOff(pSys, CFG_KNIFE_MODE);
+    }
+
+    // the game never draws the knife: L for 45 frames, then nothing
+    re4_core_slash(0.0f);
+    int held = 0;
+    for (int i = 0; i < 60; i++) {
+        held += frame() == kL;
+    }
+    bad |= held != 45 ? 0x400 : 0;
+
+    pPL = keepPl;
+    pG->Rno0 = keepStep;
+    pG->pl_type = keepType;
+    if (keepSub) {
+        StaFlagOn(pG, STA_SUB_SCRN);
+    }
+    if (keepEvent) {
+        StaFlagOn(pG, STA_EVENT);
+    }
+    if (keepKnifeKey) {
+        CfgFlagOn(pSys, CFG_KNIFE_MODE);
+    }
+    m3r.reset(keepM3r);
     return bad;
 }

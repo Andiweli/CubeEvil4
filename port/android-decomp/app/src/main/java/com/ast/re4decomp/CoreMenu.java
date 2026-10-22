@@ -64,6 +64,8 @@ final class CoreMenu extends Dialog {
     void latchBChanged(boolean on);
     /** The slider of gyro aiming: the turn rates times `value` (the preferences hold it). */
     void gyroSensitivityChanged(float value);
+    /** The switch "Knife by Swipe" (the preferences hold it). */
+    void knifeSwipeChanged(boolean on);
   }
 
   private final Host host;
@@ -396,7 +398,12 @@ final class CoreMenu extends Dialog {
     sensitivityBox.addView(sensitivityValue, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
         ViewGroup.LayoutParams.WRAP_CONTENT));
     comfort.addView(sensitivityBox, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2));
+    // "Knife by Swipe" in the column of Alternate Controls (wish of the project owner, 22.10.2026)
+    LinearLayout comfortMore = labelledRow("");
+    checkBox(comfortMore, s(R.string.ingame_knife_swipe), input.getBoolean(CoreActivity.KNIFE_SWIPE, true), 2,
+        (b, on) -> host.knifeSwipeChanged(on));
     body.addView(text(s(R.string.ingame_alternate_help), 12, false));
+    body.addView(text(s(R.string.ingame_knife_swipe_help), 12, false));
 
     heading(s(R.string.ingame_card));
     body.addView(text(s(R.string.ingame_card_help), 12, false));

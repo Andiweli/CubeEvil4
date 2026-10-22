@@ -94,6 +94,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   static final String TOUCH_LATCH_B = "touchLatchB";
   // the menu's slider of gyro aiming (GyroAim.setSensitivity, a float, 1 = as before)
   static final String GYRO_SENSITIVITY = "gyroSensitivity";
+  // the menu's switch "Knife by Swipe" (watchTap: a swipe while playing draws the knife and slashes; on)
+  static final String KNIFE_SWIPE = "knifeSwipe";
   /** The menu's picture options: scale (0 auto, 1-4), samples, anisotropy, aspect (0 16:9, 1 4:3, 2 stretched, 3 4:3 without bars). */
   static final String GRAPHICS_PREFS = "core_graphics";
   private static final int REQUEST_EXPORT_ALL = 2, REQUEST_IMPORT = 3, REQUEST_REPORT = 4;
@@ -171,6 +173,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     SharedPreferences inputPrefs = getSharedPreferences(INPUT_PREFS, MODE_PRIVATE);
     input.setSwapFace(inputPrefs.getBoolean(SWAP_FACE, false));
     input.setAlternate(inputPrefs.getBoolean(ALT_CONTROLS, false));
+    knifeSwipe = inputPrefs.getBoolean(KNIFE_SWIPE, true);
     // R3 saves graphics data with the test scripts (RE4_APP_TOOLS=1) or when the menu switched it on
     tools = settings.contains("RE4_APP_TOOLS=1") || inputPrefs.getBoolean(R3_CAPTURE, false);
     logLayout();
@@ -509,6 +512,12 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     @Override public void gyroSensitivityChanged(float value) {
       getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putFloat(GYRO_SENSITIVITY, value).apply();
       gyroAim.setSensitivity(value);
+    }
+
+    @Override public void knifeSwipeChanged(boolean on) {
+      getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(KNIFE_SWIPE, on).apply();
+      knifeSwipe = on;
+      Log.i(TAG, "touch: swipes " + (on ? "draw the knife and slash" : "leave the knife alone"));
     }
 
     @Override public void alternateChanged(boolean on) {
@@ -868,8 +877,12 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   // project owner, 22.10.2026: the inventory by touch) goes to the core, which uses it while a sub
   // screen of the game is open (runtime/menu_touch.cpp) and ignores it elsewhere; a swipe (one
   // finger, mostly sideways, at least an eighth of the picture's width, within 700 ms) changes
-  // the sub screen's tab (wish of the project owner after the first device test).
+  // the sub screen's tab (wish of the project owner after the first device test). A swipe in any
+  // direction, at least a sixth of the picture's shorter side, draws the knife and slashes while
+  // playing, higher or lower by its slope (runtime/knife_swipe.cpp; wish of the project owner,
+  // 22.10.2026; the menu's switch "Knife by Swipe"); the core ignores it in sub screens.
   private static final long TAP_MS = 500, SWIPE_MS = 700;
+  private boolean knifeSwipe = true;
   private int tapFinger = -1;
   private boolean tapMoved;
   private float tapX, tapY;
@@ -904,8 +917,14 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
           if (!tapMoved && time <= TAP_MS) {
             surface.getLocationInWindow(surfaceAt);
             CoreBridge.tap(e.getX(i) - surfaceAt[0], e.getY(i) - surfaceAt[1]);
-          } else if (time <= SWIPE_MS && Math.abs(dx) >= surface.getWidth() / 8f && Math.abs(dx) >= 2 * Math.abs(dy)) {
-            CoreBridge.swipe(dx < 0 ? 1 : -1);
+          } else if (time <= SWIPE_MS) {
+            if (Math.abs(dx) >= surface.getWidth() / 8f && Math.abs(dx) >= 2 * Math.abs(dy)) {
+              CoreBridge.swipe(dx < 0 ? 1 : -1);
+            }
+            float length = (float) Math.hypot(dx, dy);
+            if (knifeSwipe && length >= Math.min(surface.getWidth(), surface.getHeight()) / 6f) {
+              CoreBridge.slash(-dy / length);
+            }
           }
         }
         tapFinger = -1;

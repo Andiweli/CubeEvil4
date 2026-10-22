@@ -87,6 +87,7 @@ struct CoreApi {
   void (*setLetterbox)(int){};  // optional (cores since 22.10.2026): 4:3 without the bars
   void (*touch)(float, float){};  // optional (cores since 22.10.2026): a tap on the picture
   void (*swipe)(int){};           // optional (cores since 22.10.2026): a swipe across it
+  void (*slash)(float){};         // optional (cores since 22.10.2026): the knife by a swipe
   int (*cardList)(Re4CardFile *, int){};
   int (*cardFree)(void){};
   int (*cardName)(int, char *, int){};
@@ -411,6 +412,7 @@ void loadCore(JNIEnv *env) {
   api.setLetterbox = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_set_letterbox"));
   api.touch = reinterpret_cast<void (*)(float, float)>(dlsym(api.main, "re4_core_touch"));
   api.swipe = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_swipe"));
+  api.slash = reinterpret_cast<void (*)(float)>(dlsym(api.main, "re4_core_slash"));
   api.cardList = reinterpret_cast<int (*)(Re4CardFile *, int)>(dlsym(api.main, "re4_core_card_list"));
   api.cardFree = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_card_free_blocks"));
   api.cardName = reinterpret_cast<int (*)(int, char *, int)>(dlsym(api.main, "re4_core_card_file_name"));
@@ -1488,6 +1490,7 @@ void useCoreProcess(const std::string &why) {
   api.setLetterbox = re4ipc_set_letterbox;
   api.touch = re4ipc_touch;
   api.swipe = re4ipc_swipe;
+  api.slash = re4ipc_slash;
   api.cardList = re4ipc_card_list;
   api.cardFree = re4ipc_card_free_blocks;
   api.cardName = re4ipc_card_file_name;
@@ -1623,6 +1626,13 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_tap(JNIEnv *
 // screen), -1 to the right.
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_swipe(JNIEnv *, jclass, jint dir) {
   if (api.swipe) api.swipe(dir > 0 ? 1 : -1);
+}
+
+// A swipe while playing (CoreActivity.watchTap, the menu's switch "Knife by Swipe"): the knife
+// draws and slashes, tilt 1 straight up .. -1 straight down (runtime/knife_swipe.cpp).
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_slash(JNIEnv *, jclass, jfloat tilt) {
+  if (!api.slash || !(tilt == tilt)) return;
+  api.slash(tilt < -1.f ? -1.f : tilt > 1.f ? 1.f : tilt);
 }
 
 // The game's rumble motor (re4_core_rumble) for the vibrator (CoreActivity).

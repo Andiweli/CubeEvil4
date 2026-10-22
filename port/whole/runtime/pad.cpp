@@ -251,6 +251,15 @@ void re4_add_frame_hook(void (*hook)(unsigned))
     re4_log("pad: no room for another frame hook");
 }
 
+// Buttons a frame hook adds to channel 0 for the frame it runs in (re4_pad_add:
+// the knife swipe, runtime/knife_swipe.cpp), on top of the controller or script.
+static u16 g_add;
+
+void re4_pad_add(u16 buttons)
+{
+    g_add |= buttons;
+}
+
 // Live controller (the app): written by its input thread, read by PADRead.
 static std::mutex g_liveLock;
 static Re4CorePad g_live;
@@ -331,6 +340,19 @@ u32 PADRead(PADStatus* status)
             status[0].analogA = (status[0].button & 0x0100) ? 0xFF : 0;
             status[0].analogB = (status[0].button & 0x0200) ? 0xFF : 0;
         }
+    }
+    if (g_add) {
+        status[0].button |= g_add;
+        if (g_add & 0x0040) {
+            status[0].triggerLeft = 0xFF;
+        }
+        if (g_add & 0x0020) {
+            status[0].triggerRight = 0xFF;
+        }
+        if (g_add & 0x0100) {
+            status[0].analogA = 0xFF;
+        }
+        g_add = 0;
     }
     // every change of the buttons (scripted or from the device)
     static u16 lastButtons;

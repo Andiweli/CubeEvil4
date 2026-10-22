@@ -963,6 +963,7 @@ int re4probe_partner_damage(void);
 int re4probe_case_free_place(void);
 int re4probe_menu_touch(void);
 int re4probe_letterbox(void);
+int re4probe_knife_swipe(void);
 int re4_log_tail(char* out, int size);
 }
 
@@ -1610,6 +1611,36 @@ static void testLetterbox()
     report("letterbox", bad == 0);
 }
 
+// The knife by a swipe (runtime/knife_swipe.cpp; game_probe.cpp re4probe_knife_swipe): L until the
+// knife is out, L and A until it slashes, the swipe's tilt on the aim, a second swipe, the stops
+static void testKnifeSwipe()
+{
+    bool ok = true;
+    const int bad = re4probe_knife_swipe();
+    if (bad) {
+        re4_log("  knifeswipe: failed checks 0x%x", bad);
+        ok = false;
+    }
+    static char tail[48 * 160];
+    re4_log_tail(tail, sizeof tail);
+    const char* want[] = {
+        "knife: swipe ignored (a sub screen is open)",
+        "knife: slash 1 by a swipe (tilt -1.00)",
+        "knife: slash 2 by a swipe (tilt +0.20)",
+        "knife: swipe slash stopped (the player left the knife)",
+        "knife: swipe ignored (the player is busy)",
+        "knife: swipe ignored (this character has no knife on L)",
+        "knife: swipe slash stopped (the knife did not come out)",
+    };
+    for (const char* w : want) {
+        if (!strstr(tail, w)) {
+            ok = false;
+            re4_log("  knifeswipe: missing \"%s\"", w);
+        }
+    }
+    report("knifeswipe", ok);
+}
+
 // The processor lines of the performance log (re4_cpu_info.h): the layout of a phone with two kinds
 // of cores and of one with three, and a thread's processor time per picture (it computes here)
 static void testCpuInfo()
@@ -1742,6 +1773,7 @@ int re4_runtime_tests()
     testCaseFreePlace();
     testMenuTouch();
     testLetterbox();
+    testKnifeSwipe();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);

@@ -36,6 +36,8 @@
     <string name="ingame_latch_b">Фиксация B (сенсор)</string>
     <string name="ingame_gyro_sensitivity">Чувствительность гироскопа</string>
     <string name="ingame_alternate_help">Альтернативное управление: L1 = нож, L2 = прицеливание (правым стиком), R1 = инвентарь (оружие/лечение), R2 = выстрел / удар ножом, Y = карта. A, B, X (Эшли) и START — как раньше.</string>
+    <string name="ingame_knife_swipe">Нож свайпом</string>
+    <string name="ingame_knife_swipe_help">Нож свайпом: быстрый свайп по изображению достаёт нож и наносит удар; свайп вверх или вниз — удар выше или ниже.</string>
 
     <string name="ingame_card">Карта памяти (слот A)</string>
     <string name="ingame_card_help">Экспорт и импорт сохранений в формате .gci (для Dolphin или GameCube).</string>

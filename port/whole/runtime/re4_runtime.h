@@ -212,6 +212,9 @@ void re4_set_frame_hook(void (*hook)(unsigned));
 void re4_pad_script_stop(void);
 /* The player is free in the room: RE4_PAD_FREE_SCRIPT starts (pad.cpp). */
 void re4_pad_script_free(void);
+/* Buttons (PAD_BUTTON_* bits) a frame hook adds to channel 0 for the frame it
+ * runs in, on top of the controller (pad.cpp; the knife swipe, knife_swipe.cpp). */
+void re4_pad_add(unsigned short buttons);
 
 /* Every OS thread and where it waits (os_thread.cpp; RE4_WAIT_TRACE=1 records
  * the places): the hang search of host/main.cpp on SIGUSR1. */

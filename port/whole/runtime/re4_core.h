@@ -268,6 +268,11 @@ void re4_core_touch(float u, float v);
  * the sub screen (a swipe to the left), -1 the one before; ignored outside the
  * normal inventory. Any thread. */
 void re4_core_swipe(int dir);
+/* A swipe while playing (cores since 22.10.2026, knife_swipe.cpp): Leon draws
+ * the knife and slashes; tilt -1..1 how steep the swipe went (1 straight up,
+ * -1 straight down) moves the slash up or down. Ignored in sub screens, events
+ * and where L would not draw the knife. Any thread. */
+void re4_core_slash(float tilt);
 /* Game frames so far (one per PADRead) and the game's host thread id: the
  * app notices a game that stands without a pause and samples where it is. */
 unsigned re4_core_frame_count(void);

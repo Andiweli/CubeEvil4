@@ -103,6 +103,7 @@ struct Core {
     void (*setLetterbox)(int);
     void (*touch)(float, float);
     void (*swipe)(int);
+    void (*slash)(float);
     void (*gyro)(float, float);
     int (*cardList)(Re4CardFile*, int);
     int (*cardFree)(void);
@@ -711,6 +712,7 @@ bool loadCore(std::string& problem)
     bind(core.setLetterbox, "re4_core_set_letterbox");
     bind(core.touch, "re4_core_touch");
     bind(core.swipe, "re4_core_swipe");
+    bind(core.slash, "re4_core_slash");
     bind(core.gyro, "re4_core_gyro");
     bind(core.cardList, "re4_core_card_list");
     bind(core.cardFree, "re4_core_card_free_blocks");
@@ -812,6 +814,12 @@ void serve()
         case kSwipe:
             core.swipe(h.a);
             break;
+        case kSlash: {
+            float tilt;
+            memcpy(&tilt, &h.a, 4);
+            core.slash(tilt);
+            break;
+        }
         case kTouch: {
             float u, v;
             memcpy(&u, &h.a, 4);
