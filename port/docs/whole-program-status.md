@@ -5943,6 +5943,53 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Berichte 22.10.2026 abends: stumme Todesschreie, Ruckler (Retroid, Galaxy S7, moto e6s; Cloud)
+
+- **Berichte:** Retroid 23:23, 23:41, 23:42 (0.44.0, Kern 64 bit, Stufe 2, MSAA 2, Anisotropie 16);
+  Galaxy S7 SM-G930U (Snapdragon 820, Adreno 530, Android 8, 64 bit, 0.44.0, 18:13, ein Tester:
+  Ruckler); moto e6s (MediaTek, 8 Kerne Cortex-A53 bis 2,0 GHz, 2 GB, Android 9, nur 32 bit,
+  0.42.1, 16:40, ein Tester: Ruckler).
+- **Stumme Todesschreie (Projektinhaber: Gegner schrien beim Runterfallen mehrmals nicht):** der
+  Schrei kommt im Spiel zu Beginn der Treffer-Reaktion (`em10SetDamageVoice` → `Ctrl11SetSe2` →
+  `SndCall(8, Se_tbl[0])`; beim Schrotflinten-Treffer `Dm_Blow`, auch wenn der Ganado danach über
+  eine Kante fällt: im Bericht `r 2/4/2` bei s19, s24, s25 in r108 und s12 in r10a). Kein Hinweis
+  des Tontreibers (`ISS Voice Drop`, `Snd_axv_work is full`, `REQ_NO`), kein Kopf verloren
+  (`Be_flg 0x80`: zwei Zeilen `head lost` in 25 Minuten). **Unterschied des Ports gefunden:** jede
+  Ton-Anfrage (neuer Ton, Stopp, und je Bild die Nachführung jedes Raumklangs, `sndSurroundCalc`,
+  bis zu 48) belegt einen Platz im Anfrage-Speicher (`Snd_req_work`, 2 × 64); der Ton-Takt des
+  Spiels führt einen Speicher aus und tauscht. Auf dem GameCube läuft der Takt alle 5 ms mitten im
+  Spielbild, die Anfragen eines Bilds verteilen sich auf mehrere Speicher; im Port laufen die Takte
+  gesammelt zwischen zwei Spielbildern (`vi.cpp` `re4_os_idle`, `ai.cpp`), alle Anfragen eines
+  Bilds landen in einem. Ist er voll, gibt `Snd_open_req_work` nichts zurück und `SndCall` spielt
+  den Ton stillschweigend nicht. **Patch 0107:** 256 Plätze (alle Stellen nutzen `SND_REQ_MAX`).
+  Neue Zeile `sound: up to N requests for one audio frame (bank of 256, the GameCube's 64): M audio
+  frames over 64, K full, in rNNN` (`state_trace.cpp`, gezählt vor jedem Ton-Takt über
+  `re4_ai_set_block_hook`, höchstens alle 10 s und nur, wenn es vorkam): der nächste Bericht zeigt,
+  ob mehr als 64 Anfragen auf einmal kamen. **Nicht bewiesen**, dass das die Ursache war.
+- **Ruckler Retroid (23:42, r11b nach dem Speichern):** 10 s lang brauchte der Zeichen-Thread
+  29,9 ms je Bild (vorher 4–6 ms, höchstens 86 ms), davon nur 7,3 ms Rechenzeit: er wartete auf
+  Grafikchip oder Treiber; 669 Zeichenaufrufe und 9,5 EFB-Kopien je Bild, gezeigt 32,9 Bilder/s;
+  die GPU-Messung nennt 14,5 ms. Danach wieder normal. Nicht behoben; als Nächstes eine R3-Folge an
+  der Stelle (dann in der Cloud nachmessen) und derselbe Ort ohne MSAA.
+- **Galaxy S7:** Einstellungen schon am kleinsten (Stufe 1, ohne MSAA, Anisotropie 1, ohne
+  Tiefenschärfe). Der Spielkern braucht im Dorf 21–31 ms Rechenzeit je Spielbild (Rahmen 33,3 ms),
+  der Zeichen-Thread 12–20 ms, die GPU 15–22 ms: knapp 30 Bilder/s, an vollen Stellen 27–48
+  gezeigte Bilder/s. Die Zeit des Kerns wächst mit den Eckpunkten, die der GX-Decoder umwandelt
+  (Dorf 140 000–170 000 je Bild aus 1,1–1,4 MB Display-Listen; auf dem Retroid r105 34 000 in
+  7,7 ms, r108 176 000 in 19,7 ms).
+- **moto e6s:** der Kern braucht in r100 60–80 ms je Spielbild auf den A53-Kernen (2,0 GHz):
+  12–16 Spielbilder/s, der Ton lief über 3000-mal leer. Für den Port zu langsam (0.42.1).
+- **Vorschlag (Entscheidung des Projektinhabers zur Reihenfolge):** die Zeit des Kerns aufteilen
+  (Spiellogik gegen GX-Decoder) und den Decoder beschleunigen (Lesefunktionen je Eckpunkt-Format,
+  unveränderte Display-Listen nur einmal umwandeln); hilft allen schwächeren Geräten.
+- **Tests:** neuer Laufzeittest `sndbank` (`game_probe.cpp` `re4probe_snd_bank`): `SND_REQ_MAX`
+  256; 70 Anfragen zählen als „über 64“, die andere Bank zählt nicht; `Snd_open_req_work` gibt
+  genau bis 256 Plätze, dann nichts; ein voller Speicher zählt als voll. i686, armhf, aarch64
+  0 Baufehler, alle Tests 0 Fehler (auch Kern-, Ton- und Filmtest mit dem größeren Speicher);
+  Patch 0107 auf das Original angewandt geprüft.
+- **Nicht getestet:** am Gerät (ob die Schreie jetzt kommen und ob die Zeile `sound:` in großen
+  Kämpfen erscheint).
+
 ### Gerätetest 22.10.2026 21:22 (Retroid): Karte ohne Finger-Verschieben, kein „Exit“-Aufblinken aus dem Koffer (Cloud)
 
 - **Befund des Projektinhabers (Bericht 21:22, Logcat):** von ganz links bis zur Karte geht das
@@ -7120,6 +7167,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0104 `snd.cpp` | `SndRoomBgmLoad` wartete beim Raumstart nur auf das Ausblenden des Musik-Platzes, den es lädt; die neuen Musik-Bänke liegen aber über denen beider Plätze des alten Raums. Nach Saddlers Ereignis blendete BGM 1 noch aus, als der Aufzug r331 erreichte: sein Sequenzer las die neue Bank (`SND SEQ data error : 07 63 00`, OSPanic, SCV40-Tester, 0.43.0). Der Port lädt Räume viel schneller als die Disc. Jetzt wartet es, bis kein Platz mehr ausblendet (nach 0059) |
 | 0105 `main.cpp`, `trans.cpp` | Bildformat „4:3 (ohne Balken)“ (Anbernic RG 477V, 4:3-Bildschirm): solange `re4_letterbox_open()` (`runtime/picture.cpp`: Schalter des App-Menüs, Hauptschleife `Rno0` 3, kein Untermenü, kein Ereignis) gilt, keine Schere auf die Zeilen 56..392 in `Render` (die setzt jeder Raumstart, `SYS_SCISSOR_ON`) und kein `Draw_cinesco`; sonst wie im Original |
 | 0106 `ss_main.cpp` | Touch im Untermenü: `SubScreenTask` ruft je Bild vor `cur->move` `re4_touch_sscrn` (`runtime/menu_touch.cpp`) mit dem aktuellen Widget und den vier Haupt-Widgets (jetzt mit 0 vorbelegt, Händler und Funk legen keine an); ein Tipp der App wird zu Cursor und Tasten dieses Bildes (Koffer-Cursor, Befehlsmenü, Frage), ein Wischen zum Reiterwechsel (seit dem Gerätetest 22.10.2026 20:09 ohne Ring, Reiter per Tipp ausgebaut); seit dem Gerätetest 21:22 dazu gleich nach `cur->move`, vor dem Zeichnen, `re4_touch_sscrn_moved`: die Hervorhebung des gewählten Reiters im Bild, in dem die Leiste den Fokus bekommt (aus dem Koffer blinkte sonst „Exit“) |
+| 0107 `snd_drv.h` | Anfrage-Speicher des Tontreibers 256 statt 64 Plätze (`SND_REQ_MAX`, Anpassung des Ports, 22.10.2026): auf dem GameCube läuft der Ton-Takt des Spiels alle 5 ms mitten im Spielbild und nimmt die Anfragen dieser 5 ms; im Port laufen die Ton-Takte zwischen zwei Spielbildern (`vi.cpp` `re4_os_idle`), ein Speicher nimmt also alle Anfragen eines Spielbilds (jeder Raumklang je Bild, jeder neue Ton, jedes Stopp). Ein voller Speicher verweigert einen Ton stillschweigend; vermutete Ursache der stummen Todesschreie in großen Kämpfen (Gerätetest 22.10.2026 23:41). Die Zeile `sound: …` (`state_trace.cpp`) zählt Takte mit mehr als 64 Anfragen |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere

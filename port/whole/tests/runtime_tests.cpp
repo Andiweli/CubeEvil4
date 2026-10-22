@@ -964,6 +964,7 @@ int re4probe_case_free_place(void);
 int re4probe_menu_touch(void);
 int re4probe_letterbox(void);
 int re4probe_knife_swipe(void);
+int re4probe_snd_bank(void);
 int re4_log_tail(char* out, int size);
 }
 
@@ -1623,6 +1624,17 @@ static void testLetterbox()
     report("letterbox", bad == 0 && logged);
 }
 
+// The sound driver's request bank (patch 0107; game_probe.cpp re4probe_snd_bank): 256 slots, the
+// count before an audio frame (state_trace.cpp)
+static void testSndBank()
+{
+    const int bad = re4probe_snd_bank();
+    if (bad) {
+        re4_log("  sndbank: failed checks 0x%x", bad);
+    }
+    report("sndbank", bad == 0);
+}
+
 // The knife by a swipe (runtime/knife_swipe.cpp; game_probe.cpp re4probe_knife_swipe): L until the
 // knife is out, L and A until it slashes, the swipe's tilt on the aim, a second swipe, the stops
 static void testKnifeSwipe()
@@ -1786,6 +1798,7 @@ int re4_runtime_tests()
     testMenuTouch();
     testLetterbox();
     testKnifeSwipe();
+    testSndBank();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);

@@ -39,6 +39,7 @@
 #include "db_log.h"
 #include "pad.h"
 #include "pl_wep.h"
+#include "snd_drv.h"
 
 #include <new>
 #include <stdlib.h>
@@ -1073,6 +1074,43 @@ extern "C" int re4probe_menu_touch(void)
     ItemMgr.m_pItem = keepItems;
     ItemMgr.m_array_num = keepNum;
     pG->pl_type = keepType;
+    return bad;
+}
+
+extern "C" void re4_trace_snd_look(int reset, unsigned out[3]);
+
+// The sound driver's request bank (patch 0107: 256 slots) and its count before an audio frame
+// (state_trace.cpp): 70 requests are over the GameCube's 64, a full bank counts as full; the
+// game refuses the 257th. Bits: each failed case.
+extern "C" int re4probe_snd_bank(void)
+{
+    int bad = 0;
+    static SND_REQ keep[SND_REQ_BANK_MAX][SND_REQ_MAX];
+    memcpy(keep, Snd_req_work, sizeof keep);
+    const s32 keepPush = Snd_ctrl_work.req_push_idx;
+    const s32 keepReset = Snd_ctrl_work.reset_flag;
+    bad |= SND_REQ_MAX == 256 ? 0 : 1;
+    memset(Snd_req_work, 0, sizeof Snd_req_work);
+    Snd_ctrl_work.req_push_idx = 1;
+    Snd_ctrl_work.reset_flag = 0;
+    unsigned c[3];
+    for (int i = 0; i < 70; i++) {
+        Snd_req_work[1][i].be_flag = 1;
+    }
+    Snd_req_work[0][0].be_flag = 1;  // the other bank does not count
+    re4_trace_snd_look(1, c);
+    bad |= c[0] == 70 && c[1] == 1 && c[2] == 0 ? 0 : 2;
+    int opened = 0;
+    while (SND_REQ* r = Snd_open_req_work()) {
+        r->be_flag = 1;
+        opened++;
+    }
+    bad |= opened == SND_REQ_MAX - 70 ? 0 : 4;
+    re4_trace_snd_look(0, c);
+    bad |= c[0] == SND_REQ_MAX && c[1] == 2 && c[2] == 1 ? 0 : 8;
+    memcpy(Snd_req_work, keep, sizeof keep);
+    Snd_ctrl_work.req_push_idx = keepPush;
+    Snd_ctrl_work.reset_flag = keepReset;
     return bad;
 }
 

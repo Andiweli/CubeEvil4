@@ -55,6 +55,7 @@ u32 gFieldAccumulator;
 u32 gBlocks;
 u32 gPeakCycles;                // AX's highest DSP estimate since the last log line
 u32 gOverBudget;                // blocks in which AX stopped voices over its budget
+void (*gBlockHook)(void);       // re4_ai_set_block_hook: a look before each block's callback
 
 // the ring: interleaved left/right, written by the game thread, read by the app
 int16_t gRing[kRing * 2];
@@ -178,6 +179,9 @@ void tick()
         gPeakCycles = 0;
     }
     if (gCallback) {
+        if (gBlockHook) {
+            gBlockHook();
+        }
         gCallback();
         // AX's estimate of the DSP's work for this frame (__AXSyncPBs): at or
         // over its budget it stopped voices (runtime/dsp.cpp DSPAddTask)
@@ -207,6 +211,13 @@ void re4_ai_field(void)
         gFieldAccumulator -= 60000;
         tick();
     }
+}
+
+// A function the game side runs before each block's callback (the sound driver's frame), on the
+// game thread: state_trace.cpp counts the sound requests waiting for it.
+void re4_ai_set_block_hook(void (*hook)(void))
+{
+    gBlockHook = hook;
 }
 
 // One AI block at once (tests).

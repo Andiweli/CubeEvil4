@@ -164,6 +164,7 @@ extern "C" void re4_memcard_flush(int force);
 extern "C" unsigned re4_rnd_state(void);          // game/rnd.cpp (patch 0081)
 extern "C" unsigned re4_heap_fail_count(void);    // runtime/log.cpp (patch 0081)
 extern "C" void re4_gx_stats(unsigned out[11]);   // runtime/gx_decode.cpp
+extern "C" void re4_ai_set_block_hook(void (*hook)(void));  // runtime/ai.cpp
 extern "C" void re4_gx_stats2(unsigned out[9]);
 
 namespace {
@@ -838,6 +839,50 @@ void playerLog(unsigned n, GLOBAL_WK* g)
     g_player.lost = lost;
 }
 
+// --- the sound driver's requests (patch 0107) ---
+//
+//   sound: up to N requests for one audio frame (bank of 256, the GameCube's 64): M audio frames
+//       over 64, K full, in r105
+//
+// Before each audio frame (ai.cpp re4_ai_set_block_hook) the requests pushed since the last one
+// wait in Snd_req_work[req_push_idx]. More than 64 would have filled the GameCube's bank, whose
+// full bank refuses a new sound without a word (suspected cause of the silent death cries in
+// busy fights, device test 22.10.2026 23:41). A line every 10 s while it happens.
+unsigned g_sndPeak, g_sndOver, g_sndFull, g_sndOverLogged, g_sndFullLogged;
+
+void sndBankLook()
+{
+    const int bank = Snd_ctrl_work.req_push_idx & 1;
+    unsigned used = 0;
+    for (int i = 0; i < SND_REQ_MAX; i++) {
+        used += Snd_req_work[bank][i].be_flag != 0;
+    }
+    g_sndPeak = used > g_sndPeak ? used : g_sndPeak;
+    g_sndOver += used > 64;
+    g_sndFull += used >= SND_REQ_MAX;
+}
+
+void sndLog(unsigned n, GLOBAL_WK* g)
+{
+    static bool hooked;
+    if (!hooked) {
+        hooked = true;
+        re4_ai_set_block_hook(sndBankLook);
+    }
+    if (n % 300 != 0) {
+        return;
+    }
+    if ((g_sndOver != g_sndOverLogged || g_sndFull != g_sndFullLogged) &&
+        g_runWindow.take(n, kRunWindowLines, "run")) {
+        re4_log("sound: up to %u requests for one audio frame (bank of %u, the GameCube's 64): %u audio frames over "
+                "64, %u full, in r%03x",
+                g_sndPeak, (unsigned) SND_REQ_MAX, g_sndOver, g_sndFull, (unsigned) g->room_id);
+        g_sndOverLogged = g_sndOver;
+        g_sndFullLogged = g_sndFull;
+    }
+    g_sndPeak = 0;
+}
+
 void frame(unsigned n)
 {
     trace(n);
@@ -897,6 +942,7 @@ void frame(unsigned n)
         re4_log("run: sub screen %s at frame %u", sub ? "open" : "closed", n);
     }
     subOpen = sub;
+    sndLog(n, g);
     enemyLog(n, g);
     menuLog(n, g);
     playerLog(n, g);
@@ -1196,6 +1242,19 @@ extern "C" int re4_debug_hud_shown(void)
 extern "C" long re4_trace_free_at(void)
 {
     return g_freeAt;
+}
+
+// The sound request count before an audio frame and its counters (peak, over 64, full), for the
+// runtime test "sndbank" (game_probe.cpp re4probe_snd_bank); `reset` clears them first.
+extern "C" void re4_trace_snd_look(int reset, unsigned out[3])
+{
+    if (reset) {
+        g_sndPeak = g_sndOver = g_sndFull = 0;
+    }
+    sndBankLook();
+    out[0] = g_sndPeak;
+    out[1] = g_sndOver;
+    out[2] = g_sndFull;
 }
 
 // The enemy and menu lines of one frame on their own (runtime test "enemylog", game_probe.cpp).

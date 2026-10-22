@@ -170,9 +170,12 @@ void re4_os_run_deferred(void);
 /* AI (ai.cpp): the audio blocks of one video field (5 ms each, 200 per
  * second; vi.cpp calls it with every retrace), one block at once (tests), the
  * blocks so far. Each block runs AX's DMA callback (the DSP mixes the next,
- * runtime/dsp.cpp; the game's audio frame) and goes to the sound output. */
+ * runtime/dsp.cpp; the game's audio frame) and goes to the sound output; a
+ * hook of the game side runs before that callback (state_trace.cpp counts the
+ * sound requests waiting for the game's audio frame). */
 void re4_ai_field(void);
 void re4_ai_block(void);
+void re4_ai_set_block_hook(void (*hook)(void));
 unsigned re4_ai_blocks(void);
 /* The sound output (ai.cpp): stereo frames at 32 kHz for the device (any
  * thread; always fills `out`, returns the frames the game played), and the
