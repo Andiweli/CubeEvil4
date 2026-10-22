@@ -1,5 +1,12 @@
 # OUYA: Machbarkeit eines Test-Builds
 
+**Beendet am 22.10.2026 (Entscheidung des Projektinhabers):** die OUYA ist zu schwach. Der
+Kern lief schnell genug (O1), der GLES-2-Renderer zeichnet richtig (O2), aber Wald und Dorf
+brauchen auf der OUYA-GPU 200–390 ms je Bild, und selbst ohne jede Farb- und Lichtrechnung
+noch 65–78 ms (Abschnitt „Ergebnisse auf der OUYA“). Die ganze OUYA-Arbeit liegt im Branch
+`ouya-discarded` (Stand des Branches `claude/adoring-mendel-vclbu8`); sie wird nicht
+weitergeführt und nicht in die Haupt-App übernommen.
+
 Stand 21.10.2026, Branch `claude/adoring-mendel-vclbu8`. Nur Bestandsaufnahme
 in der Cloud: nichts gebaut, nichts auf einer OUYA geprüft. Die Angaben zum
 Gerät stammen aus den bekannten technischen Daten der OUYA, nicht aus einer
@@ -119,8 +126,8 @@ abgeschlossen**; der Kern reicht für die OUYA. Weiter mit O2.
 | Stufe | Inhalt | Wo | Ergebnis |
 |---|---|---|---|
 | **O1 Kern-Probe** | Der Kernprozess ohne Bild auf der OUYA: NDK r23c, Kern für `android-16`, `/dev/ashmem` statt `memfd`, per ADB nach `/data/local/tmp`, Disc-Ordner auf `/sdcard` oder USB-Stick, Tastenfolge wie `RE4_PAD_SCRIPT`, ohne Warten auf den Bildschirm (`RE4_VI_FAST=1`); misst Spielbilder je Sekunde mit GX-Decoder und Ton | Cloud (Code) + Windows-PC mit OUYA (Messung) | Zahl, die entscheidet: ab etwa 25 Bildern/s weiter, unter 15 eher nicht |
-| O2 GLES-2-Renderer | GLES-2-Weg der GX-Nachbildung wie oben, prüfbar in der Cloud mit llvmpipe (GLES 2 erzwingen) | Cloud oder lokal (22.10.2026: lokal) | Titel und r100 als Bild auf dem PC: **erreicht** (22.10.2026, gleich mit GLES 3 bis auf Rundung); auf der OUYA-GPU: **Bild richtig, aber langsam** (22.10.2026: Wald und Dorf 200–390 ms je Bild, leichte Räume 70–105 ms; Abschnitt „Ergebnisse auf der OUYA“); Entscheidung offen |
-| O3 OUYA-APK | eigener Flavor (z. B. `ouya`: nur `armeabi-v7a`, `minSdk 16`, immer Kernprozess, eigene App-ID), Java-Versionsabfragen, Disc-Import ohne SAF, Tastenbelegung | Cloud + OUYA | erster Test auf dem Gerät |
+| O2 GLES-2-Renderer | GLES-2-Weg der GX-Nachbildung wie oben, prüfbar in der Cloud mit llvmpipe (GLES 2 erzwingen) | Cloud oder lokal (22.10.2026: lokal) | Titel und r100 als Bild auf dem PC: **erreicht** (22.10.2026, gleich mit GLES 3 bis auf Rundung); auf der OUYA-GPU: **Bild richtig, aber langsam** (22.10.2026: Wald und Dorf 200–390 ms je Bild, leichte Räume 70–105 ms; Abschnitt „Ergebnisse auf der OUYA“); **Versuch beendet** (22.10.2026) |
+| O3 OUYA-APK (nicht begonnen) | eigener Flavor (z. B. `ouya`: nur `armeabi-v7a`, `minSdk 16`, immer Kernprozess, eigene App-ID), Java-Versionsabfragen, Disc-Import ohne SAF, Tastenbelegung | Cloud + OUYA | erster Test auf dem Gerät |
 
 Entscheidungen des Projektinhabers (21.10.2026): **erst die Kern-Probe O1**;
 die OUYA bekommt später **eine eigene App** (die Haupt-App bleibt bei Android 6.0
@@ -331,4 +338,5 @@ Texturkoordinaten brauchen Wald und Dorf auf der OUYA 65–78 ms, also höchsten
 Bilder/s; mit dem ganzen TEV 3–5 Bilder/s, in leichten Räumen 10–30. Ein schnellerer Weg
 müsste beim TEV ungenauer werden (Näherung statt Nachbildung auf die Stufe genau), die
 Auflösung senken und Geometrie sparen (das hieße: ins Spiel eingreifen, z. B. Sichtweite).
-**Entscheidung des Projektinhabers offen** (Stand 22.10.2026).
+**Entscheidung des Projektinhabers (22.10.2026): der OUYA-Versuch endet hier**, die OUYA ist
+eindeutig zu schwach; die Arbeit liegt im Branch `ouya-discarded`.
