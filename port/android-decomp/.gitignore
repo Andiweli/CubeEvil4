@@ -13,4 +13,5 @@ app/src/main/assets/movies/*.mp4
 
 # core mode: built by port/tools/whole_build_android.sh (WSL), never committed
 app/src/core/jniLibs/
+app/src/core/assets/
 app/src/core/assets/core-libs.properties
