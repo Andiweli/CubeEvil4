@@ -960,6 +960,7 @@ void re4probe_enemy_log(void);
 void re4probe_death_log(void);
 int re4probe_arc(void);
 int re4probe_partner_damage(void);
+int re4probe_case_free_place(void);
 int re4_log_tail(char* out, int size);
 }
 
@@ -1531,6 +1532,31 @@ static void testPartnerDamage()
     report("partnerdmg", re4probe_partner_damage() == 0);
 }
 
+// Items without a place in the case get the first free one (patch 0100, game_probe.cpp): the moves
+// in the log, the places in the items
+static void testCaseFreePlace()
+{
+    bool ok = true;
+    int bad = re4probe_case_free_place();
+    if (bad) {
+        re4_log("  casefree: failed checks 0x%x", bad);
+        ok = false;
+    }
+    static char tail[24 * 160];
+    re4_log_tail(tail, sizeof tail);
+    const char* want[] = {
+        "case: item 0x2a had no place at (2 1) turn 0 in the case; moved to (11 1) turn 0 in the case",
+        "case: item 0x04 had no place at (40 2) turn 0 in the case; moved to (17 0) turn 0 in the case",
+    };
+    for (const char* w : want) {
+        if (!strstr(tail, w)) {
+            ok = false;
+            re4_log("  casefree: missing \"%s\"", w);
+        }
+    }
+    report("casefree", ok);
+}
+
 // The processor lines of the performance log (re4_cpu_info.h): the layout of a phone with two kinds
 // of cores and of one with three, and a thread's processor time per picture (it computes here)
 static void testCpuInfo()
@@ -1660,6 +1686,7 @@ int re4_runtime_tests()
     testArc();
     testCpuInfo();
     testPartnerDamage();
+    testCaseFreePlace();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);

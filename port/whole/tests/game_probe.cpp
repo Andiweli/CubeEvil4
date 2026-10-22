@@ -26,6 +26,8 @@
 #include "player.h"
 #include "sce_at.h"
 #include "area.h"
+#include "puzzle.h"
+#include "db_log.h"
 
 #include <new>
 #include <stdlib.h>
@@ -565,4 +567,66 @@ extern "C" int re4probe_partner_damage(void)
     gPartnerDamageArg = 0;
     sub->moveDamage();
     return gPartnerDamageArg == (cEm*) sub ? 0 : 1;
+}
+
+// Patch 0100: items whose saved place in the case is taken or outside the case get the first free
+// place (pzlPlayer::init). A small case with the handgun and a spray where a new game puts them,
+// a Killer7 saved on the handgun's place and handgun ammo saved outside the case (as the debug
+// build's case maker left them, tester 22.10.2026). Returns the bits of the failed checks.
+extern "C" int re4probe_case_free_place(void)
+{
+    static cItem items[4];
+    const struct {
+        u16 id;
+        s8 x;
+        s8 y;
+    } set[] = {{0x23, 2, 1}, {0x2A, 2, 1}, {0x05, 6, 3}, {0x04, 40, 2}};
+    memset(items, 0, sizeof(items));
+    for (int i = 0; i < 4; i++) {
+        items[i].id = set[i].id;
+        items[i].num = 1;
+        items[i].flags = 1;
+        items[i].x = set[i].x;
+        items[i].y = set[i].y;
+        items[i].board = 1;
+    }
+    cItem* keepItems = ItemMgr.m_pItem;
+    s32 keepNum = ItemMgr.m_array_num;
+    u8 keepType = pG->pl_type;
+    ItemMgr.m_pItem = items;
+    ItemMgr.m_array_num = 4;
+    pG->pl_type = 0;
+    if (pLog == 0) {
+        LogInit();
+    }
+    alignas(16) static unsigned char mem[sizeof(pzlPlayer)];
+    memset(mem, 0, sizeof(mem));
+    pzlPlayer* pl = (pzlPlayer*) mem;
+    int bad = 0;
+    if (!pl->init(0)) {
+        bad |= 1;
+    } else {
+        for (int i = 0; i < 4; i++) {
+            pzlPiece* p = pl->piecePtr(&items[i]);
+            if (p == 0 || !p->isOnBoard() || !pl->boardPtr()->search(p)) {
+                bad |= 2 << i;
+            }
+        }
+        pl->save();
+        // the handgun and the spray keep their places; the Killer7 and the ammo take the first
+        // free ones in reading order (half cells: Killer7 at cells 4..7 x 0..1, ammo 8..9 x 0)
+        const s8 want[4][2] = {{2, 1}, {11, 1}, {6, 3}, {17, 0}};
+        for (int i = 0; i < 4; i++) {
+            if (items[i].x != want[i][0] || items[i].y != want[i][1] || items[i].board != 1) {
+                re4_log("  casefree: item 0x%02x at (%d %d) board %d, want (%d %d) board 1", items[i].id,
+                        items[i].x, items[i].y, items[i].board, want[i][0], want[i][1]);
+                bad |= 0x20 << i;
+            }
+        }
+        pl->quit();
+    }
+    ItemMgr.m_pItem = keepItems;
+    ItemMgr.m_array_num = keepNum;
+    pG->pl_type = keepType;
+    return bad;
 }

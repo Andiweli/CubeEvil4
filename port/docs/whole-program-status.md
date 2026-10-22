@@ -5814,6 +5814,44 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   ergibt 0, π, π/2; 1,001 bleibt NaN; 0,5 unverändert; drei bzw. vier Eingriffe gezählt).
 - **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64`: 0 Baufehler, `whole_prepare`: 42 Aufrufe umgeschrieben, keiner übrig; `runtime-test deathlog: ok` und `arc: ok` auf allen drei (das Skalarprodukt über 1 tritt auf allen drei Zielen auf), alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** r21d auf dem Gerät (Gitter heben, Stampfer, Weitermachen) und ob die Stampfer-Flächen Gegner zählen (zeigt die `die: area`-Zeile beim nächsten Tod).
 
+### Das „E“ mitten im Untermenü (Projektinhaber, 22.10.2026, Retroid, 0.42.1; Berichte 13:42 und 13:48, R3-Mitschnitt)
+
+- **Bild:** ein kursives „E“ und ein durchsichtiges Rechteck mitten im Koffer, das „E“ bleibt an
+  derselben Stelle auf allen Seiten (Schlüssel, Akten, Karte). Mitschnitt (`gx_chunk_render`,
+  jedes Zeichnen einzeln weggelassen): Zeichnen 138 ist das „E“ (Textur 18×17 C4 aus
+  `ss_cmmn.dat`), Zeichnen 131 das Rechteck (Kachel ±200 × ±100 um den Weltursprung, Farbe
+  `ffffff20`).
+- **Was es ist:** die Ausrüstungsmarke. `ss_pzzl.cpp` `pzzlEquipDisp` setzt die Marke (IdSub
+  0x30, `IDC_SSCRN_ETC`) an die Ecke der ausgerüsteten Waffe im Koffer und zeichnet um die Waffe
+  einen Rahmen (`pieceFrameDisp` Art 3). Beim Schließen läuft `sscrn_pzzl_out` weiter und lässt
+  die Marke mit dem Koffer aus dem Bild gleiten; sie bleibt „sichtbar“, aber außerhalb.
+- **Ursache:** die ausgerüstete Waffe hatte keinen Platz im Koffer. Beide Spielstände
+  (r105 nach 26 Minuten mit dem Killer7, `weapon 0x06`; r104 nach 13 Minuten mit der Handcannon (0x37),
+  `weapon 0x0f`; Munitionsanzeige „EMPTY“ bzw. „01“, im Koffer nur die Pistole mit 2 Schuss) haben
+  Gegenstände, die `pzlPlayer::init` nicht an ihren gespeicherten Platz legen kann (Log:
+  `game: pzlPlayer::pzlPlayer() Can't locate piece.`; das Spiel-Log zeigt jede Meldung nur dreimal,
+  es können mehr sein). Das Teil liegt dann nirgends, sein Modell wird nie platziert (Matrix im
+  Ursprung): Marke und Rahmen landen in der Bildmitte und gleiten beim Schließen nicht mit.
+  Solche Waffen so früh im Spiel gibt wahrscheinlich der „Case Maker“ des Debug-Builds (`ss_debug.cpp`:
+  Inventar-Sätze `ItemMgr.setUp`, Koffergröße), den R1 im Koffer bis 0.41.3 unsichtbar öffnete
+  (Patch 0093 seit 0.42.0); dort ersetzt links/rechts das Inventar und ändert die Koffergröße.
+  Die Spielstände sind vom 20.10.2026.
+- **Behoben mit Patch 0100:** `pzlPlayer::init` legt erst alle Teile an ihre Plätze, danach die
+  ohne Platz an die erste freie Stelle (im Koffer, sonst im Ablagefeld; wie gespeichert, sonst
+  gedreht wie `PutInCase`) und schreibt `case: item 0x2a had no place at (2 1) turn 0 in the case;
+  moved to (11 1) turn 0 in the case`. Der Koffer speichert die Anordnung in jedem Bild, der
+  Gegenstand behält den neuen Platz (nach dem nächsten Speichern auch im Spielstand). Ohne freie
+  Stelle bleibt es beim Original-Fehler; eine Waffe ohne Platz bekommt dann keine Marke
+  (`pzzlEquipDisp`). Für gültige Spielstände ändert sich nichts (der Zweig läuft nur, wenn ein Teil
+  nicht passt).
+- **Tests:** Laufzeittest `casefree` (`game_probe.cpp` `re4probe_case_free_place`): kleiner Koffer
+  mit Pistole und Spray an den Plätzen eines neuen Spiels, ein Killer7 auf dem Platz der Pistole,
+  Pistolenmunition außerhalb des Koffers; danach liegen alle vier im Koffer, Pistole und Spray
+  unverändert, Killer7 bei (11 1), Munition bei (17 0), beide Zeilen im Log.
+- **Geprüft (Cloud):** `whole_build.sh i686 armhf aarch64` mit 0100: 0 Baufehler, `casefree: ok` auf
+  allen drei, alle Laufzeit-, Kern- und Kernprozess-Tests 0 Fehler. **Nicht getestet:** auf dem
+  Gerät mit den beiden Spielständen (Marke an der Waffe, Killer7 bzw. Handcannon sichtbar im Koffer).
+
 ### App-Menü: Bildformat „Gestreckt“, neue Reihenfolge, mehr Zeilenabstand (Wünsche des Projektinhabers, 22.10.2026)
 
 - **Bildformat:** Reihenfolge jetzt „4:3 (Original)“, „16:9“, neu „Gestreckt“ (`ingame_stretched`
@@ -6387,6 +6425,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0097 `esp_app.cpp` | `EffAreaUpdate` setzt je Effekt-Bereich, in dem Leon steht, `1 << area_no`; Bereiche mit Nummer 255 (r102, r103, r119, r120, r227) setzen auf der GameCube (`slw`: untere 6 Bit, 32–63 ergeben 0) und auf armv7 nichts, auf aarch64 (`lslv`, modulo 32) und x86 Bit 31: die Effekte von Bereich 31 liefen dort an. Der Port schreibt die Regel der GameCube aus (Sanitizer-Rundgang 22.10.2026) |
 | 0098 `pl_npc.cpp` | `cSubChar::moveDamage` ruft Ashleys Schadens-Handler `pAuxDm` ohne Argument auf; `SetSubBulldozer` setzt ihn auf `objBull.cpp` `Sub_dm_bull(cEm*)` (Ashley am Steuer des Bulldozers, r30f). Auf der GameCube stand in r3 noch `this`; auf ARM64 die Adresse des Handlers selbst: `setStatus` schrieb in den Code (SIGSEGV, SCV40-Tester 22.10.2026, zweimal). Jetzt mit `this`; die übrigen Partner-Handler (`pAux(this)`, `m_pFunc` von `SetSubDamage`/`EmCatchSubSet`: em10, em2b, obj13 lesen `SUB_CHAR()`) geprüft. Test `partnerdmg` |
 | 0099 `r318.cpp` | 64 bit: der Laser-Gang zeichnet jeden Strahl von Teil 2 zu Teil 4 des Emitters und liest den Anfang bei `(u8*) parts + 0x70`, wo `cCoord::world` auf der GameCube und ILP32 liegt; auf LP64 liegt `world` bei 0x80, bei 0x70 stehen das Ende der lokalen Matrix und eine Hälfte von `pParent`. Die Strahlen erschienen woanders, als der Treffertest (Teile 2 und 4) sie sah: Leon wurde von unsichtbaren Strahlen zerschnitten (SCV40-Tester, 0.42.1, Video). Jetzt `RE4_OFS(cParts, world, 0x70)`. Die Suche von 0073 sah den Abstand nicht (er hängt an einem `Vec*`, der aus dem `cParts*` gewaschen ist) |
+| 0100 `puzzle.cpp`, `ss_pzzl.cpp` | Gegenstände, deren gespeicherter Platz im Koffer belegt ist oder außerhalb liegt (Spielstände, die der unsichtbare „Case Maker“ des Debug-Builds bis 0.41.3 verändert hat), lagen nirgends: unsichtbar, und als ausgerüstete Waffe standen Ausrüstungsmarke „E“ und Rahmen in der Bildmitte, auf allen Seiten des Untermenüs (Projektinhaber, 22.10.2026). `pzlPlayer::init` legt sie nach allen anderen an die erste freie Stelle (Koffer, sonst Ablagefeld; wie gespeichert, sonst gedreht), Log-Zeile `case: item … moved to …`; ohne freie Stelle der Original-Fehler. `pzzlEquipDisp`: keine Marke für eine Waffe ohne Platz. Laufzeittest `casefree` |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
