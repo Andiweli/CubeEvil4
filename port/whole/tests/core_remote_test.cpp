@@ -321,6 +321,7 @@ void mainRun(const char* modules, const char* gciPath)
     pad(0);
     re4ipc_set_dof(0);
     re4ipc_set_letterbox(1);
+    re4ipc_touch(0.5f, 0.25f);
     re4ipc_debug_menu();
     sleepMs(100);
     re4ipc_pause(0, 0);
@@ -347,6 +348,7 @@ void mainRun(const char* modules, const char* gciPath)
     CHECK(number(probe, "B frames ") == 1);
     CHECK(probe.find("dof changes 2 (now 1)") != std::string::npos);
     CHECK(tail.find("remote-probe: letterbox changes 2 (now 0)") != std::string::npos);
+    CHECK(tail.find("touch: taps on the picture reach the sub screens") != std::string::npos);
     CHECK(number(probe, "debug menu ") == 1);
     unsigned checked, mismatches, snaps, snapMismatches;
     re4ipc::checkCounts(&checked, &mismatches, &snaps, &snapMismatches);

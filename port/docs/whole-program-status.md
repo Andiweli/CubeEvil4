@@ -37,7 +37,8 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 0.42.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 66, vorbereitet auf Wunsch des Projektinhabers, Veröffentlichung durch ihn): Patches 0091–0093 (Fehlersuche Teil 1), 0094 (Aufrüsten beim Händler), 0095 (Biss des Regenerators am Boden, Fehler des Prototyps), keine GPU-Zeitmessung auf Mali (Absturz im Treiber, moto g72); Releasetext `port/android-decomp/docs/releases/v0.42.0-alpha.md`. Cloud ✅, **Gerätetest offen** |
 | 0.42.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 67, Wunsch des Projektinhabers: der A30s-Tester soll mit der neuen Messung noch einmal testen): Rechenzeit und Kern-Art von Kern- und Zeichen-Thread im Protokoll (`re4_cpu_info.h`, „Bericht Galaxy A30s“); dazu aus dem Raum-Rundgang (Fehlersuche Teil 2, gemischt in `889b40fb`) die Patches 0096 und 0097, `__rlwimi`/`__rlwinm` mit 5-Bit-Feldern und die leeren EVS/ITM-Tabellen; nach dem SCV40-Bericht 16:21 Patch 0098 (Bulldozer) und keine Formen mehr in der Zustandsbrücke (Absturz beim Laden); Releasetext `port/android-decomp/docs/releases/v0.42.1-alpha.md`. Cloud ✅ (gemischter Stand `4b97350d`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler), **Gerätetest offen** |
 | 0.43.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 68, Wunsch des Projektinhabers: alle Korrekturen aus diesem und dem zweiten Chat, Veröffentlichung durch ihn): Patches 0099 (Laser-Gang r318 auf 64 bit), 0100 (Gegenstände ohne Platz im Koffer, „E“-Marke in der Mitte), 0101 (Absturz am Aufzug r332), 0102 (`cCtrl::work` ausgerichtet: ARM32-Absturz in r222), 0103 (CRI-Tabellen ausgerichtet: Filmstart auf ARM32); App-Menü: Bildformat „Gestreckt“, mehr Zeilenabstand, „B einrasten (Touch)“, Gyro-Empfindlichkeit; GPU-Selbstprüfung der Filmfarben beim Start, die Zeilen der App auch im Protokoll des Kerns; Releasetext `port/android-decomp/docs/releases/v0.43.0-alpha.md`. Kern geprüft (lokal, WSL2, Stand mit 0100–0103): Builds i686, armhf, aarch64 mit allen Prüfungen 0 Fehler, Rundgang i686 126/126, armhf r222 und `set` 28/28. Cloud ✅ (Stand `844bdd25`: i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, GPU-Prüfung ok). Releasetext nachgeschärft (Waffen aus dem Debug-Menü, Reihenfolge des Bildformats). APK nicht gebaut, **Gerätetest offen** |
-| 0.43.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Wunsch des Projektinhabers): Patch 0104 (Absturz im Ton am Aufzug r332 → r331 nach Saddlers Ereignis), Shader der Brücke auf Mali (Uniform `refract` hieß wie die eingebaute GLSL-Funktion, Anbernic RG 477V), Gegner-Zeile beim Erscheinen mit Listeneintrag, `set` und `flag` (Dynamit-Frage), dazu Zeilen für geworfenes und explodiertes Dynamit (Abschnitt „Meldung eines Testers … Dynamit-Ganados“); neues Werkzeug `tools/check_shaders_strict.sh` (alle Shader der Host-Prüfungen durch glslangValidator); Releasetext `port/android-decomp/docs/releases/v0.43.1-alpha.md`. Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; strenge Shader-Prüfung 165 Shader, 0 abgelehnt). APK nicht gebaut, **Gerätetest offen** |
+| 0.43.1-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Wunsch des Projektinhabers): Patch 0104 (Absturz im Ton am Aufzug r332 → r331 nach Saddlers Ereignis), Shader der Brücke auf Mali (Uniform `refract` hieß wie die eingebaute GLSL-Funktion, Anbernic RG 477V), Gegner-Zeile beim Erscheinen mit Listeneintrag, `set` und `flag` (Dynamit-Frage); neues Werkzeug `tools/check_shaders_strict.sh` (alle Shader der Host-Prüfungen durch glslangValidator); Releasetext `port/android-decomp/docs/releases/v0.43.1-alpha.md`. Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; strenge Shader-Prüfung 165 Shader, 0 abgelehnt). APK nicht gebaut, **Gerätetest offen** |
+| Nach 0.43.1 (für 0.44.0) | 22.10.2026 (Branch `claude/re4-start-controls`, nach dem Release-Stand `942a5c3`): Bildformat **„4:3 (ohne Balken)“** (Patch 0105, Anbernic RG 477V mit 4:3-Bildschirm), **Touch im Koffer** (Patch 0106, `runtime/menu_touch.cpp`: Reiter, Koffer-Cursor, Befehlsmenü, Ja/Nein-Frage per Fingertipp), Analyse 60 Bilder/s mit Zwischenbildern (Entscheidung offen), Dynamit-Zeilen im Fehlerprotokoll (geworfen/explodiert; Abschnitt „Meldung eines Testers … Dynamit-Ganados“). Cloud ✅ (siehe die Abschnitte), **Gerätetest offen** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5886,6 +5887,58 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   `core_mode.cpp` für den Host und armv7a ohne Fehler (aarch64 scheitert an der fehlenden
   Ersatzdatei `android/dlext.h`, schon vorher), Übersetzungsprüfung alle ok.
 
+### Touch im Koffer (Wunsch des Projektinhabers, 22.10.2026, Cloud)
+
+Wunsch: die Reiter oben antippen, im Koffer einen Gegenstand mit einem Tipp wählen, mit einem
+zweiten Tipp das kleine Menü (ausrüsten, kombinieren …) öffnen.
+
+- **App:** `CoreActivity.watchTap` erkennt einen Tipp (ein Finger, höchstens 500 ms, kaum bewegt)
+  neben den Touch-Knöpfen (`TouchControls.onControl`: Knöpfe, Sticks, Steuerkreuz zählen nicht,
+  die Look-Zone schon; bei ausgeblendeter Touch-Steuerung, etwa mit Controller, jeder Tipp) und
+  gibt ihn an `CoreBridge.tap(x, y)`. `core_mode.cpp` merkt sich, wo `drawGx` das Bild zuletzt
+  gezeigt hat (`notePicture`: Rahmen und gezeigte XFB-Zeilen, auch bei 16:9 und „Gestreckt“) und
+  rechnet den Tipp in einen Platz im Spielbild um (u quer, v über die 448 Zeilen, 0..1); außerhalb
+  des Bildes nichts. Weiter an `re4_core_touch` (im getrennten Kernprozess über `kTouch`).
+- **Kern:** `runtime/menu_touch.cpp` (mit den Spiel-Flags in `libre4_main`) und Patch 0106
+  (`ss_main.cpp` `SubScreenTask`): einmal je Bild des Untermenüs, bevor das aktuelle Menü `Key`
+  liest, `re4_touch_sscrn(wk, cur, pzzlMain, itemMain, mapMain, fileMain)`. Ein Tipp, höchstens
+  400 ms alt, wird zu Cursor und Tasten dieses Bildes:
+  - **Reiter** (nur im normalen Inventar, `open_flag` 1; Treffer über die fünf Markierungseinheiten
+    `IdSub` 0..4 Klasse 0): hat die Reiterleiste den Fokus (`state` 1 der Haupt-Widgets), `menu_next`
+    und A (`sscrnMainMenu` wechselt dann wie mit Steuerkreuz und A); sonst erst B (im Koffer nur am
+    Cursor, ohne Teil in der Hand und mit leerem Ablagefeld, wie B dort; in Schlüssel- und
+    Aktenansicht B; auf der Karte nicht, dort vergrößert B die Gesamtansicht), der Reiter dann im
+    Bild, in dem die Leiste den Fokus hat (höchstens 8 Bilder).
+  - **Koffer-Cursor** (`PieceSelect` Zustand 0) und **Kombinationsziel** (`PieceCombine`): Tipp auf
+    ein Feld (Koffer, Ablagefeld nur mit Teilen darauf) setzt `m_p_active_board`, `m_cur_x/y`,
+    `cursor_flag` und Geräusch 6 wie das Steuerkreuz; Tipp auf das Teil unter dem Cursor = A (das
+    Befehlsmenü bzw. das Kombinieren).
+  - **Befehlsmenü** (`PieceCommand` Modus 0): Tipp auf einen Eintrag (`id[6+2i]`/`id[7+2i]`) wählt
+    ihn (`cmd_menu_no`, Geräusch 0xA), zweiter Tipp = A; ein Tipp auf den Koffer schließt das Menü
+    (B). **Frage** (Modus 2, Wegwerfen ja/nein, Leon/Ashley): Tipp auf eine Antwort (`sub[5]`,
+    `sub[7]`) wählt sie (links/rechts), zweiter Tipp = A. Kein Tipp löst allein etwas aus, das das
+    Spiel nicht zurücknimmt (Kombinieren, Wegwerfen, Benutzen brauchen zwei).
+  - Nicht angefasst: Teil in der Hand (Verschieben weiter mit den Tasten), Untersuchen, die
+    Schlüssel-, Karten- und Aktenansicht selbst, Händler und Funk; Debug-Editoren offen: nichts.
+  - Lage auf dem Bild: Id-Einheiten wie `IdCommonTrans` (`IDSystem::m_scrn_mat` · `mat` · `ver`,
+    dann `pG->Camera.ProjMat`), Koffer-Felder (100 Einheiten, `pzlBoard::m_mat`) mit
+    `pG->Camera.v_mat` und `ProjMat`; Tipps auf den Koffer nur, wenn er ruht (Einheit 0xFE der
+    Klasse 1 hat das Hereingleiten beendet). Während des Untermenüs ist das Bild 640×448 statt 512
+    breit (`ScreenReSize`), die Anteile u, v bleiben gleich.
+  - Protokoll: `touch: tab 2`, `touch: case: cursor to (6 3) in the case, item 0x05`, `touch:
+    case: A on item …`, `touch: command 1 of 3: A`, `touch: question option 0: A`, `touch: tab 3
+    dropped (…)` (die ersten 80, dann jede 50.).
+- **Tests:** Laufzeittest `menutouch` (`game_probe.cpp` `re4probe_menu_touch`: Kamera des
+  Untermenüs, Koffer 10×6 mit Pistole und Spray, nachgebaute Widgets: Feld → Cursor, gleiches Teil
+  → A, kein Tipp → nichts, Befehl wählen → zweiter Tipp A, Tipp auf den Koffer → B, Frage: andere
+  Antwort → links, gewählte → A, daneben → nichts; Treffer einer Id-Einheit). Kernprozess-Test:
+  `re4ipc_touch` kommt an. Die Reiter selbst brauchen die echten Einheiten (Disc-Daten): **am Gerät
+  zu prüfen**, ebenso ob die Treffer-Rechtecke zu den sichtbaren Bildern passen.
+- Recherche dazu (Code gelesen, nicht ausgeführt): Reiterleiste, Koffer-Geometrie (Größen 10×6,
+  11×7, 12×8, 15×8, Ablagefeld 6×12, Neigung −0,57 rad), Befehlsmenü je Gegenstandsart (Waffen:
+  Ausrüsten, Untersuchen, Wegwerfen; …), Risiken (Wegwerfen „ja“, Kombinieren, B/Y beim Aufheben
+  eines Gegenstands lässt ihn liegen, Zeiger `puzzlePlayer` nach dem Schließen ungültig).
+
 ### 60 Bilder/s mit Zwischenbildern, ohne die Engine umzubauen (Frage des Projektinhabers, 22.10.2026, nur Analyse)
 
 - **Ausgangslage:** das Spiel rechnet 30 Bilder/s, alles in Bildern gezählt (Abschnitt „Touch-Steuerung
@@ -5910,8 +5963,8 @@ führt Programme nur aus dem entpackten Bibliotheksordner aus).
   30 Bildern/s, bei RE4 folgt die Kamera Leon, er würde gegenüber dem Bild ruckeln. Nicht sinnvoll.
 - **Vorschlag:** Weg 1 als Schalter „Flüssige Bewegung (60 FPS, experimentell)“, in Schritten:
   (1) in der Cloud im Werkzeug `gx_chunk_render` mit einer Folge aufeinanderfolgender GX-Aufzeichnungen
-  vom PC (`RE4_GX_DUMP`, mehrere Bilder hintereinander): Zwischenbilder als PNG, Zuordnung und
-  Schnitterkennung prüfen; (2) im Renderer der App hinter dem Schalter, Gerätetest auf dem Retroid und
+  (R3 am Retroid speichert schon heute 12 Bilder hintereinander, `pull-gx-dumps.ps1`; oder vom PC
+  mit `RE4_GX_DUMP`): Zwischenbilder als PNG, Zuordnung und Schnitterkennung prüfen; (2) im Renderer der App hinter dem Schalter, Gerätetest auf dem Retroid und
   einem schwächeren Handy. Aufwand etwa zwei bis drei Sitzungen. **Entscheidung des Projektinhabers
   offen** (am 19.10.2026: „vorerst nicht“).
 
@@ -5984,7 +6037,7 @@ noch nicht gesehen: dafür jetzt Dynamit-Zeilen im Fehlerprotokoll.**
   der Szenerie mit `EatMgr.hitCheck`). Kommt Leon näher als `Guard_r` (F7: 8000), wird er ein
   normaler Ganado mit Dynamit. Die Stürmer zünden über `em10IgnitionCk` (Leon näher als 15000 auf
   dem Weg und gesehen).
-- **Neu im Fehlerprotokoll** (`state_trace.cpp`, für 0.43.1): `em: s79 dynamite thrown by s27 at
+- **Neu im Fehlerprotokoll** (`state_trace.cpp`, nach 0.43.1, kommt mit 0.44.0): `em: s79 dynamite thrown by s27 at
   (x y z)` (eine Waffe, id 0x42, startet als Dynamit: `cEmWep::setBombThrow`, Routine 9) und
   `em: s79 dynamite exploded at (x y z)` (Routine 2 nach der Explosion; „fell into the water“ bei
   Routine 4). Die Treffer-Zeilen, die Wurf (hp 1) und Explosion (hp 0) vorher ausgelöst hätten,
@@ -6726,6 +6779,7 @@ die GameCube ließ sie überlaufen (schon vorher so, selten).
 | 0103 `mpv_bdec.c`, `mpv_lib.c` | `UTY_MemcpyDword` (CRI) kopiert wortweise, beim Start des MPEG-Dekoders auch vier Byte-Tabellen (`mpvbdec_bitmsk`, `mpvbdec_zigzag`, `mpvbdec_dfl_iqm`, `mpv_clip_0_255_tbl`); ab 16 Wörtern nimmt der armv7-Build `ldm`/`stm`. Auf der GameCube liegen die Tabellen auf Wortgrenzen, im Port nur zufällig (die Ausrichtungs-Suche fand `mpvbdec_bitmsk` 2 Byte daneben): sonst würde jeder Filmstart auf dem 32-bit-Kern mit SIGBUS enden. Der Port richtet alle vier auf 4 Byte aus |
 | 0104 `snd.cpp` | `SndRoomBgmLoad` wartete beim Raumstart nur auf das Ausblenden des Musik-Platzes, den es lädt; die neuen Musik-Bänke liegen aber über denen beider Plätze des alten Raums. Nach Saddlers Ereignis blendete BGM 1 noch aus, als der Aufzug r331 erreichte: sein Sequenzer las die neue Bank (`SND SEQ data error : 07 63 00`, OSPanic, SCV40-Tester, 0.43.0). Der Port lädt Räume viel schneller als die Disc. Jetzt wartet es, bis kein Platz mehr ausblendet (nach 0059) |
 | 0105 `main.cpp` | Bildformat „4:3 ohne Balken“ (Anbernic RG 477V, 4:3-Bildschirm): `Draw_cinesco` malt die schwarzen Balken nicht, solange `re4_letterbox_off()` (App-Menü, `re4_core_set_letterbox`) gilt und der Spieler spielt (`Rno0` 3, kein Untermenü, kein Ereignis, kein `SYS_SCISSOR_ON`); sonst wie im Original |
+| 0106 `ss_main.cpp` | Touch im Untermenü: `SubScreenTask` ruft je Bild vor `cur->move` `re4_touch_sscrn` (`runtime/menu_touch.cpp`) mit dem aktuellen Widget und den vier Haupt-Widgets (jetzt mit 0 vorbelegt, Händler und Funk legen keine an); ein Tipp der App wird zu Cursor und Tasten dieses Bildes (Reiter, Koffer-Cursor, Befehlsmenü, Frage) |
 
 Neuen Patch erzeugen: Datei aus `whole_prepare.rewrite()` kopieren, ändern,
 `port/tools/whole_make_patch.py NAME pfad/im/repo kopie` ausführen. Mehrere
