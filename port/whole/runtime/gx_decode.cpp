@@ -25,6 +25,7 @@
 //     (colours, u8/s8 data) are the same either way;
 //   - texels and palette entries stay big-endian (the renderer decodes them).
 #include "gx_internal.h"
+#include "re4_cpu_info.h"
 #include "re4_gx_frame.h"
 #include "re4_runtime.h"
 
@@ -454,6 +455,7 @@ u32 gTimedChunks;
 long long gIdleAt;                    // re4_idle_ns() at the last log line
 double gFifoBytes, gFifoVertices;     // since the last log line (FIFO: written by the CPU)
 double gListBytes;                    // display list bytes read since the last log line
+re4cpu::ThreadUse gCoreUse;           // processor time of the core thread per chunk, its kind of core
 
 // A display copy ends the chunk: queue it, start the next one if a renderer
 // still takes chunks. Waits while every slot is queued or being read.
@@ -462,14 +464,25 @@ void chunkBoundary(u32 xfb, u32 width, u32 height)
     const long long start = nowMs();
     if (gBoundaryAt && gWanted.load()) {
         gFrameMs += start - gBoundaryAt;
+        gCoreUse.Picture();
         if (++gTimedChunks == 600) {
             // idle: asleep for the next retrace (time to spare); what is neither is the
-            // game's own work plus this decoder
+            // game's own work plus this decoder. The processor time next to it: less than the
+            // rest means the thread was held back (another thread on its core, a lock, a read)
+            static bool layoutLogged;
+            if (!layoutLogged) {
+                layoutLogged = true;
+                char layout[256];
+                re4cpu::GetLayout().Describe(layout, sizeof(layout));
+                re4_log("GX core: processor %s", layout);
+            }
+            char use[160];
+            gCoreUse.Describe(use, sizeof(use));
             const long long idle = re4_idle_ns();
             re4_log("GX core: 600 chunks, %.1f ms each, of it %.1f ms waiting for the renderer, %.1f ms idle, "
-                    "%.0f KB FIFO, %.0f KB display lists, %.0f vertices",
+                    "%.0f KB FIFO, %.0f KB display lists, %.0f vertices; %s",
                     gFrameMs / 600.0, gWaitMs / 600.0, (idle - gIdleAt) / 1e6 / 600.0, gFifoBytes / 1024.0 / 600.0,
-                    gListBytes / 1024.0 / 600.0, gFifoVertices / 600.0);
+                    gListBytes / 1024.0 / 600.0, gFifoVertices / 600.0, use);
             gIdleAt = idle;
             gTimedChunks = 0;
             gFrameMs = gWaitMs = 0;

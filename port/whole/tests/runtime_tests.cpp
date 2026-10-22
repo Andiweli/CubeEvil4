@@ -23,6 +23,7 @@
 //          through PADRead, and the coverage log of GetDataExt (patch 0025)
 //   tasks  the game's own task scheduler (scheduler.cpp: TaskExec, TaskSleep,
 //          TaskExit, iTaskExec) on the OS thread emulation, plus VI retraces
+#include "re4_cpu_info.h"
 #include "re4_gx_frame.h"
 #include "re4_runtime.h"
 #include "re4_ppc.h"
@@ -1523,6 +1524,51 @@ static void testArc()
     report("arc", bad == 0);
 }
 
+// The processor lines of the performance log (re4_cpu_info.h): the layout of a phone with two kinds
+// of cores and of one with three, and a thread's processor time per picture (it computes here)
+static void testCpuInfo()
+{
+    bool ok = true;
+    char text[256];
+    re4cpu::Layout a30;  // Galaxy A30s: six slow, two fast cores
+    a30.count = 8;
+    for (int i = 0; i < 8; i++) {
+        a30.maxKHz[i] = i < 6 ? 1586000 : 1794000;
+    }
+    a30.slowest = 1586000;
+    a30.fastest = 1794000;
+    a30.Describe(text, sizeof(text));
+    ok &= strcmp(text, "8 cores: 0-5 at most 1586 MHz, 6-7 at most 1794 MHz") == 0;
+    ok &= a30.Kind(0) == 0 && a30.Kind(7) == 2;
+    re4cpu::Layout sd;  // Snapdragon 865 (Retroid): four slow, three middle, one fast
+    sd.count = 8;
+    for (int i = 0; i < 8; i++) {
+        sd.maxKHz[i] = i < 4 ? 1804800 : i < 7 ? 2419200 : 2841600;
+    }
+    sd.slowest = 1804800;
+    sd.fastest = 2841600;
+    ok &= sd.Kind(3) == 0 && sd.Kind(5) == 1 && sd.Kind(7) == 2;
+    re4cpu::Layout alike;  // clocks not readable: every core counts as fast
+    alike.count = 4;
+    ok &= alike.Kind(1) == 2;
+    alike.Describe(text, sizeof(text));
+    ok &= strcmp(text, "4 cores, clocks not readable") == 0;
+    re4cpu::ThreadUse use;
+    use.Picture();
+    volatile double x = 0;
+    for (int i = 0; i < 2000000; i++) {
+        x = x + i * 0.5;
+    }
+    use.Picture();
+    ok &= use.pictures == 1 && use.cpuNs > 0;
+    use.Describe(text, sizeof(text));
+    ok &= strstr(text, "ms of processor time each") != nullptr && use.pictures == 0;
+    if (!ok) {
+        re4_log("  cpuinfo: %s", text);
+    }
+    report("cpuinfo", ok);
+}
+
 // The error log's core file (log.cpp re4_log_file, CoreBridge.setLogFile): the lines remembered
 // before it, then every line with logcat's time; at the size limit (RE4_LOG_FILE_LIMIT here, 4 MB
 // in the app) the file becomes <file>.1 and starts anew; after "" nothing more
@@ -1605,6 +1651,7 @@ int re4_runtime_tests()
     testEnemyLog();
     testDeathLog();
     testArc();
+    testCpuInfo();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);

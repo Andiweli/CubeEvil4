@@ -18,6 +18,7 @@
 #include "gx_gl.h"
 #include "re4_card_files.h"
 #include "re4_core_client.h"
+#include "re4_cpu_info.h"
 #include "re4_gx_frame.h"
 #include "re4_gx_frame_io.h"
 
@@ -482,6 +483,8 @@ unsigned gxChunks = 0;
 // timing of the GX view since the last log line
 std::chrono::steady_clock::time_point gxSince;
 double gxRunMs = 0, gxRunMax = 0;
+long long gxRunCpuNs = 0;        // the render thread's processor time in Run since the last line
+unsigned gxRunOnKind[3] = {};    // where Run ended: slow, middle, fast cores (re4_cpu_info.h)
 unsigned gxRunCount = 0, gxFrames = 0, gxDraws = 0;
 re4gx::GxStats gxWork;  // the counters at the last log line
 // GX dumps for the diagnosis (RE4_GX_DUMP_DIR); -1: settings not read yet
@@ -943,6 +946,8 @@ bool drawGx() {
     gxDraws = 0;
     gxRunMs = gxRunMax = 0;
     gxRunCount = gxFrames = 0;
+    gxRunCpuNs = 0;
+    gxRunOnKind[0] = gxRunOnKind[1] = gxRunOnKind[2] = 0;
     gxSince = std::chrono::steady_clock::now();
     int scale = optScale.load();
     if (scale < 1 || scale > 4) {
@@ -996,11 +1001,15 @@ bool drawGx() {
         scale, gx->Samples(), maxSamples,
         gx->Samples() > 1 ? (gx->TiledMsaa() ? " on the tiles" : " in own buffers") : "", gx->Anisotropy(),
         maxAnisotropy, gx->HalfDof() ? "half" : "full", cached ? cache : "off");
+    char layout[256];
+    re4cpu::GetLayout().Describe(layout, sizeof(layout));
+    LOG("processor: %s", layout);
   }
   // one chunk per displayed frame: every picture the game makes is shown (a
   // renderer slower than the game slows the game down, the core waits for it,
   // instead of skipping pictures)
   const auto now = std::chrono::steady_clock::now();
+  const long long cpuNow = re4cpu::ThreadNs();
   if (gxSince.time_since_epoch().count() == 0) gxSince = now;
   gxFrames++;
   // diagnosis (RE4_GX_DUMP_DIR, RE4_GX_DUMP_EVERY seconds, at most 6): the
@@ -1132,6 +1141,8 @@ bool drawGx() {
     gxRunMs += ms;
     gxRunMax = std::max(gxRunMax, ms);
     gxRunCount++;
+    gxRunCpuNs += re4cpu::ThreadNs() - cpuNow;
+    gxRunOnKind[re4cpu::GetLayout().Kind(sched_getcpu())]++;
     if (bench.measuring) {
       bench.runMs += ms;
       bench.runCount++;
@@ -1159,11 +1170,21 @@ bool drawGx() {
             (s.programSwitches - gxWork.programSwitches) / n, (s.textureBinds - gxWork.textureBinds) / n,
             (s.stateChanges - gxWork.stateChanges) / n, s.streamWaits - gxWork.streamWaits,
             s.streamSwitches - gxWork.streamSwitches, s.streamSplits - gxWork.streamSplits, gpu);
+        // the render thread's processor time in Run: about the run time when the thread computes
+        // (driver calls), less when it waits for the GPU; and the kind of core it got
+        const int cpu = sched_getcpu();
+        const unsigned khz = cpu >= 0 ? re4cpu::CurrentKHz(cpu) : 0;
+        LOG("GX render thread: %.1f ms of processor time per chunk of %.1f ms run, on fast/middle/slow cores "
+            "%.0f/%.0f/%.0f %%, now on core %d at %u MHz",
+            gxRunCpuNs / 1e6 / n, gxRunMs / n, gxRunOnKind[2] * 100.0 / n, gxRunOnKind[1] * 100.0 / n,
+            gxRunOnKind[0] * 100.0 / n, cpu, khz / 1000);
       }
       gxWork = s;
       gxDraws = s.draws;
       gxRunMs = gxRunMax = 0;
       gxRunCount = gxFrames = 0;
+      gxRunCpuNs = 0;
+      gxRunOnKind[0] = gxRunOnKind[1] = gxRunOnKind[2] = 0;
       gxSince = now;
     }
   }
