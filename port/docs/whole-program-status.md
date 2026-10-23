@@ -25,7 +25,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 32-bit-Kernprozess | ✅ 20.10.2026 (Branch `claude/re4-32bit-kernprozess`, Release **0.40.0-alpha**): **Weg A, nur als Rückfall** (Entscheidungen des Projektinhabers): ist MEM1 im App-Prozess belegt (ART-Java-Speicher auf 32-bit-Geräten mit Android 14), läuft der Kern in `libre4_coreproc.so`; Bibliotheken werden dafür entpackt (`useLegacyPackaging = true`). Cloud ✅ (i686, armhf: `re4_core_remote_test`), Retroid ✅ (erzwungen mit `-CoreProcess`: Spiel, Filme, Ton, Laden/Speichern, Debug-Menü, 30 FPS), **Tester-Gerät ✅** (nur 32 bit, Android 14: das Spiel läuft, Projektinhaber 20.10.2026; ohne Bericht). Offen: Leistungszahlen vom Tester-Gerät, Raumklang mit Spatializer („32 bit: der Kern als eigener Prozess“) |
 | Hotfix 0.40.1-alpha | 20.10.2026 (Branch `claude/re4-luis-hotfix`, vom Stand `548b0f24` des Kernprozess-Branches): Patch 0087, Absturz auf 64 bit, wenn ein Ganado Luis in der Hütte packt (Abschnitt „Absturz, wenn ein Ganado Luis in der Hütte packt“); Touch-Tasten nach einem Tippen auch bei einem „Geister-Controller“ (21.10.2026, Abschnitt „Touch-Bedienung bleibt ohne Controller versteckt“). Cloud ✅, **Gerätetest offen** |
 | Menü mehrsprachig, 0.41.0-alpha | 21.10.2026 (Branch `claude/re4-menu-sprachen`, enthält den Hotfix): App-Menü im Spiel nach der Handy-Sprache, Englisch als Rückfall, Deutsch als erste Sprache (weitere liefert der Projektinhaber); Touchsteuerung Auto/Erzwingen/Unterdrücken, Komfortsteuerung. Cloud ✅, **Gerätetest offen** |
-| Hauptbranch `master` | 21.10.2026: steht auf **0.41.0-alpha** (`0394c644`, versionCode 62): alle Branches bis Alpha 4, der 32-bit-Kernprozess mit Raumklang (0.40.0-alpha, `548b0f24`), der Luis-Hotfix und die Menü-Sprachen; jeweils ohne Zusammenführung nachgezogen (Wunsch des Projektinhabers). Die Release-Markierungen `0.40.0-alpha` und `0.41.0-alpha` zeigen noch auf ältere Stände (aus der Cloud nicht umsetzbar, GitHub verweigert das Hochladen von Markierungen); umsetzen am PC mit `git tag -f` und `git push -f origin <Markierung>` |
+| Hauptbranch `master` | 23.10.2026: steht auf **0.46.0-alpha** (`f30b19c`, versionCode 72; Entscheidung des Projektinhabers: alles nach `master`): `claude/re4-start-controls` mit allem seit 0.41.0 (Menü in 10 Sprachen, 0.42–0.46, Branch `performance`) vorgespult; vorher kamen nur die README-Änderungen des Projektinhabers (Reviews, Controls) direkt auf `master`. Bis dahin (21.10.2026) 0.41.0-alpha (`0394c644`). `performance` und `claude/re4-start-controls` stehen auf demselben Stand |
 | Menü in 10 Sprachen | 21.10.2026 (Branch `claude/re4-start-controls`, vom `master`-Stand `0394c644`): Spanisch, Französisch, Italienisch, Portugiesisch (Brasilien), Russisch, Arabisch (von rechts nach links), Chinesisch (vereinfacht), Hindi zu Englisch und Deutsch; Sprache auch je App wählbar (Android 13+). Cloud ✅, **Gerätetest offen** |
 | Absturz Wegesuche r11c (64 bit) | 21.10.2026 (Branch `claude/re4-start-controls`): Patch 0088 fängt ihn ab und meldet, wessen Position außerhalb lag; die eigentliche Ursache zeigt erst ein Bericht mit Fehlerprotokoll. Cloud ✅, **Gerätetest offen** |
 | 0.41.1-alpha | 21.10.2026 (Branch `claude/re4-start-controls`, versionCode 63): Fehlerprotokoll auf jedem Handy (der Kern schreibt `core-log.txt` selbst, `logcat-status.txt`, „Error log: on/off“ im Bericht), Patch 0088, Menü in 10 Sprachen. Cloud ✅, Retroid ✅ (Deutsch, Protokoll), Samsung-Tester offen |
@@ -5945,6 +5945,17 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
 - **Nicht getestet:** echte Spielbilder (dafür R3-Folgen vom Retroid, `pull-gx-dumps.ps1`, dann in der
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
+
+### `master` auf 0.46.0 (Entscheidung des Projektinhabers, 23.10.2026, Cloud)
+
+- Der Projektinhaber: alles nach `master`. `master` hatte zwei README-Commits (Reviews, Controls),
+  die schon im Arbeitsbranch waren (gleiche README); `origin/master` in `claude/re4-start-controls`
+  gemischt (`f30b19c`, keine Änderung am Inhalt), dann `master` vorgespult. `master`,
+  `performance` und `claude/re4-start-controls` stehen auf demselben Stand (versionName
+  `0.46.0-alpha`).
+- **Nächstes (Plan des Projektinhabers):** sobald der SCV40-Tester (Spiel durchgespielt, Schlüssel
+  seit 0.45.0 im Cache) einen Bericht mit 0.46.0 schickt und der Großteil der Shader in der Liste
+  ist, **Beta 0.9.0**.
 
 ### Release 0.46.0-alpha (Entscheidung des Projektinhabers, 23.10.2026, Cloud)
 
