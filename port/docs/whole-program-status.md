@@ -41,6 +41,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | Nach 0.43.1 (für 0.44.0) | 22.10.2026 (Branch `claude/re4-start-controls`, nach dem Stand `942a5c3`; **0.43.1 wird nicht veröffentlicht**, Entscheidung des Projektinhabers: alles zusammen mit 60 FPS als 0.44.0): Bildformat **„4:3 (ohne Balken)“** (Patch 0105, Anbernic RG 477V mit 4:3-Bildschirm), **Touch im Koffer** (Patch 0106, `runtime/menu_touch.cpp`: Reiter, Koffer-Cursor, Befehlsmenü, Ja/Nein-Frage per Fingertipp), Analyse 60 Bilder/s mit Zwischenbildern, Dynamit-Zeilen im Fehlerprotokoll (geworfen/explodiert aus dem zweiten Chat; Werfer am Posten, Zündschnur). Cloud ✅ (siehe die Abschnitte), **Gerätetest offen** |
 | 0.44.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Releasetext `port/android-decomp/docs/releases/v0.44.0-alpha.md`; **0.43.1 entfällt**, Entscheidung des Projektinhabers; Freigabe durch den Projektinhaber nach seinem Gerätetest 20:00): alles aus 0.43.1 (Patch 0104, Mali-Shader, Gegner- und Dynamit-Zeilen) plus **60 FPS (experimentell)** (Zwischenbilder im GX-Renderer, FPS-Anzeige mit Bildern auf dem Bildschirm), **„4:3 (ohne Balken)“** (Patch 0105 mit Schere, volle Bildhöhe), **Touch im Inventar** (Patch 0106: Koffer-Cursor, Befehlsmenü, Frage, Schlüssel/Schätze, Akten per Tipp, Reiter per Wischen ohne Ring mit richtiger Hervorhebung auch aus dem Koffer und von der Karte; Reiter per Tipp nach dem Gerätetest 20:09 ausgebaut, Karte per Finger verschieben nach dem Gerätetest 21:22), Bildformate kurz „4:3 (GC)“, „4:3“, „16:9“, „Gestreckt“, **Messer per Wischen** (`runtime/knife_swipe.cpp`), **Filmfarben auf Adreno 710** (Mischung ohne `a << 8`, Auswahl durch die GPU-Selbstprüfung). Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, strenge Shader-Prüfung 1119/0). Retroid ✅ (22.10.2026 19:40, 20:00 und 20:09): Koffer-Tipps, Messer per Wischen, 60 FPS (Stufe 1–2 ohne MSAA), das Spiel zeichnet ohne seine Balken (`picture: the game draws without its letterbox (r105)`). **Offen:** „4:3 (ohne Balken)“ auf einem echten 4:3-Gerät (Tester), Filmfarben auf dem Galaxy A36 |
 | 0.45.0-alpha | 23.10.2026 (Branch `claude/re4-start-controls` mit dem Branch `performance` zusammengeführt, versionCode 70, Releasetext `port/android-decomp/docs/releases/v0.45.0-alpha.md`; Entscheidung des Projektinhabers: „Mach jetzt gleich 0.45.0 draus“, mit `performance`): Jetski-Abspann r333 (PTH-Daten), Tonanfragen-Bank 256 (Patch 0107, stumme Todesschreie), Touch im Inventar (Schlüssel, Akten, Karte, Reiter per Wischen, kein „Exit“-Aufblinken, Karte nicht mehr per Finger verschoben), schnellerer GX-Decoder, Grafik-Programme vor dem ersten Zeichnen, Eckpunkte auf bis zu 3 weiteren Kernen, XF-Uniforms in drei Teilen, Fehlerprotokoll mit Zeitaufteilung (Patch 0108) und Stay-Zeilen der Ganados. **Auf dem Gerät noch nicht getestet** (siehe Abschnitt unten) |
+| 0.45.1-alpha | 23.10.2026 (Branch `claude/re4-start-controls` mit `performance` zusammengeführt, versionCode 71, Releasetext `port/android-decomp/docs/releases/v0.45.1-alpha.md`; Entscheidung des Projektinhabers: die weiteren Performance-Optimierungen als 0.45.1): „Auto“ regelt die Auflösung nach dem Grafikchip (`GxRenderer::Rescale`), Spiel- und Zeichen-Thread weg von den langsamsten Kernen und Androids Leistungshinweis, Shader auf eigenem Thread mit Liste in der App (70 Programme, wächst mit den Schlüsseln der Berichte); -O3 geprüft und verworfen. **Auf dem Gerät noch nicht getestet** |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5943,6 +5944,17 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
 - **Nicht getestet:** echte Spielbilder (dafür R3-Folgen vom Retroid, `pull-gx-dumps.ps1`, dann in der
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
+
+### Release 0.45.1-alpha (Entscheidung des Projektinhabers, 23.10.2026, Cloud)
+
+- **Entscheidung:** nach dem SCV40-Bericht „mit den weiteren Performance-Optimierungen“ ein Release;
+  auf Nachfrage **0.45.1** (versionCode 71). `performance` (`9370fe5`, `534c118`, `8da2415`,
+  `9cd61a1`) ist in `claude/re4-start-controls` vorgespult. Releasetext
+  `port/android-decomp/docs/releases/v0.45.1-alpha.md`.
+- **Tests (Cloud):** siehe die Schritte 1–4 oben; auf dem Release-Stand `whole_build.sh` i686,
+  armhf und aarch64 nacheinander: je 0 Baufehler, Laufzeittests (auch ohne Helfer) und Kerntests 0
+  Fehler, Filmtest bestanden; App-Renderer `gx_gl_check` 0 Fehler, `re4decomp_link_check` gebaut.
+- **Nicht getestet:** alles davon auf einem Gerät.
 
 ### Bericht SCV40 (0.45.0, 23.10.2026 19:12): Spiel durchgespielt, Jetski-Abspann geht, Ruckler beim ersten Mal (Cloud)
 

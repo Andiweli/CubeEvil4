@@ -56,6 +56,6 @@ git pull --no-rebase origin performance
 
 Zurück zum bisherigen Stand: `git switch claude/re4-start-controls`.
 
-Seit 0.45.0 (23.10.2026) steckt `performance` vollständig in `claude/re4-start-controls`. Wer noch
+Seit 0.45.1 (23.10.2026) steckt `performance` wieder vollständig in `claude/re4-start-controls`. Wer noch
 auf `performance` steht, wechselt mit `git switch claude/re4-start-controls` zurück und holt dann
 wie in Schritt 1.
