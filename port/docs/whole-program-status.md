@@ -40,6 +40,7 @@ zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 | 0.43.1-alpha | **nicht veröffentlicht, in 0.44.0 aufgegangen** (Entscheidung des Projektinhabers). 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Wunsch des Projektinhabers): Patch 0104 (Absturz im Ton am Aufzug r332 → r331 nach Saddlers Ereignis), Shader der Brücke auf Mali (Uniform `refract` hieß wie die eingebaute GLSL-Funktion, Anbernic RG 477V), Gegner-Zeile beim Erscheinen mit Listeneintrag, `set` und `flag` (Dynamit-Frage); neues Werkzeug `tools/check_shaders_strict.sh` (alle Shader der Host-Prüfungen durch glslangValidator); Releasetext `port/android-decomp/docs/releases/v0.43.1-alpha.md`. Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; strenge Shader-Prüfung 165 Shader, 0 abgelehnt). APK nicht gebaut, **Gerätetest offen** |
 | Nach 0.43.1 (für 0.44.0) | 22.10.2026 (Branch `claude/re4-start-controls`, nach dem Stand `942a5c3`; **0.43.1 wird nicht veröffentlicht**, Entscheidung des Projektinhabers: alles zusammen mit 60 FPS als 0.44.0): Bildformat **„4:3 (ohne Balken)“** (Patch 0105, Anbernic RG 477V mit 4:3-Bildschirm), **Touch im Koffer** (Patch 0106, `runtime/menu_touch.cpp`: Reiter, Koffer-Cursor, Befehlsmenü, Ja/Nein-Frage per Fingertipp), Analyse 60 Bilder/s mit Zwischenbildern, Dynamit-Zeilen im Fehlerprotokoll (geworfen/explodiert aus dem zweiten Chat; Werfer am Posten, Zündschnur). Cloud ✅ (siehe die Abschnitte), **Gerätetest offen** |
 | 0.44.0-alpha | 22.10.2026 (Branch `claude/re4-start-controls`, versionCode 69, Releasetext `port/android-decomp/docs/releases/v0.44.0-alpha.md`; **0.43.1 entfällt**, Entscheidung des Projektinhabers; Freigabe durch den Projektinhaber nach seinem Gerätetest 20:00): alles aus 0.43.1 (Patch 0104, Mali-Shader, Gegner- und Dynamit-Zeilen) plus **60 FPS (experimentell)** (Zwischenbilder im GX-Renderer, FPS-Anzeige mit Bildern auf dem Bildschirm), **„4:3 (ohne Balken)“** (Patch 0105 mit Schere, volle Bildhöhe), **Touch im Inventar** (Patch 0106: Koffer-Cursor, Befehlsmenü, Frage, Schlüssel/Schätze, Akten per Tipp, Reiter per Wischen ohne Ring mit richtiger Hervorhebung auch aus dem Koffer und von der Karte; Reiter per Tipp nach dem Gerätetest 20:09 ausgebaut, Karte per Finger verschieben nach dem Gerätetest 21:22), Bildformate kurz „4:3 (GC)“, „4:3“, „16:9“, „Gestreckt“, **Messer per Wischen** (`runtime/knife_swipe.cpp`), **Filmfarben auf Adreno 710** (Mischung ohne `a << 8`, Auswahl durch die GPU-Selbstprüfung). Cloud ✅ (i686, armhf, aarch64 0 Baufehler, alle Tests 0 Fehler; `gx_gl_check` 0 Fehler, strenge Shader-Prüfung 1119/0). Retroid ✅ (22.10.2026 19:40, 20:00 und 20:09): Koffer-Tipps, Messer per Wischen, 60 FPS (Stufe 1–2 ohne MSAA), das Spiel zeichnet ohne seine Balken (`picture: the game draws without its letterbox (r105)`). **Offen:** „4:3 (ohne Balken)“ auf einem echten 4:3-Gerät (Tester), Filmfarben auf dem Galaxy A36 |
+| 0.45.0-alpha | 23.10.2026 (Branch `claude/re4-start-controls` mit dem Branch `performance` zusammengeführt, versionCode 70, Releasetext `port/android-decomp/docs/releases/v0.45.0-alpha.md`; Entscheidung des Projektinhabers: „Mach jetzt gleich 0.45.0 draus“, mit `performance`): Jetski-Abspann r333 (PTH-Daten), Tonanfragen-Bank 256 (Patch 0107, stumme Todesschreie), Touch im Inventar (Schlüssel, Akten, Karte, Reiter per Wischen, kein „Exit“-Aufblinken, Karte nicht mehr per Finger verschoben), schnellerer GX-Decoder, Grafik-Programme vor dem ersten Zeichnen, Eckpunkte auf bis zu 3 weiteren Kernen, XF-Uniforms in drei Teilen, Fehlerprotokoll mit Zeitaufteilung (Patch 0108) und Stay-Zeilen der Ganados. **Auf dem Gerät noch nicht getestet** (siehe Abschnitt unten) |
 | Reihenfolge | Entscheidungen des Projektinhabers: erst M9 Videos und M10 Speichern/Laden (16.10.2026), dann **M11 vor dem Raum-Rundgang 10b** (17.10.2026: die APK soll an Tester gehen), dann **M12 ARM64 vor 10b** (17.10.2026: ein Tester hat ein Gerät nur für 64-bit-Apps). Gestrichen: Baum-Kollision in r100 (G17) |
 
 **Entscheidung des Projektinhabers (14.10.2026):** Endprodukt ist
@@ -5942,6 +5943,40 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
 - **Nicht getestet:** echte Spielbilder (dafür R3-Folgen vom Retroid, `pull-gx-dumps.ps1`, dann in der
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
+
+### Release 0.45.0-alpha (Entscheidung des Projektinhabers, 23.10.2026, Cloud)
+
+- **Entscheidung:** „Mach jetzt gleich 0.45.0 draus“, auf Nachfrage **mit** dem Branch `performance`.
+  `performance` ist in `claude/re4-start-controls` zusammengeführt (Merge `296a750`), danach wieder
+  auf denselben Stand gebracht. versionCode 70, versionName `0.45.0-alpha`, Releasetext
+  `port/android-decomp/docs/releases/v0.45.0-alpha.md` (Fixed / New / Changed, je ein Satz).
+- **Inhalt seit 0.44.0:** Inventar-Touch (`21bac7a`, `251c60f`, `db02821`), Tonanfragen-Bank 256
+  (Patch 0107, `1adc18d`), schnellerer GX-Decoder und Zeitaufteilung im Bericht (Patch 0108,
+  `ee81a44`), Grafik-Programme vor dem ersten Zeichnen (`d58dbb0`), Eckpunkte auf mehreren Kernen
+  (`3a64e56`), XF-Uniforms in drei Teilen (`72ce66a`), PTH-Umwandlung für den Jetski (`97d6f7d`),
+  Stay-Zeilen im Fehlerprotokoll (`cfb7726`).
+- **Tests (Cloud, Stand nach dem Merge):** `whole_build.sh` für i686, armhf und aarch64: je
+  `0 failed build steps`, runtime-test (auch mit `RE4_GX_THREADS=0`) und core-test 0 Fehler. Einmal
+  rot: der armhf-Filmtest (Bildtaktung 2,41 Halbbilder je Bild, 263 späte Halbbilder) – unter qemu,
+  während alle drei Builds gleichzeitig liefen; allein zweimal wiederholt: 2,03, bestanden. App-
+  Renderer (`port/build/app-host-gl`): `gx_gl_check` 0 Fehler, `re4decomp_link_check` gebaut.
+- **Nicht getestet:** alles davon auf einem Gerät (Retroid: mehrere Kerne, auch mit
+  `-GxJobCheck`; Jetski-Abspann; Stay-Zeilen; Vorab-Programme beim zweiten Start; Todesschreie in
+  großen Kämpfen).
+
+### Bericht Xiaomi 2412DPC0AG (POCO X7 Pro, 0.44.0, 22.10.2026 21:58, ohne Beschreibung; Cloud)
+
+- **Ablauf:** r207 (Burg), Ganados 0x11/7, kein Absturz, `crash.txt` leer; der Tester öffnet am
+  Ende das App-Menü und schickt den Bericht. Bildrate in Ordnung (GX core 33,3 ms je Bild, davon
+  24 ms frei; Renderer 4,7 ms).
+- **21:55:51–53:** 35 Bilder lang je 7 Lebenspunkte weniger (930 → 685) und dabei drei A-Drücke:
+  ein Ganado hat Leon gepackt (Würgegriff), Leon reißt sich los, der Ganado wird weggestoßen
+  (`em: hit s3 … r 1/52/5/1`). So im Original.
+- **21:57:17:** ein Treffer 685 → 316 durch einen Ganado; ebenfalls Spielverhalten.
+- **`crash-system.txt`:** der alte Absturz `cSubLuis::move()+136` (pc 0) vom 20.10.2026 auf
+  demselben Gerät (Version vor Patch 0087), längst behoben.
+- **Ergebnis:** im Bericht ist kein Fehler zu sehen; ohne Beschreibung des Testers bleibt offen,
+  was gemeldet werden sollte.
 
 ### Berichte 22.10.2026 abends: stumme Todesschreie, Ruckler (Retroid, Galaxy S7, moto e6s; Cloud)
 
