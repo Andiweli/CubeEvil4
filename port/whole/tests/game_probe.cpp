@@ -406,7 +406,8 @@ extern "C" void re4_state_trace_enemy_frame(unsigned n);
 
 // The error log's enemy and menu lines (state_trace.cpp enemyLog / menuLog) over two fake works
 // of EmMgr in MEM1: slot 1 becomes a Ganado (0x1a type 3) of room r209, is hit on the head (part
-// 5, weapon 0x10), changes its routine, loses its head, is hidden, jumps and goes; then the C
+// 5, weapon 0x10), changes its routine, loses its head, is hidden, jumps, holds back and follows
+// again, and goes; then the C
 // stick moves the cursor of a sub screen; slot 0 is a weapon work (0x42) the Ganado throws as
 // dynamite and that explodes. The test reads the lines from the log's tail.
 extern "C" void re4probe_enemy_log(void)
@@ -477,8 +478,18 @@ extern "C" void re4probe_enemy_log(void)
     re4_state_trace_enemy_frame(1006);  // em: s1 at the dynamite post
     e->r_no_2 = 4;
     re4_state_trace_enemy_frame(1006);  // em: s1 lights a dynamite stick
+    // it holds back (R1 0x1B Stay) 6 m from Leon, then follows again 4 s later
+    e->r_no_1 = 0x1B;
+    e->r_no_2 = 0;
+    e->l_pl = 6000.0f * 6000.0f;
+    e->Guard_r = 10000.0f;
+    EM10_WK(e)->L_pl_route = 7500.0f;
+    EM10_WK(e)->L_pl_guard = 3000.0f;
+    re4_state_trace_enemy_frame(1010);  // em: s1 leaves the dynamite post, em: s1 stays back (Stay)
+    e->r_no_1 = 0x10;
+    re4_state_trace_enemy_frame(1130);  // em: s1 follows again after 4.0 s
     e->be_flag = 0;
-    re4_state_trace_enemy_frame(1007);  // em: - s1
+    re4_state_trace_enemy_frame(1131);  // em: - s1
     StaFlagOn(pG, STA_SUB_SCRN);
     Joy[0].rep = 0x00100000;
     Joy[0].substickX = 12;

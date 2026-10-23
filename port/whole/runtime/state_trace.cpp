@@ -532,6 +532,8 @@ std::atomic<unsigned> g_playerHits(0);  // re4_core_player_hits
 // frames (about a minute), so that a flood cannot push everything else out of core-log.txt
 // (2 x 4 MB): the late part of a long session counts as much as the start.
 const unsigned kSlots = 512, kFollowFrames = 90, kWindowFrames = 1800, kWindowLines = 1500, kMenuWindowLines = 600;
+// a Ganado's "stays back" line at most every 10 s, "follows again" after 3 s and more of it
+const unsigned kStayLineFrames = 300, kStayFollowFrames = 90;
 
 struct EnemySeen {
     bool alive;
@@ -547,6 +549,8 @@ struct EnemySeen {
     unsigned visLines;  // hidden / shown lines of this life
     bool post;          // a Ganado at its dynamite thrower post (R1 0x50 FixBomber)
     u8 fuses;           // fuses it lit (lines for the first 5)
+    unsigned stayFrom;  // a Ganado holding back (R1 0x1B Stay): the frame it began, and of its last line
+    unsigned stayLine;
 };
 
 EnemySeen g_seen[kSlots];
@@ -642,6 +646,26 @@ void dynamiteLine(unsigned slot, const cEm* e, const cEm* arr, u32 count, u32 st
             (double) e->pos.z);
 }
 
+// A Ganado begins to hold back (Stay): its distance to Leon, along the route, the Ganados nearer
+// to him on the route (em10StayCk's count), and Leon's distance from its guard post with the
+// guard radius.
+void stayLine(unsigned slot, const cEm* e, const cEm* arr, u32 count, u32 stride)
+{
+    const FREE_EM10* w = EM10_WK(e);
+    unsigned nearer = 0;
+    for (u32 k = 0; k < count; k++) {
+        cEm* o = (cEm*) ((const u8*) arr + k * stride);
+        if (o != e && o->isAlive() && o->id > 0xF && o->id <= 0x20 && o->hp > 0 && o->checkStatus(EM_STATUS_ACTIVE) &&
+            EM10_WK(o)->L_pl_route < w->L_pl_route) {
+            nearer++;
+        }
+    }
+    re4_log("em: s%u stays back (Stay): %.1f m from Leon, %.1f m on the route, %u Ganados nearer on the route; "
+            "Leon %.1f m from its post, guard radius %.1f m",
+            slot, sqrt((double) e->l_pl) / 1000.0, (double) w->L_pl_route / 1000.0, nearer,
+            (double) w->L_pl_guard / 1000.0, (double) e->Guard_r / 1000.0);
+}
+
 void enemyLog(unsigned n, GLOBAL_WK* g)
 {
     const cEm* arr = EmMgr.pArray;
@@ -710,6 +734,23 @@ void enemyLog(unsigned n, GLOBAL_WK* g)
             if (post != s.post && enemyLine()) {
                 re4_log("em: s%u %s the dynamite post (list %u)", (unsigned) i, post ? "at" : "leaves",
                         (unsigned) e->emset_no);
+            }
+            // a Ganado holding back (em10 R1 0x1B Stay; em10StayCk lets the nearest few on the route
+            // attack and keeps the others waiting, and those whose guard area Leon left): when it
+            // begins, with what the rule weighs, and after how long it follows again (tester report
+            // 22.10.2026: "people stopped following, I stayed there, then I moved and they started
+            // following me again")
+            const bool stay = isGanado(e) && e->r_no_0 == 1 && e->r_no_1 == 0x1B;
+            const bool stayed = s.r[0] == 1 && s.r[1] == 0x1B;
+            if (stay && !stayed) {
+                s.stayFrom = n;
+                if ((!s.stayLine || n - s.stayLine >= kStayLineFrames) && enemyLine()) {
+                    s.stayLine = n;
+                    stayLine(i, e, arr, count, stride);
+                }
+            } else if (!stay && stayed && s.stayFrom && n - s.stayFrom >= kStayFollowFrames && enemyLine()) {
+                re4_log("em: s%u follows again after %.1f s (r %u/%u)", (unsigned) i, (n - s.stayFrom) / 30.0,
+                        (unsigned) e->r_no_0, (unsigned) e->r_no_1);
             }
             if (post && e->r_no_2 == 4 && s.r[2] != 4) {
                 s.fuses++;

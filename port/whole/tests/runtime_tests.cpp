@@ -1467,8 +1467,8 @@ static void testRoute()
 }
 
 // The error log's enemy and menu lines (state_trace.cpp, game_probe.cpp re4probe_enemy_log): a
-// Ganado appears, is hit on the head, changes its routine, loses its head, is hidden, jumps and
-// goes, a weapon work flies as dynamite and explodes (no hit lines for it); the C stick moves a
+// Ganado appears, is hit on the head, changes its routine, loses its head, is hidden, jumps, holds
+// back and follows again (tester report 22.10.2026) and goes, a weapon work flies as dynamite and explodes (no hit lines for it); the C stick moves a
 // sub screen's cursor
 static void testEnemyLog()
 {
@@ -1488,7 +1488,9 @@ static void testEnemyLog()
         "em: s1 jumps (100 0 200) -> (5000 0 200)",
         "em: s1 at the dynamite post (list 5)",
         "em: s1 lights a dynamite stick (1 so far)",
-        "em: - s1 0x1a/3 hp 100 r 1/80/4/0 at (5000 0 200) after 6 frames",
+        "em: s1 stays back (Stay): 6.0 m from Leon, 7.5 m on the route, 0 Ganados nearer",
+        "em: s1 follows again after 4.0 s (r 1/16)",
+        "em: - s1 0x1a/3 hp 100 r 1/16/0/0 at (5000 0 200) after 130 frames",
         "pad: menu frame 1008 rep 0x00100000 stick (0 0) c (12 0)",
     };
     for (const char* w : want) {

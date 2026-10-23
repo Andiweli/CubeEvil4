@@ -5990,6 +5990,28 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
 - **Nicht getestet:** am Gerät (ob die Schreie jetzt kommen und ob die Zeile `sound:` in großen
   Kämpfen erscheint).
 
+### Tester-Meldung (0.44.0, Xiaomi 2412DPC0AG, Bericht 22.10.2026 22:28): Gegner folgen kurz nicht mehr (Cloud)
+
+- **Meldung:** „people stopped following, I stayed there, then I moved and they started following
+  me again“ (Burg: r200, r202, r207, r203, r201; Ort und Zeitpunkt nicht genannt).
+- **Im Bericht nicht zu sehen:** die Zeilen `em: sN r …` folgen dem Zustand eines Gegners nur 3 s
+  nach einem Treffer (`kFollowFrames`). Kein Absturz, keine Route-Warnung (`check: route`, Patch
+  0088).
+- **Im Spielcode (em10.cpp):** Ganados (auch die Kultisten der Burg, 0x11) halten absichtlich an
+  (R1 0x1B `Stay`): `em10StayCk` lässt nur die Nächsten auf der Route angreifen (mehr als 3 näher,
+  auf leichten Stufen weniger) und lässt die übrigen warten, solange sie weiter als 8–12 m auf der
+  Route sind; Gegner, deren Wachbereich Leon weit verlassen hat, warten ebenso (`L_pl_guard >
+  Guard_r + 2000`). Bewegt sich Leon, ändern sich diese Abstände, und sie laufen wieder los: das
+  beschriebene Bild. Sehr wahrscheinlich Verhalten des Originals, nicht bewiesen.
+- **Neu im Bericht (`state_trace.cpp`):** `em: sN stays back (Stay): X m from Leon, Y m on the
+  route, K Ganados nearer on the route; Leon Z m from its post, guard radius R m` (je Gegner höchstens
+  alle 10 s) und `em: sN follows again after T s (r 1/NN)` (wenn er mindestens 3 s wartete). Damit
+  zeigt der nächste Bericht, welche Regel greift: viele näher (Gedränge), Leon außerhalb des
+  Wachbereichs, oder keins von beidem (dann ein Fehler, etwa in der Route).
+- **Test:** `enemylog` erweitert (`game_probe.cpp` `re4probe_enemy_log`): der Ganado hält an
+  (6 m entfernt, 7,5 m Route, Wachbereich) und folgt 4 s später wieder; beide Zeilen im Protokoll.
+- **Nicht getestet:** am Gerät.
+
 ### Bericht SCV40 (0.44.0, 23.10.2026 10:31): im Abspann fehlt die Grafik großteils, Jetski-Strecke big-endian (Cloud)
 
 - **Bericht:** SCV40 (Samsung, Android 10, 64 bit, Stufe 3), durchgespielt bis zur Flucht auf dem
