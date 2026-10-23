@@ -976,6 +976,7 @@ int re4probe_letterbox(void);
 int re4probe_knife_swipe(void);
 int re4probe_snd_bank(void);
 int re4probe_frame_sections(void);
+int re4probe_path_entry(void);
 int re4_log_tail(char* out, int size);
 }
 
@@ -1662,6 +1663,17 @@ static void testFrameSections()
     report("sections", ok);
 }
 
+// The jet ski's rail of r333 (PTH, formats_eff.cpp convertPathEntry; game_probe.cpp
+// re4probe_path_entry): converted, the game's path functions read its length and points right
+static void testPathEntry()
+{
+    const int bad = re4probe_path_entry();
+    if (bad) {
+        re4_log("  path entry: faults 0x%x", bad);
+    }
+    report("pathentry", bad == 0);
+}
+
 // The knife by a swipe (runtime/knife_swipe.cpp; game_probe.cpp re4probe_knife_swipe): L until the
 // knife is out, L and A until it slashes, the swipe's tilt on the aim, a second swipe, the stops
 static void testKnifeSwipe()
@@ -1827,6 +1839,7 @@ int re4_runtime_tests()
     testKnifeSwipe();
     testSndBank();
     testFrameSections();
+    testPathEntry();
     testVsync();
     testWatch();
     re4_log("runtime-test: %d failed", gFailures);
