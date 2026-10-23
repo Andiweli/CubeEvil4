@@ -144,7 +144,12 @@ Ergebnis in -OutDir (Standard: Desktop\RE4-Kern-App): bericht.txt, logcat.txt,
 bild-*.png, kern-build.log, apk-build.log, nach einem Absturz absturz-system.txt und
 absturz-stapel.txt. Bitte bericht.txt, logcat.txt und die Bilder schicken.
 
-Mehrere Kerne (Branch performance): Die Eckpunkte der Grafik rechnen Helfer-Threads um.
+-SkipApk nimmt die APK aus app\build\outputs\apk\core\debug, wie sie ist. Run in Android Studio
+erneuert diese Datei nicht (es installiert aus app\build\intermediates); deshalb vergleicht das
+Skript ihre Version mit app\build.gradle und bricht bei einer alten APK ab. Ohne -SkipApk baut
+es sie selbst.
+
+Mehrere Kerne (seit 0.45.0): Die Eckpunkte der Grafik rechnen Helfer-Threads um.
 -GxThreads N legt ihre Anzahl fest (0: alles auf dem Spiel-Thread wie bis 0.44; ohne Angabe
 Kerne minus 3, hoechstens 3). -GxJobCheck rechnet zur Fehlersuche jeden Zeichenauftrag
 zusaetzlich sofort um und meldet im Bericht "GX job check", wenn sich Speicher geaendert hat,
@@ -372,6 +377,34 @@ if (-not $SkipApk) {
 }
 if (-not (Test-Path -LiteralPath $apk)) { throw "APK fehlt: $apk" }
 Say "APK: $apk ($([math]::Round((Get-Item -LiteralPath $apk).Length / 1MB, 1)) MB)"
+# The version the repository's state builds (build.gradle) against the APK's: Run in Android
+# Studio installs from app\build\intermediates and leaves this file as it was, so with -SkipApk an
+# old APK would go on the device (23.10.2026: 0.43.1 instead of 0.45.0, installed over it)
+$gradleFile = Join-Path $app 'app\build.gradle'
+$wantVersion = if ((Get-Content -LiteralPath $gradleFile -Raw) -match "versionName '([^']+)'") { $Matches[1] } else { '' }
+$apkVersion = ''
+$sdkDir = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
+$aapt = Get-ChildItem -Path (Join-Path $sdkDir 'build-tools') -Recurse -Include 'aapt2.exe', 'aapt.exe' -ErrorAction SilentlyContinue |
+    Sort-Object FullName -Descending | Select-Object -First 1
+if ($aapt) {
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $badging = (& $aapt.FullName dump badging $apk 2>$null) -join "`n"
+    $ErrorActionPreference = $previousPreference
+    if ($badging -match "versionName='([^']+)'") { $apkVersion = $Matches[1] }
+}
+if ($apkVersion) {
+    Say "   APK-Version: $apkVersion (Stand im Repository: $wantVersion)"
+    if ($wantVersion -and -not $apkVersion.StartsWith($wantVersion)) {
+        throw ("Die APK ist $apkVersion, der Stand im Repository ${wantVersion}: sie ist veraltet. Das Skript " +
+            "ohne -SkipApk starten (es baut sie dann selbst) oder in Android Studio Build > Build App Bundle(s) / " +
+            "APK(s) > Build APK(s) waehlen (Run in Android Studio erneuert diese Datei nicht).")
+    }
+} elseif ((Get-Item -LiteralPath $apk).LastWriteTime -lt (Get-Item -LiteralPath $gradleFile).LastWriteTime) {
+    throw ("Die APK ist aelter als app\build.gradle (Stand $wantVersion) und damit wohl veraltet. Das Skript " +
+        "ohne -SkipApk starten (es baut sie dann selbst) oder in Android Studio Build > Build App Bundle(s) / " +
+        "APK(s) > Build APK(s) waehlen (Run in Android Studio erneuert diese Datei nicht).")
+}
 
 # ---- 3. the device ------------------------------------------------------------------------
 if ($SkipDevice) {
@@ -502,6 +535,11 @@ Invoke-RetroidAdbExclusive -ThrowOnUnavailable -LockTimeoutMs 60000 -Sequence {
     $runAbi = if ($info -match 'primaryCpuAbi=(\S+)') { $Matches[1] } else { '?' }
     if ($Abi -ne 'auto' -and $runAbi -ne $Abi) { throw "Die App laeuft als $runAbi statt $Abi." }
     Say "   App installiert ($runAbi$(if ($runAbi -eq 'arm64-v8a') { ', 64 bit' } elseif ($runAbi -eq 'armeabi-v7a') { ', 32 bit' }))"
+    $installed = if ($info -match 'versionName=(\S+)') { $Matches[1] } else { '?' }
+    Say "   App-Version auf dem Geraet: $installed"
+    if ($wantVersion -and -not $installed.StartsWith($wantVersion)) {
+        Say "   ACHTUNG: nicht der Stand im Repository ($wantVersion)."
+    }
     # The import runs inside the app (several minutes per disc): the test waits for it instead of
     # stopping the app, because stopping it cancels the import.
     $game = "/sdcard/Android/data/$package/files/game"

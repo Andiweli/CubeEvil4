@@ -5944,6 +5944,20 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Vergleichsläufe 23.10.2026 13:22/13:24 (Retroid, mit und ohne Helfer): versehentlich 0.43.1 (Cloud)
+
+- **Ablauf:** zwei Läufe mit `test-core-app.ps1 -Manual -SkipCore -SkipApk` (einmal mit
+  `-GxThreads 0`), Stufe 2, MSAA 2. Beide Berichte nennen **0.43.1-alpha-core**: `-SkipApk` nimmt
+  `app\build\outputs\apk\core\debug\app-core-debug.apk`, und Run in Android Studio erneuert diese
+  Datei nicht (es installiert aus `app\build\intermediates`). Die alte APK wurde dabei über 0.45.0
+  installiert (`install -r -d`). Die Läufe sagen über die Helfer nichts (0.43.1 hat keine).
+- **Behoben im Skript:** `test-core-app.ps1` liest die Version der APK (`aapt2 dump badging` aus den
+  Build-Tools des SDK, sonst Vergleich der Dateizeit mit `app\build.gradle`) und bricht ab, wenn sie
+  nicht zum Stand im Repository passt; nach der Installation steht `App-Version auf dem Geraet` im
+  Bericht. Nicht unter Windows ausgeführt (kein PowerShell in der Cloud).
+- **Nebenbei** (0.43.1, Stufe 2, MSAA 2): Kern 33,9 bzw. 36,9 ms je Bild, davon 18–19 ms frei,
+  11,1–11,5 ms Rechenzeit; der Kern hat auf dem Retroid also reichlich Luft.
+
 ### Gerätetest 23.10.2026 13:01 (Retroid, 0.45.0 gegen 0.44.0, Bericht und zwei R3-Folgen; Cloud)
 
 - **Meldung:** 0.45.0 fühlt sich 1–2 FPS langsamer an als 0.44.0. Beide Läufe im Bericht
