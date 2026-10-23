@@ -23,6 +23,13 @@ data: you need your own images of both debug discs.
 <p align="center"><img src="port/android-decomp/app/src/main/res/drawable-nodpi/icon_cubeevil4.png" width="160" alt="CubeEvil4 icon"></p>
 -->
 
+## Reviews
+
+- [Gamesworld Channel](https://www.youtube.com/watch?v=PvpjyH123YI) (Youtube)  
+- [EightiesJapan's Channel](https://www.youtube.com/shorts/afU4VWHp1uQ) (Youtube)  
+- [Android Gamer's Channel](https://www.youtube.com/watch?v=m-XGtGydIVg) (Youtube)  
+
+
 ## What the app does
 
 - The whole game code (`src/`, all 114 REL modules) runs natively, as ARM32 (`armeabi-v7a`) and
