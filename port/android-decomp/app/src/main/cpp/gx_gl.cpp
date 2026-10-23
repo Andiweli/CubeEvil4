@@ -936,6 +936,7 @@ struct GxRenderer::Impl {
       return 0; // 2D: as in the next picture
     ipDraws++;
     std::uint32_t first = 0, rows = 0;
+    bool lights = false;
     DrawRows(d, &first, &rows);
     float t[3] = {};
     if (rows)
@@ -961,9 +962,16 @@ struct GxRenderer::Impl {
         if (lowest < 0.94f)
           ipTurned++;
       }
+      float now[3][4] = {};
+      if (rows == 3)
+        std::memcpy(now, xf.posTex[first], sizeof(now));
       for (std::uint32_t r = 0; r < rows; r++)
         for (int c = 0; c < 4; c++)
           xf.posTex[first + r][c] = src[r * 4 + c] + (xf.posTex[first + r][c] - src[r * 4 + c]) * s;
+      // the lights (in view space, as the game loaded them for the next picture) moved with the
+      // camera between the two: tester's report 24.10.2026, light pools that swam in 60 FPS
+      if (rows == 3 && BlendLights(now, xf.posTex[first]))
+        lights = true;
       const float *nrm = src + rows * 4;
       for (std::uint32_t r = 0; r < rows; r++)
         for (int c = 0; c < 3; c++)
@@ -1007,7 +1015,49 @@ struct GxRenderer::Impl {
         }
       }
     }
-    return rows ? first << 8 | rows : 0x100000; // 0x100000: only the projection
+    // 0x100000: only the projection; 0x200000: the lights too
+    return (rows ? first << 8 | rows : 0x100000) | (lights ? 0x200000u : 0u);
+  }
+
+  // The lights of the next picture into the in-between one: the modelview `mid` of a draw (blended)
+  // against `now` (the next picture's) gives the camera's move between the two, C = mid * now^-1;
+  // positions take all of it, directions its turn. False when `now` has no inverse.
+  bool BlendLights(const float (&now)[3][4], const float *mid) {
+    const float(&n)[3][4] = now;
+    const float det = n[0][0] * (n[1][1] * n[2][2] - n[1][2] * n[2][1]) -
+                      n[0][1] * (n[1][0] * n[2][2] - n[1][2] * n[2][0]) +
+                      n[0][2] * (n[1][0] * n[2][1] - n[1][1] * n[2][0]);
+    if (!(std::fabs(det) > 1e-12f))
+      return false;
+    float inv[3][3];
+    inv[0][0] = (n[1][1] * n[2][2] - n[1][2] * n[2][1]) / det;
+    inv[0][1] = (n[0][2] * n[2][1] - n[0][1] * n[2][2]) / det;
+    inv[0][2] = (n[0][1] * n[1][2] - n[0][2] * n[1][1]) / det;
+    inv[1][0] = (n[1][2] * n[2][0] - n[1][0] * n[2][2]) / det;
+    inv[1][1] = (n[0][0] * n[2][2] - n[0][2] * n[2][0]) / det;
+    inv[1][2] = (n[0][2] * n[1][0] - n[0][0] * n[1][2]) / det;
+    inv[2][0] = (n[1][0] * n[2][1] - n[1][1] * n[2][0]) / det;
+    inv[2][1] = (n[0][1] * n[2][0] - n[0][0] * n[2][1]) / det;
+    inv[2][2] = (n[0][0] * n[1][1] - n[0][1] * n[1][0]) / det;
+    // C's turn: mid's 3x3 times inv; C's shift: mid's shift minus C's turn of now's shift
+    float rot[3][3], shift[3];
+    for (int r = 0; r < 3; r++) {
+      for (int c = 0; c < 3; c++)
+        rot[r][c] = mid[r * 4 + 0] * inv[0][c] + mid[r * 4 + 1] * inv[1][c] + mid[r * 4 + 2] * inv[2][c];
+    }
+    for (int r = 0; r < 3; r++)
+      shift[r] = mid[r * 4 + 3] - (rot[r][0] * n[0][3] + rot[r][1] * n[1][3] + rot[r][2] * n[2][3]);
+    for (int l = 0; l < 8; l++) {
+      float p[3], dir[3];
+      std::memcpy(p, xf.light[l][3], sizeof(p));
+      std::memcpy(dir, xf.light[l][4], sizeof(dir));
+      for (int r = 0; r < 3; r++) {
+        xf.light[l][3][r] = rot[r][0] * p[0] + rot[r][1] * p[1] + rot[r][2] * p[2] + shift[r];
+        xf.light[l][4][r] = rot[r][0] * dir[0] + rot[r][1] * dir[1] + rot[r][2] * dir[2];
+      }
+    }
+    Dirty(160, 200);
+    return true;
   }
 
   // After the draw: the rows from XF memory again (the projection from the registers).
@@ -1022,6 +1072,11 @@ struct GxRenderer::Impl {
     if (rows) {
       Dirty(static_cast<int>(first), static_cast<int>(first + rows));
       Dirty(64, 96);
+    }
+    if (blended & 0x200000) {
+      for (std::uint32_t a = 0x600; a < 0x680; a++)
+        XfMemToBlock(a);
+      Dirty(160, 200);
     }
     xfRegsDirty = true; // FillXfRegs puts the projection back
     Dirty(206, 208);

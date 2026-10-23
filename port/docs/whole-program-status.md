@@ -5947,6 +5947,43 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Berichte Retroid 23./24.10.2026 (0.9.0-beta, 14 Berichte, Dorf bei Nacht bis Burg): sechs Meldungen (Cloud)
+
+- **Sitzung:** 22:55–00:32 in einem Stück (r112 … r10f, r11f, dann Burg r200 … r22c, r209, r20a,
+  r20b), kein Absturz. Shader-Liste mit den Berichten **3415 Programme** (1487 neu), alle bauen
+  auf Mesa ohne Fehler (mit und ohne MSAA). Der Shader-Thread baute nach dem Wechsel der MSAA-Stufe
+  1449 Programme in 46 s im Hintergrund. Die Zeile `sound: up to …` (Patch 0107) kam nie: der
+  Anfrage-Speicher war nicht die Ursache der stummen Schreie.
+- **Gegner schreien beim Fallen nicht:** Fehler des Prototyps. Der Fallschrei (`Se_tbl[14]`)
+  kommt nur aus `Dm_Roof` (2/7) und `Dm_Ladder` (2/6); in `Dm_Roof` führt nur `em10RoofDmCk`, das
+  die Schadens-Behandlung der schweren Waffen (`em10DmSetWep09`: Schrotflinten, Magnum, Gewehre)
+  nie fragt; sie schickt in `Dm_Blow`, das stumm über die Kante fällt. Im Bericht: 198
+  Schrotflinten-Treffer, alle 2/4; die vier Seilbahn-Ganados in r10f (Sätze 0x2C/0x2D/0x31) fielen
+  bis 6 s lang stumm, kein Ganado in 2/7. **Patch 0109.**
+- **Ashley ruft „Help“ im Vorraum der Schießbude:** Fehler des Prototyps. r22c stellt Ashley
+  (wartend) neben die beiden Tore der Bude, die als Zielscheiben (`cEmMark`, em 0x3E, hp 1000)
+  als Gegner unter 4 m zählen; sobald Leon mehr als 2 m weg ist, ruft sie alle 151 Bilder.
+  **Patch 0110.**
+- **Ashley ruft „Pervert“ ohne Grund:** Original. Die Prüfung (`pantsCheck`, `pl_npc.cpp`) ist rein
+  geometrisch: Leons Kopf unter 5 m, Blick mindestens 45° nach oben, Ashley innerhalb ±45° seiner
+  Körperrichtung, keine Wand dazwischen; keine Kamera, kein Stick. Unter einer Terrasse (r208)
+  reicht es, unter ihr zu stehen.
+- **Kamera in Leons Kopf:** Original. Die Zielkamera (`CameraQuasiFPS::hitCheck`) setzt sich bei
+  einer Wand auf den Treffpunkt, im Extremfall 10 cm neben den Kopf; das Spiel blendet Leon nie aus.
+- **Fackel des Händlers leuchtet durch Wände:** sehr wahrscheinlich Original. Lichter wählt das
+  Spiel je Raumstück nach Kasten und Reichweite (`cLightMgr::setModel2`), ohne Sichtprüfung; der
+  GameCube hat keine Schatten. Umwandler (LIT, SMX `LitSelectMask`) und Renderer (Licht-Register,
+  Masken, Abschwächung wie Dolphin) geprüft. Gegenprobe offen: derselbe Ort in Dolphin.
+- **Flackern in Gebäuden bei Gewitter:** Original (r111, r112, r113, r11c blitzen innen absichtlich:
+  Fenster-Blitz bei `STA_CAMERA_IN_ROOM`). **Dabei gefunden, Fehler des Ports im 60-FPS-Modus:** die
+  Zwischenbilder mischten Kamera und Projektion, nicht aber die Lichter (in Kamera-Koordinaten des
+  nächsten Bilds): Lichtflecken schwammen bei Kameradrehung. **Behoben** (`gx_gl.cpp`
+  `BlendLights`): je Zeichenaufruf die Bewegung der Kamera C = MV(Mitte) · MV(neu)⁻¹ auf Position
+  und Richtung der Lichter, danach zurück aus dem XF-Speicher. Neuer Test `TestInterpolatedLights`
+  (Lichtfleck im Zwischenbild wie in A und B; ohne die Korrektur 119 statt 125, schlägt fehl).
+- **Tests:** i686-Build mit 0109/0110: 0 Baufehler, alle Kern-, Laufzeit- und Filmtests 0 Fehler;
+  `gx_gl_check` 0 Fehler. **Nicht getestet:** am Gerät (Schreie, Ashley still in r22c, 60 FPS).
+
 ### Beta 0.9.0 (Entscheidung des Projektinhabers, 23.10.2026, Cloud)
 
 - **Entscheidung:** „Beta jetzt“: mit den 1928 Programmen der Liste veröffentlichen; Burg und Insel

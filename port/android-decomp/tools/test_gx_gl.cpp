@@ -1223,6 +1223,70 @@ void TestInterpolation() {
   one.Release();
 }
 
+// 60 FPS: the lights in the in-between picture move with the camera (tester's report 24.10.2026,
+// light pools that swam). A white card 1000 units away with its normal to the camera, lit by one
+// light 100 units in front of it and 100 to the right (diffuse, no attenuation: cos 45 degrees at
+// the card's centre). The camera moves by dx -50 (A) and +50 (B); the game loads the light in view
+// space, so it moves by dx too. In between (dx 0) the card's centre is lit as in A and B, not with
+// B's light 50 units further right (cos 56 degrees: about a fifth darker).
+void LitScene(Builder &b, std::uint32_t sequence, float dx, Re4GxChunk *out) {
+  Baseline(b);
+  b.flags = sequence == 1 ? RE4_GX_CHUNK_RESET | RE4_GX_CHUNK_XFB : RE4_GX_CHUNK_XFB;
+  DisplayCopy(b, true, kBlack);
+  const float n = 100.0f, f = 1000000.0f;
+  b.XfF(0x1020, {1.0f, 0.0f, 1.0f, 0.0f, -n / (f - n), -f * n / (f - n)});
+  b.Xf(0x1026, {0});
+  b.Xf(0x100A, {0x000000FFu});                                 // ambient 0: black
+  b.Xf(0x100E, {1u | 1u << 1 | 1u << 2 | 2u << 7 | 2u << 9}); // vertex material, lighting, light 0, clamp
+  std::vector<std::uint32_t> light(16, 0);
+  light[3] = 0xFFFFFFFFu;
+  light[4] = Bits(1.0f);
+  light[7] = Bits(1.0f);
+  light[10] = Bits(100.0f + dx);
+  light[12] = Bits(-900.0f);
+  b.Xf(0x600, light);
+  b.XfF(0, {1, 0, 0, dx, 0, 1, 0, 0, 0, 0, 1, 0});
+  std::vector<std::uint8_t> v;
+  for (int i = 0; i < 4; i++) {
+    const float p[3] = {i == 1 || i == 2 ? 125.0f : -125.0f, i >= 2 ? -125.0f : 125.0f, -1000.0f};
+    const float nrm[3] = {0, 0, 1};
+    v.insert(v.end(), reinterpret_cast<const std::uint8_t *>(p), reinterpret_cast<const std::uint8_t *>(p) + 12);
+    v.insert(v.end(), reinterpret_cast<const std::uint8_t *>(nrm), reinterpret_cast<const std::uint8_t *>(nrm) + 12);
+    v.insert(v.end(), kWhite, kWhite + 4);
+  }
+  b.Draw(RE4_GX_V_NORMAL | RE4_GX_V_COLOR0, 28, v, 4, 0x80);
+  DisplayCopy(b, false, kBlack);
+  *out = b.Chunk();
+  out->sequence = sequence;
+}
+
+void TestInterpolatedLights() {
+  std::string error;
+  re4gx::GxRenderer r;
+  Require(r.Init(1, &error), error.c_str());
+  r.SetRecording(true);
+  Builder ba, bb;
+  Re4GxChunk a, b;
+  LitScene(ba, 1, -50.0f, &a);
+  LitScene(bb, 2, 50.0f, &b);
+  r.Run(a);
+  // dx -50: 16 pixels left of the centre
+  const auto litA = TexPixel(r.Xfb(nullptr, nullptr), 304, 264);
+  const int g = litA.empty() ? 0 : litA[1];
+  Check(g > 60 && g < 220, "interpolated lights: picture A half lit at the card's centre");
+  Check(r.Interpolate(a, b, 0.5f), "interpolated lights: the in-between picture is shown");
+  const auto litMid = TexPixel(r.Xfb(nullptr, nullptr), 320, 264);
+  Check(Near(litMid, g, g, g, 3), "interpolated lights: the light moved with the camera (lit as in A)");
+  if (!Near(litMid, g, g, g, 3))
+    Print("A", litA), Print("in between", litMid);
+  // the next picture keeps its own lights
+  r.Run(b);
+  Check(Near(TexPixel(r.Xfb(nullptr, nullptr), 336, 264), g, g, g, 3),
+        "interpolated lights: picture B afterwards with its own light");
+  Check(glGetError() == GL_NO_ERROR, "interpolated lights: no GL error");
+  r.Release();
+}
+
 // The whole EFB (scale 1) as RGBA bytes.
 std::vector<std::uint8_t> Efb(re4gx::GxRenderer &r) {
   glBindFramebuffer(GL_FRAMEBUFFER, gReadFbo);
@@ -1570,6 +1634,7 @@ int main() {
     TestOptions(poison != 0, true);
   }
   TestInterpolation();
+  TestInterpolatedLights();
   // MSAA in its own buffers (the devices without the extensions, RE4_GX_MSAA_TILES=0)
   TestOptions(false, false);
   // the depth of field's blur at the full resolution as before GPU step e (GxOptions::halfDof)
