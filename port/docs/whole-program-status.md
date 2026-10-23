@@ -5944,6 +5944,28 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Gerätetest 23.10.2026 13:01 (Retroid, 0.45.0 gegen 0.44.0, Bericht und zwei R3-Folgen; Cloud)
+
+- **Meldung:** 0.45.0 fühlt sich 1–2 FPS langsamer an als 0.44.0. Beide Läufe im Bericht
+  (`previous` = 0.44.0 um 12:55, aktuell 0.45.0 um 13:01), derselbe Spielstand in r11b (See, Regen).
+- **Einstellungen nicht gleich:** 0.44.0 lief die erste Minute mit Stufe 2 und MSAA 2 (GPU
+  14–15 ms je Bild, Kern 34,5 ms je Bild, also volle 30 FPS), ab 12:55:57 MSAA 4, ab 12:56:13
+  Stufe 3 mit MSAA 4. 0.45.0 lief nur mit Stufe 3 und MSAA 4.
+- **Gleiche Einstellungen (Stufe 3, MSAA 4, r11b):** 0.44.0 19,4 gezeigte Bilder/s, GPU 29,4 ms je
+  Bildstück, Render-Thread 8,5 ms; 0.45.0 19,0/s, GPU 26,6 ms, Render-Thread 7,5 ms (das Fenster
+  von 0.45.0 enthält die Kamerafahrt beim Raumstart). Kein messbarer Unterschied; die Grenze ist
+  der Grafikchip: über 33 ms je Bild fällt die Anzeige bei 60 Hz von 30 auf 20 Bilder/s.
+- **R3-Folgen (0.45.0, 13:01 und 13:02, je 12 Bilder) in der Cloud nachgezeichnet**, mit dem
+  Renderer von 0.44.0 (`0d0a9e9`) und von 0.45.0: alle 24 Bilder pixelgleich; je Bild 1125 → 1356
+  bzw. 757 → 919 Uniform-Uploads, 2725 → 1462 KB bzw. 1984 → 1062 KB.
+- **Erster Start nach dem Update:** `0 programs from the cache` (die Shader-Quellen haben sich mit
+  der XF-Aufteilung geändert), 48 Programme neu gebaut, ein Bildstück bis 843 ms; ab dem zweiten
+  Start aus dem Cache und vorab (Schlüsseldateien gibt es erst seit 0.45.0).
+- **Ergebnis:** kein Rückschritt nachweisbar. Empfehlung für den Retroid an Stellen wie r11b:
+  Stufe 2 mit MSAA 4 (0.44.0: 59 gezeigte Bilder/s, GPU 12,5 ms) oder Stufe 3 mit MSAA 2.
+  Mehrere Kerne helfen, wo der Prozessor bremst (schwache Handys), nicht wo der Grafikchip bremst.
+- **Nicht getestet:** längerer Vergleich mit gleichen Einstellungen; 0.45.0 beim zweiten Start.
+
 ### Release 0.45.0-alpha (Entscheidung des Projektinhabers, 23.10.2026, Cloud)
 
 - **Entscheidung:** „Mach jetzt gleich 0.45.0 draus“, auf Nachfrage **mit** dem Branch `performance`.
