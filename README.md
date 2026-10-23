@@ -42,7 +42,8 @@ data: you need your own images of both debug discs.
   middleware with picture and ADX sound.
 - Memory card as a file inside the app, with `.gci` import and export (Dolphin, GameCube).
 - Controller like the GameCube pad, with vibration, or a second layout (Alternate Controls,
-  aiming with the right stick); touch controls when no controller is connected; gyro aiming.
+  aiming with the right stick); touch controls when no controller is connected, with touch in the
+  inventory; comfort controls: gyro aiming, knife by swipe, latching L, R and B.
   SELECT opens the app menu (graphics, controls, memory card, error report); holding SELECT
   opens the game's own debug menu.
 - Android 6.0 or later, OpenGL ES 3.0.
@@ -110,11 +111,14 @@ leave the game (and a save made afterwards) in an odd state. Such problems come 
 **SELECT button**
 
 - **Press SELECT** (with touch controls: **MENU**): the app menu, in your phone's language where
-  there is a translation (English otherwise): graphics (resolution, anti-aliasing, texture filter,
-  16:9 or 4:3 picture, FPS display, depth of field), controls (touch controls Auto, Force or
-  Suppress, Latch L and R; comfort controls: Alternate Controls, gyro aiming), memory card (export
-  and import saves as `.gci` for Dolphin and the GameCube) and the error log (send or save a
-  report). B returns to the game.
+  there is a translation (English otherwise; Arabic, Chinese (simplified), French, German, Hindi,
+  Italian, Portuguese, Russian and Spanish so far; on Android 13 and later also per app under
+  Settings → Apps → CubeEvil4 → Language): graphics (resolution Dynamic or 1×–4×,
+  anti-aliasing, texture filter, picture 4:3 (GC), 4:3, 16:9 or Stretched, depth of field, FPS
+  display, 60 FPS (experimental)), controls (touch controls Auto, Force or Suppress; comfort
+  controls: Alternate Controls, gyro aiming with its sensitivity, knife by swipe, Latch L and R,
+  Latch B), memory card (export and import saves as `.gci` for Dolphin and the GameCube) and the
+  error log (send or save a report; R3 = graphics capture). B returns to the game.
 - **Hold SELECT for a second:** the game's own debug menu (use with care, see Status: some of
   its options can break the game in ways the port has nothing to do with).
 
@@ -132,9 +136,26 @@ leave the game (and a save made afterwards) in an odd state. Such problems come 
 | R1 | Z | map | inventory (weapons and recovery) |
 | L1 | – | | ready the knife |
 | SELECT | – | app menu (hold: debug menu) | as before |
+| R3 | – | graphics capture for error reports (only when "R3 = Graphics capture" is on) | as before |
 
-Alternate Controls is a switch in the app menu (Controls). With gyro aiming switched on, turning
-the device left, right, up or down moves the aim while you aim a gun.
+**Touch controls**
+
+On screen: A, B, X, Y, Z, L, R, START, MENU (= SELECT), the D-pad, a move stick and a look zone
+(the C stick). App menu → Touch Controls: **Auto** (shown without a controller; a tap on the
+screen shows them, a button hides them), **Force** (always shown) or **Suppress** (hidden while a
+controller is connected). In the inventory you can tap items, files and the map, and swipe left or
+right to change the tab.
+
+**Comfort controls** (app menu → Controls)
+
+- **Alternate Controls:** the second layout of the table above.
+- **Gyro aiming:** turning the device left, right, up or down moves the aim while you aim a gun,
+  look through a scope or aim the harpoon in the boat at the lake; a slider sets the sensitivity.
+- **Knife by swipe:** a quick swipe across the picture draws the knife and slashes; swipe upward
+  or downward to slash high or low.
+- **Latch L and R** and **Latch B:** one press (button or touch) holds L, R or B until the next
+  press, on the touch controls and on a controller (R latched: Leon keeps the weapon ready; B
+  latched: Leon keeps running).
 
 The controller (or the device) vibrates where the game uses the rumble, if it can.
 
