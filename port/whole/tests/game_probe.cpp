@@ -1252,6 +1252,90 @@ extern "C" int re4probe_letterbox(void)
     return bad;
 }
 
+extern "C" void re4_core_gyro(float yaw, float pitch);
+
+// Gyro aiming with the harpoon in the boat of the Del Lago fight (runtime/gyro.cpp): a fake Leon
+// aiming it (pl0f routine 0/0xF/3, step 3) on a fake boat; the yaw moves the sight across
+// (m_BoatPlDir, positive left), the pitch up (m_Blend), the boat turns at the sight's limit; not
+// while he only stands up to aim (step 1), in the mouth chance's aim (0xA, step 3) again. Bits:
+// each failed case.
+extern "C" int re4probe_gyro_boat(void)
+{
+    cPlayer* keepPl = pPL;
+    const u8 keepStep = pG->Rno0;
+    const int keepSub = StaFlagChk(pG, STA_SUB_SCRN) != 0, keepEvent = StaFlagChk(pG, STA_EVENT) != 0;
+
+    cPlayer* pl = (cPlayer*) (unsigned long) 0x82E40000ul;
+    memset((void*) pl, 0, sizeof(cPlayer));
+    cEm* boat = (cEm*) (unsigned long) 0x82E20000ul;
+    memset((void*) boat, 0, sizeof(cEm));
+    pl->m_pBoat = boat;
+    pl->r_no_0 = 0;
+    pl->r_no_1 = 0xF;
+    pl->r_no_2 = 3;
+    pl->r_no_3 = 3;
+    pPL = pl;
+    pG->Rno0 = 3;
+    StaFlagOff(pG, STA_SUB_SCRN);
+    StaFlagOff(pG, STA_EVENT);
+
+    PADStatus pads[4];
+    int bad = 0;
+    auto near = [](float a, float b) { return a - b < 1e-4f && b - a < 1e-4f; };
+    const float step = 0.35f / 30.0f;  // the gain per frame and rad/s
+
+    // turned 1 rad/s left and 0.5 rad/s up for one frame
+    re4_core_gyro(1.0f, 0.5f);
+    PADRead(pads);
+    bad |= !near(pl->m_BoatPlDir, step) ? 1 : 0;
+    bad |= !near(pl->m_Blend / 1251.6454f, 0.5f * step) ? 2 : 0;
+    bad |= boat->ang.y != 0.0f ? 4 : 0;
+    // far to the right: the sight stops at its limit, the boat turns on
+    for (int i = 0; i < 60; i++) {
+        re4_core_gyro(-3.0f, 0.0f);
+        PADRead(pads);
+    }
+    bad |= !near(pl->m_BoatPlDir, -0.3926991f) ? 8 : 0;
+    bad |= !(boat->ang.y < -0.5f) ? 0x10 : 0;
+    // far up: m_Blend at 255
+    for (int i = 0; i < 60; i++) {
+        re4_core_gyro(0.0f, 3.0f);
+        PADRead(pads);
+    }
+    bad |= pl->m_Blend != 255.0f ? 0x20 : 0;
+    // standing up to aim (step 1): nothing moves
+    pl->r_no_3 = 1;
+    const float dir = pl->m_BoatPlDir, blend = pl->m_Blend;
+    re4_core_gyro(1.0f, -1.0f);
+    PADRead(pads);
+    bad |= pl->m_BoatPlDir != dir || pl->m_Blend != blend ? 0x40 : 0;
+    // the mouth chance's aim (0xA, step 3): moves again
+    pl->r_no_2 = 0xA;
+    pl->r_no_3 = 3;
+    re4_core_gyro(1.0f, -1.0f);
+    PADRead(pads);
+    bad |= !(pl->m_BoatPlDir > dir) || !(pl->m_Blend < blend) ? 0x80 : 0;
+    // a sub screen open: nothing
+    StaFlagOn(pG, STA_SUB_SCRN);
+    const float dir2 = pl->m_BoatPlDir;
+    re4_core_gyro(1.0f, 0.0f);
+    PADRead(pads);
+    bad |= pl->m_BoatPlDir != dir2 ? 0x100 : 0;
+    StaFlagOff(pG, STA_SUB_SCRN);
+    re4_core_gyro(0.0f, 0.0f);
+
+    pPL = keepPl;
+    pG->Rno0 = keepStep;
+    if (keepSub) {
+        StaFlagOn(pG, STA_SUB_SCRN);
+    }
+    if (keepEvent) {
+        StaFlagOn(pG, STA_EVENT);
+    }
+    return bad;
+}
+
+extern "C" void re4_core_slash(float tilt);
 extern "C" void re4_core_slash(float tilt);
 
 // The knife by a swipe (runtime/knife_swipe.cpp): the buttons it adds to the pad (pad.cpp

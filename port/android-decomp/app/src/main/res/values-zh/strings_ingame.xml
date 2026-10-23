@@ -8,7 +8,7 @@
 
     <string name="ingame_graphics">图形</string>
     <string name="ingame_resolution">分辨率</string>
-    <string name="ingame_auto">自动</string>
+    <string name="ingame_dynamic">动态</string>
     <string name="ingame_antialiasing">抗锯齿</string>
     <string name="ingame_off">关</string>
     <string name="ingame_texture_filter">纹理过滤</string>
@@ -21,7 +21,7 @@
     <string name="ingame_fps_display">在左下角显示 FPS</string>
     <string name="ingame_smooth60">60 帧（实验性）</string>
     <string name="ingame_resolution_line">分辨率：%1$d × %2$d 像素（等级 %3$d）· 屏幕 %4$d × %5$d · 关闭菜单后生效。等级越高，对性能要求越高。</string>
-    <string name="ingame_resolution_line_auto">分辨率：%1$d × %2$d 像素（等级 %3$d，自动）· 屏幕 %4$d × %5$d · 关闭菜单后生效。自动模式会在 GPU 跟不上时降低一级。</string>
+    <string name="ingame_resolution_line_auto">分辨率：%1$d × %2$d 像素（等级 %3$d，动态）· 屏幕 %4$d × %5$d · 关闭菜单后生效。动态模式会在 GPU 跟不上时降低一级。</string>
 
     <string name="ingame_controls">操作</string>
     <string name="ingame_touch_controls">触屏操作</string>
@@ -31,14 +31,15 @@
     <string name="ingame_comfort">便捷操作</string>
     <string name="ingame_gyro">陀螺仪瞄准</string>
     <string name="ingame_gyro_none">陀螺仪瞄准（无陀螺仪）</string>
-    <string name="ingame_touch_help">自动：未连接手柄时显示，轻触屏幕即显示，按下任意按键即隐藏。始终显示：一直显示。隐藏：连接手柄时隐藏。MENU = SELECT。锁定：轻触一次即保持按住 L、R 或 B，再次轻触松开（锁定 B 时里昂一直奔跑）。</string>
+    <string name="ingame_touch_help">自动：未连接手柄时显示，轻触屏幕即显示，按下任意按键即隐藏。始终显示：一直显示。隐藏：连接手柄时隐藏。MENU = SELECT。</string>
     <string name="ingame_alternate">替代操作</string>
-    <string name="ingame_latch">锁定 L 和 R（触屏）</string>
-    <string name="ingame_latch_b">锁定 B（触屏）</string>
+    <string name="ingame_latch">锁定 L 和 R</string>
+    <string name="ingame_latch_b">锁定 B</string>
     <string name="ingame_gyro_sensitivity">陀螺仪灵敏度</string>
     <string name="ingame_alternate_help">替代操作：L1 = 小刀，L2 = 瞄准（用右摇杆瞄准），R1 = 物品栏（武器/回复），R2 = 射击 / 使用小刀，Y = 地图。A、B、X（阿什莉）和 START 保持不变。</string>
     <string name="ingame_knife_swipe">滑动出刀</string>
     <string name="ingame_knife_swipe_help">滑动出刀：在画面上快速滑动即可拔刀挥砍；向上或向下滑动可向高处或低处挥砍。</string>
+    <string name="ingame_latch_help">锁定：按一次（按键或轻触）即保持按住 L、R 或 B，再按一次松开（锁定 B 时里昂一直奔跑）。</string>
 
     <string name="ingame_card">记忆卡（插槽 A）</string>
     <string name="ingame_card_help">以 .gci 格式导出和导入存档（用于 Dolphin 或 GameCube）。</string>

@@ -597,7 +597,7 @@ std::atomic<long long> picturesMade{0};
 // next refresh; off for this renderer when the GPU does not keep up
 const Re4GxChunk *smoothPrev = nullptr, *smoothNext = nullptr;
 bool smoothTooSlow = false;
-// Auto in the menu's resolution: the EFB level follows the GPU (gx_auto_level.h); on for a renderer
+// "Dynamic" in the menu's resolution: the EFB level follows the GPU (gx_auto_level.h); on for a renderer
 // that started at the screen's level
 re4gx::AutoLevel autoLevel;
 bool autoLevelOn = false;
@@ -1152,7 +1152,7 @@ bool drawGx() {
     }
     if (autoLevelOn) {
       autoLevel.Start(scale, std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count());
-      LOG("auto resolution: from level %d (the screen's), a level lower while the GPU falls behind", scale);
+      LOG("dynamic resolution: from level %d (the screen's), a level lower while the GPU falls behind", scale);
     }
   }
   // one chunk per displayed frame: every picture the game makes is shown (a
@@ -1335,7 +1335,7 @@ bool drawGx() {
       bench.runMs += ms;
       bench.runCount++;
     }
-    // Auto: another level from the next chunk on (not while an R3 series or the hit pictures are
+    // Dynamic: another level from the next chunk on (not while an R3 series or the hit pictures are
     // recorded, the app's menu is open or the GPU measurement runs)
     if (autoLevelOn && !between) {
       const auto &st = gx->Stats();

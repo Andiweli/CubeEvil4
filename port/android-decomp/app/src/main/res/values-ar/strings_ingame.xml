@@ -11,7 +11,7 @@
 
     <string name="ingame_graphics">الرسومات</string>
     <string name="ingame_resolution">الدقة</string>
-    <string name="ingame_auto">تلقائي</string>
+    <string name="ingame_dynamic">ديناميكي</string>
     <string name="ingame_antialiasing">تنعيم الحواف</string>
     <string name="ingame_off">إيقاف</string>
     <string name="ingame_texture_filter">تصفية الخامات</string>
@@ -24,7 +24,7 @@
     <string name="ingame_fps_display">عرض FPS أسفل اليسار</string>
     <string name="ingame_smooth60">60 إطارًا في الثانية (تجريبي)</string>
     <string name="ingame_resolution_line">الدقة: %1$d&#x200E; × &#x200E;%2$d بكسل (المستوى %3$d) · الشاشة %4$d&#x200E; × &#x200E;%5$d · تُطبَّق عند إغلاق القائمة. المستويات الأعلى تتطلب أداءً أعلى.</string>
-    <string name="ingame_resolution_line_auto">الدقة: %1$d&#x200E; × &#x200E;%2$d بكسل (المستوى %3$d، تلقائي) · الشاشة %4$d&#x200E; × &#x200E;%5$d · تُطبَّق عند إغلاق القائمة. يخفض الوضع التلقائي المستوى درجة ما دام معالج الرسوميات لا يواكب.</string>
+    <string name="ingame_resolution_line_auto">الدقة: %1$d&#x200E; × &#x200E;%2$d بكسل (المستوى %3$d، ديناميكي) · الشاشة %4$d&#x200E; × &#x200E;%5$d · تُطبَّق عند إغلاق القائمة. يخفض الوضع الديناميكي المستوى درجة ما دام معالج الرسوميات لا يواكب.</string>
 
     <string name="ingame_controls">التحكم</string>
     <string name="ingame_touch_controls">التحكم باللمس</string>
@@ -34,14 +34,15 @@
     <string name="ingame_comfort">تحكم مريح</string>
     <string name="ingame_gyro">التصويب بالجيروسكوب</string>
     <string name="ingame_gyro_none">التصويب بالجيروسكوب (لا يوجد جيروسكوب)</string>
-    <string name="ingame_touch_help">تلقائي: تظهر الأزرار دون يد تحكم، وتُظهرها لمسة على الشاشة، ويُخفيها الضغط على أي زر. دائمًا: تظهر دائمًا. إخفاء: مخفية ما دامت يد التحكم متصلة. MENU = SELECT. التثبيت: لمسة تُبقي L أو R أو B مضغوطًا حتى اللمسة التالية (مع تثبيت B يركض ليون دائمًا).</string>
+    <string name="ingame_touch_help">تلقائي: تظهر الأزرار دون يد تحكم، وتُظهرها لمسة على الشاشة، ويُخفيها الضغط على أي زر. دائمًا: تظهر دائمًا. إخفاء: مخفية ما دامت يد التحكم متصلة. MENU = SELECT.</string>
     <string name="ingame_alternate">تحكم بديل</string>
-    <string name="ingame_latch">تثبيت L و R (اللمس)</string>
-    <string name="ingame_latch_b">تثبيت B (اللمس)</string>
+    <string name="ingame_latch">تثبيت L و R</string>
+    <string name="ingame_latch_b">تثبيت B</string>
     <string name="ingame_gyro_sensitivity">حساسية الجيروسكوب</string>
     <string name="ingame_alternate_help">التحكم البديل: L1 = السكين، L2 = التصويب (بالعصا اليمنى)، R1 = الحقيبة (الأسلحة/العلاج)، R2 = إطلاق النار / استخدام السكين، Y = الخريطة. A و B و X (آشلي) و START كما كانت.</string>
     <string name="ingame_knife_swipe">السكين بالسحب</string>
     <string name="ingame_knife_swipe_help">السكين بالسحب: سحبة سريعة على الصورة تُخرج السكين وتضرب؛ اسحب للأعلى أو للأسفل للضرب عاليًا أو منخفضًا.</string>
+    <string name="ingame_latch_help">التثبيت: ضغطة واحدة (زر أو لمسة) تُبقي L أو R أو B مضغوطًا حتى الضغطة التالية (مع تثبيت B يركض ليون دائمًا).</string>
 
     <string name="ingame_card">بطاقة الذاكرة (الفتحة A)</string>
     <string name="ingame_card_help">تصدير ملفات الحفظ واستيرادها بصيغة &#x200E;.gci (لـ Dolphin أو GameCube).</string>

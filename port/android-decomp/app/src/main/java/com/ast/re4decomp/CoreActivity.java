@@ -88,9 +88,10 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   static final String GYRO_AIM = "gyroAiming";
   // the menu's switch "Alternate Controls" (CoreInput.setAlternate)
   static final String ALT_CONTROLS = "alternateControls";
-  // the menu's switch "Latch L and R" of the touch controls (CoreTouch.setLatch; off: held while touched)
+  // the menu's comfort control "Latch L and R" (CoreTouch.setLatch, CoreInput.setLatch; off: held
+  // while touched or pressed); the touch controls' only until 23.10.2026, the name stays
   static final String TOUCH_LATCH = "touchLatchLR";
-  // the menu's switch "Latch B" of the touch controls (CoreTouch.setLatchB; on: Leon keeps running)
+  // the menu's comfort control "Latch B" (the same; on: Leon keeps running)
   static final String TOUCH_LATCH_B = "touchLatchB";
   // the menu's slider of gyro aiming (GyroAim.setSensitivity, a float, 1 = as before)
   static final String GYRO_SENSITIVITY = "gyroSensitivity";
@@ -176,6 +177,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     SharedPreferences inputPrefs = getSharedPreferences(INPUT_PREFS, MODE_PRIVATE);
     input.setSwapFace(inputPrefs.getBoolean(SWAP_FACE, false));
     input.setAlternate(inputPrefs.getBoolean(ALT_CONTROLS, false));
+    input.setLatch(inputPrefs.getBoolean(TOUCH_LATCH, false), inputPrefs.getBoolean(TOUCH_LATCH_B, false));
     knifeSwipe = inputPrefs.getBoolean(KNIFE_SWIPE, true);
     // R3 saves graphics data with the test scripts (RE4_APP_TOOLS=1) or when the menu switched it on
     tools = settings.contains("RE4_APP_TOOLS=1") || inputPrefs.getBoolean(R3_CAPTURE, false);
@@ -307,8 +309,21 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
 
   private void showFps(boolean on) {
     fpsView.setVisibility(on && menuSupported ? View.VISIBLE : View.GONE);
-    fpsView.setText(getString(R.string.ingame_fps_none) + screenHz());
+    fpsView.setText(getString(R.string.ingame_fps_none) + screenHz() + resolution());
     fpsFrames = -1;
+  }
+
+  /**
+   * " · 1280×672 (2×)": the resolution the renderer draws at now, the level "Dynamic" chose too
+   * (wish of the project owner, 23.10.2026), the picture's rows as the menu counts them (336, 4:3
+   * 448); "" before the renderer started.
+   */
+  private String resolution() {
+    int[] info = CoreBridge.graphicsInfo();
+    if (info == null || info[2] < 1) return "";
+    int aspect = getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getInt("aspect", 0);
+    int rows = aspect == 1 || aspect == 3 ? 448 : 336;
+    return String.format(Locale.ROOT, " · %d×%d (%d×)", 640 * info[2], rows * info[2], info[2]);
   }
 
   /** " · 60 Hz": the screen's rate as measured (FramePacing), else as Android says; "" unknown. */
@@ -342,7 +357,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       long game = Math.round((frames - fpsFrames) / seconds), shown = Math.round((pictures - fpsPictures) / seconds);
       boolean smooth = getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE).getBoolean("smooth60", false);
       fpsView.setText((smooth ? String.format(Locale.ROOT, getString(R.string.ingame_fps_smooth), game, shown)
-          : String.format(Locale.ROOT, getString(R.string.ingame_fps), game)) + screenHz());
+          : String.format(Locale.ROOT, getString(R.string.ingame_fps), game)) + screenHz() + resolution());
       fpsFrames = frames;
       fpsPictures = pictures;
       fpsSince = now;
@@ -510,15 +525,17 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     @Override public void latchChanged(boolean on) {
       getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(TOUCH_LATCH, on).apply();
       touchControls.setLatch(on);
+      input.setLatch(on, input.latchB());
       send();
-      Log.i(TAG, "touch controls: L and R " + (on ? "latch on a tap" : "held while touched"));
+      Log.i(TAG, "comfort controls: L and R " + (on ? "latch on a tap or a press" : "held while touched or pressed"));
     }
 
     @Override public void latchBChanged(boolean on) {
       getSharedPreferences(INPUT_PREFS, MODE_PRIVATE).edit().putBoolean(TOUCH_LATCH_B, on).apply();
       touchControls.setLatchB(on);
+      input.setLatch(input.latchLR(), on);
       send();
-      Log.i(TAG, "touch controls: B " + (on ? "latches on a tap" : "held while touched"));
+      Log.i(TAG, "comfort controls: B " + (on ? "latches on a tap or a press" : "held while touched or pressed"));
     }
 
     @Override public void gyroSensitivityChanged(float value) {

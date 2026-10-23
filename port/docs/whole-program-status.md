@@ -5945,6 +5945,48 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Gerätetest 23.10.2026 15:06 (Retroid, 0.45.1) und Wünsche des Projektinhabers: Dynamisch, Auflösung in der FPS-Anzeige, Einrasten für Controller, Menüzeilen, Gyro mit der Harpune (Cloud)
+
+- **Bericht:** „Auto“ arbeitet (r10c: Stufe 2 → 1 → 2). Zwei Fehlauslöser: 15:01:14 beim Laden von
+  r10c (11,5 Bilder/s, GPU 0,9 zurück) und 15:04:34, 4 s nach einem Aufstieg (ein Ruckler).
+  Schnelle Kerne aktiv (`cores: … on cores 4 5 6 7`), der Leistungshinweis bekommt auf dem Retroid
+  keine Sitzung (`the system gave no session`: das Android des Geräts bietet keine Hint-Sitzungen).
+  Shader-Thread: erster Start 115 Schlüssel, 28 gebaut, 836 ms; nach dem Wechsel auf MSAA 2 die 70
+  der Liste neu für MSAA (2537 ms). `program-keys.bin` im Bericht: die Liste der App wächst damit
+  von 70 auf 314 Programme.
+- **Regel geduldiger:** erst zwei schlechte Fenster in Folge (etwa 4–6 s Überlast) senken die Stufe;
+  ein einzelnes (Laden, neuer Shader) nicht. `TestAutoLevel` angepasst (kurzer Ruckler bleibt, zwei
+  Fenster in Folge senken, Rückfall nach dem Aufstieg verdoppelt die Wartezeit).
+- **„Auto“ heißt jetzt „Dynamisch“** (`ingame_dynamic`, 10 Sprachen: Dynamic, Dynamisch, Dinámica,
+  Dynamique, Dinamica, Dinâmica, Динамическое, 动态, डायनैमिक, ديناميكي), auch im Hinweis unter den
+  Grafikoptionen; Protokoll `dynamic resolution: …`. Touch behält „Auto“.
+- **FPS-Anzeige:** nach den Hz die Auflösung, mit der gerade gezeichnet wird, und die Stufe, z. B.
+  `30 FPS (Game) · 60 Hz · 1280×672 (2×)` (bei 4:3 448 Zeilen je Stufe), auch wenn „Dynamisch“ die
+  Stufe gesenkt hat (`CoreBridge.graphicsInfo`).
+- **Einrasten in der Komfortsteuerung, auch für den Controller:** „L und R einrasten“ und „B
+  einrasten“ ohne „(Touch)“ in der zweiten Zeile der Komfortsteuerung (neben „Messer per Wischen“),
+  der Hinweis dazu neu `ingame_latch_help`, aus dem Touch-Hinweis entfernt. `CoreInput.setLatch`: ein
+  Druck auf L oder R des Controllers (Trigger über die Hälfte, losgelassen unter einem Viertel; mit
+  der alternativen Steuerung L1 und L2) hält ihn voll gedrückt bis zum nächsten Druck, B ebenso;
+  `clear` (Fokus weg, Layout) lässt alles los; Touch rastet wie bisher selbst ein. Die Schlüssel
+  `touchLatchLR`/`touchLatchB` bleiben (die Einstellung der Spieler bleibt erhalten).
+  `CoreInputTests` 141 Prüfungen (16 neue), `CoreTouchTests` 260: bestanden.
+- **Menüzeilen zweizeilig:** alle waagrechten Zeilen und Auswahlgruppen des App-Menüs ohne
+  Grundlinien-Ausrichtung (`setBaselineAligned(false)`, `CoreMenu.row()`): ein Text, der umbricht,
+  zeigt seine zweite Zeile ganz (vorher schnitt die Ausrichtung an der ersten Zeile sie ab).
+- **Gyro mit der Harpune (Del-Lago-Kampf, `gyro.cpp`):** während Leon im Boot zielt (pl0f
+  `plboat_R2_SpearSet`/`SpearSet2`, Zustand 0/0xF/3 oder 0xA, Schritt 3) bewegt das Drehen das
+  Visier quer (`m_BoatPlDir`, ±22,5°, am Rand dreht das Boot wie mit dem Stick) und hoch/runter
+  (`m_Blend`, ±255, so viele Pixel je Grad wie quer), mit der Verstärkung der Waffen (35 %). Neuer
+  Laufzeittest `gyroboat` (`game_probe.cpp re4probe_gyro_boat`): quer, hoch, Grenze und Boot, nicht
+  beim Aufstehen, wieder beim Mund-Wurf, nicht im Untermenü, Protokollzeile.
+- **Tests (Cloud):** `gx_gl_check` 0 Fehler, `re4decomp_link_check` gebaut, `core_mode.cpp`
+  Syntaxprüfung ARM64/ARM32 ohne Fehler und Warnungen, alle Java-Quellen mit javac gegen die
+  Android-Klassen, `check_translations.py` ok (78 Texte je Sprache), `whole_build.sh` i686 mit
+  `gyroboat`, armhf und aarch64: je 0 Baufehler, Laufzeit- und Kerntests 0 Fehler.
+- **Nicht getestet:** auf dem Gerät (Menü-Aussehen mit langen Texten, Einrasten mit dem
+  Retroid-Controller, Gyro im Boot, Anzeige der Auflösung).
+
 ### Release 0.45.1-alpha (Entscheidung des Projektinhabers, 23.10.2026, Cloud)
 
 - **Entscheidung:** nach dem SCV40-Bericht „mit den weiteren Performance-Optimierungen“ ein Release;

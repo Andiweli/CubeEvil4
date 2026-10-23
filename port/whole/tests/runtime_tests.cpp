@@ -974,6 +974,7 @@ int re4probe_case_free_place(void);
 int re4probe_menu_touch(void);
 int re4probe_letterbox(void);
 int re4probe_knife_swipe(void);
+int re4probe_gyro_boat(void);
 int re4probe_snd_bank(void);
 int re4probe_frame_sections(void);
 int re4probe_path_entry(void);
@@ -1706,6 +1707,20 @@ static void testKnifeSwipe()
     report("knifeswipe", ok);
 }
 
+// Gyro aiming with the harpoon in the boat (runtime/gyro.cpp; game_probe.cpp re4probe_gyro_boat):
+// the sight across and up, the boat turning at the sight's limit, not before the aim, the log line
+static void testGyroBoat()
+{
+    const int bad = re4probe_gyro_boat();
+    static char tail[48 * 160];
+    re4_log_tail(tail, sizeof tail);
+    const bool logged = strstr(tail, "gyro: the harpoon's sight moved by the gyroscope") != nullptr;
+    if (bad || !logged) {
+        re4_log("  gyroboat: failed checks 0x%x%s", bad, logged ? "" : ", no log line");
+    }
+    report("gyroboat", bad == 0 && logged);
+}
+
 // The processor lines of the performance log (re4_cpu_info.h): the layout of a phone with two kinds
 // of cores and of one with three, and a thread's processor time per picture (it computes here)
 static void testCpuInfo()
@@ -1891,6 +1906,7 @@ int re4_runtime_tests()
     testMenuTouch();
     testLetterbox();
     testKnifeSwipe();
+    testGyroBoat();
     testSndBank();
     testFrameSections();
     testPathEntry();

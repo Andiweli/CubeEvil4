@@ -7,7 +7,7 @@
 
     <string name="ingame_graphics">Gráficos</string>
     <string name="ingame_resolution">Resolución</string>
-    <string name="ingame_auto">Auto</string>
+    <string name="ingame_dynamic">Dinámica</string>
     <string name="ingame_antialiasing">Suavizado de bordes</string>
     <string name="ingame_off">Desactivado</string>
     <string name="ingame_texture_filter">Filtro de texturas</string>
@@ -20,7 +20,7 @@
     <string name="ingame_fps_display">Mostrar FPS abajo a la izquierda</string>
     <string name="ingame_smooth60">60 FPS (experimental)</string>
     <string name="ingame_resolution_line">Resolución: %1$d × %2$d píxeles (nivel %3$d) · pantalla %4$d × %5$d · se aplica al cerrar el menú. Los niveles más altos requieren más potencia.</string>
-    <string name="ingame_resolution_line_auto">Resolución: %1$d × %2$d píxeles (nivel %3$d, Auto) · pantalla %4$d × %5$d · se aplica al cerrar el menú. Auto baja un nivel mientras la GPU no da abasto.</string>
+    <string name="ingame_resolution_line_auto">Resolución: %1$d × %2$d píxeles (nivel %3$d, Dinámica) · pantalla %4$d × %5$d · se aplica al cerrar el menú. Dinámica baja un nivel mientras la GPU no da abasto.</string>
 
     <string name="ingame_controls">Controles</string>
     <string name="ingame_touch_controls">Controles táctiles</string>
@@ -30,14 +30,15 @@
     <string name="ingame_comfort">Controles de comodidad</string>
     <string name="ingame_gyro">Apuntar con giroscopio</string>
     <string name="ingame_gyro_none">Apuntar con giroscopio (sin giroscopio)</string>
-    <string name="ingame_touch_help">Auto: visibles sin mando; un toque los muestra y un botón los oculta. Forzar: siempre visibles. Ocultar: ocultos mientras haya un mando conectado. MENU = SELECT. Fijar: un toque mantiene L, R o B hasta el siguiente toque (con B fijado, Leon corre siempre).</string>
+    <string name="ingame_touch_help">Auto: visibles sin mando; un toque los muestra y un botón los oculta. Forzar: siempre visibles. Ocultar: ocultos mientras haya un mando conectado. MENU = SELECT.</string>
     <string name="ingame_alternate">Controles alternativos</string>
-    <string name="ingame_latch">Fijar L y R (táctil)</string>
-    <string name="ingame_latch_b">Fijar B (táctil)</string>
+    <string name="ingame_latch">Fijar L y R</string>
+    <string name="ingame_latch_b">Fijar B</string>
     <string name="ingame_gyro_sensitivity">Sensibilidad del giroscopio</string>
     <string name="ingame_alternate_help">Controles alternativos: L1 = Cuchillo, L2 = Apuntar (con el stick derecho), R1 = Inventario (Armas/Curación), R2 = Disparar / usar el cuchillo, Y = Mapa. A, B, X (Ashley) y START como antes.</string>
     <string name="ingame_knife_swipe">Cuchillo deslizando</string>
     <string name="ingame_knife_swipe_help">Cuchillo deslizando: un deslizamiento rápido sobre la imagen saca el cuchillo y corta; desliza hacia arriba o hacia abajo para cortar alto o bajo.</string>
+    <string name="ingame_latch_help">Fijar: una pulsación (botón o toque) mantiene L, R o B hasta la siguiente (con B fijado, Leon corre siempre).</string>
 
     <string name="ingame_card">Tarjeta de memoria (ranura A)</string>
     <string name="ingame_card_help">Exportar e importar partidas guardadas como .gci (para Dolphin o GameCube).</string>

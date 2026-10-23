@@ -30,6 +30,12 @@ import java.util.Map;
  * 20.10.2026: the game aims with the control stick and leaves the C stick
  * unused then, CameraQuasiFPS::calcDepressionRatio); otherwise the sticks as
  * above. The touch controls keep their GameCube buttons and sticks.
+ *
+ * Latching (the menu's comfort controls "Latch L and R" and "Latch B", for the touch controls and
+ * the controller since 23.10.2026, wish of the project owner): a press of the controller's L or R
+ * (the trigger past half way, with the alternate controls L1 and L2) holds it fully until the next
+ * press, a press of B holds B (Leon keeps running). The touch controls latch their own buttons
+ * (CoreTouch).
  */
 public final class CoreInput {
   // GameCube pad bits (PAD_BUTTON_*)
@@ -60,6 +66,8 @@ public final class CoreInput {
   static final float FIRE_PRESS = 0.5f;
   /** A trigger value the game takes as pressed (PADClamp: past 30 of 255). */
   static final int TRIGGER_PRESSED = 31;
+  /** Latching: a trigger past this counts as a press, below LATCH_RELEASE as let go again. */
+  static final float LATCH_PRESS = 0.5f, LATCH_RELEASE = 0.25f;
 
   /** One input device (the built-in controller may report keys and axes separately). */
   private static final class Device {
@@ -73,6 +81,21 @@ public final class CoreInput {
 
   private final Map<Integer, Device> devices = new HashMap<>();
   private boolean swapFace, alternate;
+  private boolean latchLR, latchB;               // the menu's switches
+  private boolean latchedL, latchedR, latchedB;  // held by the controller's latching
+  private boolean pressedL, pressedR, pressedB;  // the controller's L, R, B at the last pad()
+
+  /** The menu's "Latch L and R" and "Latch B" for the controller (see above). */
+  public void setLatch(boolean lr, boolean b) {
+    if (lr != latchLR) latchedL = latchedR = false;
+    if (b != latchB) latchedB = false;
+    latchLR = lr;
+    latchB = b;
+  }
+
+  public boolean latchLR() { return latchLR; }
+
+  public boolean latchB() { return latchB; }
 
   /** Swaps A/B and X/Y (controllers that send the codes of the other layout). */
   public void setSwapFace(boolean swap) {
@@ -217,8 +240,12 @@ public final class CoreInput {
   /** A device went away: its keys count as released. */
   public void remove(int device) { devices.remove(device); }
 
-  /** Everything released (the app lost the focus, the layout changed). */
-  public void clear() { devices.clear(); }
+  /** Everything released (the app lost the focus, the layout changed), the latched buttons too. */
+  public void clear() {
+    devices.clear();
+    latchedL = latchedR = latchedB = false;
+    pressedL = pressedR = pressedB = false;
+  }
 
   /**
    * The GameCube controller for the core: buttons, main stick x/y, C stick
@@ -226,25 +253,45 @@ public final class CoreInput {
    * count; of each stick and trigger the device that moves it furthest.
    */
   public int[] pad() {
+    // the controller's L, R (0..1) and B, of all its devices: with the alternate controls L1 = L
+    // at its end stop and L2 = R; then latched where the menu says so
+    float padL = 0, padR = 0;
+    boolean padB = false;
+    for (Map.Entry<Integer, Device> e : devices.entrySet()) {
+      if (e.getKey() == TOUCH) continue;
+      Device d = e.getValue();
+      float l2 = d.l2Key ? 1f : d.lt, r2 = d.r2Key ? 1f : d.rt;
+      padL = Math.max(padL, alternate ? (d.l1Key ? 1f : 0f) : l2);
+      padR = Math.max(padR, alternate ? l2 : r2);
+      padB |= (d.buttons & GC_B) != 0;
+    }
+    if (latchLR) {
+      boolean downL = padL >= (pressedL ? LATCH_RELEASE : LATCH_PRESS);
+      boolean downR = padR >= (pressedR ? LATCH_RELEASE : LATCH_PRESS);
+      if (downL && !pressedL) latchedL = !latchedL;
+      if (downR && !pressedR) latchedR = !latchedR;
+      pressedL = downL;
+      pressedR = downR;
+      padL = latchedL ? 1f : 0f;
+      padR = latchedR ? 1f : 0f;
+    }
+    if (latchB) {
+      if (padB && !pressedB) latchedB = !latchedB;
+      pressedB = padB;
+      padB = latchedB;
+    }
     // the alternate controls aim with the right stick while L1 or L2 holds a weapon ready (on any
     // device: the built-in controller may report the trigger and the sticks apart)
-    boolean aiming = false;
-    if (alternate) {
-      for (Map.Entry<Integer, Device> e : devices.entrySet()) {
-        Device d = e.getValue();
-        if (e.getKey() != TOUCH
-            && (d.l1Key || Math.round((d.l2Key ? 1f : d.lt) * 255f) >= TRIGGER_PRESSED)) {
-          aiming = true;
-        }
-      }
-    }
-    int buttons = 0;
-    float lx = 0, ly = 0, rx = 0, ry = 0, lt = 0, rt = 0;
+    boolean aiming = alternate
+        && (Math.round(padL * 255f) >= TRIGGER_PRESSED || Math.round(padR * 255f) >= TRIGGER_PRESSED);
+    int buttons = padB ? GC_B : 0;
+    float lx = 0, ly = 0, rx = 0, ry = 0, lt = padL, rt = padR;
     for (Map.Entry<Integer, Device> e : devices.entrySet()) {
       Device d = e.getValue();
-      buttons |= d.buttons | d.hats;
+      boolean touch = e.getKey() == TOUCH;
+      buttons |= (touch ? d.buttons : d.buttons & ~GC_B) | d.hats;
       float mainX = d.lx, mainY = d.ly, cX = d.rx, cY = d.ry;
-      if (aiming && e.getKey() != TOUCH) {
+      if (aiming && !touch) {
         mainX = d.rx;
         mainY = d.ry;
         cX = cY = 0;
@@ -258,14 +305,12 @@ public final class CoreInput {
         ry = cY;
       }
       float l2 = d.l2Key ? 1f : d.lt, r2 = d.r2Key ? 1f : d.rt;
-      if (alternate && e.getKey() != TOUCH) {
-        // L1 = L at its end stop, L2 = R, R2 = A
-        lt = Math.max(lt, d.l1Key ? 1f : 0f);
-        rt = Math.max(rt, l2);
-        if (r2 >= FIRE_PRESS) buttons |= GC_A;
-      } else {
+      if (touch) {
         lt = Math.max(lt, l2);
         rt = Math.max(rt, r2);
+      } else if (alternate && r2 >= FIRE_PRESS) {
+        // (L1 = L and L2 = R above) R2 = A
+        buttons |= GC_A;
       }
     }
     // the triggers' digital L/R: only at the end stop, the game reads the analog

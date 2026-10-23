@@ -8,7 +8,7 @@
 
     <string name="ingame_graphics">Gráficos</string>
     <string name="ingame_resolution">Resolução</string>
-    <string name="ingame_auto">Auto</string>
+    <string name="ingame_dynamic">Dinâmica</string>
     <string name="ingame_antialiasing">Antisserrilhamento</string>
     <string name="ingame_off">Desligado</string>
     <string name="ingame_texture_filter">Filtro de texturas</string>
@@ -21,7 +21,7 @@
     <string name="ingame_fps_display">Mostrar FPS no canto inferior esquerdo</string>
     <string name="ingame_smooth60">60 FPS (experimental)</string>
     <string name="ingame_resolution_line">Resolução: %1$d × %2$d pixels (nível %3$d) · tela %4$d × %5$d · aplicada ao fechar o menu. Níveis mais altos exigem mais desempenho.</string>
-    <string name="ingame_resolution_line_auto">Resolução: %1$d × %2$d pixels (nível %3$d, Auto) · tela %4$d × %5$d · aplicada ao fechar o menu. O Auto desce um nível enquanto a GPU não acompanha.</string>
+    <string name="ingame_resolution_line_auto">Resolução: %1$d × %2$d pixels (nível %3$d, Dinâmica) · tela %4$d × %5$d · aplicada ao fechar o menu. A Dinâmica desce um nível enquanto a GPU não acompanha.</string>
 
     <string name="ingame_controls">Controles</string>
     <string name="ingame_touch_controls">Controles de toque</string>
@@ -31,14 +31,15 @@
     <string name="ingame_comfort">Controles de conforto</string>
     <string name="ingame_gyro">Mirar com giroscópio</string>
     <string name="ingame_gyro_none">Mirar com giroscópio (sem giroscópio)</string>
-    <string name="ingame_touch_help">Auto: visíveis sem controle, um toque os mostra, um botão os oculta. Forçar: sempre visíveis. Ocultar: ocultos enquanto um controle estiver conectado. MENU = SELECT. Travar: um toque mantém L, R ou B pressionado até o próximo toque (com B travado, Leon corre sempre).</string>
+    <string name="ingame_touch_help">Auto: visíveis sem controle, um toque os mostra, um botão os oculta. Forçar: sempre visíveis. Ocultar: ocultos enquanto um controle estiver conectado. MENU = SELECT.</string>
     <string name="ingame_alternate">Controles alternativos</string>
-    <string name="ingame_latch">Travar L e R (toque)</string>
-    <string name="ingame_latch_b">Travar B (toque)</string>
+    <string name="ingame_latch">Travar L e R</string>
+    <string name="ingame_latch_b">Travar B</string>
     <string name="ingame_gyro_sensitivity">Sensibilidade do giroscópio</string>
     <string name="ingame_alternate_help">Controles alternativos: L1 = Faca, L2 = Mirar (com o analógico direito), R1 = Inventário (Armas/Cura), R2 = Atirar / usar a faca, Y = Mapa. A, B, X (Ashley) e START como antes.</string>
     <string name="ingame_knife_swipe">Faca ao deslizar</string>
     <string name="ingame_knife_swipe_help">Faca ao deslizar: um deslize rápido sobre a imagem saca a faca e golpeia; deslize para cima ou para baixo para golpear alto ou baixo.</string>
+    <string name="ingame_latch_help">Travar: um toque ou um botão mantém L, R ou B pressionado até o próximo (com B travado, Leon corre sempre).</string>
 
     <string name="ingame_card">Cartão de memória (slot A)</string>
     <string name="ingame_card_help">Exportar e importar jogos salvos como .gci (para Dolphin ou GameCube).</string>

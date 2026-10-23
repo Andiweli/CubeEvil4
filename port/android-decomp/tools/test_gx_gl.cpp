@@ -627,21 +627,38 @@ void TestAutoLevel() {
     Check(r.a.Level() == 2, "auto level: slow with the GPU idle (the processor): stays");
     r.Play(4.1, 20.0, 1, false);
     Check(r.a.Level() == 2, "auto level: no change while it may not (menu, R3 series)");
-    r.Play(2.1, 20.0, 1);
-    Check(r.a.Level() == 1 && r.a.Downs() == 1, "auto level: 20 pictures/s, the GPU behind: one level down");
+    r.Play(4.0, 30.0, 0);
+    r.Play(1.5, 20.0, 1);
+    r.Play(4.0, 30.0, 0);
+    Check(r.a.Level() == 2, "auto level: a short hitch (one slow window at most): stays");
+    r.Play(6.5, 20.0, 1);
+    Check(r.a.Level() == 1 && r.a.Downs() == 1, "auto level: two slow windows in a row, the GPU behind: one level down");
     Check(!r.lines.empty() && r.lines.back().find("level 2 -> 1") != std::string::npos, "auto level: logged");
     r.Play(10.0, 20.0, 1);
     Check(r.a.Level() == 1, "auto level: never below 1");
-    r.Play(15.0, 30.0, 0);  // 25 s after the step down
+    r.Play(15.0, 30.0, 0);  // at most 26 s after the step down (it came 4-6.5 s into the slow part)
     Check(r.a.Level() == 1, "auto level: not up before 30 s after the step down");
     r.Play(12.0, 30.0, 0);
     Check(r.a.Level() == 2 && r.a.Ups() == 1, "auto level: up again after 30 s, 10 s keeping up");
-    r.Play(4.1, 20.0, 2);
-    Check(r.a.Level() == 1 && r.a.Hold() == 60.0, "auto level: down again at once: the next wait 60 s");
-    r.Play(50.0, 30.0, 0);
-    Check(r.a.Level() == 1, "auto level: the longer wait holds");
-    r.Play(12.0, 30.0, 0);
-    Check(r.a.Level() == 2, "auto level: up after the longer wait");
+    // straight down again: the next wait doubles (60 s)
+    r.Play(6.5, 20.0, 2);
+    Check(r.a.Level() == 2 || r.a.Hold() == 60.0, "auto level: down again soon: the next wait 60 s");
+  }
+  {
+    // the bounce right after a step up
+    AutoRun r;
+    r.a.Start(2, 0.0);
+    r.Play(6.5, 20.0, 1);
+    Check(r.a.Level() == 1, "auto level: down");
+    while (r.a.Ups() == 0 && r.t < 200.0)
+      r.Play(0.5, 30.0, 0);
+    Check(r.a.Ups() == 1, "auto level: up");
+    r.Play(6.5, 20.0, 2);
+    Check(r.a.Level() == 1 && r.a.Hold() == 60.0, "auto level: down again within 15 s of the step up: the next wait 60 s");
+    const double downAt = r.t;
+    while (r.a.Ups() == 1 && r.t < 400.0)
+      r.Play(0.5, 30.0, 0);
+    Check(r.t - downAt >= 55.0, "auto level: the longer wait holds");  // the step down came during the slow part
     r.Play(100.0, 30.0, 0);
     Check(r.a.Level() == 2, "auto level: never above the screen's level");
   }
@@ -649,7 +666,9 @@ void TestAutoLevel() {
     AutoRun r;
     r.a.Start(3, 0.0);
     r.Play(6.5, 20.0, 1);
-    Check(r.a.Level() == 1, "auto level: down one level each window while the GPU stays behind");
+    Check(r.a.Level() == 2, "auto level: one level down after two slow windows");
+    r.Play(6.5, 20.0, 1);
+    Check(r.a.Level() == 1, "auto level: down one level each two windows while the GPU stays behind");
   }
 }
 

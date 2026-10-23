@@ -58,9 +58,9 @@ final class CoreMenu extends Dialog {
     void gyroChanged(boolean on);
     /** The switch "Alternate Controls" (the preferences hold it). */
     void alternateChanged(boolean on);
-    /** The switch "Latch L and R" of the touch controls (the preferences hold it). */
+    /** The comfort control "Latch L and R", touch and controller (the preferences hold it). */
     void latchChanged(boolean on);
-    /** The switch "Latch B" of the touch controls (the preferences hold it). */
+    /** The comfort control "Latch B", touch and controller (the preferences hold it). */
     void latchBChanged(boolean on);
     /** The slider of gyro aiming: the turn rates times `value` (the preferences hold it). */
     void gyroSensitivityChanged(float value);
@@ -77,7 +77,7 @@ final class CoreMenu extends Dialog {
   private TextView graphicsLine, cardLine;
   private Button exportAll;
 
-  /** screenWidth/Height: the game's picture on the screen (Auto chooses the resolution from it). */
+  /** screenWidth/Height: the game's picture on the screen ("Dynamic" starts from it). */
   CoreMenu(Context context, Host host, boolean tools, int screenWidth, int screenHeight) {
     super(context);
     this.host = host;
@@ -141,6 +141,18 @@ final class CoreMenu extends Dialog {
     return b;
   }
 
+  /**
+   * A horizontal row whose children are not aligned by their first line's baseline: a label that
+   * wraps then shows its second line whole (wish of the project owner, 23.10.2026: with baseline
+   * alignment the second line was cut off).
+   */
+  private LinearLayout row() {
+    LinearLayout row = new LinearLayout(getContext());
+    row.setBaselineAligned(false);
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    return row;
+  }
+
   /** A thin line in the text colour, faint. */
   private View line(TextView colourOf) {
     View v = new View(getContext());
@@ -150,8 +162,7 @@ final class CoreMenu extends Dialog {
 
   /** A centred heading in small capitals with a line left and right of it. */
   private void heading(String s) {
-    LinearLayout row = new LinearLayout(getContext());
-    row.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout row = row();
     TextView v = text("", 16, true);
     v.setText(smallCaps(s));
     v.setLetterSpacing(0.08f);
@@ -210,11 +221,9 @@ final class CoreMenu extends Dialog {
 
   /** The same with `columns` equal columns (3: under the three touch settings). */
   private LinearLayout labelledRow(String title, int columns) {
-    LinearLayout row = new LinearLayout(getContext());
-    row.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout row = row();
     row.addView(text(title, 14, false), new LinearLayout.LayoutParams(dp(170), ViewGroup.LayoutParams.WRAP_CONTENT));
-    LinearLayout box = new LinearLayout(getContext());
-    box.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout box = row();
     box.setWeightSum(columns);
     row.addView(box, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
     body.addView(row);
@@ -223,12 +232,13 @@ final class CoreMenu extends Dialog {
 
   /** A row of choices for preference `key` (values in `values`), applied at once. */
   private RadioGroup choices(String title, String key, String[] labels, int[] values, int fallback, int limit) {
-    LinearLayout row = new LinearLayout(getContext());
-    row.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout row = row();
     TextView label = text(title, 14, false);
     row.addView(label, new LinearLayout.LayoutParams(dp(170), ViewGroup.LayoutParams.WRAP_CONTENT));
     RadioGroup group = new RadioGroup(getContext());
     group.setOrientation(LinearLayout.HORIZONTAL);
+    group.setBaselineAligned(false);
+    group.setGravity(Gravity.CENTER_VERTICAL);
     int current = graphics.getInt(key, fallback);
     for (int i = 0; i < labels.length; i++) {
       RadioButton b = new RadioButton(getContext());
@@ -255,12 +265,13 @@ final class CoreMenu extends Dialog {
 
   /** The setting "Touch Controls": Auto, Force and Suppress side by side in equal parts, applied at once. */
   private void touchModes(SharedPreferences input) {
-    LinearLayout row = new LinearLayout(getContext());
-    row.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout row = row();
     row.addView(text(s(R.string.ingame_touch_controls), 14, false),
         new LinearLayout.LayoutParams(dp(170), ViewGroup.LayoutParams.WRAP_CONTENT));
     RadioGroup group = new RadioGroup(getContext());
     group.setOrientation(LinearLayout.HORIZONTAL);
+    group.setBaselineAligned(false);
+    group.setGravity(Gravity.CENTER_VERTICAL);
     int[] modes = {TouchShowRule.AUTO, TouchShowRule.FORCE, TouchShowRule.SUPPRESS};
     int[] labels = {R.string.ingame_touch_auto, R.string.ingame_touch_force, R.string.ingame_touch_suppress};
     int current = CoreActivity.touchMode(input);
@@ -284,8 +295,7 @@ final class CoreMenu extends Dialog {
 
   private void build() {
     // the title and the line under it on the left, "Back to the game" on the right of the same row
-    LinearLayout top = new LinearLayout(getContext());
-    top.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout top = row();
     LinearLayout titles = new LinearLayout(getContext());
     titles.setOrientation(LinearLayout.VERTICAL);
     // the app's version after the title, smaller (testers and screenshots show which one runs)
@@ -308,7 +318,7 @@ final class CoreMenu extends Dialog {
     heading(s(R.string.ingame_graphics));
     int[] info = CoreBridge.graphicsInfo();
     int maxSamples = info != null ? info[0] : 0, maxAnisotropy = info != null ? info[1] : 0;
-    firstChoice = choices(s(R.string.ingame_resolution), "scale", new String[] {s(R.string.ingame_auto), "1×", "2×", "3×", "4×"},
+    firstChoice = choices(s(R.string.ingame_resolution), "scale", new String[] {s(R.string.ingame_dynamic), "1×", "2×", "3×", "4×"},
         new int[] {0, 1, 2, 3, 4}, 0, 0);
     choices(s(R.string.ingame_antialiasing), "samples", new String[] {s(R.string.ingame_off), "2× MSAA", "4× MSAA"},
         new int[] {1, 2, 4}, 1, maxSamples);
@@ -346,16 +356,11 @@ final class CoreMenu extends Dialog {
     showGraphics();
 
     heading(s(R.string.ingame_controls));
-    // "Touch Controls": Auto, Force, Suppress in equal parts of the row, Latch L and R in the second
-    // line, a short note on the three (wishes of the project owner, 21.10.2026); Latch B under
-    // Suppress (22.10.2026)
+    // "Touch Controls": Auto, Force, Suppress in equal parts of the row, a short note on the three
+    // (wishes of the project owner, 21.10.2026); Latch L and R and Latch B under the comfort
+    // controls since 23.10.2026, for the controller too
     SharedPreferences input = getContext().getSharedPreferences(CoreActivity.INPUT_PREFS, Context.MODE_PRIVATE);
     touchModes(input);
-    LinearLayout touchMore = labelledRow("", 3);
-    checkBox(touchMore, s(R.string.ingame_latch), input.getBoolean(CoreActivity.TOUCH_LATCH, false), 2,
-        (b, on) -> host.latchChanged(on));
-    checkBox(touchMore, s(R.string.ingame_latch_b), input.getBoolean(CoreActivity.TOUCH_LATCH_B, false), 1,
-        (b, on) -> host.latchBChanged(on));
     body.addView(text(s(R.string.ingame_touch_help), 12, false));
     // "Comfort Controls": Alternate Controls and Gyro aiming, in the columns of the check boxes above;
     // right of Gyro aiming its sensitivity, usable while it is on (wish of the project owner, 22.10.2026)
@@ -363,8 +368,7 @@ final class CoreMenu extends Dialog {
     checkBox(comfort, s(R.string.ingame_alternate), input.getBoolean(CoreActivity.ALT_CONTROLS, false), 2,
         (b, on) -> host.alternateChanged(on));
     boolean gyro = GyroAim.available(getContext());
-    LinearLayout sensitivityBox = new LinearLayout(getContext());
-    sensitivityBox.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout sensitivityBox = row();
     SeekBar sensitivity = new SeekBar(getContext());
     TextView sensitivityValue = text("", 14, false);
     CheckBox gyroBox = checkBox(comfort, s(gyro ? R.string.ingame_gyro : R.string.ingame_gyro_none),
@@ -399,19 +403,25 @@ final class CoreMenu extends Dialog {
     sensitivityBox.addView(sensitivityValue, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
         ViewGroup.LayoutParams.WRAP_CONTENT));
     comfort.addView(sensitivityBox, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2));
-    // "Knife by Swipe" in the column of Alternate Controls (wish of the project owner, 22.10.2026)
+    // "Knife by Swipe" in the column of Alternate Controls (wish of the project owner, 22.10.2026),
+    // then Latch L and R under Gyro aiming and Latch B (wish of the project owner, 23.10.2026)
     LinearLayout comfortMore = labelledRow("");
     checkBox(comfortMore, s(R.string.ingame_knife_swipe), input.getBoolean(CoreActivity.KNIFE_SWIPE, true), 2,
         (b, on) -> host.knifeSwipeChanged(on));
+    checkBox(comfortMore, s(R.string.ingame_latch), input.getBoolean(CoreActivity.TOUCH_LATCH, false), 2,
+        (b, on) -> host.latchChanged(on));
+    checkBox(comfortMore, s(R.string.ingame_latch_b), input.getBoolean(CoreActivity.TOUCH_LATCH_B, false), 1,
+        (b, on) -> host.latchBChanged(on));
     body.addView(text(s(R.string.ingame_alternate_help), 12, false));
     body.addView(text(s(R.string.ingame_knife_swipe_help), 12, false));
+    body.addView(text(s(R.string.ingame_latch_help), 12, false));
 
     heading(s(R.string.ingame_card));
     body.addView(text(s(R.string.ingame_card_help), 12, false));
     // only when the card cannot be read now (in use, still loading, none)
     cardLine = text("", 12, false);
     body.addView(cardLine);
-    LinearLayout cardButtons = new LinearLayout(getContext());
+    LinearLayout cardButtons = row();
     exportAll = button(cardButtons, s(R.string.ingame_export), 1, v -> host.exportAll());
     button(cardButtons, s(R.string.ingame_import), 1, v -> host.importFiles());
     body.addView(cardButtons);
@@ -420,8 +430,7 @@ final class CoreMenu extends Dialog {
     heading(s(R.string.ingame_log));
     body.addView(text(s(R.string.ingame_log_help), 12, false));
     // four equal parts: the two check boxes, then the two buttons
-    LinearLayout log = new LinearLayout(getContext());
-    log.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout log = row();
     checkBox(log, s(R.string.ingame_log_record), CoreLog.enabled(getContext()),
         (b, on) -> host.logChanged(on));
     checkBox(log, s(R.string.ingame_log_capture), tools,

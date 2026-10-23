@@ -242,6 +242,70 @@ public final class CoreInputTests {
     check(CoreInput.names(CoreInput.GC_A | CoreInput.GC_B | CoreInput.GC_START).equals("A+B+START")
         && CoreInput.names(0).equals("-"));
 
+    // latching (the menu's comfort controls): a press of R2 holds R fully until the next press, an
+    // analog trigger only past half way (and let go below a quarter), B the same; clear lets go
+    {
+      CoreInput l = new CoreInput();
+      l.setLatch(true, true);
+      l.key(2, R2, true);
+      int[] q = l.pad();
+      check((q[0] & CoreInput.GC_R) != 0 && q[6] == 255);
+      l.key(2, R2, false);
+      q = l.pad();
+      check((q[0] & CoreInput.GC_R) != 0 && q[6] == 255);  // still held
+      l.key(2, R2, true);
+      l.pad();
+      l.key(2, R2, false);
+      q = l.pad();
+      check((q[0] & CoreInput.GC_R) == 0 && q[6] == 0);  // the second press lets go
+      l.motion(2, 0, 0, 0, 0, 0.4f, 0, 0, 0);  // L2 not past half way: no press
+      check(l.pad()[5] == 0);
+      l.motion(2, 0, 0, 0, 0, 0.6f, 0, 0, 0);
+      q = l.pad();
+      check((q[0] & CoreInput.GC_L) != 0 && q[5] == 255);
+      l.motion(2, 0, 0, 0, 0, 0.3f, 0, 0, 0);  // above a quarter: still the same press
+      l.pad();
+      l.motion(2, 0, 0, 0, 0, 0.6f, 0, 0, 0);
+      check(l.pad()[5] == 255);  // no new press: stays latched
+      l.motion(2, 0, 0, 0, 0, 0.1f, 0, 0, 0);
+      l.pad();
+      l.motion(2, 0, 0, 0, 0, 0.6f, 0, 0, 0);
+      check(l.pad()[5] == 0);  // let go and pressed again: released
+      l.motion(2, 0, 0, 0, 0, 0, 0, 0, 0);
+      l.key(2, B, true);
+      check((l.pad()[0] & CoreInput.GC_B) != 0);
+      l.key(2, B, false);
+      check((l.pad()[0] & CoreInput.GC_B) != 0);  // Leon keeps running
+      l.key(2, B, true);
+      l.pad();
+      l.key(2, B, false);
+      check((l.pad()[0] & CoreInput.GC_B) == 0);
+      // the touch controls' own buttons are not latched here (CoreTouch latches them)
+      l.touchButton(CoreInput.GC_R, true);
+      check(l.pad()[6] == 255);
+      l.touchButton(CoreInput.GC_R, false);
+      check(l.pad()[6] == 0);
+      // clear (focus lost): the latched buttons go too
+      l.key(2, R2, true);
+      l.pad();
+      l.clear();
+      check(l.pad()[6] == 0 && l.pad()[0] == 0);
+      // switched off: as before
+      l.setLatch(false, false);
+      l.key(2, R2, true);
+      check(l.pad()[6] == 255);
+      l.key(2, R2, false);
+      check(l.pad()[6] == 0);
+      // the alternate controls: L2 latches R (the weapon ready) and the right stick aims meanwhile
+      l.setAlternate(true);
+      l.setLatch(true, false);
+      l.key(2, L2, true);
+      l.pad();
+      l.key(2, L2, false);
+      l.motion(2, 0, 0, 1f, 0, 0, 0, 0, 0);
+      q = l.pad();
+      check((q[0] & CoreInput.GC_R) != 0 && q[6] == 255 && q[1] > 0 && q[3] == 0);
+    }
     System.out.println("Core controller: layout, swap, alternate controls, sticks and triggers through PADClamp, "
         + "devices: " + checks + " checks PASS");
   }
