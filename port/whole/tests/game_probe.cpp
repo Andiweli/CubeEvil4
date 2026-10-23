@@ -13,6 +13,7 @@
 #include "global.h"
 #include "main_mem.h"
 #include "esp.h"
+#include "path.h"
 #include "at_sub.h"
 #include "cam_extra.h"
 #include "obj.h"
@@ -319,6 +320,56 @@ __attribute__((noinline)) static void probeDirtyStack(void)
     for (int i = 0; i < 256; i++) {
         fill[i] = 0x46464646;
     }
+}
+
+// The jet ski's rail in r333 (a PTH entry of the room archive; formats_eff.cpp convertPathEntry,
+// SCV40 report 23.10.2026): a big-endian archive with one PTH entry of three vertices goes
+// through the loader's converter, then the game's own path functions (path.cpp) read it. Returns
+// a bit mask of faults: 1 the vertex count, 2 the length, 4 the point at 150, 8 a point beyond
+// the end not (0 0 0), 16 the second vertex's normal.
+extern "C" void re4_formats_part_loaded(const char* rawName, int nest, int index, const void* header, unsigned addr);
+
+extern "C" int re4probe_path_entry(void)
+{
+    u8* arc = (u8*) (unsigned long) 0x82E60000ul;
+    memset(arc, 0, 0x200);
+    auto put32 = [](u8* p, u32 v) {
+        p[0] = (u8) (v >> 24);
+        p[1] = (u8) (v >> 16);
+        p[2] = (u8) (v >> 8);
+        p[3] = (u8) v;
+    };
+    auto putf = [&](u8* p, f32 f) {
+        u32 v;
+        memcpy(&v, &f, 4);
+        put32(p, v);
+    };
+    put32(arc + 0x00, 1);     // entries
+    put32(arc + 0x10, 0x20);  // the entry
+    memcpy(arc + 0x14, "PTH\0", 4);
+    u8* path = arc + 0x20;
+    path[1] = 3;  // u16 num, big-endian
+    for (int i = 0; i < 3; i++) {
+        u8* v = path + 4 + i * 0x28;
+        putf(v + 0x00, 100.0f * i);  // pos
+        putf(v + 0x04, 5.0f);
+        putf(v + 0x08, -50.0f * i);
+        putf(v + 0x10, 1.0f);        // normal (0 1 0)
+        putf(v + 0x18, 100.0f * i);  // Length
+    }
+    const u32 header[8] = {0, 0x20 + 4 + 3 * 0x28, 0, 0x400, 0, 0, 0, 0};  // DvdHeader
+    re4_formats_part_loaded("em/em98.drs", 0, 0, header, 0x82E60000u);
+    int bad = 0;
+    const Path* p = (const Path*) path;
+    if (p->num != 3) bad |= 1;
+    if (PathGetLength(path) != 200.0f) bad |= 2;
+    u16 seg = 0;
+    Vec pos = {1, 1, 1};
+    if (!PathGetPos(path, 150.0f, &seg, &pos) || pos.x != 150.0f || pos.y != 5.0f || pos.z != -75.0f) bad |= 4;
+    seg = 0;
+    if (PathGetPos(path, 250.0f, &seg, &pos) || pos.x != 0.0f || pos.y != 0.0f || pos.z != 0.0f) bad |= 8;
+    if (p->vtx[1].normal.y != 1.0f || p->vtx[1].normal.x != 0.0f) bad |= 16;
+    return bad;
 }
 
 // getNearPoint (patch 0088) over route data with three points in MEM1 (host order, as the port

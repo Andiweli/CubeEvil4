@@ -5990,6 +5990,30 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
 - **Nicht getestet:** am Gerät (ob die Schreie jetzt kommen und ob die Zeile `sound:` in großen
   Kämpfen erscheint).
 
+### Bericht SCV40 (0.44.0, 23.10.2026 10:31): im Abspann fehlt die Grafik großteils, Jetski-Strecke big-endian (Cloud)
+
+- **Bericht:** SCV40 (Samsung, Android 10, 64 bit, Stufe 3), durchgespielt bis zur Flucht auf dem
+  Jetski (r333): danach fehlt im Abspann der größte Teil des Bilds.
+- **Ursache:** beim Laden von r333 `formats: archive entry "PTH" (first in st3/r333.das (unpacked)):
+  no converter, left big-endian`. PTH ist die Fahrstrecke des Jetskis (`r333.cpp`:
+  `setRail(ROOM_ARC_PTR(pG->pRoom, 0x1F))`, `pl0e.cpp` `cPl0e::setRail`, `pl0ePathMove`), ein
+  `Path` aus `path.h` (u16 Anzahl, je Punkt 0x28 Byte: Position, Normale, Länge als Floats, dann
+  Gewichts-Bytes). Big-endian gelesen stimmen Anzahl und Länge nicht: `PathGetPosEm` lieferte erst
+  (0 0 0) (Abstand außerhalb der Strecke; Protokoll 10:30:47 `em: s1 jumps … -> (0 0 0)`, `s19`
+  ebenso), dann Unsinn (10:31:00 Spieler bei z = 1,97e28). Jetski, Leon, Ashley und die Kamera
+  waren damit irgendwo, das Bild des Abspanns leer.
+- **Behoben (`formats_eff.cpp`, `formats_arc.cpp`):** Archiv-Kürzel `PTH` mit eigenem Umwandler
+  `convertPathEntry` (der vorhandene `convertPath` der Effekt-Pfade, jetzt auch außerhalb der
+  Effektdateien). Betrifft auch `PTH` in `em36` (bisher ohne Leser im Code).
+- **Test:** neuer Laufzeittest `pathentry` (`game_probe.cpp` `re4probe_path_entry`): ein
+  big-endian-Archiv mit einem PTH-Eintrag (3 Punkte) durch den Lader, dann lesen die Pfad-Funktionen
+  des Spiels (`PathGetLength`, `PathGetPos`) Länge 200, den Punkt bei 150 und hinter dem Ende
+  (0 0 0) richtig. Ohne den Umwandler schlägt er fehl (Fehlerbits 0x17: Anzahl, Länge, Punkt,
+  Normale).
+- **Die übrigen Kürzel ohne Umwandler in den Berichten:** `FNT` (ss_cmmn.dat), `DRA` (Werkzeug
+  `t_dr.cpp`), `DMY` (em2f), der Eröffnungsfilm (Bytestrom): bekannt, ohne Folgen.
+- **Nicht getestet:** am Gerät (Jetski-Flucht und Abspann).
+
 ### Schwächere Geräte, Schritt 1: Zeitaufteilung im Bericht, schnellerer GX-Decoder (Wunsch des Projektinhabers, 22.10.2026, Cloud)
 
 - **Ausgang:** Galaxy S7, moto e6s, Galaxy A30s und Galaxy S10 ruckeln; auf dem Gerät gingen zuletzt

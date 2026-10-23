@@ -54,6 +54,7 @@ const TagRule kTags[] = {
     { "DSE", convertDoorSe },
     { "STB", convertSoundInfo },
     { "RTP", convertRoute },
+    { "PTH", convertPathEntry },
     { "OSD", convertUnread },
     { "EMI", convertEmi },
     // the map screen's rooms (SS/cmn/map_objNN.dat, Sscrn ss_map.cpp)
