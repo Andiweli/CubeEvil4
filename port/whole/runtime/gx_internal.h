@@ -38,6 +38,9 @@ void peToken(uint16_t token, bool interrupt);
 void feed(const uint8_t* bytes, size_t n);
 // Works through what has arrived (a command cut off waits for its bytes).
 void drain();
+// Waits until the vertex jobs of the draws so far are converted (the core thread helps): before
+// memory the GP read may change (a display list recorded over it).
+void finishJobs();
 
 }  // namespace re4gx
 

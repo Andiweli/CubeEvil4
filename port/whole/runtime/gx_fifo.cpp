@@ -87,7 +87,9 @@ bool gOverflow;
 void toMemory(const u8* bytes, int n)
 {
     if (gPi[5] != gPiSet) {
-        // the library attached another FIFO (GXSetCPUFifo): start at its pointer
+        // the library attached another FIFO (GXSetCPUFifo): start at its pointer (a list may be
+        // recorded over one the vertex jobs still read)
+        re4gx::finishJobs();
         gWrite = gPi[5] & 0x03FFFFE0;
         gOverflow = false;
     }

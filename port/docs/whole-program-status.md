@@ -6078,6 +6078,84 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Fehler (i686 `-O2`); `whole_build.sh` i686, armhf, aarch64: 0 Baufehler, Kern- und Laufzeittests
   0 Fehler (`ee81a44`). Am Gerät nicht getestet.
 
+### Branch `performance`: kleinere Uniform-Uploads zum Grafikchip (Wunsch des Projektinhabers, 22.10.2026, Cloud)
+
+- **Ausgang:** in r10b (R3-Folge 01 des Retroid) 876 Uniform-Uploads mit 2,4 MB je Bild: jede
+  Änderung im XF-Block (meist die Matrix des nächsten Modells) schickte den ganzen Block (3,3 KB)
+  in den Uniform-Ring.
+- **Umbau (`gx_gl.cpp`, `gx_gl_shader.*`):** der XF-Block geht in drei Teilen zum Grafikchip, jeder
+  an einer eigenen Bindung (`kXfParts`): `XFM` Positions-, Textur- und Normalenmatrizen (1,5 KB),
+  `XFP` die Post-Matrizen (1 KB, selten geändert), `XFL` Lichter, Farben, Viewport, Projektion
+  (0,75 KB). Ein Zeichenauftrag lädt nur die geänderten Teile (`UploadXf`, Änderungen je Teil in
+  `Dirty`). Ist der Ring in sein nächstes Viertel gerückt (`streamMoved`), gehen alle Teile neu
+  hinein (ein in einem alten Viertel gebundener Teil könnte sonst überschrieben werden, bevor die GPU
+  ihn liest; vorher galt das für den ganzen Block nach einem Wechsel mitten im Bildstück ebenso).
+  Ohne Ring: ein Puffer je Teil. Vier Teile (Normalen getrennt) kosteten 1708 statt 1073 Bindungen
+  für 1 % weniger Bytes, zwei (Post-Matrizen bei den Lichtern) 16 % mehr Bytes: drei Teile.
+- **Ergebnis (R3-Folgen, `RE4_GX_WORK=1`):** r10a 334 → 437 Uploads, 786 → 422 KB; r10b 876 → 1073,
+  2371 → 1285 KB; r10b (2) 221 → 289, 528 → 309 KB: knapp die Hälfte der Bytes, ein Fünftel mehr
+  Bindungen. Alle 36 Bilder der drei Folgen pixelgleich zu vorher, auch mit `RE4_GX_INTERP=1` (die
+  echten Bilder gleich, 11 Zwischenbilder). Die Shader-Quellen ändern sich: alle gespeicherten
+  Programme werden einmal neu übersetzt (das Vorladen erledigt das auf dem Titelbild).
+- **Tests:** `gx_gl_check` 0 Fehler; `TestUniformStream` auf die kleineren Uploads umgestellt
+  (Bildstücke mit 2400 statt 700 und 5000 statt 1400 Zeichenaufträgen, damit der Ring wie vorher
+  zwischen und in Bildstücken wechselt). Am Gerät nicht gemessen (weniger Bytes gegen mehr
+  Treiberaufrufe).
+
+### Branch `performance`: Eckpunkte auf mehreren Kernen (Entscheidung des Projektinhabers, 22.10.2026, Cloud)
+
+- **Entscheidung:** Umbau zur Auslastung der Kerne und später kleinere Uniform-Uploads, beides auf
+  dem Branch `performance` (abgezweigt von `claude/re4-start-controls` bei `366c48e`); erscheint mit
+  den übrigen offenen Optimierungen als 0.45.0.
+- **Warum nicht der ganze Decoder in einen eigenen Thread:** das Spiel wartet am Ende jedes Bilds
+  ohnehin auf die Grafik (`Render_done`, `main_sub.cpp`: zweimal `GXDrawDone`); ein Decoder-Thread
+  liefe nur neben dem kleinen Rest der Zeichenphase. Die Zeit des Kerns wächst dagegen mit den
+  Eckpunkten (Retroid: r105 34 000 Eckpunkte in 7,7 ms, r108 176 000 in 19,7 ms, also etwa 85 ns je
+  Eckpunkt), und genau diese Umrechnung lässt sich aufteilen.
+- **Umbau (`gx_decode.cpp`):** der Spiel-Strang liest die Befehle weiter der Reihe nach (Register,
+  Matrizen, Texturen, Paletten, Zeichenbefehle). Jeder Zeichenbefehl bekommt sofort seinen Platz im
+  Bildstück (Eckpunkte, Indizes, Zeichenauftrag, Verbinden mit dem vorigen); die Umrechnung seiner
+  Eckpunkte (`convertVertices`, `writeIndices`) wird ein Eintrag eines Pakets. Pakete ab 384
+  Eckpunkten oder 64 Einträgen (im Wald von r100 hat ein Zeichenbefehl etwa 8 Eckpunkte) nehmen sich
+  Helfer-Threads; muss der Spiel-Strang warten, rechnet er selbst mit. Vertex-Format und Arrays
+  gehen als Kopie mit (`Snapshot`, neu nur nach einer Änderung), Eckpunkt-Bytes aus dem FIFO werden
+  kopiert (der Strom rückt weiter), Display-Listen bleiben, wo sie sind. Die Helfer warten nach einem
+  Paket 0,3 ms wach, bevor sie schlafen; geweckt wird nur, wenn keiner wach ist (das Wecken je Paket
+  kostete mehr als das Paket). Die Eckpunkt-Bytes löscht der Thread, der sie umrechnet (vorher
+  löschte sie der Spiel-Strang: jede Cache-Zeile wechselte den Kern).
+- **Wann alles fertig ist (`finishJobs`):** bevor die Grafik dem Spiel etwas meldet (BP 0x45 draw
+  done, Tokens 0x47/0x48: danach darf das Spiel ändern, was gezeichnet wurde), bevor eine EFB-Kopie
+  ihre Markierung in den Speicher schreibt, bevor ein Bildstück an den Renderer geht, bevor eine
+  Display-Liste in den Speicher aufgezeichnet wird (`gx_fifo.cpp`) und bevor die Puffer des
+  Bildstücks wachsen müssten. Die Helfer lesen Arrays und Display-Listen also etwas später als der
+  Befehl kam, wie die GPU des GameCube, die neben der CPU herlief.
+- **Anzahl:** `RE4_GX_THREADS=N` (0: alles auf dem Spiel-Strang wie bisher), sonst Kerne minus 3,
+  höchstens 3 (Retroid und 8-Kern-Handys 3, 4-Kern-Geräte 1). Protokoll beim ersten Zeichnen
+  `GX: the vertices of the draws converted on N more threads (M cores)`; die Zeile `GX core` nennt
+  jetzt zusätzlich Pakete, ihre Rechenzeit und die sofort umgerechneten Zeichenbefehle.
+- **Messung** (Host i686 `-O2`, 4 Kerne, 120 000 Eckpunkte je Bild, mit dem Warten auf die Helfer;
+  der Test zählt die Display-Kopie jetzt mit): Streifen zu 20 Ecken ohne Helfer 3,1–3,4 ms, mit 1
+  Helfer 1,6, mit 2 1,1, mit 3 0,9 ms; Streifen zu 8 Ecken 4,1 → 2,1 / 1,5 / 1,5 ms.
+- **Tests:** der Fingerabdruck (`gx`, `02524012c6419af2`) läuft jetzt mit 3 Helfern
+  (`re4_gx_threads`, oder wie `RE4_GX_THREADS` sagt); `whole_build.sh` startet die Laufzeittests ein
+  zweites Mal mit `RE4_GX_THREADS=0`. Einmal je Programmstart (der Decoder behält Zustand von einem
+  Lauf zum nächsten). Gefunden beim Bau: die Markierung einer EFB-Kopie überschrieb Speicher, den
+  ein Helfer noch las (jetzt `finishJobs` davor). Im Dauertest (Hunderte Läufe, mit künstlicher
+  Last) wich der Fingerabdruck selten ab, immer zum selben Wert: ein Index „hinter dem Array“ des
+  Testgenerators reicht bis in den Bereich, in den der Test die nächsten Display-Listen desselben
+  Bilds schreibt. Der Spiel-Strang las dort vor dem Schreiben, ein Helfer manchmal danach (auf dem
+  GameCube derselbe Wettlauf; ein Spiel schreibt solchen Speicher erst nach `GXDrawDone`). Der Test
+  wartet jetzt vor jedem Schreiben einer Liste auf die GPU (`re4_gx_wait_jobs`), der Referenzwert
+  bleibt. Zur Fehlersuche `RE4_GX_JOB_CHECK=1`: jeder Zeichenauftrag wird zusätzlich sofort
+  umgerechnet; weicht ein Paket davon ab, meldet das Protokoll `GX job check: … memory it reads
+  changed meanwhile` (so wurde der Testgenerator gefunden). Danach 40 Läufe unter Last mit 1–3
+  Helfern ohne Abweichung; unter Last je 60 Läufe ohne und mit 2 Helfern: 0 Ausfälle (auch der
+  zeitabhängige Test `tasks`, der vorher bei Überlast gelegentlich ausfiel). `whole_build.sh` i686, armhf, aarch64: 0
+  Baufehler, Kern- und Laufzeittests 0 Fehler, auch der zweite Lauf mit `RE4_GX_THREADS=0`
+  (`3a64e56`). `test-core-app.ps1` neu `-GxThreads N` und `-GxJobCheck`.
+- **Nicht getestet:** am Gerät (Gewinn je Gerät, ob das echte Spiel Speicher ändert, den ein Helfer
+  noch liest: dafür ein Lauf mit `-GxJobCheck`).
+
 ### R3-Folgen des Retroid (22.10.2026 23:32/23:35) und Grafik-Programme vor dem ersten Zeichnen (Cloud)
 
 - **R3-Folgen:** drei Folgen zu 12 Bildern aus dem Bericht 23:42 (`pull-gx-dumps.ps1`, 155 MB):

@@ -38,3 +38,20 @@ wsl --exec bash -lc "if [ ! -d ~/re4-build/.git ]; then git -c safe.directory='*
 In Android Studio wie gewohnt bauen (Variante „core“) und auf den Retroid installieren (Run mit dem
 verbundenen Retroid). Laufen gerade Gerätetests eines Chats über ADB, erst danach installieren
 (`port/docs/adb-coordination.md`).
+
+## Anderer Branch (z. B. `performance`)
+
+Arbeitet ein Chat auf einem anderen Branch (seit 23.10.2026 `performance`: Grafik auf mehreren
+Kernen, kleinere Uniform-Uploads), in Schritt 1 einmal auf diesen Branch wechseln und dann von dort
+holen; Schritt 2 und 3 bleiben gleich (der Kern-Build nimmt den Stand, der im Ordner ausgecheckt
+ist):
+
+```powershell
+cd E:\Development\Android\RE4-Fixed
+git status
+git fetch origin performance
+git switch performance
+git pull --no-rebase origin performance
+```
+
+Zurück zum bisherigen Stand: `git switch claude/re4-start-controls`.

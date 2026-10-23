@@ -781,6 +781,7 @@ extern "C" int re4probe_gx_test(void* fifo, void* list);
 extern "C" int re4probe_gx_frame_test(void* fifo, void* mem);
 extern "C" void re4probe_gx_produce(void* fifo, void* xfb, int frames, int init);
 extern "C" unsigned long long re4probe_gx_fingerprint(void* fifo, void* mem, void* xfb, int frames);
+extern "C" int re4_gx_threads(int n);
 extern "C" unsigned re4probe_gx_bench(void* fifo, void* mem, void* xfb, int frames);
 
 // The SDK's GX library and the game's inline vertex functions feed the port's
@@ -864,13 +865,22 @@ static void testGx()
     {
         void* mem = (void*) (unsigned long) 0x82900000u;
         void* xfb = (void*) (unsigned long) 0x82830000u;
+        // the vertices on 3 more threads (the vertex jobs, gx_decode.cpp), or as RE4_GX_THREADS
+        // says (0: on the core thread alone; whole_build.sh runs both): the same chunks byte for
+        // byte. Once per process: the decoder keeps state from one run to the next (texture keys,
+        // copy serials)
+        const char* threads = getenv("RE4_GX_THREADS");
+        const int workers = threads && *threads ? atoi(threads) : 3;
+        re4_gx_threads(workers);
         auto t0 = std::chrono::steady_clock::now();
         unsigned long long hash = re4probe_gx_fingerprint((void*) (unsigned long) 0x82800000u, mem, xfb, 24);
         double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         if (hash != 0x02524012c6419af2ull || getenv("RE4_GX_FINGERPRINT_PARTS")) {
-            re4_log("  gx fingerprint: %016llx (expected 02524012c6419af2), %.0f ms", hash, ms);
+            re4_log("  gx fingerprint: %016llx (expected 02524012c6419af2), %.0f ms, %d vertex threads", hash, ms,
+                    workers);
         }
         CHECK(hash == 0x02524012c6419af2ull);
+        re4_gx_threads(-1);
     }
     // a marked chunk (re4_gx_mark: a hit on the player) starts over and carries the mark
     {

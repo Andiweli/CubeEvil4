@@ -667,6 +667,7 @@ extern "C" void re4probe_gx_produce(void* fifo, void* xfb, int frames, int init)
 
 extern "C" void re4_gx_put_u32(unsigned int v);
 extern "C" void re4_log(const char* format, ...);
+extern "C" void re4_gx_wait_jobs(void);
 
 namespace {
 
@@ -960,7 +961,11 @@ extern "C" unsigned long long re4probe_gx_fingerprint(void* fifo, void* mem, voi
                 vertices(s, r, f, count, entries);
             }
             if (list && listAt + (s.n - listStart) + 64 < 0x100000) {
-                // the draws as a display list in memory, called from the FIFO
+                // the draws as a display list in memory, called from the FIFO. The indices beyond
+                // an array reach up to here: a draw before may still read this memory (the vertex
+                // jobs of gx_decode.cpp convert a little after the command, as the GameCube's GP
+                // read); like a game after GXDrawDone, the test writes it once the GP is done
+                re4_gx_wait_jobs();
                 size_t size = (s.n - listStart + 31) & ~(size_t) 31;
                 memcpy(m + listAt, bytes + listStart, s.n - listStart);
                 memset(m + listAt + (s.n - listStart), 0, size - (s.n - listStart));
@@ -1083,9 +1088,10 @@ extern "C" unsigned re4probe_gx_bench(void* fifo, void* mem, void* xfb, int fram
                 re4_gx_put_u8(bytes[i]);
             }
         }
+        // the display copy ends the chunk: with the vertex jobs (RE4_GX_THREADS) it waits for them
+        copyDisp(xfb);
         clock_gettime(CLOCK_MONOTONIC, &t1);
         total += (t1.tv_sec - t0.tv_sec) * 1e6 + (t1.tv_nsec - t0.tv_nsec) / 1e3;
-        copyDisp(xfb);
         if (const Re4GxChunk* c = re4_core_gx_acquire()) {
             re4_core_gx_release(c);
         }

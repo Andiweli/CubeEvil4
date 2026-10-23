@@ -21,11 +21,17 @@ void Add(std::string &out, const char *format, ...) {
   out += buffer;
 }
 
+// The XF block in three parts (kXfParts, gx_gl_shader.h): a draw uploads only the parts that
+// changed (the matrices of each model; not the post matrices and lights every time).
 const char kUniformBlocks[] =
-    "layout(std140) uniform XF {\n"
+    "layout(std140) uniform XFM {\n"
     "  vec4 posTex[64];\n"
     "  vec4 nrmMtx[32];\n"
+    "};\n"
+    "layout(std140) uniform XFP {\n"
     "  vec4 postMtx[64];\n"
+    "};\n"
+    "layout(std140) uniform XFL {\n"
     "  vec4 lights[40];\n"
     "  vec4 matAmb[4];\n"
     "  vec4 vp[2];\n"

@@ -301,8 +301,8 @@ struct GxRenderer::Impl {
   std::vector<std::uint8_t> tlut = std::vector<std::uint8_t>(kTlutBytes);
   std::int32_t tevColor[4][4] = {};
   std::int32_t tevKonst[4][4] = {};
-  // XF block rows (vec4) that changed since the last upload
-  int dirtyLo = 0, dirtyHi = static_cast<int>(sizeof(XfBlock) / 16);
+  // XF block rows (vec4) that changed since the last upload, per part (kXfParts)
+  int dirtyLo[kXfParts] = {}, dirtyHi[kXfParts] = {};
 
   // GL objects
   GLuint efbFbo = 0, efbColor = 0, efbDepth = 0;
@@ -328,7 +328,7 @@ struct GxRenderer::Impl {
   bool holdXfb = false;  // this chunk's display copy is not shown (RE4_GX_CHUNK_HOLD)
   bool viBlack = false;  // the VI shows black (RE4_GX_CHUNK_BLACK, VISetBlack): Present draws black
   GLuint vao = 0, vbo = 0, ibo = 0;
-  GLuint xfUbo = 0, pxUbo = 0;
+  GLuint xfUbo[kXfParts] = {}, pxUbo = 0;
   GLuint copyProgram = 0, presentProgram = 0, paletteProgram = 0;
   GLint presentRows = -1;
   GLint copyMode = -1, copyRect = -1, copySize = -1, copyHalf = -1, copyGain = -1;
@@ -433,11 +433,13 @@ struct GxRenderer::Impl {
   std::size_t streamPos = 0, streamAlign = 256;
   unsigned streamPart = 0;
   GLsync streamFence[kStreamParts] = {};
+  bool streamMoved = false;          // StreamNextPart since the last draw's uploads (UploadXf)
   std::size_t streamChunkBytes = 0;  // what the running chunk took of the stream so far
   std::size_t streamChunkMost = 0;   // the most a chunk took
 
   // The next quarter, once the GPU is done with what used it last.
   void StreamNextPart() {
+    streamMoved = true;
     streamFence[streamPart] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     streamPart = (streamPart + 1) % kStreamParts;
     if (GLsync fence = streamFence[streamPart]) {
@@ -982,8 +984,39 @@ struct GxRenderer::Impl {
   }
 
   void Dirty(int lo, int hi) {
-    dirtyLo = std::min(dirtyLo, lo);
-    dirtyHi = std::max(dirtyHi, hi);
+    for (int i = 0; i < kXfParts; i++) {
+      const int a = std::max(lo, kXfPartRow[i]), b = std::min(hi, kXfPartRow[i + 1]);
+      if (a < b) {
+        dirtyLo[i] = std::min(dirtyLo[i], a);
+        dirtyHi[i] = std::max(dirtyHi[i], b);
+      }
+    }
+  }
+
+  // The parts of the XF block that changed since the last draw, to the GPU. In the stream a part
+  // goes whole into a new place; after the stream moved to its next quarter every part goes again
+  // (a part bound in an old quarter could be written over before the GPU reads it).
+  void UploadXf() {
+    for (int round = 0; round < 2; round++) {
+      if (streamMoved) {
+        streamMoved = false;
+        Dirty(0, kXfPartRow[kXfParts]);
+        pxValid = false;
+      }
+      for (int i = 0; i < kXfParts; i++) {
+        if (dirtyLo[i] >= dirtyHi[i])
+          continue;
+        const std::size_t first = static_cast<std::size_t>(kXfPartRow[i]) * 16;
+        UploadBlock(kXfPartBinding[i], xfUbo[i], reinterpret_cast<const std::uint8_t *>(&xf) + first,
+                    static_cast<std::size_t>(dirtyLo[i]) * 16 - first,
+                    static_cast<std::size_t>(dirtyHi[i] - dirtyLo[i]) * 16,
+                    static_cast<std::size_t>(kXfPartRow[i + 1] - kXfPartRow[i]) * 16);
+        dirtyLo[i] = kXfPartRow[kXfParts];
+        dirtyHi[i] = 0;
+      }
+      if (!streamMoved)
+        break;
+    }
   }
 
   // The XF block rows an XF address touches.
@@ -1849,9 +1882,11 @@ struct GxRenderer::Impl {
         GXLOG("shader failed: %s\n--- vertex ---\n%s\n--- fragment ---\n%s", log.c_str(), vs.c_str(), fs.c_str());
     } else {
       stats.programs++;
-      GLuint xfIndex = glGetUniformBlockIndex(p.id, "XF");
-      if (xfIndex != GL_INVALID_INDEX)
-        glUniformBlockBinding(p.id, xfIndex, kXfBinding);
+      for (int i = 0; i < kXfParts; i++) {
+        const GLuint xfIndex = glGetUniformBlockIndex(p.id, kXfPartName[i]);
+        if (xfIndex != GL_INVALID_INDEX)
+          glUniformBlockBinding(p.id, xfIndex, kXfPartBinding[i]);
+      }
       GLuint pxIndex = glGetUniformBlockIndex(p.id, "PX");
       if (pxIndex != GL_INVALID_INDEX)
         glUniformBlockBinding(p.id, pxIndex, kPixelBinding);
@@ -2004,13 +2039,8 @@ struct GxRenderer::Impl {
       blended = BlendDraw(d, k, chunk);
     else if (recordDraws)
       RecordDraw(d, k);
-    if (dirtyLo < dirtyHi) {
-      UploadBlock(kXfBinding, xfUbo, &xf, static_cast<std::size_t>(dirtyLo) * 16,
-                  static_cast<std::size_t>(dirtyHi - dirtyLo) * 16, sizeof(XfBlock));
-      dirtyLo = static_cast<int>(sizeof(XfBlock) / 16);
-      dirtyHi = 0;
-    }
-    if (pxDirty) {
+    UploadXf();
+    if (pxDirty || !pxValid) {
       FillPixel(k);
       pxDirty = false;
       if (!pxValid || std::memcmp(&px, &pxSent, sizeof(px)) != 0) {
@@ -2856,10 +2886,13 @@ bool GxRenderer::Init(int scale, std::string *error) {
   glBindVertexArray(m.vao);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.ibo);
   glBindVertexArray(0);
-  glGenBuffers(1, &m.xfUbo);
-  glBindBuffer(GL_UNIFORM_BUFFER, m.xfUbo);
-  glBufferData(GL_UNIFORM_BUFFER, sizeof(XfBlock), nullptr, GL_DYNAMIC_DRAW);
-  glBindBufferBase(GL_UNIFORM_BUFFER, kXfBinding, m.xfUbo);
+  glGenBuffers(kXfParts, m.xfUbo);
+  for (int i = 0; i < kXfParts; i++) {
+    glBindBuffer(GL_UNIFORM_BUFFER, m.xfUbo[i]);
+    glBufferData(GL_UNIFORM_BUFFER, static_cast<GLsizeiptr>(kXfPartRow[i + 1] - kXfPartRow[i]) * 16, nullptr,
+                 GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, kXfPartBinding[i], m.xfUbo[i]);
+  }
   glGenBuffers(1, &m.pxUbo);
   glBindBuffer(GL_UNIFORM_BUFFER, m.pxUbo);
   glBufferData(GL_UNIFORM_BUFFER, sizeof(PixelBlock), nullptr, GL_DYNAMIC_DRAW);
@@ -2939,7 +2972,8 @@ void GxRenderer::Run(const Re4GxChunk &chunk) {
     m.pxDirty = true;
     m.pxValid = false;
   } else {
-    glBindBufferBase(GL_UNIFORM_BUFFER, kXfBinding, m.xfUbo);
+    for (int i = 0; i < kXfParts; i++)
+      glBindBufferBase(GL_UNIFORM_BUFFER, kXfPartBinding[i], m.xfUbo[i]);
     glBindBufferBase(GL_UNIFORM_BUFFER, kPixelBinding, m.pxUbo);
   }
   m.TimerBegin();
@@ -3281,8 +3315,9 @@ void GxRenderer::Release() {
   glDeleteFramebuffers(3, fbos);
   const GLuint renderbuffers[] = {m.msaaColor, m.msaaDepth};
   glDeleteRenderbuffers(2, renderbuffers);
-  const GLuint buffers[] = {m.vbo, m.ibo, m.xfUbo, m.pxUbo};
-  glDeleteBuffers(4, buffers);
+  const GLuint buffers[] = {m.vbo, m.ibo, m.pxUbo};
+  glDeleteBuffers(3, buffers);
+  glDeleteBuffers(kXfParts, m.xfUbo);
   m.StreamRelease();
   m.FenceRelease();
   if (m.timerOn) {

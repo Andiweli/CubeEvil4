@@ -56,9 +56,17 @@ void SetTevMath(int mode);
 int GetTevMath();
 const char *TevMathName(int mode);
 
-// Uniform blocks (std140, vec4/ivec4 only), shared by all programs.
+// Uniform blocks (std140, vec4/ivec4 only), shared by all programs. The XF block goes to the GPU
+// in three parts (kXfParts), each at a binding of its own, and a draw uploads only the parts that
+// changed: XFM the position, texture and normal matrices (each model), XFP the post-transform
+// matrices (rarely), XFL lights, colours, viewport and projection. (The 3.3 KB of the whole block
+// per change were 2.4 MB per picture in r10b, R3 series of the Retroid 22.10.2026; in parts 1.3 MB.)
 constexpr int kXfBinding = 0;
 constexpr int kPixelBinding = 1;
+constexpr int kXfParts = 3;
+constexpr int kXfPartBinding[kXfParts] = {kXfBinding, 2, 3};
+constexpr const char *kXfPartName[kXfParts] = {"XFM", "XFP", "XFL"};
+constexpr int kXfPartRow[kXfParts + 1] = {0, 96, 160, 208}; // first rows (vec4) of the parts in XfBlock
 
 struct XfBlock {
   float posTex[64][4];  // XF 0x000-0x0FF: position and texture matrices by row
