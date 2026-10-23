@@ -6103,7 +6103,8 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   bleibt. Zur Fehlersuche `RE4_GX_JOB_CHECK=1`: jeder Zeichenauftrag wird zusätzlich sofort
   umgerechnet; weicht ein Paket davon ab, meldet das Protokoll `GX job check: … memory it reads
   changed meanwhile` (so wurde der Testgenerator gefunden). Danach 40 Läufe unter Last mit 1–3
-  Helfern ohne Abweichung, 60 ohne Helfer ebenso. `whole_build.sh` i686, armhf, aarch64: 0
+  Helfern ohne Abweichung; unter Last je 60 Läufe ohne und mit 2 Helfern: 0 Ausfälle (auch der
+  zeitabhängige Test `tasks`, der vorher bei Überlast gelegentlich ausfiel). `whole_build.sh` i686, armhf, aarch64: 0
   Baufehler, Kern- und Laufzeittests 0 Fehler, auch der zweite Lauf mit `RE4_GX_THREADS=0`
   (`3a64e56`). `test-core-app.ps1` neu `-GxThreads N` und `-GxJobCheck`.
 - **Nicht getestet:** am Gerät (Gewinn je Gerät, ob das echte Spiel Speicher ändert, den ein Helfer
