@@ -5944,6 +5944,72 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Branch `performance`, Schritt 3: Shader-Liste in der App, Shader auf einem eigenen Thread (Wunsch des Projektinhabers, 23.10.2026, Cloud)
+
+- **Ziel:** auch der erste Start (und jeder neue Effekt, den ein anderes Gerät schon kannte) soll
+  nicht ruckeln, weil ein Shader-Programm erst beim ersten Zeichnen gebaut wird (gemessen bis
+  0,6 s auf dem Retroid).
+- **Liste in der App:** Asset `gx-programs.keys` (Schlüsseldatei: `RE4L`, Größe eines Schlüssels,
+  Anzahl, Schlüssel; je Programm ein Schlüssel, MSAA-Feld 0: die App setzt die Einstellung des
+  Geräts ein). `CoreActivity` legt sie in den Cache (nur wenn sie sich änderte) und gibt sie als
+  `RE4_GX_PROGRAM_LIST` an den Kern-Modus. Erste Liste: 70 Programme aus den R3-Folgen des Retroid
+  (r10a, r10b vom 22.10., r11b vom 23.10.), nachgezeichnet mit `gx_chunk_render` und neu
+  `RE4_GX_PROGRAM_CACHE`.
+- **Wachsen der Liste:** jeder Fehlerbericht enthält jetzt `logs/program-keys.bin` (alle Schlüssel
+  des Geräts, `CoreBridge.writeProgramKeys` → `WriteProgramKeyList`). `port/tools/gx_program_list.py
+  merge port/android-decomp/app/src/main/assets/gx-programs.keys BERICHT.zip …` nimmt die neuen dazu
+  (auch Ordner, einzelne `.key`-Dateien, andere Listen; Schlüssel anderer Größe, also anderer
+  Renderer-Versionen, bleiben weg).
+- **Eigener Thread (`WarmProgramCache`, `core_mode.cpp` `startWarm`):** einmal je Lauf (und wieder
+  nach einer anderen MSAA-Einstellung) mit eigenem GL-Kontext (1×1-Pbuffer), Priorität unter dem
+  Spiel (nice 10), auf allen Kernen: jedes Programm aus Liste und eigenem Cache, das für diesen
+  Treiber noch keine Binärdatei hat, wird gebaut und abgelegt; alte Dateien derselben Schlüssel
+  (andere Quellen oder Treiber) werden gelöscht. `GxRenderer::Prewarm` auf dem Zeichen-Thread lädt
+  nur noch fertige Binärdateien (1–2 ms), baut nie selbst; solange der Thread läuft, wartet es auf
+  dessen Ergebnis. Zeilen im Protokoll: `GX programs made ahead on a thread of its own: N keys (M
+  from the app's list), K linked, H had a binary, …` und `GX programs ahead of their first draw: …`.
+  `RE4_GX_WARM=0` schaltet den Thread ab. Dateien werden unter einem Namen je Thread geschrieben
+  und umbenannt (beide Threads können dasselbe Programm ablegen).
+- **Tests (Cloud):** `gx_gl_check` `TestPrewarm` neu: ohne den Thread lädt Prewarm nur die
+  zwischengespeicherten Programme und baut keines; `WarmProgramCache` auf einem zweiten Thread mit
+  eigenem Kontext baut den veralteten und den Listen-Schlüssel (MSAA-Feld aus der Liste ersetzt),
+  findet die übrigen 60 vor, löscht die alten Dateien; danach lädt Prewarm alle 62 aus dem Cache und
+  dieselben Zeichnungen bauen nichts; `WriteProgramKeyList` schreibt alle 62. Alle Prüfungen 0
+  Fehler. `gx_program_list.py`: zweimal zusammengeführt bleibt bei 70, aus einem Bericht-Zip 70.
+  `core_mode.cpp`/`gx_gl.cpp` Syntaxprüfung ARM64 und ARM32 ohne Fehler und Warnungen,
+  `re4decomp_link_check` gebaut, alle Java-Quellen mit javac gegen die Android-Klassen übersetzt.
+- **Nicht getestet:** auf einem Gerät (zweiter GL-Kontext auf Adreno/Mali, Zeit des Threads, ob der
+  erste Start nicht mehr ruckelt).
+
+### Branch `performance`, Schritt 2: Spiel- und Zeichen-Thread auf die schnellen Kerne (Wunsch des Projektinhabers, 23.10.2026, Cloud)
+
+- **Vorbild:** KartPad-AAOS nennt in seiner README „CPU affinity adjustments“; der Code dazu ist im
+  öffentlichen Repository nicht enthalten. Umgesetzt in `re4_cpu_info.h` (Kern und App):
+  - `KeepOffSlowCores`: der aufrufende Thread darf nur noch auf die Kerne, die nicht zur langsamsten
+    Art gehören (Retroid: 4–7, Galaxy A30s: 6–7). Nicht, wenn alle Kerne gleich sind, die Takte nicht
+    lesbar sind oder `RE4_FAST_CORES=0`.
+  - `PerfHint`: Androids Leistungshinweis (`APerformanceHint`, Android 13, zur Laufzeit gesucht;
+    ältere Android-Versionen und Linux haben keinen): eine Sitzung je Thread-Gruppe, nach jedem Bild
+    die Arbeitszeit gegen 33,3 ms; das System hebt dann rechtzeitig Takt oder Kern. `RE4_PERF_HINT=0`
+    schaltet ab.
+- **Kern (`gx_decode.cpp`):** beim ersten Bildstück nach dem Start der Eckpunkt-Threads: der
+  Spiel-Thread weg von den langsamen Kernen, eine Sitzung für ihn und die Eckpunkt-Threads (die
+  Eckpunkt-Threads selbst bleiben frei: auf Geräten mit zwei schnellen Kernen brauchen sie die
+  langsamen); je Bild die Arbeit des Spiel-Threads ohne Schlaf bis zum Bildtakt und ohne Warten auf
+  den Renderer. **App (`core_mode.cpp`):** der Zeichen-Thread genauso (je neuem Zeichen-Thread),
+  eigene Sitzung, je Bildstück die Zeit von `Run`.
+- **Protokoll:** `cores: the game thread on cores 4 5 6 7, off the slowest (at most 1804 MHz)`,
+  `performance hint: on (the game thread and 3 vertex threads, 33.3 ms a picture)`, dasselbe für
+  `the render thread`. **Testskript:** `test-core-app.ps1 -NoFastCores` / `-NoPerfHint` zum
+  Vergleich.
+- **Tests (Cloud):** Laufzeittest `cpuinfo` erweitert (gleiche Kerne und `RE4_FAST_CORES=0` lassen
+  den Thread; die Kerne dieser Maschine mit der unteren Hälfte als „langsam“ auf eigenem Thread:
+  danach nur noch die obere Hälfte erlaubt; der Leistungshinweis meldet unter Linux „not on this
+  system“). `whole_build.sh` i686, armhf, aarch64: 0 Baufehler, Laufzeit- und Kerntests 0 Fehler
+  (`534c118`). App-Code Syntaxprüfung ARM64/ARM32 ohne Fehler und Warnungen.
+- **Nicht getestet:** auf einem Gerät (ob Android die Kerne erlaubt, ob der Hinweis eine Sitzung
+  gibt, Wirkung auf Bildrate und Wärme).
+
 ### Branch `performance`, Schritt 1: „Auto“ regelt die Auflösung nach dem Grafikchip (Wunsch des Projektinhabers, 23.10.2026, Cloud)
 
 - **Reihenfolge des Projektinhabers (23.10.2026):** (1) automatische Auflösung über die vorhandene

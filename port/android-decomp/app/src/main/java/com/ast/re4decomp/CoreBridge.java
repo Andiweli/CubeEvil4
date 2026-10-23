@@ -128,6 +128,8 @@ public final class CoreBridge {
   public static native int cardImport(byte[] gci, boolean replace);
   /** What the last card function did or why not. */
   public static native String cardNote();
+  /** The keys of the shader programs this device made, into one file (the error report); how many. */
+  public static native int writeProgramKeys(String path);
   /** Results of cardImport (runtime/re4_card_files.h). */
   public static final int CARD_OK = 0, CARD_NOCARD = -1, CARD_EXISTS = -2, CARD_NOSPACE = -3, CARD_BAD = -4,
       CARD_BUSY = -5;

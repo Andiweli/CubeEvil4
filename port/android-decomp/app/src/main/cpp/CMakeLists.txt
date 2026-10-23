@@ -82,7 +82,7 @@ if(ANDROID)
         target_sources(re4decomp PRIVATE core_mode.cpp core_scene.cpp gx_gl.cpp gx_gl_shader.cpp gx_selfcheck.cpp gx_texture.cpp
             "${RE4_CORE_INCLUDE}/core_ipc.cpp" "${RE4_CORE_INCLUDE}/core_ipc_client.cpp")
         target_include_directories(re4decomp PRIVATE "${RE4_CORE_INCLUDE}")
-        target_link_libraries(re4decomp PRIVATE dl)
+        target_link_libraries(re4decomp PRIVATE dl EGL)
     endif()
     target_link_options(re4decomp PRIVATE "-Wl,-z,max-page-size=16384")
     # Test APKs otherwise build the native resource parsers and motion engine

@@ -18,6 +18,7 @@
 #include <GLES3/gl3.h>
 
 #include <cstdint>
+#include <atomic>
 #include <memory>
 #include <string>
 
@@ -174,6 +175,9 @@ public:
   // 22.10.2026 23:42: a chunk of up to 435 ms in r10b while 61 programs were made). False when
   // none are left.
   bool Prewarm(double budgetMs);
+  // The app's list of programs (a key list file, WriteProgramKeyList): Prewarm takes them too, for
+  // the MSAA setting in use. Before the first Prewarm.
+  void SetProgramList(const std::string &path);
   // Frees the GL objects (context current).
   void Release();
 
@@ -181,6 +185,36 @@ private:
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };
+
+// Shader programs made ahead (decision of the project owner, 23.10.2026: a list in the app, so the
+// first start makes them too). A key list file: "RE4L", the size of a key, the count, the keys
+// (port/tools/gx_program_list.py merges the lists of error reports into the app's asset
+// gx-programs.keys).
+//
+// The keys of the cache's key files into one list file (the error report): how many (0 when it
+// could not be written).
+unsigned WriteProgramKeyList(const std::string &cache, const std::string &path);
+
+// What WarmProgramCache did.
+struct GxWarmResult {
+  unsigned keys = 0;    // different keys of the cache and the list, for the MSAA setting
+  unsigned listed = 0;  // of them from the list
+  unsigned linked = 0;  // linked now
+  unsigned had = 0;     // with a binary for this driver already
+  unsigned failed = 0;
+  unsigned stale = 0;   // old files removed (other sources or driver)
+  double ms = 0.0;
+};
+
+// On the calling thread, with a GL context of its own current (core_mode.cpp starts one below
+// normal priority): every program of the key list `list` (may be missing) and of the cache's key
+// files that has no binary for this driver yet is linked and kept in `cache`, for the MSAA setting
+// `centroid` (GxOptions::centroid with MSAA), until `stop` is set; old files of the same keys go.
+// GxRenderer::Prewarm then only loads binaries: no link on the render thread.
+GxWarmResult WarmProgramCache(const std::string &cache, const std::string &list, std::uint32_t centroid,
+                              const std::atomic<bool> *stop);
+// true while a WarmProgramCache runs (Prewarm waits for its binaries)
+bool ProgramCacheWarming();
 
 // The renderer's and the core mode's log lines: to logcat under `tag` and, once SetLogCopy gave a
 // place, also as "tag: text" there (core_mode.cpp: the core's log file; Android 10 and older give

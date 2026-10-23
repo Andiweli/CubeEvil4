@@ -34,6 +34,7 @@
 #include <random>
 #include <string>
 #include <array>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -54,21 +55,28 @@ void Require(bool ok, const char *what) {
   }
 }
 
-void Context() {
-  auto getDisplay = reinterpret_cast<PFNEGLGETPLATFORMDISPLAYEXTPROC>(eglGetProcAddress("eglGetPlatformDisplayEXT"));
-  EGLDisplay display = getDisplay ? getDisplay(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, nullptr)
-                                  : eglGetDisplay(EGL_DEFAULT_DISPLAY);
-  EGLint major{}, minor{};
-  Require(eglInitialize(display, &major, &minor), "EGL initialise");
-  const EGLint attributes[] = {EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT, EGL_NONE};
-  EGLConfig config{};
-  EGLint count{};
-  eglChooseConfig(display, attributes, &config, 1, &count);
+EGLDisplay gDisplay = EGL_NO_DISPLAY;
+EGLConfig gConfig{};
+EGLint gConfigs = 0;
+
+// A GLES3 context of its own (each thread that draws needs one).
+EGLContext NewContext() {
   eglBindAPI(EGL_OPENGL_ES_API);
   const EGLint contextAttributes[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_NONE};
-  EGLContext context = eglCreateContext(display, count ? config : nullptr, EGL_NO_CONTEXT, contextAttributes);
+  return eglCreateContext(gDisplay, gConfigs ? gConfig : nullptr, EGL_NO_CONTEXT, contextAttributes);
+}
+
+void Context() {
+  auto getDisplay = reinterpret_cast<PFNEGLGETPLATFORMDISPLAYEXTPROC>(eglGetProcAddress("eglGetPlatformDisplayEXT"));
+  gDisplay = getDisplay ? getDisplay(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, nullptr)
+                        : eglGetDisplay(EGL_DEFAULT_DISPLAY);
+  EGLint major{}, minor{};
+  Require(eglInitialize(gDisplay, &major, &minor), "EGL initialise");
+  const EGLint attributes[] = {EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT, EGL_NONE};
+  eglChooseConfig(gDisplay, attributes, &gConfig, 1, &gConfigs);
+  EGLContext context = NewContext();
   Require(context != EGL_NO_CONTEXT, "EGL context");
-  Require(eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, context), "EGL current");
+  Require(eglMakeCurrent(gDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, context), "EGL current");
 }
 
 // --- texture decoder against the TPL reader ---------------------------------------
@@ -1357,6 +1365,9 @@ std::vector<std::string> CacheFiles(const std::string &dir, const char *ending) 
 
 } // namespace
 
+// The shader programs made ahead (decision of the project owner, 23.10.2026): the render thread's
+// Prewarm only loads binaries; WarmProgramCache, on a thread with a context of its own, links what
+// the cache's keys and the app's list (a key list file) still lack and removes old files.
 void TestPrewarm() {
   char folder[] = "/tmp/re4-prewarm-XXXXXX";
   Require(mkdtemp(folder) != nullptr, "prewarm: a folder for the program cache");
@@ -1375,13 +1386,16 @@ void TestPrewarm() {
   const auto bins = CacheFiles(dir, ".bin"), keys = CacheFiles(dir, ".key");
   Check(made > 10 && bins.size() == made && keys.size() == made, "prewarm: a binary and a key per program");
   std::fprintf(stderr, "  prewarm: %u programs, %zu binaries, %zu keys\n", made, bins.size(), keys.size());
-  // a key under a name its sources no longer have: one of them, its alpha test changed
-  re4gx::ShaderKey old{};
+  // a key under a name its sources no longer have (one of them, its alpha test changed), and the
+  // app's list with a key this device never made (MSAA's centroid in it: the list's keys are for
+  // every MSAA setting)
+  re4gx::ShaderKey old{}, fresh{};
   {
     FILE *f = std::fopen((dir + "/" + keys[0]).c_str(), "rb");
     char head[8];
     Require(f && std::fread(head, 8, 1, f) == 1 && std::fread(&old, sizeof(old), 1, f) == 1, "prewarm: a key file");
     std::fclose(f);
+    fresh = old;
     old.alphaTest ^= 0x40;  // the logic of the two comparisons
     f = std::fopen((dir + "/0123456789abcdef.key").c_str(), "wb");
     Require(f && std::fwrite(head, 8, 1, f) == 1 && std::fwrite(&old, sizeof(old), 1, f) == 1, "prewarm: a key file");
@@ -1389,27 +1403,67 @@ void TestPrewarm() {
     f = std::fopen((dir + "/0123456789abcdef.bin").c_str(), "wb");
     Require(f && std::fwrite("RE4P", 4, 1, f) == 1, "prewarm: a binary");
     std::fclose(f);
+    fresh.alphaTest ^= 0x80;
+    fresh.centroid = 1;
+    f = std::fopen((dir + ".keys").c_str(), "wb");
+    const std::uint32_t listHead[3] = {0x4C344552u, static_cast<std::uint32_t>(sizeof(fresh)), 1};  // "RE4L"
+    Require(f && std::fwrite(listHead, sizeof(listHead), 1, f) == 1 && std::fwrite(&fresh, sizeof(fresh), 1, f) == 1,
+            "prewarm: a key list");
+    std::fclose(f);
   }
+  const std::string list = dir + ".keys";
   {
+    // without WarmProgramCache: the cached ones only, nothing linked on the render thread
     re4gx::GxRenderer r;
     Require(r.Init(1, &error), error.c_str());
     r.SetProgramCache(dir);
+    r.SetProgramList(list);
     int calls = 0;
     while (r.Prewarm(0.0) && calls < 10000)
       calls++;
     const re4gx::GxStats s = r.Stats();
-    Check(s.programsAhead == made + 1 && s.programsLoaded == made && s.programs == made + 1,
-          "prewarm: every program before the first draw, the cached ones from the cache, the old one linked anew");
+    Check(s.programsAhead == made && s.programsLoaded == made && s.programs == made,
+          "prewarm: the cached programs before the first draw, nothing linked on the render thread");
     Check(calls + 1 >= static_cast<int>(made), "prewarm: one program per call with no time to spend");
-    TestShaderVariety(r);
-    Check(r.Stats().programs == made + 1, "prewarm: the same draws make no program");
     r.Release();
+  }
+  {
+    re4gx::GxWarmResult w;
+    bool warmingSeen = true;
+    std::thread([&] {
+      EGLContext own = NewContext();
+      if (own == EGL_NO_CONTEXT || !eglMakeCurrent(gDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, own))
+        return;
+      w = re4gx::WarmProgramCache(dir, list, 0, nullptr);
+      warmingSeen = re4gx::ProgramCacheWarming();
+      eglMakeCurrent(gDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+      eglDestroyContext(gDisplay, own);
+    }).join();
+    std::fprintf(stderr, "  warm: %u keys (%u from the list), %u linked, %u had a binary, %u failed, %u old removed\n",
+                 w.keys, w.listed, w.linked, w.had, w.failed, w.stale);
+    Check(w.keys == made + 2 && w.listed == 1 && w.linked == 2 && w.had == made && w.failed == 0 && w.stale == 1,
+          "warm: the old key and the list's key linked on a thread of its own, the rest had binaries");
+    Check(!warmingSeen, "warm: not warming once it returned");
   }
   Check(access((dir + "/0123456789abcdef.key").c_str(), F_OK) != 0 &&
             access((dir + "/0123456789abcdef.bin").c_str(), F_OK) != 0,
-        "prewarm: the old name's files removed");
-  Check(CacheFiles(dir, ".bin").size() == made + 1 && CacheFiles(dir, ".key").size() == made + 1,
-        "prewarm: the program linked anew kept under its name");
+        "warm: the old name's files removed");
+  Check(CacheFiles(dir, ".bin").size() == made + 2 && CacheFiles(dir, ".key").size() == made + 2,
+        "warm: the programs linked anew kept under their names");
+  {
+    re4gx::GxRenderer r;
+    Require(r.Init(1, &error), error.c_str());
+    r.SetProgramCache(dir);
+    r.SetProgramList(list);
+    while (r.Prewarm(1000.0)) {
+    }
+    const re4gx::GxStats s = r.Stats();
+    Check(s.programsAhead == made + 2 && s.programsLoaded == made + 2 && s.programs == made + 2,
+          "prewarm: after the warm every program from the cache, the list's one too");
+    TestShaderVariety(r);
+    Check(r.Stats().programs == made + 2, "prewarm: the same draws make no program");
+    r.Release();
+  }
   {
     // MSAA: the shaders sample at a covered spot (centroid), the single-sampled keys stay as they are
     re4gx::GxRenderer r;
@@ -1418,11 +1472,25 @@ void TestPrewarm() {
     r.SetOptions(o);
     Require(r.Init(1, &error), error.c_str());
     r.SetProgramCache(dir);
+    r.SetProgramList(list);
     while (r.Prewarm(1000.0)) {
     }
     Check(r.Samples() == 1 || r.Stats().programsAhead == 0, "prewarm: no single-sampled program for MSAA");
     r.Release();
   }
+  // the error report's list: every key of the cache once
+  Check(re4gx::WriteProgramKeyList(dir, dir + "-report.keys") == made + 2, "key list: the cache's keys");
+  {
+    FILE *f = std::fopen((dir + "-report.keys").c_str(), "rb");
+    std::uint32_t head[3] = {};
+    Check(f && std::fread(head, sizeof(head), 1, f) == 1 && head[0] == 0x4C344552u && head[1] == sizeof(fresh) &&
+              head[2] == made + 2,
+          "key list: RE4L, the key's size, the count");
+    if (f)
+      std::fclose(f);
+  }
+  std::remove(list.c_str());
+  std::remove((dir + "-report.keys").c_str());
   for (const char *ending : {".bin", ".key"})
     for (const std::string &name : CacheFiles(dir, ending))
       std::remove((dir + "/" + name).c_str());

@@ -16,6 +16,7 @@
 
 #include <dirent.h>
 #include <dlfcn.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 #ifndef GL_MAP_PERSISTENT_BIT_EXT
@@ -166,6 +167,14 @@ GLuint Link(const std::string &vs, const std::string &fs, std::string *log, bool
   return p;
 }
 
+// A file written under this name first and renamed when complete: one per thread (the render
+// thread and the one of WarmProgramCache may store the same program at once).
+std::string TempName(const std::string &path) {
+  char tail[32];
+  std::snprintf(tail, sizeof(tail), ".part%ld", static_cast<long>(syscall(SYS_gettid)));
+  return path + tail;
+}
+
 // Linked programs kept on disk (GxRenderer::SetProgramCache): one file per
 // shader pair, named by a hash of both sources and the driver; a binary the
 // driver no longer takes is linked anew.
@@ -212,7 +221,7 @@ void StoreProgram(const std::string &path, std::uint64_t check, GLuint p) {
   glGetProgramBinary(p, bytes, &written, &format, binary.data());
   if (written <= 0)
     return;
-  const std::string temp = path + ".part";
+  const std::string temp = TempName(path);
   FILE *f = std::fopen(temp.c_str(), "wb");
   if (!f)
     return;
@@ -236,7 +245,7 @@ struct KeyFile {
 void StoreKey(const std::string &path, const ShaderKey &k) {
   if (access(path.c_str(), F_OK) == 0)
     return;
-  const std::string temp = path + ".part";
+  const std::string temp = TempName(path);
   FILE *f = std::fopen(temp.c_str(), "wb");
   if (!f)
     return;
@@ -271,6 +280,89 @@ struct KeyHash {
 struct KeyEqual {
   bool operator()(const ShaderKey &a, const ShaderKey &b) const { return std::memcmp(&a, &b, sizeof(a)) == 0; }
 };
+
+// The driver a binary belongs to: GL renderer and version of the current context.
+std::string DriverTag() {
+  const char *renderer = reinterpret_cast<const char *>(glGetString(GL_RENDERER));
+  const char *version = reinterpret_cast<const char *>(glGetString(GL_VERSION));
+  return std::string(renderer ? renderer : "") + "|" + (version ? version : "");
+}
+
+// A program's files in `cache` without .bin/.key: a hash of both sources and the driver; in
+// *check a second hash of the sources (in the binary's head).
+std::string ProgramStem(const std::string &cache, const std::string &tag, const std::string &vs, const std::string &fs,
+                        std::uint64_t *check) {
+  std::uint64_t h = Fnv(tag.data(), tag.size());
+  h = Fnv(vs.data(), vs.size(), h);
+  h = Fnv(fs.data(), fs.size(), h ^ 0x5Au);
+  *check = Fnv(fs.data(), fs.size(), Fnv(vs.data(), vs.size(), 0x9E3779B97F4A7C15ull));
+  char name[32];
+  std::snprintf(name, sizeof(name), "/%016llx", static_cast<unsigned long long>(h));
+  return cache + name;
+}
+
+// A key list file: "RE4L", the size of a key, the count, the keys (WriteProgramKeyList, the app's
+// asset gx-programs.keys; port/tools/gx_program_list.py). A list of another key size is ignored.
+struct KeyListHead {
+  char magic[4];
+  std::uint32_t keyBytes, count;
+};
+
+bool ReadKeyList(const std::string &path, std::vector<ShaderKey> *keys) {
+  FILE *f = std::fopen(path.c_str(), "rb");
+  if (!f)
+    return false;
+  KeyListHead head{};
+  bool ok = std::fread(&head, sizeof(head), 1, f) == 1 && std::memcmp(head.magic, "RE4L", 4) == 0 &&
+            head.keyBytes == sizeof(ShaderKey) && head.count < 1000000;
+  if (ok) {
+    const std::size_t at = keys->size();
+    keys->resize(at + head.count);
+    ok = std::fread(keys->data() + at, sizeof(ShaderKey), head.count, f) == head.count;
+    if (!ok)
+      keys->resize(at);
+  }
+  std::fclose(f);
+  return ok;
+}
+
+bool WriteKeyList(const std::string &path, const std::vector<ShaderKey> &keys) {
+  const std::string temp = TempName(path);
+  FILE *f = std::fopen(temp.c_str(), "wb");
+  if (!f)
+    return false;
+  const KeyListHead head{{'R', 'E', '4', 'L'}, static_cast<std::uint32_t>(sizeof(ShaderKey)),
+                         static_cast<std::uint32_t>(keys.size())};
+  bool ok = std::fwrite(&head, sizeof(head), 1, f) == 1 &&
+            std::fwrite(keys.data(), sizeof(ShaderKey), keys.size(), f) == keys.size();
+  ok = std::fclose(f) == 0 && ok;
+  if (ok)
+    std::rename(temp.c_str(), path.c_str());
+  else
+    std::remove(temp.c_str());
+  return ok;
+}
+
+// The cache's key files: each key with its files' stem.
+std::vector<std::pair<ShaderKey, std::string>> CacheKeys(const std::string &cache) {
+  std::vector<std::pair<ShaderKey, std::string>> out;
+  DIR *dir = opendir(cache.c_str());
+  if (!dir)
+    return out;
+  while (const dirent *e = readdir(dir)) {
+    const std::string name = e->d_name;
+    if (name.size() != 20 || name.compare(16, 4, ".key") != 0)
+      continue;
+    std::pair<ShaderKey, std::string> k;
+    k.second = cache + "/" + name.substr(0, 16);
+    if (LoadKey(k.second + ".key", &k.first))
+      out.push_back(k);
+  }
+  closedir(dir);
+  return out;
+}
+
+std::atomic<int> gWarming{0};  // WarmProgramCache runs
 
 // A texture as the renderer keeps it: decoded RGBA8 with its levels.
 struct Texture {
@@ -375,13 +467,14 @@ struct GxRenderer::Impl {
   // Prewarm: the cache's key files (read at its first call), the next one, its time so far
   struct AheadKey {
     ShaderKey key;
-    std::string stem; // the files' path without .bin/.key
+    bool listed = false; // from the app's list (SetProgramList): for the MSAA setting in use
   };
+  std::string programList;  // the app's key list (SetProgramList)
   bool aheadRead = false;
   std::vector<AheadKey> ahead;
   std::size_t aheadNext = 0;
   double aheadMs = 0.0;
-  unsigned aheadLoaded = 0, aheadLinked = 0, aheadStale = 0;
+  unsigned aheadLoaded = 0, aheadLinked = 0, aheadListed = 0;
   bool stateValid = false;
   GLuint unitTex[8] = {}, unitSampler[8] = {};
   bool unitsValid = false;
@@ -1826,32 +1919,30 @@ struct GxRenderer::Impl {
   // A program's files in the cache without .bin/.key: a hash of both sources and the driver; in
   // *check a second hash of the sources (in the binary's head).
   std::string CacheStem(const std::string &vs, const std::string &fs, std::uint64_t *check) const {
-    std::uint64_t h = Fnv(driverTag.data(), driverTag.size());
-    h = Fnv(vs.data(), vs.size(), h);
-    h = Fnv(fs.data(), fs.size(), h ^ 0x5Au);
-    *check = Fnv(fs.data(), fs.size(), Fnv(vs.data(), vs.size(), 0x9E3779B97F4A7C15ull));
-    char name[32];
-    std::snprintf(name, sizeof(name), "/%016llx", static_cast<unsigned long long>(h));
-    return programCache + name;
+    return ProgramStem(programCache, driverTag, vs, fs, check);
   }
 
-  // The cache's key files, once (Prewarm).
+  // The cache's key files and the app's list, once (Prewarm).
   void ReadAhead() {
     aheadRead = true;
-    DIR *dir = opendir(programCache.c_str());
-    if (!dir)
-      return;
     std::unordered_set<ShaderKey, KeyHash, KeyEqual> seen;
-    while (const dirent *e = readdir(dir)) {
-      const std::string name = e->d_name;
-      if (name.size() != 20 || name.compare(16, 4, ".key") != 0)
-        continue;
-      AheadKey a;
-      a.stem = programCache + "/" + name.substr(0, 16);
-      if (LoadKey(a.stem + ".key", &a.key) && seen.insert(a.key).second)
+    for (const auto &k : CacheKeys(programCache)) {
+      if (seen.insert(k.first).second) {
+        AheadKey a;
+        a.key = k.first;
         ahead.push_back(a);
+      }
     }
-    closedir(dir);
+    std::vector<ShaderKey> listed;
+    if (!programList.empty())
+      ReadKeyList(programList, &listed);
+    for (const ShaderKey &k : listed) {
+      AheadKey a;
+      a.key = k;
+      a.listed = true;
+      ahead.push_back(a);
+    }
+    aheadListed = static_cast<unsigned>(listed.size());
   }
 
   const Program *ProgramFor(const ShaderKey &k) {
@@ -3358,7 +3449,8 @@ bool GxRenderer::Prewarm(double budgetMs) {
   if (!m.aheadRead) {
     m.ReadAhead();
     if (!m.ahead.empty())
-      GXLOG("GX programs ahead of their first draw: %zu keys in the cache", m.ahead.size());
+      GXLOG("GX programs ahead of their first draw: %zu keys (%u of them from the app's list)", m.ahead.size(),
+            m.aheadListed);
   }
   if (m.aheadNext >= m.ahead.size())
     return false;
@@ -3367,10 +3459,24 @@ bool GxRenderer::Prewarm(double budgetMs) {
   double ms = 0.0;
   bool made = false;
   while (m.aheadNext < m.ahead.size() && !(made && ms >= budgetMs)) {
-    const Impl::AheadKey &a = m.ahead[m.aheadNext++];
+    Impl::AheadKey &a = m.ahead[m.aheadNext];
+    if (a.listed)
+      a.key.centroid = centroid;  // the list holds each program once, for every MSAA setting
     // another MSAA setting's program, or drawn already
-    if (a.key.centroid != centroid || m.programs.count(a.key))
+    if (a.key.centroid != centroid || m.programs.count(a.key)) {
+      m.aheadNext++;
       continue;
+    }
+    // only from the cache: WarmProgramCache links on a thread of its own; while it runs, its binary
+    // may come yet (this key again later), else the program is made at its first draw
+    std::uint64_t check = 0;
+    if (access((m.CacheStem(GxVertexShader(a.key), GxFragmentShader(a.key), &check) + ".bin").c_str(), F_OK) != 0) {
+      if (ProgramCacheWarming())
+        break;
+      m.aheadNext++;
+      continue;
+    }
+    m.aheadNext++;
     const unsigned loaded = m.stats.programsLoaded;
     m.ProgramFor(a.key);
     made = true;
@@ -3379,21 +3485,87 @@ bool GxRenderer::Prewarm(double budgetMs) {
       m.aheadLoaded++;
     else
       m.aheadLinked++;
-    // made under another name (the sources or the driver changed since): the old files go
-    std::uint64_t check = 0;
-    if (m.CacheStem(GxVertexShader(a.key), GxFragmentShader(a.key), &check) != a.stem) {
-      std::remove((a.stem + ".bin").c_str());
-      std::remove((a.stem + ".key").c_str());
-      m.aheadStale++;
-    }
     ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
   }
   m.aheadMs += ms;
   if (m.aheadNext >= m.ahead.size())
-    GXLOG("GX programs ahead of their first draw: %u from the cache, %u linked anew (%u old files removed), "
-          "%.0f ms in all",
-          m.aheadLoaded, m.aheadLinked, m.aheadStale, m.aheadMs);
+    GXLOG("GX programs ahead of their first draw: %u from the cache, %u linked anew, %.0f ms in all", m.aheadLoaded,
+          m.aheadLinked, m.aheadMs);
   return m.aheadNext < m.ahead.size();
+}
+
+void GxRenderer::SetProgramList(const std::string &path) { impl_->programList = path; }
+
+bool ProgramCacheWarming() { return gWarming.load() > 0; }
+
+unsigned WriteProgramKeyList(const std::string &cache, const std::string &path) {
+  std::vector<ShaderKey> keys;
+  std::unordered_set<ShaderKey, KeyHash, KeyEqual> seen;
+  for (const auto &k : CacheKeys(cache))
+    if (seen.insert(k.first).second)
+      keys.push_back(k.first);
+  return WriteKeyList(path, keys) ? static_cast<unsigned>(keys.size()) : 0;
+}
+
+GxWarmResult WarmProgramCache(const std::string &cache, const std::string &list, std::uint32_t centroid,
+                              const std::atomic<bool> *stop) {
+  GxWarmResult r;
+  GLint formats = 0;
+  glGetIntegerv(GL_NUM_PROGRAM_BINARY_FORMATS, &formats);
+  if (cache.empty() || formats <= 0)
+    return r;
+  gWarming++;
+  const auto start = std::chrono::steady_clock::now();
+  const std::string tag = DriverTag();
+  // the device's own keys (each with the stem it was kept under) and the app's list
+  std::vector<std::pair<ShaderKey, std::string>> work = CacheKeys(cache);
+  std::vector<ShaderKey> listed;
+  if (!list.empty())
+    ReadKeyList(list, &listed);
+  for (const ShaderKey &k : listed)
+    work.emplace_back(k, std::string());
+  std::unordered_set<ShaderKey, KeyHash, KeyEqual> done;
+  for (auto &w : work) {
+    if (stop && stop->load())
+      break;
+    ShaderKey &k = w.first;
+    const bool fromList = w.second.empty();
+    if (fromList)
+      k.centroid = centroid;
+    if (k.centroid != centroid)
+      continue;  // another MSAA setting's program: left as it is
+    const std::string vs = GxVertexShader(k), fs = GxFragmentShader(k);
+    std::uint64_t check = 0;
+    const std::string stem = ProgramStem(cache, tag, vs, fs, &check);
+    if (done.insert(k).second) {
+      r.keys++;
+      r.listed += fromList ? 1 : 0;
+      if (access((stem + ".bin").c_str(), F_OK) == 0) {
+        r.had++;
+      } else {
+        std::string log;
+        const GLuint p = Link(vs, fs, &log, true);
+        if (p) {
+          StoreProgram(stem + ".bin", check, p);
+          glDeleteProgram(p);
+          r.linked++;
+        } else {
+          r.failed++;
+        }
+      }
+      if (access((stem + ".bin").c_str(), F_OK) == 0)
+        StoreKey(stem + ".key", k);
+    }
+    // kept under another name (the sources or the driver changed since): the old files go
+    if (!fromList && w.second != stem) {
+      std::remove((w.second + ".bin").c_str());
+      std::remove((w.second + ".key").c_str());
+      r.stale++;
+    }
+  }
+  r.ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+  gWarming--;
+  return r;
 }
 
 void GxRenderer::Release() {

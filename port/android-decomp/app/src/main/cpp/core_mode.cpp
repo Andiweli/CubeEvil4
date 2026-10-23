@@ -24,12 +24,14 @@
 #include "re4_gx_frame.h"
 #include "re4_gx_frame_io.h"
 
+#include <EGL/egl.h>
 #include <android/log.h>
 #include <dirent.h>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
@@ -52,6 +54,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -604,6 +607,68 @@ bool autoLevelOn = false;
 // the background), then each chunk's Run against 33.3 ms
 re4cpu::PerfHint renderHint;
 int renderPlaced = 0;  // the render thread set up
+
+// Shader programs made ahead on a thread of its own (decision of the project owner, 23.10.2026):
+// the cache's keys and the app's list (gx-programs.keys, CoreActivity) that lack a binary are
+// linked with a GL context of its own (a 1x1 pbuffer), below the game's priority and on any core;
+// the renderer's Prewarm then only loads binaries. Again when the MSAA setting changed;
+// RE4_GX_WARM=0 leaves it out.
+std::atomic<bool> warmBusy{false};
+int warmCentroid = -1;  // the MSAA setting the last one was for
+
+void startWarm(const std::string &cache, const std::string &list, std::uint32_t centroid) {
+  if (warmBusy.load() || warmCentroid == static_cast<int>(centroid)) return;
+  const char *off = getenv("RE4_GX_WARM");
+  if (off && *off == '0') {
+    if (warmCentroid < 0) LOG("GX programs made ahead: off (RE4_GX_WARM=0)");
+    warmCentroid = static_cast<int>(centroid);
+    return;
+  }
+  warmCentroid = static_cast<int>(centroid);
+  warmBusy = true;
+  std::thread([cache, list, centroid] {
+    pthread_setname_np(pthread_self(), "re4-gx-warm");
+    // any core (the render thread that started it keeps off the slow ones), below the game
+    cpu_set_t all;
+    CPU_ZERO(&all);
+    if (sched_getaffinity(getpid(), sizeof(all), &all) == 0) sched_setaffinity(0, sizeof(all), &all);
+    setpriority(PRIO_PROCESS, 0, 10);
+    const char *problem = nullptr;
+    EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    EGLContext context = EGL_NO_CONTEXT;
+    EGLSurface surface = EGL_NO_SURFACE;
+    EGLConfig config{};
+    EGLint count = 0;
+    const EGLint attributes[] = {EGL_RENDERABLE_TYPE, 0x40 /* EGL_OPENGL_ES3_BIT */, EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+                                 EGL_NONE};
+    const EGLint contextAttributes[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
+    const EGLint size[] = {EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE};
+    if (display == EGL_NO_DISPLAY || !eglInitialize(display, nullptr, nullptr)) {
+      problem = "no EGL display";
+    } else if (!eglChooseConfig(display, attributes, &config, 1, &count) || count < 1) {
+      problem = "no GLES 3 pbuffer configuration";
+    } else if ((context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttributes)) == EGL_NO_CONTEXT) {
+      problem = "no context";
+    } else if ((surface = eglCreatePbufferSurface(display, config, size)) == EGL_NO_SURFACE) {
+      problem = "no pbuffer";
+    } else if (!eglMakeCurrent(display, surface, surface, context)) {
+      problem = "the context not current";
+    }
+    if (problem) {
+      LOG("GX programs made ahead: not possible (%s, EGL error 0x%x); each at its first draw", problem, eglGetError());
+    } else {
+      const re4gx::GxWarmResult r = re4gx::WarmProgramCache(cache, list, centroid, nullptr);
+      LOG("GX programs made ahead on a thread of its own: %u keys (%u from the app's list), %u linked, %u had a "
+          "binary, %u failed, %u old files removed, %.0f ms",
+          r.keys, r.listed, r.linked, r.had, r.failed, r.stale, r.ms);
+      eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    }
+    // (not eglTerminate: the app's own context lives on the same display)
+    if (surface != EGL_NO_SURFACE) eglDestroySurface(display, surface);
+    if (context != EGL_NO_CONTEXT) eglDestroyContext(display, context);
+    warmBusy = false;
+  }).detach();
+}
 // The chunks the in-between pictures hold, back to the core (a new renderer, the switch off).
 void smoothDrop() {
   if (smoothNext && api.gxRelease)
@@ -1054,6 +1119,11 @@ bool drawGx() {
       mkdir(cache, 0775);
       cached = gx->SetProgramCache(cache);
     }
+    // the app's list of programs (its asset gx-programs.keys, CoreActivity)
+    const char *programList = getenv("RE4_GX_PROGRAM_LIST");
+    if (cached && programList && *programList) gx->SetProgramList(programList);
+    if (cached)
+      startWarm(cache, programList ? programList : "", gx->Samples() > 1 && options.centroid ? 1u : 0u);
     int maxSamples = 1;
     float maxAnisotropy = 1.0f;
     re4gx::GxRenderer::Limits(&maxSamples, &maxAnisotropy);
@@ -2018,6 +2088,15 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setLogFile(J
     setenv("RE4_LOG_FILE", file.c_str(), 1);
   }
   if (coreProcessWhy.empty() && api.logFile) api.logFile(file.empty() ? nullptr : file.c_str());
+}
+
+// The keys of the shader programs this device made, into one file (the error report: they go into
+// the app's list, port/tools/gx_program_list.py); how many.
+extern "C" JNIEXPORT jint JNICALL Java_com_ast_re4decomp_CoreBridge_writeProgramKeys(JNIEnv *env, jclass,
+                                                                                    jstring path) {
+  const char *cache = getenv("RE4_GX_PROGRAM_CACHE");
+  if (!cache || !*cache) return 0;
+  return static_cast<jint>(re4gx::WriteProgramKeyList(cache, text(env, path)));
 }
 
 // Pictures made for the screen so far: each game picture once, with "60 FPS" also the in-between

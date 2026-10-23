@@ -152,6 +152,11 @@ int main(int argc, char **argv) {
       if (options.samples > 1)
         std::fprintf(stderr, "MSAA: %d samples %s\n", renderer->Samples(),
                      renderer->TiledMsaa() ? "on the tiles" : "in own buffers");
+      // RE4_GX_PROGRAM_CACHE: the programs kept there (binary and key) as in the app; the keys of
+      // device captures for the app's list (port/tools/gx_program_list.py)
+      if (const char *cache = std::getenv("RE4_GX_PROGRAM_CACHE"))
+        if (*cache && !renderer->SetProgramCache(cache))
+          std::fprintf(stderr, "program cache: the driver keeps no binaries\n");
     }
     lastSequence = chunk.sequence;
     lastFrame = loaded.frame;

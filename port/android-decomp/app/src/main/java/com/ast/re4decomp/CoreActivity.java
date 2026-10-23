@@ -163,6 +163,9 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     Log.i(TAG, "app menu: " + shownLanguage);
     // linked shader programs kept between runs (no compile stutter the second time)
     String programs = "RE4_GX_PROGRAM_CACHE=" + new File(getCacheDir(), "gx-programs").getAbsolutePath();
+    // the app's list of shader programs (port/tools/gx_program_list.py): made ahead from the first start
+    String programList = programList();
+    if (programList != null) programs += ";RE4_GX_PROGRAM_LIST=" + programList;
     String coreSettings = settings.isEmpty() ? programs : settings + ";" + programs;
     // the app's own folder on the shared storage, where test switches write (RE4_AUDIO_WAV)
     getExternalFilesDir(null);
@@ -713,7 +716,44 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
   }
 
   /** The card's file list (without the saves themselves) for the report. */
+  /**
+   * The asset gx-programs.keys (the shader programs of all devices' error reports, merged by
+   * port/tools/gx_program_list.py) as a file the core reads; null when the app has none.
+   */
+  private String programList() {
+    byte[] list;
+    try (InputStream in = getAssets().open("gx-programs.keys")) {
+      list = CoreLog.readAll(in);
+    } catch (IOException e) {
+      return null;
+    }
+    File file = new File(getCacheDir(), "gx-programs.keys");
+    try {
+      boolean same = false;
+      if (file.length() == list.length) {
+        try (InputStream in = new java.io.FileInputStream(file)) {
+          same = java.util.Arrays.equals(CoreLog.readAll(in), list);
+        }
+      }
+      if (!same) {
+        try (OutputStream out = new FileOutputStream(file)) {
+          out.write(list);
+        }
+      }
+      return file.getAbsolutePath();
+    } catch (IOException e) {
+      Log.w(TAG, "program list: " + e);
+      return null;
+    }
+  }
+
   private String[][] reportExtras() {
+    // the keys of the shader programs this device made (they go into the app's list)
+    try {
+      CoreBridge.writeProgramKeys(new File(CoreLog.folder(this), "program-keys.bin").getAbsolutePath());
+    } catch (UnsatisfiedLinkError e) {
+      Log.w(TAG, "program keys: " + e);
+    }
     StringBuilder card = new StringBuilder();
     String[] rows = CoreBridge.cardList();
     if (rows == null) {
