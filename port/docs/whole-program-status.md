@@ -5946,6 +5946,35 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Bericht SCV40 (0.46.0, 23.10.2026 23:02): Shader des Durchspiel-Testers, Liste jetzt 1928 (Cloud)
+
+- **Bericht:** Samsung SCV40, Android 10, `0.46.0-alpha-core`, Stufe 2 ohne MSAA, kein Absturz.
+  Sitzung davor 21:29–22:13 im Dorf (r100–r10b, r120; Stufen 2/3/4 und MSAA 1/2/4 ausprobiert),
+  die letzte (22:57) in r331. `previous/crash-system.txt` ist der alte Absturz vom 22.10. 15:07
+  (`CalculateShape_new` in 0.41.3, seit 0.42.1 behoben: „Bericht SCV40 (0.41.3, 22.10.2026 16:21)“).
+- **Shader beim Start (22:57):** der Thread fand alle 1921 Schlüssel schon mit Binärdatei vor
+  (0 gebaut, 1260 ms), Prewarm lud 1894 vorab (6370 ms in Häppchen von 4 ms je Spielbild). Die
+  längsten Bilder der Sitzung davor kamen von neuen Programmen: 21:38:59 1754 ms und 21:39:16
+  782 ms gleich nach dem Wechsel auf MSAA 4 und 2 (neue Programme für die MSAA-Einstellung),
+  22:05:43 914 ms und 22:07:08 508 ms in r102/r108 (dort etwa 150 Programme neu gebaut).
+- **Liste der App:** `program-keys.bin` des Berichts hat 1919 Programme; die Liste wächst von 627
+  auf **1928** (1301 neu), `RE4L`, 464 Byte je Schlüssel. Von den 627 des Retroid (Dorf, See)
+  hatte der SCV40 618 (98,6 %): in den Bereichen, die beide gespielt haben, fehlt fast nichts.
+- **Was fehlt:** Schlüsseldateien schreibt die App erst seit `d58dbb0` (22.10. 22:49, also ab
+  0.45.0). Der Tester hat Burg (r2xx) und den Großteil der Insel (r30x–r32x) noch mit 0.44.0
+  gespielt (sein Bericht 23.10. 10:31 mit 0.44.0 war schon am Jetski, r331–r333). Enthalten sind
+  Dorf und See (r100–r11b, r120) und das Inselende (r331–r333, r405). Die Gesamtzahl bleibt
+  geschätzt: Dorf, See und Inselende allein ergeben etwa 1900, Burg und Insel bringen schätzungsweise
+  1000–2000 dazu, die Liste hat also etwa die Hälfte bis zwei Drittel (die frühere Schätzung
+  2000–3000 war zu niedrig).
+- **Wege zum Rest:** (a) ein Bericht mit 0.46.0 aus Burg und Insel (Spielstände dort laden und ein
+  Stück spielen), (b) ein Shader-Rundgang auf dem Retroid über ADB mit dem Raumstart des
+  Debug-Menüs (`RE4_START_ROOM`, Eingaben wie im PC-Rundgang über die 126 Räume), am Ende ein
+  Bericht mit `program-keys.bin`.
+- **Erster Start mit der Liste:** der Thread baut auf einem neuen Gerät bis zu 1928 Programme im
+  Hintergrund (SCV40 etwa 28 ms je Programm, also knapp eine Minute; schwache Geräte länger);
+  ein Programm, das das Spiel vorher braucht, wird wie bisher beim ersten Zeichnen gebaut.
+
 ### `master` auf 0.46.0 (Entscheidung des Projektinhabers, 23.10.2026, Cloud)
 
 - Der Projektinhaber: alles nach `master`. `master` hatte zwei README-Commits (Reviews, Controls),
