@@ -146,7 +146,8 @@ On screen: A, B, X, Y, Z, L, R, START, MENU (= SELECT), the D-pad, a move stick 
 (the C stick). App menu → Touch Controls: **Auto** (shown without a controller; a tap on the
 screen shows them, a button hides them), **Force** (always shown) or **Suppress** (hidden while a
 controller is connected). In the inventory you can tap items, files and the map, and swipe left or
-right to change the tab.
+right to change the tab. When a quick-time prompt flashes up (L+R, A+B, mash A …), a tap on it (or
+anywhere on the picture) presses its buttons; tap again and again to mash.
 
 **Comfort controls** (app menu → Controls)
 

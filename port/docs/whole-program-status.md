@@ -5947,6 +5947,28 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Quick-Time-Events per Tipp (Wunsch des Projektinhabers, 24.10.2026, Cloud)
+
+- **Wunsch:** ohne Controller sind die kurz aufblitzenden Tastenpaare kaum zu treffen; ein Tipp auf
+  die eingeblendete Grafik soll das QTE bestehen.
+- **Umsetzung (`runtime/qte_touch.cpp`, kein Patch):** das Spiel zeigt QTEs über den Aktionsknopf
+  (`ActBtn`, `DISP_FLAG` im ersten Byte von `Cckpt.m_ActBttn`) und prüft die Tasten in
+  `cActionButton::checkButton`. Jeder Tipp auf das Bild (`re4_core_touch`, die App gibt nur Tipps
+  neben den Touch-Tasten weiter) geht auch an `re4_qte_tap`; steht ein QTE-Symbol und ist der
+  Aktionsknopf aktiv (kein Untermenü), drückt ein Bild-Haken (PADRead, `re4_pad_add`) seine Tasten
+  zwei Spielbilder lang: L+R, A+B, A (schnell drücken, Akzent, auch das Losreißen `DISP_GACHA`, das
+  A mitzählt), B (auch schnell), X, Y, Z, L, R. Jeder Tipp ist ein Druck (Hämmern = mehrmals
+  tippen). Das einfache A (Türen, Leitern, Tritte; die Touch-Tasten haben A) und die Stick-Symbole
+  (Jetski, Hebel) bleiben bei den Touch-Tasten. Ein Tipp gilt überall auf dem Bild, das Symbol
+  eingeschlossen. Zeile `qte: a tap pressed L+R for the prompt (kind 3), N taps so far` (je Art
+  einmal).
+- **Test:** Laufzeittest `qtetouch` (`game_probe.cpp` `re4probe_qte_touch`): L+R zwei Bilder lang,
+  dann nichts; A+B; drei Tipps beim Hämmern = drei Drücke; nichts beim einfachen A, im Untermenü,
+  ohne aktiven Knopf; die Tabelle. i686: 0 Baufehler, alle Tests 0 Fehler, libc++-Prüfung 170/170.
+  **Nicht getestet:** am Gerät (z. B. Ausweichen vor dem Felsen r101, Messerkampf r317).
+- **Releasetext 0.9.0-beta** um die Korrekturen seit `caae87d` ergänzt (Patches 0109/0110, Lichter
+  in 60 FPS, QTE per Tipp, 3415 Shader); 0.9.0 wird neu gebaut (Wunsch des Projektinhabers).
+
 ### Berichte Retroid 23./24.10.2026 (0.9.0-beta, 14 Berichte, Dorf bei Nacht bis Burg): sechs Meldungen (Cloud)
 
 - **Sitzung:** 22:55–00:32 in einem Stück (r112 … r10f, r11f, dann Burg r200 … r22c, r209, r20a,

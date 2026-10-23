@@ -974,6 +974,7 @@ int re4probe_case_free_place(void);
 int re4probe_menu_touch(void);
 int re4probe_letterbox(void);
 int re4probe_knife_swipe(void);
+int re4probe_qte_touch(void);
 int re4probe_gyro_boat(void);
 int re4probe_snd_bank(void);
 int re4probe_frame_sections(void);
@@ -1707,6 +1708,20 @@ static void testKnifeSwipe()
     report("knifeswipe", ok);
 }
 
+// Quick-time events by a tap (runtime/qte_touch.cpp; game_probe.cpp re4probe_qte_touch): the
+// prompt's buttons for two frames, nothing for doors, in sub screens or without a prompt; the log line
+static void testQteTouch()
+{
+    const int bad = re4probe_qte_touch();
+    static char tail[48 * 160];
+    re4_log_tail(tail, sizeof tail);
+    const bool logged = strstr(tail, "qte: a tap pressed L+R for the prompt (kind 3)") != nullptr;
+    if (bad || !logged) {
+        re4_log("  qtetouch: failed checks 0x%x%s", bad, logged ? "" : ", no log line");
+    }
+    report("qtetouch", bad == 0 && logged);
+}
+
 // Gyro aiming with the harpoon in the boat (runtime/gyro.cpp; game_probe.cpp re4probe_gyro_boat):
 // the sight across and up, the boat turning at the sight's limit, not before the aim, the log line
 static void testGyroBoat()
@@ -1906,6 +1921,7 @@ int re4_runtime_tests()
     testMenuTouch();
     testLetterbox();
     testKnifeSwipe();
+    testQteTouch();
     testGyroBoat();
     testSndBank();
     testFrameSections();

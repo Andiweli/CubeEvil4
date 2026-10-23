@@ -41,6 +41,8 @@
 #include "pad.h"
 #include "pl_wep.h"
 #include "snd_drv.h"
+#include "act_btn.h"
+#include "cockpit.h"
 
 #include <new>
 #include <stdlib.h>
@@ -1457,5 +1459,76 @@ extern "C" int re4probe_knife_swipe(void)
         CfgFlagOn(pSys, CFG_KNIFE_MODE);
     }
     m3r.reset(keepM3r);
+    return bad;
+}
+
+extern "C" void re4_qte_tap(void);
+extern "C" unsigned short re4_qte_buttons(int disp);
+
+// Quick-time events by a tap (runtime/qte_touch.cpp): the buttons a tap adds to the pad while the
+// cockpit shows a prompt, for two frames; nothing for the plain A prompt, in a sub screen or with no
+// prompt active. Bits: each failed case.
+extern "C" int re4probe_qte_touch(void)
+{
+    const int keepSub = StaFlagChk(pG, STA_SUB_SCRN) != 0;
+    const int keepActive = ActBtn.isActive();
+    const u8 keepShown = *reinterpret_cast<const u8*>(&Cckpt.m_ActBttn);
+    PADStatus pads[4];
+    int bad = 0;
+    auto frame = [&]() -> u16 {
+        PADRead(pads);
+        return pads[0].button;
+    };
+    StaFlagOff(pG, STA_SUB_SCRN);
+    ActBtn.setActive(1);
+
+    // the dodge (L+R): both for two frames, then nothing
+    Cckpt.m_ActBttn.setDispFlag(DISP_L_R);
+    re4_qte_tap();
+    bad |= frame() != 0x0060 ? 1 : 0;
+    bad |= frame() != 0x0060 ? 1 : 0;
+    bad |= frame() != 0 ? 1 : 0;
+    // A+B, and a mash: each tap one press of A
+    Cckpt.m_ActBttn.setDispFlag(DISP_A_B);
+    re4_qte_tap();
+    bad |= frame() != 0x0300 ? 2 : 0;
+    frame();
+    Cckpt.m_ActBttn.setDispFlag(DISP_A_RAPID);
+    int presses = 0;
+    for (int i = 0; i < 3; i++) {
+        re4_qte_tap();
+        u16 last = 0;
+        for (int f = 0; f < 3; f++) {
+            const u16 b = frame();
+            presses += b == 0x0100 && last != 0x0100;
+            last = b;
+        }
+    }
+    bad |= presses != 3 ? 4 : 0;
+    // the plain A prompt (a door): nothing
+    Cckpt.m_ActBttn.setDispFlag(DISP_A_NORMAL);
+    re4_qte_tap();
+    bad |= frame() != 0 ? 8 : 0;
+    // a sub screen, no prompt: nothing
+    Cckpt.m_ActBttn.setDispFlag(DISP_L_R);
+    StaFlagOn(pG, STA_SUB_SCRN);
+    re4_qte_tap();
+    bad |= frame() != 0 ? 0x10 : 0;
+    StaFlagOff(pG, STA_SUB_SCRN);
+    ActBtn.setActive(0);
+    re4_qte_tap();
+    bad |= frame() != 0 ? 0x20 : 0;
+    // the table
+    bad |= re4_qte_buttons(DISP_B_RAPID) != 0x0200 || re4_qte_buttons(DISP_X) != 0x0400 ||
+                   re4_qte_buttons(DISP_GACHA) != 0x0100 || re4_qte_buttons(DISP_STICK_UP) != 0 ||
+                   re4_qte_buttons(DISP_OFF) != 0
+               ? 0x40
+               : 0;
+
+    Cckpt.m_ActBttn.setDispFlag(keepShown);
+    ActBtn.setActive(keepActive);
+    if (keepSub) {
+        StaFlagOn(pG, STA_SUB_SCRN);
+    }
     return bad;
 }

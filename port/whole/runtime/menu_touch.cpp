@@ -766,8 +766,12 @@ extern "C" void re4_core_swipe(int dir)
 }
 
 // The app (CoreBridge.tap): a tap on the picture, any thread.
+extern "C" void re4_qte_tap(void);
+
 extern "C" void re4_core_touch(float u, float v)
 {
+    // the quick-time prompts take any tap on the picture (qte_touch.cpp)
+    re4_qte_tap();
     if (!gAnnounced) {
         gAnnounced = true;
         re4_log("touch: taps on the picture reach the sub screens");
