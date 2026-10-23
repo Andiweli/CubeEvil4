@@ -5944,6 +5944,45 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Branch `performance`, Schritt 1: „Auto“ regelt die Auflösung nach dem Grafikchip (Wunsch des Projektinhabers, 23.10.2026, Cloud)
+
+- **Reihenfolge des Projektinhabers (23.10.2026):** (1) automatische Auflösung über die vorhandene
+  Einstellung „Auto“, (3) Spiel- und Zeichen-Thread auf die schnellen Kerne, (4) Shader-Liste in der
+  App, (6) Spielkern stärker optimiert übersetzen. Alles auf `performance`, ohne auf Berichte zu
+  warten.
+- **Regel (`gx_auto_level.h`):** „Auto“ beginnt wie bisher bei der Stufe des Bildschirms (1080 Zeilen
+  → 2) und geht nie darüber. Je Fenster von mindestens 2 s und 20 Spielbildern: unter 28,5 Bildern/s,
+  während der Grafikchip hinterherhängt (Zäune nach jedem Bildstück, im Mittel mindestens 0,5 nicht
+  fertig), eine Stufe tiefer; ist das Spiel aus anderem Grund langsam (Prozessor, Laden), bleibt die
+  Stufe. Wieder eine Stufe höher nach 5 Fenstern in Folge (10 s) mit mindestens 29,5 Bildern/s und
+  einem Grafikchip, der mitkommt (unter 0,1), frühestens 30 s nach dem letzten Abstieg; geht es
+  innerhalb von 15 s nach dem Aufstieg wieder hinunter, verdoppelt sich die Wartezeit (höchstens 5
+  Minuten). Kein Wechsel bei offenem App-Menü, während einer R3-Folge oder der Treffer-Bilder und
+  während der GPU-Messung. Zeilen im Protokoll: `auto resolution: from level N …`, `auto resolution:
+  level 2 -> 1 (… game pictures/s, the GPU … chunks behind)` und `… -> 2 (10 s at …)`. Die Zeile
+  „Graphics in use“ des Berichts nennt die Stufe gerade.
+- **Wechsel ohne Neustart des Renderers (`GxRenderer::Rescale`):** zwischen zwei Bildstücken; EFB
+  (dieselben Texturnamen, neue Größe), MSAA-Puffer (wie beim Start: auf den Kacheln oder eigene),
+  Unschärfe-Puffer der Tiefenschärfe, das Bild für den Bildschirm und jede EFB-Kopie neu in der neuen
+  Größe, Kopien und Bild skaliert hinübergezeichnet (Effekte, die das Bild davor lesen; das Bild, das
+  der VI hält); noch gebundene Kopien zeigen auf die neue Textur. Programme, Texturen und der
+  GX-Zustand bleiben: kein Nachladen, kein Ruckler. Das EFB beginnt geleert wie nach einer
+  Display-Kopie.
+- **App-Menü:** der Hinweis bei „Auto“ sagt jetzt in allen 10 Sprachen, dass Auto eine Stufe
+  tiefer geht, solange der Grafikchip nicht mitkommt (`check_translations.py`: ok).
+- **Tests (Cloud):** `gx_gl_check` neu `TestRescale` (Stufe 2 → 1 → 3, eine noch gebundene Kopie
+  bleibt sichtbar, das Bild hat die neue Größe; ohne das Umhängen der Bindung 2 Fehler) und
+  `TestAutoLevel` (die Regel mit erfundenen Messwerten: bleibt bei 30 Bildern/s, bleibt bei
+  langsamem Prozessor, nicht bei offenem Menü, hinunter bei hängendem Grafikchip, nie unter 1 und
+  nie über die Bildschirmstufe, Wartezeit 30 s, verdoppelt nach einem Rückfall): 0 Fehler.
+  `gx_chunk_render` neu `RE4_GX_RESCALE=K:S`. Die R3-Folgen aus r11b (Retroid 13:01/13:02) mit
+  Wechsel 2 → 1 und 1 → 2 mitten in der Folge, ohne und mit 4× MSAA: die Bilder davor bitgleich, das
+  erste danach höchstens 9–13 Stufen Abweichung (im Mittel 0,1–0,2; der Regen liest das Bild davor),
+  danach höchstens 2. `core_mode.cpp` und `gx_gl.cpp` Syntaxprüfung ARM64 und ARM32 ohne Fehler und
+  Warnungen.
+- **Nicht getestet:** auf einem Gerät (Schwellen, MSAA auf den Kacheln beim Wechsel; llvmpipe kann
+  das nicht). Geräte mit 720 Zeilen stehen schon auf Stufe 1, dort ändert sich nichts.
+
 ### Vergleichsläufe 23.10.2026 13:22/13:24 (Retroid, mit und ohne Helfer): versehentlich 0.43.1 (Cloud)
 
 - **Ablauf:** zwei Läufe mit `test-core-app.ps1 -Manual -SkipCore -SkipApk` (einmal mit

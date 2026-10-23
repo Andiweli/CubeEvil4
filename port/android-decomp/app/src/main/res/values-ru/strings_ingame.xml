@@ -20,7 +20,7 @@
     <string name="ingame_fps_display">FPS внизу слева</string>
     <string name="ingame_smooth60">60 FPS (экспериментально)</string>
     <string name="ingame_resolution_line">Разрешение: %1$d × %2$d пикс. (уровень %3$d) · экран %4$d × %5$d · применяется после закрытия меню. Более высокие уровни требуют больше ресурсов.</string>
-    <string name="ingame_resolution_line_auto">Разрешение: %1$d × %2$d пикс. (уровень %3$d, авто) · экран %4$d × %5$d · применяется после закрытия меню. Более высокие уровни требуют больше ресурсов.</string>
+    <string name="ingame_resolution_line_auto">Разрешение: %1$d × %2$d пикс. (уровень %3$d, авто) · экран %4$d × %5$d · применяется после закрытия меню. Авто снижает уровень, пока графический процессор не успевает.</string>
 
     <string name="ingame_controls">Управление</string>
     <string name="ingame_touch_controls">Сенсорное управление</string>

@@ -21,7 +21,7 @@
     <string name="ingame_fps_display">Mostrar FPS no canto inferior esquerdo</string>
     <string name="ingame_smooth60">60 FPS (experimental)</string>
     <string name="ingame_resolution_line">Resolução: %1$d × %2$d pixels (nível %3$d) · tela %4$d × %5$d · aplicada ao fechar o menu. Níveis mais altos exigem mais desempenho.</string>
-    <string name="ingame_resolution_line_auto">Resolução: %1$d × %2$d pixels (nível %3$d, Auto) · tela %4$d × %5$d · aplicada ao fechar o menu. Níveis mais altos exigem mais desempenho.</string>
+    <string name="ingame_resolution_line_auto">Resolução: %1$d × %2$d pixels (nível %3$d, Auto) · tela %4$d × %5$d · aplicada ao fechar o menu. O Auto desce um nível enquanto a GPU não acompanha.</string>
 
     <string name="ingame_controls">Controles</string>
     <string name="ingame_touch_controls">Controles de toque</string>

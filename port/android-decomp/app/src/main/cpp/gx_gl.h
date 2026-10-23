@@ -35,6 +35,7 @@ struct GxStats {
   unsigned displayCopies = 0;    // EFB copies to the XFB
   unsigned heldCopies = 0;       // of them not shown: the VI kept the picture before (RE4_GX_CHUNK_HOLD)
   unsigned resets = 0;
+  unsigned rescales = 0;          // EFB scale changed while running (Rescale: Auto in the app menu)
   unsigned missingTextures = 0;  // bound keys the renderer did not have
   unsigned shaderErrors = 0;
   unsigned dstAlphaApprox = 0;   // draws whose constant destination alpha is not 0 and not exact
@@ -118,6 +119,11 @@ public:
   // Creates the GL objects (a GLES 3.0 context is current). `scale`: EFB
   // resolution multiple (1 = the GameCube's 640x528).
   bool Init(int scale, std::string *error);
+  // Between two Runs: the EFB at another scale (the app menu's Auto follows the GPU). The EFB,
+  // its MSAA buffers, the autofocus's buffers, the display copy and every EFB copy anew at the new
+  // size (the copies and the display copy drawn over, scaled); programs, textures and the GX state
+  // stay. The EFB starts cleared, as after a display copy.
+  void Rescale(int scale);
   // Before Init: the picture options (default: none).
   void SetOptions(const GxOptions &options);
   // After Init: the multisampling and the filtering in use.

@@ -91,7 +91,13 @@ int main(int argc, char **argv) {
   // RE4_GX_SCALE: the EFB resolution of the app (-Scale; 1 = the GameCube's);
   // the pictures then have that many times the pixels
   const char *scaleText = std::getenv("RE4_GX_SCALE");
-  const int scale = scaleText && std::atoi(scaleText) >= 1 && std::atoi(scaleText) <= 4 ? std::atoi(scaleText) : 1;
+  int scale = scaleText && std::atoi(scaleText) >= 1 && std::atoi(scaleText) <= 4 ? std::atoi(scaleText) : 1;
+  // RE4_GX_RESCALE=K:S: before the K-th file (from 0) the running renderer goes to scale S
+  // (GxRenderer::Rescale, the app menu's Auto); the pictures from there have S times the pixels
+  int rescaleAt = -1, rescaleTo = 0;
+  if (const char *rescale = std::getenv("RE4_GX_RESCALE"))
+    if (std::sscanf(rescale, "%d:%d", &rescaleAt, &rescaleTo) != 2 || rescaleTo < 1 || rescaleTo > 4)
+      rescaleAt = -1;
   for (int i = 2; i < argc; i++) {
     const std::string path = argv[i];
     auto loadedHere = std::make_unique<re4gxio::Loaded>();
@@ -179,6 +185,11 @@ int main(int argc, char **argv) {
           std::fclose(p);
         }
       }
+    }
+    if (i - 2 == rescaleAt && renderer) {
+      renderer->Rescale(rescaleTo);
+      scale = renderer->Scale();
+      std::printf("%s: EFB-Stufe %d (Rescale)\n", Stem(path).c_str(), scale);
     }
     const re4gx::GxStats before = renderer->Stats();
     renderer->Run(chunk);

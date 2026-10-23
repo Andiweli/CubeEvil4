@@ -12,6 +12,7 @@
 //     position, an EFB copy used as a texture, a paletted texture, linear fog
 //   - shader generation: random TEV setups (inputs, compare modes, scales,
 //     swap tables, konst selections, indirect stages) all compile
+#include "gx_auto_level.h"
 #include "gx_chunk_builder.h"
 #include "gx_gl.h"
 #include "gx_gl_shader.h"
@@ -518,6 +519,130 @@ void TestCopyAndPalette(re4gx::GxRenderer &r, bool viaXfb = false) {
   Check(r.Stats().textureCopies == 1, "one EFB copy to a texture");
   Check(Near(pixel(320, 320), 255, 0, 0), "EFB copy used as a texture");
   Check(Near(pixel(420, 320), 0, 255, 0), "paletted texture: C8 through an RGB565 palette");
+}
+
+// Auto in the app menu: the EFB scale changes between two Runs (GxRenderer::Rescale). At scale 2 a
+// red EFB copy is made and drawn as a texture; at scale 1 and then 3 a chunk draws with map 0 still
+// bound to that copy (no new texture load): the copy came along, scaled, and the display copy has
+// the new size.
+void TestRescale() {
+  re4gx::GxRenderer r;
+  std::string error;
+  Require(r.Init(2, &error), error.c_str());
+  auto textured = [](Builder &b, bool load) {
+    b.Bp(0x00, 1u | 1u << 4);
+    b.Xf(0x103F, {1});
+    b.Xf(0x1040, {5u << 7});
+    b.Bp(0x28, 0 | 0 << 3 | 1 << 6 | 0 << 7 | 0x3F7u << 12);
+    b.Bp(0xC0, 8u | 15u << 4 | 15u << 8 | 15u << 12 | 1u << 19);
+    b.Bp(0x88, 31 | 31 << 10 | 6u << 20);
+    b.Bp(0x30, 31);
+    b.Bp(0x31, 31);
+    if (load)
+      b.Texture(0, 0x200000ull | 1ull << 32, RE4_GX_TEX_COPY, 0x200000, 32, 32, 6, {});
+    std::vector<std::uint8_t> v;
+    VT(v, 300, 300, 0, kWhite, 0, 0);
+    VT(v, 340, 300, 0, kWhite, 1, 0);
+    VT(v, 340, 340, 0, kWhite, 1, 1);
+    VT(v, 300, 340, 0, kWhite, 0, 1);
+    b.Draw(RE4_GX_V_COLOR0 | RE4_GX_V_TEX0, 24, v, 4, 0x80);
+    b.Bp(0x49, 0);
+    b.Bp(0x4A, 639 | 527u << 10);
+    DisplayCopy(b, false, kBlack);
+  };
+  {
+    Builder b;
+    Baseline(b);
+    DisplayCopy(b, true, kBlack);
+    Quad(b, 0, 0, 32, 32, 0, kRed);
+    b.Bp(0x49, 0);
+    b.Bp(0x4A, 31 | 31u << 10);
+    b.Bp(0x4D, 32);
+    b.Bp(0x4B, 0x200000 >> 5);
+    b.Bp(0x52, 6u << 4 | 2u << 15); // RGBA8 to a texture
+    b.Bp(0x4A, 639 | 527u << 10);
+    textured(b, true);
+    r.Run(b.Chunk());
+  }
+  Check(Near(TexPixel(r.Xfb(nullptr, nullptr), 640, 640), 255, 0, 0), "rescale: the copy drawn at scale 2");
+  for (int scale : {1, 3}) {
+    r.Rescale(scale);
+    Builder b;
+    Baseline(b);
+    DisplayCopy(b, true, kBlue);
+    textured(b, false);
+    r.Run(b.Chunk());
+    unsigned w = 0, h = 0;
+    const GLuint xfb = r.Xfb(&w, &h);
+    const std::string at = "rescale to " + std::to_string(scale);
+    Check(r.Scale() == scale, (at + ": the renderer's scale").c_str());
+    // (outside a smaller texture the read gives no blue)
+    Check(w == 640 && h == 528 && Near(TexPixel(xfb, static_cast<int>(w) * scale - 4, static_cast<int>(h) * scale - 4), 0, 0, 255),
+          (at + ": the display copy has the new size").c_str());
+    Check(Near(TexPixel(xfb, 320 * scale, 320 * scale), 255, 0, 0), (at + ": the copy still bound, scaled along").c_str());
+    Check(Near(TexPixel(xfb, 100 * scale, 400 * scale), 0, 0, 255), (at + ": the clear colour elsewhere").c_str());
+  }
+  Check(r.Stats().rescales == 2, "rescale: counted");
+  Check(glGetError() == GL_NO_ERROR, "rescale: no GL error");
+  r.Release();
+}
+
+// The rule of Auto (gx_auto_level.h) with made-up measurements: `seconds` of chunks at `rate` a
+// second, each fence check finding `behind` chunks unfinished.
+struct AutoRun {
+  re4gx::AutoLevel a;
+  double t = 0.0;
+  unsigned long long sum = 0;
+  unsigned checks = 0;
+  std::vector<std::string> lines;
+  void Play(double seconds, double rate, unsigned behind, bool mayChange = true) {
+    const double end = t + seconds;
+    while (t < end) {
+      t += 1.0 / rate;
+      sum += behind;
+      checks++;
+      std::string why;
+      a.Chunk(t, sum, checks, mayChange, &why);
+      if (!why.empty())
+        lines.push_back(why);
+    }
+  }
+};
+
+void TestAutoLevel() {
+  {
+    AutoRun r;
+    r.a.Start(2, 0.0);
+    r.Play(20.0, 30.0, 0);
+    Check(r.a.Level() == 2 && r.lines.empty(), "auto level: 30 pictures/s with the GPU keeping up: stays at the top");
+    r.Play(20.0, 25.0, 0);
+    Check(r.a.Level() == 2, "auto level: slow with the GPU idle (the processor): stays");
+    r.Play(4.1, 20.0, 1, false);
+    Check(r.a.Level() == 2, "auto level: no change while it may not (menu, R3 series)");
+    r.Play(2.1, 20.0, 1);
+    Check(r.a.Level() == 1 && r.a.Downs() == 1, "auto level: 20 pictures/s, the GPU behind: one level down");
+    Check(!r.lines.empty() && r.lines.back().find("level 2 -> 1") != std::string::npos, "auto level: logged");
+    r.Play(10.0, 20.0, 1);
+    Check(r.a.Level() == 1, "auto level: never below 1");
+    r.Play(15.0, 30.0, 0);  // 25 s after the step down
+    Check(r.a.Level() == 1, "auto level: not up before 30 s after the step down");
+    r.Play(12.0, 30.0, 0);
+    Check(r.a.Level() == 2 && r.a.Ups() == 1, "auto level: up again after 30 s, 10 s keeping up");
+    r.Play(4.1, 20.0, 2);
+    Check(r.a.Level() == 1 && r.a.Hold() == 60.0, "auto level: down again at once: the next wait 60 s");
+    r.Play(50.0, 30.0, 0);
+    Check(r.a.Level() == 1, "auto level: the longer wait holds");
+    r.Play(12.0, 30.0, 0);
+    Check(r.a.Level() == 2, "auto level: up after the longer wait");
+    r.Play(100.0, 30.0, 0);
+    Check(r.a.Level() == 2, "auto level: never above the screen's level");
+  }
+  {
+    AutoRun r;
+    r.a.Start(3, 0.0);
+    r.Play(6.5, 20.0, 1);
+    Check(r.a.Level() == 1, "auto level: down one level each window while the GPU stays behind");
+  }
 }
 
 void TestFog(re4gx::GxRenderer &r) {
@@ -1317,6 +1442,8 @@ int main() {
   }
   TestTevMath();
   TestPrewarm();
+  TestRescale();
+  TestAutoLevel();
   // twice: as the app runs it, and with the copy targets, the blur and the focus painted magenta
   // where the GPU may forget them (GPU step b): every picture must stay the same
   for (int poison = 0; poison < 2; poison++) {

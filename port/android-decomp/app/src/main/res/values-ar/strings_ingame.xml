@@ -24,7 +24,7 @@
     <string name="ingame_fps_display">عرض FPS أسفل اليسار</string>
     <string name="ingame_smooth60">60 إطارًا في الثانية (تجريبي)</string>
     <string name="ingame_resolution_line">الدقة: %1$d&#x200E; × &#x200E;%2$d بكسل (المستوى %3$d) · الشاشة %4$d&#x200E; × &#x200E;%5$d · تُطبَّق عند إغلاق القائمة. المستويات الأعلى تتطلب أداءً أعلى.</string>
-    <string name="ingame_resolution_line_auto">الدقة: %1$d&#x200E; × &#x200E;%2$d بكسل (المستوى %3$d، تلقائي) · الشاشة %4$d&#x200E; × &#x200E;%5$d · تُطبَّق عند إغلاق القائمة. المستويات الأعلى تتطلب أداءً أعلى.</string>
+    <string name="ingame_resolution_line_auto">الدقة: %1$d&#x200E; × &#x200E;%2$d بكسل (المستوى %3$d، تلقائي) · الشاشة %4$d&#x200E; × &#x200E;%5$d · تُطبَّق عند إغلاق القائمة. يخفض الوضع التلقائي المستوى درجة ما دام معالج الرسوميات لا يواكب.</string>
 
     <string name="ingame_controls">التحكم</string>
     <string name="ingame_touch_controls">التحكم باللمس</string>

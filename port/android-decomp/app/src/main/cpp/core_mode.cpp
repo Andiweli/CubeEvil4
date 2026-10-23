@@ -15,6 +15,7 @@
 // file stays the same. RE4_CORE_PROCESS=1 asks for that on any 32-bit device
 // (tests).
 #include "core_scene.h"
+#include "gx_auto_level.h"
 #include "gx_gl.h"
 #include "gx_selfcheck.h"
 #include "re4_card_files.h"
@@ -593,6 +594,10 @@ std::atomic<long long> picturesMade{0};
 // next refresh; off for this renderer when the GPU does not keep up
 const Re4GxChunk *smoothPrev = nullptr, *smoothNext = nullptr;
 bool smoothTooSlow = false;
+// Auto in the menu's resolution: the EFB level follows the GPU (gx_auto_level.h); on for a renderer
+// that started at the screen's level
+re4gx::AutoLevel autoLevel;
+bool autoLevelOn = false;
 // The chunks the in-between pictures hold, back to the core (a new renderer, the switch off).
 void smoothDrop() {
   if (smoothNext && api.gxRelease)
@@ -1000,6 +1005,7 @@ bool drawGx() {
       const char *scaleText = getenv("RE4_GX_SCALE");
       scale = scaleText ? std::atoi(scaleText) : 0;
     }
+    autoLevelOn = scale < 1 || scale > 4;
     if (scale < 1 || scale > 4) {
       // automatic: one level below the one whose 336 picture rows come closest to the screen's
       // rows (wish of the project owner, 19.10.2026: the Retroid's 1080 rows take 2, not 3;
@@ -1058,6 +1064,10 @@ bool drawGx() {
     char layout[256];
     re4cpu::GetLayout().Describe(layout, sizeof(layout));
     LOG("processor: %s", layout);
+    if (autoLevelOn) {
+      autoLevel.Start(scale, std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count());
+      LOG("auto resolution: from level %d (the screen's), a level lower while the GPU falls behind", scale);
+    }
   }
   // one chunk per displayed frame: every picture the game makes is shown (a
   // renderer slower than the game slows the game down, the core waits for it,
@@ -1237,6 +1247,22 @@ bool drawGx() {
     if (bench.measuring) {
       bench.runMs += ms;
       bench.runCount++;
+    }
+    // Auto: another level from the next chunk on (not while an R3 series or the hit pictures are
+    // recorded, the app's menu is open or the GPU measurement runs)
+    if (autoLevelOn && !between) {
+      const auto &st = gx->Stats();
+      std::string why;
+      const int level = autoLevel.Chunk(std::chrono::duration<double>(now.time_since_epoch()).count(), st.behindSum,
+                                        st.behindChecks,
+                                        !corePaused.load() && !gxDumpSeriesLeft && !gxHitShotsLeft && !bench.measuring,
+                                        &why);
+      if (level != gx->Scale()) {
+        LOG("%s", why.c_str());
+        smoothDrop();  // no in-between picture across the change
+        gx->Rescale(level);
+        infoScale = level;
+      }
     }
     if ((++gxChunks % 300) == 1) {
       const auto &s = gx->Stats();

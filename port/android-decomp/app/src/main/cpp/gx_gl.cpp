@@ -2928,6 +2928,110 @@ bool GxRenderer::Init(int scale, std::string *error) {
   return true;
 }
 
+void GxRenderer::Rescale(int scale) {
+  Impl &m = *impl_;
+  scale = std::max(1, scale);
+  if (scale == m.scale)
+    return;
+  const int old = m.scale;
+  m.stats.rescales++;
+  // the MSAA buffers go (as Init found them: on the tiles or in own buffers)
+  const bool wasTiled = m.tiledMsaa;
+  if (m.tiledMsaa)
+    m.DropTiles();
+  if (m.msaaFbo) {
+    glDeleteFramebuffers(1, &m.msaaFbo);
+    const GLuint renderbuffers[] = {m.msaaColor, m.msaaDepth};
+    glDeleteRenderbuffers(2, renderbuffers);
+    m.msaaFbo = m.msaaColor = m.msaaDepth = 0;
+    m.samples = 1;
+  }
+  // the EFB's textures at the new size (the same names: the framebuffers that hold them stay)
+  m.scale = scale;
+  const int w = kEfbWidth * scale, h = kEfbHeight * scale;
+  glBindTexture(GL_TEXTURE_2D, m.efbColor);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+  glBindTexture(GL_TEXTURE_2D, m.efbDepth);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, w, h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, nullptr);
+  if (m.wantSamples > 1 && wasTiled)
+    m.TiledMsaa(m.wantSamples);
+  if (m.wantSamples > 1 && !m.tiledMsaa)
+    m.OwnMsaa(m.wantSamples);
+  for (GLuint fbo : {m.efbFbo, m.spareFbo, m.msaaFbo}) {
+    if (!fbo)
+      continue;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glViewport(0, 0, w, h);
+    glDisable(GL_SCISSOR_TEST);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glDepthMask(GL_TRUE);
+    glClearColor(0, 0, 0, 0);
+    glClearDepthf(1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  }
+  // the autofocus's blur at the new size (its focus stays)
+  if (m.blurTex) {
+    glBindTexture(GL_TEXTURE_2D, m.blurTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+  }
+  if (m.halfTex) {
+    glBindTexture(GL_TEXTURE_2D, m.halfTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w / 2, h / 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+  }
+  // the display copy and the EFB copies: new textures, the old ones drawn over scaled (an effect
+  // that reads the picture before, the picture the VI holds)
+  GLuint from = 0, to = 0;
+  glGenFramebuffers(1, &from);
+  glGenFramebuffers(1, &to);
+  auto rescaled = [&](GLuint id, unsigned cw, unsigned ch, bool linear) {
+    GLuint made = 0;
+    glGenTextures(1, &made);
+    glBindTexture(GL_TEXTURE_2D, made);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, static_cast<GLsizei>(cw) * scale, static_cast<GLsizei>(ch) * scale, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    if (linear) {
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    } else {
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+    }
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, from);
+    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, id, 0);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, to);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, made, 0);
+    glBlitFramebuffer(0, 0, static_cast<GLint>(cw) * old, static_cast<GLint>(ch) * old, 0, 0,
+                      static_cast<GLint>(cw) * scale, static_cast<GLint>(ch) * scale, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    glDeleteTextures(1, &id);
+    return made;
+  };
+  if (m.xfbTex)
+    m.xfbTex = rescaled(m.xfbTex, m.xfbWidth, m.xfbHeight, true);
+  for (auto &c : m.copies) {
+    if (!c.second.id)
+      continue;
+    const GLuint was = c.second.id;
+    c.second.id = rescaled(was, c.second.width, c.second.height, false);
+    // a map still bound to the copy (the game loads a texture once and draws on with it)
+    for (auto &b : m.bound)
+      if (b.id == was)
+        b.id = c.second.id;
+  }
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+  glDeleteFramebuffers(1, &from);
+  glDeleteFramebuffers(1, &to);
+  // (the copies read through a palette have the copy's size in EFB pixels, at every scale)
+  for (auto &c : m.interpCopies)
+    glDeleteTextures(1, &c.second.id);
+  m.interpCopies.clear();
+  m.stateValid = false;
+  m.efbLeft = m.restorePending = false;
+  glBindFramebuffer(GL_FRAMEBUFFER, m.DrawFbo());
+  m.Touched();
+}
+
 void GxRenderer::Run(const Re4GxChunk &chunk) {
   Impl &m = *impl_;
   if (chunk.version != RE4_GX_FRAME_VERSION)

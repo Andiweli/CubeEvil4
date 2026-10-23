@@ -20,7 +20,7 @@
     <string name="ingame_fps_display">नीचे बाईं ओर FPS दिखाएँ</string>
     <string name="ingame_smooth60">60 FPS (प्रयोगात्मक)</string>
     <string name="ingame_resolution_line">रिज़ॉल्यूशन: %1$d × %2$d पिक्सेल (स्तर %3$d) · स्क्रीन %4$d × %5$d · मेनू बंद होने पर लागू होता है। ऊँचे स्तरों को ज़्यादा क्षमता चाहिए।</string>
-    <string name="ingame_resolution_line_auto">रिज़ॉल्यूशन: %1$d × %2$d पिक्सेल (स्तर %3$d, ऑटो) · स्क्रीन %4$d × %5$d · मेनू बंद होने पर लागू होता है। ऊँचे स्तरों को ज़्यादा क्षमता चाहिए।</string>
+    <string name="ingame_resolution_line_auto">रिज़ॉल्यूशन: %1$d × %2$d पिक्सेल (स्तर %3$d, ऑटो) · स्क्रीन %4$d × %5$d · मेनू बंद होने पर लागू होता है। जब तक GPU साथ नहीं दे पाता, ऑटो एक स्तर नीचे रहता है।</string>
 
     <string name="ingame_controls">नियंत्रण</string>
     <string name="ingame_touch_controls">टच नियंत्रण</string>
