@@ -308,6 +308,12 @@ long long nowMs()
     return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 }
 
+long long nowNs()
+{
+    using namespace std::chrono;
+    return duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count();
+}
+
 Chunk* chunk()
 {
     return gCurrent >= 0 ? &gSlots[gCurrent] : nullptr;
@@ -484,6 +490,47 @@ int gWorkers = -1;
 bool gJobsOn;
 u32 gJobCount, gJobInline;
 std::atomic<u32> gJobMicros(0);  // the time the batches took (any thread)
+std::atomic<int> gWorkerTids[8];   // the workers' thread ids, each as it starts (performance hint)
+std::atomic<int> gWorkerTidCount(0);
+
+// The game thread off the slowest cores and Android's performance hint for it and the vertex
+// threads (decision of the project owner, 23.10.2026; re4_cpu_info.h): set up at the first chunk
+// after the workers started, then after each chunk the game thread's work since the chunk before
+// (without its sleep for the retrace and its wait for the renderer) against 33.3 ms.
+re4cpu::PerfHint gHint;
+int gHintState;                       // 0 not set up yet, 1 reporting, -1 no session
+long long gHintFrom, gHintIdle, gHintWait;  // ns: the chunk before, re4_idle_ns() then, the wait since
+
+void hintChunk()
+{
+    const long long now = nowNs(), idle = re4_idle_ns();
+    if (gHintState == 0) {
+        if (gWorkers < 0) {
+            return;
+        }
+        int tids[9];
+        int n = 0;
+        tids[n++] = re4cpu::ThreadId();
+        for (int i = 0; i < (gJobsOn ? gWorkers : 0); i++) {
+            const int tid = gWorkerTids[i].load();
+            if (!tid) {
+                return;  // a worker not running yet: at the next chunk
+            }
+            tids[n++] = tid;
+        }
+        char cores[160];
+        re4cpu::KeepOffSlowCores(cores, sizeof(cores));
+        re4_log("cores: the game thread %s", cores);
+        const char* why = "";
+        gHintState = gHint.Open(tids, n, 33333333LL, &why) ? 1 : -1;
+        re4_log("performance hint: %s (the game thread and %d vertex threads, 33.3 ms a picture)", why, n - 1);
+    } else if (gHintState == 1 && gHintFrom) {
+        gHint.Report(now - gHintFrom - (idle - gHintIdle) - gHintWait);
+    }
+    gHintFrom = now;
+    gHintIdle = idle;
+    gHintWait = 0;
+}
 
 // Timing for the log: game time per chunk (display copy to display copy) and
 // the part of it the core waited for a free slot (the renderer is behind).
@@ -500,6 +547,7 @@ re4cpu::ThreadUse gCoreUse;           // processor time of the core thread per c
 void chunkBoundary(u32 xfb, u32 width, u32 height)
 {
     re4gx::finishJobs();  // the chunk's vertices complete before it is queued
+    hintChunk();
     const long long start = nowMs();
     if (gBoundaryAt && gWanted.load()) {
         gFrameMs += start - gBoundaryAt;
@@ -533,9 +581,13 @@ void chunkBoundary(u32 xfb, u32 width, u32 height)
     }
     gBoundaryAt = start;
     struct WaitTimer {
-        long long from;
-        ~WaitTimer() { gWaitMs += nowMs() - from; }
-    } waited = {start};
+        long long from, fromNs;
+        ~WaitTimer()
+        {
+            gWaitMs += nowMs() - from;
+            gHintWait += nowNs() - fromNs;
+        }
+    } waited = {start, nowNs()};
     std::unique_lock<std::mutex> lock(gMutex);
     if (gCurrent >= 0) {
         Chunk* c = chunk();
@@ -1255,6 +1307,7 @@ const size_t kJobBytes = 1u << 20;   // vertex bytes of FIFO draws kept for thei
 const u32 kBatchVertices = 384;      // a batch is handed out from this many vertices on
 const u32 kBatchEntries = 64;        // ... or draws
 const int kMaxWorkers = 3;
+static_assert(kMaxWorkers <= 8, "gWorkerTids holds 8");
 
 std::vector<Batch> gJobs;            // a ring; a place is used again after finishJobs
 std::vector<DrawEntry> gEntries;     // from 0 again after each finishJobs
@@ -1328,6 +1381,10 @@ inline void cpuRelax()
 void worker()
 {
     pthread_setname_np(pthread_self(), "re4-gx-verts");  // in profiles (simpleperf) and crash reports
+    const int slot = gWorkerTidCount.fetch_add(1);
+    if (slot < 8) {
+        gWorkerTids[slot].store(re4cpu::ThreadId());
+    }
     VertexBlock* blk = new VertexBlock;
     for (;;) {
         if (runOneJob(*blk)) {

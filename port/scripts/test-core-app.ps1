@@ -149,6 +149,11 @@ erneuert diese Datei nicht (es installiert aus app\build\intermediates); deshalb
 Skript ihre Version mit app\build.gradle und bricht bei einer alten APK ab. Ohne -SkipApk baut
 es sie selbst.
 
+Schnelle Kerne (Branch performance): Spiel- und Zeichen-Thread bleiben von den langsamsten
+Kernen fern, und Android bekommt ab Version 13 einen Leistungshinweis (33,3 ms je Bild). Zum
+Vergleich -NoFastCores (Kerne wie vorher) bzw. -NoPerfHint (ohne Hinweis); der Bericht zeigt die
+Zeilen "cores: ..." und "performance hint: ...".
+
 Mehrere Kerne (seit 0.45.0): Die Eckpunkte der Grafik rechnen Helfer-Threads um.
 -GxThreads N legt ihre Anzahl fest (0: alles auf dem Spiel-Thread wie bis 0.44; ohne Angabe
 Kerne minus 3, hoechstens 3). -GxJobCheck rechnet zur Fehlersuche jeden Zeichenauftrag
@@ -206,7 +211,9 @@ param(
     [ValidateSet('auto', 'armeabi-v7a', 'arm64-v8a')][string]$Abi = 'auto',
     [switch]$CoreProcess,
     [int]$GxThreads = -1,
-    [switch]$GxJobCheck
+    [switch]$GxJobCheck,
+    [switch]$NoFastCores,
+    [switch]$NoPerfHint
 )
 $ErrorActionPreference = 'Stop'
 # -Manual: you play yourself, 30 minutes unless -Seconds is given (Q ends earlier)
@@ -501,6 +508,10 @@ $settings = if ($settings) { "$settings;RE4_APP_TOOLS=1" } else { 'RE4_APP_TOOLS
 # draw reads does not change before its batch
 if ($GxThreads -ge 0) { $settings = "$settings;RE4_GX_THREADS=$GxThreads" }
 if ($GxJobCheck) { $settings = "$settings;RE4_GX_JOB_CHECK=1" }
+# the game and render threads off the slowest cores, Android's performance hint (re4_cpu_info.h):
+# switched off for a comparison
+if ($NoFastCores) { $settings = "$settings;RE4_FAST_CORES=0" }
+if ($NoPerfHint) { $settings = "$settings;RE4_PERF_HINT=0" }
 if ($CoreProcess) {
     # the core in a process of its own also with MEM1 free (32 bit only; core_mode.cpp)
     if ($Abi -ne 'armeabi-v7a') { Say 'Hinweis: -CoreProcess wirkt nur mit 32 bit (-Abi armeabi-v7a).' }

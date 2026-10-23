@@ -598,6 +598,12 @@ bool smoothTooSlow = false;
 // that started at the screen's level
 re4gx::AutoLevel autoLevel;
 bool autoLevelOn = false;
+// The render thread off the slowest cores and Android's performance hint for it (decision of the
+// project owner, 23.10.2026; re4_cpu_info.h; the core does the same for the game thread): set up
+// with the first renderer of each render thread (Android starts a new one after the app was in
+// the background), then each chunk's Run against 33.3 ms
+re4cpu::PerfHint renderHint;
+int renderPlaced = 0;  // the render thread set up
 // The chunks the in-between pictures hold, back to the core (a new renderer, the switch off).
 void smoothDrop() {
   if (smoothNext && api.gxRelease)
@@ -1064,6 +1070,16 @@ bool drawGx() {
     char layout[256];
     re4cpu::GetLayout().Describe(layout, sizeof(layout));
     LOG("processor: %s", layout);
+    const int tid = re4cpu::ThreadId();
+    if (renderPlaced != tid) {
+      renderPlaced = tid;
+      char cores[160];
+      re4cpu::KeepOffSlowCores(cores, sizeof(cores));
+      LOG("cores: the render thread %s", cores);
+      const char *why = "";
+      renderHint.Open(&tid, 1, 33333333LL, &why);
+      LOG("performance hint: %s (the render thread, 33.3 ms a picture)", why);
+    }
     if (autoLevelOn) {
       autoLevel.Start(scale, std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count());
       LOG("auto resolution: from level %d (the screen's), a level lower while the GPU falls behind", scale);
@@ -1239,6 +1255,7 @@ bool drawGx() {
       gxHitShotsLeft--;
     }
     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - now).count();
+    renderHint.Report(static_cast<long long>(ms * 1e6));
     gxRunMs += ms;
     gxRunMax = std::max(gxRunMax, ms);
     gxRunCount++;

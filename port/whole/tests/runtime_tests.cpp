@@ -1745,6 +1745,58 @@ static void testCpuInfo()
     ok &= use.pictures == 1 && use.cpuNs > 0;
     use.Describe(text, sizeof(text));
     ok &= strstr(text, "ms of processor time each") != nullptr && use.pictures == 0;
+    // off the slowest cores (KeepOffSlowCores): alike cores and RE4_FAST_CORES=0 leave the thread;
+    // this machine's cores, the lower half made slow, on a thread of its own: it may then use the
+    // upper half only
+    ok &= !re4cpu::KeepOffSlowCores(alike, text, sizeof(text)) && strstr(text, "clocks not readable");
+    setenv("RE4_FAST_CORES", "0", 1);
+    ok &= !re4cpu::KeepOffSlowCores(a30, text, sizeof(text)) && strstr(text, "RE4_FAST_CORES=0");
+    unsetenv("RE4_FAST_CORES");
+    const int cores = (int) sysconf(_SC_NPROCESSORS_ONLN);
+    if (cores >= 2 && cores <= re4cpu::Layout::kMax) {
+        re4cpu::Layout half;
+        half.count = cores;
+        for (int i = 0; i < cores; i++) {
+            half.maxKHz[i] = i < cores / 2 ? 1000000 : 2000000;
+        }
+        half.slowest = 1000000;
+        half.fastest = 2000000;
+        bool placed = false, upper = true;
+        char where[160] = "";
+        std::thread([&] {
+            cpu_set_t before;
+            CPU_ZERO(&before);
+            sched_getaffinity(0, sizeof(before), &before);
+            bool all = true;  // a test machine that gives this process every core
+            for (int i = 0; i < cores; i++) {
+                all &= CPU_ISSET(i, &before) != 0;
+            }
+            if (!all) {
+                placed = upper = true;
+                snprintf(where, sizeof(where), "(not every core given to the test)");
+                return;
+            }
+            placed = re4cpu::KeepOffSlowCores(half, where, sizeof(where));
+            cpu_set_t now;
+            CPU_ZERO(&now);
+            sched_getaffinity(0, sizeof(now), &now);
+            for (int i = 0; i < cores; i++) {
+                upper &= (CPU_ISSET(i, &now) != 0) == (i >= cores / 2);
+            }
+        }).join();
+        ok &= placed && upper;
+        if (!placed || !upper) {
+            re4_log("  cpuinfo: placement %s", where);
+        }
+    }
+    // Android's performance hint: none on Linux, said so
+    {
+        re4cpu::PerfHint hint;
+        const char* why = "";
+        const int tid = re4cpu::ThreadId();
+        ok &= !hint.Open(&tid, 1, 33333333LL, &why) && strcmp(why, "not on this system") == 0 && !hint.On();
+        hint.Report(1000000);  // nothing happens
+    }
     if (!ok) {
         re4_log("  cpuinfo: %s", text);
     }
