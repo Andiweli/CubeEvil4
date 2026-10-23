@@ -5944,6 +5944,36 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Bericht SCV40 (0.45.0, 23.10.2026 19:12): Spiel durchgespielt, Jetski-Abspann geht, Ruckler beim ersten Mal (Cloud)
+
+- **Tester:** das Spiel bis zum Ende durchgespielt; die Jetski-Flucht (r333) und der Abspann (r405)
+  liefen (PTH-Umwandlung `97d6f7d` bestätigt). „Ein paar Ruckler und Hänger“. Kein Absturz.
+- **Gerät:** Samsung SCV40 (Galaxy S10+, Snapdragon 855), Android 10, 64 bit, Stufe 2, ohne MSAA,
+  Tiefenschärfe an. Zwei Läufe im Bericht: 18:35–18:53 (r331, r332, r333, r405) und 19:03–19:12
+  (neues Spiel r120/r100, dann wieder r331–r333).
+- **Ursache der Hänger:** fast jeder große Ausreißer (Bildstück 200–1177 ms) fällt mit vielen neuen
+  Shader-Programmen zusammen: 18:36:50 5 → 65 Programme (1177 ms), 18:43:06 252 → 308 (905 ms),
+  18:49:45 358 → 414 (684 ms), 18:52:44 510 → 565 (603 ms), 19:05:14 758 → 793 (934 ms), 19:12:36
+  999 → 1030 (651 ms). 0.45.0 hat die Shader-Quellen geändert (XF in drei Teilen): alle alten
+  Binärdateien galten nicht mehr, und Schlüsseldateien gibt es erst seit 0.45.0. Im zweiten Lauf
+  luden sich 565 Programme vorab aus dem Cache; neue (erstmals gesehene) bauten sich beim ersten
+  Zeichnen. Das löst Schritt 3 (`8da2415`): Bau auf eigenem Thread, Liste in der App, die mit den
+  Schlüsseln der Berichte wächst (dieser Bericht von 0.45.0 hat noch keine).
+- **Mehrere Kerne wirken hier:** in r331/r332 rechnen die Eckpunkt-Threads 13–16 ms je Bild
+  (`vertices: 340 batches in 14.4 ms on 3 more threads`), der Spiel-Thread braucht 18–20 ms und
+  hat 5–13 ms frei; ohne die Helfer läge er über 33 ms. Bilder 34–40 ms an vollen Stellen, der
+  Zeichen-Thread 12–16 ms je Bildstück.
+- **Ton:** 31-mal leergelaufen in 18 Minuten (kurz), nichts verloren.
+
+### Branch `performance`, Schritt 4: Spielkern mit -O3 übersetzt? Nein (23.10.2026, Cloud)
+
+- **Versuch:** `RE4_OPT=3` für i686 und aarch64: 0 Baufehler, Laufzeit- und Kerntests 0 Fehler.
+- **Messung GX-Decoder** (`RE4_GX_BENCH`, ohne Helfer, 120 000 Eckpunkte je Bild): i686 -O2
+  3,1–3,25 ms, -O3 3,24–3,41 ms; Streifen zu 8: 4,1–4,4 gegen 4,5–5,2 ms. aarch64 unter qemu (nur
+  als Hinweis): -O2 31,3–31,5 ms, -O3 37,0–38,8 ms; Streifen zu 8 gleich (52–57 ms).
+- **Ergebnis:** -O3 macht den Decoder nicht schneller, eher langsamer; der Kern bleibt bei -O2.
+  Die Spiellogik selbst lässt sich in der Cloud nicht messen (Disc-Daten).
+
 ### Branch `performance`, Schritt 3: Shader-Liste in der App, Shader auf einem eigenen Thread (Wunsch des Projektinhabers, 23.10.2026, Cloud)
 
 - **Ziel:** auch der erste Start (und jeder neue Effekt, den ein anderes Gerät schon kannte) soll
