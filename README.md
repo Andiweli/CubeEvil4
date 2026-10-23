@@ -2,7 +2,7 @@
 
 # CubeEvil4
 
-![Work in progress](https://img.shields.io/badge/Status-Work%20in%20progress-E67E22)
+![Beta](https://img.shields.io/badge/Status-Beta-E67E22)
 ![Android 6.0+](https://img.shields.io/badge/Android-6.0%2B-3DDC84?logo=android&logoColor=white)
 ![ARM 32/64-bit](https://img.shields.io/badge/ARM-32%2F64--bit-0091BD?logo=arm&logoColor=white)
 ![OpenGL ES 3.0+](https://img.shields.io/badge/OpenGL%20ES-3.0%2B-5586A4?logo=opengl&logoColor=white)
@@ -11,7 +11,7 @@
 [![Join The Lair on Discord](https://img.shields.io/badge/Discord-The%20Lair-5865F2?logo=discord&logoColor=white)](https://discord.gg/AB3WVBqD5G)
 [![Support via PayPal](https://img.shields.io/badge/Support%20via-PayPal-0070BA?logo=paypal&logoColor=white)](https://paypal.me/andiweli)
 
-**[REQUIREMENTS](#requirements) | [STATUS](#status) | [HOW TO USE](#how-to-use) | [DISCORD](https://discord.gg/AB3WVBqD5G) | [ALPHA RELEASE](https://github.com/Andiweli/CubeEvil4-Android/releases)**
+**[REQUIREMENTS](#requirements) | [STATUS](#status) | [HOW TO USE](#how-to-use) | [DISCORD](https://discord.gg/AB3WVBqD5G) | [BETA RELEASE](https://github.com/Andiweli/CubeEvil4-Android/releases)**
 
 **CubeEvil4** is an unofficial, native Android port of the GameCube debug build of Resident Evil 4
 (`G4BE08`, the "Nov 25 2004" prototype on two discs). It does not recreate the game: the app runs
@@ -69,18 +69,20 @@ data: you need your own images of both debug discs.
 
 ## Status
 
-Work in progress.  
+Beta: the whole game can be played from start to finish.  
 Tested on the following devices:
 - Retroid Pocket Flip 2 (Android 13)
 - POCO X7 Pro (Android 16)
+- Samsung Galaxy S10 (SCV40, Android 10): played from the village to the end credits
 
-32 and 64 bit: title, opening movie, the police car ride and the village of chapter 1; saving at
-the typewriter and loading on 32- and 64-bit devices. Testers have played on to the church (its
-light puzzle works since v0.38.2). On the PC, a comparison run plays the 32- and 64-bit core
+Played through on a 64-bit phone: title, movies, every chapter up to the jet ski ride and the end
+credits; saving at the typewriter and loading on 32- and 64-bit devices. On the PC, a tour starts
+each of the game's 126 rooms without a crash, and a comparison run plays the 32- and 64-bit core
 with the same input through the first parts and finds every frame and every compared picture
-identical. Later chapters have not been played through yet; that is the next step (a tour of
-many rooms). Progress, test results and every patch are recorded in
-`port/docs/whole-program-status.md` (German).
+identical. An effect can stutter briefly the first time it appears while its shader is built; the
+app prepares the 1928 shaders it knows ahead (village, lake, the island's finale), the castle and
+the rest of the island follow from testers' reports. Progress, test results and every patch are
+recorded in `port/docs/whole-program-status.md` (German).
 
 > [!IMPORTANT]
 > The game is the debug build, and its debug menu is still switched on for the test runs: holding
