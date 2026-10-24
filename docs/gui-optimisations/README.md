@@ -9,6 +9,9 @@ Menü und Instant-Speichern/Laden sind inzwischen implementiert: siehe
 [Umsetzung, Prüfungen und lokale Bauanleitung](IMPLEMENTATION.md). Die Bilder
 enthalten die anschließend gewünschten Titel- und Slot-Änderungen.
 
+Zusätzlich geprüft: [Frame Skip unter Performance – Machbarkeit und Grenzen](FRAME-SKIP.md).
+Die Option ist noch nicht implementiert.
+
 ## Die fünf Entwürfe
 
 ![Übersicht aller fünf Seiten](uebersicht.png)

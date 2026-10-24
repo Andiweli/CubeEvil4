@@ -45,6 +45,19 @@ Aktualisierte Screendesigns, PDF und Offline-Vorschau. APK-Build und
 `lintCoreDebug` bestanden; keine Kern-/Spielstandänderung. Visuelle Prüfung
 auf dem Retroid für diese Nachkorrektur noch offen.
 
+### Frame-Skip-Machbarkeit (24.10.2026)
+
+[Quellcodeanalyse und Umsetzungsvorschlag](../../docs/gui-optimisations/FRAME-SKIP.md).
+Grundsätzlich möglich: jedes zweite Spielbild beim Zeichnen auslassen, bei
+normalem 30-Hz-Spiel rund 15 sichtbare Bilder; Spiellogik, Eingaben und Ton
+behalten ihren Takt. Hilft vor allem bei langsamer Grafikberechnung. Der
+GX-Befehlsstrom enthält bildübergreifende Zustands-/Texturänderungen und
+Bildpufferkopien: ungeprüft ganze Bilder zu verwerfen ist nicht korrekt. Ein
+eigener Renderpfad mit erhaltenen Abhängigkeiten ist nötig; der Nutzen hängt
+von der tatsächlich auslassbaren Zeichenarbeit ab. **Nur geprüft, nicht
+implementiert; kein Gerätevergleich und keine gemessene Beschleunigung.**
+App und Übersetzungen bleiben gegenüber der Layout-Nachkorrektur unverändert.
+
 ## Kurzstand
 
 | Meilenstein | Stand |
