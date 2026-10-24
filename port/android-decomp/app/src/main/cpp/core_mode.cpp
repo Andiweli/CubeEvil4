@@ -1326,6 +1326,10 @@ bool drawGx() {
     }
     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - now).count();
     renderHint.Report(static_cast<long long>(ms * 1e6));
+    // about once a second: back on the fast cores if Android moved the thread off them
+    static unsigned coreChecks, coreMoves;
+    if (++coreChecks % 30 == 0 && re4cpu::KeepOnFastCores() && ++coreMoves <= 4)
+      LOG("cores: the render thread put back on its cores (Android had moved it, %u times so far)", coreMoves);
     gxRunMs += ms;
     gxRunMax = std::max(gxRunMax, ms);
     gxRunCount++;

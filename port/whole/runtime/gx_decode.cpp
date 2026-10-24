@@ -527,6 +527,11 @@ void hintChunk()
     } else if (gHintState == 1 && gHintFrom) {
         gHint.Report(now - gHintFrom - (idle - gHintIdle) - gHintWait);
     }
+    // about once a second: back on the fast cores if Android moved the thread off them
+    static unsigned checks, moves;
+    if (++checks % 30 == 0 && re4cpu::KeepOnFastCores() && ++moves <= 4) {
+        re4_log("cores: the game thread put back on its cores (Android had moved it, %u times so far)", moves);
+    }
     gHintFrom = now;
     gHintIdle = idle;
     gHintWait = 0;

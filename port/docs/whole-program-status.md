@@ -5947,6 +5947,25 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Berichte realme RMX3710 (0.46.0, Mali-G52) und RMX3741 (0.9.0-beta, Mali-G68), 24.10.2026: Threads auf den langsamen Kernen (Cloud)
+
+- **Berichte:** RMX3710 (Android 15, 8 Kerne: 0–5 bis 1,8 GHz, 6–7 bis 2,0 GHz; Stufe 1) in r400/r404,
+  der Kern braucht 36–46 ms je Spielbild (unter 30 Bilder/s); RMX3741 (Android 15, 0–5 bis 2,0 GHz,
+  6–7 bis 2,6 GHz; Stufe 2/Dynamisch) im Dorf, 60 gezeigte Bilder/s. Kein Absturz in den Sitzungen;
+  `crash-system.txt` des RMX3710: `sceInLock` vom 22.10. 22:43 (ältere Version, Patch 0101).
+- **Gefunden:** beide setzen den Spiel-Thread beim Start auf die Kerne 6–7 (`cores: the game thread
+  on cores 6 7`), die Zeile `GX core` zeigt ihn eine bis zwei Minuten später zu 90–99 % auf den
+  langsamen Kernen (RMX3741: 26–30 ms Rechenzeit je Bild von 33,3 ms; RMX3710 ohne Menü
+  dazwischen). Android setzt die Kern-Zuordnung eines Threads zurück, wenn es die App zwischen seinen
+  Kern-Gruppen (cpusets) verschiebt.
+- **Geändert:** `re4cpu::KeepOnFastCores` (`re4_cpu_info.h`): der Thread merkt sich die Kerne von
+  `KeepOffSlowCores`; Spiel-Thread (`gx_decode.cpp`, je Spielbild-Grenze) und Zeichen-Thread
+  (`core_mode.cpp`, je Run) prüfen sie alle 30 Bilder (`sched_getaffinity`) und setzen sie neu, wenn
+  Android sie geändert hat; Zeile `cores: the game/render thread put back on its cores (… N times so
+  far)`, höchstens viermal. i686: 0 Baufehler, alle Tests 0 Fehler; App-Linkprüfung ohne Fehler.
+  **Am Gerät nicht getestet.**
+- **Shader-Liste:** **8068 Programme** (194 neu).
+
 ### Bericht Xiaomi 2109119DG (0.46.0, 23.10.2026 22:15, Insel r316–r321): Hänger beim Laden von r325; Vibration bestätigt (Cloud)
 
 - **Vibration:** der Projektinhaber bestätigt sie im Spiel (Änderung `rumbleTick`, Stand `ea1aea9`).
