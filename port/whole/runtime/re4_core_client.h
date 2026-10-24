@@ -70,6 +70,7 @@ void re4ipc_gx_release(const Re4GxChunk* chunk);
 void re4ipc_gx_detach(void);
 void re4ipc_vsync(int64_t ns);
 int re4ipc_pause(int on, int waitMs);
+int re4ipc_instant(int operation, Re4InstantInfo* info);
 void re4ipc_debug_menu(void);
 void re4ipc_set_dof(int on);
 void re4ipc_set_letterbox(int off);

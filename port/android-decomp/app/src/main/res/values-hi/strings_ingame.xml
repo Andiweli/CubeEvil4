@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Hindi (हिन्दी): the texts of values/strings_ingame.xml, same names and placeholders. -->
 <resources>
-    <string name="ingame_title">CubeEvil4 विकल्प</string>
+    <string name="ingame_title">CubeEvil4 इन-गेम मेन्यू</string>
     <string name="ingame_hint">SELECT (छोटा दबाएँ) = यह मेनू  ·  SELECT (देर तक दबाएँ) = गेम का डीबग मेनू</string>
     <string name="ingame_back">गेम पर लौटें</string>
 
@@ -94,4 +94,40 @@
     <string name="ingame_report_chooser">त्रुटि रिपोर्ट भेजें</string>
     <string name="ingame_report_failed">रिपोर्ट नहीं बन सकी: %1$s</string>
     <string name="ingame_capture_saved">ग्राफ़िक्स कैप्चर सहेजा गया</string>
+
+    <!-- Five-page button menu and the app-owned instant slot (gui-optimisations). -->
+    <string name="ingame_return">वापस</string>
+    <string name="ingame_on">चालू</string>
+    <string name="ingame_display">डिस्प्ले</string>
+    <string name="ingame_controls_page">नियंत्रण</string>
+    <string name="ingame_performance">प्रदर्शन</string>
+    <string name="ingame_management">प्रबंधन</string>
+    <string name="ingame_navigation">डी-पैड: नेविगेट  ·  A: चुनें  ·  B: वापस  ·  SELECT / START: गेम में लौटें</string>
+    <string name="ingame_instant">तुरंत सेव</string>
+    <string name="ingame_slot">सेव स्लॉट</string>
+    <string name="ingame_slot_details">अध्याय %1$s  ·  %2$s  ·  खेलने का समय %3$s</string>
+    <string name="ingame_slot_date">आखिरी सेव: %1$s</string>
+    <string name="ingame_settings">सेटिंग और प्रबंधन</string>
+    <string name="ingame_display_summary">रिज़ॉल्यूशन, चित्र और प्रभाव</string>
+    <string name="ingame_controls_summary">टच, जाइरो और सुविधाजनक नियंत्रण</string>
+    <string name="ingame_performance_summary">तेज़ कोर, 60 FPS और जानकारी</string>
+    <string name="ingame_management_summary">मेमोरी कार्ड, रिपोर्ट और सोर्स</string>
+    <string name="ingame_output">चित्र आउटपुट</string>
+    <string name="ingame_smooth_help">अतिरिक्त बीच के फ़्रेम। गेम लॉजिक 30 फ़्रेम/सेकंड पर रहता है।</string>
+    <string name="ingame_instant_save">सेव करें</string>
+    <string name="ingame_instant_load">लोड करें</string>
+    <string name="ingame_instant_checking">सेव स्लॉट जाँचा जा रहा है…</string>
+    <string name="ingame_instant_working">कृपया प्रतीक्षा करें…</string>
+    <string name="ingame_instant_ready">तैयार।</string>
+    <string name="ingame_instant_empty">अभी कोई तुरंत सेव नहीं है।</string>
+    <string name="ingame_instant_unavailable">लोडिंग, घटनाओं या इस स्थिति में उपलब्ध नहीं है। मेन्यू बंद करें और खेलते समय फिर कोशिश करें।</string>
+    <string name="ingame_instant_unsupported">तुरंत सेव के लिए गेम कोर अपडेट करें।</string>
+    <string name="ingame_instant_damaged">तुरंत सेव खराब है या मेल नहीं खाता। आप इसे नए सेव से बदल सकते हैं।</string>
+    <string name="ingame_instant_failed">तुरंत सेव पढ़ा या लिखा नहीं जा सका।</string>
+    <string name="ingame_instant_saved">तुरंत सेव सहेजा गया।</string>
+    <string name="ingame_instant_overwrite_title">तुरंत सेव बदलें?</string>
+    <string name="ingame_instant_load_title">तुरंत सेव लोड करें?</string>
+    <string name="ingame_instant_overwrite">पिछले तुरंत सेव को मौजूदा प्रगति से बदलें?</string>
+    <string name="ingame_instant_load_warning">बिना सेव की प्रगति खो जाएगी। तुरंत सेव लोड करें?</string>
+    <string name="ingame_toggle_value">%1$s   ·   %2$s</string>
 </resources>

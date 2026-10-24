@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- German (Deutsch): the texts of values/strings_ingame.xml, same names and placeholders. -->
 <resources>
-    <string name="ingame_title">CubeEvil4 Optionen</string>
+    <string name="ingame_title">CubeEvil4 Ingame-Menü</string>
     <string name="ingame_hint">SELECT (kurz drücken) = dieses Menü  ·  SELECT (lang drücken) = Debug-Menü des Spiels</string>
     <string name="ingame_back">Zurück zum Spiel</string>
 
@@ -94,4 +94,40 @@
     <string name="ingame_report_chooser">Fehlerbericht senden</string>
     <string name="ingame_report_failed">Der Bericht konnte nicht erstellt werden: %1$s</string>
     <string name="ingame_capture_saved">Grafikaufnahme gespeichert</string>
+
+    <!-- Five-page button menu and the app-owned instant slot (gui-optimisations). -->
+    <string name="ingame_return">Zurück</string>
+    <string name="ingame_on">An</string>
+    <string name="ingame_display">Display</string>
+    <string name="ingame_controls_page">Controls</string>
+    <string name="ingame_performance">Performance</string>
+    <string name="ingame_management">Management</string>
+    <string name="ingame_navigation">D-Pad: Navigieren  ·  A: Auswählen  ·  B: Zurück  ·  SELECT / START: Zum Spiel</string>
+    <string name="ingame_instant">Instant-Spielstand</string>
+    <string name="ingame_slot">Speicherslot</string>
+    <string name="ingame_slot_details">Kapitel %1$s  ·  %2$s  ·  Spielzeit %3$s</string>
+    <string name="ingame_slot_date">Zuletzt gespeichert: %1$s</string>
+    <string name="ingame_settings">Einstellungen &amp; Verwaltung</string>
+    <string name="ingame_display_summary">Auflösung, Bildformat &amp; Effekte</string>
+    <string name="ingame_controls_summary">Touch, Gyro &amp; Komfortsteuerung</string>
+    <string name="ingame_performance_summary">Leistungskerne, 60 FPS &amp; Anzeige</string>
+    <string name="ingame_management_summary">Speicherkarte, Berichte &amp; Quelle</string>
+    <string name="ingame_output">Bildausgabe</string>
+    <string name="ingame_smooth_help">Zusätzliche Zwischenbilder. Die Spiellogik bleibt bei 30 Bildern/s.</string>
+    <string name="ingame_instant_save">Speichern</string>
+    <string name="ingame_instant_load">Laden</string>
+    <string name="ingame_instant_checking">Speicherslot wird geprüft …</string>
+    <string name="ingame_instant_working">Bitte warten …</string>
+    <string name="ingame_instant_ready">Bereit.</string>
+    <string name="ingame_instant_empty">Noch kein Instant-Spielstand vorhanden.</string>
+    <string name="ingame_instant_unavailable">Beim Laden, während Ereignissen oder in diesem Spielzustand nicht verfügbar. Menü schließen und im Spiel erneut versuchen.</string>
+    <string name="ingame_instant_unsupported">Für Instant-Speichern bitte den Spielkern aktualisieren.</string>
+    <string name="ingame_instant_damaged">Der Instant-Spielstand ist beschädigt oder inkompatibel. Du kannst ihn durch einen neuen ersetzen.</string>
+    <string name="ingame_instant_failed">Der Instant-Spielstand konnte nicht gelesen oder geschrieben werden.</string>
+    <string name="ingame_instant_saved">Instant-Spielstand gespeichert.</string>
+    <string name="ingame_instant_overwrite_title">Instant-Spielstand überschreiben?</string>
+    <string name="ingame_instant_load_title">Instant-Spielstand laden?</string>
+    <string name="ingame_instant_overwrite">Den bisherigen Instant-Spielstand durch Deinen aktuellen Fortschritt ersetzen?</string>
+    <string name="ingame_instant_load_warning">Nicht gespeicherter Fortschritt geht verloren. Instant-Spielstand laden?</string>
+    <string name="ingame_toggle_value">%1$s   ·   %2$s</string>
 </resources>

@@ -4,8 +4,10 @@ Stand: 24.10.2026. Grundlage: `beta-optimisations`, Commit
 [`19bd01c`](https://github.com/Andiweli/CubeEvil4-Android/commit/19bd01c4aca8a2fecc287ea0cb7c484a0f9af5ad).
 Arbeitsbranch: **`gui-optimisations`**, von genau diesem Commit abgezweigt.
 
-Dieser Schritt enthält Analyse und Entwürfe. Die Android-App und der Spielkern
-wurden nicht verändert; Save/Load ist noch nicht implementiert.
+Die ursprüngliche Erstanalyse steht nachfolgend als Referenz. Das abgestimmte
+Menü und Instant-Speichern/Laden sind inzwischen implementiert: siehe
+[Umsetzung, Prüfungen und lokale Bauanleitung](IMPLEMENTATION.md). Die Bilder
+enthalten die anschließend gewünschten Titel- und Slot-Änderungen.
 
 ## Die fünf Entwürfe
 

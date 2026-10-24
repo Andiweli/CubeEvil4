@@ -4,16 +4,34 @@ Diese Datei ist das Gedächtnis zwischen den Sitzungen. Jede Sitzung liest sie
 zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 
 
-## GUI-Optimierungen: Erstanalyse (24.10.2026)
+## GUI-Optimierungen und Instant-Spielstand (24.10.2026)
 
-Branch `gui-optimisations`, abgezweigt von `beta-optimisations` bei `19bd01c`.
-[Analyse und fünf Screendesigns](../../docs/gui-optimisations/README.md) sowie
-klickbarer Offline-Entwurf: Hauptseite mit separatem Instant-Save/Load,
-Display, Controls, Performance, Management. Alle vorhandenen Menüfunktionen
-zugeordnet. Original-Kartenpfad, GameSave-Position/Blickrichtung, Pausen- und
-Prozess-Anbindung untersucht. **Nur Entwurf, keine App-/Kern-Implementierung.**
-SVGs/PNG-Rendering und JavaScript-Syntax geprüft. Android-/Gerätetest offen;
-Implementierung folgt erst nach der Designphase.
+Branch `gui-optimisations`, von `beta-optimisations` bei `19bd01c` abgezweigt.
+[Umsetzung und Prüfungen](../../docs/gui-optimisations/IMPLEMENTATION.md),
+[abgestimmte Screendesigns](../../docs/gui-optimisations/README.md).
+Fünf Seiten in derselben pausierten Menüinstanz: Hauptseite mit Instant-Slot,
+Display, Controls, Performance, Management. Buttons statt Radio-/Checkboxen,
+alle bisherigen Funktionen/Präferenzschlüssel und alle zehn Sprachen erhalten.
+Titel und Slot-Anordnung nach der Freigabe des Projektinhabers umgesetzt.
+
+Instant-Datei `<game>/instant/slot-0.ce4save` außerhalb der Speicherkarte:
+Original-GameSave-/Inventar-/Raum-/Händler-/Untermenü-/Systemdaten, aktuelle
+Position/Blickrichtung, CRCs, feste Byte-Reihenfolge und atomarer Dateitausch.
+Der normale Continue-Puffer bleibt beim Speichern erhalten. JNI und separater
+Kernprozess angebunden. **Patch 0111** startet den Original-Ladeweg auf der
+Spielaufgabe nach dem Schließen des Menüs; nicht aus PADRead oder Java.
+`src/` und `include/` unverändert. Neue Dateien `instant_game.cpp`,
+`instant_store.cpp`, `re4_instant.h`; neue gezielte Erfassungs-/Dateitests.
+
+Cloud: Übersetzungen, x86_64-Kernprüfungen inklusive Original-Erfassung und
+Dateifehlerfällen bestanden; ARM32-/ARM64-Kernbuilds (je 114 Module) fehlerfrei;
+komplette coreDebug-APK und Android-Lint erfolgreich. i686 unter QEMU:
+Kernprüfung, Instant-Dateitests mit Prozess-Neustart und separater Kernprozess
+(inkl. neuer Instant-Befehle) mit 0 Fehlern. Fester Dateipuffer vermeidet eine
+im Prozesstest gefundene STL-Bindung an den Spiel-Heap. Vorhandener Lint-Fehler
+im geschützten Spatializer-Helfer mit `@TargetApi(32)` gekennzeichnet.
+**Offen:** Spiel-/Gerätetest auf dem Retroid mit Disc-Daten, besonders Raum-/
+Waffenwechsel, Ereignisfortschritt, Standort, Touch/Controller und 4:3.
 
 ## Kurzstand
 

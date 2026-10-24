@@ -3,7 +3,7 @@
      Before : and ? a no-break space, written \u00A0 (Android's resource build turns the
      character itself into a normal space), as French typography wants it. -->
 <resources>
-    <string name="ingame_title">Options de CubeEvil4</string>
+    <string name="ingame_title">CubeEvil4 · Menu en jeu</string>
     <string name="ingame_hint">SELECT (appui court) = ce menu  ·  SELECT (appui long) = menu de débogage du jeu</string>
     <string name="ingame_back">Retour au jeu</string>
 
@@ -97,4 +97,40 @@
     <string name="ingame_report_chooser">Envoyer le rapport d’erreurs</string>
     <string name="ingame_report_failed">Impossible de créer le rapport\u00A0: %1$s</string>
     <string name="ingame_capture_saved">Capture graphique enregistrée</string>
+
+    <!-- Five-page button menu and the app-owned instant slot (gui-optimisations). -->
+    <string name="ingame_return">Retour</string>
+    <string name="ingame_on">Activé</string>
+    <string name="ingame_display">Affichage</string>
+    <string name="ingame_controls_page">Commandes</string>
+    <string name="ingame_performance">Performances</string>
+    <string name="ingame_management">Gestion</string>
+    <string name="ingame_navigation">Croix : Naviguer  ·  A : Choisir  ·  B : Retour  ·  SELECT / START : Reprendre</string>
+    <string name="ingame_instant">Sauvegarde instantanée</string>
+    <string name="ingame_slot">Emplacement de sauvegarde</string>
+    <string name="ingame_slot_details">Chapitre %1$s  ·  %2$s  ·  Temps de jeu %3$s</string>
+    <string name="ingame_slot_date">Dernière sauvegarde : %1$s</string>
+    <string name="ingame_settings">Réglages et gestion</string>
+    <string name="ingame_display_summary">Résolution, format et effets</string>
+    <string name="ingame_controls_summary">Tactile, gyroscope et confort</string>
+    <string name="ingame_performance_summary">Cœurs performants, 60 FPS et compteur</string>
+    <string name="ingame_management_summary">Carte mémoire, rapports et sources</string>
+    <string name="ingame_output">Sortie vidéo</string>
+    <string name="ingame_smooth_help">Images intermédiaires supplémentaires. La logique du jeu reste à 30 images/s.</string>
+    <string name="ingame_instant_save">Sauvegarder</string>
+    <string name="ingame_instant_load">Charger</string>
+    <string name="ingame_instant_checking">Vérification de la sauvegarde …</string>
+    <string name="ingame_instant_working">Veuillez patienter …</string>
+    <string name="ingame_instant_ready">Prêt.</string>
+    <string name="ingame_instant_empty">Aucune sauvegarde instantanée.</string>
+    <string name="ingame_instant_unavailable">Indisponible pendant un chargement, un événement ou dans cet état. Ferme le menu et réessaie en jeu.</string>
+    <string name="ingame_instant_unsupported">Mets à jour le moteur pour utiliser la sauvegarde instantanée.</string>
+    <string name="ingame_instant_damaged">La sauvegarde instantanée est endommagée ou incompatible. Tu peux la remplacer par une nouvelle.</string>
+    <string name="ingame_instant_failed">Impossible de lire ou écrire la sauvegarde instantanée.</string>
+    <string name="ingame_instant_saved">Sauvegarde instantanée enregistrée.</string>
+    <string name="ingame_instant_overwrite_title">Écraser la sauvegarde instantanée ?</string>
+    <string name="ingame_instant_load_title">Charger la sauvegarde instantanée ?</string>
+    <string name="ingame_instant_overwrite">Remplacer la sauvegarde instantanée précédente par ta progression actuelle ?</string>
+    <string name="ingame_instant_load_warning">La progression non sauvegardée sera perdue. Charger la sauvegarde instantanée ?</string>
+    <string name="ingame_toggle_value">%1$s   ·   %2$s</string>
 </resources>

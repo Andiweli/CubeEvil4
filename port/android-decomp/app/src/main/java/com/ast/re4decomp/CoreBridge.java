@@ -76,6 +76,9 @@ public final class CoreBridge {
 
   /** The core has the menu's functions (pause, memory card). */
   public static native boolean hasMenu();
+  /** Instant slot: operation 0 status, 1 save, 2 load. Result and seven fixed-width metadata fields.
+   * Called on a worker while the app menu keeps the core paused. */
+  public static native long[] instant(int operation);
   /**
    * on: the game stops at its next frame and waits until pause(false);
    * waits up to waitMs for that. True when the game stands.

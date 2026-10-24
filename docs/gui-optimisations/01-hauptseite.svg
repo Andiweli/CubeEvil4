@@ -21,8 +21,8 @@
 <rect x="140" y="48" width="1000" height="626" rx="12" fill="#050806" stroke="none" opacity=".6" transform="translate(0 8)"/>
 <rect x="140" y="48" width="1000" height="626" rx="10" fill="#191f1c" stroke="#414b41" />
 <rect x="140" y="48" width="1000" height="4" rx="0" fill="#d7bc7d" stroke="none" />
-<text x="174" y="101" font-size="28" fill="#f0eee5" font-weight="600" >Ingame-Menü</text>
-<text x="174" y="126" font-size="13" fill="#a6afa3" font-weight="400" >v0.9.0-beta · Spiel pausiert · SELECT halten: Debug-Menü</text>
+<text x="174" y="101" font-size="28" fill="#f0eee5" font-weight="600" >CubeEvil4 Ingame-Menü</text>
+<text x="174" y="126" font-size="13" fill="#a6afa3" font-weight="400" ></text>
 <g class="button " role="button" tabindex="0" aria-label="Weiter spielen" aria-disabled="false" data-action="resume" opacity="1">
 <rect x="925" y="76" width="181" height="44" rx="6" fill="#222a25" stroke="#414b41" />
 <text x="1015.5" y="104.0" font-size="17" fill="#f0eee5" font-weight="600" text-anchor="middle">Weiter spielen</text>
@@ -31,11 +31,12 @@
 <path d="M174 620H1106" stroke="#414b41"/>
 <text x="178" y="650" font-size="12" fill="#a6afa3" font-weight="400" >D-PAD  Navigieren     A  Auswählen</text>
 <text x="1102" y="650" font-size="12" fill="#a6afa3" font-weight="400" text-anchor="end">B  Zum Spiel     SELECT / START  Zum Spiel</text>
+<text x="570" y="100" font-size="15" fill="#a6afa3" font-weight="400" >(v0.90.1-beta)</text>
 <text x="178" y="180" font-size="12" fill="#a6afa3" font-weight="600" letter-spacing="1.8">INSTANT-SPIELSTAND</text>
 <rect x="174" y="196" width="932" height="174" rx="6" fill="#202720" stroke="#414b41" />
-<text x="198" y="229" font-size="21" fill="#f0eee5" font-weight="600" >Ein separater Speicherplatz</text>
-<text x="198" y="256" font-size="15" fill="#a6afa3" font-weight="400" >Kapitel 1–1   ·   r100   ·   Spielzeit 00:12:34</text>
-<text x="198" y="281" font-size="14" fill="#a6afa3" font-weight="400" id="save-meta">Zuletzt gespeichert: 24.10.2026, 10:24</text>
+<text x="198" y="229" font-size="21" fill="#f0eee5" font-weight="600" >Speicherslot</text>
+<text x="198" y="256" font-size="14" fill="#a6afa3" font-weight="400" >Kapitel 1–1 · r100 · Spielzeit 00:12:34</text>
+<text x="1082" y="256" font-size="13" fill="#a6afa3" font-weight="400" text-anchor="end" id="save-meta">Zuletzt gespeichert: 24.10.2026, 12:24</text>
 <g class="button selected" role="button" tabindex="0" aria-label="Speichern" aria-disabled="false" data-action="save" opacity="1">
 <rect x="198" y="302" width="430" height="48" rx="6" fill="#45432e" stroke="#d7bc7d" />
 <text x="413.0" y="332.0" font-size="17" fill="#d7bc7d" font-weight="600" text-anchor="middle">Speichern</text>
@@ -44,7 +45,6 @@
 <rect x="642" y="302" width="440" height="48" rx="6" fill="#222a25" stroke="#414b41" />
 <text x="862.0" y="332.0" font-size="17" fill="#f0eee5" font-weight="600" text-anchor="middle">Laden</text>
 </g>
-<text x="178" y="393" font-size="13" fill="#a6afa3" font-weight="400" >Getrennt von den Spielständen der Schreibmaschine.</text>
 <text x="178" y="430" font-size="12" fill="#a6afa3" font-weight="600" letter-spacing="1.8">EINSTELLUNGEN &amp; VERWALTUNG</text>
 <g class="button nav" role="button" tabindex="0" aria-label="Display" data-action="display">
 <rect x="174" y="447" width="458" height="66" rx="6" fill="#222a25" stroke="#414b41" />

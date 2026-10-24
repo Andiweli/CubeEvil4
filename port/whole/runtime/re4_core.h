@@ -1,5 +1,6 @@
 #ifndef RE4_CORE_H
 #define RE4_CORE_H
+#include "re4_instant.h"
 
 /* Embedding interface of the game core (libre4_main): what the Android app
  * (RE4-Android-Decomp, core mode) calls through dlsym, and what the Linux

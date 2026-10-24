@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Spanish (Español): the texts of values/strings_ingame.xml, same names and placeholders. -->
 <resources>
-    <string name="ingame_title">Opciones de CubeEvil4</string>
+    <string name="ingame_title">CubeEvil4 · Menú del juego</string>
     <string name="ingame_hint">SELECT (pulsación corta) = este menú  ·  SELECT (pulsación larga) = menú de depuración del juego</string>
     <string name="ingame_back">Volver al juego</string>
 
@@ -95,4 +95,40 @@
     <string name="ingame_report_chooser">Enviar el informe de errores</string>
     <string name="ingame_report_failed">No se pudo crear el informe: %1$s</string>
     <string name="ingame_capture_saved">Captura de gráficos guardada</string>
+
+    <!-- Five-page button menu and the app-owned instant slot (gui-optimisations). -->
+    <string name="ingame_return">Atrás</string>
+    <string name="ingame_on">Activado</string>
+    <string name="ingame_display">Pantalla</string>
+    <string name="ingame_controls_page">Controles</string>
+    <string name="ingame_performance">Rendimiento</string>
+    <string name="ingame_management">Gestión</string>
+    <string name="ingame_navigation">Cruceta: Navegar  ·  A: Elegir  ·  B: Atrás  ·  SELECT / START: Volver al juego</string>
+    <string name="ingame_instant">Guardado instantáneo</string>
+    <string name="ingame_slot">Ranura de guardado</string>
+    <string name="ingame_slot_details">Capítulo %1$s  ·  %2$s  ·  Tiempo %3$s</string>
+    <string name="ingame_slot_date">Último guardado: %1$s</string>
+    <string name="ingame_settings">Ajustes y gestión</string>
+    <string name="ingame_display_summary">Resolución, formato y efectos</string>
+    <string name="ingame_controls_summary">Táctil, giroscopio y comodidad</string>
+    <string name="ingame_performance_summary">Núcleos de rendimiento, 60 FPS e indicador</string>
+    <string name="ingame_management_summary">Tarjeta, informes y código fuente</string>
+    <string name="ingame_output">Salida de imagen</string>
+    <string name="ingame_smooth_help">Imágenes intermedias adicionales. La lógica del juego sigue a 30 imágenes/s.</string>
+    <string name="ingame_instant_save">Guardar</string>
+    <string name="ingame_instant_load">Cargar</string>
+    <string name="ingame_instant_checking">Comprobando ranura …</string>
+    <string name="ingame_instant_working">Espera …</string>
+    <string name="ingame_instant_ready">Listo.</string>
+    <string name="ingame_instant_empty">Aún no hay un guardado instantáneo.</string>
+    <string name="ingame_instant_unavailable">No disponible al cargar, durante eventos o en este estado. Cierra el menú y vuelve a intentarlo durante el juego.</string>
+    <string name="ingame_instant_unsupported">Actualiza el núcleo para usar el guardado instantáneo.</string>
+    <string name="ingame_instant_damaged">El guardado instantáneo está dañado o es incompatible. Puedes sustituirlo por uno nuevo.</string>
+    <string name="ingame_instant_failed">No se pudo leer o escribir el guardado instantáneo.</string>
+    <string name="ingame_instant_saved">Guardado instantáneo almacenado.</string>
+    <string name="ingame_instant_overwrite_title">¿Sobrescribir guardado instantáneo?</string>
+    <string name="ingame_instant_load_title">¿Cargar guardado instantáneo?</string>
+    <string name="ingame_instant_overwrite">¿Sustituir el guardado instantáneo anterior por tu progreso actual?</string>
+    <string name="ingame_instant_load_warning">Se perderá el progreso sin guardar. ¿Cargar el guardado instantáneo?</string>
+    <string name="ingame_toggle_value">%1$s   ·   %2$s</string>
 </resources>

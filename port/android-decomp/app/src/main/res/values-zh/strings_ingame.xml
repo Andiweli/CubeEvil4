@@ -2,7 +2,7 @@
 <!-- Chinese, Simplified (简体中文; Android uses it for zh-Hans: China, Singapore): the texts of
      values/strings_ingame.xml, same names and placeholders. -->
 <resources>
-    <string name="ingame_title">CubeEvil4 选项</string>
+    <string name="ingame_title">CubeEvil4 游戏内菜单</string>
     <string name="ingame_hint">SELECT（短按）= 本菜单  ·  SELECT（长按）= 游戏的调试菜单</string>
     <string name="ingame_back">返回游戏</string>
 
@@ -94,4 +94,40 @@
     <string name="ingame_report_chooser">发送错误报告</string>
     <string name="ingame_report_failed">无法生成报告：%1$s</string>
     <string name="ingame_capture_saved">图形捕获已保存</string>
+
+    <!-- Five-page button menu and the app-owned instant slot (gui-optimisations). -->
+    <string name="ingame_return">返回</string>
+    <string name="ingame_on">开</string>
+    <string name="ingame_display">显示</string>
+    <string name="ingame_controls_page">控制</string>
+    <string name="ingame_performance">性能</string>
+    <string name="ingame_management">管理</string>
+    <string name="ingame_navigation">方向键：导航  ·  A：选择  ·  B：返回  ·  SELECT / START：回到游戏</string>
+    <string name="ingame_instant">即时存档</string>
+    <string name="ingame_slot">存档槽</string>
+    <string name="ingame_slot_details">章节 %1$s  ·  %2$s  ·  游戏时间 %3$s</string>
+    <string name="ingame_slot_date">上次保存：%1$s</string>
+    <string name="ingame_settings">设置与管理</string>
+    <string name="ingame_display_summary">分辨率、画面比例与效果</string>
+    <string name="ingame_controls_summary">触控、陀螺仪与便捷操作</string>
+    <string name="ingame_performance_summary">性能核心、60 FPS 与帧率显示</string>
+    <string name="ingame_management_summary">记忆卡、报告与源代码</string>
+    <string name="ingame_output">图像输出</string>
+    <string name="ingame_smooth_help">生成额外的中间帧。游戏逻辑仍以每秒 30 帧运行。</string>
+    <string name="ingame_instant_save">保存</string>
+    <string name="ingame_instant_load">读取</string>
+    <string name="ingame_instant_checking">正在检查存档槽…</string>
+    <string name="ingame_instant_working">请稍候…</string>
+    <string name="ingame_instant_ready">就绪。</string>
+    <string name="ingame_instant_empty">尚无即时存档。</string>
+    <string name="ingame_instant_unavailable">载入、事件期间或当前状态下不可用。请关闭菜单，在游戏中重试。</string>
+    <string name="ingame_instant_unsupported">请更新游戏核心以使用即时存档。</string>
+    <string name="ingame_instant_damaged">即时存档已损坏或不兼容。你可以用新存档替换它。</string>
+    <string name="ingame_instant_failed">无法读取或写入即时存档。</string>
+    <string name="ingame_instant_saved">即时存档已保存。</string>
+    <string name="ingame_instant_overwrite_title">覆盖即时存档？</string>
+    <string name="ingame_instant_load_title">读取即时存档？</string>
+    <string name="ingame_instant_overwrite">用当前进度替换原有即时存档？</string>
+    <string name="ingame_instant_load_warning">未保存的进度将丢失。是否读取即时存档？</string>
+    <string name="ingame_toggle_value">%1$s   ·   %2$s</string>
 </resources>

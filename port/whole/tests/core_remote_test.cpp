@@ -298,6 +298,12 @@ void mainRun(const char* modules, const char* gciPath)
     Re4CardFile files[8];
     CHECK(re4ipc_card_list(files, 8) == 0);  // a new card
     CHECK(re4ipc_card_free_blocks() == 251);
+    Re4InstantInfo instant = {};
+    const int instantStatus = re4ipc_instant(RE4_INSTANT_STATUS, &instant);
+    CHECK(instantStatus == RE4_INSTANT_OK || instantStatus == RE4_INSTANT_IO);
+    CHECK(!instant.canSave && !instant.canLoad); // the probe does not run playable game logic
+    CHECK(re4ipc_instant(RE4_INSTANT_SAVE, &instant) == RE4_INSTANT_BUSY);
+    CHECK(re4ipc_frame_count() == frames); // servicing an instant command must keep the game paused
     char note[256] = "";
     std::vector<unsigned char> out(RE4_GCI_HEADER + 251 * RE4_CARD_BLOCK);
     CHECK(re4ipc_card_export(0, out.data(), (unsigned) out.size(), note, sizeof(note)) == RE4_CARD_NOFILE);

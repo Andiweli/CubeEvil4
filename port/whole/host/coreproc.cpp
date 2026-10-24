@@ -98,6 +98,7 @@ struct Core {
     void (*gxNotify)(void (*)(void));
     void (*vsync)(int64_t);
     int (*pause)(int, int);
+    int (*instant)(int, Re4InstantInfo*);
     void (*debugMenu)(void);
     void (*setDof)(int);
     void (*setLetterbox)(int);
@@ -716,6 +717,7 @@ bool loadCore(std::string& problem)
     bind(core.swipe, "re4_core_swipe");
     bind(core.slash, "re4_core_slash");
     bind(core.gyro, "re4_core_gyro");
+    bind(core.instant, "re4_core_instant");
     bind(core.cardList, "re4_core_card_list");
     bind(core.cardFree, "re4_core_card_free_blocks");
     bind(core.cardName, "re4_core_card_file_name");
@@ -804,6 +806,12 @@ void serve()
         case kPause:
             reply(h.id, core.pause(h.a, h.b), "");
             break;
+        case kInstant: {
+            Re4InstantInfo info = {};
+            const int result = core.instant(h.a, &info);
+            reply(h.id, result, "", &info, sizeof(info));
+            break;
+        }
         case kDebugMenu:
             core.debugMenu();
             break;

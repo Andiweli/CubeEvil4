@@ -5,7 +5,7 @@
      left-to-right mark &#x200E; keeps "1280 × 672" and ".gci" in their order. The FPS display
      stays left to right (CoreActivity). tools/check_translations.py checks all three. -->
 <resources>
-    <string name="ingame_title">خيارات CubeEvil4</string>
+    <string name="ingame_title">‏قائمة CubeEvil4 داخل اللعبة</string>
     <string name="ingame_hint">&#x200F;SELECT (ضغطة قصيرة) = هذه القائمة  ·  SELECT (ضغطة مطوّلة) = قائمة التصحيح في اللعبة</string>
     <string name="ingame_back">العودة إلى اللعبة</string>
 
@@ -103,4 +103,40 @@
     <string name="ingame_report_chooser">إرسال تقرير الأخطاء</string>
     <string name="ingame_report_failed">تعذّر إنشاء التقرير: %1$s</string>
     <string name="ingame_capture_saved">تم حفظ لقطة الرسومات</string>
+
+    <!-- Five-page button menu and the app-owned instant slot (gui-optimisations). -->
+    <string name="ingame_return">‏رجوع</string>
+    <string name="ingame_on">‏تشغيل</string>
+    <string name="ingame_display">‏العرض</string>
+    <string name="ingame_controls_page">‏التحكم</string>
+    <string name="ingame_performance">‏الأداء</string>
+    <string name="ingame_management">‏الإدارة</string>
+    <string name="ingame_navigation">‏لوحة الاتجاهات: تنقّل  ·  A: اختيار  ·  B: رجوع  ·  SELECT / START: العودة للعبة</string>
+    <string name="ingame_instant">‏حفظ فوري</string>
+    <string name="ingame_slot">‏خانة الحفظ</string>
+    <string name="ingame_slot_details">‏الفصل %1$s  ·  %2$s  ·  وقت اللعب %3$s</string>
+    <string name="ingame_slot_date">‏آخر حفظ: %1$s</string>
+    <string name="ingame_settings">‏الإعدادات والإدارة</string>
+    <string name="ingame_display_summary">‏الدقة وأبعاد الصورة والمؤثرات</string>
+    <string name="ingame_controls_summary">‏اللمس والجيروسكوب وخيارات الراحة</string>
+    <string name="ingame_performance_summary">‏أنوية الأداء و60 FPS وعرض الإطارات</string>
+    <string name="ingame_management_summary">‏بطاقة الذاكرة والتقارير والمصدر</string>
+    <string name="ingame_output">‏إخراج الصورة</string>
+    <string name="ingame_smooth_help">‏إطارات وسيطة إضافية. يظل منطق اللعبة عند 30 إطارًا في الثانية.</string>
+    <string name="ingame_instant_save">‏حفظ</string>
+    <string name="ingame_instant_load">‏تحميل</string>
+    <string name="ingame_instant_checking">‏جارٍ فحص خانة الحفظ…</string>
+    <string name="ingame_instant_working">‏يرجى الانتظار…</string>
+    <string name="ingame_instant_ready">‏جاهز.</string>
+    <string name="ingame_instant_empty">‏لا يوجد حفظ فوري بعد.</string>
+    <string name="ingame_instant_unavailable">‏غير متاح أثناء التحميل أو الأحداث أو في هذه الحالة. أغلق القائمة وحاول مجددًا أثناء اللعب.</string>
+    <string name="ingame_instant_unsupported">‏حدّث نواة اللعبة لاستخدام الحفظ الفوري.</string>
+    <string name="ingame_instant_damaged">‏الحفظ الفوري تالف أو غير متوافق. يمكنك استبداله بحفظ جديد.</string>
+    <string name="ingame_instant_failed">‏تعذرت قراءة الحفظ الفوري أو كتابته.</string>
+    <string name="ingame_instant_saved">‏تم الحفظ الفوري.</string>
+    <string name="ingame_instant_overwrite_title">‏استبدال الحفظ الفوري؟</string>
+    <string name="ingame_instant_load_title">‏تحميل الحفظ الفوري؟</string>
+    <string name="ingame_instant_overwrite">‏هل تريد استبدال الحفظ الفوري السابق بتقدمك الحالي؟</string>
+    <string name="ingame_instant_load_warning">‏سيُفقد التقدم غير المحفوظ. هل تريد تحميل الحفظ الفوري؟</string>
+    <string name="ingame_toggle_value">&#x200F;%1$s   ·   %2$s</string>
 </resources>

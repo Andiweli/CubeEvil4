@@ -77,15 +77,15 @@ def finish(name):
     return s
 
 def home():
-    base('Ingame-Menü','v0.9.0-beta · Spiel pausiert · SELECT halten: Debug-Menü','home')
+    base('CubeEvil4 Ingame-Menü','','home')
+    txt(570,100,'(v0.90.1-beta)',15,MUTED)
     small(178,180,'INSTANT-SPIELSTAND')
     rect(174,196,932,174,'#202720',STROKE,6)
-    txt(198,229,'Ein separater Speicherplatz',21,INK,600)
-    txt(198,256,'Kapitel 1–1   ·   r100   ·   Spielzeit 00:12:34',15,MUTED)
-    txt(198,281,'Zuletzt gespeichert: 24.10.2026, 10:24',14,MUTED,400,'id="save-meta"')
+    txt(198,229,'Speicherslot',21,INK,600)
+    txt(198,256,'Kapitel 1–1 · r100 · Spielzeit 00:12:34',14,MUTED)
+    txt(1082,256,'Zuletzt gespeichert: 24.10.2026, 12:24',13,MUTED,400,'text-anchor="end" id="save-meta"')
     button(198,302,430,'Speichern',True,'save')
     button(642,302,440,'Laden',False,'load')
-    txt(178,393,'Getrennt von den Spielständen der Schreibmaschine.',13,MUTED)
     small(178,430,'EINSTELLUNGEN & VERWALTUNG')
     for x,y,n,sub,action in [(174,447,'Display','Auflösung, Bildformat & Effekte','display'),(648,447,'Controls','Touch, Gyro & Komfortsteuerung','controls'),(174,527,'Performance','Leistungskerne, 60 FPS & Anzeige','performance'),(648,527,'Management','Speicherkarte, Berichte & Quelle','management')]:
         raw(f'<g class="button nav" role="button" tabindex="0" aria-label="{n}" data-action="{action}">')

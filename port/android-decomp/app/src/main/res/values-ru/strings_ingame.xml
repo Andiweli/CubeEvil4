@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Russian (Русский): the texts of values/strings_ingame.xml, same names and placeholders. -->
 <resources>
-    <string name="ingame_title">Настройки CubeEvil4</string>
+    <string name="ingame_title">CubeEvil4 · Игровое меню</string>
     <string name="ingame_hint">SELECT (коротко) = это меню  ·  SELECT (удерживать) = отладочное меню игры</string>
     <string name="ingame_back">Вернуться в игру</string>
 
@@ -96,4 +96,40 @@
     <string name="ingame_report_chooser">Отправить отчёт об ошибках</string>
     <string name="ingame_report_failed">Не удалось создать отчёт: %1$s</string>
     <string name="ingame_capture_saved">Снимок графики сохранён</string>
+
+    <!-- Five-page button menu and the app-owned instant slot (gui-optimisations). -->
+    <string name="ingame_return">Назад</string>
+    <string name="ingame_on">Вкл.</string>
+    <string name="ingame_display">Экран</string>
+    <string name="ingame_controls_page">Управление</string>
+    <string name="ingame_performance">Производительность</string>
+    <string name="ingame_management">Управление данными</string>
+    <string name="ingame_navigation">Крестовина: Навигация  ·  A: Выбор  ·  B: Назад  ·  SELECT / START: В игру</string>
+    <string name="ingame_instant">Мгновенное сохранение</string>
+    <string name="ingame_slot">Слот сохранения</string>
+    <string name="ingame_slot_details">Глава %1$s  ·  %2$s  ·  Время игры %3$s</string>
+    <string name="ingame_slot_date">Последнее сохранение: %1$s</string>
+    <string name="ingame_settings">Настройки и данные</string>
+    <string name="ingame_display_summary">Разрешение, формат и эффекты</string>
+    <string name="ingame_controls_summary">Сенсор, гироскоп и удобство</string>
+    <string name="ingame_performance_summary">Мощные ядра, 60 FPS и счётчик</string>
+    <string name="ingame_management_summary">Карта памяти, отчёты и исходники</string>
+    <string name="ingame_output">Вывод изображения</string>
+    <string name="ingame_smooth_help">Дополнительные промежуточные кадры. Логика игры остаётся на 30 кадрах/с.</string>
+    <string name="ingame_instant_save">Сохранить</string>
+    <string name="ingame_instant_load">Загрузить</string>
+    <string name="ingame_instant_checking">Проверка слота …</string>
+    <string name="ingame_instant_working">Подожди …</string>
+    <string name="ingame_instant_ready">Готово.</string>
+    <string name="ingame_instant_empty">Мгновенного сохранения пока нет.</string>
+    <string name="ingame_instant_unavailable">Недоступно при загрузке, во время событий или в этом состоянии. Закрой меню и повтори попытку в игре.</string>
+    <string name="ingame_instant_unsupported">Для мгновенного сохранения обнови ядро игры.</string>
+    <string name="ingame_instant_damaged">Мгновенное сохранение повреждено или несовместимо. Можно заменить его новым.</string>
+    <string name="ingame_instant_failed">Не удалось прочитать или записать мгновенное сохранение.</string>
+    <string name="ingame_instant_saved">Мгновенное сохранение записано.</string>
+    <string name="ingame_instant_overwrite_title">Перезаписать мгновенное сохранение?</string>
+    <string name="ingame_instant_load_title">Загрузить мгновенное сохранение?</string>
+    <string name="ingame_instant_overwrite">Заменить прежнее мгновенное сохранение текущим прогрессом?</string>
+    <string name="ingame_instant_load_warning">Несохранённый прогресс будет потерян. Загрузить мгновенное сохранение?</string>
+    <string name="ingame_toggle_value">%1$s   ·   %2$s</string>
 </resources>

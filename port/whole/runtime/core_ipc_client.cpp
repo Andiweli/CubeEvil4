@@ -894,6 +894,16 @@ int re4ipc_pause(int on, int waitMs)
     return call(kPause, on, waitMs, 0, nullptr, 0, (waitMs > 0 ? waitMs : 0) + 5000, &r) ? r.header.a : 0;
 }
 
+int re4ipc_instant(int operation, Re4InstantInfo* info)
+{
+    memset(info, 0, sizeof(*info));
+    Reply r;
+    if (!call(kInstant, operation, 0, 0, nullptr, 0, 30000, &r)) return RE4_INSTANT_IO;
+    if (r.dataBytes() != sizeof(*info)) return RE4_INSTANT_BAD;
+    memcpy(info, r.data(), sizeof(*info));
+    return r.header.a;
+}
+
 void re4ipc_debug_menu(void)
 {
     post(kDebugMenu, 0, 0, 0);

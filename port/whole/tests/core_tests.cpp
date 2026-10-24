@@ -57,6 +57,7 @@ extern "C" int re4probe_axfx_test(void);
 extern "C" int re4probe_movie_test(void);
 extern "C" int re4_formats_entry_status(const void* entry);
 extern "C" int re4probe_card_test(void);
+extern "C" int re4probe_instant_game_test(void);
 
 namespace {
 
@@ -1069,6 +1070,12 @@ void testPause()
     CHECK(gPauseFrames == 0);  // stands in its first PADRead
     CHECK(re4_core_card_list(files, 4) == 0);
     CHECK(re4_core_card_free_blocks() == 251);
+    Re4InstantInfo instant = {};
+    const int slot = re4_core_instant(RE4_INSTANT_STATUS, &instant);
+    CHECK(slot == RE4_INSTANT_OK || slot == RE4_INSTANT_BAD || slot == RE4_INSTANT_IO);
+    CHECK(instant.canSave == 0 && instant.canLoad == 0); // synthetic state is not playable
+    CHECK(re4_core_instant(RE4_INSTANT_SAVE, &instant) == RE4_INSTANT_BUSY);
+    CHECK(gPauseFrames == 0); // commands were serviced without advancing the game
     char note[128];
     unsigned char out[64];
     CHECK(re4_core_card_export(0, out, sizeof(out), note, sizeof(note)) == RE4_CARD_NOFILE);
@@ -1077,6 +1084,7 @@ void testPause()
     CHECK(gPauseFrames == 3);
     CHECK(re4_core_pause(0, 0) == 0);
     CHECK(re4_core_card_free_blocks() == RE4_CARD_BUSY);
+    CHECK(re4_core_instant(RE4_INSTANT_STATUS, &instant) == RE4_INSTANT_BUSY);
     // the menu's depth of field switch (patch 0065 reads it)
     CHECK(re4_dof_enabled() == 1);
     re4_core_set_dof(0);
@@ -1139,6 +1147,11 @@ int re4_core_tests()
         int failed = re4probe_card_test();
         gFailures += failed;
         report("card", failed == 0);
+    }
+    {
+        int failed = re4probe_instant_game_test();
+        gFailures += failed;
+        report("instant-game", failed == 0);
     }
     testPause();
     re4_log("core-test: %d failed", gFailures);

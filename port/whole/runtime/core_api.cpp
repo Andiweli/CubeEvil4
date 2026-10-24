@@ -9,6 +9,7 @@
 // other's work and a reader never sees a half-written frame.
 #include "re4_card_files.h"
 #include "re4_core.h"
+#include "re4_instant.h"
 #include "re4_gx_frame_io.h"
 #include "re4_runtime.h"
 
@@ -57,6 +58,9 @@ void setMessage(const char* text)
 pthread_mutex_t gPauseLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t gPauseCond = PTHREAD_COND_INITIALIZER;
 bool gPauseWanted, gPaused;
+int gInstantPending = -1, gInstantResult;
+bool gInstantBusy, gInstantDone;
+Re4InstantInfo gInstantInfo;
 // SELECT held in the app: the debug menu (patch 0061, re4_debug_menu_request)
 volatile int gDebugMenuWanted;
 
@@ -64,12 +68,24 @@ void pausePoint()
 {
     pthread_mutex_lock(&gPauseLock);
     if (gPauseWanted) {
+        re4_instant_game_pause(1);
         gPaused = true;
         pthread_cond_broadcast(&gPauseCond);
         re4_log("core: paused (the app's menu)");
-        while (gPauseWanted) {
-            pthread_cond_wait(&gPauseCond, &gPauseLock);
+        while (gPauseWanted || gInstantPending >= 0) {
+            if (gInstantPending >= 0) {
+                const int operation = gInstantPending;
+                // Only this thread can touch game objects, including while the menu is paused.
+                pthread_mutex_unlock(&gPauseLock);
+                const int result = re4_instant_perform(operation, &gInstantInfo);
+                pthread_mutex_lock(&gPauseLock);
+                gInstantResult = result;
+                gInstantPending = -1;
+                gInstantDone = true;
+                pthread_cond_broadcast(&gPauseCond);
+            } else pthread_cond_wait(&gPauseCond, &gPauseLock);
         }
+        re4_instant_game_pause(0);
         gPaused = false;
         re4_log("core: running again");
     }
@@ -603,6 +619,29 @@ int re4_core_pause(int on, int waitMs)
     int paused = gPaused;
     pthread_mutex_unlock(&gPauseLock);
     return paused;
+}
+
+int re4_core_instant(int operation, Re4InstantInfo* info)
+{
+    if (!info || operation < RE4_INSTANT_STATUS || operation > RE4_INSTANT_LOAD) return RE4_INSTANT_BAD;
+    memset(info, 0, sizeof(*info));
+    pthread_mutex_lock(&gPauseLock);
+    int attached;
+    memcpy(&attached, __CARDBlock, sizeof(attached));
+    if (!gPaused || !gPauseWanted || gInstantBusy || attached) {
+        pthread_mutex_unlock(&gPauseLock);
+        return RE4_INSTANT_BUSY;
+    }
+    gInstantBusy = true;
+    gInstantDone = false;
+    gInstantPending = operation;
+    pthread_cond_broadcast(&gPauseCond);
+    while (!gInstantDone) pthread_cond_wait(&gPauseCond, &gPauseLock);
+    *info = gInstantInfo;
+    const int result = gInstantResult;
+    gInstantBusy = false;
+    pthread_mutex_unlock(&gPauseLock);
+    return result;
 }
 
 void re4_core_debug_menu(void)

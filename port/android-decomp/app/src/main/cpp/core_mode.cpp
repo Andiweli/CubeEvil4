@@ -93,6 +93,7 @@ struct CoreApi {
   void (*touch)(float, float){};  // optional (cores since 22.10.2026): a tap on the picture
   void (*swipe)(int){};           // optional (cores since 22.10.2026): a swipe across it
   void (*slash)(float){};         // optional (cores since 22.10.2026): the knife by a swipe
+  int (*instant)(int, Re4InstantInfo *){};
   int (*cardList)(Re4CardFile *, int){};
   int (*cardFree)(void){};
   int (*cardName)(int, char *, int){};
@@ -419,6 +420,7 @@ void loadCore(JNIEnv *env) {
   api.touch = reinterpret_cast<void (*)(float, float)>(dlsym(api.main, "re4_core_touch"));
   api.swipe = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_swipe"));
   api.slash = reinterpret_cast<void (*)(float)>(dlsym(api.main, "re4_core_slash"));
+  api.instant = reinterpret_cast<int (*)(int, Re4InstantInfo *)>(dlsym(api.main, "re4_core_instant"));
   api.cardList = reinterpret_cast<int (*)(Re4CardFile *, int)>(dlsym(api.main, "re4_core_card_list"));
   api.cardFree = reinterpret_cast<int (*)(void)>(dlsym(api.main, "re4_core_card_free_blocks"));
   api.cardName = reinterpret_cast<int (*)(int, char *, int)>(dlsym(api.main, "re4_core_card_file_name"));
@@ -1663,6 +1665,7 @@ void useCoreProcess(const std::string &why) {
   api.touch = re4ipc_touch;
   api.swipe = re4ipc_swipe;
   api.slash = re4ipc_slash;
+  api.instant = re4ipc_instant;
   api.cardList = re4ipc_card_list;
   api.cardFree = re4ipc_card_free_blocks;
   api.cardName = re4ipc_card_file_name;
@@ -1963,6 +1966,17 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_draw(JNIEnv 
 
 extern "C" JNIEXPORT jboolean JNICALL Java_com_ast_re4decomp_CoreBridge_hasMenu(JNIEnv *, jclass) {
   return api.pause && api.cardList ? JNI_TRUE : JNI_FALSE;
+}
+
+// Result, present, canSave, canLoad, room, chapter, playTime, Unix save time (seconds).
+extern "C" JNIEXPORT jlongArray JNICALL Java_com_ast_re4decomp_CoreBridge_instant(JNIEnv *env, jclass, jint operation) {
+  Re4InstantInfo info = {};
+  const int result = api.instant ? api.instant(operation, &info) : RE4_INSTANT_UNSUPPORTED;
+  const jlong fields[] = {result, info.present, info.canSave, info.canLoad, info.room, info.chapter,
+                         info.playTime, info.savedAt};
+  jlongArray out = env->NewLongArray(8);
+  if (out) env->SetLongArrayRegion(out, 0, 8, fields);
+  return out;
 }
 
 // The game stops at its next frame (on) or runs on; true when it stands.
