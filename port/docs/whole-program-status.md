@@ -5947,6 +5947,15 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### 0.90.1-beta auf dem Branch `beta-optimisations` (Entscheidung des Projektinhabers, 24.10.2026, Cloud)
+
+- **Veröffentlicht** hat der Projektinhaber die Beta als **0.90.0-beta** (Tag `0.90.0-beta` =
+  `97c5bf6`, 24.10.2026 00:31 UTC; im Repository hieß sie `0.9.0-beta`). Releasetext jetzt
+  `v0.90.0-beta.md` mit dem veröffentlichten Inhalt (4266 Shader).
+- **Nächste Version 0.90.1-beta** (versionCode 74, Releasetext `v0.90.1-beta.md`), Arbeit dafür auf
+  dem neuen Branch **`beta-optimisations`** (Wunsch des Projektinhabers): alles nach dem Tag, also
+  Shader-Liste 8068, Zeile für zu kurze Disc-Dateien, Threads zurück auf die schnellen Kerne.
+
 ### Berichte realme RMX3710 (0.46.0, Mali-G52) und RMX3741 (0.9.0-beta, Mali-G68), 24.10.2026: Threads auf den langsamen Kernen (Cloud)
 
 - **Berichte:** RMX3710 (Android 15, 8 Kerne: 0–5 bis 1,8 GHz, 6–7 bis 2,0 GHz; Stufe 1) in r400/r404,

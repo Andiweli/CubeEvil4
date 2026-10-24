@@ -59,3 +59,14 @@ Zurück zum bisherigen Stand: `git switch claude/re4-start-controls`.
 Seit 0.45.1 (23.10.2026) steckt `performance` wieder vollständig in `claude/re4-start-controls`. Wer noch
 auf `performance` steht, wechselt mit `git switch claude/re4-start-controls` zurück und holt dann
 wie in Schritt 1.
+
+Seit der Beta 0.90.0 (24.10.2026, Wunsch des Projektinhabers) läuft die Arbeit auf dem Branch
+`beta-optimisations`: einmal wechseln, dann von dort holen (Schritt 2 und 3 wie oben):
+
+```powershell
+cd E:\Development\Android\RE4-Fixed
+git status
+git fetch origin beta-optimisations
+git switch beta-optimisations
+git pull --no-rebase origin beta-optimisations
+```
