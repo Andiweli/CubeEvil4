@@ -5947,6 +5947,30 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Gerätetest 24.10.2026 (Retroid, 0.9.0-beta neu gebaut, 5 Berichte, 5 R3-Folgen; Cloud)
+
+- **Bestätigt (Projektinhaber):** Ganados schreien beim Fallen (Patch 0109), QTEs per Tipp gehen,
+  Ashley still in r22c (Patch 0110).
+- **Vibration im Spiel nicht spürbar:** der Kern meldet sie (`pad: rumble from frame …` nach jedem
+  Schrotflinten-Schuss, Tabelle `CORE_VIBRATION` Eintrag 0, umgewandelt), ein Schuss lässt den
+  Motor aber nur 3–5 Spielbilder laufen. Die App machte daraus einen schwachen Ruck (Stärke 70 +
+  185 · Anteil, beim Ende sofort `cancel`), nur das lange Rütteln im Optionsmenü war zu spüren.
+  **Geändert (`CoreActivity.rumbleTick`):** Stärke 150 + 105 · Anteil der letzten vier Spielbilder,
+  jeder Ruck läuft seine 120 ms aus (kein Abbruch, wenn der Motor endet), eine stärkere Stufe
+  startet sofort, eine schwächere wartet. Java-Übersetzung ohne Fehler; **am Gerät nicht getestet.**
+- **r118, Planken des Holzwegs fehlen, Leon und Ashley laufen in der Luft:** nur über die
+  Raumauswahl des Debug-Menüs besucht. `R118Init` blendet je nach `SCF_R117_FIND_ASHLEY` die
+  Raumteil-Gruppe 0x26 (Ashley gefunden) oder 0x1B aus (`SmdSetTrans(…, 0)`); welche Teile das
+  sind, zeigt nur eine R3-Folge an der Stelle. Keine Fehlermeldung des Spiels im Bericht. **Offen:**
+  R3-Folge und Bildschirmfoto in r118, Vergleich in Dolphin mit demselben Spielstand.
+- **Lichtschein durch Wände (R3-Folgen r20b, r204):** die Lichter jedes Zeichenaufrufs aus den
+  Folgen gelesen: die bläulichen Lichter des Händlers (Farbe F0FFFF) sind Spots mit
+  Winkel-Abschwächung cos (0, 1, 0), Entfernung 1 / (1 + d/2770) bzw. 1 / (1 + d/4808), gespeicherte
+  Richtung nach unten, also nach oben strahlend; das Spiel gibt sie Raumteilen in Reichweite (Treppe
+  r204), ohne Sichtprüfung. Wie zuvor: sehr wahrscheinlich Original, Gegenprobe in Dolphin offen.
+- **Shader-Liste:** **4266 Programme** (851 neu), alle bauen auf Mesa ohne Fehler (mit und ohne
+  MSAA). Keine Abstürze, keine Fehlermeldungen in den Berichten.
+
 ### Quick-Time-Events per Tipp (Wunsch des Projektinhabers, 24.10.2026, Cloud)
 
 - **Wunsch:** ohne Controller sind die kurz aufblitzenden Tastenpaare kaum zu treffen; ein Tipp auf

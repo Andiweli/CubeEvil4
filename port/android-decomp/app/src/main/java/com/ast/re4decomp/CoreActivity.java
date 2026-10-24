@@ -1060,9 +1060,14 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
         rumbleSeen = now;
       }
       int level = now - rumbleSeen < 200 ? Integer.bitCount(r & 0xF) : 0;
-      if (level == 0) {
-        stopVibrator();
-      } else if (!vibrating || level != rumbleLevel || now >= rumbleUntil - 40) {
+      // A shot rumbles for 3-5 game frames only (device test 24.10.2026: nothing felt in play, only
+      // the long rumble of the options screen): each start runs its 120 ms out at least, a stronger
+      // level starts at once, a weaker one waits for the running one; no cancel when it ends.
+      if (now >= rumbleUntil) {
+        vibrating = false;
+        rumbleLevel = 0;
+      }
+      if (level > 0 && (!vibrating || level > rumbleLevel || now >= rumbleUntil - 40)) {
         vibrate(level);
         rumbleLevel = level;
         rumbleUntil = now + 120;
@@ -1077,7 +1082,8 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     if (vibrator == null) return;
     try {
       if (Build.VERSION.SDK_INT >= 26) {
-        int strength = amplitudeControl ? 70 + 185 * level / 4 : VibrationEffect.DEFAULT_AMPLITUDE;
+        // a quarter of the game's motor already clearly felt (70 was too weak on the Retroid)
+        int strength = amplitudeControl ? 150 + 105 * level / 4 : VibrationEffect.DEFAULT_AMPLITUDE;
         VibrationEffect effect = VibrationEffect.createOneShot(120, strength);
         if (Build.VERSION.SDK_INT >= 33) {
           vibrator.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_MEDIA));
