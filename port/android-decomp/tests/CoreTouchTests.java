@@ -26,6 +26,7 @@ public final class CoreTouchTests {
     final List<String> calls = new ArrayList<>();
     @Override public void select(boolean down) { calls.add("select " + down); }
     @Override public void latched(String action, boolean on) { calls.add(action + " " + on); }
+    @Override public void r3(boolean down) { calls.add("r3 " + down); }
   }
 
   public static void main(String[] args) {
@@ -46,6 +47,16 @@ public final class CoreTouchTests {
     }
     t.action("unknown", true);
     check(in.pad()[0] == 0);
+
+    // R3: the app's graphics capture, no GameCube button; offered to the editor with its label
+    host.calls.clear();
+    t.action(CoreTouch.R3, true);
+    t.action(CoreTouch.R3, false);
+    check(in.pad()[0] == 0 && host.calls.size() == 2 && host.calls.get(0).equals("r3 true")
+        && host.calls.get(1).equals("r3 false"));
+    check(CoreTouch.label(CoreTouch.R3).equals("R3")
+        && CoreTouch.ACTIONS.length == CoreTouch.LABELS.length && CoreTouch.LABELS.length == CoreTouch.COLOURS.length);
+    host.calls.clear();
 
     // L and R by default: held while the finger is on them (the trigger at its end stop), as real buttons
     check(!t.latch());
@@ -242,7 +253,7 @@ public final class CoreTouchTests {
       // short labels: RetroTouch shrinks the text to the button, five letters stay readable
       check(!CoreTouch.LABELS[i].isEmpty() && CoreTouch.LABELS[i].length() <= 5);
       check(CoreTouch.label(a).equals(CoreTouch.LABELS[i]));
-      check(a.equals(CoreTouch.MENU) ? CoreTouch.gcButton(a) == 0 : CoreTouch.gcButton(a) != 0);
+      check(a.equals(CoreTouch.MENU) || a.equals(CoreTouch.R3) ? CoreTouch.gcButton(a) == 0 : CoreTouch.gcButton(a) != 0);
     }
     Set<String> ids = new HashSet<>(), used = new HashSet<>();
     int buttons = 0, sticks = 0, looks = 0, pads = 0;
@@ -259,8 +270,11 @@ public final class CoreTouchTests {
         pads++;
       }
     }
-    // every action has its button; RetroTouch's limits (RetroTouchLayout.validate)
-    check(used.equals(registered) && buttons <= 16 && sticks == 1 && looks == 1 && pads == 1);
+    // every action has its button but R3 (the editor adds it, wish of the project owner, 24.10.2026);
+    // RetroTouch's limits (RetroTouchLayout.validate), with room for R3
+    Set<String> placed = new HashSet<>(registered);
+    placed.remove(CoreTouch.R3);
+    check(used.equals(placed) && buttons + 1 <= 16 && sticks == 1 && looks == 1 && pads == 1);
     // one move stick: RetroTouch's onMove does not say which stick moved
 
     // the touch areas: a button and the stick an ellipse of half the width and height times

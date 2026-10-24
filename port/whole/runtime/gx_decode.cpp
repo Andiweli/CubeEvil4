@@ -494,11 +494,18 @@ std::atomic<int> gWorkerTids[8];   // the workers' thread ids, each as it starts
 std::atomic<int> gWorkerTidCount(0);
 
 // The game thread off the slowest cores and Android's performance hint for it and the vertex
-// threads (decision of the project owner, 23.10.2026; re4_cpu_info.h): set up at the first chunk
-// after the workers started, then after each chunk the game thread's work since the chunk before
-// (without its sleep for the retrace and its wait for the renderer) against 33.3 ms.
+// threads (decision of the project owner, 23.10.2026; re4_cpu_info.h), since 24.10.2026 only with
+// the app menu's "Force Performance: Use performance cores" (re4_core_set_fast_cores; the default
+// "Default" leaves the threads to Android: cooler, slower on some phones). The threads are known at
+// the first chunk after the workers started; a change of the setting takes effect at the next
+// chunk. While on: after each chunk the game thread's work since the chunk before (without its
+// sleep for the retrace and its wait for the renderer) against 33.3 ms, and about once a second
+// back on the fast cores if Android moved the thread (realme reports 24.10.2026).
 re4cpu::PerfHint gHint;
-int gHintState;                       // 0 not set up yet, 1 reporting, -1 no session
+int gHintState;                       // 0 the threads not known yet, 1 known
+int gHintTids[9], gHintTidCount;
+std::atomic<int> gFastWanted(0);      // the menu's setting (any thread)
+int gFastNow = -1;                    // the setting the threads run with (-1: none yet)
 long long gHintFrom, gHintIdle, gHintWait;  // ns: the chunk before, re4_idle_ns() then, the wait since
 
 void hintChunk()
@@ -508,28 +515,44 @@ void hintChunk()
         if (gWorkers < 0) {
             return;
         }
-        int tids[9];
         int n = 0;
-        tids[n++] = re4cpu::ThreadId();
+        gHintTids[n++] = re4cpu::ThreadId();
         for (int i = 0; i < (gJobsOn ? gWorkers : 0); i++) {
             const int tid = gWorkerTids[i].load();
             if (!tid) {
                 return;  // a worker not running yet: at the next chunk
             }
-            tids[n++] = tid;
+            gHintTids[n++] = tid;
         }
-        char cores[160];
-        re4cpu::KeepOffSlowCores(cores, sizeof(cores));
-        re4_log("cores: the game thread %s", cores);
-        const char* why = "";
-        gHintState = gHint.Open(tids, n, 33333333LL, &why) ? 1 : -1;
-        re4_log("performance hint: %s (the game thread and %d vertex threads, 33.3 ms a picture)", why, n - 1);
-    } else if (gHintState == 1 && gHintFrom) {
+        gHintTidCount = n;
+        gHintState = 1;
+    }
+    const int fast = gFastWanted.load() ? 1 : 0;
+    if (fast != gFastNow) {
+        const bool first = gFastNow < 0;
+        gFastNow = fast;
+        if (fast) {
+            char cores[160];
+            re4cpu::KeepOffSlowCores(cores, sizeof(cores));
+            re4_log("cores: the game thread %s", cores);
+            const char* why = "";
+            gHint.Open(gHintTids, gHintTidCount, 33333333LL, &why);
+            re4_log("performance hint: %s (the game thread and %d vertex threads, 33.3 ms a picture)", why,
+                    gHintTidCount - 1);
+        } else {
+            gHint.Close();
+            if (!first) {
+                re4cpu::ReleaseCores();
+            }
+            re4_log("cores: the game thread and the vertex threads left to Android (Force Performance: Default)");
+        }
+        gHintFrom = 0;
+    } else if (gHint.On() && gHintFrom) {
         gHint.Report(now - gHintFrom - (idle - gHintIdle) - gHintWait);
     }
     // about once a second: back on the fast cores if Android moved the thread off them
     static unsigned checks, moves;
-    if (++checks % 30 == 0 && re4cpu::KeepOnFastCores() && ++moves <= 4) {
+    if (fast && ++checks % 30 == 0 && re4cpu::KeepOnFastCores() && ++moves <= 4) {
         re4_log("cores: the game thread put back on its cores (Android had moved it, %u times so far)", moves);
     }
     gHintFrom = now;
@@ -2261,6 +2284,13 @@ void feed(const uint8_t* bytes, size_t n)
 }  // namespace re4gx
 
 extern "C" {
+
+// The app menu's "Force Performance" (core_api.cpp re4_core_set_fast_cores): 1 the game thread and
+// the vertex threads on the fast cores with Android's performance hint, 0 left to Android.
+void re4_gx_set_fast_cores(int on)
+{
+    gFastWanted.store(on ? 1 : 0);
+}
 
 void re4_gx_mark(void)
 {

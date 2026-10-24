@@ -32,20 +32,25 @@ import java.util.Set;
 final class CoreTouch {
   // the actions registered with RetroTouch (the layout's contract: lower case, never renamed)
   static final String A = "a", B = "b", X = "x", Y = "y", Z = "z", L = "l", R = "r",
-      START = "start", MENU = "menu";
+      START = "start", MENU = "menu", R3 = "r3";
   // the D-pad's directions (RetroTouchNavigation)
   static final String UP = "nav_up", DOWN = "nav_down", LEFT = "nav_left", RIGHT = "nav_right";
   /** This way of a looking finger (share of the screen's shorter side) tilts the C stick fully. */
   static final float LOOK_RANGE = 0.15f;
 
-  /** The buttons in the editor's order: action, label (short: it has to fit the button), colour (0: RetroTouch's grey). */
-  static final String[] ACTIONS = {A, B, X, Y, Z, L, R, START, MENU};
-  static final String[] LABELS = {"A", "B", "X", "Y", "Z", "L", "R", "START", "MENU"};
+  /**
+   * The buttons in the editor's order: action, label (short: it has to fit the button), colour (0:
+   * RetroTouch's grey). R3 (wish of the project owner, 24.10.2026) is the right stick pressed: the
+   * graphics capture for error reports, as on a controller; not in the default layout, the editor
+   * adds it.
+   */
+  static final String[] ACTIONS = {A, B, X, Y, Z, L, R, START, MENU, R3};
+  static final String[] LABELS = {"A", "B", "X", "Y", "Z", "L", "R", "START", "MENU", "R3"};
   // the GameCube's official colours (the project owner's palette, 19.10.2026): A green, B red,
   // Z purple, the others grey (RetroTouch writes dark labels on the light grey)
   static final int GC_GREEN = rgb(0x10, 0x9B, 0x61), GC_RED = rgb(0xF6, 0x39, 0x2C), GC_PURPLE = rgb(0x6B, 0x5C, 0xB1),
       GC_GREY = rgb(0xDD, 0xDD, 0xDD);
-  static final int[] COLOURS = {GC_GREEN, GC_RED, GC_GREY, GC_GREY, GC_PURPLE, GC_GREY, GC_GREY, GC_GREY, GC_GREY};
+  static final int[] COLOURS = {GC_GREEN, GC_RED, GC_GREY, GC_GREY, GC_PURPLE, GC_GREY, GC_GREY, GC_GREY, GC_GREY, GC_GREY};
 
   // the kinds of RetroTouchControl
   static final int BUTTON = 0, STICK = 1, LOOK = 2, DPAD = 3;
@@ -99,6 +104,8 @@ final class CoreTouch {
     void select(boolean down);
     /** A tap latched L, R or B or let it go (RetroTouch shows a latched button stronger). */
     void latched(String action, boolean on);
+    /** R3 went down or up: the app's graphics capture. */
+    void r3(boolean down);
   }
 
   private final CoreInput input;
@@ -152,6 +159,8 @@ final class CoreTouch {
     if (down) answered = true;
     if (MENU.equals(action)) {
       host.select(down);
+    } else if (R3.equals(action)) {
+      host.r3(down);
     } else if (latch && (L.equals(action) || R.equals(action))) {
       if (!down) return;
       boolean on = L.equals(action) ? (l = !l) : (r = !r);

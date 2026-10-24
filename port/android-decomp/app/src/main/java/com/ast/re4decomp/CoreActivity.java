@@ -228,6 +228,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       SharedPreferences g = getSharedPreferences(GRAPHICS_PREFS, MODE_PRIVATE);
       CoreBridge.setDof(g.getBoolean("dof", true));
       CoreBridge.setSmooth(g.getBoolean("smooth60", false));
+      CoreBridge.setFastCores(g.getInt("fastCores", 0) == 1);
     }
     setContentView(root);
     preferSixtyHz();
@@ -579,7 +580,26 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
     @Override public void editing(boolean on) { touchEditing(on); }
 
     @Override public void send() { CoreActivity.this.send(); }
+
+    @Override public void r3(boolean down) {
+      Log.i(TAG, "touch R3 -> app " + (tools ? "graphics capture" : "nothing (tools off)"));
+      if (down) capture();
+    }
   };
+
+  /**
+   * R3 (the controller's right stick pressed, or the touch controls' R3): the graphics data of the
+   * next pictures for the diagnosis in the cloud (files/gx-dumps, test-core-app.ps1 /
+   * pull-gx-dumps.ps1 fetch them); only with "R3 = Graphics capture" or the test scripts' tools.
+   */
+  private void capture() {
+    if (!tools) return;
+    File dir = getExternalFilesDir(null);
+    if (dir != null) {
+      CoreBridge.gxDump(new File(dir, "gx-dumps").getAbsolutePath());
+      Toast.makeText(this, R.string.ingame_capture_saved, Toast.LENGTH_SHORT).show();
+    }
+  }
 
   /** RetroTouch's editor (its gear) opened or closed: the game stands while the player arranges the controls. */
   private void touchEditing(boolean on) {
@@ -858,13 +878,7 @@ public final class CoreActivity extends Activity implements InputManager.InputDe
       case CoreInput.APP_GX_DUMP:
         // R3 (right stick pressed): the graphics data of the next pictures for the
         // diagnosis in the cloud (files/gx-dumps, test-core-app.ps1 / pull-gx-dumps.ps1 fetch them)
-        if (first && tools) {
-          File dir = getExternalFilesDir(null);
-          if (dir != null) {
-            CoreBridge.gxDump(new File(dir, "gx-dumps").getAbsolutePath());
-            Toast.makeText(this, R.string.ingame_capture_saved, Toast.LENGTH_SHORT).show();
-          }
-        }
+        if (first) capture();
         return true;
       default:
         break;

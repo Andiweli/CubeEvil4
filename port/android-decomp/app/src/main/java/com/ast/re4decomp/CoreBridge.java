@@ -87,6 +87,11 @@ public final class CoreBridge {
    *  gameplay autofocus of the first Android port; on unless switched off. */
   public static native void setDof(boolean on);
   /**
+   * The menu's "Force Performance": true keeps the game and the graphics thread on the fast cores
+   * with Android's performance hint, false (the default) leaves them to Android.
+   */
+  public static native void setFastCores(boolean on);
+  /**
    * 60 FPS (experimental): the renderer draws an in-between picture of two game pictures at each
    * second display refresh; the game itself stays at 30 pictures a second.
    */

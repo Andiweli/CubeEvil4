@@ -293,6 +293,42 @@ final class CoreMenu extends Dialog {
     body.addView(row);
   }
 
+  /**
+   * "Force Performance" (wish of the project owner, 24.10.2026): Default (Android decides, the
+   * default) or Use performance cores (the game and the render thread on the fast cores with
+   * Android's performance hint, re4_cpu_info.h), applied at once without a new renderer; a note
+   * under it on the heat.
+   */
+  private void perfModes() {
+    LinearLayout row = row();
+    row.addView(text(s(R.string.ingame_force_performance), 14, false),
+        new LinearLayout.LayoutParams(dp(170), ViewGroup.LayoutParams.WRAP_CONTENT));
+    RadioGroup group = new RadioGroup(getContext());
+    group.setOrientation(LinearLayout.HORIZONTAL);
+    group.setBaselineAligned(false);
+    group.setGravity(Gravity.CENTER_VERTICAL);
+    int[] labels = {R.string.ingame_perf_default, R.string.ingame_perf_cores};
+    int current = graphics.getInt("fastCores", 0);
+    for (int i = 0; i < labels.length; i++) {
+      RadioButton b = new RadioButton(getContext());
+      b.setId(View.generateViewId());
+      b.setText(s(labels[i]));
+      b.setTextSize(14);
+      b.setTag(i);
+      group.addView(b, new RadioGroup.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+      if (i == current) group.check(b.getId());
+    }
+    group.setOnCheckedChangeListener((g, id) -> {
+      if (id == -1) return;
+      int on = (Integer) ((RadioButton) g.findViewById(id)).getTag();
+      graphics.edit().putInt("fastCores", on).apply();
+      CoreBridge.setFastCores(on == 1);
+    });
+    row.addView(group, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+    body.addView(row);
+    body.addView(text(s(R.string.ingame_perf_help), 12, false));
+  }
+
   private void build() {
     // the title and the line under it on the left, "Back to the game" on the right of the same row
     LinearLayout top = row();
@@ -354,6 +390,7 @@ final class CoreMenu extends Dialog {
     graphicsLine = text("", 12, false);
     body.addView(graphicsLine);
     showGraphics();
+    perfModes();
 
     heading(s(R.string.ingame_controls));
     // "Touch Controls": Auto, Force, Suppress in equal parts of the row, a short note on the three

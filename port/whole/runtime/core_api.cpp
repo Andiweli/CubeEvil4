@@ -643,6 +643,18 @@ void re4_core_set_letterbox(int off)
     gLetterboxOff = off != 0;
 }
 
+extern "C" void re4_gx_set_fast_cores(int on);
+
+void re4_core_set_fast_cores(int on)
+{
+    static int told = -1;
+    if (told != (on != 0)) {
+        re4_log("core: Force Performance %s", on ? "on (use performance cores)" : "off (default: Android decides)");
+    }
+    told = on != 0;
+    re4_gx_set_fast_cores(on);
+}
+
 int re4_letterbox_off(void)
 {
     return gLetterboxOff;

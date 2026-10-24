@@ -5947,6 +5947,29 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### „Force Performance“ im App-Menü und R3 für die Touch-Steuerung (Wünsche des Projektinhabers, 24.10.2026, Cloud)
+
+- **Force Performance** (Grafik, nach der Auflösungszeile): „Default“ (Vorgabe, Entscheidung des
+  Projektinhabers: Android verteilt die Threads wie vor 0.45) oder „Use performance cores“ (Spiel-
+  und Zeichen-Thread auf den schnellen Kernen, Androids Leistungshinweis für Spiel-, Vertex- und
+  Zeichen-Thread, alle 30 Bilder zurück auf die schnellen Kerne). Darunter der Hinweis: mehr
+  CPU-Leistung, das Gerät wird wärmer. 10 Sprachen (`ingame_force_performance`,
+  `ingame_perf_default`, `ingame_perf_cores`, `ingame_perf_help`; `check_translations.py`: 82 Texte
+  je Sprache). Gespeichert als `fastCores` (0/1) in den Grafik-Einstellungen, ohne neuen Renderer.
+  Weg: `CoreBridge.setFastCores` → `core_mode.cpp` (`optFastCores`; der Zeichen-Thread setzt sich
+  bei der nächsten Run um und sagt es dem Kern) → `re4_core_set_fast_cores` (`core_api.cpp`, auch
+  über den eigenen Kern-Prozess: `kSetFastCores`) → `re4_gx_set_fast_cores` (`gx_decode.cpp`; der
+  Spiel-Thread setzt sich an der nächsten Spielbild-Grenze um). Zurück auf „Default“:
+  `re4cpu::ReleaseCores` (alle Kerne) und der Leistungshinweis geschlossen. Zeilen `core: Force
+  Performance on/off`, `cores: … left to Android (Force Performance: Default)`.
+- **R3 in der Touch-Steuerung:** Aktion `r3` (Beschriftung „R3“, grau) bei RetroTouch angemeldet,
+  nicht im Standard-Layout: der Editor (Zahnrad) fügt sie hinzu. Ein Druck löst wie R3 am
+  Controller die Grafik-Aufnahme aus (`CoreActivity.capture`, nur mit „R3 = Graphics capture“).
+- **Tests:** `CoreTouchTests` 267 Prüfungen bestanden (R3: kein GameCube-Knopf, Meldung an die App,
+  nicht im Standard-Layout, Platz unter RetroTouchs 16 Knöpfen); `CoreInputTests` 141; Java der App
+  übersetzt ohne Fehler; i686: 0 Baufehler, alle Tests 0 Fehler (auch der eigene Kern-Prozess);
+  App-Linkprüfung ohne Fehler. **Am Gerät nicht getestet.**
+
 ### 0.90.1-beta auf dem Branch `beta-optimisations` (Entscheidung des Projektinhabers, 24.10.2026, Cloud)
 
 - **Veröffentlicht** hat der Projektinhaber die Beta als **0.90.0-beta** (Tag `0.90.0-beta` =

@@ -258,6 +258,11 @@ int re4_dof_enabled(void);
  * events or sub screens. re4_letterbox_off is the switch, re4_letterbox_open
  * (runtime/picture.cpp) what the patched game code reads. */
 void re4_core_set_letterbox(int off);
+/* The app menu's "Force Performance" (cores since 24.10.2026): on = 1 keeps
+ * the game thread and the vertex threads on the fast cores with Android's
+ * performance hint (re4_cpu_info.h), 0 (the default) leaves them to Android.
+ * Takes effect at the next picture. Any thread. */
+void re4_core_set_fast_cores(int on);
 int re4_letterbox_off(void);
 /* A tap on the picture (cores since 22.10.2026; runtime/menu_touch.cpp): u
  * across the game's 512 x 448 picture, v down it, both 0..1. Used at the next

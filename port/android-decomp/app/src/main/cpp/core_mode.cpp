@@ -89,6 +89,7 @@ struct CoreApi {
   void (*setDof)(int){};
   void (*gyro)(float, float){};  // optional (cores since 19.10.2026): gyro aiming
   void (*setLetterbox)(int){};  // optional (cores since 22.10.2026): 4:3 without the bars
+  void (*setFastCores)(int){};  // optional (cores since 24.10.2026): Force Performance
   void (*touch)(float, float){};  // optional (cores since 22.10.2026): a tap on the picture
   void (*swipe)(int){};           // optional (cores since 22.10.2026): a swipe across it
   void (*slash)(float){};         // optional (cores since 22.10.2026): the knife by a swipe
@@ -414,6 +415,7 @@ void loadCore(JNIEnv *env) {
   api.setDof = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_set_dof"));
   api.gyro = reinterpret_cast<void (*)(float, float)>(dlsym(api.main, "re4_core_gyro"));
   api.setLetterbox = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_set_letterbox"));
+  api.setFastCores = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_set_fast_cores"));
   api.touch = reinterpret_cast<void (*)(float, float)>(dlsym(api.main, "re4_core_touch"));
   api.swipe = reinterpret_cast<void (*)(int)>(dlsym(api.main, "re4_core_swipe"));
   api.slash = reinterpret_cast<void (*)(float)>(dlsym(api.main, "re4_core_slash"));
@@ -607,6 +609,12 @@ bool autoLevelOn = false;
 // the background), then each chunk's Run against 33.3 ms
 re4cpu::PerfHint renderHint;
 int renderPlaced = 0;  // the render thread set up
+// The menu's "Force Performance" (CoreBridge.setFastCores, wish of the project owner, 24.10.2026):
+// 1 "Use performance cores" (the render thread and, through the core, the game thread on the fast
+// cores with Android's performance hint), 0 "Default" (the default: Android decides).
+std::atomic<int> optFastCores{0};
+int fastSent = -1;    // what the core was told last (-1: nothing yet)
+int renderFast = -1;  // the setting the render thread runs with (-1: none yet)
 
 // Shader programs made ahead on a thread of its own (decision of the project owner, 23.10.2026):
 // the cache's keys and the app's list (gx-programs.keys, CoreActivity) that lack a binary are
@@ -1142,13 +1150,9 @@ bool drawGx() {
     LOG("processor: %s", layout);
     const int tid = re4cpu::ThreadId();
     if (renderPlaced != tid) {
+      // a new render thread: placed by the menu's setting at its next run
       renderPlaced = tid;
-      char cores[160];
-      re4cpu::KeepOffSlowCores(cores, sizeof(cores));
-      LOG("cores: the render thread %s", cores);
-      const char *why = "";
-      renderHint.Open(&tid, 1, 33333333LL, &why);
-      LOG("performance hint: %s (the render thread, 33.3 ms a picture)", why);
+      renderFast = -1;
     }
     if (autoLevelOn) {
       autoLevel.Start(scale, std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count());
@@ -1326,9 +1330,32 @@ bool drawGx() {
     }
     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - now).count();
     renderHint.Report(static_cast<long long>(ms * 1e6));
+    // the menu's "Force Performance": to the core (the game thread) and for this thread
+    const int fast = optFastCores.load();
+    if (api.setFastCores && fast != fastSent) {
+      api.setFastCores(fast);
+      fastSent = fast;
+    }
+    if (fast != renderFast) {
+      const bool first = renderFast < 0;
+      renderFast = fast;
+      if (fast) {
+        char cores[160];
+        re4cpu::KeepOffSlowCores(cores, sizeof(cores));
+        LOG("cores: the render thread %s", cores);
+        const int tid = re4cpu::ThreadId();
+        const char *why = "";
+        renderHint.Open(&tid, 1, 33333333LL, &why);
+        LOG("performance hint: %s (the render thread, 33.3 ms a picture)", why);
+      } else {
+        renderHint.Close();
+        if (!first) re4cpu::ReleaseCores();
+        LOG("cores: the render thread left to Android (Force Performance: Default)");
+      }
+    }
     // about once a second: back on the fast cores if Android moved the thread off them
     static unsigned coreChecks, coreMoves;
-    if (++coreChecks % 30 == 0 && re4cpu::KeepOnFastCores() && ++coreMoves <= 4)
+    if (fast && ++coreChecks % 30 == 0 && re4cpu::KeepOnFastCores() && ++coreMoves <= 4)
       LOG("cores: the render thread put back on its cores (Android had moved it, %u times so far)", coreMoves);
     gxRunMs += ms;
     gxRunMax = std::max(gxRunMax, ms);
@@ -1632,6 +1659,7 @@ void useCoreProcess(const std::string &why) {
   api.setDof = re4ipc_set_dof;
   api.gyro = re4ipc_gyro;
   api.setLetterbox = re4ipc_set_letterbox;
+  api.setFastCores = re4ipc_set_fast_cores;
   api.touch = re4ipc_touch;
   api.swipe = re4ipc_swipe;
   api.slash = re4ipc_slash;
@@ -1895,6 +1923,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_surfaceCreat
   if (auto *s = currentScene()) s->contextCreated();
   lastDraw = {};
   letterboxSent = -1;
+  fastSent = -1;
   // a new GL context: the renderer's objects are gone; the core starts over
   // (full state, every texture again) once chunks are taken again
   gx.reset();
@@ -1952,6 +1981,12 @@ extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_debugMenu(JN
 extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setDof(JNIEnv *, jclass, jboolean on) {
   optDof = on ? 1 : 0;
   if (api.setDof) api.setDof(on ? 1 : 0);
+}
+
+// The menu's "Force Performance" (drawGx tells the core and places the render thread).
+extern "C" JNIEXPORT void JNICALL Java_com_ast_re4decomp_CoreBridge_setFastCores(JNIEnv *, jclass, jboolean on) {
+  const int want = on ? 1 : 0;
+  if (optFastCores.exchange(want) != want) LOG("Force Performance: %s", want ? "use performance cores" : "default");
 }
 
 // 60 FPS (experimental): in-between pictures of the renderer (drawGx).

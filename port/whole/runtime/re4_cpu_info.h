@@ -233,6 +233,20 @@ inline bool KeepOffSlowCores(const Layout& l, char* out, size_t size)
     return true;
 }
 
+// The calling thread back on every core Android allows (the menu's "Force Performance: Default"
+// after "Use performance cores").
+inline void ReleaseCores()
+{
+    Wanted().on = false;
+    cpu_set_t all;
+    CPU_ZERO(&all);
+    const long n = sysconf(_SC_NPROCESSORS_CONF);
+    for (long cpu = 0; cpu < n && cpu < CPU_SETSIZE; cpu++) {
+        CPU_SET(cpu, &all);
+    }
+    sched_setaffinity(0, sizeof(all), &all);
+}
+
 // Android gives a thread all the cores of its group again when it moves the app between its
 // groups (cpusets: a dialog, the app menu, the screen; realme reports 24.10.2026: the game thread
 // placed on the fast cores ran 90 % on the slow ones a minute later). Called now and then by a
