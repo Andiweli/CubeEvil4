@@ -98,8 +98,8 @@
     <!-- Five-page button menu and the app-owned instant slot (gui-optimisations). -->
     <string name="ingame_return">Zurück</string>
     <string name="ingame_on">An</string>
-    <string name="ingame_display">Display</string>
-    <string name="ingame_controls_page">Controls</string>
+    <string name="ingame_display">Anzeige</string>
+    <string name="ingame_controls_page">Steuerung</string>
     <string name="ingame_performance">Performance</string>
     <string name="ingame_management">Management</string>
     <string name="ingame_navigation">D-Pad: Navigieren  ·  A: Auswählen  ·  B: Zurück  ·  SELECT / START: Zum Spiel</string>

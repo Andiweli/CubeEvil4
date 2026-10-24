@@ -33,6 +33,18 @@ im geschützten Spatializer-Helfer mit `@TargetApi(32)` gekennzeichnet.
 **Offen:** Spiel-/Gerätetest auf dem Retroid mit Disc-Daten, besonders Raum-/
 Waffenwechsel, Ereignisfortschritt, Standort, Touch/Controller und 4:3.
 
+### Menü-Layout-Nachkorrektur (24.10.2026)
+
+Auf `gui-optimisations`: gesamtes Ingame-Menü mit 85 % Deckkraft (15 %
+Transparenz). Tiefenschärfe in der Optionsspalte unter „4:3 (GC)“; 60 FPS und
+FPS-Anzeige ebenfalls eingerückt, mit „Bildausgabe“ als linker Beschriftung.
+Gyro-Regler mittig überschrieben, Untermenütitel mit 16 dp mehr Abstand nach
+„Zurück“. Deutsch: „Anzeige“ und „Steuerung“; übrige Menüsprachen weiter über
+Android-Ressourcen nach Geräte-/App-Sprache. Alle zehn Sprachen geprüft.
+Aktualisierte Screendesigns, PDF und Offline-Vorschau. APK-Build und
+`lintCoreDebug` bestanden; keine Kern-/Spielstandänderung. Visuelle Prüfung
+auf dem Retroid für diese Nachkorrektur noch offen.
+
 ## Kurzstand
 
 | Meilenstein | Stand |

@@ -18,6 +18,7 @@
 <rect x="0" y="0" width="1280" height="720" rx="0" fill="#080b09" stroke="none" opacity=".46"/>
 <text x="144" y="29" font-size="12" fill="#a6afa3" font-weight="600" letter-spacing="1.8">CUBEEVIL4  /  GUI-KONZEPT 01</text>
 <text x="1136" y="29" font-size="11" fill="#a6afa3" font-weight="500" text-anchor="end">ENTWURF · BEISPIELDATEN</text>
+<g opacity=".85">
 <rect x="140" y="48" width="1000" height="626" rx="12" fill="#050806" stroke="none" opacity=".6" transform="translate(0 8)"/>
 <rect x="140" y="48" width="1000" height="626" rx="10" fill="#191f1c" stroke="#414b41" />
 <rect x="140" y="48" width="1000" height="4" rx="0" fill="#d7bc7d" stroke="none" />
@@ -25,8 +26,8 @@
 <rect x="174" y="74" width="118" height="44" rx="6" fill="#222a25" stroke="#414b41" />
 <text x="233.0" y="102.0" font-size="17" fill="#f0eee5" font-weight="600" text-anchor="middle">‹  Zurück</text>
 </g>
-<text x="314" y="101" font-size="28" fill="#f0eee5" font-weight="600" >Display</text>
-<text x="314" y="126" font-size="13" fill="#a6afa3" font-weight="400" >Bildqualität &amp; Darstellung</text>
+<text x="330" y="101" font-size="28" fill="#f0eee5" font-weight="600" >Anzeige</text>
+<text x="330" y="126" font-size="13" fill="#a6afa3" font-weight="400" >Bildqualität &amp; Darstellung</text>
 <g class="button " role="button" tabindex="0" aria-label="Weiter spielen" aria-disabled="false" data-action="resume" opacity="1">
 <rect x="925" y="76" width="181" height="44" rx="6" fill="#222a25" stroke="#414b41" />
 <text x="1015.5" y="104.0" font-size="17" fill="#f0eee5" font-weight="600" text-anchor="middle">Weiter spielen</text>
@@ -116,4 +117,4 @@
 <text x="1084" y="547" font-size="12" fill="#d7bc7d" font-weight="700" text-anchor="end" class="state">AN</text>
 </g>
 <text x="178" y="598" font-size="12" fill="#a6afa3" font-weight="400" >Auflösung, Kantenglättung und Filter gelten nach dem Schließen des Menüs.</text>
-</svg>
+</g></svg>

@@ -176,7 +176,26 @@ final class CoreMenu extends Dialog {
     TextView v = text(s(id).toUpperCase(Locale.getDefault()), 12, true); v.setTextColor(MUTED); v.setLetterSpacing(.12f);
     v.setPadding(0, dp(16), 0, dp(8)); body.addView(v);
   }
-  private void help(int id) { TextView t = text(s(id), 12, false); t.setPadding(0, dp(4), 0, dp(8)); body.addView(t); }
+  private void help(int id) { help(body, id); }
+  private void help(LinearLayout parent, int id) {
+    TextView t = text(s(id), 12, false); t.setPadding(0, dp(4), 0, dp(8)); parent.addView(t);
+  }
+  /** Align a stack of buttons with the choices' option column; label 0 leaves the caption empty. */
+  private LinearLayout labelledOptions(int label) {
+    LinearLayout outer = wide ? row() : column();
+    outer.setGravity(Gravity.TOP);
+    if (label != 0) {
+      TextView caption = text(s(label), 14, true);
+      caption.setPadding(0, wide ? dp(18) : 0, 0, 0);
+      outer.addView(caption, new LinearLayout.LayoutParams(wide ? dp(170) : ViewGroup.LayoutParams.MATCH_PARENT,
+          ViewGroup.LayoutParams.WRAP_CONTENT));
+    } else if (wide) outer.addView(new View(getContext()), new LinearLayout.LayoutParams(dp(170), 1));
+    LinearLayout options = column();
+    outer.addView(options, wide ? new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1)
+        : new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    outer.setPadding(0, dp(3), 0, dp(3)); body.addView(outer);
+    return options;
+  }
   private LinearLayout buttonsRow(LinearLayout parent) {
     LinearLayout row = wide ? row() : column(); parent.addView(row); return row;
   }
@@ -237,6 +256,7 @@ final class CoreMenu extends Dialog {
     scrollY[page] = scroll.getScrollY(); page = next; ++requestSerial;
     body.removeAllViews(); graphicsLine = null; cardLine = null; exportAll = null;
     back.setVisibility(page == HOME ? View.GONE : View.VISIBLE);
+    title.setPaddingRelative(page != HOME && wide ? dp(16) : 0, 0, 0, 0);
     versionText.setVisibility(page == HOME && wide ? View.VISIBLE : View.GONE);
     int[] titles = {R.string.ingame_title, R.string.ingame_display, R.string.ingame_controls_page,
         R.string.ingame_performance, R.string.ingame_management};
@@ -318,7 +338,7 @@ final class CoreMenu extends Dialog {
     heading(R.string.ingame_picture);
     graphicChoices(R.string.ingame_picture, "aspect", new String[] {s(R.string.ingame_original_43), s(R.string.ingame_43_no_bars), "16:9", s(R.string.ingame_stretched)},
         new int[] {1, 3, 0, 2}, 0, Integer.MAX_VALUE);
-    toggle(buttonsRow(body), R.string.ingame_dof, graphics.getBoolean("dof", true), on -> {
+    toggle(buttonsRow(labelledOptions(0)), R.string.ingame_dof, graphics.getBoolean("dof", true), on -> {
       graphics.edit().putBoolean("dof", on).apply(); CoreBridge.setDof(on);
     });
   }
@@ -341,7 +361,10 @@ final class CoreMenu extends Dialog {
       host.gyroChanged(enabled); sensitivity.setEnabled(enabled); valueText.setEnabled(enabled);
     });
     gyroButton.setEnabled(gyro);
-    sensitivityBox.addView(text(s(R.string.ingame_gyro_sensitivity), 13, false));
+    TextView sensitivityTitle = text(s(R.string.ingame_gyro_sensitivity), 13, false);
+    sensitivityTitle.setGravity(Gravity.CENTER_HORIZONTAL);
+    sensitivityBox.addView(sensitivityTitle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT));
     LinearLayout slider = row();
     slider.addView(sensitivity, new LinearLayout.LayoutParams(0, dp(48), 1)); slider.addView(valueText);
     sensitivityBox.addView(slider);
@@ -368,12 +391,13 @@ final class CoreMenu extends Dialog {
         new int[] {0, 1}, graphics.getInt("fastCores", 0), 1, value -> {
           graphics.edit().putInt("fastCores", value).apply(); CoreBridge.setFastCores(value == 1);
         });
-    help(R.string.ingame_perf_help); heading(R.string.ingame_output);
-    toggle(buttonsRow(body), R.string.ingame_smooth60, graphics.getBoolean("smooth60", false), on -> {
+    help(R.string.ingame_perf_help);
+    LinearLayout output = labelledOptions(R.string.ingame_output);
+    toggle(buttonsRow(output), R.string.ingame_smooth60, graphics.getBoolean("smooth60", false), on -> {
       graphics.edit().putBoolean("smooth60", on).apply(); CoreBridge.setSmooth(on);
     });
-    help(R.string.ingame_smooth_help);
-    toggle(buttonsRow(body), R.string.ingame_fps_display, graphics.getBoolean("fps", false), on -> {
+    help(output, R.string.ingame_smooth_help);
+    toggle(buttonsRow(output), R.string.ingame_fps_display, graphics.getBoolean("fps", false), on -> {
       graphics.edit().putBoolean("fps", on).apply(); host.fpsChanged(on);
     });
   }
@@ -535,6 +559,7 @@ final class CoreMenu extends Dialog {
           Math.min(dp(650), Math.round(d.heightPixels * .94f)));
       getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
       WindowManager.LayoutParams attrs = getWindow().getAttributes(); attrs.dimAmount = .72f;
+      attrs.alpha = .85f; // Entire app-menu window: 15% transparency, 85% opacity.
       getWindow().setAttributes(attrs);
     }
     resume.requestFocus();

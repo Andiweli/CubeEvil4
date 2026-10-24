@@ -57,11 +57,12 @@ def base(title,subtitle,page):
     rect(0,0,1280,720,'#080b09',radius=0,extra='opacity=".46"')
     small(144,29,'CUBEEVIL4  /  GUI-KONZEPT 01')
     txt(1136,29,'ENTWURF · BEISPIELDATEN',11,MUTED,500,'text-anchor="end"')
+    raw('<g opacity=".85">')
     rect(140,48,1000,626,'#050806',radius=12,extra='opacity=".6" transform="translate(0 8)"')
     rect(140,48,1000,626,PANEL,STROKE,10)
     rect(140,48,1000,4,GOLD,radius=0)
     if page!='home': button(174,74,118,'‹  Zurück',action='home',h=44)
-    tx=174 if page=='home' else 314
+    tx=174 if page=='home' else 330
     txt(tx,101,title,28,INK,600)
     txt(tx,126,subtitle,13,MUTED)
     button(925,76,181,'Weiter spielen',action='resume',h=44)
@@ -71,7 +72,7 @@ def base(title,subtitle,page):
     txt(1102,650,'B  '+('Zum Spiel' if page=='home' else 'Zurück')+'     SELECT / START  Zum Spiel',12,MUTED,400,'text-anchor="end"')
 
 def finish(name):
-    raw('</svg>')
+    raw('</g></svg>')
     s='\n'.join(PARTS)
     (ROOT/(name+'.svg')).write_text(s,encoding='utf-8')
     return s
@@ -87,7 +88,7 @@ def home():
     button(198,302,430,'Speichern',True,'save')
     button(642,302,440,'Laden',False,'load')
     small(178,430,'EINSTELLUNGEN & VERWALTUNG')
-    for x,y,n,sub,action in [(174,447,'Display','Auflösung, Bildformat & Effekte','display'),(648,447,'Controls','Touch, Gyro & Komfortsteuerung','controls'),(174,527,'Performance','Leistungskerne, 60 FPS & Anzeige','performance'),(648,527,'Management','Speicherkarte, Berichte & Quelle','management')]:
+    for x,y,n,sub,action in [(174,447,'Anzeige','Auflösung, Bildformat & Effekte','display'),(648,447,'Steuerung','Touch, Gyro & Komfortsteuerung','controls'),(174,527,'Performance','Leistungskerne, 60 FPS & Anzeige','performance'),(648,527,'Management','Speicherkarte, Berichte & Quelle','management')]:
         raw(f'<g class="button nav" role="button" tabindex="0" aria-label="{n}" data-action="{action}">')
         rect(x,y,458,66,SURFACE,STROKE)
         txt(x+20,y+27,n,21,INK,600)
@@ -97,7 +98,7 @@ def home():
     return finish('01-hauptseite')
 
 def display():
-    base('Display','Bildqualität & Darstellung','display')
+    base('Anzeige','Bildqualität & Darstellung','display')
     small(178,179,'BILDQUALITÄT')
     choices(196,'Auflösung',['Dynamisch','1×','2×','3×','4×'],0,'scale')
     txt(452,264,'Beispiel: 1280 × 672 Pixel · Dynamisch · Bildschirm 1920 × 1080',12,MUTED)
@@ -110,7 +111,7 @@ def display():
     return finish('02-display')
 
 def controls():
-    base('Controls','Touch, Controller & Zielen','controls')
+    base('Steuerung','Touch, Controller & Zielen','controls')
     choices(176,'Touchsteuerung',['Auto','Erzwingen','Unterdrücken'],0,'touch')
     txt(178,251,'Auto: ohne Controller / nach Antippen. Erzwingen: immer. Unterdrücken: bei Controller aus.',12,MUTED)
     small(178,287,'KOMFORTSTEUERUNG · UNABHÄNGIG KOMBINIERBAR')
@@ -119,7 +120,7 @@ def controls():
     toggle(174,371,458,'L und R einrasten',False,'latchLR')
     toggle(648,371,458,'B einrasten',False,'latchB')
     toggle(174,437,458,'Gyro-Zielen',True,'gyro')
-    txt(666,455,'Gyro-Empfindlichkeit',14,MUTED)
+    txt(877,455,'Gyro-Empfindlichkeit',14,MUTED,400,'text-anchor="middle"')
     line(666,479,1000,479,STROKE)
     line(666,479,810,479,GOLD)
     raw(f'<g role="slider" tabindex="0" aria-label="Gyro-Empfindlichkeit" aria-valuemin="0.5" aria-valuemax="3" aria-valuenow="1" data-slider="true"><rect x="666" y="464" width="334" height="30" fill="none" pointer-events="all"/><rect class="thumb" x="727" y="468" width="12" height="22" rx="3" fill="{GOLD}"/></g>')
@@ -135,11 +136,11 @@ def performance():
     choices(199,'Leistung erzwingen',['Standard','Leistungskerne nutzen'],0,'fastCores')
     txt(452,269,'Standard: Android entscheidet über die verwendeten Kerne.',13,MUTED)
     txt(452,293,'Leistungskerne können helfen, benötigen mehr Energie und erzeugen mehr Wärme.',12,MUTED)
-    small(178,349,'BILDAUSGABE')
-    toggle(174,368,932,'60 FPS (experimentell)',False,'smooth60')
-    txt(198,448,'Zusätzliche Zwischenbilder im Renderer. Die Spiellogik bleibt bei 30 Bildern/s.',13,MUTED)
-    small(178,499,'ANZEIGE')
-    toggle(174,518,932,'FPS-Anzeige unten links',False,'fps')
+    txt(178,401,'Bildausgabe',17)
+    toggle(452,368,650,'60 FPS (experimentell)',False,'smooth60')
+    txt(452,448,'Zusätzliche Zwischenbilder im Renderer.',13,MUTED)
+    txt(452,470,'Die Spiellogik bleibt bei 30 Bildern/s.',13,MUTED)
+    toggle(452,518,650,'FPS-Anzeige unten links',False,'fps')
     return finish('04-performance')
 
 def management():
@@ -165,7 +166,7 @@ html = '''<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewp
 </style><header><div><strong>CubeEvil4 · Ingame-Menü</strong><p>Klickbarer Designentwurf · keine Verbindung zum Spiel · deutsche Beispieltexte</p></div><nav aria-label="Entwurfsseiten"></nav></header><main id="screen"></main><footer><span>Ein Menüfenster · Auswahlbuttons · 6 dp Ecken · Touch & Controller</span><button id="empty">Leeren Speicherplatz zeigen</button><button id="busy">Speichersperre zeigen</button><p id="toast" role="status" aria-live="polite"></p></footer>
 <script>
 const screens=SCREENS_JSON;
-const names={home:'Hauptseite',display:'Display',controls:'Controls',performance:'Performance',management:'Management'};
+const names={home:'Hauptseite',display:'Anzeige',controls:'Steuerung',performance:'Performance',management:'Management'};
 let page='home',hasSave=true,busy=false,lastAction='',values={};
 const screen=document.getElementById('screen'),toast=document.getElementById('toast');
 const nav=document.querySelector('nav');

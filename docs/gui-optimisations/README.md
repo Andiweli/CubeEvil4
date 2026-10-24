@@ -16,8 +16,8 @@ enthalten die anschließend gewünschten Titel- und Slot-Änderungen.
 | Seite | Screendesign | Inhalt |
 |---|---|---|
 | Hauptseite | [01-hauptseite.svg](01-hauptseite.svg) | Instant-Speichern/Laden oben, darunter vier Untermenüs |
-| Display | [02-display.svg](02-display.svg) | Auflösung, Kantenglättung, Texturfilter, Bildformat, Tiefenschärfe |
-| Controls | [03-controls.svg](03-controls.svg) | Touch-Modus, alternative Steuerung, Gyro, Wischmesser, Einrasten |
+| Anzeige | [02-display.svg](02-display.svg) | Auflösung, Kantenglättung, Texturfilter, Bildformat, Tiefenschärfe |
+| Steuerung | [03-controls.svg](03-controls.svg) | Touch-Modus, alternative Steuerung, Gyro, Wischmesser, Einrasten |
 | Performance | [04-performance.svg](04-performance.svg) | Leistungskerne, experimentelle 60 FPS, FPS-Anzeige |
 | Management | [05-management.svg](05-management.svg) | Speicherkarten-Import/Export, Fehlerbericht, R3-Aufnahme, Projektlink |
 
@@ -70,20 +70,20 @@ Grundlage für die aktuelle Kern-App.
 
 | Funktion im aktuellen `CoreMenu.build()` | Neue Seite | Bedienung |
 |---|---|---|
-| Auflösung: Dynamisch, 1×, 2×, 3×, 4× | Display | Genau ein aktiver Button |
-| Kantenglättung: Aus, 2× MSAA, 4× MSAA | Display | Genau ein aktiver Button; Geräteunterstützung beachten |
-| Texturfilter: Aus, 2×, 4×, 8×, 16× | Display | Genau ein aktiver Button; Geräteunterstützung beachten |
-| Bildformat: 4:3 (GC), 4:3, 16:9, Gestreckt | Display | Genau ein aktiver Button |
-| Tiefenschärfe | Display | Unabhängiger AN/AUS-Button |
-| Auflösungsinformation inkl. Bildschirmgröße | Display | Aktualisierte Statuszeile |
-| Touchsteuerung: Auto, Erzwingen, Unterdrücken | Controls | Genau ein aktiver Button |
-| Alternative Steuerung | Controls | Unabhängiger AN/AUS-Button |
-| Gyro-Zielen | Controls | Unabhängiger AN/AUS-Button; ohne Sensor gesperrt mit Begründung |
-| Gyro-Empfindlichkeit | Controls | Regler, 0,5× bis 3× in 0,25×-Schritten; nur bei aktivem Gyro |
-| Messer per Wischen | Controls | Unabhängiger AN/AUS-Button |
-| L und R einrasten | Controls | Unabhängiger AN/AUS-Button |
-| B einrasten | Controls | Unabhängiger AN/AUS-Button |
-| Hinweise zu Touch, alternativer Steuerung, Wischen und Einrasten | Controls | Kurze Erklärungen; auf kleinen Geräten scrollbar |
+| Auflösung: Dynamisch, 1×, 2×, 3×, 4× | Anzeige | Genau ein aktiver Button |
+| Kantenglättung: Aus, 2× MSAA, 4× MSAA | Anzeige | Genau ein aktiver Button; Geräteunterstützung beachten |
+| Texturfilter: Aus, 2×, 4×, 8×, 16× | Anzeige | Genau ein aktiver Button; Geräteunterstützung beachten |
+| Bildformat: 4:3 (GC), 4:3, 16:9, Gestreckt | Anzeige | Genau ein aktiver Button |
+| Tiefenschärfe | Anzeige | Unabhängiger AN/AUS-Button |
+| Auflösungsinformation inkl. Bildschirmgröße | Anzeige | Aktualisierte Statuszeile |
+| Touchsteuerung: Auto, Erzwingen, Unterdrücken | Steuerung | Genau ein aktiver Button |
+| Alternative Steuerung | Steuerung | Unabhängiger AN/AUS-Button |
+| Gyro-Zielen | Steuerung | Unabhängiger AN/AUS-Button; ohne Sensor gesperrt mit Begründung |
+| Gyro-Empfindlichkeit | Steuerung | Regler, 0,5× bis 3× in 0,25×-Schritten; nur bei aktivem Gyro |
+| Messer per Wischen | Steuerung | Unabhängiger AN/AUS-Button |
+| L und R einrasten | Steuerung | Unabhängiger AN/AUS-Button |
+| B einrasten | Steuerung | Unabhängiger AN/AUS-Button |
+| Hinweise zu Touch, alternativer Steuerung, Wischen und Einrasten | Steuerung | Kurze Erklärungen; auf kleinen Geräten scrollbar |
 | Leistung erzwingen: Standard / Leistungskerne nutzen | Performance | Genau ein aktiver Button; Wärme-/Energiehinweis erhalten |
 | 60 FPS (experimentell) | Performance | Unabhängiger AN/AUS-Button; Spiellogik bleibt 30 Hz |
 | FPS-Anzeige unten links | Performance | Unabhängiger AN/AUS-Button |

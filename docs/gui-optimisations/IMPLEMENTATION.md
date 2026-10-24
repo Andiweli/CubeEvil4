@@ -9,7 +9,7 @@ Branch `gui-optimisations`, Grundlage `9890e2e` (die Erstanalyse auf Basis von
 Dialoginstanz bleibt bei Seitenwechseln geöffnet und der Kern pausiert. Zurück/B
 führt zur Hauptseite, dort zurück zum Spiel. START/SELECT und „Zurück zum Spiel“
 schließen das Menü direkt. Die vier Untermenüs heißen im deutschen Entwurf
-Display, Controls, Performance und Management.
+Anzeige, Steuerung, Performance und Management.
 
 - Haupttitel **CubeEvil4 Ingame-Menü**, tatsächliche App-Version klein daneben in
   Klammern. Der alte Pausen-/SELECT-Hinweis entfällt.
@@ -28,6 +28,19 @@ Display, Controls, Performance und Management.
   Spanisch, Französisch, Italienisch, Portugiesisch, Russisch, Arabisch,
   vereinfachtes Chinesisch und Hindi. Arabische Schreibrichtung und Androids
   Platzhalter-/Zeichenregeln sind berücksichtigt.
+
+## Layout-Anpassungen vom 24.10.2026
+
+Das gesamte Menüfenster hat 85 % Deckkraft (15 % Transparenz).
+Tiefenschärfe beginnt in der Optionsspalte unter „4:3 (GC)“. Unter Performance
+stehen 60 FPS und die FPS-Anzeige in derselben eingerückten Optionsspalte;
+„Bildausgabe“ ist links als Zeilenbeschriftung angeordnet. Auf schmalen
+Bildschirmen bleiben die Beschriftungen oberhalb ihrer Optionen.
+Die Gyro-Empfindlichkeit ist mittig überschrieben, die vier Untermenütitel
+haben 16 dp zusätzlichen Abstand zur Zurück-Schaltfläche. Die deutschen
+Menünamen lauten „Anzeige“ und „Steuerung“. Die übrigen neun Sprachen nutzen
+weiter ihre bereits vorhandenen Übersetzungen; die Auswahl erfolgt weiterhin
+nach der Geräte-/App-Sprache.
 
 ## Instant-Speicher
 

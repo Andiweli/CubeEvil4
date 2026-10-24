@@ -18,6 +18,7 @@
 <rect x="0" y="0" width="1280" height="720" rx="0" fill="#080b09" stroke="none" opacity=".46"/>
 <text x="144" y="29" font-size="12" fill="#a6afa3" font-weight="600" letter-spacing="1.8">CUBEEVIL4  /  GUI-KONZEPT 01</text>
 <text x="1136" y="29" font-size="11" fill="#a6afa3" font-weight="500" text-anchor="end">ENTWURF · BEISPIELDATEN</text>
+<g opacity=".85">
 <rect x="140" y="48" width="1000" height="626" rx="12" fill="#050806" stroke="none" opacity=".6" transform="translate(0 8)"/>
 <rect x="140" y="48" width="1000" height="626" rx="10" fill="#191f1c" stroke="#414b41" />
 <rect x="140" y="48" width="1000" height="4" rx="0" fill="#d7bc7d" stroke="none" />
@@ -46,15 +47,15 @@
 <text x="862.0" y="332.0" font-size="17" fill="#f0eee5" font-weight="600" text-anchor="middle">Laden</text>
 </g>
 <text x="178" y="430" font-size="12" fill="#a6afa3" font-weight="600" letter-spacing="1.8">EINSTELLUNGEN &amp; VERWALTUNG</text>
-<g class="button nav" role="button" tabindex="0" aria-label="Display" data-action="display">
+<g class="button nav" role="button" tabindex="0" aria-label="Anzeige" data-action="display">
 <rect x="174" y="447" width="458" height="66" rx="6" fill="#222a25" stroke="#414b41" />
-<text x="194" y="474" font-size="21" fill="#f0eee5" font-weight="600" >Display</text>
+<text x="194" y="474" font-size="21" fill="#f0eee5" font-weight="600" >Anzeige</text>
 <text x="194" y="496" font-size="13" fill="#a6afa3" font-weight="400" >Auflösung, Bildformat &amp; Effekte</text>
 <text x="604" y="487" font-size="28" fill="#d7bc7d" font-weight="400" >›</text>
 </g>
-<g class="button nav" role="button" tabindex="0" aria-label="Controls" data-action="controls">
+<g class="button nav" role="button" tabindex="0" aria-label="Steuerung" data-action="controls">
 <rect x="648" y="447" width="458" height="66" rx="6" fill="#222a25" stroke="#414b41" />
-<text x="668" y="474" font-size="21" fill="#f0eee5" font-weight="600" >Controls</text>
+<text x="668" y="474" font-size="21" fill="#f0eee5" font-weight="600" >Steuerung</text>
 <text x="668" y="496" font-size="13" fill="#a6afa3" font-weight="400" >Touch, Gyro &amp; Komfortsteuerung</text>
 <text x="1078" y="487" font-size="28" fill="#d7bc7d" font-weight="400" >›</text>
 </g>
@@ -70,4 +71,4 @@
 <text x="668" y="576" font-size="13" fill="#a6afa3" font-weight="400" >Speicherkarte, Berichte &amp; Quelle</text>
 <text x="1078" y="567" font-size="28" fill="#d7bc7d" font-weight="400" >›</text>
 </g>
-</svg>
+</g></svg>
