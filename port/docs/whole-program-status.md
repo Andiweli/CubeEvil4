@@ -5947,6 +5947,26 @@ Zwischenbild. Kein Eingriff in `src/` oder den Kern. Entwurf nach einer Analyse 
   Cloud `RE4_GX_INTERP=1 gx_chunk_render`), Wirkung und Kosten auf dem Gerät, Schnitte im echten
   Spiel (Schwellen eventuell nachstellen).
 
+### Bericht Xiaomi 2109119DG (0.46.0, 23.10.2026 22:15, Insel r316–r321): Hänger beim Laden von r325; Vibration bestätigt (Cloud)
+
+- **Vibration:** der Projektinhaber bestätigt sie im Spiel (Änderung `rumbleTick`, Stand `ea1aea9`).
+- **Bericht:** Xiaomi 11 Lite 5G NE (Android 14, 64 bit, Kern im App-Prozess), noch 0.46.0-alpha,
+  Stufe 2, gestreckt. Sitzungen 17:33–20:01 (r220 … r317) und 21:10–22:15 (r316 … r321).
+- **Hänger 22:12:48 beim Wechsel r321 → r325 (Tür):** `st3/r325.das` (Disc 2) gelesen, Teil 1 (Yz2,
+  0x24363E Byte) richtig, danach 31 Einträge der Teile-Tabelle `MRAM, Größe 0` (alle Nullen, Typ 0
+  = `TRANS_MRAM`) und kein Ende-Eintrag: das Spiel liest Teile der Größe 0, dann 8 s kein Bild
+  (`cDvdQueue::readMain`). Auf dem PC lief der Rundgang über alle Räume (r325 eingeschlossen) mit
+  denselben Disc-Daten; die App prüft beim Import jede Datei gegen die Referenzliste. Ursache
+  offen. Neu (`runtime/dvd.cpp readFile`): liest der Port innerhalb der Dateilänge weniger Bytes, als
+  die Disc nennt (Datei auf dem Gerät kürzer), steht eine Zeile `DVD: … only N of M bytes … import
+  the disc again` im Protokoll (höchstens 8). i686: 0 Baufehler, alle Tests 0 Fehler.
+- **Älterer Absturz 23.10. 17:33 (0.46.0, kein Protokoll der Sitzung):** `ScenarioMove` sprang an
+  0xC8003E4C (keine Funktion); offen, nur aus `crash-system.txt` bekannt. Die übrigen Abstürze dort
+  (20./21.10.: `cSubLuis::move`, `cEmMark::move`, `RefractShaderSetup`) stammen aus älteren Versionen.
+- **Shader-Liste:** **7874 Programme** (3608 neu, Insel r300–r321), alle bauen auf Mesa ohne Fehler
+  (mit und ohne MSAA; 6760 verschiedene Quellen). Erster Start: der Hintergrund-Thread baut sie in
+  einigen Minuten (SCV40 etwa 28 ms je Programm), der Releasetext sagt das.
+
 ### Gerätetest 24.10.2026 (Retroid, 0.9.0-beta neu gebaut, 5 Berichte, 5 R3-Folgen; Cloud)
 
 - **Bestätigt (Projektinhaber):** Ganados schreien beim Fallen (Patch 0109), QTEs per Tipp gehen,

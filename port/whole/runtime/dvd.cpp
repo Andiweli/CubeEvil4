@@ -384,6 +384,16 @@ s32 readFile(DVDFileInfo* fi, void* dst, s32 length, s32 offset)
     fclose(f);
     if (got < (size_t) length) {
         memset((char*) dst + got, 0, (size_t) length - got);
+        // inside the file's length on the disc, the file on the device is shorter: an import
+        // that did not finish, or a file changed since (Xiaomi report 23.10.2026: r325 read a part
+        // table of zeros and the game read parts of size 0 for ever); a few lines at most
+        static int told;
+        if ((u32) offset + got < fi->length && told < 8) {
+            told++;
+            re4_log("DVD: %s: only %u of %u bytes at 0x%x on the device (the file has %u on the disc): "
+                    "import the disc again",
+                    path, (unsigned) got, (unsigned) length, (unsigned) offset, (unsigned) fi->length);
+        }
     }
     return length;
 }
