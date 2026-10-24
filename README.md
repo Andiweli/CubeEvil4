@@ -80,8 +80,8 @@ credits; saving at the typewriter and loading on 32- and 64-bit devices. On the 
 each of the game's 126 rooms without a crash, and a comparison run plays the 32- and 64-bit core
 with the same input through the first parts and finds every frame and every compared picture
 identical. An effect can stutter briefly the first time it appears while its shader is built; the
-app prepares the 1928 shaders it knows ahead (village, lake, the island's finale), the castle and
-the rest of the island follow from testers' reports. Progress, test results and every patch are
+app prepares the 4266 shaders it knows ahead (village, lake, much of the castle, the island's
+finale), the rest follows from testers' reports. Progress, test results and every patch are
 recorded in `port/docs/whole-program-status.md` (German).
 
 > [!IMPORTANT]
