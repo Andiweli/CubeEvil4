@@ -11,7 +11,7 @@
 [![Join The Lair on Discord](https://img.shields.io/badge/Discord-The%20Lair-5865F2?logo=discord&logoColor=white)](https://discord.gg/AB3WVBqD5G)
 [![Support via PayPal](https://img.shields.io/badge/Support%20via-PayPal-0070BA?logo=paypal&logoColor=white)](https://paypal.me/andiweli)
 
-**[REQUIREMENTS](#requirements) | [STATUS](#status) | [HOW TO USE](#how-to-use) | [DISCORD](https://discord.gg/AB3WVBqD5G) | [BETA RELEASE](https://github.com/Andiweli/CubeEvil4-Android/releases)**
+**[REQUIREMENTS](#requirements) | [STATUS](#status) | [HOW TO USE](#how-to-use) | [DISCORD](https://discord.gg/55z6M4G9HX) | [BETA RELEASE](https://github.com/Andiweli/CubeEvil4-Android/releases)**
 
 **CubeEvil4** is an unofficial, native Android port of the GameCube debug build of Resident Evil 4
 (`G4BE08`, the "Nov 25 2004" prototype on two discs). It does not recreate the game: the app runs
