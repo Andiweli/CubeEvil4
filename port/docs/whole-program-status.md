@@ -3,6 +3,18 @@
 Diese Datei ist das Gedächtnis zwischen den Sitzungen. Jede Sitzung liest sie
 zuerst und aktualisiert sie am Ende (siehe `CLAUDE.md`).
 
+
+## GUI-Optimierungen: Erstanalyse (24.10.2026)
+
+Branch `gui-optimisations`, abgezweigt von `beta-optimisations` bei `19bd01c`.
+[Analyse und fünf Screendesigns](../../docs/gui-optimisations/README.md) sowie
+klickbarer Offline-Entwurf: Hauptseite mit separatem Instant-Save/Load,
+Display, Controls, Performance, Management. Alle vorhandenen Menüfunktionen
+zugeordnet. Original-Kartenpfad, GameSave-Position/Blickrichtung, Pausen- und
+Prozess-Anbindung untersucht. **Nur Entwurf, keine App-/Kern-Implementierung.**
+SVGs/PNG-Rendering und JavaScript-Syntax geprüft. Android-/Gerätetest offen;
+Implementierung folgt erst nach der Designphase.
+
 ## Kurzstand
 
 | Meilenstein | Stand |
